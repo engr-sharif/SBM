@@ -510,6 +510,15 @@ chaining, not as a golden.)
 
 ### 9.2 Herman Impoundment reference (2-ft site grid `dem_site`, window = water-polygon bbox ± 800 ft)
 
+Positions: the reference labels cell centres at `x0 + (i + 0.5)·cell`; the app
+samples the DEM at `x0 + i·cell` (`Dem.at`, `gridAt`), and the kernels keep the
+app's convention, so every kernel position sits half a cell south-west of the
+reference label for the same sample (0.71 ft on the 1-ft grid, 1.41 ft on the
+2-ft grid) — well inside every position tolerance. Agent A's kernels also
+return `flowpath.lengthRaw_ft` (unsimplified) and `flowpath.zEnd_ft` (last
+surveyed z; `end[2]` is NaN when the run ends on a NoData cell), and
+`band.bx0/by0/bx1/by1` (the image-overlay bounds).
+
 Fixture: `/tmp/claude-0/-home-user-SBM/63f85d97-7536-5128-ab20-1c10e66fbf18/scratchpad/fix_herman_window.json` + `.f32` (1753 × 1204 cells, i0 1471, j0 1914);
 reference JSON: `/tmp/claude-0/-home-user-SBM/63f85d97-7536-5128-ab20-1c10e66fbf18/scratchpad/herman_ref.json`. Seed ring = the `water`-layer polygon
 named "Herman Impoundment" in `data/design_gis.json` (551 vertices).
@@ -531,6 +540,6 @@ named "Herman Impoundment" in `data/design_gis.json` (551 vertices).
 | overflow route reason | `nodata` (reaches Clear Lake) | exact |
 | overflow route end | E 6371177, N 2127473 | within 30 ft |
 | overflow route length | 974 ft (unsimplified) | simplified within −3 % / +0.5 % |
-| ponds on the route ≥ 0.25 ft | 6; the two real ones: level 1339.54 / 1.42 ft / 317 cells / 804 ft³ and 1337.24 / 1.56 ft / 367 cells / 1,307 ft³ | count ±1, levels ±0.03 |
+| ponds on the route ≥ 0.25 ft | 14 (the reference JSON carries all of them); the two real ones: level 1339.54 / 1.42 ft / 317 cells / 804 ft³ and 1337.24 / 1.56 ft / 367 cells / 1,307 ft³ | count ±1, levels ±0.03 |
 
 The full stage table (every 0.25 ft from 1336.58 to 1346.83) is in the JSON.
