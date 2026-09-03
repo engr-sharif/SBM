@@ -1,0 +1,170 @@
+/* SBMM Site Explorer — boot sequence with visible progress and real error reporting */
+"use strict";
+
+(async function () {
+  const lp = $("loadMsg");
+  const fail = (msg, detail) => {
+    $("loading").innerHTML = `<div class="loaderr"><h2>Couldn't start</h2><p>${esc(msg)}</p>
+      ${detail ? `<pre>${esc(detail)}</pre>` : ""}
+      <p class="mut">If you copied the app, make sure the whole folder came along (js/, datajs/, vendor/).
+      The single-file build (dist) has no such dependency.</p></div>`;
+  };
+  try {
+    lp.textContent = "checking data payloads…";
+    if (!window.SBMM_DATA) throw new Error("data payloads did not load (SBMM_DATA missing) — datajs/*.js absent or blocked");
+    for (const k of ["affine", "dem_site", "dem_abp", "dem_site_png", "dem_abp_png", "dus", "piles", "points"])
+      /* hs_site may be .jpg or .png — checked in layers.js */
+      if (!SBMM_DATA[k]) throw new Error("missing data payload: " + k);
+    if (typeof L === "undefined") throw new Error("Leaflet failed to load (vendor/leaflet.js)");
+    if (typeof d3 === "undefined") throw new Error("d3-delaunay failed to load (vendor/d3-delaunay.min.js)");
+    if (typeof SBMM_COMPUTE === "undefined") throw new Error("compute kernel failed to load (js/compute.js)");
+
+    SBMM.AFF = SBMM_DATA.affine;
+
+    /* prove the Blob-URL worker path in this build before anything depends on it —
+       if it can't run (locked-down policy, ancient browser) every job just runs inline */
+    lp.textContent = "starting compute workers…";
+    SBMM.compute.probe().then(ok => {
+      if (!ok) console.warn("compute workers unavailable — running analysis on the main thread");
+    });
+
+    SBMM_PERF.mark("boot-start");
+    lp.textContent = "decoding terrain (site 2-ft DEM)…";
+    SBMM.demSite = await Dem.load("dem_site");
+    SBMM_PERF.mark("dem-site");
+    lp.textContent = "decoding terrain (mine area 1-ft DEM)…";
+    SBMM.demAbp = await Dem.load("dem_abp");
+    SBMM_PERF.mark("dem-abp");
+    /* 1-ft window over the residential lots (v9). Optional in the same sense the
+       CHM is: an older datajs/ without it must still boot, so a missing payload
+       leaves the stack two deep and everything falls back to the 2-ft grid the
+       way it did before. */
+    try {
+      if (SBMM_DATA.dem_res && SBMM_DATA.dem_res_png) {
+        lp.textContent = "decoding terrain (residential 1-ft DEM)…";
+        SBMM.demRes = await Dem.load("dem_res");
+      }
+    } catch (e) { console.warn("no residential DEM", e); }
+    /* finest first, dem_abp ahead of dem_res where they overlap — see js/dem.js */
+    SBMM.setDems([SBMM.demAbp, SBMM.demRes, SBMM.demSite]);
+    SBMM_PERF.mark("dem-res");
+    /* Optional payload — the app must boot fine without it. It decodes here, inside
+       the loader, and deliberately so: moving it off the boot path bought half a
+       second of time-to-interactive and spent it on a ~0.6 s main-thread stall a
+       second or two later, landing on whatever the user had already started doing
+       (see the note in js/dem.js). `SBMM.chmReady` still exists and everything that
+       consumes canopy heights still awaits it, so a future worker-side decode is a
+       one-line change here rather than a hunt through five modules. */
+    try {
+      if (SBMM_DATA.chm && SBMM_DATA.chm_png) {
+        lp.textContent = "decoding canopy heights…";
+        SBMM.chm = await Dem.load("chm");
+      }
+    } catch (e) { console.warn("no CHM", e); }
+    SBMM.chmReady = Promise.resolve(SBMM.chm || null);
+    if (!SBMM.chm && $("v3dCanopyLbl")) $("v3dCanopyLbl").style.display = "none";
+
+    SBMM_PERF.mark("chm");
+    lp.textContent = "building workbench…";
+    SBMM.shell.wire();
+    SBMM.compute.wire();
+    SBMM_PERF.mark("wire-shell");
+    SBMM.initMap();
+    SBMM_PERF.mark("init-map");
+    SBMM.buildLayers();
+    SBMM_PERF.mark("build-layers");
+    SBMM.buildAnalysisLayers();
+    SBMM.snap.wire();
+    SBMM.draw.wire();
+    SBMM.tools.wire();
+    SBMM.cmd.wire();
+    SBMM.io.wire();
+    SBMM.table.wire();
+    SBMM.design.wire();
+    SBMM.sections.wire();
+    SBMM.features.wire();
+    SBMM.props.wire();
+    SBMM.smartbound.wire();
+    SBMM.trees.wire();
+    SBMM.sheets.wire();
+    SBMM.datasets.wire();
+    SBMM.layersUI.wire();
+    SBMM.watermark.wire();
+    SBMM.sheetMarks.wire();
+    /* EA's recovered design surfaces become read-only surface features (§5) —
+       after SBMM.design.wire() so the surfaces list exists, and before
+       refSurf.wire() so the first render has something to show. */
+    SBMM.refSurf.build();
+    SBMM.refSurf.wire();
+    SBMM.isopach.wire();
+    SBMM.layerMan.wire();
+    SBMM.sheetCards.wire();
+    SBMM.wireSelection();
+    /* the tool-mode machine owns the tool buttons, the cursor, the mode HUD and
+       every single-key shortcut (§2) */
+    SBMM.mode.wire();
+    SBMM_PERF.mark("wire-modules");
+
+    /* Right dock auto-switch (§3): selecting anything is a question about that
+       thing; running a computation is a question about a number. */
+    SBMM.store.onSelect(id => { if (id) SBMM.shell.showInspector(); });
+    $("clearBtn").onclick = () => {
+      if (!SBMM.store.features.length) return;
+      if (confirm("Remove all drawn features and results?")) {
+        SBMM.store.clear();
+        $("resBody").innerHTML = '<div class="placeholder">Cleared. Pick a tool and draw.</div>';
+      }
+    };
+    $("undoBtn").onclick = () => SBMM.undo.pop();
+    $("redoBtn").onclick = () => toast("this build keeps an undo stack only — there is nothing to redo");
+    $("splitTopBtn").onclick = async () => {
+      if (!SBMM.viewer3d.isOpen()) await SBMM.viewer3d.toggle();
+      $("v3dSplit").click();
+    };
+    const helpBox = $("help");
+    const helpOpen = () => { helpBox.style.display = "flex"; helpBox.tabIndex = -1; helpBox.focus({ preventScroll: true }); };
+    const helpShut = () => { helpBox.style.display = "none"; };
+    $("helpBtn").onclick = helpOpen;
+    helpBox.addEventListener("click", e => { if (e.target.id === "help") helpShut(); });
+    document.addEventListener("keydown", e => {
+      if (e.key === "Escape" && helpBox.style.display === "flex") { e.stopPropagation(); e.preventDefault(); helpShut(); }
+    }, true);
+    $("csvBtn").onclick = () => { copyText(SBMM.results.csv(), "results copied as CSV"); };
+    $("view3dBtn").onclick = () => SBMM.viewer3d.toggle();
+
+    /* Where the user was last time (F11). A stored view is a convenience, so
+       every part of it is optional and every failure falls back to the default
+       framing — a bad or stale value must never be the reason the app opens on
+       a blank grey square. The 3D camera is restored by js/viewer3d.js when the
+       view is next opened, from the same store. */
+    SBMM.view.restore2d() || SBMM.map.fitBounds(SBMM.demAbp.bounds());
+    SBMM.view.watch();
+    SBMM.shell.reflowTopbar();
+
+    /* offer to restore last session */
+    const n = (function () { try { const s = localStorage.getItem("sbmm_session_auto"); return s ? (JSON.parse(s).features || []).length : 0; } catch (e) { return 0; } })();
+    if (n) {
+      const bar = document.createElement("div"); bar.className = "restorebar";
+      bar.innerHTML = `Last session had <b>${n}</b> drawn feature${n === 1 ? "" : "s"}.
+        <span class="minib" id="rsYes">restore</span><span class="minib" id="rsNo">dismiss</span>`;
+      document.body.appendChild(bar);
+      $("rsYes").onclick = () => { SBMM.store.loadAutosave(); bar.remove(); };
+      $("rsNo").onclick = () => bar.remove();
+      setTimeout(() => bar.remove(), 20000);
+    }
+
+    /* First-run hint: ONE toast, naming the one rule that gets a user out of
+       anything (§2). More than one toast at boot is noise nobody reads. */
+    let hinted = true;
+    try { hinted = localStorage.getItem("sbmm_v9hint") === "1"; localStorage.setItem("sbmm_v9hint", "1"); }
+    catch (e) { hinted = false; }
+    if (!hinted) setTimeout(() => toast("Esc always returns to Navigate", 5200), 900);
+
+    SBMM_PERF.mark("boot-done");
+    if (/[?&]perf/.test(location.search)) console.table(SBMM_PERF.report());
+    $("loading").style.display = "none";
+  } catch (e) {
+    console.error(e);
+    fail(e.message, e.stack ? String(e.stack).split("\n").slice(0, 4).join("\n") : "");
+  }
+})();

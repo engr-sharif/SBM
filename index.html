@@ -1,0 +1,775 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SBMM Site Explorer — Sulphur Bank Mercury Mine OU1</title>
+<link rel="stylesheet" href="vendor/leaflet.css">
+<link rel="stylesheet" href="css/app.css">
+<script>
+/* Boot timing marks. Silent unless asked for: SBMM.perf.report() in the console, or
+   append ?perf to the URL. Cost is one performance.now() per mark (~25 marks total). */
+window.SBMM_PERF = (function () {
+  var m = [["document", 0]];
+  return {
+    marks: m,
+    mark: function (n) { m.push([n, performance.now()]); },
+    report: function () {
+      var out = [], prev = 0;
+      for (var i = 0; i < m.length; i++) { out.push({ stage: m[i][0], at_ms: +m[i][1].toFixed(1), delta_ms: +(m[i][1] - prev).toFixed(1) }); prev = m[i][1]; }
+      return out;
+    }
+  };
+})();
+</script>
+</head>
+<body>
+
+<svg id="isprite" aria-hidden="true"><defs>
+  <symbol id="i-pin" viewBox="0 0 16 16"><path d="M8 1.6c-2.3 0-4.1 1.8-4.1 4 0 3 4.1 8.8 4.1 8.8s4.1-5.8 4.1-8.8c0-2.2-1.8-4-4.1-4z"/><circle cx="8" cy="5.6" r="1.5"/></symbol>
+  <symbol id="i-ruler" viewBox="0 0 16 16"><path d="M1.6 10.2 10.2 1.6l4.2 4.2-8.6 8.6z"/><path d="M4.2 7.6 5.6 9M6.4 5.4 7.8 6.8M8.6 3.2 10 4.6"/></symbol>
+  <symbol id="i-poly" viewBox="0 0 16 16"><path d="M8 1.5 14.3 6l-2.4 7.4H4.1L1.7 6z"/></symbol>
+  <symbol id="i-vol" viewBox="0 0 16 16"><path d="M1.4 12.6 6 5.2l3 4.2 2.1-2.9 3.5 6.1z"/><path d="M1.4 12.6h13.2"/></symbol>
+  <symbol id="i-profile" viewBox="0 0 16 16"><path d="M1.5 12.5 5 7.4l2.8 2.6 2.4-5.2 3.9 7.7z"/><path d="M1.5 2v11.2h13"/></symbol>
+  <symbol id="i-globe" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6.2"/><path d="M8 1.8c-2.1 2-3.2 4-3.2 6.2S5.9 12.2 8 14.2c2.1-2 3.2-4 3.2-6.2S10.1 3.8 8 1.8zM2 8h12"/></symbol>
+  <symbol id="i-flask" viewBox="0 0 16 16"><path d="M6.3 1.8v4L2.5 12a1.6 1.6 0 0 0 1.4 2.4h8.2A1.6 1.6 0 0 0 13.5 12L9.7 5.8v-4z"/><path d="M5.4 1.8h5.2"/></symbol>
+  <symbol id="i-target" viewBox="0 0 16 16"><circle cx="8" cy="8" r="5.4"/><path d="M8 .8v3.2M8 12v3.2M.8 8H4M12 8h3.2"/></symbol>
+  <symbol id="i-in" viewBox="0 0 16 16"><path d="M8 10.4V1.8M4.6 7l3.4 3.4L11.4 7M2 11.2v2.2a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-2.2"/></symbol>
+  <symbol id="i-out" viewBox="0 0 16 16"><path d="M8 1.8v8.6M4.6 5.2 8 1.8l3.4 3.4M2 11.2v2.2a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-2.2"/></symbol>
+  <symbol id="i-trash" viewBox="0 0 16 16"><path d="M2.6 4.2h10.8M6.2 4.2V2.6h3.6v1.6M4 4.2l.7 9.2h6.6l.7-9.2"/></symbol>
+  <symbol id="i-layers" viewBox="0 0 16 16"><path d="M8 1.6 14.6 5 8 8.4 1.4 5z"/><path d="M1.4 8.4 8 11.8l6.6-3.4M1.4 11.4 8 14.8l6.6-3.4"/></symbol>
+  <symbol id="i-list" viewBox="0 0 16 16"><path d="M5.6 3.4h9M5.6 8h9M5.6 12.6h9M2 3.4h.9M2 8h.9M2 12.6h.9"/></symbol>
+  <symbol id="i-sliders" viewBox="0 0 16 16"><path d="M2.4 4.4h11.2M2.4 11.6h11.2"/><circle cx="6" cy="4.4" r="1.7"/><circle cx="10.4" cy="11.6" r="1.7"/></symbol>
+  <symbol id="i-folder" viewBox="0 0 16 16"><path d="M1.6 12.8V3.6h4.3l1.4 1.7h7.1v7.5z"/></symbol>
+  <symbol id="i-eye" viewBox="0 0 16 16"><path d="M.9 8S3.6 3.4 8 3.4 15.1 8 15.1 8 12.4 12.6 8 12.6.9 8 .9 8z"/><circle cx="8" cy="8" r="1.9"/></symbol>
+  <symbol id="i-eyeoff" viewBox="0 0 16 16"><path d="M2.6 4.4C1.5 5.6.9 8 .9 8s2.7 4.6 7.1 4.6c1.3 0 2.4-.4 3.4-.9M6.1 3.7A6.9 6.9 0 0 1 8 3.4c4.4 0 7.1 4.6 7.1 4.6s-.7 1.2-1.9 2.4M1.8 1.8l12.4 12.4"/></symbol>
+  <symbol id="i-lock" viewBox="0 0 16 16"><path d="M3.6 7.2h8.8v6.6H3.6z"/><path d="M5.5 7.2V5a2.5 2.5 0 0 1 5 0v2.2"/></symbol>
+  <symbol id="i-unlock" viewBox="0 0 16 16"><path d="M3.6 7.2h8.8v6.6H3.6z"/><path d="M5.5 7.2V5a2.5 2.5 0 0 1 4.9-.6"/></symbol>
+  <symbol id="i-pencil" viewBox="0 0 16 16"><path d="M11.3 1.8 14.2 4.7 5.4 13.5l-3.6.7.7-3.6z"/></symbol>
+  <symbol id="i-close" viewBox="0 0 16 16"><path d="M3.4 3.4l9.2 9.2M12.6 3.4l-9.2 9.2"/></symbol>
+  <symbol id="i-chevL" viewBox="0 0 16 16"><path d="M10 2.6 4.6 8l5.4 5.4"/></symbol>
+  <symbol id="i-chevR" viewBox="0 0 16 16"><path d="M6 2.6 11.4 8 6 13.4"/></symbol>
+  <symbol id="i-dots" viewBox="0 0 16 16"><g fill="currentColor" stroke="none"><circle cx="3" cy="8" r="1.5"/><circle cx="8" cy="8" r="1.5"/><circle cx="13" cy="8" r="1.5"/></g></symbol>
+  <symbol id="i-camera" viewBox="0 0 16 16"><path d="M1.6 4.8h3l1.1-1.6h4.6l1.1 1.6h3v8H1.6z"/><circle cx="8" cy="8.8" r="2.5"/></symbol>
+  <symbol id="i-split" viewBox="0 0 16 16"><rect x="1.6" y="2.6" width="12.8" height="10.8" rx="1"/><path d="M8 2.6v10.8"/></symbol>
+  <symbol id="i-fly" viewBox="0 0 16 16"><path d="M1.6 8.6 14.4 2.2 9.9 14.2 7.6 9.4z"/></symbol>
+  <symbol id="i-frame" viewBox="0 0 16 16"><path d="M1.8 5.4V1.8h3.6M14.2 5.4V1.8h-3.6M1.8 10.6v3.6h3.6M14.2 10.6v3.6h-3.6"/></symbol>
+  <symbol id="i-dim" viewBox="0 0 16 16"><path d="M2.2 3.4v9.2M13.8 3.4v9.2M2.2 8h11.6"/><path d="M4.6 6.2 2.2 8l2.4 1.8M11.4 6.2 13.8 8l-2.4 1.8"/></symbol>
+  <symbol id="i-pad" viewBox="0 0 16 16"><path d="M1.4 12.4 4.6 7h6.8l3.2 5.4z"/><path d="M4.6 7h6.8M1.4 12.4h13.2"/><path d="M6.2 4.2h3.6"/></symbol>
+  <symbol id="i-section" viewBox="0 0 16 16"><path d="M1.6 11.4 5.2 6.6l3 2.6 2.4-4.4 3.8 6.6z"/><path d="M3.2 2v12M7.4 2v12M11.6 2v12"/></symbol>
+  <symbol id="i-text" viewBox="0 0 16 16"><path d="M2.6 3.2h10.8M8 3.2v9.6M6 12.8h4"/></symbol>
+  <symbol id="i-cmd" viewBox="0 0 16 16"><path d="M2.4 3.6 6.6 8l-4.2 4.4M8.2 12.4h5.4"/></symbol>
+  <symbol id="i-snap" viewBox="0 0 16 16"><path d="M8 1.6v3M8 11.4v3M1.6 8h3M11.4 8h3"/><rect x="5.2" y="5.2" width="5.6" height="5.6"/></symbol>
+  <symbol id="i-help" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6.4"/><path d="M5.9 6.05a2.1 2.1 0 1 1 2.75 2.4c-.45.22-.68.63-.68 1.15v.45" style="stroke-width:1.6"/><circle cx="8" cy="11.9" r=".95" fill="currentColor" stroke="none"/></symbol>
+  <symbol id="i-hand" viewBox="0 0 16 16"><path d="M5.2 8.4V3.9a1.15 1.15 0 0 1 2.3 0v3.3M7.5 7.2V2.9a1.15 1.15 0 0 1 2.3 0v4.3M9.8 7.4V4.2a1.15 1.15 0 0 1 2.3 0v5.1c0 2.7-1.7 4.6-4.2 4.6-2.2 0-3.3-1-4.1-2.5L2.6 9.6a1.1 1.1 0 0 1 1.8-1.2z"/></symbol>
+  <symbol id="i-draw" viewBox="0 0 16 16"><path d="M2.4 13.6 13.6 2.4"/><circle cx="2.6" cy="13.4" r="1.5"/><circle cx="13.4" cy="2.6" r="1.5"/><path d="M9.4 2.6h4.2v4.2"/></symbol>
+  <symbol id="i-undo" viewBox="0 0 16 16"><path d="M2.4 7.2h7.2a3.6 3.6 0 0 1 0 7.2H6.4M2.4 7.2l3-3M2.4 7.2l3 3"/></symbol>
+  <symbol id="i-redo" viewBox="0 0 16 16"><path d="M13.6 7.2H6.4a3.6 3.6 0 0 0 0 7.2h3.2M13.6 7.2l-3-3M13.6 7.2l-3 3"/></symbol>
+  <symbol id="i-search" viewBox="0 0 16 16"><circle cx="7" cy="7" r="4.6"/><path d="M10.4 10.4 14 14"/></symbol>
+  <symbol id="i-doc" viewBox="0 0 16 16"><path d="M3.4 1.8h6l3.2 3.2v9.2H3.4z"/><path d="M9.4 1.8V5h3.2M5.6 8.4h4.8M5.6 11h4.8"/></symbol>
+  <symbol id="i-heat" viewBox="0 0 16 16"><path d="M1.8 12.2c1.8-4 3.6-5.4 5.4-4.2s3.6.4 5.4-3.6"/><path d="M1.8 14.2h12.4M1.8 2.2v12"/></symbol>
+</defs></svg>
+
+<div class="loading" id="loading"><div class="spin"></div><div id="loadMsg">Loading terrain…</div></div>
+
+<div id="topbar">
+  <div class="brand">SBMM <span>Site Explorer</span></div>
+
+  <!-- Primary tools. Every one of them is a MODE (docs/V9_SPEC.md §2): exactly
+       one is active, Esc always returns to Navigate, and the button highlight
+       follows SBMM.mode rather than being set by hand anywhere. `data-tool`
+       stays on the five that map straight onto a js/tools.js tool. -->
+  <div class="tgroup" data-grp="mode" aria-label="Tools">
+    <button class="toolbtn" data-mode="navigate" title="Navigate — drag to pan, wheel to zoom, click to identify [Esc]"><svg class="ic16"><use href="#i-hand"/></svg><span class="tlbl">Navigate</span> <kbd>Esc</kbd></button>
+    <button class="toolbtn" data-mode="inspect" data-tool="inspect" title="Inspect — click anywhere for a point card: E, N, Z, lat/long, slope [I]"><svg class="ic16"><use href="#i-pin"/></svg><span class="tlbl">Inspect</span> <kbd>I</kbd></button>
+    <button class="toolbtn" data-mode="measure.distance" data-tool="distance" title="Distance — click each point; Enter or double-click finishes [M]"><svg class="ic16"><use href="#i-ruler"/></svg><span class="tlbl">Distance</span> <kbd>M</kbd></button>
+    <button class="toolbtn" data-mode="measure.area" data-tool="area" title="Area — click the boundary; Enter or double-click closes it [A]"><svg class="ic16"><use href="#i-poly"/></svg><span class="tlbl">Area</span> <kbd>A</kbd></button>
+    <button class="toolbtn" data-mode="volume" data-tool="volume" title="Volume — footprint around a pile or excavation, against a base surface [V]"><svg class="ic16"><use href="#i-vol"/></svg><span class="tlbl">Volume</span> <kbd>V</kbd></button>
+    <button class="toolbtn" data-mode="section" title="Section — cut stationed cross-sections along a line [S]"><svg class="ic16"><use href="#i-section"/></svg><span class="tlbl">Section</span> <kbd>S</kbd></button>
+  </div>
+
+  <div class="tgroup" data-grp="draft" aria-label="Draw and design">
+    <button class="toolbtn menub" id="drawMenuBtn" aria-haspopup="true" title="Draw — point, line, polygon, dimension, text, smart boundary"><svg class="ic16"><use href="#i-draw"/></svg><span class="tlbl">Draw ▾</span></button>
+    <button class="toolbtn menub" id="designMenuBtn" aria-haspopup="true" title="Design — graded pads, surfaces, isopach, volume vs a surface"><svg class="ic16"><use href="#i-pad"/></svg><span class="tlbl">Design ▾</span></button>
+  </div>
+
+  <div class="tgroup" data-grp="view" aria-label="View">
+    <button class="toolbtn" id="sheetsTopBtn" title="Sheets — open any of the 20 design drawings (SHEETS)"><svg class="ic16"><use href="#i-doc"/></svg><span class="tlbl">Sheets</span></button>
+    <button class="toolbtn" id="view3dBtn" title="3D terrain view [3]"><svg class="ic16"><use href="#i-globe"/></svg><span class="tlbl">3D</span> <kbd>3</kbd></button>
+    <button class="toolbtn" id="splitTopBtn" title="Split — 2D and 3D side by side; every tool works in either view"><svg class="ic16"><use href="#i-split"/></svg><span class="tlbl">Split</span></button>
+  </div>
+
+  <div class="tgroup" data-grp="data" aria-label="Data">
+    <button class="toolbtn ghost" id="gotoBtn" title="Go to a coordinate"><svg class="ic16"><use href="#i-target"/></svg><span class="tlbl">Go to</span></button>
+    <button class="toolbtn ghost" id="tableBtn" title="Sample results table [T]"><svg class="ic16"><use href="#i-flask"/></svg><span class="tlbl">Samples</span> <kbd>T</kbd></button>
+    <button class="toolbtn ghost" id="importBtn" title="Import GeoJSON, DXF, CSV or a saved session (or drag-drop the file)"><svg class="ic16"><use href="#i-in"/></svg><span class="tlbl">Import</span> </button>
+    <button class="toolbtn ghost" id="exportBtn" title="Export drawings, session, CSVs"><svg class="ic16"><use href="#i-out"/></svg><span class="tlbl">Export ▾</span></button>
+    <button class="toolbtn ghost" id="undoBtn" title="Undo the last action (Ctrl+Z)"><svg class="ic16"><use href="#i-undo"/></svg><span class="tlbl">Undo</span></button>
+    <button class="toolbtn ghost" id="redoBtn" title="Redo — this build keeps an undo stack only, so there is nothing to redo" disabled><svg class="ic16"><use href="#i-redo"/></svg><span class="tlbl">Redo</span></button>
+    <button class="toolbtn ghost" id="clearBtn" title="Remove all drawings"><svg class="ic16"><use href="#i-trash"/></svg><span class="tlbl">Clear</span> </button>
+  </div>
+
+  <div class="spacer"></div>
+  <button class="toolbtn ghost iconly" id="ovfBtn" title="More commands" hidden><svg class="ic16"><use href="#i-dots"/></svg></button>
+  <button class="toolbtn ghost iconly" id="helpBtn" title="Help — what the app does, and every keyboard shortcut (Esc closes)"><svg class="ic16"><use href="#i-help"/></svg></button>
+</div>
+
+<div id="ovfMenu" class="menu"></div>
+
+<div id="drawMenu" class="menu">
+  <div class="ci" data-m="draw.point">Point <kbd>P</kbd></div>
+  <div class="ci" data-m="draw.line">Line <kbd>L</kbd></div>
+  <div class="ci" data-m="draw.polygon">Polygon <kbd>G</kbd></div>
+  <div class="ci sep" data-m="dimension">Dimension <kbd>N</kbd></div>
+  <div class="ci" data-m="text">Text <kbd>X</kbd></div>
+  <div class="ci sep" data-m="smartbound">Smart boundary — pile wand <kbd>B</kbd></div>
+  <div class="ci" data-a="cbound">Smart boundary — contour trace</div>
+  <div class="ci" data-a="toe">Smart boundary — toe / crest</div>
+</div>
+
+<div id="designMenu" class="menu">
+  <div class="ci" data-m="pad">Graded pad <kbd>D</kbd></div>
+  <div class="ci" data-a="gradepad">Sloped pad (plane at a grade)</div>
+  <div class="ci" data-a="existing">Freeze existing ground under a polygon</div>
+  <div class="ci sep" data-a="isopach">Isopach — cut/fill vs a design surface…</div>
+  <div class="ci" data-a="volsurf">Volume in polygon vs a surface…</div>
+  <div class="ci sep" data-a="layerman">Layer manager…</div>
+</div>
+
+<div id="exportMenu" class="menu">
+  <div class="ci" data-a="gj-wgs">GeoJSON — WGS84 (for Google Earth / web GIS)</div>
+  <div class="ci" data-a="gj-sp">GeoJSON — State Plane EPSG:6418 (for CAD / ArcGIS)</div>
+  <div class="ci" data-a="dxf">DXF R12 — State Plane EPSG:6418 (for AutoCAD / Civil 3D)</div>
+  <div class="ci" data-a="session">Session file (.sbmm.json — reload later)</div>
+  <div class="ci" data-a="rescsv">Results panel → CSV</div>
+  <div class="ci" data-a="ptscsv">Sample locations → CSV</div>
+  <div class="ci" data-a="dscsv">Datasets → CSV (one file per dataset)</div>
+</div>
+<input type="file" id="importFile" accept=".json,.geojson,.dxf,.csv" multiple style="display:none">
+
+<div id="gotoBox">
+  <input id="gotoInp" placeholder="6371500, 2128900  ·  or  38.98, -122.66" spellcheck="false">
+</div>
+
+<!-- ==================== left dock ==================== -->
+<div id="leftdock">
+  <div class="dockrail" id="leftRail">
+    <button class="railbtn active" data-tab="layers" title="Layers"><svg class="ic18"><use href="#i-layers"/></svg></button>
+    <button class="railbtn" data-tab="features" title="My work — everything you have drawn"><svg class="ic18"><use href="#i-list"/></svg></button>
+    <button class="railbtn" data-tab="sheets" title="Sheets — the 20-drawing design set"><svg class="ic18"><use href="#i-doc"/></svg></button>
+  </div>
+  <div class="dockbody" id="leftBody">
+    <div class="docktabs" id="leftTabs">
+      <button class="dtab active" data-tab="layers">Layers</button>
+      <button class="dtab" data-tab="features">My work</button>
+      <button class="dtab" data-tab="sheets">Sheets</button>
+      <span class="spacer"></span>
+      <button class="dockbtn" id="leftCollapse" title="Collapse panel"><svg class="ic16"><use href="#i-chevL"/></svg></button>
+    </div>
+
+    <div class="dockpane" id="layers" data-pane="layers">
+      <!-- Areas: the three extents this job is actually worked in. Flies 2D and,
+           when it is open, 3D. -->
+      <div id="areaNav">
+        <span class="anlbl">Areas</span>
+        <button class="areabtn mine" data-area="mine" title="Fly to the mine area (OU1) — the 1-ft lidar window">Mine area</button>
+        <button class="areabtn resid" data-area="resid" title="Fly to the residential cleanup area — the extent of the registered EA design sheets">Residential</button>
+        <button class="areabtn site" data-area="site" title="Fly out to the whole surveyed site">Full site</button>
+      </div>
+
+      <!-- ============================================================
+           The layer tree is organised by what the layer IS to the job
+           (docs/V9_SPEC.md §4), not by which file it came from. Every row
+           is a view onto SBMM.layerState; a layer that is on here is on in
+           2D, in 3D, in the sheet windows and in the exports.
+           The container ids inside each section are unchanged — other
+           modules and the tests reach for them by name.
+           ============================================================ -->
+
+      <section class="lsec" data-sec="base">
+        <h3 class="lsech"><span class="caret"></span><input type="checkbox" class="lsecall" title="Show or hide every layer in this group"><span class="lsectitle">Base</span><span class="lcount mono"></span></h3>
+        <div class="lsecb">
+          <div id="baseLayers"></div>
+          <div class="subh">Contours — lidar survey</div>
+          <div id="terrainLayers"></div>
+          <!-- Terrain analysis is a sub-section, and closed to start with (F3).
+               Slope, aspect, elevation tint, canopy, the contour generator and
+               the tree detector are six rows plus five legends plus three
+               controls: open by default they pushed Site framework off the
+               bottom of the dock, so the group that names the site was the one
+               you had to scroll for. -->
+          <div class="lgsub closed" data-sub="analysis">
+            <div class="subh subtoggle" role="button" tabindex="0" aria-expanded="false"
+                 title="Slope, aspect, elevation tint, canopy, generated contours and tree detection">
+              <span class="caret"></span>Terrain analysis<span class="lcount mono subcount"></span>
+            </div>
+            <div class="lgsubb"><div id="anaLayers"></div></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="lsec area-mine" data-sec="framework">
+        <h3 class="lsech"><span class="caret"></span><input type="checkbox" class="lsecall" title="Show or hide every layer in this group"><span class="lsectitle">Site framework</span><span class="lcount mono"></span></h3>
+        <div class="lsecb">
+          <div id="projLayers"></div>
+        </div>
+      </section>
+
+      <section class="lsec area-resid" data-sec="design">
+        <h3 class="lsech"><span class="caret"></span><input type="checkbox" class="lsecall" title="Show or hide every layer in this group"><span class="lsectitle">Residential design (EA 2025)</span><span class="lcount mono"></span>
+          <button class="minib lsecbtn" id="layerManBtn" title="Layer manager — search, toggle, recolour and inspect every EA CAD layer">manage…</button></h3>
+        <div class="lsecb">
+          <div id="designLayers"></div>
+          <!-- EA's own recovered surfaces (§5): read-only reference data -->
+          <div class="subh">Design surfaces — EA
+            <button class="minib" id="isoBtn" title="Isopach — cut/fill heat map of a design surface against the lidar ground">isopach…</button>
+          </div>
+          <div id="refSurfList"></div>
+          <!-- surfaces the user grades themselves -->
+          <div class="subh">Design surfaces — mine</div>
+          <div id="surfList"></div>
+          <div class="subh">Drawing set
+            <button class="minib" id="sheetsBtn" title="Open any sheet in the drawing set, registered or not (SHEETS)">all 20 sheets…</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="lsec area-site" data-sec="invest">
+        <h3 class="lsech"><span class="caret"></span><input type="checkbox" class="lsecall" title="Show or hide every layer in this group"><span class="lsectitle">Investigations</span><span class="lcount mono"></span></h3>
+        <div class="lsecb">
+          <div id="investLayers"></div>
+          <div class="legend" id="ptLegend"></div>
+          <div class="subh">Datasets
+            <button class="minib" id="dsAddBtn" title="Import a CSV of coordinates as a styled, filterable dataset (DATASET, or drag a .csv onto the map)">add dataset…</button>
+          </div>
+          <div id="dataLayers"></div>
+        </div>
+      </section>
+
+      <!-- Cultural resources: protected information (NHPA §304 / ARPA §9).
+           Its own top-level group per §4. Off by default; js/cultural.js gates
+           the first enable behind an acknowledgement and stamps every view and
+           every export while any of it is visible. -->
+      <section class="lsec cultsec" data-sec="cultural">
+        <h3 class="lsech" id="culturalHead" title="Recorded archaeological locations — protected under NHPA §304 and ARPA §9. Project team only."><span class="caret"></span><span class="lsectitle">Cultural resources <span class="cultmark">CONFIDENTIAL</span></span><span class="lcount mono"></span></h3>
+        <div class="lsecb">
+          <div id="culturalLayers"></div>
+          <div class="cultnote mut">Project team only — do not include in public documents.</div>
+        </div>
+      </section>
+
+      <section class="lsec" data-sec="mywork">
+        <h3 class="lsech"><span class="caret"></span><input type="checkbox" class="lsecall" title="Show or hide every layer in this group"><span class="lsectitle">My work</span><span class="lcount mono"></span></h3>
+        <div class="lsecb"><div id="myworkLayers"></div></div>
+      </section>
+    </div>
+
+    <div class="dockpane" id="featuresPane" data-pane="features" hidden>
+      <div class="panetools">
+        <button class="minib" id="ftNewGroup" title="Create a folder — drag features into it to group them"><svg class="ic16"><use href="#i-folder"/></svg><span class="tlbl">New folder</span> </button>
+        <button class="minib" id="ftExpand" title="Expand every folder in the tree">Expand all</button>
+        <span class="spacer"></span>
+        <span class="mut mono" id="ftCount">0</span>
+      </div>
+      <div id="featureTree"></div>
+    </div>
+
+    <!-- Sheets tab: one card per drawing, thumbnail rendered from the full-sheet
+         image the first time the tab is opened (§3). -->
+    <div class="dockpane" id="sheetsPane" data-pane="sheets" hidden>
+      <div class="panetools">
+        <label class="mut shflt">lot
+          <select id="shLotFilter" title="Show only the sheets for one lot"><option value="">all</option></select>
+        </label>
+        <span class="spacer"></span>
+        <span class="mut mono" id="shPaneCount"></span>
+      </div>
+      <div id="sheetCards"></div>
+    </div>
+  </div>
+  <div class="dockgrip" id="leftGrip" title="Drag to resize"></div>
+</div>
+
+<!-- ==================== stage (2D map + 3D view) ==================== -->
+<div id="stage">
+  <div id="map" class="tool-none"></div>
+  <!-- drafting overlay: snap glyphs + polar/ortho tracking, one canvas, no markers -->
+  <canvas id="treeCanvas"></canvas>
+  <canvas id="snapCanvas"></canvas>
+  <div id="dynInput">
+    <input id="dynIn" spellcheck="false" autocomplete="off" placeholder="distance">
+    <div class="dynhint" id="dynHint"></div>
+  </div>
+
+  <div id="view3d">
+    <div class="v3dbar">
+      <b>3D terrain</b>
+      <button class="minib" id="v3dSplit" title="Work in 2D and 3D side by side — draw in either view"><svg class="ic16"><use href="#i-split"/></svg><span class="tlbl">split</span> </button>
+      <button class="minib" id="v3dFly" title="Fly-through navigation (F) — WASD move, Q/E down/up, drag to look"><svg class="ic16"><use href="#i-fly"/></svg><span class="tlbl">fly</span> <kbd>F</kbd></button>
+      <button class="minib" id="v3dGoto2d" title="Fly the 3D camera to the current 2D view"><svg class="ic16"><use href="#i-target"/></svg><span class="tlbl">match 2D</span> </button>
+      <span class="vsep"></span>
+      <!-- The three low-priority controls carry `.v3dopt`: when the bar runs
+           out of room they move, whole, into the View settings popover rather
+           than being clipped off the right-hand edge (F6). The popover already
+           exists and is already where "settings about the view" live. -->
+      <span class="v3dopt" data-optlabel="Drape">
+        <span class="mut">drape</span>
+        <select id="v3dStyle">
+          <option value="ortho">orthophoto</option>
+          <option value="hillshade">hillshade</option>
+          <option value="slope">slope</option>
+          <option value="hypso">elevation tint</option>
+        </select>
+      </span>
+      <span class="v3dopt" data-optlabel="Relief">
+        <span class="mut">relief</span>
+        <input type="range" id="v3dExag" min="0.5" max="4" step="0.1" value="1.5">
+        <span class="mono" id="v3dExagVal">1.5×</span>
+      </span>
+      <!-- No visibility checkboxes here any more (§3). What is drawn in 3D is
+           whatever is switched on in the Layers tree: one layer state, one
+           answer, in every view. This bar keeps only what is genuinely about
+           the 3D view itself — drape style, relief, mesh detail, snapshot. -->
+      <span class="vsep"></span>
+      <button class="minib" id="v3dLayersBtn" title="Open the Layers tree — 3D shows whatever is switched on there"><svg class="ic16"><use href="#i-layers"/></svg><span class="tlbl">layers</span></button>
+      <span class="vsep"></span>
+      <span class="v3dopt" data-optlabel="Mesh detail">
+        <span class="mut">detail</span>
+        <select id="v3dDetail">
+          <option value="std">standard</option>
+          <option value="high" selected>high</option>
+        </select>
+      </span>
+      <button class="minib" id="v3dSnap" title="Save a PNG of the current view"><svg class="ic16"><use href="#i-camera"/></svg><span class="tlbl">snapshot</span> </button>
+      <span class="mono" id="v3dCoord"></span>
+      <span class="mut" id="v3dStatus"></span>
+      <span class="spacer"></span>
+      <button class="minib" id="v3dClose" title="Back to 2D"><span class="tlbl">back to 2D</span> <svg class="ic16"><use href="#i-close"/></svg></button>
+    </div>
+
+    <canvas id="v3dCanvas"></canvas>
+
+    <!-- navigation chrome, drawn over the canvas -->
+    <div id="v3dNav">
+      <div class="navrow">
+        <button class="navbtn" data-view="top" title="Look straight down">Top</button>
+        <button class="navbtn" data-view="n" title="Look from the north">N</button>
+        <button class="navbtn" data-view="s" title="Look from the south">S</button>
+        <button class="navbtn" data-view="e" title="Look from the east">E</button>
+        <button class="navbtn" data-view="w" title="Look from the west">W</button>
+        <button class="navbtn" data-view="iso" title="Isometric view">Iso</button>
+      </div>
+      <div class="navrow">
+        <button class="navbtn wide" id="v3dFrame" title="Fit the selected feature, or the whole mine area"><svg class="ic16"><use href="#i-frame"/></svg><span class="tlbl">Frame</span> </button>
+        <button class="navbtn" id="v3dViewSet" title="View settings"><svg class="ic16"><use href="#i-sliders"/></svg></button>
+        <button class="navbtn" id="v3dNavHelp" title="Navigation controls"><svg class="ic16"><use href="#i-help"/></svg></button>
+      </div>
+      <div id="v3dCompass" title="Click to reset north-up">
+        <svg viewBox="0 0 100 100">
+          <circle class="cring" cx="50" cy="50" r="43"/>
+          <g id="v3dRose">
+            <path class="cn" d="M50 24 L57.5 50 L50 44 L42.5 50 Z"/>
+            <path class="cs" d="M50 76 L42.5 50 L50 56 L57.5 50 Z"/>
+            <text class="clbl" x="50" y="18">N</text>
+          </g>
+        </svg>
+      </div>
+    </div>
+
+    <div id="v3dViewPop" class="popover">
+      <h4>View settings</h4>
+      <!-- controls parked here by js/viewer3d.js reflowBar() when the toolbar
+           is too narrow to hold them (F6); empty and hidden otherwise -->
+      <div id="v3dOptHost" hidden></div>
+      <label>Field of view <span class="mono" id="v3dFovVal">55°</span>
+        <input type="range" id="v3dFov" min="20" max="90" step="1" value="55"></label>
+      <label>Mouse sensitivity <span class="mono" id="v3dSensVal">1.0×</span>
+        <input type="range" id="v3dSens" min="0.2" max="3" step="0.1" value="1"></label>
+      <label>Fly speed <span class="mono" id="v3dSpeedVal">1.0×</span>
+        <input type="range" id="v3dSpeed" min="0.2" max="4" step="0.1" value="1"></label>
+      <label class="chk"><input type="checkbox" id="v3dClampTerrain" checked> Keep camera above the ground</label>
+    </div>
+
+    <div id="v3dHelpPop" class="popover">
+      <h4>Navigation</h4>
+      <table class="navhelp">
+        <tr><th colspan="2">Orbit mode</th></tr>
+        <tr><td>Left-drag</td><td>orbit around the target</td></tr>
+        <tr><td>Right / middle-drag</td><td>pan</td></tr>
+        <tr><td>Scroll</td><td>zoom toward the cursor</td></tr>
+        <tr><td>Double-click</td><td>set the orbit target</td></tr>
+        <tr><th colspan="2">Fly mode <kbd>F</kbd></th></tr>
+        <tr><td>Left-drag</td><td>look around</td></tr>
+        <tr><td><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></td><td>move</td></tr>
+        <tr><td><kbd>Q</kbd><kbd>E</kbd></td><td>down / up</td></tr>
+        <tr><td><kbd>Shift</kbd></td><td>4× speed</td></tr>
+        <tr><th colspan="2">Anywhere</th></tr>
+        <tr><td>Compass</td><td>click to reset north-up</td></tr>
+        <tr><td>Drawing</td><td>click = vertex, double-click finishes, right-click undoes</td></tr>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div id="sketchTip"></div>
+<div id="ctxmenu" class="menu"></div>
+
+<!-- ==================== right dock ==================== -->
+<div id="rightdock">
+  <div class="dockgrip" id="rightGrip" title="Drag to resize"></div>
+  <div class="dockbody" id="rightBody">
+    <div class="docktabs" id="rightTabs">
+      <button class="dtab active" data-rtab="inspector">Inspector</button>
+      <button class="dtab" data-rtab="results">Results</button>
+      <span class="spacer"></span>
+      <button class="minib" id="csvBtn" title="Copy every result card to the clipboard as CSV">copy CSV</button>
+      <button class="dockbtn" id="rightCollapse" title="Collapse panel"><svg class="ic16"><use href="#i-chevR"/></svg></button>
+    </div>
+    <!-- Inspector absorbs the old left-dock "Properties" pane (§3): selecting
+         anything switches here, running a computation switches to Results. -->
+    <div class="dockpane" id="propsPane" data-rpane="inspector">
+      <div id="propsBody"></div>
+    </div>
+    <div class="dockpane" id="results" data-rpane="results" hidden>
+      <div id="resBody"><div class="placeholder">
+        Pick a tool and draw on the map.<br><br>
+        <b>Volume</b> reproduces the ABP memo's pile method — draw a footprint and it
+        interpolates a base surface from the perimeter, then integrates the terrain
+        above it. Click any pile outline for a one-click volume.<br><br>
+        Drawings are editable afterwards (✎ on each card) and export to GeoJSON
+        for GIS. <kbd>Esc</kbd> cancels ·
+        double-click finishes · right-click removes the last vertex.
+      </div></div>
+    </div>
+  </div>
+  <div class="dockrail" id="rightRail">
+    <button class="railbtn active" data-rtab="inspector" title="Inspector — the selected object's properties"><svg class="ic18"><use href="#i-sliders"/></svg></button>
+    <button class="railbtn" data-rtab="results" title="Results — measurement and volume cards"><svg class="ic18"><use href="#i-list"/></svg></button>
+  </div>
+</div>
+
+<div id="secDrawer">
+  <div class="tbar">
+    <b id="secTitle">Sections</b> <span class="mut mono" id="secMeta"></span>
+    <span class="spacer"></span>
+    <button class="minib" id="secCsvBtn">CSV</button>
+    <button class="minib" id="secReportBtn">REPORT</button>
+    <span class="ic x" id="secClose" title="Close the sections drawer">✕</span>
+  </div>
+  <div id="secBody"><div class="placeholder">No sections cut yet.</div></div>
+</div>
+
+<div id="tableDrawer">
+  <div class="ttabs" id="tblTabStrip"></div>
+  <div class="tpane" id="tblPaneSamples">
+  <div class="tbar">
+    <b>Sample results</b> <span class="mut mono" id="tblCount"></span>
+    <input id="tblSearch" placeholder="search id…" spellcheck="false">
+    <span class="mut">Hg ≥</span><input id="tblHg" type="number" style="width:64px">
+    <span class="mut">As ≥</span><input id="tblAs" type="number" style="width:64px">
+    <label class="mut"><input type="checkbox" id="tblExc"> exceedances only</label>
+    <span id="tblSrcs"></span>
+    <span class="mut">symbolize</span>
+    <select id="tblSym"><option value="exc">exceedance</option><option value="Hg">Hg (graduated)</option><option value="As">As (graduated)</option></select>
+    <span class="minib" id="tblReset">reset</span>
+    <span class="minib" id="tblCsv">CSV</span>
+    <span class="ic x" id="tblClose">✕</span>
+  </div>
+  <div class="twrap"><table id="sampleTable">
+    <thead><tr>
+      <th data-k="id">Location</th><th data-k="src">Source</th>
+      <th data-k="Hg" class="num">Hg mg/kg</th><th data-k="As" class="num">As mg/kg</th>
+      <th data-k="x" class="num">SP E</th><th data-k="y" class="num">SP N</th>
+    </tr></thead>
+    <tbody id="tblBody"></tbody>
+  </table></div>
+  </div>
+</div>
+
+<div id="cmdbar">
+  <span id="cmdPrompt" title="Command line — type a command and press Enter">⌘</span>
+  <input id="cmdIn" spellcheck="false" autocomplete="off">
+  <div id="cmdList"></div>
+</div>
+
+<!-- Mode HUD (§2): what mode is active, what the app is waiting for next, and
+     the way out. Bottom-centre of the stage, above the status bar. -->
+<div id="modeHud" aria-live="polite">
+  <span class="mhname">Navigate</span>
+  <span class="mhnext"></span>
+  <span class="mhesc"></span>
+</div>
+
+<div id="status">
+  <span>SP&nbsp;<b id="sX">—</b>, <b id="sY">—</b> ft</span>
+  <span><b id="sLL">—</b></span>
+  <span>elev <span class="el" id="sZ">—</span></span>
+  <span id="sDem" style="opacity:.7"></span>
+  <span class="mut" id="sScale">—</span>
+  <span class="statgrp">
+    <button class="statbtn" id="cmdBtn" title="Command line (` or Ctrl+K)"><svg class="ic16"><use href="#i-cmd"/></svg>CMD</button>
+    <span class="statsnap">
+      <button class="statbtn" id="osnapBtn" title="Object snap (F3)"><svg class="ic16"><use href="#i-snap"/></svg>OSNAP</button><button class="statbtn car" id="osnapMore" title="Choose which snap types are active">▴</button>
+      <div id="osnapPop" class="popover up"></div>
+    </span>
+    <button class="statbtn" id="polarBtn" title="Polar tracking — 15° increments (F10)">POLAR</button>
+  </span>
+  <div id="jobBar">
+    <span class="jspin"></span>
+    <span id="jobLabel">working…</span>
+    <span class="jtrack"><span id="jobFill"></span></span>
+    <span class="jx" id="jobCancel" title="Cancel this job">✕</span>
+  </div>
+  <div id="scalebar"><span id="scaleTxt"></span><div class="bar" id="scaleBar"></div></div>
+</div>
+
+<div id="help"><div class="box">
+  <span class="close" onclick="document.getElementById('help').style.display='none'">✕</span>
+  <h2>SBMM Site Explorer</h2>
+  The daily digital twin for the residential remedy and Phase 1 construction. Everything is
+  organised by <i>what you are doing</i> — navigating, inspecting, measuring, designing,
+  reviewing drawings — not by which file the data came from.<br><br>
+
+  <b>One layer state.</b> A layer that is on is on in 2D, in 3D, in the sheet windows and in
+  the exports. The 3D view has no visibility checkboxes of its own: what it draws is whatever
+  the <b>Layers</b> tree says is showing. Layer choices are remembered between sessions and
+  travel in the session file — except the cultural group, which is off at every start by
+  design.<br><br>
+
+  <b>Tools are modes.</b> Exactly one is active at a time, the pill at the bottom of the stage
+  says which and what it is waiting for next, and
+  <b><kbd>Esc</kbd> always returns to Navigate</b> — it cancels whatever is half-drawn,
+  drops the tool and clears the button. Hold <kbd>Space</kbd> to pan without leaving the mode
+  you are in.<br>
+  <table class="cmdhelp"><tbody>
+    <tr><td class="cmdn"><kbd>Esc</kbd></td><td>Navigate</td><td>drag to pan, wheel to zoom, click to identify anything</td></tr>
+    <tr><td class="cmdn"><kbd>I</kbd></td><td>Inspect</td><td>point card — E, N, Z, lat/long, slope, aspect, copy, drop a marker</td></tr>
+    <tr><td class="cmdn"><kbd>M</kbd></td><td>Distance</td><td>polyline with live segment and total</td></tr>
+    <tr><td class="cmdn"><kbd>A</kbd></td><td>Area</td><td>polygon with live area and perimeter</td></tr>
+    <tr><td class="cmdn"><kbd>V</kbd></td><td>Volume</td><td>footprint against a base surface (perimeter TIN, plane, rim, fixed, or a design surface)</td></tr>
+    <tr><td class="cmdn"><kbd>S</kbd></td><td>Section</td><td>stationed cross-sections along an alignment</td></tr>
+    <tr><td class="cmdn"><kbd>P</kbd> <kbd>L</kbd> <kbd>G</kbd></td><td>Draw</td><td>point, line, polygon — real features you can edit, style, export</td></tr>
+    <tr><td class="cmdn"><kbd>N</kbd> <kbd>X</kbd></td><td>Dimension, Text</td><td>CAD annotation drawn straight on the map</td></tr>
+    <tr><td class="cmdn"><kbd>B</kbd></td><td>Smart boundary</td><td>the pile wand; the Draw menu also has contour-trace and toe/crest</td></tr>
+    <tr><td class="cmdn"><kbd>D</kbd></td><td>Graded pad</td><td>flat or sloped pad with daylighting side slopes</td></tr>
+    <tr><td class="cmdn"><kbd>F</kbd></td><td>Fly (in 3D)</td><td>WASD move, Q/E down/up, drag to look</td></tr>
+    <tr><td class="cmdn"><kbd>/</kbd></td><td>Command line</td><td>also <kbd>`</kbd> or <kbd>Ctrl</kbd><kbd>K</kbd></td></tr>
+    <tr><td class="cmdn"><kbd>3</kbd> · <kbd>T</kbd></td><td>3D · Samples</td><td>the 3D view and the sample results table</td></tr>
+    <tr><td class="cmdn"><kbd>F3</kbd> · <kbd>F10</kbd> · <kbd>Shift</kbd></td><td>Drafting</td><td>object snap · polar tracking · ortho</td></tr>
+  </tbody></table>
+  Grabbing a vertex handle enters <b>edit</b> and releasing it returns you where you were.
+  While sketching: click vertices, <kbd>Enter</kbd> or double-click finishes, right-click or
+  <kbd>Backspace</kbd> removes the last vertex, <kbd>Ctrl</kbd><kbd>Z</kbd> undoes.<br><br>
+
+  <b>Layout</b> — the <b>left dock</b> has <b>Layers</b>, <b>My work</b> (every drawing you
+  have made: rename, show/hide, lock, zoom to, organise into folders) and <b>Sheets</b> (a card
+  per drawing with a thumbnail, filtered by lot). The <b>right dock</b> has the
+  <b>Inspector</b> (the selected object’s properties and edits) and <b>Results</b>
+  (measurement and volume cards, copy as CSV). Selecting anything brings the Inspector forward;
+  running a computation brings Results forward. Both docks collapse to their icon rail and drag
+  wider. The status bar shows E, N, Z, lat/long, scale and snap state in both views.<br><br>
+
+  <b>Layers</b> — six groups, in the order the work happens in:<br>
+  &nbsp;&nbsp;<b>Base</b> — orthoimagery, hillshade, lidar contours, canopy, slope, aspect.<br>
+  &nbsp;&nbsp;<b>Site framework</b> — decision units, waste piles, parcels, buildings, roads,
+  fences, utilities, drainage, trees and survey blocks from EA’s CAD.<br>
+  &nbsp;&nbsp;<b>Residential remedy design</b> — limits of excavation, daylight and transition
+  lines, grading breaklines, repository, haul and staging, ESC, alignments, annotation, CAD
+  contours, the sheet overlays, and EA’s design surfaces.<br>
+  &nbsp;&nbsp;<b>Investigations</b> — sample results, monitoring wells, borings, imported datasets.<br>
+  &nbsp;&nbsp;<b>Cultural resources</b> — protected, off by default, see below.<br>
+  &nbsp;&nbsp;<b>My work</b> — your drawings, measurements, sections, design pads and imports,
+  each switchable as a class without losing the per-feature choices underneath.<br>
+  Each group header has a master checkbox and a count; each row has an opacity slider where it
+  makes sense. The <b>manage…</b> button on the design group opens the <b>Layer manager</b>:
+  search EA’s 110 CAD layer names, switch one on or off, recolour it, set its opacity, and read
+  its source file, feature count and a real entity handle you can type into AutoCAD. <b>Reset to
+  defaults</b> puts everything back.<br><br>
+
+  <b>Limits of excavation</b> — the geodatabase polygons are the authority: they reproduce EA’s
+  printed areas to 0.02%. They are styled by depth — <span style="color:#FF4A2E">■</span>
+  <b>1.0 ft solid</b>, <span style="color:#FFA23E">■</span> <b>0.5 ft dashed</b> — with the
+  depth labelled at the centroid. EA’s CAD draws the same limits as open drafting segments; that
+  group is off by default so the two do not fight over the same click. The four <b>6 in
+  call-outs</b> EA wrote as leader notes are marked in orange and say plainly that the region was
+  never delineated — verify them before they are dug.<br><br>
+
+  <b>Design surfaces</b> — four surfaces recovered from EA’s own Civil 3D files:
+  <b>EA existing ground</b> and the <b>borrow-area existing ground</b> (recovered byte-for-byte
+  and validated against the lidar at 0.00 and +0.12 ft mean), and the depth-based
+  <b>residential excavation bottom</b> and <b>finished grade</b>. Each carries a kind and a
+  confidence badge and can be used as a volume base, sectioned, draped, and compared. The
+  repository and north-lobe final grades are listed greyed: no proposed-grade TIN exists in the
+  delivered drawings, and the remedy is to ask EA for a LandXML export rather than to invent one.<br>
+  <b>Isopach</b> draws the cut/fill thickness of any surface against the January-2024 lidar
+  ground — blue where the design stands above the ground, red where it is below, legend in
+  feet, in 2D and draped in 3D. <b>Volume in polygon vs surface</b> measures any polygon against
+  any surface, and an excavation polygon offers <b>volume of this excavation</b>, which shows
+  area × depth and the raster method side by side so you can see the two agree.<br><br>
+
+  <b>Cultural resources</b> — recorded archaeological locations from the T22-0762 survey of the
+  Elem Indian Colony, included by an explicit decision of the project lead. Protected under
+  <b>NHPA §304</b> and <b>ARPA §9</b>. The group is off at every start; the first time you switch
+  it on, an acknowledgement explains the protection. While any of it is visible a red stamp sits
+  over the map and the 3D view and is burned into every image the app exports, and an export that
+  would carry the geometry asks again and writes the notice into the file.<br><br>
+
+  <b>Terrain</b> — the January 2024 survey’s lidar-derived 1-ft DEM (LandXML gridded surface,
+  42.6M points), regridded at 2 ft site-wide and kept at 1 ft over the mine area. Coordinates are
+  NAD83(2011) California State Plane Zone 2, US survey feet; elevations in feet. Imagery is the
+  same flight at three resolutions, finest on top.<br><br>
+
+  <b>Drafting</b> — <b>object snap</b> (<kbd>F3</kbd>) locks onto endpoints, midpoints,
+  intersections, the perpendicular foot and the nearest point on a segment, across your drawings,
+  the DU and pile outlines, the contours, EA’s native geometry and the sample points. Hold
+  <kbd>Shift</kbd> for ortho; <b>POLAR</b> (<kbd>F10</kbd>) tracks 15°. While sketching, just
+  start typing: <span class="mono">150</span> is a distance along the current direction,
+  <span class="mono">@150,75</span> a relative offset, <span class="mono">@150&lt;45</span>
+  relative polar, and <span class="mono">6371500,2128900</span> an absolute State Plane point.<br>
+  The <b>command line</b> takes the aliases you already know — <span class="mono">PL POLY VOL PR
+  ID DI OFFSET MIRROR ROTATE COPY MOVE JOIN EXPLODE DIM TEXT PAD BAL SEC WAND CBOUND TOE STANDS
+  TREES DXFOUT DXFIN SAVE OPEN ZE ZW 3D TABLE SHEETS DATASET ISOPACH VOLSURF LAYERS</span> — with
+  autocomplete, <kbd>↑</kbd> history, and <span class="mono">HELP</span> for the full sheet.<br><br>
+
+  <b>Smart boundaries</b> — one click instead of tracing a footprint. <b>WAND</b> delineates a
+  waste pile by morphological top-hat, which is the ABP memo’s own method; <b>CBOUND</b> traces
+  the closed terrain contour through a point; <b>TOE</b> traces where slope crosses a threshold;
+  <b>STANDS</b> polygonises canopy over a height threshold for clearing limits. Each produces an
+  ordinary editable feature.<br><br>
+
+  <b>Sheet viewer</b> — all 20 plan sheets exactly as plotted, at about 117 dpi, from the
+  <b>Sheets</b> tab, a sheet’s footprint on the map, its draped sheet in 3D, or the
+  <span class="mono">SHEETS</span> command. Inside a window: scroll to zoom toward the cursor,
+  drag to pan, <b>fit</b> / <b>1:1</b>, <b>‹ ›</b> to flip through the set, <b>locate</b> to fly
+  the map to that sheet. A registered sheet also lets you <b>measure and mark on the paper</b>:
+  marks become ordinary features in State Plane coordinates that appear in 2D and 3D immediately.
+  Eleven sheets are georeferenced; C-101, C-102, C-202 and C-203 are not, and say so — their
+  design geometry is in the app anyway, from EA’s native files.<br><br>
+
+  <b>Volume</b> = neat in-place topographic quantity against a base surface (perimeter TIN
+  reproduces the ABP memo Attachment E method; also best-fit plane, lowest rim, fixed elevation,
+  or any design surface). Planning-level — report to 2 significant figures. Volume integration,
+  the terrain-analysis rasters, the isopach and computed contours all run in background workers,
+  so the interface stays responsive and every job can be cancelled.<br><br>
+
+  <b>Export</b> — GeoJSON in WGS84 or State Plane (EPSG:6418), DXF R12 in raw State Plane feet
+  for AutoCAD and Civil 3D, session files you can reload or share, and CSVs of results, samples
+  and datasets. Drag-drop a GeoJSON, DXF or CSV onto the map to import it.
+</div></div>
+
+<script src="vendor/leaflet.js"></script>
+<script src="vendor/d3-delaunay.min.js"></script>
+<script src="vendor/three.bundle.js"></script>
+
+<script>SBMM_PERF.mark("vendor-js")</script>
+<script src="datajs/d_affine.js"></script>
+<script src="datajs/d_dem_site.js"></script>
+<script src="datajs/d_dem_abp.js"></script>
+<script src="datajs/d_dem_res.js"></script>
+<script src="datajs/d_chm.js"></script>
+<script src="datajs/d_contours_site.js"></script>
+<script src="datajs/d_contours_abp.js"></script>
+<script src="datajs/d_dus.js"></script>
+<script src="datajs/d_piles.js"></script>
+<script src="datajs/d_points.js"></script>
+<script src="datajs/d_design_ea.js"></script>
+<script src="datajs/d_design_gis.js"></script>
+<script src="datajs/d_cad_native.js"></script>
+<script src="datajs/d_cad_surfaces.js"></script>
+<script src="datajs/d_ortho_abp.js"></script>
+<script src="datajs/d_ortho_mine.js"></script>
+<script src="datajs/d_ortho_site.js"></script>
+<script>SBMM_PERF.mark("data-vectors")</script>
+<script src="datajs/i_dem_site_png.js"></script>
+<script src="datajs/i_dem_abp_png.js"></script>
+<script src="datajs/i_dem_res_png.js"></script>
+<script src="datajs/i_chm_png.js"></script>
+<script src="datajs/i_hs_site_jpg.js"></script>
+<script src="datajs/i_hs_abp_jpg.js"></script>
+<script src="datajs/i_ortho_abp_jpg.js"></script>
+<script src="datajs/i_ortho_mine_jpg.js"></script>
+<script src="datajs/i_ortho_site_jpg.js"></script>
+<script>SBMM_PERF.mark("data-rasters")</script>
+<script src="datajs/i_design_C103_png.js"></script>
+<script src="datajs/i_design_C104_png.js"></script>
+<script src="datajs/i_design_C105_png.js"></script>
+<script src="datajs/i_design_C106_png.js"></script>
+<script src="datajs/i_design_C107_png.js"></script>
+<script src="datajs/i_design_C108_png.js"></script>
+<script src="datajs/i_design_C109_png.js"></script>
+<script src="datajs/i_design_C110_png.js"></script>
+<script src="datajs/i_design_C111_png.js"></script>
+<script src="datajs/i_design_C112_png.js"></script>
+<script src="datajs/i_design_C201_png.js"></script>
+<script>SBMM_PERF.mark("data-design-png")</script>
+<script src="datajs/i_sheet_full_C101_jpg.js"></script>
+<script src="datajs/i_sheet_full_C102_jpg.js"></script>
+<script src="datajs/i_sheet_full_C103_jpg.js"></script>
+<script src="datajs/i_sheet_full_C104_jpg.js"></script>
+<script src="datajs/i_sheet_full_C105_jpg.js"></script>
+<script src="datajs/i_sheet_full_C106_jpg.js"></script>
+<script src="datajs/i_sheet_full_C107_jpg.js"></script>
+<script src="datajs/i_sheet_full_C108_jpg.js"></script>
+<script src="datajs/i_sheet_full_C109_jpg.js"></script>
+<script src="datajs/i_sheet_full_C110_jpg.js"></script>
+<script src="datajs/i_sheet_full_C111_jpg.js"></script>
+<script src="datajs/i_sheet_full_C112_jpg.js"></script>
+<script src="datajs/i_sheet_full_C201_jpg.js"></script>
+<script src="datajs/i_sheet_full_C202_jpg.js"></script>
+<script src="datajs/i_sheet_full_C203_jpg.js"></script>
+<script src="datajs/i_sheet_full_C501_jpg.js"></script>
+<script src="datajs/i_sheet_full_C502_jpg.js"></script>
+<script src="datajs/i_sheet_full_C503_jpg.js"></script>
+<script src="datajs/i_sheet_full_G001_jpg.js"></script>
+<script src="datajs/i_sheet_full_G002_jpg.js"></script>
+<script>SBMM_PERF.mark("data-sheet-jpg")</script>
+<script src="datajs/d_sheets_full.js"></script>
+<script src="datajs/d_datasets.js"></script>
+<script src="datajs/d_cultural.js"></script>
+
+<script src="js/compute.js"></script>
+<script src="js/util.js"></script>
+<script src="js/jobs.js"></script>
+<script src="js/dem.js"></script>
+<script src="js/proj.js"></script>
+<script src="js/state.js"></script>
+<script src="js/layerstate.js"></script>
+<script src="js/view.js"></script>
+<script src="js/popups.js"></script>
+<script src="js/watermark.js"></script>
+<script src="js/shell.js"></script>
+<script src="js/map.js"></script>
+<script src="js/layers.js"></script>
+<script src="js/designea.js"></script>
+<script src="js/designgis.js"></script>
+<script src="js/cadnative.js"></script>
+<script src="js/sheets.js"></script>
+<script src="js/datasets.js"></script>
+<script src="js/cultural.js"></script>
+<script src="js/analysis.js"></script>
+<script src="js/snap.js"></script>
+<script src="js/draw.js"></script>
+<script src="js/results.js"></script>
+<script src="js/tools.js"></script>
+<script src="js/cmdline.js"></script>
+<script src="js/dxf.js"></script>
+<script src="js/design.js"></script>
+<script src="js/sections.js"></script>
+<script src="js/report.js"></script>
+<script src="js/smartbound.js"></script>
+<script src="js/trees.js"></script>
+<script src="js/features.js"></script>
+<script src="js/io.js"></script>
+<script src="js/table.js"></script>
+<script src="js/viewer3d.js"></script>
+<script src="js/pick3d.js"></script>
+<script src="js/sheetmarks.js"></script>
+<script src="js/mode.js"></script>
+<script src="js/layerman.js"></script>
+<script src="js/isopach.js"></script>
+<script src="js/refsurf.js"></script>
+<script src="js/sheetcards.js"></script>
+<script>SBMM_PERF.mark("app-js")</script>
+<script src="js/boot.js"></script>
+</body>
+</html>

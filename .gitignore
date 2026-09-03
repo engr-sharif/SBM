@@ -1,0 +1,30 @@
+# build output — regenerate with: python tools/build_dist.py
+dist/
+
+# node / playwright (install with: cd test && npm install)
+node_modules/
+test/node_modules
+package-lock.json
+
+# python
+__pycache__/
+*.pyc
+
+# OS / editor
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/
+
+# local scratch (never commit master rasters, LAS, DWG, or EA zips)
+*.f32
+*.f32.zst
+*.las
+*.laz
+*.dwg
+*.dxf
+*.mms
+*.zip
+_staging/
+_to_delete/

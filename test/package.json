@@ -1,0 +1,16 @@
+{
+  "name": "sbmm-site-explorer-tests",
+  "private": true,
+  "description": "Playwright harnesses for the SBMM Site Explorer. Run from the repo root; one browser at a time.",
+  "devDependencies": {
+    "playwright": "^1.62.1"
+  },
+  "scripts": {
+    "e2e:folder": "node e2e.mjs ../index.html folder",
+    "e2e:dist": "node e2e.mjs ../dist/SBMM_Site_Explorer.html dist",
+    "split:folder": "node split3d.mjs ../index.html folder",
+    "split:dist": "node split3d.mjs ../dist/SBMM_Site_Explorer.html dist",
+    "shots": "node v9_shots.mjs ../index.html",
+    "boot": "node boot_time.mjs ../index.html 3"
+  }
+}

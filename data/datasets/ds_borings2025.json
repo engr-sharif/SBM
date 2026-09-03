@@ -1,0 +1,607 @@
+{
+ "id": "borings2025",
+ "name": "Soil borings (2025 geotech)",
+ "kind": "borings",
+ "style": {
+  "color": "#E8B34B",
+  "shape": "boring",
+  "size": 6,
+  "labels": false
+ },
+ "idField": "Boring",
+ "depthField": "Total depth (ft)",
+ "source": "Sulphur Bank Test Pit Soil Borings Location Coordinates20251210.xlsx, sheet SB (Geotechnical) for coordinates; depth drilled from 2025 Jacobs Investigation\\Borings Schedule and Progress.xlsx; interpreted waste depth from Soil Profiles\\SBMM_Field Interpretted Waste Depth.xlsx.",
+ "points": [
+  {
+   "id": "SB-1",
+   "x": 6372002.27,
+   "y": 2126708.18,
+   "a": {
+    "Waste area": "Old Mine Building",
+    "Ground elev (ft)": 1450.0,
+    "Total depth (ft)": 45.0,
+    "Interpreted waste depth (ft)": 0.0,
+    "Waste depth basis": "Blow Counts",
+    "Latitude": 39.000029,
+    "Longitude": -122.667422
+   }
+  },
+  {
+   "id": "SB-2",
+   "x": 6372171.63,
+   "y": 2126528.15,
+   "a": {
+    "Waste area": "Old Mine Building",
+    "Ground elev (ft)": 1482.0,
+    "Total depth (ft)": 42.0,
+    "Interpreted waste depth (ft)": 0.0,
+    "Waste depth basis": "Blow Counts",
+    "Latitude": 38.999538,
+    "Longitude": -122.666822
+   }
+  },
+  {
+   "id": "SB-3",
+   "x": 6372231.95,
+   "y": 2126897.05,
+   "a": {
+    "Waste area": "Old Mine Building",
+    "Ground elev (ft)": 1427.0,
+    "Total depth (ft)": 60.0,
+    "Interpreted waste depth (ft)": 0.0,
+    "Waste depth basis": "Blow Counts",
+    "Latitude": 39.000552,
+    "Longitude": -122.666619
+   }
+  },
+  {
+   "id": "SB-4",
+   "x": 6372339.03,
+   "y": 2126835.33,
+   "a": {
+    "Waste area": "Old Mine Building",
+    "Ground elev (ft)": 1427.0,
+    "Total depth (ft)": 75.0,
+    "Interpreted waste depth (ft)": 23.0,
+    "Waste depth basis": "Blow Counts, air monitoring results",
+    "Latitude": 39.000385,
+    "Longitude": -122.666241
+   }
+  },
+  {
+   "id": "SB-5",
+   "x": 6373067.95,
+   "y": 2126695.39,
+   "a": {
+    "Waste area": "South Waste Rock Pile",
+    "Ground elev (ft)": 1457.0,
+    "Total depth (ft)": 60.0,
+    "Interpreted waste depth (ft)": 20.0,
+    "Waste depth basis": "Blow Counts",
+    "Latitude": 39.000015,
+    "Longitude": -122.663672
+   }
+  },
+  {
+   "id": "SB-6A",
+   "x": 6373892.02,
+   "y": 2127395.32,
+   "a": {
+    "Waste area": "South Waste Rock Pile",
+    "Ground elev (ft)": 1399.0,
+    "Total depth (ft)": 80.0,
+    "Interpreted waste depth (ft)": 7.0,
+    "Waste depth basis": "Blow counts",
+    "Latitude": 39.001953,
+    "Longitude": -122.66079
+   }
+  },
+  {
+   "id": "SB-7",
+   "x": 6373042.17,
+   "y": 2127123.4,
+   "a": {
+    "Waste area": "South Waste Rock Pile",
+    "Ground elev (ft)": 1405.0,
+    "Total depth (ft)": 60.0,
+    "Interpreted waste depth (ft)": 23.0,
+    "Waste depth basis": "Blow counts",
+    "Latitude": 39.00119,
+    "Longitude": -122.663774
+   }
+  },
+  {
+   "id": "SB-8",
+   "x": 6372662.73,
+   "y": 2127255.98,
+   "a": {
+    "Waste area": "Tailings Pile",
+    "Ground elev (ft)": 1363.5,
+    "Total depth (ft)": 40.0,
+    "Interpreted waste depth (ft)": 28.0,
+    "Waste depth basis": "Blow counts",
+    "Latitude": 39.001546,
+    "Longitude": -122.665112
+   }
+  },
+  {
+   "id": "SB-9",
+   "x": 6372919.58,
+   "y": 2127396.58,
+   "a": {
+    "Waste area": "Tailings Pile",
+    "Ground elev (ft)": 1366.5,
+    "Total depth (ft)": 80.0,
+    "Interpreted waste depth (ft)": 23.0,
+    "Waste depth basis": "Blow counts",
+    "Latitude": 39.001937,
+    "Longitude": -122.664212
+   }
+  },
+  {
+   "id": "SB-10",
+   "x": 6373374.53,
+   "y": 2127306.94,
+   "a": {
+    "Waste area": "South Waste Rock Pile",
+    "Ground elev (ft)": 1418.5,
+    "Total depth (ft)": 125.0,
+    "Interpreted waste depth (ft)": 48.0,
+    "Waste depth basis": "Blow counts, soil type",
+    "Latitude": 39.0017,
+    "Longitude": -122.662609
+   }
+  },
+  {
+   "id": "SB-11",
+   "x": 6373749.5,
+   "y": 2127461.29,
+   "a": {
+    "Waste area": "South Waste Rock Pile",
+    "Ground elev (ft)": 1427.5,
+    "Total depth (ft)": 80.0,
+    "Interpreted waste depth (ft)": 43.0,
+    "Waste depth basis": "Blow counts",
+    "Latitude": 39.002132,
+    "Longitude": -122.661293
+   }
+  },
+  {
+   "id": "SB-12",
+   "x": 6373457.85,
+   "y": 2127641.44,
+   "a": {
+    "Waste area": "South Waste Rock Pile",
+    "Ground elev (ft)": 1387.0,
+    "Total depth (ft)": 80.0,
+    "Interpreted waste depth (ft)": 15.0,
+    "Waste depth basis": "Soil type",
+    "Latitude": 39.00262,
+    "Longitude": -122.662324
+   }
+  },
+  {
+   "id": "SB-13",
+   "x": 6373700.61,
+   "y": 2127776.75,
+   "a": {
+    "Waste area": "South Waste Rock Pile",
+    "Ground elev (ft)": 1392.0,
+    "Total depth (ft)": 30.0,
+    "Interpreted waste depth (ft)": 12.0,
+    "Waste depth basis": "Soil type",
+    "Latitude": 39.002997,
+    "Longitude": -122.661474
+   }
+  },
+  {
+   "id": "SB-14",
+   "x": 6373889.5,
+   "y": 2127878.27,
+   "a": {
+    "Waste area": "South Waste Rock Pile",
+    "Ground elev (ft)": 1404.0,
+    "Total depth (ft)": 25.0,
+    "Interpreted waste depth (ft)": 23.0,
+    "Waste depth basis": "Blow bounts",
+    "Latitude": 39.003279,
+    "Longitude": -122.660811
+   }
+  },
+  {
+   "id": "SB-15",
+   "x": 6374045.91,
+   "y": 2128237.07,
+   "a": {
+    "Waste area": "South Waste Rock Pile",
+    "Ground elev (ft)": 1408.0,
+    "Total depth (ft)": 30.0,
+    "Interpreted waste depth (ft)": 7.0,
+    "Waste depth basis": "Blow bounts",
+    "Latitude": 39.004268,
+    "Longitude": -122.66027
+   }
+  },
+  {
+   "id": "SB-16",
+   "x": 6374423.94,
+   "y": 2128361.91,
+   "a": {
+    "Waste area": "South Waste Rock Pile",
+    "Ground elev (ft)": 1415.0,
+    "Total depth (ft)": 25.0,
+    "Interpreted waste depth (ft)": 3.0,
+    "Waste depth basis": "Soil Type",
+    "Latitude": 39.004618,
+    "Longitude": -122.658943
+   }
+  },
+  {
+   "id": "SB-17",
+   "x": 6373836.04,
+   "y": 2128537.17,
+   "a": {
+    "Waste area": "North Waste Rock Pile",
+    "Ground elev (ft)": 1403.0,
+    "Total depth (ft)": 90.0,
+    "Latitude": 39.0050875,
+    "Longitude": -122.6610165
+   }
+  },
+  {
+   "id": "SB-18",
+   "x": 6373721.46,
+   "y": 2128982.48,
+   "a": {
+    "Waste area": "North Waste Rock Pile",
+    "Ground elev (ft)": 1431.0,
+    "Total depth (ft)": 110.0,
+    "Interpreted waste depth (ft)": 45.0,
+    "Waste depth basis": "Blow counts, pH",
+    "Latitude": 39.0063079,
+    "Longitude": -122.6614311
+   }
+  },
+  {
+   "id": "SB-19",
+   "x": 6373698.03,
+   "y": 2129261.12,
+   "a": {
+    "Waste area": "North Waste Rock Pile",
+    "Ground elev (ft)": 1442.0,
+    "Total depth (ft)": 90.0,
+    "Latitude": 39.0070725,
+    "Longitude": -122.6615207
+   }
+  },
+  {
+   "id": "SB-20",
+   "x": 6374234.48,
+   "y": 2129274.15,
+   "a": {
+    "Waste area": "North Waste Rock Pile",
+    "Ground elev (ft)": 1372.0,
+    "Total depth (ft)": 15.0,
+    "Latitude": 39.007119,
+    "Longitude": -122.6596332
+   }
+  },
+  {
+   "id": "SB-21",
+   "x": 6373174.58,
+   "y": 2129133.53,
+   "a": {
+    "Waste area": "North Waste Rock Pile",
+    "Ground elev (ft)": 1405.0,
+    "Total depth (ft)": 45.0,
+    "Interpreted waste depth (ft)": 1.5,
+    "Waste depth basis": "Soil type",
+    "Latitude": 39.0067117,
+    "Longitude": -122.6633595
+   }
+  },
+  {
+   "id": "SB-22",
+   "x": 6372747.51,
+   "y": 2129086.64,
+   "a": {
+    "Waste area": "North Waste Rock Pile",
+    "Ground elev (ft)": 1380.0,
+    "Total depth (ft)": 25.0,
+    "Interpreted waste depth (ft)": 0.0,
+    "Waste depth basis": "Blow counts",
+    "Latitude": 39.006574,
+    "Longitude": -122.664861
+   }
+  },
+  {
+   "id": "SB-23",
+   "x": 6372994.01,
+   "y": 2128785.68,
+   "a": {
+    "Waste area": "Northwest Pit",
+    "Ground elev (ft)": 1400.0,
+    "Total depth (ft)": 50.0,
+    "Interpreted waste depth (ft)": 0.0,
+    "Waste depth basis": "Blow counts",
+    "Latitude": 39.005753,
+    "Longitude": -122.663986
+   }
+  },
+  {
+   "id": "SB-24",
+   "x": 6372382.91,
+   "y": 2128393.94,
+   "a": {
+    "Waste area": "Disturbed Rock",
+    "Ground elev (ft)": 1389.5,
+    "Total depth (ft)": 60.0,
+    "Interpreted waste depth (ft)": 9.0,
+    "Waste depth basis": "pH",
+    "Latitude": 39.004665,
+    "Longitude": -122.666126
+   }
+  },
+  {
+   "id": "SB-25",
+   "x": 6372158.96,
+   "y": 2128711.64,
+   "a": {
+    "Waste area": "Northwest Pit",
+    "Ground elev (ft)": 1393.0,
+    "Total depth (ft)": 50.0,
+    "Interpreted waste depth (ft)": 9.0,
+    "Waste depth basis": "pH",
+    "Latitude": 39.005533,
+    "Longitude": -122.666923
+   }
+  },
+  {
+   "id": "SB-26",
+   "x": 6372325.63,
+   "y": 2129255.92,
+   "a": {
+    "Waste area": "Northwest Pit",
+    "Ground elev (ft)": 1368.5,
+    "Total depth (ft)": 70.0,
+    "Interpreted waste depth (ft)": 0.0,
+    "Waste depth basis": "pH",
+    "Latitude": 39.0070307,
+    "Longitude": -122.6663502
+   }
+  },
+  {
+   "id": "SB-28",
+   "x": 6373976.66,
+   "y": 2129485.08,
+   "a": {
+    "Waste area": "North Waste Rock Pile",
+    "Ground elev (ft)": 1356.0,
+    "Total depth (ft)": 10.0,
+    "Latitude": 39.007693,
+    "Longitude": -122.6605459
+   }
+  },
+  {
+   "id": "SB-29",
+   "x": 6373093.84,
+   "y": 2129513.72,
+   "a": {
+    "Waste area": "North Waste Rock Pile",
+    "Ground elev (ft)": 1350.5,
+    "Total depth (ft)": 10.0,
+    "Latitude": 39.007754,
+    "Longitude": -122.6636534
+   }
+  },
+  {
+   "id": "SB-31",
+   "x": 6371972.71,
+   "y": 2129052.3,
+   "a": {
+    "Ground elev (ft)": 1379.0,
+    "Latitude": 39.006464,
+    "Longitude": -122.667587
+   }
+  },
+  {
+   "id": "SB-32",
+   "x": 6371205.32,
+   "y": 2127980.38,
+   "a": {
+    "Waste area": "Northwest Pit",
+    "Ground elev (ft)": 1375.0,
+    "Total depth (ft)": 85.0,
+    "Interpreted waste depth (ft)": 23.0,
+    "Waste depth basis": "Soil type, blow counts",
+    "Latitude": 39.003506,
+    "Longitude": -122.67026
+   }
+  },
+  {
+   "id": "SB-33",
+   "x": 6371711.04,
+   "y": 2128802.81,
+   "a": {
+    "Waste area": "Northwest Pit",
+    "Ground elev (ft)": 1397.0,
+    "Total depth (ft)": 65.0,
+    "Interpreted waste depth (ft)": 0.0,
+    "Waste depth basis": "Soil type, pH",
+    "Latitude": 39.0057742,
+    "Longitude": -122.6685013
+   }
+  },
+  {
+   "id": "SB-34",
+   "x": 6371039.16,
+   "y": 2128341.84,
+   "a": {
+    "Waste area": "Waste Rock Dam",
+    "Ground elev (ft)": 1342.5,
+    "Total depth (ft)": 50.0,
+    "Interpreted waste depth (ft)": 19.0,
+    "Waste depth basis": "Blow counts, pH",
+    "Latitude": 39.004495,
+    "Longitude": -122.670854
+   }
+  },
+  {
+   "id": "SB-35",
+   "x": 6371381.02,
+   "y": 2127242.74,
+   "a": {
+    "Waste area": "Waste Rock Dam",
+    "Ground elev (ft)": 1347.0,
+    "Total depth (ft)": 35.0,
+    "Interpreted waste depth (ft)": 35.0,
+    "Waste depth basis": "Blow counts, pH",
+    "Latitude": 39.001484,
+    "Longitude": -122.669622
+   }
+  },
+  {
+   "id": "SB-36",
+   "x": 6371302.23,
+   "y": 2127687.65,
+   "a": {
+    "Waste area": "Waste Rock Dam",
+    "Ground elev (ft)": 1357.0,
+    "Total depth (ft)": 80.0,
+    "Interpreted waste depth (ft)": 35.0,
+    "Waste depth basis": "Soil type, blow counts",
+    "Latitude": 39.002704,
+    "Longitude": -122.669911
+   }
+  },
+  {
+   "id": "SB-37",
+   "x": 6371483.88,
+   "y": 2127734.75,
+   "a": {
+    "Ground elev (ft)": 1355.0,
+    "Interpreted waste depth (ft)": 53.0,
+    "Waste depth basis": "Soil type, blow counts",
+    "Latitude": 39.002837,
+    "Longitude": -122.669273
+   }
+  },
+  {
+   "id": "SB-38",
+   "x": 6371638.16,
+   "y": 2127858.17,
+   "a": {
+    "Waste area": "Waste Rock Dam",
+    "Ground elev (ft)": 1347.5,
+    "Total depth (ft)": 60.0,
+    "Interpreted waste depth (ft)": 10.0,
+    "Waste depth basis": "Soil type, blow counts",
+    "Latitude": 39.003179,
+    "Longitude": -122.668733
+   }
+  },
+  {
+   "id": "SB-39",
+   "x": 6371636.82,
+   "y": 2127664.06,
+   "a": {
+    "Ground elev (ft)": 1351.0,
+    "Interpreted waste depth (ft)": 34.0,
+    "Waste depth basis": "Soil type, pH, blow counts",
+    "Latitude": 39.002646,
+    "Longitude": -122.668733
+   }
+  },
+  {
+   "id": "SB-40",
+   "x": 6371526.68,
+   "y": 2127715.78,
+   "a": {
+    "Ground elev (ft)": 1354.5,
+    "Interpreted waste depth (ft)": 47.0,
+    "Waste depth basis": "Soil type, pH",
+    "Latitude": 39.002786,
+    "Longitude": -122.669122
+   }
+  },
+  {
+   "id": "SB-41",
+   "x": 6371800.19,
+   "y": 2127702.26,
+   "a": {
+    "Waste area": "Waste Rock Dam",
+    "Ground elev (ft)": 1344.0,
+    "Total depth (ft)": 40.0,
+    "Waste depth basis": "Soil type",
+    "Latitude": 39.002754,
+    "Longitude": -122.668159
+   }
+  },
+  {
+   "id": "SB-42",
+   "x": 6371887.86,
+   "y": 2127722.41,
+   "a": {
+    "Ground elev (ft)": 1340.0,
+    "Interpreted waste depth (ft)": 26.0,
+    "Waste depth basis": "Soil type, blow counts",
+    "Latitude": 39.002811,
+    "Longitude": -122.667851
+   }
+  },
+  {
+   "id": "SB-43",
+   "x": 6371727.28,
+   "y": 2127352.0,
+   "a": {
+    "Waste area": "West Waste Rock Pile",
+    "Ground elev (ft)": 1362.0,
+    "Total depth (ft)": 25.0,
+    "Interpreted waste depth (ft)": 17.0,
+    "Waste depth basis": "Soil type, blow counts",
+    "Latitude": 39.001791,
+    "Longitude": -122.668407
+   }
+  },
+  {
+   "id": "SB-44",
+   "x": 6371414.95,
+   "y": 2127378.15,
+   "a": {
+    "Waste area": "West Waste Rock Pile",
+    "Ground elev (ft)": 1376.5,
+    "Total depth (ft)": 50.0,
+    "Interpreted waste depth (ft)": 43.0,
+    "Waste depth basis": "Soil type",
+    "Latitude": 39.001857,
+    "Longitude": -122.669506
+   }
+  },
+  {
+   "id": "SB-45",
+   "x": 6371598.75,
+   "y": 2127677.92,
+   "a": {
+    "Ground elev (ft)": 1352.0,
+    "Interpreted waste depth (ft)": 38.0,
+    "Waste depth basis": "Soil type, blow counts",
+    "Latitude": 39.002683,
+    "Longitude": -122.668867
+   }
+  },
+  {
+   "id": "SB-46",
+   "x": 6371659.98,
+   "y": 2127648.48,
+   "a": {
+    "Ground elev (ft)": 1351.0,
+    "Interpreted waste depth (ft)": 35.0,
+    "Waste depth basis": "pH",
+    "Latitude": 39.002604,
+    "Longitude": -122.668651
+   }
+  }
+ ],
+ "crs": "EPSG:6418 (NAD83(2011) CA SP Zone 2, ftUS)",
+ "baked": true
+}

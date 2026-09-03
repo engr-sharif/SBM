@@ -1,0 +1,1 @@
+window.SBMM_DATA=window.SBMM_DATA||{};SBMM_DATA["ortho_abp"]={"x0":6371399.8027,"y1":2129200.0487,"x1":6371999.8027,"y0":2128560.0487};

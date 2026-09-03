@@ -1,0 +1,816 @@
+{
+ "schema": 2,
+ "crs": "EPSG:6418 NAD83(2011) CA State Plane zone 2, US survey feet",
+ "encoding": {
+  "kind": "terrain-rgb-png",
+  "formula": "z = zmin + (R*256+G-1)*zstep",
+  "nodata": "R=G=0",
+  "row0": "north"
+ },
+ "note": "EA design/existing surfaces for docs/V9_SPEC.md section 5. `kind` says what a surface IS: `existing` surfaces are EA's own TIN vertices recovered byte-for-byte from the native files; `derived` surfaces are built here from EA's polygons and EA's written design depth over the lidar bare earth, and are not EA TINs. No surface in this manifest is `proposed` \u2014 see not_recovered.",
+ "surfaces": [
+  {
+   "id": "eg_ea",
+   "label": "EA existing ground (Civil 3D TIN)",
+   "kind": "existing",
+   "method": "recovered from the AECC_TIN_SURFACE object stream \u2014 stride-4 float64 (x, y, z, id64) at bit=1 byte=4, all 64 (bit, byte) alignments swept; rasterised to 1 ft by linear interpolation over the TIN's Delaunay triangulation, triangles with an edge > 25 ft dropped",
+   "source_files": [
+    "1578546 - C-BASE.dwg",
+    "1578546 - 01.01 - SiteExcavAndCapping.dwg",
+    "1578546 - 02.01 - SiteRepository.dwg",
+    "1578546 - 02.02 - North_lobe.dwg"
+   ],
+   "confidence": "high",
+   "raster": {
+    "payload": "surf_eg_ea",
+    "x0": 6369961.0,
+    "y0": 2128017.0,
+    "w": 4732,
+    "h": 2842,
+    "step": 1.0,
+    "zmin": 1325.827,
+    "zstep": 0.02,
+    "zmax": 1452.284,
+    "png": "surf_eg_ea.png",
+    "png_bytes": 5096201
+   },
+   "footprint": [
+    [
+     6370087.0,
+     2128143.0
+    ],
+    [
+     6374567.0,
+     2128143.0
+    ],
+    [
+     6374567.0,
+     2130733.0
+    ],
+    [
+     6370087.0,
+     2130733.0
+    ],
+    [
+     6370087.0,
+     2128143.0
+    ]
+   ],
+   "stats": {
+    "n_pts": 955387,
+    "mean_dz_vs_lidar": 0.002,
+    "sd_dz": 0.161,
+    "pct_within_0p5": 99.75
+   },
+   "volumes_vs_lidar_yd3": {
+    "cut": 9668.5,
+    "fill": 11656.6,
+    "net": 1988.0
+   },
+   "notes": "EA's own existing-ground TIN as bound into the design drawings \u2014 recovered byte-for-byte, not reconstructed. The same array is present identically in all four drawings, which is itself a cross-check. Residual against the Jan-2024 lidar master is the validation: near zero is the expected result and is what confirms the decode."
+  },
+  {
+   "id": "borrow_eg",
+   "label": "Borrow area existing ground (.mms surface store)",
+   "kind": "existing",
+   "method": "recovered from the external surface store \u2014 the .mms is a ZIP whose single member is a 272,737,606-byte DEFLATE stream carrying the same stride-4 float64 records; rasterised to 1 ft over its Delaunay triangulation",
+   "source_files": [
+    "1578546 - 02.03 - Borrow_Area_193e7.mms"
+   ],
+   "confidence": "high",
+   "raster": {
+    "payload": "surf_borrow_eg",
+    "x0": 6369288.0,
+    "y0": 2125488.0,
+    "w": 2912,
+    "h": 1776,
+    "step": 1.0,
+    "zmin": 1325.967,
+    "zstep": 0.02,
+    "zmax": 1628.663,
+    "png": "surf_borrow_eg.png",
+    "png_bytes": 2249501
+   },
+   "footprint": [
+    [
+     6369414.0,
+     2125613.0
+    ],
+    [
+     6372174.0,
+     2125613.0
+    ],
+    [
+     6372174.0,
+     2127238.0
+    ],
+    [
+     6369414.0,
+     2127238.0
+    ],
+    [
+     6369414.0,
+     2125613.0
+    ]
+   ],
+   "stats": {
+    "n_pts": 933112,
+    "mean_dz_vs_lidar": 0.117,
+    "sd_dz": 0.34,
+    "pct_within_0p5": 90.15
+   },
+   "volumes_vs_lidar_yd3": {
+    "cut": 1777.8,
+    "fill": 15332.4,
+    "net": 13554.7
+   },
+   "notes": "EA's Borrow Area surface store \u2014 recovered, not reconstructed. The wider residual than eg_ea (sd 0.34 vs 0.16 ft) is the borrow area's own vegetation and spoil relief, not a decode error."
+  },
+  {
+   "id": "res_excbottom",
+   "label": "Residential excavation bottom",
+   "kind": "derived",
+   "method": "lidar existing ground minus depth_ft inside each limit-of-excavation polygon (1.0 ft default from the sheet note; deepest wins where polygons overlap), existing ground out to a 60 ft working buffer around the limits, nodata beyond",
+   "source_files": [
+    "data/design_gis.json (EA geodatabase, exc layer)",
+    "data/design/cad_native.json (C-SITE-EXC-* closed sub-areas and sheet notes)",
+    "master_1ft.f32 (Jan-2024 lidar bare earth)"
+   ],
+   "confidence": "medium",
+   "raster": {
+    "payload": "surf_res_excbottom",
+    "x0": 6369953.0,
+    "y0": 2126110.0,
+    "w": 1426,
+    "h": 4199,
+    "step": 1.0,
+    "zmin": 1325.108,
+    "zstep": 0.02,
+    "zmax": 1379.395,
+    "png": "surf_res_excbottom.png",
+    "png_bytes": 572479
+   },
+   "footprint": [
+    [
+     6369979.0,
+     2126136.0
+    ],
+    [
+     6371353.0,
+     2126136.0
+    ],
+    [
+     6371353.0,
+     2130283.0
+    ],
+    [
+     6369979.0,
+     2130283.0
+    ],
+    [
+     6369979.0,
+     2126136.0
+    ]
+   ],
+   "stats": {
+    "n_pts": 686216,
+    "mean_dz_vs_lidar": -0.298,
+    "sd_dz": 0.457,
+    "pct_within_0p5": 70.25
+   },
+   "volumes_vs_lidar_yd3": {
+    "cut": 7561.9,
+    "fill": 0.0,
+    "net": -7561.9
+   },
+   "notes": "Depth-based design, faithful to EA's written intent \u2014 \"EXCAVATE WORK AREA TO ONE FOOT DEPTH UNLESS OTHERWISE INDICATED\". This is NOT an EA TIN; no proposed TIN for the residential lots exists in the delivered files. Raster cut 7,562 yd3 vs Sum(area x depth) over the polygon union 7,566 yd3 \u2014 the two agree because the surface is a pure vertical offset; the residual is 1-ft rasterisation of the polygon edges.",
+   "depth_polygons": [
+    {
+     "name": "Limit of excavation \u2014 Southern Residence",
+     "lot": null,
+     "authority": "design_gis.json (geodatabase)",
+     "area_sf_printed": 4706,
+     "area_sf_raster": 4693,
+     "depth_ft": 1.0,
+     "cut_yd3_area_x_depth": 173.8
+    },
+    {
+     "name": "Limit of excavation \u2014 Southern Residence",
+     "lot": null,
+     "authority": "design_gis.json (geodatabase)",
+     "area_sf_printed": 3297,
+     "area_sf_raster": 3251,
+     "depth_ft": 1.0,
+     "cut_yd3_area_x_depth": 120.4
+    },
+    {
+     "name": "Limit of excavation \u2014 Lot 19",
+     "lot": 19,
+     "authority": "design_gis.json (geodatabase)",
+     "area_sf_printed": 11321,
+     "area_sf_raster": 11324,
+     "depth_ft": 1.0,
+     "cut_yd3_area_x_depth": 419.4
+    },
+    {
+     "name": "Limit of excavation \u2014 Lot 17",
+     "lot": 17,
+     "authority": "design_gis.json (geodatabase)",
+     "area_sf_printed": 2231,
+     "area_sf_raster": 2234,
+     "depth_ft": 1.0,
+     "cut_yd3_area_x_depth": 82.7
+    },
+    {
+     "name": "Limit of excavation \u2014 Lot 17",
+     "lot": 17,
+     "authority": "design_gis.json (geodatabase)",
+     "area_sf_printed": 3798,
+     "area_sf_raster": 3796,
+     "depth_ft": 1.0,
+     "cut_yd3_area_x_depth": 140.6
+    },
+    {
+     "name": "Limit of excavation \u2014 Lot 25",
+     "lot": 25,
+     "authority": "design_gis.json (geodatabase)",
+     "area_sf_printed": 3310,
+     "area_sf_raster": 3313,
+     "depth_ft": 1.0,
+     "cut_yd3_area_x_depth": 122.7
+    },
+    {
+     "name": "Limit of excavation \u2014 Lot 13",
+     "lot": 13,
+     "authority": "design_gis.json (geodatabase)",
+     "area_sf_printed": 22850,
+     "area_sf_raster": 22848,
+     "depth_ft": 1.0,
+     "cut_yd3_area_x_depth": 846.2
+    },
+    {
+     "name": "Limit of excavation \u2014 Lot 15",
+     "lot": 15,
+     "authority": "design_gis.json (geodatabase)",
+     "area_sf_printed": 29361,
+     "area_sf_raster": 29365,
+     "depth_ft": 1.0,
+     "cut_yd3_area_x_depth": 1087.6
+    },
+    {
+     "name": "Limit of excavation \u2014 Southwest Lot",
+     "lot": null,
+     "authority": "design_gis.json (geodatabase)",
+     "area_sf_printed": 34167,
+     "area_sf_raster": 34171,
+     "depth_ft": 1.0,
+     "cut_yd3_area_x_depth": 1265.6
+    },
+    {
+     "name": "Limit of excavation \u2014 Lots 1, 5 and 7",
+     "lot": 7,
+     "authority": "design_gis.json (geodatabase)",
+     "area_sf_printed": 42797,
+     "area_sf_raster": 42799,
+     "depth_ft": 1.0,
+     "cut_yd3_area_x_depth": 1585.1
+    },
+    {
+     "name": "Limit of excavation \u2014 Lot 31",
+     "lot": 31,
+     "authority": "design_gis.json (geodatabase)",
+     "area_sf_printed": 14,
+     "area_sf_raster": 14,
+     "depth_ft": 1.0,
+     "cut_yd3_area_x_depth": 0.5
+    },
+    {
+     "name": "Limit of excavation \u2014 Lot 31",
+     "lot": 31,
+     "authority": "design_gis.json (geodatabase)",
+     "area_sf_printed": 1613,
+     "area_sf_raster": 1613,
+     "depth_ft": 1.0,
+     "cut_yd3_area_x_depth": 59.7
+    },
+    {
+     "name": "Limit of excavation \u2014 Northwest Lot",
+     "lot": null,
+     "authority": "design_gis.json (geodatabase)",
+     "area_sf_printed": 5813,
+     "area_sf_raster": 5812,
+     "depth_ft": 1.0,
+     "cut_yd3_area_x_depth": 215.3
+    },
+    {
+     "name": "Limit of excavation \u2014 Northwest Lot",
+     "lot": null,
+     "authority": "design_gis.json (geodatabase)",
+     "area_sf_printed": 7920,
+     "area_sf_raster": 7920,
+     "depth_ft": 1.0,
+     "cut_yd3_area_x_depth": 293.3
+    },
+    {
+     "name": "Limit of excavation \u2014 North Lobe",
+     "lot": null,
+     "authority": "design_gis.json (geodatabase)",
+     "area_sf_printed": 31105,
+     "area_sf_raster": 31107,
+     "depth_ft": 1.0,
+     "cut_yd3_area_x_depth": 1152.1
+    },
+    {
+     "name": "C-SITE-EXC-LOT - 19",
+     "lot": null,
+     "authority": "cad_native.json C-SITE-EXC-LOT - 19",
+     "area_sf_printed": null,
+     "area_sf_raster": 456,
+     "depth_ft": 1.0,
+     "cut_yd3_area_x_depth": 16.9
+    },
+    {
+     "name": "C-SITE-EXC-LOT - SOUTH",
+     "lot": null,
+     "authority": "cad_native.json C-SITE-EXC-LOT - SOUTH",
+     "area_sf_printed": null,
+     "area_sf_raster": 561,
+     "depth_ft": 1.0,
+     "cut_yd3_area_x_depth": 20.8
+    },
+    {
+     "name": "C-SITE-EXC-LOT-25",
+     "lot": null,
+     "authority": "cad_native.json C-SITE-EXC-LOT-25",
+     "area_sf_printed": null,
+     "area_sf_raster": 862,
+     "depth_ft": 1.0,
+     "cut_yd3_area_x_depth": 31.9
+    },
+    {
+     "name": "C-SITE-EXC-LOT-25",
+     "lot": null,
+     "authority": "cad_native.json C-SITE-EXC-LOT-25",
+     "area_sf_printed": null,
+     "area_sf_raster": 405,
+     "depth_ft": 1.0,
+     "cut_yd3_area_x_depth": 15.0
+    },
+    {
+     "name": "C-SITE-EXC-LOT-25",
+     "lot": null,
+     "authority": "cad_native.json C-SITE-EXC-LOT-25",
+     "area_sf_printed": null,
+     "area_sf_raster": 405,
+     "depth_ft": 1.0,
+     "cut_yd3_area_x_depth": 15.0
+    },
+    {
+     "name": "C-SITE-EXC-LOT-13",
+     "lot": null,
+     "authority": "cad_native.json C-SITE-EXC-LOT-13",
+     "area_sf_printed": null,
+     "area_sf_raster": 507,
+     "depth_ft": 1.0,
+     "cut_yd3_area_x_depth": 18.8
+    },
+    {
+     "name": "C-SITE-EXC-LOT-13",
+     "lot": null,
+     "authority": "cad_native.json C-SITE-EXC-LOT-13",
+     "area_sf_printed": null,
+     "area_sf_raster": 1021,
+     "depth_ft": 1.0,
+     "cut_yd3_area_x_depth": 37.8
+    },
+    {
+     "name": "C-SITE-EXC-NLOBE",
+     "lot": null,
+     "authority": "cad_native.json C-SITE-EXC-NLOBE",
+     "area_sf_printed": null,
+     "area_sf_raster": 693,
+     "depth_ft": 1.0,
+     "cut_yd3_area_x_depth": 25.7
+    },
+    {
+     "name": "C-SITE-EXC-LOT-25",
+     "lot": null,
+     "authority": "cad_native.json C-SITE-EXC-LOT-25",
+     "area_sf_printed": null,
+     "area_sf_raster": 2232,
+     "depth_ft": 1.0,
+     "cut_yd3_area_x_depth": 82.7
+    },
+    {
+     "name": "C-SITE-EXC-LOTS-1-4-5-7",
+     "lot": null,
+     "authority": "cad_native.json C-SITE-EXC-LOTS-1-4-5-7",
+     "area_sf_printed": null,
+     "area_sf_raster": 1114,
+     "depth_ft": 1.0,
+     "cut_yd3_area_x_depth": 41.3
+    },
+    {
+     "name": "C-SITE-EXC-LOTS-1-4-5-7",
+     "lot": null,
+     "authority": "cad_native.json C-SITE-EXC-LOTS-1-4-5-7",
+     "area_sf_printed": null,
+     "area_sf_raster": 1084,
+     "depth_ft": 1.0,
+     "cut_yd3_area_x_depth": 40.1
+    },
+    {
+     "name": "C-SITE-EXC-LOT-SW",
+     "lot": null,
+     "authority": "cad_native.json C-SITE-EXC-LOT-SW",
+     "area_sf_printed": null,
+     "area_sf_raster": 794,
+     "depth_ft": 1.0,
+     "cut_yd3_area_x_depth": 29.4
+    },
+    {
+     "name": "C-SITE-EXC-LOT-SW",
+     "lot": null,
+     "authority": "cad_native.json C-SITE-EXC-LOT-SW",
+     "area_sf_printed": null,
+     "area_sf_raster": 2731,
+     "depth_ft": 1.0,
+     "cut_yd3_area_x_depth": 101.1
+    },
+    {
+     "name": "C-SITE-EXC-LOT-SW",
+     "lot": null,
+     "authority": "cad_native.json C-SITE-EXC-LOT-SW",
+     "area_sf_printed": null,
+     "area_sf_raster": 161,
+     "depth_ft": 1.0,
+     "cut_yd3_area_x_depth": 6.0
+    },
+    {
+     "name": "C-SITE-EXC-LOT-SW",
+     "lot": null,
+     "authority": "cad_native.json C-SITE-EXC-LOT-SW",
+     "area_sf_printed": null,
+     "area_sf_raster": 58,
+     "depth_ft": 1.0,
+     "cut_yd3_area_x_depth": 2.1
+    },
+    {
+     "name": "C-SITE-EXC-LOT-SW",
+     "lot": null,
+     "authority": "cad_native.json C-SITE-EXC-LOT-SW",
+     "area_sf_printed": null,
+     "area_sf_raster": 5608,
+     "depth_ft": 1.0,
+     "cut_yd3_area_x_depth": 207.7
+    },
+    {
+     "name": "C-SITE-EXC-LOT-SW",
+     "lot": null,
+     "authority": "cad_native.json C-SITE-EXC-LOT-SW",
+     "area_sf_printed": null,
+     "area_sf_raster": 7325,
+     "depth_ft": 1.0,
+     "cut_yd3_area_x_depth": 271.3
+    },
+    {
+     "name": "C-SITE-EXC-LOT-17",
+     "lot": null,
+     "authority": "cad_native.json C-SITE-EXC-LOT-17",
+     "area_sf_printed": null,
+     "area_sf_raster": 1291,
+     "depth_ft": 1.0,
+     "cut_yd3_area_x_depth": 47.8
+    },
+    {
+     "name": "C-SITE-EXC-LOT-17",
+     "lot": null,
+     "authority": "cad_native.json C-SITE-EXC-LOT-17",
+     "area_sf_printed": null,
+     "area_sf_raster": 346,
+     "depth_ft": 1.0,
+     "cut_yd3_area_x_depth": 12.8
+    },
+    {
+     "name": "C-SITE-EXC-LOT-17",
+     "lot": null,
+     "authority": "cad_native.json C-SITE-EXC-LOT-17",
+     "area_sf_printed": null,
+     "area_sf_raster": 129,
+     "depth_ft": 1.0,
+     "cut_yd3_area_x_depth": 4.8
+    },
+    {
+     "name": "C-SITE-EXC-LOT-17",
+     "lot": null,
+     "authority": "cad_native.json C-SITE-EXC-LOT-17",
+     "area_sf_printed": null,
+     "area_sf_raster": 224,
+     "depth_ft": 1.0,
+     "cut_yd3_area_x_depth": 8.3
+    },
+    {
+     "name": "C-SITE-EXC-NLOBE",
+     "lot": null,
+     "authority": "cad_native.json C-SITE-EXC-NLOBE",
+     "area_sf_printed": null,
+     "area_sf_raster": 491,
+     "depth_ft": 1.0,
+     "cut_yd3_area_x_depth": 18.2
+    },
+    {
+     "name": "C-SITE-EXC-LOT - SOUTH",
+     "lot": null,
+     "authority": "cad_native.json C-SITE-EXC-LOT - SOUTH",
+     "area_sf_printed": null,
+     "area_sf_raster": 706,
+     "depth_ft": 1.0,
+     "cut_yd3_area_x_depth": 26.1
+    },
+    {
+     "name": "C-SITE-EXC-LOT-25",
+     "lot": null,
+     "authority": "cad_native.json C-SITE-EXC-LOT-25",
+     "area_sf_printed": null,
+     "area_sf_raster": 1868,
+     "depth_ft": 1.0,
+     "cut_yd3_area_x_depth": 69.2
+    },
+    {
+     "name": "C-SITE-EXC-LOT-25",
+     "lot": null,
+     "authority": "cad_native.json C-SITE-EXC-LOT-25",
+     "area_sf_printed": null,
+     "area_sf_raster": 479,
+     "depth_ft": 1.0,
+     "cut_yd3_area_x_depth": 17.7
+    },
+    {
+     "name": "C-SITE-EXC-LOT - SOUTH",
+     "lot": null,
+     "authority": "cad_native.json C-SITE-EXC-LOT - SOUTH",
+     "area_sf_printed": null,
+     "area_sf_raster": 1974,
+     "depth_ft": 1.0,
+     "cut_yd3_area_x_depth": 73.1
+    },
+    {
+     "name": "C-SITE-EXC-LOT-17",
+     "lot": null,
+     "authority": "cad_native.json C-SITE-EXC-LOT-17",
+     "area_sf_printed": null,
+     "area_sf_raster": 671,
+     "depth_ft": 1.0,
+     "cut_yd3_area_x_depth": 24.9
+    },
+    {
+     "name": "C-SITE-EXC-LOT-17",
+     "lot": null,
+     "authority": "cad_native.json C-SITE-EXC-LOT-17",
+     "area_sf_printed": null,
+     "area_sf_raster": 240,
+     "depth_ft": 1.0,
+     "cut_yd3_area_x_depth": 8.9
+    },
+    {
+     "name": "C-SITE-EXC-LOTS-1-4-5-7",
+     "lot": null,
+     "authority": "cad_native.json C-SITE-EXC-LOTS-1-4-5-7",
+     "area_sf_printed": null,
+     "area_sf_raster": 1113,
+     "depth_ft": 1.0,
+     "cut_yd3_area_x_depth": 41.2
+    },
+    {
+     "name": "C-SITE-EXC-LOTS-1-4-5-7",
+     "lot": null,
+     "authority": "cad_native.json C-SITE-EXC-LOTS-1-4-5-7",
+     "area_sf_printed": null,
+     "area_sf_raster": 574,
+     "depth_ft": 1.0,
+     "cut_yd3_area_x_depth": 21.3
+    },
+    {
+     "name": "C-SITE-EXC-LOTS-1-4-5-7",
+     "lot": null,
+     "authority": "cad_native.json C-SITE-EXC-LOTS-1-4-5-7",
+     "area_sf_printed": null,
+     "area_sf_raster": 1173,
+     "depth_ft": 1.0,
+     "cut_yd3_area_x_depth": 43.4
+    },
+    {
+     "name": "C-SITE-EXC-LOT-15",
+     "lot": null,
+     "authority": "cad_native.json C-SITE-EXC-LOT-15",
+     "area_sf_printed": null,
+     "area_sf_raster": 136,
+     "depth_ft": 1.0,
+     "cut_yd3_area_x_depth": 5.0
+    },
+    {
+     "name": "C-SITE-EXC-PARCEL 10",
+     "lot": null,
+     "authority": "cad_native.json C-SITE-EXC-PARCEL 10",
+     "area_sf_printed": null,
+     "area_sf_raster": 389,
+     "depth_ft": 1.0,
+     "cut_yd3_area_x_depth": 14.4
+    },
+    {
+     "name": "C-SITE-EXC-PARCEL 10",
+     "lot": null,
+     "authority": "cad_native.json C-SITE-EXC-PARCEL 10",
+     "area_sf_printed": null,
+     "area_sf_raster": 307,
+     "depth_ft": 1.0,
+     "cut_yd3_area_x_depth": 11.4
+    },
+    {
+     "name": "C-SITE-EXC-PARCEL 10",
+     "lot": null,
+     "authority": "cad_native.json C-SITE-EXC-PARCEL 10",
+     "area_sf_printed": null,
+     "area_sf_raster": 756,
+     "depth_ft": 1.0,
+     "cut_yd3_area_x_depth": 28.0
+    },
+    {
+     "name": "C-SITE-EXC-PARCEL 10",
+     "lot": null,
+     "authority": "cad_native.json C-SITE-EXC-PARCEL 10",
+     "area_sf_printed": null,
+     "area_sf_raster": 49,
+     "depth_ft": 1.0,
+     "cut_yd3_area_x_depth": 1.8
+    },
+    {
+     "name": "C-SITE-EXC-PARCEL 10",
+     "lot": null,
+     "authority": "cad_native.json C-SITE-EXC-PARCEL 10",
+     "area_sf_printed": null,
+     "area_sf_raster": 2,
+     "depth_ft": 1.0,
+     "cut_yd3_area_x_depth": 0.1
+    },
+    {
+     "name": "C-SITE-EXC-PARCEL 10",
+     "lot": null,
+     "authority": "cad_native.json C-SITE-EXC-PARCEL 10",
+     "area_sf_printed": null,
+     "area_sf_raster": 4,
+     "depth_ft": 1.0,
+     "cut_yd3_area_x_depth": 0.1
+    },
+    {
+     "name": "C-SITE-EXC-PARCEL 10",
+     "lot": null,
+     "authority": "cad_native.json C-SITE-EXC-PARCEL 10",
+     "area_sf_printed": null,
+     "area_sf_raster": 2222,
+     "depth_ft": 1.0,
+     "cut_yd3_area_x_depth": 82.3
+    },
+    {
+     "name": "C-SITE-EXC-PARCEL 10",
+     "lot": null,
+     "authority": "cad_native.json C-SITE-EXC-PARCEL 10",
+     "area_sf_printed": null,
+     "area_sf_raster": 33,
+     "depth_ft": 1.0,
+     "cut_yd3_area_x_depth": 1.2
+    },
+    {
+     "name": "C-SITE-EXC-PARCEL 10",
+     "lot": null,
+     "authority": "cad_native.json C-SITE-EXC-PARCEL 10",
+     "area_sf_printed": null,
+     "area_sf_raster": 839,
+     "depth_ft": 1.0,
+     "cut_yd3_area_x_depth": 31.1
+    },
+    {
+     "name": "C-SITE-EXC-PARCEL 10",
+     "lot": null,
+     "authority": "cad_native.json C-SITE-EXC-PARCEL 10",
+     "area_sf_printed": null,
+     "area_sf_raster": 4,
+     "depth_ft": 1.0,
+     "cut_yd3_area_x_depth": 0.1
+    },
+    {
+     "name": "C-SITE-EXC-PARCEL 10",
+     "lot": null,
+     "authority": "cad_native.json C-SITE-EXC-PARCEL 10",
+     "area_sf_printed": null,
+     "area_sf_raster": 1,
+     "depth_ft": 1.0,
+     "cut_yd3_area_x_depth": 0.0
+    }
+   ],
+   "depth_overrides_unapplied": [
+    {
+     "sheet": "C-104",
+     "depth_ft": 0.5,
+     "text": "EXCAVATE AND BACKFILL AS PER\nSPECIFICATIONS,\nEXCEPT TOP 6\" SHALL\nBE SAME SOIL AS ON FOOT PATH."
+    },
+    {
+     "sheet": "C-107",
+     "depth_ft": 0.5,
+     "text": "6\" EXCAVATION BY HAND WITHIN DRIP LINE. TREE ROOTS SHALL NOT BE DAMAGED BY EXCAVATION PROCESS. TREE ROOTS WITHIN 6\" EXCAVATION DEPTH SHALL BE PROTECTED UNTIL CLEAN BACKFILL IS PLACED."
+    },
+    {
+     "sheet": "C-111",
+     "depth_ft": 0.5,
+     "text": "FILL 6\" NEAR STRUCTURE"
+    },
+    {
+     "sheet": "C-111",
+     "depth_ft": 0.5,
+     "text": "FILL 6\" CLEAN SOIL ALONG FENCE LINE\nAND MATCH TREE DRIP LINE FILL\nAS DIRECTED BY ENGINEER."
+    }
+   ],
+   "analytic_cut_yd3": 7565.6
+  },
+  {
+   "id": "res_finish",
+   "label": "Residential finished grade",
+   "kind": "derived",
+   "method": "equals the lidar existing ground: the excavated work area is backfilled to grade and the unhatched area inside the limits gets 12 in of clean fill, so the design finished surface is existing grade everywhere; carried out to the same 60 ft working buffer as res_excbottom",
+   "source_files": [
+    "master_1ft.f32 (Jan-2024 lidar bare earth)",
+    "data/design/cad_native.json (sheet notes)"
+   ],
+   "confidence": "medium",
+   "raster": {
+    "payload": "surf_res_finish",
+    "x0": 6369953.0,
+    "y0": 2126110.0,
+    "w": 1426,
+    "h": 4199,
+    "step": 1.0,
+    "zmin": 1326.023,
+    "zstep": 0.02,
+    "zmax": 1379.395,
+    "png": "surf_res_finish.png",
+    "png_bytes": 564527
+   },
+   "footprint": [
+    [
+     6369979.0,
+     2126136.0
+    ],
+    [
+     6371353.0,
+     2126136.0
+    ],
+    [
+     6371353.0,
+     2130283.0
+    ],
+    [
+     6369979.0,
+     2130283.0
+    ],
+    [
+     6369979.0,
+     2126136.0
+    ]
+   ],
+   "stats": {
+    "n_pts": 686216,
+    "mean_dz_vs_lidar": 0.0,
+    "sd_dz": 0.0,
+    "pct_within_0p5": 100.0
+   },
+   "volumes_vs_lidar_yd3": {
+    "cut": 0.0,
+    "fill": 0.0,
+    "net": 0.0
+   },
+   "notes": "Finished grade EQUALS existing grade by design, per EA's notes: \"PROVIDE 12in OF FILL IN ANY UNHATCHED AREA INSIDE THE LIMITS OF EXCAVATION AND/ OR FILL\" and \"TRANSITION TO EXISTING GRADE AT LIMITS OF FILL BOUNDARY\". It is shipped as its own surface so that \"volume vs design\" and the isopach have an explicit finished-grade datum to point at, and so the zero residual is visible rather than assumed. Volumes against lidar are therefore zero by construction."
+  }
+ ],
+ "not_recovered": [
+  {
+   "id": "repo_fg",
+   "label": "Repository / East stockpile final grade",
+   "searched": [
+    "1578546 - 02.01 - SiteRepository.dwg"
+   ],
+   "why": "All 64 (bit, byte) alignments were swept across the whole 183,607,588-byte undecoded blob and across every decoded object's unknown_bits. The only stride-4 float64 runs outside the 955,387-point existing TIN are two dense 3-D linework sets (312 and 461 points) in the East Stockpile area, and both sit ON existing ground \u2014 the z = 1441.0 cluster has lidar 1441.0 under it. They are existing contours, not a proposed grade.",
+   "fallback_not_used": "The spec's constrained-Delaunay fallback needs 3-D grading breaklines and daylight lines. The `grade` group is 47 features totalling 145 vertices \u2014 mostly 2-point contour stubs across a 40 ft strip of the East Stockpile \u2014 and the `daylight` group carries a usable Z on 17 of 187 vertices. A Delaunay over that would invent the entire pad, which is the failure CLAUDE.md warns against.",
+   "remedy": "Ask EA for a LandXML export or a proposed-grade raster of the repository / stockpile surfaces \u2014 a one-line request they can satisfy from Civil 3D."
+  },
+  {
+   "id": "nlobe_fg",
+   "label": "North lobe final grade",
+   "searched": [
+    "1578546 - 02.02 - North_lobe.dwg"
+   ],
+   "why": "Same sweep, same result: the drawing carries the same 955,387-point existing TIN and no proposed surface.",
+   "fallback_not_used": "The north lobe work is depth-based like the rest of the residential remedy \u2014 the 31,105 SF 'Limit of excavation \u2014 North Lobe' polygon is already carried by res_excbottom and res_finish, so there is no distinct proposed grade to build.",
+   "remedy": "Covered by res_excbottom / res_finish; ask EA for LandXML if a separate north-lobe design surface is ever needed."
+  }
+ ]
+}

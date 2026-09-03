@@ -1,0 +1,1093 @@
+/* ---------------------------------------------------------------------------
+   Overlay stacking order — one place, so a new panel does not have to guess.
+     1100-1400  docks, drawers, topbar, status bar, command bar
+     2300-2700  popovers, layer menus, the map context menu
+     3000       the boot loader (nothing else exists yet)
+     4000-4899  floating sheet-viewer windows (js/sheets.js re-stacks inside
+                this band so a long session can never climb past it)
+     5200       the SHEETS picker — above the windows it opens
+     5600       modals: help, command help, the report, the dataset dialog
+     7000       toasts, which must be readable over every one of the above
+                (a toast behind a sheet window is a failure the user never sees)
+   --------------------------------------------------------------------------- */
+/* SBMM Site Explorer — workbench shell
+   Dark GIS/CAD language: one page, three docked regions + a stage.
+   All colour and metric tokens live at the top; nothing below hard-codes a hue. */
+
+:root{
+  /* surfaces */
+  --bg:#0E1418; --panel:#161E23; --panel2:#1E2A31; --panel3:#26343D;
+  --line:#2C3B45; --line2:#3A4C58;
+  /* ink */
+  --ink:#E8EEF1; --ink2:#C3D0D7; --mut:#8FA3AE; --mut2:#6C7F8A;
+  /* accents */
+  --acc:#4FB3CE; --acc2:#7CD0E6; --accdim:rgba(79,179,206,.16);
+  --green:#5FBF8F; --red:#E4796A; --amber:#E8B34B; --gold:#FFD34D; --violet:#C792EA;
+  /* metrics */
+  --topH:48px; --statusH:30px; --railW:44px; --gripW:5px; --cmdH:0px;
+  --botH:calc(var(--statusH) + var(--cmdH));
+  --dockLW:272px; --dockRW:352px;
+  --r:8px; --r2:6px;
+  --sh1:0 1px 2px rgba(0,0,0,.35);
+  --sh2:0 6px 22px rgba(0,0,0,.45);
+  --sh3:0 14px 44px rgba(0,0,0,.6);
+  --ease:cubic-bezier(.22,.61,.36,1);
+  --mono:"SF Mono",ui-monospace,Consolas,Menlo,monospace;
+  --dockL:calc(var(--railW) + var(--dockLW) + var(--gripW));
+  --dockR:calc(var(--railW) + var(--dockRW) + var(--gripW));
+}
+body.lcol{ --dockL:var(--railW) }
+body.rcol{ --dockR:var(--railW) }
+
+*{box-sizing:border-box;margin:0;padding:0}
+/* author rules beat the UA sheet, so [hidden] has to be restated for styled elements */
+[hidden]{display:none !important}
+html,body{height:100%;overflow:hidden}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Arial,sans-serif;
+  background:var(--bg);color:var(--ink);font-size:13.5px;line-height:1.45;
+  -webkit-font-smoothing:antialiased}
+.mut{color:var(--mut)} .mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.spacer{flex:1}
+#isprite{position:absolute;width:0;height:0;overflow:hidden}
+.ic16{width:16px;height:16px;flex:none} .ic18{width:18px;height:18px;flex:none}
+/* fill/stroke are inherited SVG properties, so setting them on the <svg> host reaches
+   the <use> shadow content — a descendant selector like `.ic16 .tick` would not */
+.ic16,.ic18{fill:none;stroke:currentColor;stroke-width:1.35;
+  stroke-linecap:round;stroke-linejoin:round}
+:focus-visible{outline:2px solid var(--acc);outline-offset:1px;border-radius:4px}
+
+kbd{font-family:var(--mono);font-size:10px;background:rgba(255,255,255,.09);
+  border:1px solid rgba(255,255,255,.09);border-radius:3px;padding:0 4px;color:inherit;opacity:.85;
+  line-height:15px;display:inline-block}
+
+/* ======================= top bar ======================= */
+#topbar{position:absolute;top:0;left:0;right:0;height:var(--topH);
+  background:linear-gradient(180deg,#1A242A,#151D22);
+  border-bottom:1px solid var(--line);display:flex;align-items:center;gap:6px;
+  padding:0 10px;z-index:1200;box-shadow:var(--sh1)}
+#topbar .brand{font-weight:700;font-size:14px;letter-spacing:.2px;margin-right:6px;white-space:nowrap;
+  padding-right:12px;border-right:1px solid var(--line)}
+#topbar .brand span{color:var(--acc);font-weight:600}
+.tgroup{display:flex;align-items:center;gap:4px;padding:0 8px;position:relative}
+.tgroup + .tgroup::before{content:"";position:absolute;left:0;top:9px;bottom:9px;width:1px;background:var(--line)}
+.toolbtn{background:var(--panel2);border:1px solid var(--line);color:var(--ink2);border-radius:var(--r2);
+  padding:6px 10px;font-size:12.5px;font-family:inherit;cursor:pointer;display:flex;align-items:center;gap:6px;
+  white-space:nowrap;transition:background .13s var(--ease),border-color .13s var(--ease),color .13s var(--ease)}
+.toolbtn:hover{background:var(--panel3);border-color:var(--line2);color:var(--ink)}
+.toolbtn:active{transform:translateY(.5px)}
+.toolbtn.active{background:var(--acc);border-color:var(--acc);color:#06222C;font-weight:650;box-shadow:0 0 0 3px var(--accdim)}
+.toolbtn.active kbd{background:rgba(0,0,0,.18);border-color:rgba(0,0,0,.12)}
+.toolbtn.ghost{background:transparent;border-color:transparent;color:var(--mut)}
+.toolbtn.ghost:hover{background:var(--panel2);border-color:var(--line);color:var(--ink)}
+.toolbtn.iconly{padding:7px}
+/* when the window is too narrow for labels the top bar goes icon-only before it
+   starts pushing commands into the overflow menu */
+/* Narrowing happens in three stages so the primary tool labels are the LAST
+   thing to go — an icon-only Navigate/Inspect/Distance row is a guessing game,
+   and §3 asks for labels down to 1200 px. Stage 1 drops the shortcut chips,
+   stage 2 the labels on the ghost (data) commands, stage 3 everything. */
+body.barnokbd #topbar .tgroup kbd{display:none}
+body.barnokbd #topbar .brand span{display:none}
+body.barghost #topbar .tgroup .toolbtn.ghost .tlbl{display:none}
+body.barghost #topbar .tgroup .toolbtn.ghost{padding:7px;gap:0}
+body.barcompact #topbar .tgroup .tlbl{display:none}
+body.barcompact #topbar .tgroup .toolbtn{padding:7px;gap:0}
+#ovfMenu .toolbtn .tlbl{display:inline !important}
+#ovfMenu .toolbtn kbd{display:inline-block !important}
+
+/* ======================= menus / popovers ======================= */
+.menu{display:none;position:absolute;z-index:2400;background:var(--panel2);border:1px solid var(--line2);
+  border-radius:var(--r);box-shadow:var(--sh3);min-width:230px;overflow:hidden;font-size:12.5px;padding:4px}
+#exportMenu{top:calc(var(--topH) + 4px);right:118px}
+#ovfMenu{top:calc(var(--topH) + 4px);right:64px;min-width:190px}
+#ovfMenu .toolbtn{width:100%;justify-content:flex-start;background:transparent;border-color:transparent;color:var(--ink2)}
+#ovfMenu .toolbtn:hover{background:var(--panel3)}
+.menu .ci{padding:7px 11px;cursor:pointer;border-radius:5px;color:var(--ink2)}
+.menu .ci:hover{background:var(--panel3);color:var(--ink)}
+.menu .ci.hd{color:var(--mut);font-family:var(--mono);font-size:10.5px;cursor:default;
+  border-bottom:1px solid var(--line);border-radius:0;margin-bottom:3px}
+#ctxmenu{z-index:2500}
+
+.popover{display:none;position:absolute;z-index:2300;background:var(--panel2);border:1px solid var(--line2);
+  border-radius:var(--r);box-shadow:var(--sh3);padding:12px 14px;width:246px;font-size:12px}
+.popover.on{display:block}
+.popover h4{font-size:10.5px;text-transform:uppercase;letter-spacing:.9px;color:var(--mut);margin-bottom:9px}
+.popover label{display:block;color:var(--mut);margin-bottom:11px;font-size:11.5px}
+.popover label.chk{display:flex;align-items:center;gap:6px;margin-bottom:0;cursor:pointer}
+.popover label span{float:right;color:var(--ink)}
+.popover input[type=range]{width:100%;margin-top:5px}
+
+#gotoBox{display:none;position:absolute;top:calc(var(--topH) + 6px);right:12px;z-index:2100;background:var(--panel2);
+  border:1px solid var(--line2);border-radius:var(--r);padding:8px;box-shadow:var(--sh2)}
+#gotoBox input{width:320px;background:var(--panel);border:1px solid var(--line);color:var(--ink);
+  border-radius:var(--r2);padding:7px 10px;font-family:var(--mono);font-size:12.5px}
+
+#sketchTip{display:none;position:absolute;left:calc(var(--dockL) + (100% - var(--dockL) - var(--dockR))/2);
+  transform:translateX(-50%);top:calc(var(--topH) + 10px);z-index:1500;
+  background:rgba(22,30,35,.94);border:1px solid var(--line2);border-radius:var(--r2);padding:5px 12px;
+  font-family:var(--mono);font-size:11.5px;color:var(--gold);pointer-events:none;box-shadow:var(--sh2)}
+
+/* ======================= docks ======================= */
+#leftdock,#rightdock{position:absolute;top:var(--topH);bottom:var(--botH);z-index:1100;
+  display:flex;background:var(--panel);}
+#leftdock{left:0;width:var(--dockL);border-right:1px solid var(--line)}
+#rightdock{right:0;width:var(--dockR);border-left:1px solid var(--line)}
+body.notrans #leftdock,body.notrans #rightdock,body.notrans #stage{transition:none !important}
+#leftdock,#rightdock,#stage{transition:width .18s var(--ease),left .18s var(--ease),right .18s var(--ease)}
+
+.dockrail{width:var(--railW);flex:none;background:#121A1F;border-right:1px solid var(--line);
+  display:flex;flex-direction:column;align-items:center;gap:4px;padding:8px 0}
+#rightRail{border-right:none;border-left:1px solid var(--line)}
+.railbtn{width:32px;height:32px;border:1px solid transparent;background:transparent;color:var(--mut);
+  border-radius:var(--r2);cursor:pointer;display:flex;align-items:center;justify-content:center;
+  transition:background .13s var(--ease),color .13s var(--ease)}
+.railbtn:hover{background:var(--panel2);color:var(--ink)}
+.railbtn.active{background:var(--accdim);color:var(--acc2);border-color:rgba(79,179,206,.35)}
+
+.dockbody{flex:1;min-width:0;display:flex;flex-direction:column;overflow:hidden}
+body.lcol #leftBody,body.rcol #rightBody{display:none}
+body.lcol #leftGrip,body.rcol #rightGrip{display:none}
+.dockgrip{width:var(--gripW);flex:none;cursor:col-resize;background:transparent;position:relative}
+.dockgrip::after{content:"";position:absolute;inset:0 2px;background:transparent;transition:background .13s var(--ease)}
+.dockgrip:hover::after,.dockgrip.drag::after{background:var(--acc)}
+
+.docktabs{display:flex;align-items:center;gap:2px;height:36px;flex:none;padding:0 6px;
+  border-bottom:1px solid var(--line);background:#131B20}
+.dtab{background:transparent;border:none;border-bottom:2px solid transparent;color:var(--mut);
+  font:inherit;font-size:12px;padding:8px 9px 7px;cursor:pointer;border-radius:0;
+  transition:color .13s var(--ease),border-color .13s var(--ease)}
+.dtab:hover{color:var(--ink)}
+.dtab.active{color:var(--acc2);border-bottom-color:var(--acc)}
+.dockbtn{background:transparent;border:none;color:var(--mut);cursor:pointer;padding:5px;border-radius:5px;
+  display:flex;align-items:center}
+.dockbtn:hover{background:var(--panel2);color:var(--ink)}
+
+.dockpane{flex:1;overflow:auto;padding:10px 12px}
+.dockpane[hidden]{display:none}
+.dockpane h3{font-size:10.5px;text-transform:uppercase;letter-spacing:1.1px;color:var(--mut);
+  margin:14px 0 6px;font-weight:650}
+.dockpane h3:first-child{margin-top:2px}
+.panetools{display:flex;align-items:center;gap:6px;margin-bottom:8px;flex-wrap:wrap}
+
+/* thin scrollbars everywhere in the shell */
+.dockpane::-webkit-scrollbar,.twrap::-webkit-scrollbar,.v3dbar::-webkit-scrollbar,
+#help .box::-webkit-scrollbar,.coordlist::-webkit-scrollbar{width:9px;height:9px}
+.dockpane::-webkit-scrollbar-thumb,.twrap::-webkit-scrollbar-thumb,.v3dbar::-webkit-scrollbar-thumb,
+#help .box::-webkit-scrollbar-thumb,.coordlist::-webkit-scrollbar-thumb{background:var(--line);border-radius:5px}
+.dockpane::-webkit-scrollbar-thumb:hover,.coordlist::-webkit-scrollbar-thumb:hover{background:var(--line2)}
+.dockpane::-webkit-scrollbar-track,.twrap::-webkit-scrollbar-track{background:transparent}
+
+/* ======================= layers tab ======================= */
+.lyr{display:flex;align-items:center;gap:8px;padding:4px 6px;font-size:12.5px;cursor:pointer;
+  border-radius:5px;transition:background .11s var(--ease)}
+.lyr:hover{background:var(--panel2)}
+.lyr input[type=checkbox]{accent-color:var(--acc);cursor:pointer}
+.lyr .sw{width:12px;height:12px;border-radius:3px;flex:none;box-shadow:0 0 0 1px rgba(0,0,0,.35) inset}
+.lyr .lbl{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lyr .opac{width:54px;margin-left:auto;accent-color:var(--acc)}
+.lyr .d3d{flex:none;margin-left:6px;padding:1px 5px;font-size:10px;letter-spacing:.3px}
+/* marks content that is NOT from the Final design package */
+.warnpill{background:var(--warn,#E8B34B);color:#241A05;border-radius:3px;
+  padding:0 4px;font-size:9.5px;font-weight:700;letter-spacing:.3px;margin-left:4px}
+/* Sub-heading inside a layer section. The Residential section carries three
+   families of native EA layers (design areas, boundaries, existing conditions)
+   and a flat run of fourteen rows reads as noise without them. */
+.lsub{font-size:9.5px;letter-spacing:.6px;text-transform:uppercase;color:var(--mut);
+  margin:7px 0 2px;padding-left:1px;opacity:.8}
+.lsub:first-child{margin-top:2px}
+/* an inline caveat inside a popup — a recorded disagreement in the source data,
+   not an app error, so it warns without shouting */
+.warntxt{display:block;color:var(--warn,#E8B34B);font-size:11px;line-height:1.35;margin-top:2px}
+.lyr.busy .lbl{opacity:.4}
+.lyr.busy::after{content:"";width:12px;height:12px;border:2px solid var(--line);border-top-color:var(--acc);
+  border-radius:50%;animation:sp .8s linear infinite;flex:none}
+.legend{display:flex;align-items:center;gap:6px;font-size:10.5px;color:var(--mut);padding:1px 6px 7px;flex-wrap:wrap}
+.legend .rampbar{display:inline-block;width:88px;height:7px;border-radius:4px}
+.legend .chip{display:inline-block;width:9px;height:9px;border-radius:50%}
+.genrow{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--mut);padding:6px 6px 2px}
+
+/* ======================= features tab ======================= */
+#featureTree{font-size:12.5px}
+.ftgroup{margin-bottom:2px}
+.ftghead{display:flex;align-items:center;gap:6px;padding:5px 6px;border-radius:5px;cursor:pointer;
+  color:var(--ink2);user-select:none}
+.ftghead:hover{background:var(--panel2)}
+.ftghead.dropok{background:var(--accdim);box-shadow:inset 0 0 0 1px var(--acc)}
+.ftghead .caret{width:10px;color:var(--mut);font-size:9px;transition:transform .13s var(--ease);flex:none}
+.ftgroup.collapsed > .ftkids{display:none}
+.ftgroup.collapsed > .ftghead .caret{transform:rotate(-90deg)}
+.ftghead .gname{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600}
+.ftghead .gn{font-family:var(--mono);font-size:10.5px;color:var(--mut2)}
+.ftghead .gdel{color:var(--mut2);opacity:0}
+.ftghead:hover .gdel{opacity:1}
+.ftkids{margin-left:11px;border-left:1px solid var(--line);padding-left:5px}
+
+.ftrow{display:flex;align-items:center;gap:6px;padding:4px 6px;border-radius:5px;cursor:pointer;
+  transition:background .11s var(--ease)}
+.ftrow:hover{background:var(--panel2)}
+.ftrow.sel{background:var(--accdim);box-shadow:inset 0 0 0 1px rgba(79,179,206,.45)}
+.ftrow.hidden .ftname{opacity:.42;text-decoration:line-through;text-decoration-color:var(--mut2)}
+.ftrow.dragging{opacity:.4}
+.ftrow .sw{width:11px;height:11px;border-radius:3px;flex:none;box-shadow:0 0 0 1px rgba(0,0,0,.4) inset}
+.ftrow .ftname{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  outline:none;border-bottom:1px solid transparent;padding-bottom:1px}
+.ftrow .ftname:focus{border-bottom-color:var(--acc);text-overflow:clip}
+.ftrow .ftt{font-family:var(--mono);font-size:9.5px;color:var(--mut2);text-transform:uppercase;
+  letter-spacing:.4px;flex:none}
+.ftacts{display:flex;gap:1px;flex:none;opacity:.32;transition:opacity .13s var(--ease)}
+.ftrow:hover .ftacts,.ftrow.sel .ftacts{opacity:1}
+.ftb{background:none;border:none;color:var(--mut);cursor:pointer;padding:2px;border-radius:4px;display:flex}
+.ftb:hover{background:var(--panel3);color:var(--ink)}
+.ftb.on{color:var(--acc2)}
+.ftb.del:hover{color:var(--red)}
+.ftempty{color:var(--mut2);font-size:12px;padding:14px 6px;line-height:1.6}
+
+/* ======================= properties tab ======================= */
+#propsBody .pgroup{margin-bottom:14px}
+#propsBody h4{font-size:10.5px;text-transform:uppercase;letter-spacing:1.1px;color:var(--mut);
+  margin-bottom:7px;font-weight:650}
+.prow{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:12px;
+  padding:3px 0;min-height:24px}
+.prow > span:first-child{color:var(--mut);flex:none}
+.prow > b,.prow > .pv{font-family:var(--mono);font-variant-numeric:tabular-nums;font-weight:600;
+  text-align:right;overflow:hidden;text-overflow:ellipsis}
+.prow input[type=text],.prow input[type=number],.prow select{flex:1;min-width:0;max-width:150px}
+.prow input[type=color]{width:34px;height:22px;padding:0;border:1px solid var(--line);border-radius:4px;
+  background:var(--panel2);cursor:pointer}
+.prow input[type=range]{max-width:110px;flex:1;accent-color:var(--acc)}
+.pactions{display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap}
+.coordlist{max-height:200px;overflow:auto;border:1px solid var(--line);border-radius:var(--r2);
+  background:var(--panel2)}
+.coordlist table{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:10.5px}
+.coordlist th{position:sticky;top:0;background:var(--panel3);color:var(--mut);text-align:right;
+  padding:4px 6px;font-weight:600;font-size:9.5px;text-transform:uppercase;letter-spacing:.5px}
+.coordlist th:first-child,.coordlist td:first-child{text-align:left;color:var(--mut2)}
+.coordlist td{padding:2.5px 6px;text-align:right;border-top:1px solid rgba(44,59,69,.5);white-space:nowrap}
+.coordlist tr:hover td{background:var(--panel3)}
+.pnone{color:var(--mut2);font-size:12px;line-height:1.65;padding:12px 2px}
+
+/* ======================= results dock ======================= */
+#results .placeholder{color:var(--mut);font-size:12.5px;line-height:1.6}
+.res{background:var(--panel2);border:1px solid var(--line);border-radius:var(--r);padding:10px 12px;
+  margin-bottom:9px;transition:border-color .13s var(--ease),box-shadow .13s var(--ease)}
+.res.hl{border-color:var(--line2)}
+.res.sel{border-color:var(--acc);box-shadow:0 0 0 2px var(--accdim)}
+.res h4{font-size:12.5px;color:var(--acc2);margin-bottom:7px;display:flex;justify-content:space-between;
+  gap:8px;font-weight:650}
+.res h4 .rname{outline:none;border-bottom:1px dashed transparent;min-width:40px}
+.res h4 .rname:hover,.res h4 .rname:focus{border-bottom-color:var(--acc)}
+.res h4 .acts{display:flex;gap:7px;flex:none;opacity:.55;transition:opacity .13s var(--ease)}
+.res:hover h4 .acts{opacity:1}
+.res .ic{cursor:pointer;color:var(--mut);font-style:normal}
+.res .ic:hover{color:var(--ink)}
+.res .ic.x:hover{color:var(--red)}
+.rrow{display:flex;justify-content:space-between;font-size:12.5px;padding:2px 0;gap:10px}
+.rrow span{color:var(--mut)}
+.rrow b{font-family:var(--mono);font-variant-numeric:tabular-nums;font-weight:600;text-align:right;color:var(--ink)}
+.rrow.big b{color:var(--acc2);font-size:14.5px}
+.res .note{font-size:11px;color:var(--mut2);margin-top:6px;line-height:1.45}
+
+select,input[type=number],input[type=text],#tblSearch{background:var(--panel2);color:var(--ink);
+  border:1px solid var(--line);border-radius:var(--r2);padding:4px 7px;font-size:12px;font-family:inherit;
+  transition:border-color .13s var(--ease)}
+select:hover,input[type=number]:hover,input[type=text]:hover{border-color:var(--line2)}
+select:focus,input:focus{border-color:var(--acc);outline:none}
+input[type=range]{accent-color:var(--acc)}
+.minib{background:var(--panel2);border:1px solid var(--line);color:var(--mut);border-radius:5px;
+  font-size:11px;font-family:inherit;padding:3px 8px;cursor:pointer;white-space:nowrap;
+  display:inline-flex;align-items:center;gap:4px;
+  transition:background .13s var(--ease),border-color .13s var(--ease),color .13s var(--ease)}
+.minib:hover{color:var(--ink);border-color:var(--line2);background:var(--panel3)}
+.minib.active{background:var(--acc);border-color:var(--acc);color:#06222C;font-weight:650}
+.volctl{border-top:1px solid var(--line);margin-top:9px;padding-top:7px}
+.volctl .crow{display:flex;gap:6px;margin-top:6px;align-items:center;flex-wrap:wrap;font-size:11px;color:var(--mut)}
+.volctl select,.volctl input{background:var(--panel);border-color:var(--line)}
+.volctl .basename{font-size:10px;opacity:.7}
+.cfl{display:flex;align-items:center;gap:4px;cursor:pointer}
+.pop-actions{margin-top:7px}
+
+/* ======================= profile chart ======================= */
+.profileCard svg{width:100%;height:170px;display:block;background:var(--panel);border:1px solid var(--line);
+  border-radius:var(--r2);margin-top:7px}
+.profileCard .axis text{fill:var(--mut);font-size:10px;font-family:var(--mono)}
+.profileCard .gridl{stroke:var(--line);stroke-width:1}
+.profileCard .pline{stroke:var(--acc);stroke-width:2;fill:none}
+.profileCard .parea{fill:rgba(79,179,206,.13)}
+
+/* ======================= stage ======================= */
+#stage{position:absolute;top:var(--topH);bottom:var(--botH);left:var(--dockL);right:var(--dockR);
+  background:#0A0F12}
+/* z-index makes #map its own stacking context so Leaflet's panes (z 200-700)
+   stay under the 3D view instead of punching through it */
+#map{position:absolute;inset:0;background:#0A0F12;cursor:crosshair;z-index:1}
+#map.tool-none{cursor:grab}
+#map.editing{cursor:default}
+body.v3dsplit #map{right:50%}
+
+/* ======================= status bar ======================= */
+#status{position:absolute;bottom:0;left:0;right:0;height:var(--statusH);
+  background:linear-gradient(180deg,#151D22,#121A1F);
+  border-top:1px solid var(--line);display:flex;align-items:center;gap:16px;padding:0 14px;
+  font-family:var(--mono);font-size:11.5px;color:var(--mut);z-index:1300}
+#status b{color:var(--ink);font-weight:600}
+#status .el{color:var(--acc2);font-weight:700}
+#scalebar{margin-left:auto;display:flex;align-items:center;gap:6px}
+#scalebar .bar{height:3px;background:var(--ink);border-radius:2px}
+
+#jobBar{display:none;align-items:center;gap:8px;margin-left:auto;padding:2px 4px 2px 8px;
+  background:var(--panel2);border:1px solid var(--line);border-radius:20px;max-width:340px}
+#jobBar.on{display:flex}
+#jobBar.on + #scalebar{margin-left:16px}
+#jobBar .jspin{width:11px;height:11px;border:2px solid var(--line2);border-top-color:var(--acc);
+  border-radius:50%;animation:sp .8s linear infinite;flex:none}
+#jobLabel{color:var(--ink2);font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:180px}
+#jobBar .jtrack{width:58px;height:4px;background:var(--line);border-radius:3px;overflow:hidden;flex:none}
+#jobFill{display:block;height:100%;width:0;background:var(--acc);border-radius:3px;transition:width .15s linear}
+#jobBar .jx{cursor:pointer;color:var(--mut);padding:1px 6px;border-radius:50%;font-size:11px}
+#jobBar .jx:hover{color:var(--red);background:var(--panel3)}
+
+/* ======================= sample table drawer ======================= */
+#tableDrawer{position:absolute;left:var(--dockL);right:var(--dockR);bottom:var(--botH);height:0;
+  overflow:hidden;background:var(--panel);border-top:1px solid var(--line);z-index:1150;
+  transition:height .18s var(--ease);box-shadow:0 -8px 24px rgba(0,0,0,.35)}
+#tableDrawer.open{height:300px}
+#tableDrawer .tbar{display:flex;align-items:center;gap:10px;padding:8px 14px;font-size:12.5px;flex-wrap:wrap;
+  border-bottom:1px solid var(--line)}
+#tableDrawer .tbar label{display:flex;align-items:center;gap:4px;font-size:12px}
+#tableDrawer .tbar .ic.x{cursor:pointer;color:var(--mut);margin-left:auto}
+#tableDrawer .tbar .ic.x:hover{color:var(--red)}
+#tblSrcs{display:flex;gap:8px}
+#tblSrcs label{color:var(--mut);font-size:11.5px;display:flex;gap:3px;align-items:center}
+#tableDrawer .twrap{overflow:auto;height:calc(100% - 45px)}
+#sampleTable{width:100%;border-collapse:collapse;font-size:12px}
+#sampleTable th{position:sticky;top:0;background:var(--panel2);text-align:left;padding:6px 12px;cursor:pointer;
+  color:var(--mut);font-weight:650;border-bottom:1px solid var(--line);white-space:nowrap;font-size:11px;
+  text-transform:uppercase;letter-spacing:.5px}
+#sampleTable th:hover{color:var(--ink)}
+#sampleTable th.asc::after{content:" ▲"} #sampleTable th.desc::after{content:" ▼"}
+#sampleTable td{padding:4px 12px;border-bottom:1px solid rgba(44,59,69,.4);white-space:nowrap}
+#sampleTable td.num,#sampleTable th.num{text-align:right;font-family:var(--mono)}
+#sampleTable tr{cursor:pointer}
+#sampleTable tbody tr:hover{background:var(--panel2)}
+#sampleTable .dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:7px}
+
+/* ======================= 3D view ======================= */
+#view3d{display:none;position:absolute;inset:0;z-index:5;background:#0A0F12}
+body.v3dsplit #view3d{left:50%;border-left:1px solid var(--line)}
+#view3d .v3dbar{position:absolute;top:0;left:0;right:0;min-height:40px;display:flex;align-items:center;
+  gap:7px 8px;padding:5px 12px;background:rgba(19,27,32,.96);border-bottom:1px solid var(--line);z-index:3;
+  font-size:12px;flex-wrap:nowrap;overflow-x:auto;backdrop-filter:blur(6px)}
+/* Scroll rather than wrap. In split mode the bar is half a screen wide and
+   wrapping orphaned "drape" from its select and "detail" from its own — a label
+   on one line and the control it names on the next is worse than a scroll. */
+#view3d .v3dbar > *{flex:none}
+#view3d .v3dbar > b{font-size:12px;white-space:nowrap;letter-spacing:.2px}
+#view3d .v3dbar label{display:flex;gap:4px;align-items:center;white-space:nowrap;cursor:pointer;font-size:11.5px}
+#view3d .v3dbar label input{accent-color:var(--acc)}
+#view3d .v3dbar .vsep{width:1px;height:18px;background:var(--line);flex:none}
+#view3d .v3dbar input[type=range]{width:96px}
+/* F6 — the bar at any width. `overflow-x:auto` above kept the controls
+   reachable but they still ran off the visible edge, which read as clipping.
+   js/viewer3d.js reflowBar() now narrows in two stages before that can happen:
+   .compact drops the button labels, then the .v3dopt groups move into the View
+   settings popover. Nothing is ever cut off at 1280 px full-3D or in split. */
+#view3d .v3dbar .v3dopt{display:flex;align-items:center;gap:6px;flex:none}
+#view3d .v3dbar.compact .minib .tlbl,
+#view3d .v3dbar.compact .minib kbd{display:none}
+#view3d .v3dbar.compact{gap:6px}
+#view3d .v3dbar.compact input[type=range]{width:70px}
+/* last resort: the title and the coordinate readout, both of which the status
+   bar under the stage already carries for both views */
+#view3d .v3dbar.compact2 > b,
+#view3d .v3dbar.compact2 #v3dCoord,
+#view3d .v3dbar.compact2 #v3dStatus,
+#view3d .v3dbar.compact2 .vsep{display:none}
+/* the parked controls, inside the popover */
+#v3dOptHost{display:flex;flex-direction:column;gap:8px;margin-bottom:10px;
+  padding-bottom:10px;border-bottom:1px solid var(--line)}
+#v3dOptHost .optrow{display:flex;flex-direction:column;gap:4px}
+#v3dOptHost .optlbl{font-size:11px;color:var(--mut)}
+#v3dOptHost .v3dopt{display:flex;align-items:center;gap:6px}
+#v3dOptHost .v3dopt .mut{display:none}          /* the optlbl already names it */
+#v3dOptHost input[type=range]{width:120px}
+#v3dOptHost select{flex:1}
+/* the gear says it is now holding controls that used to be on the bar */
+#v3dViewSet.hasopt{color:var(--acc);border-color:var(--line2)}
+#v3dCanvas{position:absolute;top:var(--v3dbarH,40px);left:0;width:100%;
+  height:calc(100% - var(--v3dbarH,40px));display:block}
+#v3dCoord{color:var(--acc2);font-size:11.5px;white-space:nowrap}
+#v3dStatus{white-space:nowrap;font-size:11.5px}
+
+/* The watermark is fixed at the stage's bottom-right (§10) and must not be sat
+   on: the compass ring used to overlap it. The nav cluster keeps its position
+   and gains the clearance instead — the watermark does not move (F10). */
+#v3dNav{position:absolute;right:14px;bottom:30px;z-index:4;display:flex;flex-direction:column;
+  align-items:flex-end;gap:7px;pointer-events:none}
+#v3dNav > *{pointer-events:auto}
+.navrow{display:flex;gap:4px;background:rgba(22,30,35,.88);border:1px solid var(--line2);border-radius:var(--r);
+  padding:4px;box-shadow:var(--sh2);backdrop-filter:blur(6px)}
+.navbtn{background:transparent;border:1px solid transparent;color:var(--mut);font:inherit;font-size:11px;
+  padding:4px 8px;border-radius:5px;cursor:pointer;display:flex;align-items:center;gap:4px;min-width:28px;
+  justify-content:center;transition:background .12s var(--ease),color .12s var(--ease)}
+.navbtn:hover{background:var(--panel3);color:var(--ink)}
+.navbtn.active{background:var(--acc);color:#06222C;font-weight:650}
+#v3dCompass{width:74px;height:74px;cursor:pointer;background:rgba(22,30,35,.88);border:1px solid var(--line2);
+  border-radius:50%;box-shadow:var(--sh2);backdrop-filter:blur(6px);transition:border-color .13s var(--ease)}
+#v3dCompass:hover{border-color:var(--acc)}
+#v3dCompass svg{width:100%;height:100%;display:block}
+#v3dCompass .cring{fill:none;stroke:var(--line2);stroke-width:2}
+#v3dCompass .cn{fill:var(--red);stroke:none}
+#v3dCompass .cs{fill:var(--mut2);stroke:none}
+#v3dCompass .clbl{fill:var(--ink);font-size:13px;font-family:var(--mono);font-weight:700;
+  text-anchor:middle;stroke:none}
+/* clear of the whole nav stack (compass + two button rows) so the buttons stay
+   reachable while a popover is open */
+#v3dViewPop{right:14px;bottom:194px}
+#v3dHelpPop{right:14px;bottom:194px;width:288px}
+table.navhelp{width:100%;border-collapse:collapse;font-size:11.5px}
+table.navhelp th{text-align:left;color:var(--acc2);font-size:10px;text-transform:uppercase;letter-spacing:.9px;
+  padding:9px 0 3px}
+table.navhelp tr:first-child th{padding-top:0}
+table.navhelp td{padding:2.5px 0;color:var(--ink2);vertical-align:top}
+table.navhelp td:first-child{color:var(--mut);white-space:nowrap;padding-right:12px;width:42%}
+
+/* ======================= vertex handles ======================= */
+.vtx{background:#fff;border:2px solid var(--acc);border-radius:50%;width:12px !important;height:12px !important;
+  margin-left:-6px !important;margin-top:-6px !important;cursor:move;box-shadow:0 1px 3px rgba(0,0,0,.5)}
+.vtx.mid{background:var(--panel);border-color:var(--mut);opacity:.75;width:10px !important;height:10px !important;
+  margin-left:-5px !important;margin-top:-5px !important;cursor:copy}
+.vtx.mid:hover{border-color:var(--acc);opacity:1}
+
+/* ======================= leaflet dark tweaks ======================= */
+.leaflet-container{background:#0A0F12;font:inherit}
+.leaflet-control-zoom{border:1px solid var(--line) !important;box-shadow:var(--sh1) !important;border-radius:var(--r2) !important;overflow:hidden}
+.leaflet-control-zoom a{background:var(--panel) !important;color:var(--ink) !important;border-color:var(--line) !important}
+.leaflet-control-zoom a:hover{background:var(--panel2) !important}
+.leaflet-popup-content-wrapper,.leaflet-popup-tip{background:var(--panel2);color:var(--ink);
+  box-shadow:var(--sh2);border-radius:var(--r)}
+.leaflet-popup-content{font-size:12.5px;margin:11px 14px}
+.leaflet-popup-content b{color:var(--acc2)}
+.leaflet-tooltip.ctip{background:var(--panel2);border:1px solid var(--line2);color:var(--ink);
+  font-family:var(--mono);font-size:10.5px;padding:1px 6px;box-shadow:var(--sh1)}
+
+/* ======================= help / loader / toast ======================= */
+#help{display:none;position:absolute;inset:0;background:rgba(8,12,15,.84);z-index:5600;
+  align-items:center;justify-content:center;backdrop-filter:blur(3px)}
+#help .box{background:var(--panel);border:1px solid var(--line2);border-radius:12px;padding:26px 30px;
+  max-width:700px;font-size:13px;line-height:1.72;max-height:86vh;overflow:auto;box-shadow:var(--sh3);color:var(--ink2)}
+#help h2{color:var(--acc2);font-size:16px;margin-bottom:12px}
+#help b{color:var(--ink)}
+#help kbd{background:var(--panel2);border:1px solid var(--line);padding:1px 5px;font-size:10.5px}
+#help .close{float:right;cursor:pointer;color:var(--mut);font-size:18px}
+#help .close:hover{color:var(--ink)}
+
+.loading{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  background:var(--bg);z-index:3000;flex-direction:column;gap:14px;color:var(--mut)}
+.loading .spin{width:34px;height:34px;border:3px solid var(--line);border-top-color:var(--acc);
+  border-radius:50%;animation:sp 0.9s linear infinite}
+@keyframes sp{to{transform:rotate(360deg)}}
+.loaderr{max-width:560px;background:var(--panel);border:1px solid var(--red);border-radius:12px;padding:24px 28px;line-height:1.6}
+.loaderr h2{color:var(--red);margin-bottom:8px;font-size:16px}
+.loaderr pre{font-size:11px;background:var(--panel2);border-radius:6px;padding:8px 10px;margin:8px 0;overflow:auto}
+
+#toast{position:absolute;bottom:calc(var(--botH) + 52px);left:50%;transform:translateX(-50%) translateY(10px);z-index:7000;
+  background:var(--panel2);border:1px solid var(--line2);border-radius:var(--r);padding:8px 16px;font-size:12.5px;
+  opacity:0;pointer-events:none;transition:opacity .18s var(--ease),transform .18s var(--ease);
+  box-shadow:var(--sh3);max-width:70vw}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+.restorebar{position:absolute;top:calc(var(--topH) + 10px);left:50%;transform:translateX(-50%);z-index:1600;
+  background:var(--panel2);border:1px solid var(--line2);border-radius:var(--r);padding:8px 14px;font-size:12.5px;
+  display:flex;gap:10px;align-items:center;box-shadow:var(--sh3)}
+
+/* =================================================================== */
+/* CAD drafting chrome — snap overlay, dynamic input, command line      */
+/* =================================================================== */
+
+/* the snap/tracking overlay sits over the map and never eats a pointer event */
+/* a <canvas> is a replaced element: inset:0 alone leaves it at its intrinsic
+   300x150, so the size has to be stated explicitly */
+#snapCanvas{position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;z-index:640}
+#treeCanvas{position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;z-index:600;display:none}
+body.v3dsplit #treeCanvas{width:50%}
+body.v3don:not(.v3dsplit) #treeCanvas{display:none!important}
+.res.toolopt h4{color:var(--acc)}
+.leaflet-popup.treepop .leaflet-popup-content{font-size:11px;line-height:1.5}
+body.v3dsplit #snapCanvas{width:50%}
+
+/* map cursors for the modify/pick states */
+#map.picking,#map.picking .leaflet-interactive{cursor:crosshair !important}
+#map.picksel,#map.picksel .leaflet-interactive{cursor:pointer !important}
+
+/* ---- dynamic input (typed distances / coordinates while drawing) ---- */
+#dynInput{display:none;position:absolute;z-index:1900;background:rgba(22,30,35,.97);
+  border:1px solid var(--gold);border-radius:var(--r2);box-shadow:var(--sh2);padding:5px 6px 6px;min-width:312px}
+#dynInput.open{display:block}
+#dynInput input{width:100%;background:var(--panel);border:1px solid var(--line2);color:var(--gold);
+  border-radius:4px;padding:5px 8px;font-family:var(--mono);font-size:12.5px;outline:none}
+#dynInput input:focus{border-color:var(--gold)}
+.dynhint{margin-top:4px;font-family:var(--mono);font-size:10.5px;color:var(--mut);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dynhint.ok{color:var(--acc2)}
+.dynhint.bad{color:var(--mut2)}
+
+/* ---- status-bar drafting toggles ---- */
+.statgrp{display:flex;align-items:center;gap:6px;margin-left:6px}
+.statsnap{position:relative;display:flex;align-items:center}
+.statbtn{background:var(--panel2);border:1px solid var(--line);color:var(--mut);border-radius:5px;
+  padding:2px 8px;font-family:var(--mono);font-size:10.5px;letter-spacing:.5px;cursor:pointer;
+  display:flex;align-items:center;gap:5px;height:20px;
+  transition:background .13s var(--ease),color .13s var(--ease),border-color .13s var(--ease)}
+.statbtn:hover{color:var(--ink);border-color:var(--line2);background:var(--panel3)}
+.statbtn.on{background:var(--accdim);border-color:rgba(79,179,206,.5);color:var(--acc2)}
+.statbtn .ic16{width:12px;height:12px}
+.statbtn.car{padding:2px 4px;margin-left:-1px;border-left:none;border-top-left-radius:0;border-bottom-left-radius:0;font-size:9px}
+.popover.up{bottom:26px;left:0;width:212px}
+.popover.up.open{display:block}
+.popover .popnote{color:var(--mut2);font-size:10.5px;line-height:1.5;margin-top:8px;
+  border-top:1px solid var(--line);padding-top:8px}
+
+/* ---- command line ---- */
+#cmdbar{position:absolute;left:0;right:0;bottom:var(--statusH);height:var(--cmdH);z-index:1320;
+  display:none;align-items:center;gap:8px;padding:0 12px;background:#101820;border-top:1px solid var(--line)}
+body.cmdopen{--cmdH:32px}
+body.cmdopen #cmdbar{display:flex}
+#cmdPrompt{font-family:var(--mono);font-size:12px;color:var(--acc);flex:none;min-width:14px}
+#cmdPrompt.ask{color:var(--gold)}
+#cmdIn{flex:1;min-width:0;background:transparent;border:none;outline:none;color:var(--ink);
+  font-family:var(--mono);font-size:12.5px;padding:4px 0}
+#cmdIn::placeholder{color:var(--mut2)}
+#cmdList{display:none;position:absolute;left:26px;right:12px;bottom:32px;max-width:640px;
+  background:var(--panel2);border:1px solid var(--line2);border-radius:var(--r);box-shadow:var(--sh3);
+  padding:4px;max-height:280px;overflow:auto}
+.cmdopt{display:flex;align-items:baseline;gap:8px;padding:5px 9px;border-radius:5px;cursor:pointer;
+  font-size:12px;color:var(--ink2)}
+.cmdopt:hover,.cmdopt.on{background:var(--panel3);color:var(--ink)}
+.cmdopt b{font-family:var(--mono);color:var(--acc2);font-weight:600;flex:none}
+.cmdopt .al{font-family:var(--mono);font-size:10.5px;color:var(--mut2);flex:none}
+.cmdopt .ar{font-family:var(--mono);font-size:10.5px;color:var(--gold);flex:none}
+.cmdopt .de{color:var(--mut);font-size:11.5px;margin-left:auto;text-align:right;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* ---- command reference sheet ---- */
+#cmdHelp{position:fixed;inset:0;z-index:5600;background:rgba(8,12,15,.72);display:flex;
+  align-items:center;justify-content:center;padding:32px}
+#cmdHelp .box{background:var(--panel);border:1px solid var(--line2);border-radius:var(--r);
+  box-shadow:var(--sh3);padding:22px 26px;max-width:760px;max-height:100%;overflow:auto;position:relative}
+#cmdHelp h2{font-size:15px;margin:14px 0 8px}
+#cmdHelp h2:first-of-type{margin-top:4px}
+#cmdHelp .close{position:absolute;top:12px;right:16px;cursor:pointer;color:var(--mut);font-size:15px}
+#cmdHelp .close:hover{color:var(--ink)}
+table.cmdhelp{width:100%;border-collapse:collapse;font-size:12px}
+table.cmdhelp th{text-align:left;color:var(--mut);font-size:10.5px;text-transform:uppercase;
+  letter-spacing:.8px;padding:5px 8px;border-bottom:1px solid var(--line)}
+table.cmdhelp td{padding:3px 8px;border-bottom:1px solid rgba(44,59,69,.5);color:var(--ink2)}
+table.cmdhelp td.cmdn{font-family:var(--mono);color:var(--acc2);white-space:nowrap}
+table.cmdhelp td.cmda{font-family:var(--mono);color:var(--mut2);white-space:nowrap;font-size:11px}
+
+/* ---- map annotations (dimension text + labels) ---- */
+.annolbl{width:0 !important;height:0 !important;overflow:visible}
+.annolbl .dimtxt{position:absolute;left:0;top:0;transform-origin:0 0;white-space:nowrap;
+  font-family:var(--mono);font-size:11.5px;font-weight:600;
+  text-shadow:0 0 3px #0E1418,0 0 3px #0E1418,0 0 5px #0E1418}
+.annolbl .anntxt{position:absolute;left:0;top:0;transform:translate(-50%,-50%);white-space:nowrap;
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Arial,sans-serif;font-weight:600;
+  letter-spacing:.2px;text-shadow:0 0 3px #0E1418,0 0 3px #0E1418,0 0 6px #0E1418}
+
+/* ==================================================================== */
+/* Phase 3 — earthworks: design surfaces, sections, report              */
+/* ==================================================================== */
+.ic14{width:14px;height:14px;flex:none;opacity:.75;margin-right:3px;vertical-align:-2px}
+.ftt{display:inline-flex;align-items:center}
+
+/* ---- Surfaces list in the Layers tab ---- */
+#surfList{display:flex;flex-direction:column;gap:2px;margin-bottom:4px}
+.surfrow{display:flex;align-items:center;gap:7px;padding:4px 7px;border-radius:var(--r2);
+  cursor:pointer;border:1px solid transparent}
+.surfrow:hover{background:var(--panel2)}
+.surfrow.sel{background:var(--accdim);border-color:var(--acc)}
+.surfrow .sw{width:10px;height:10px;border-radius:3px;flex:none}
+.surfrow .sinfo{flex:1;min-width:0;display:flex;flex-direction:column;line-height:1.25}
+.surfrow .sinfo b{font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.surfrow .sinfo i{font-style:normal;font-size:10.5px;color:var(--mut);font-family:var(--mono)}
+.surfrow .sacts{display:flex;gap:1px;opacity:0;transition:opacity .12s}
+.surfrow:hover .sacts,.surfrow.sel .sacts{opacity:1}
+.surfnone{display:flex;gap:5px;flex-wrap:wrap;align-items:center;padding:5px 4px;font-size:11.5px}
+
+/* ---- range / balance / cross-check boxes on a results card ---- */
+.vrangebox{border-top:1px solid var(--line);margin-top:9px;padding-top:8px}
+.vrangebox .rhead{font-size:10px;text-transform:uppercase;letter-spacing:.7px;color:var(--mut);margin-bottom:6px}
+.rtrip{display:flex;gap:6px;margin-bottom:7px}
+.rtrip span{flex:1;text-align:center;background:var(--panel2);border:1px solid var(--line);
+  border-radius:var(--r2);padding:5px 3px}
+.rtrip span.mid{border-color:var(--acc);background:var(--accdim)}
+.rtrip b{display:block;font-family:var(--mono);font-size:14px;color:var(--ink)}
+.rtrip i{font-style:normal;font-size:9.5px;text-transform:uppercase;letter-spacing:.5px;color:var(--mut)}
+table.rmeth{width:100%;border-collapse:collapse;font-size:11px}
+table.rmeth td{padding:3px 4px;border-bottom:1px solid rgba(44,59,69,.5);color:var(--mut)}
+table.rmeth td.num{text-align:right;font-family:var(--mono);color:var(--ink2)}
+table.rmeth tr.best td{color:var(--ink);font-weight:600}
+table.rmeth tr.warn td{color:var(--amber)}
+.volctl .crow.btns{gap:5px}
+
+/* ---- station labels on the map ---- */
+.stalbl{font-family:var(--mono);font-size:10px;color:#F0A6D0;text-shadow:0 1px 3px #000,0 0 4px #000;
+  white-space:nowrap;pointer-events:none;font-weight:600}
+
+/* ---- sections drawer ---- */
+#secDrawer{position:absolute;left:var(--dockL);right:var(--dockR);bottom:var(--botH);height:0;
+  overflow:hidden;background:var(--panel);border-top:1px solid var(--line);z-index:1160;
+  transition:height .18s var(--ease);box-shadow:0 -8px 24px rgba(0,0,0,.35)}
+#secDrawer.open{height:266px}
+#secDrawer .tbar{display:flex;align-items:center;gap:10px;padding:8px 14px;font-size:12.5px;
+  border-bottom:1px solid var(--line)}
+#secDrawer .tbar .ic.x{cursor:pointer;color:var(--mut)}
+#secDrawer .tbar .ic.x:hover{color:var(--red)}
+#secMeta{font-size:11px}
+#secBody{display:flex;gap:10px;overflow-x:auto;overflow-y:hidden;height:calc(100% - 42px);
+  padding:10px 14px;align-items:flex-start}
+.secplot{flex:none;background:var(--panel2);border:1px solid var(--line);border-radius:var(--r2);padding:5px}
+.secplot canvas{display:block;cursor:crosshair}
+.secread{font-size:10px;color:var(--mut);padding:3px 2px 0;height:15px;white-space:nowrap;overflow:hidden}
+#secBody .placeholder{color:var(--mut);font-size:12px;padding:20px}
+
+/* ---- report modal ---- */
+#reportModal{position:fixed;inset:0;background:rgba(6,10,13,.72);z-index:5600;
+  display:flex;align-items:center;justify-content:center;padding:24px}
+#reportModal .rmbox{background:var(--panel);border:1px solid var(--line2);border-radius:var(--r);
+  box-shadow:var(--sh3);width:min(980px,96vw);height:min(92vh,1100px);display:flex;flex-direction:column;overflow:hidden}
+#reportModal .rmbar{display:flex;align-items:center;gap:8px;padding:9px 12px;
+  border-bottom:1px solid var(--line);font-size:12.5px}
+#reportModal .rmbar .ic.x{cursor:pointer;color:var(--mut);font-size:15px}
+#reportModal .rmbar .ic.x:hover{color:var(--red)}
+#reportModal iframe{flex:1;border:0;width:100%;background:#fff}
+
+/* ==================================================================== */
+/* phase B — area sections, sheet viewer, datasets                       */
+/* ==================================================================== */
+
+/* ---- Areas quick-nav ---- */
+/* three buttons, one row, whatever the dock is narrowed to — a wrapped chip
+   reads as a stray control rather than as one of three peers */
+#areaNav{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;margin:0 0 10px}
+#areaNav .anlbl{grid-column:1/-1;font-size:9.5px;text-transform:uppercase;
+  letter-spacing:1.1px;color:var(--mut2);margin-bottom:1px}
+.areabtn{background:var(--panel2);border:1px solid var(--line);color:var(--ink2);
+  border-radius:6px;padding:3px 4px;cursor:pointer;font:inherit;
+  font-size:11px;line-height:1.6;transition:all .12s var(--ease);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  border-left:3px solid var(--line2)}
+.areabtn:hover{background:var(--panel3);color:var(--ink)}
+.areabtn.mine{border-left-color:var(--red)}
+.areabtn.resid{border-left-color:var(--acc)}
+.areabtn.site{border-left-color:var(--green)}
+.areabtn.on{background:var(--panel3);color:var(--ink)}
+
+/* ---- collapsible sections ---- */
+.lsec{margin:0 0 6px;border-left:2px solid transparent;padding-left:7px;margin-left:-9px}
+.lsec.area-mine{border-left-color:rgba(228,121,106,.5)}
+.lsec.area-resid{border-left-color:rgba(79,179,206,.5)}
+.lsec.area-site{border-left-color:rgba(95,191,143,.45)}
+.dockpane .lsech{display:flex;align-items:center;gap:6px;cursor:pointer;user-select:none;
+  margin:12px 0 5px;padding:1px 4px 1px 0;border-radius:4px}
+.dockpane .lsec:first-of-type .lsech{margin-top:2px}
+.lsech:hover{color:var(--ink2)}
+.lsech .caret{width:9px;height:9px;flex:none;border-right:1.5px solid currentColor;
+  border-bottom:1.5px solid currentColor;transform:rotate(45deg) translate(-2px,-2px);
+  transition:transform .15s var(--ease);opacity:.75}
+.lsec.closed .lsech .caret{transform:rotate(-45deg) translate(-1px,1px)}
+.lsech .lcount{margin-left:auto;font-size:10px;color:var(--mut2);background:var(--panel2);
+  border-radius:9px;padding:0 6px;letter-spacing:0;text-transform:none}
+.lsecb{overflow:hidden}
+.lsec.closed .lsecb{display:none}
+.subh{font-size:9.5px;text-transform:uppercase;letter-spacing:1px;color:var(--mut2);
+  margin:9px 0 3px;display:flex;align-items:center;gap:6px}
+.subh .minib{margin-left:auto;padding:1px 7px;font-size:10px;text-transform:none;letter-spacing:0}
+.lyr .dsgear,.lyr .dszoom,.lyr .shopen{flex:none;margin-left:4px;padding:1px 5px;font-size:10px;line-height:14px}
+.dimpill{background:var(--panel3);color:var(--mut);border-radius:3px;padding:0 4px;
+  font-size:9.5px;font-weight:600;letter-spacing:.3px;margin-left:4px}
+.okpill{background:rgba(95,191,143,.18);color:var(--green);border-radius:3px;padding:0 4px;
+  font-size:9.5px;font-weight:600;letter-spacing:.3px;margin-left:4px}
+
+/* ---- sheet footprint hit target on the 2D map ----
+   (its hover cursor is set on the map container in js/designea.js — a
+   canvas-drawn Leaflet vector has no element for a CSS rule to reach) */
+/* the locate pulse is animated in js/sheets.js by restyling the Leaflet vector:
+   with preferCanvas there is no DOM node for a CSS animation to attach to */
+
+/* ---- the floating sheet viewer ---- */
+.shwin{position:fixed;z-index:4000;display:flex;flex-direction:column;
+  background:var(--panel);border:1px solid var(--line2);border-radius:var(--r);
+  box-shadow:var(--sh3);overflow:hidden;transform-origin:50% 50%;outline:none}
+.shwin:focus-visible{border-color:var(--acc)}
+.shwin.pulse{animation:shwinpulse .5s var(--ease)}
+@keyframes shwinpulse{0%{box-shadow:var(--sh3)}35%{box-shadow:0 0 0 3px var(--accdim),var(--sh3)}100%{box-shadow:var(--sh3)}}
+.shbar{display:flex;align-items:center;gap:6px;padding:7px 9px 7px 12px;cursor:move;
+  background:linear-gradient(180deg,#1F2A31,#182228);
+  border-bottom:1px solid var(--line);flex:none;font-size:12.5px}
+.shbar .shno{font-family:var(--mono);font-weight:700;color:var(--acc2);letter-spacing:.4px}
+.shbar .shtitle{color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:44%}
+.shbar .minib{padding:2px 8px;font-size:11px}
+.shbar .minib[disabled]{opacity:.35;cursor:default}
+.shbar .vsep{width:1px;height:16px;background:var(--line);flex:none;margin:0 2px}
+.shbar .ic.x{cursor:pointer;color:var(--mut);padding:0 4px;font-size:13px}
+.shbar .ic.x:hover{color:var(--red)}
+.shview{flex:1;position:relative;overflow:hidden;background:#0A0E11;cursor:grab;
+  touch-action:none}
+.shview.grabbing{cursor:grabbing}
+/* the sheet itself: a white plot on a dark table, with a paper edge */
+.shimg{position:absolute;top:0;left:0;transform-origin:0 0;will-change:transform;
+  image-rendering:auto;background:#fff;box-shadow:0 2px 26px rgba(0,0,0,.7);
+  user-select:none;-webkit-user-drag:none;max-width:none}
+.shfoot{display:flex;align-items:center;gap:12px;padding:5px 11px;font-size:11px;
+  border-top:1px solid var(--line);background:var(--panel);flex:none;color:var(--mut)}
+.shfoot .shzoom{color:var(--ink2);min-width:46px}
+.shfoot .shhint{font-size:10.5px;color:var(--mut2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.shgrip{position:absolute;right:0;bottom:0;width:16px;height:16px;cursor:nwse-resize;
+  background:linear-gradient(135deg,transparent 50%,var(--line2) 50%,var(--line2) 62%,transparent 62%,
+    transparent 74%,var(--line2) 74%,var(--line2) 86%,transparent 86%)}
+
+/* the two phase-B menus are shown by class rather than by inline style, because
+   they are created and destroyed per use rather than toggled */
+.menu.open{display:block}
+
+/* ---- SHEETS picker ---- */
+/* above the sheet windows it opens (4000-4899), below the modals */
+.sheetpick{max-height:min(70vh,620px);overflow:auto;min-width:330px;z-index:5200;
+  position:fixed;left:50%;top:96px;transform:translateX(-50%)}
+.sheetpick .sheetrow{display:flex;align-items:center;gap:8px}
+.sheetpick .sheetrow b{min-width:44px;color:var(--acc2)}
+.sheetpick .sheetrow .st{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* ---- dataset markers ---- */
+.dsmk{background:none;border:none}
+.dsmk svg{display:block;filter:drop-shadow(0 1px 1px rgba(0,0,0,.55))}
+.dsmk .dslbl{position:absolute;left:100%;top:50%;transform:translate(4px,-50%);
+  font-size:10px;color:var(--ink);white-space:nowrap;text-shadow:0 0 3px #000,0 0 3px #000;
+  pointer-events:none}
+.dspopwrap{max-height:210px;overflow:auto;margin:5px 0 4px}
+table.dspop{border-collapse:collapse;font-size:11.5px;width:100%}
+table.dspop td{padding:1px 8px 1px 0;vertical-align:top}
+table.dspop td.k{color:var(--mut);white-space:nowrap}
+table.dspop td.v{text-align:right;color:var(--ink)}
+
+/* ---- dataset row menu ---- */
+.dsmenu{min-width:260px}
+.dsmenu .dsrowopt{display:flex;gap:10px;align-items:center;padding:5px 11px;font-size:11.5px;color:var(--ink2)}
+.dsmenu .dsrowopt label{display:flex;align-items:center;gap:5px;cursor:pointer}
+.dsmenu .dsrowopt input[type=color]{width:26px;height:18px;padding:0;border:1px solid var(--line2);
+  background:none;border-radius:4px;cursor:pointer}
+.dsmenu .dsrowopt input[type=range]{width:76px;accent-color:var(--acc)}
+.dsmenu .dsrowopt select{background:var(--panel);color:var(--ink2);border:1px solid var(--line);
+  border-radius:4px;font:inherit;font-size:11px;padding:1px 4px}
+.dsmenu .ci.dis{opacity:.45;cursor:default}
+.dsmenu .ci.dis:hover{background:none;color:var(--ink2)}
+
+/* ---- modal (dataset import mapping) ---- */
+.modal{position:fixed;inset:0;z-index:5600;background:rgba(6,10,12,.62);
+  display:flex;align-items:center;justify-content:center;backdrop-filter:blur(2px)}
+.modal .mbox{width:min(520px,92vw);background:var(--panel);border:1px solid var(--line2);
+  border-radius:var(--r);box-shadow:var(--sh3);overflow:hidden;
+  animation:mpop .18s var(--ease)}
+@keyframes mpop{from{opacity:0;transform:translateY(8px) scale(.98)}to{opacity:1;transform:none}}
+.modal .mhd{display:flex;align-items:center;padding:10px 14px;font-weight:650;font-size:13px;
+  border-bottom:1px solid var(--line);background:var(--panel2)}
+.modal .mhd .ic.x{cursor:pointer;color:var(--mut)}
+.modal .mhd .ic.x:hover{color:var(--red)}
+.modal .mbody{padding:12px 14px;display:flex;flex-direction:column;gap:7px}
+.modal .mrow{display:flex;align-items:center;gap:10px;font-size:12.5px}
+.modal .mrow>span{width:112px;color:var(--mut);flex:none}
+.modal .mrow input,.modal .mrow select{flex:1;background:var(--panel2);color:var(--ink);
+  border:1px solid var(--line);border-radius:5px;padding:4px 7px;font:inherit;font-size:12.5px}
+.modal .mrule{height:1px;background:var(--line);margin:4px 0}
+.modal .mnote{font-size:11.5px;color:var(--ink2);background:var(--panel2);border-radius:6px;
+  padding:8px 10px;line-height:1.6;min-height:58px}
+.modal .mnote .ok{color:var(--green)} .modal .mnote .warn{color:var(--amber)} .modal .mnote .bad{color:var(--red)}
+.modal .mfoot{display:flex;align-items:center;gap:8px;padding:9px 14px;border-top:1px solid var(--line);
+  background:var(--panel2);font-size:11px}
+.minib.prim{background:var(--acc);border-color:var(--acc);color:#06222C;font-weight:650}
+.minib.prim:hover{background:var(--acc2);border-color:var(--acc2);color:#06222C}
+
+/* ---- table drawer tabs ---- */
+.ttabs{display:flex;align-items:stretch;gap:2px;padding:0 10px;background:var(--panel2);
+  border-bottom:1px solid var(--line);overflow-x:auto;flex:none;height:30px}
+.ttab{background:none;border:none;border-bottom:2px solid transparent;color:var(--mut);
+  font:inherit;font-size:11.5px;padding:0 10px;cursor:pointer;white-space:nowrap}
+.ttab:hover{color:var(--ink2)}
+.ttab.active{color:var(--ink);border-bottom-color:var(--acc)}
+.ttab .tcount{font-size:10px;color:var(--mut2);margin-left:3px}
+.tpane{height:calc(100% - 30px);display:flex;flex-direction:column}
+.tpane[hidden]{display:none}
+.tpane .twrap{flex:1;overflow:auto;height:auto}
+#tableDrawer .tpane .tbar input[data-r=q]{background:var(--panel2);border:1px solid var(--line);
+  color:var(--ink);border-radius:5px;padding:2px 7px;font:inherit;font-size:12px;width:150px}
+table.dstable{width:100%;border-collapse:collapse;font-size:11.5px}
+table.dstable th{position:sticky;top:0;background:var(--panel2);text-align:left;font-weight:600;
+  color:var(--mut);padding:5px 9px;border-bottom:1px solid var(--line);cursor:pointer;white-space:nowrap;z-index:2}
+table.dstable th.num,table.dstable td.num{text-align:right;font-family:var(--mono);font-variant-numeric:tabular-nums}
+table.dstable th.asc::after{content:" ▲";font-size:8px} table.dstable th.desc::after{content:" ▼";font-size:8px}
+table.dstable td{padding:3px 9px;border-bottom:1px solid rgba(44,59,69,.5);color:var(--ink2);white-space:nowrap}
+table.dstable tbody tr:hover{background:var(--panel2);cursor:pointer}
+table.dstable td .dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px}
+
+/* a sheet whose image failed to decode says so rather than showing a blank frame */
+.shview.sherr::after{content:attr(data-err);position:absolute;inset:0;display:flex;
+  align-items:center;justify-content:center;color:var(--red);font-size:12.5px;text-align:center;padding:20px}
+
+/* =====================================================================
+   v9 — watermark (§10), cultural resources (§7), 3D pick card (§8),
+   sheet marking (§9). Stacking: the watermark and the confidentiality
+   stamp sit at 1400, i.e. above the stage (map z 1, 3D z 5) and below
+   the docks' own furniture, the sheet windows, the modals and the toast.
+   ===================================================================== */
+
+#watermark{position:absolute;right:10px;bottom:8px;z-index:1400;pointer-events:none;
+  font-size:11px;line-height:1;opacity:.55;color:var(--ink);
+  text-shadow:0 1px 2px rgba(0,0,0,.85);font-family:Helvetica,Arial,sans-serif;
+  user-select:none;white-space:nowrap}
+
+/* ---- cultural resources: the stamp ---- */
+.cultstamp{position:absolute;top:10px;left:50%;transform:translateX(-50%);z-index:1400;
+  pointer-events:none;background:rgba(255,255,255,.9);color:#C62828;border:2px solid #C62828;
+  border-radius:4px;padding:4px 12px;font-weight:700;font-size:12px;letter-spacing:.03em;
+  text-transform:uppercase;white-space:nowrap;box-shadow:var(--sh2)}
+.cultstamp3d{z-index:6}
+.cultmark{display:inline-block;background:#C62828;color:#fff;border-radius:3px;
+  padding:1px 5px;font-size:9.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;
+  vertical-align:middle;margin-right:5px}
+.subh.cultsubh{color:#E4796A}
+.lyr.cultrow .lbl{color:#E4796A}
+.cultpop{margin-bottom:5px}
+.cultack .cultbody{font-size:12.5px;line-height:1.5;color:var(--ink2);margin-bottom:8px}
+.cultack .cultwhy{font-size:12.5px;color:var(--ink);margin-bottom:8px;font-weight:600}
+.cultack .cultauth{font-size:11px;font-family:var(--mono)}
+.cultack .mhd .cultmark{margin-right:8px}
+
+/* ---- 3D pick card (§8) ---- */
+#pick3dCard{position:absolute;z-index:1450;min-width:190px;max-width:340px;
+  background:var(--panel2);border:1px solid var(--line2);border-radius:var(--r2);
+  box-shadow:var(--sh2);padding:9px 11px;font-size:12px;color:var(--ink2);
+  line-height:1.42;pointer-events:auto}
+#pick3dCard b{color:var(--ink)}
+#pick3dCard .p3close{position:absolute;top:3px;right:5px;cursor:pointer;color:var(--mut);
+  font-size:13px;line-height:1;padding:2px 3px}
+#pick3dCard .p3close:hover{color:var(--ink)}
+#pick3dCard .p3body{max-height:46vh;overflow:auto}
+#pick3dCard::after{content:"";position:absolute;left:var(--tipx,50%);bottom:-6px;width:10px;height:10px;
+  margin-left:-5px;background:var(--panel2);border-right:1px solid var(--line2);
+  border-bottom:1px solid var(--line2);transform:rotate(45deg)}
+#pick3dCard.above::after{bottom:auto;top:-6px;border:none;border-left:1px solid var(--line2);
+  border-top:1px solid var(--line2)}
+.popcoord{display:block;margin-top:5px;opacity:.6;font-family:var(--mono);font-size:11px}
+#pick3dTip{position:absolute;z-index:1440;pointer-events:none;background:rgba(14,20,24,.94);
+  border:1px solid var(--line2);border-radius:4px;padding:3px 7px;font-size:11.5px;color:var(--ink2);
+  white-space:nowrap;transform:translate(12px,-50%);box-shadow:var(--sh1)}
+
+/* ---- sheet marking toolbar (§9) ---- */
+.shtools{display:flex;align-items:center;gap:4px;padding:4px 8px;background:var(--panel2);
+  border-bottom:1px solid var(--line);flex-wrap:wrap;flex:none}
+.shtools .vsep{width:1px;height:14px;background:var(--line);flex:none;margin:0 3px}
+.shtools .sht{background:var(--panel3);border:1px solid var(--line);color:var(--ink2);
+  border-radius:5px;padding:2px 8px;font:inherit;font-size:11.5px;cursor:pointer;white-space:nowrap}
+.shtools .sht:hover{border-color:var(--line2);color:var(--ink)}
+.shtools .sht.on{background:var(--acc);border-color:var(--acc);color:#06222C;font-weight:650}
+.shtools .sht:disabled{opacity:.4;cursor:not-allowed}
+.shtools .shmsg{font-size:11px;color:var(--mut);margin-left:4px}
+.shtools .shnogeo{color:var(--amber)}
+.shview{position:relative}
+canvas.shmark{position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;z-index:3}
+.shwin.marking .shview{cursor:crosshair}
+
+/* =====================================================================
+   v9 — mode HUD, the §4 layer tree, the Inspector dock, the Sheets tab,
+   the Layer manager, EA reference surfaces and the isopach legend.
+   ===================================================================== */
+
+/* ---------- mode HUD (§2): bottom-centre of the stage ---------- */
+#modeHud{position:absolute;left:calc(var(--dockL) + (100% - var(--dockL) - var(--dockR))/2);
+  transform:translateX(-50%);bottom:calc(var(--botH) + 10px);z-index:1450;
+  display:flex;align-items:center;gap:10px;pointer-events:none;
+  background:rgba(14,20,24,.9);border:1px solid var(--line2);border-radius:14px;
+  padding:5px 14px;font-size:12px;box-shadow:var(--sh2);max-width:min(760px,70vw)}
+#modeHud .mhname{font-weight:650;color:var(--acc2);white-space:nowrap}
+#modeHud .mhnext{color:var(--ink2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#modeHud .mhesc{color:var(--mut2);font-size:11px;white-space:nowrap;
+  border-left:1px solid var(--line);padding-left:10px}
+#modeHud .mhesc:empty{display:none}
+/* The sketch engine's own banner over the map is now the mode HUD's job (§2):
+   two copies of "Area — click the boundary…" on one screen is one too many.
+   #sketchTip stays in the DOM and keeps being written — it is what the HUD
+   mirrors, and what the tests read — it just no longer paints itself. */
+#sketchTip{display:none !important}
+#modeHud .mhnext:empty{display:none}
+/* in Navigate the HUD is a quiet legend, not a prompt */
+#modeHud.nav{background:rgba(14,20,24,.62);border-color:var(--line)}
+#modeHud.nav .mhname{color:var(--mut)}
+#modeHud.nav .mhnext{color:var(--mut2)}
+
+/* ---------- cursor per mode (§2) — the stage owns it ---------- */
+#stage[data-cursor="grab"] #map.tool-none{cursor:grab}
+#stage[data-cursor="grab"] #map.tool-none:active{cursor:grabbing}
+#stage[data-cursor="crosshair"] #map,
+#stage[data-cursor="crosshair"] #v3dCanvas{cursor:crosshair}
+#stage[data-cursor="move"] #map,
+#stage[data-cursor="move"] #v3dCanvas{cursor:move}
+
+/* ---------- top-bar drop-down buttons ---------- */
+.toolbtn.menub[aria-expanded="true"]{background:var(--panel3);border-color:var(--line2)}
+.menu .ci kbd{float:right;margin-left:10px}
+.menu .ci.sep{border-top:1px solid var(--line);margin-top:3px;padding-top:9px;border-radius:0 0 5px 5px}
+#drawMenu,#designMenu{top:calc(var(--topH) + 4px);min-width:262px}
+.toolbtn[disabled]{opacity:.4;cursor:not-allowed}
+.toolbtn[disabled]:hover{background:transparent;border-color:transparent;color:var(--mut)}
+
+/* ---------- §4 group headers: master checkbox + title + count ---------- */
+.lsech .lsecall{accent-color:var(--acc);cursor:pointer;flex:none;margin:0}
+/* A group title is the name of the thing; clipping it to "RESIDENTIAL …" makes
+   the tree unreadable at the one width the dock is usually at.
+
+   So the title never shrinks: `white-space:nowrap` with no `min-width:0` makes
+   its flex min-content size the whole string, and the header is `flex-wrap`, so
+   what gives way is the COUNT BADGE AND THE `manage…` BUTTON — they drop to a
+   second line and the title keeps its own (D2c). At the default dock width
+   (247 px of header) "Residential design (EA 2025)" needs 194 px and the caret
+   and master checkbox take 38 of the rest, so it fits with room to spare, while
+   the badge and button need another 86 and do not.
+
+   The cultural group is the exception and opts back in to wrapping: its title
+   is 241 px, which is a line of its own however the rest is arranged, and it
+   carries no master checkbox to make space. */
+.lsech .lsectitle{line-height:1.3;white-space:nowrap;flex:0 1 auto}
+.lsec.cultsec .lsech .lsectitle{white-space:normal;overflow-wrap:anywhere;min-width:0}
+.dockpane .lsech{align-items:flex-start;flex-wrap:wrap}
+.lsech .lsecall,.lsech .caret{margin-top:2px}
+.lsech .lsecbtn{flex:none;margin-left:6px;padding:1px 7px;font-size:10px;
+  text-transform:none;letter-spacing:0}
+.lsech .lcount{margin-left:auto}
+.lsech .lsecbtn + .lcount{margin-left:6px}
+/* the cultural group announces itself in the header, per §7 */
+.lsec.cultsec .lsech{color:#E4796A}
+.lsec.cultsec .cultnote{font-size:10.5px;padding:2px 6px 6px;line-height:1.35}
+.lyr.off .lbl{opacity:.62}
+/* F4: CAD rows read in the same face as every other row — the old monospace
+   made a third of the tree look like a different application. What they need
+   to say is "this is EA's own CAD", and a tag says it without a typeface. */
+.rowtag{font-size:8.5px;font-weight:700;letter-spacing:.6px;color:var(--mut2);
+  background:var(--panel3);border-radius:3px;padding:1px 4px;flex:none;
+  text-transform:uppercase;line-height:1.35}
+/* a zoom-gated layer: checked, but waiting for the map to come closer (F2) */
+.lyr.gated .lbl{opacity:.55;font-style:italic}
+.lyr.gated .lbl::after{content:" — zoom in";font-style:normal;font-size:9.5px;color:var(--mut2)}
+
+/* ---- collapsible sub-section inside a layer group (F3) ---- */
+.lgsub{margin-top:4px}
+.subh.subtoggle{cursor:pointer;user-select:none;border-radius:4px;padding:1px 3px 1px 0}
+.subh.subtoggle:hover{color:var(--mut)}
+.subh.subtoggle .caret{width:7px;height:7px;flex:none;border-right:1.5px solid currentColor;
+  border-bottom:1.5px solid currentColor;transform:rotate(45deg) translate(-2px,-2px);
+  transition:transform .15s var(--ease);opacity:.8;margin-right:2px}
+.lgsub.closed .subh.subtoggle .caret{transform:rotate(-45deg) translate(-1px,1px)}
+.subh .subcount{margin-left:auto;font-size:9.5px;color:var(--mut2);background:var(--panel2);
+  border-radius:9px;padding:0 6px;letter-spacing:0;text-transform:none}
+.lgsub.closed .lgsubb{display:none}
+
+/* ---- sheet footprint labels (F1) ---- */
+.fplbl span{position:absolute;transform:translate(2px,2px);white-space:nowrap;
+  font-family:var(--mono);font-size:10px;font-weight:700;color:#DFF3FA;
+  background:rgba(12,30,38,.72);border:1px solid rgba(143,211,232,.55);
+  border-radius:3px;padding:0 4px;pointer-events:none}
+
+/* ---------- excavation depth labels (§4 group 3) ---------- */
+/* the depth labels only earn their space once a lot fills the screen; the zoom
+   handler in js/map.js puts .zoomfar on the map container below that */
+#map.zoomfar .excdepth{display:none}
+.excdepth span{position:absolute;transform:translate(-50%,-50%);
+  font-family:var(--mono);font-size:10.5px;font-weight:700;color:#FFE2DA;
+  background:rgba(20,10,8,.72);border:1px solid rgba(255,74,46,.7);
+  border-radius:3px;padding:0 4px;white-space:nowrap;pointer-events:none}
+.excdepth.half span{color:#2A1B05;background:#FFA23E;border-color:#C97A18}
+
+/* ---------- EA reference design surfaces (§5) ---------- */
+.refrow{display:flex;align-items:center;gap:7px;padding:4px 7px;border-radius:var(--r2);
+  border:1px solid transparent;cursor:pointer}
+.refrow:hover{background:var(--panel2)}
+.refrow .sw{width:10px;height:10px;border-radius:3px;flex:none}
+.refrow .sinfo{flex:1;min-width:0;display:flex;flex-direction:column;line-height:1.3}
+.refrow .sinfo b{font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.refrow .sinfo i{font-style:normal;font-size:10px;display:flex;align-items:center;gap:5px;flex-wrap:wrap}
+.refrow .sacts{display:flex;gap:2px;opacity:0;transition:opacity .12s}
+.refrow:hover .sacts{opacity:1}
+.refrow.gone{opacity:.55;cursor:default}
+.refrow.gone:hover{background:transparent}
+.sbadge{border-radius:3px;padding:0 5px;font-size:9.5px;font-weight:700;letter-spacing:.3px;
+  text-transform:uppercase;background:var(--panel3);color:var(--ink2)}
+.sbadge.k-existing{background:rgba(127,212,168,.2);color:#9FE6C4}
+.sbadge.k-proposed{background:rgba(255,107,74,.2);color:#FF9E82}
+.sbadge.k-derived{background:rgba(79,216,230,.18);color:#8DE7F2}
+.sbadge.k-none{background:rgba(228,121,106,.18);color:#F0A093}
+.sbadge.c-high{background:rgba(95,191,143,.18);color:#8FDCB6}
+.sbadge.c-medium{background:rgba(232,179,75,.18);color:#EFCE8C}
+.sbadge.c-low{background:rgba(228,121,106,.18);color:#F0A093}
+
+/* ---------- isopach legend ---------- */
+.isoleg .rampbar{flex:1;min-width:70px;height:9px;border-radius:2px}
+
+/* ---------- Sheets tab (§3) ---------- */
+.panetools .shflt select{background:var(--panel2);border:1px solid var(--line);color:var(--ink);
+  border-radius:var(--r2);padding:3px 6px;font:inherit;font-size:11.5px;margin-left:5px}
+#sheetCards{display:flex;flex-direction:column;gap:8px}
+.shcard{display:flex;gap:9px;padding:6px;border:1px solid var(--line);border-radius:var(--r2);
+  background:var(--panel2);cursor:pointer;transition:border-color .13s var(--ease),background .13s var(--ease)}
+.shcard:hover,.shcard:focus-visible{border-color:var(--acc);background:var(--panel3);outline:none}
+.shthumb{width:84px;flex:none;background:#fff;border-radius:3px;overflow:hidden;
+  display:flex;align-items:center;justify-content:center;min-height:56px}
+.shthumb img{width:100%;display:block}
+.shthumb img[src=""]{opacity:0}
+.shmeta{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px;line-height:1.3;
+  align-items:flex-start}
+.shmeta .shhead{display:flex;align-items:center;gap:4px;flex-wrap:wrap}
+.shmeta b{font-family:var(--mono);font-size:12.5px}
+.shmeta i{font-style:normal;font-size:11px;color:var(--ink2);
+  overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.shmeta .mut{font-size:10.5px}
+.okpill{background:rgba(95,191,143,.2);color:#8FDCB6;border-radius:3px;
+  padding:0 4px;font-size:9.5px;font-weight:700;letter-spacing:.3px;margin-left:4px}
+.dimpill{background:var(--panel3);border-radius:3px;padding:0 4px;font-size:9.5px;
+  font-weight:700;letter-spacing:.3px;margin-left:4px}
+
+/* ---------- Layer manager (§6) ---------- */
+.modal .mbox.lmbox{width:min(1080px,95vw);max-width:none;max-height:86vh;
+  display:flex;flex-direction:column}
+.lmbox .mhd .mut{margin-left:6px}
+.lmtools{display:flex;align-items:center;gap:12px;padding:8px 14px;border-bottom:1px solid var(--line);
+  background:#131B20;flex:none}
+.lmsearch{display:flex;align-items:center;gap:6px;background:var(--panel);border:1px solid var(--line);
+  border-radius:var(--r2);padding:4px 8px;color:var(--mut);flex:1;max-width:380px}
+.lmsearch input{flex:1;background:transparent;border:none;color:var(--ink);font:inherit;font-size:12.5px;outline:none}
+.lmbody{overflow:auto;padding:0}
+.lmtable{width:100%;border-collapse:collapse;font-size:12px}
+.lmtable thead th{position:sticky;top:0;z-index:2;background:#182228;color:var(--mut);
+  font-size:10px;text-transform:uppercase;letter-spacing:.9px;font-weight:650;
+  text-align:left;padding:7px 10px;border-bottom:1px solid var(--line2)}
+.lmtable td{padding:5px 10px;border-bottom:1px solid rgba(44,59,69,.6);vertical-align:middle}
+.lmtable tbody tr:hover{background:var(--panel2)}
+.lmtable tr.gdim td{opacity:.62}
+.lmtable .num{text-align:right;font-variant-numeric:tabular-nums}
+.lmtable .c-on{width:34px}
+.lmtable .c-name{min-width:220px}
+.lmtable .c-name b{display:block;white-space:nowrap}
+.lmtable .c-name i{font-style:normal;font-size:10px;font-family:var(--mono)}
+.lmtable .c-grp{white-space:nowrap}
+.lmtable .c-grp .minib{text-transform:none;letter-spacing:0}
+.lmtable .c-src{max-width:210px;font-size:10.5px}
+.lmtable .lmoff{font-size:9.5px;margin-left:5px}
+.lmtable input[type=color]{width:30px;height:20px;padding:0;border:1px solid var(--line);
+  background:transparent;border-radius:3px;cursor:pointer}
+.lmtable input[type=range]{width:70px;accent-color:var(--acc)}
+.lmtable input[type=checkbox]{accent-color:var(--acc);cursor:pointer}
+
+/* ---------- Inspector / Results tabs in the right dock (§3) ---------- */
+#rightTabs .minib{margin-left:auto}
+
+/* the mode HUD sits bottom-centre of the stage; in split that is where the 2D
+   pane's zoom control lives, so lift the control clear of it */
+body.v3dsplit .leaflet-control-zoom{margin-bottom:44px !important}
