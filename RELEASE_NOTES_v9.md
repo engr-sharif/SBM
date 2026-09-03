@@ -15,6 +15,22 @@ Both are offline-only by design. Nothing in this app calls out to the internet.
 
 ---
 
+## v9.1 — 3 September 2026
+
+**C-202 (North Lobe Grading) is now placed on the map and drapes in 3D.** It was the one
+plan sheet with a drawing but no drape: it prints only two survey nodes and draws the lobe
+twice (grading plan and restoration planting plan), which defeated both registration
+methods. EA's native geodatabase polygon for the North Lobe is that drawn boundary with
+every vertex surveyed, so the sheet was placed by fitting the polygon to the linework of
+each plan — vertex residuals under half a foot median, rotation exactly −90° — and confirmed
+independently against the orthophoto, which moves each plan by 1.8 ft, the same agreement
+the other eleven sheets show. The draped raster is the grading plan. In the sheet viewer
+both plans are georeferenced: a mark is placed through whichever plan it is made on, and
+the title block and notes are refused. Twelve sheets are placed; C-101, C-102 and C-203 are
+not.
+
+---
+
 ## What is new in v9
 
 ### EA's native CAD, all of it
@@ -92,7 +108,7 @@ the same edit as dragging it in 2D: one geometry model, one undo stack.
 ### Drawings: measure and mark on the sheet
 
 All 20 plan sheets open in floating windows you can zoom, pan, drag and resize.
-On the 11 registered sheets you can now **measure and mark directly on the paper**
+On the registered sheets (12 since v9.1) you can now **measure and mark directly on the paper**
 and have it land on the map in State Plane feet — a per-sheet page-to-ground
 transform was recovered for this. A sheet that could not be georeferenced honestly
 refuses to place a mark rather than placing it wrongly.

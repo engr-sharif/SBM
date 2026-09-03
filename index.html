@@ -643,8 +643,10 @@ window.SBMM_PERF = (function () {
   drag to pan, <b>fit</b> / <b>1:1</b>, <b>‹ ›</b> to flip through the set, <b>locate</b> to fly
   the map to that sheet. A registered sheet also lets you <b>measure and mark on the paper</b>:
   marks become ordinary features in State Plane coordinates that appear in 2D and 3D immediately.
-  Eleven sheets are georeferenced; C-101, C-102, C-202 and C-203 are not, and say so — their
-  design geometry is in the app anyway, from EA’s native files.<br><br>
+  Twelve sheets are georeferenced; C-101, C-102 and C-203 are not, and say so — their
+  design geometry is in the app anyway, from EA’s native files. C-202 draws the North Lobe
+  twice (grading plan and planting plan): a mark is placed through whichever plan it is made
+  on, and the title block and notes are refused.<br><br>
 
   <b>Volume</b> = neat in-place topographic quantity against a base surface (perimeter TIN
   reproduces the ABP memo Attachment E method; also best-fit plane, lowest rim, fixed elevation,
@@ -701,6 +703,7 @@ window.SBMM_PERF = (function () {
 <script src="datajs/i_design_C111_png.js"></script>
 <script src="datajs/i_design_C112_png.js"></script>
 <script src="datajs/i_design_C201_png.js"></script>
+<script src="datajs/i_design_C202_png.js"></script>
 <script>SBMM_PERF.mark("data-design-png")</script>
 <script src="datajs/i_sheet_full_C101_jpg.js"></script>
 <script src="datajs/i_sheet_full_C102_jpg.js"></script>
