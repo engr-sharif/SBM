@@ -198,7 +198,7 @@ SBMM.designEA = (function () {
      viewport frames (js/cadnative.js DEFAULT_LAYER_OFF), which is a different
      thing drawn on a different layer for a different reason.
 
-     So: one honest layer, OFF by default, showing the eleven registered plan
+     So: one honest layer, OFF by default, showing the registered plan
      areas with their sheet numbers and a click that opens the drawing. And
      because "which sheet covers this?" is a question you ask exactly while you
      are looking at the Sheets tab, the footprints also appear on their own
