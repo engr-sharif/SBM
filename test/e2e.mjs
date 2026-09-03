@@ -1271,7 +1271,7 @@ console.log("design: worst printed-area error",
 console.log("design: sheets from the 90% set", JSON.stringify(design.preFinal),
             "| every sheet declares its design set:", design.allHaveSet);
 if (!design.loaded) { console.log("FAIL: design_ea payload absent"); process.exit(1); }
-if (design.sheets < 11) { console.log("FAIL: expected 11 registered design sheets"); process.exit(1); }
+if (design.sheets < 12) { console.log("FAIL: expected 12 registered design sheets"); process.exit(1); }
 if (design.polys < 55) { console.log("FAIL: too few design boundary polygons"); process.exit(1); }
 if (design.validated < 11) { console.log("FAIL: expected 11 area-validated boundaries"); process.exit(1); }
 /* C-110 exists only in the 90% Pre-Final set. It must be present AND must never
@@ -1294,8 +1294,8 @@ if (design.superseded < 12) { console.log("FAIL: expected the native geometry to
    EA's geodatabase, and nothing links them. A frame, unit or scale mistake on
    either side shows up here first. */
 if (design.supWorstOff > 6) { console.log("FAIL: a superseded boundary is " + design.supWorstOff + " ft from its native counterpart"); process.exit(1); }
-if (design.sheetRowsUnchecked !== 11) { console.log("FAIL: sheet overlays should be off by default"); process.exit(1); }
-if (design.drapeBtns !== 11) { console.log("FAIL: every sheet row needs a 3D drape toggle"); process.exit(1); }
+if (design.sheetRowsUnchecked !== 12) { console.log("FAIL: sheet overlays should be off by default"); process.exit(1); }
+if (design.drapeBtns !== 12) { console.log("FAIL: every sheet row needs a 3D drape toggle"); process.exit(1); }
 
 /* ---------------------------------------------------------------- */
 /* Native EA design geometry (v8): the geodatabase + CAD deliverables.
@@ -1858,7 +1858,7 @@ const smAff = await page.evaluate(() => {
 console.log("sheet affines:", JSON.stringify({ total: smAff.total, registered: smAff.registered,
   ftPerPx: smAff.ftPerPx, ncc: smAff.ncc, gis: smAff.gis, roundtripPx: +smAff.roundtripPx.toFixed(6),
   unregistered: smAff.unregistered.length }));
-if (smAff.registered !== 11) { console.log("FAIL: expected 11 georeferenced sheets, got " + smAff.registered); process.exit(1); }
+if (smAff.registered !== 12) { console.log("FAIL: expected 12 georeferenced sheets, got " + smAff.registered); process.exit(1); }
 if (smAff.roundtripPx > 0.01) { console.log("FAIL: the sheet affine does not round-trip"); process.exit(1); }
 if (!smAff.geoC107 || smAff.geoC101) { console.log("FAIL: the wrong sheets are marked georeferenced"); process.exit(1); }
 if (!smAff.centreInSite) { console.log("FAIL: a sheet pixel does not map into the site window"); process.exit(1); }
@@ -1932,6 +1932,81 @@ if (!/not georeferenced/.test(smMark.nogeoMsg)) { console.log("FAIL: an unregist
 if (!smMark.noteStillOn) { console.log("FAIL: notes should still be allowed on an unregistered sheet"); process.exit(1); }
 for (const t of ["distance", "area", "inspect", "line", "point", "polygon"])
   if (!smMark.nogeoDisabled.includes(t)) { console.log("FAIL: " + t + " is offered on an unregistered sheet"); process.exit(1); }
+
+/* 9f-2. C-202 (North Lobe Grading) — registered from EA's NATIVE polygon,   */
+/* not from a printed node table (tools/register_sheet_native.py). The sheet  */
+/* draws the North Lobe twice at 1 in = 20 ft, so it carries one affine per   */
+/* plan viewport. Asserted: every vertex of the native polygon lands inside   */
+/* BOTH viewports and round-trips exactly; a pixel on the title block is      */
+/* refused; the map raster contains the polygon; the drape row exists, and    */
+/* draping it in 3D builds a real mesh over the lobe.                         */
+const errBeforeC202 = errors.length;
+const c202 = await page.evaluate(async () => {
+  const out = {};
+  const rec = SBMM_DATA.sheets_full.sheets.find(s => s.sheet === "C-202");
+  const vps = SBMM.sheetMarks.viewportsOf("C-202") || [];
+  out.geo = SBMM.sheetMarks.georeferenced("C-202");
+  out.viewports = vps.map(v => v.name);
+  out.source = rec && rec.affine_source;
+  const gis = SBMM_DATA.design_gis.features.find(f => f.properties.name === "Limit of excavation — North Lobe");
+  const ring = gis.geometry.coordinates[0];
+  let n = 0, inside = 0, worst = 0;
+  for (const vp of vps) for (const q of ring) {
+    const hit = SBMM.sheetMarks.toPxAll("C-202", q[0], q[1]).find(h => h.rect === vp.px);
+    n++;
+    if (!hit) continue;
+    const [u, v] = hit.px;
+    if (u >= vp.px[0] && u <= vp.px[2] && v >= vp.px[1] && v <= vp.px[3]) inside++;
+    const back = SBMM.sheetMarks.toSP("C-202", u, v);
+    if (back) worst = Math.max(worst, Math.hypot(back[0] - q[0], back[1] - q[1]));
+  }
+  out.n = n; out.inside = inside; out.worstFt = worst;
+  /* the two plans must agree with each other about the ground: the same
+     pixel offset from each plan's copy of vertex 0 maps to the same point */
+  const a = SBMM.sheetMarks.toPxAll("C-202", ring[0][0], ring[0][1]);
+  const p0 = SBMM.sheetMarks.toSP("C-202", a[0].px[0] + 100, a[0].px[1] + 50);
+  const p1 = SBMM.sheetMarks.toSP("C-202", a[1].px[0] + 100, a[1].px[1] + 50);
+  out.plansAgreeFt = Math.hypot(p0[0] - p1[0], p0[1] - p1[1]);
+  out.titleBlock = SBMM.sheetMarks.toSP("C-202", 4100, 2700);
+  const r = SBMM_DATA.design_ea.sheets["C-202"].raster;
+  out.polyInRaster = ring.every(q => q[0] >= r.x0 && q[0] <= r.x1 && q[1] >= r.y0 && q[1] <= r.y1);
+  out.rasterFt = [Math.round(r.x1 - r.x0), Math.round(r.y1 - r.y0)];
+  out.indexRegistered = !!SBMM.sheets.get("C-202").registered;
+  out.nodes = SBMM_DATA.design_ea.features.filter(f => f.properties.sheet === "C-202" && f.properties.kind === "node").length;
+  const row = [...document.querySelectorAll("#designLayers .lyr")].find(x => /C-202/.test(x.textContent));
+  out.row = !!row;
+  const btn = row && row.querySelector("button.d3d");
+  out.drapeBtn = !!btn;
+  if (btn) {
+    const wait = ms => new Promise(res => setTimeout(res, ms));
+    const was = SBMM.viewer3d.isOpen();
+    if (!was) await SBMM.viewer3d.openAt(6371234, 2130164);
+    await wait(500);
+    btn.click();
+    await wait(2500);
+    const st = SBMM.viewer3d.stats();
+    out.draped = st.sheetDrapes.includes("C-202");
+    out.drapeVerts = st.sheetDrapeVerts;
+    btn.click();
+    await wait(700);
+    out.drapedOff = SBMM.viewer3d.stats().sheetDrapes.includes("C-202");
+    if (!was) SBMM.viewer3d.toggle();
+    await wait(300);
+  }
+  return out;
+});
+console.log("C-202 native registration:", JSON.stringify(c202));
+if (!c202.geo || c202.source !== "native") { console.log("FAIL: C-202 is not registered from native geometry"); process.exit(1); }
+if (c202.viewports.length !== 2) { console.log("FAIL: C-202 should carry two plan viewports"); process.exit(1); }
+if (c202.inside !== c202.n || c202.n < 20) { console.log("FAIL: the North Lobe polygon does not land inside both C-202 plans"); process.exit(1); }
+if (c202.worstFt > 1e-6) { console.log("FAIL: the C-202 viewport affines do not round-trip"); process.exit(1); }
+if (c202.plansAgreeFt > 0.01) { console.log("FAIL: the two C-202 plans disagree about the ground by " + c202.plansAgreeFt + " ft"); process.exit(1); }
+if (c202.titleBlock !== null) { console.log("FAIL: a C-202 title-block pixel was georeferenced"); process.exit(1); }
+if (!c202.polyInRaster || !c202.indexRegistered) { console.log("FAIL: the C-202 map raster does not cover the North Lobe"); process.exit(1); }
+if (c202.nodes !== 2) { console.log("FAIL: C-202's two printed nodes are not carried as surveyed-node features"); process.exit(1); }
+if (!c202.row || !c202.drapeBtn) { console.log("FAIL: no C-202 sheet row with a 3D drape toggle"); process.exit(1); }
+if (!c202.draped || !(c202.drapeVerts > 200) || c202.drapedOff) { console.log("FAIL: C-202 did not drape in 3D"); process.exit(1); }
+if (errors.length !== errBeforeC202) { console.log("FAIL: page errors around C-202:", errors.slice(errBeforeC202, errBeforeC202 + 4)); process.exit(1); }
 
 /* ==================================================================== */
 /* 9g. cultural resources — CONFIDENTIAL (v9 §7)                         */

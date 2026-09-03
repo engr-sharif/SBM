@@ -380,6 +380,16 @@ def main():
             skipped += 1
             print("%-6s  —  not registered" % name)
             continue
+        if s.get("affine_source") == "native":
+            # Placed from EA's native geometry by tools/register_sheet_native.py,
+            # with one affine per plan viewport. The crop-vs-page correlation
+            # below would only ever find the primary viewport and would throw
+            # the others away, so the record is that tool's to write, not ours.
+            ok += 1
+            print("%-6s  kept  native-geometry registration (%d viewport%s) — "
+                  "re-run tools/register_sheet_native.py to change it"
+                  % (name, len(s.get("viewports") or []), "" if len(s.get("viewports") or []) == 1 else "s"))
+            continue
         if args.verbose:
             print("%-6s" % name)
         aff, why = solve_sheet(name, sh, s, page_for, np, ndimage, pymupdf,

@@ -31,11 +31,22 @@
        x = a*u + b*v + c        y = d*u + e*v + f
 
    It was recovered by tools/build_sheet_affine.py — read that file for the
-   method and its two independent checks. Nine of the twenty sheets have
-   `affine: null`: the four that were never registered, plus the detail and
+   method and its two independent checks. Eight of the twenty sheets have
+   `affine: null`: the three that were never registered, plus the detail and
    general sheets, which have no plan at all. Those windows say "not
    georeferenced" and allow only a non-geo note, exactly as §9 requires — a
    dimension off an unplaced sheet would be a number with no meaning.
+
+   Two plans on one page
+   ---------------------
+   C-202 carries TWO plan viewports of the same ground (the grading plan and
+   the restoration planting plan, both at 1 in = 20 ft), so one affine for the
+   page would put a mark made on the left plan ~290 ft east of where it was
+   made. Such a sheet carries `viewports: [{name, px:[u0,v0,u1,v1], affine}]`
+   beside its primary `affine` (tools/register_sheet_native.py). A pixel is
+   georeferenced through the viewport it falls in, a pixel on the title block
+   or the notes is refused with a toast, and the store is painted into EVERY
+   viewport, because a line measured on the map belongs on both plans.
 
    Keyboard scoping
    ----------------
@@ -68,28 +79,67 @@ SBMM.sheetMarks = (function () {
   /* ------------------------------------------------------------------ */
   /* the affine                                                          */
   /* ------------------------------------------------------------------ */
-  function affineOf(sheet) {
+  function record(sheet) {
     const D = window.SBMM_DATA && SBMM_DATA.sheets_full;
     if (!D || !Array.isArray(D.sheets)) return null;
-    const s = D.sheets.find(x => x.sheet === sheet);
-    return (s && s.affine) || null;
+    return D.sheets.find(x => x.sheet === sheet) || null;
   }
-  function georeferenced(sheet) { return !!affineOf(sheet); }
+  /* The plan viewports of a sheet: one per plan drawn on the page, each with
+     its own affine and pixel rectangle. A sheet with a single plan has none
+     listed, and its one affine covers the whole page. */
+  function viewportsOf(sheet) {
+    const s = record(sheet);
+    return (s && Array.isArray(s.viewports) && s.viewports.length) ? s.viewports : null;
+  }
+  function viewportAt(sheet, u, v) {
+    const vps = viewportsOf(sheet);
+    if (!vps) return null;
+    return vps.find(p => u >= p.px[0] && u <= p.px[2] && v >= p.px[1] && v <= p.px[3]) || null;
+  }
+  /* With a pixel: the affine that governs THAT pixel — null when the sheet
+     has several plans and the pixel is on none of them. Without one: the
+     sheet's primary affine (the plan the map raster was cut from). */
+  function affineOf(sheet, u, v) {
+    const s = record(sheet);
+    if (!s || !s.affine) return null;
+    if (u == null || !viewportsOf(sheet)) return s.affine;
+    const vp = viewportAt(sheet, u, v);
+    return vp ? vp.affine : null;
+  }
+  function georeferenced(sheet) { const s = record(sheet); return !!(s && s.affine); }
 
   /* full-sheet pixel -> State Plane feet */
   function toSP(sheet, u, v) {
-    const A = affineOf(sheet);
+    const A = affineOf(sheet, u, v);
     if (!A) return null;
     return [A.a * u + A.b * v + A.c, A.d * u + A.e * v + A.f];
   }
-  /* State Plane feet -> full-sheet pixel (the inverse the overlay draws with) */
-  function toPx(sheet, x, y) {
-    const A = affineOf(sheet);
-    if (!A) return null;
+  function invert(A, x, y) {
     const det = A.a * A.e - A.b * A.d;
     if (Math.abs(det) < 1e-15) return null;
     const dx = x - A.c, dy = y - A.f;
     return [(A.e * dx - A.b * dy) / det, (A.a * dy - A.d * dx) / det];
+  }
+  /* State Plane feet -> full-sheet pixel on the PRIMARY plan (the inverse the
+     footprint and "locate" work with) */
+  function toPx(sheet, x, y) {
+    const A = affineOf(sheet);
+    return A ? invert(A, x, y) : null;
+  }
+  /* State Plane feet -> one pixel per plan viewport, with the rectangle each
+     one belongs in — what the overlay paints the store with */
+  function toPxAll(sheet, x, y) {
+    const vps = viewportsOf(sheet);
+    if (!vps) {
+      const q = toPx(sheet, x, y);
+      return q ? [{ px: q, rect: null }] : [];
+    }
+    const out = [];
+    for (const vp of vps) {
+      const q = invert(vp.affine, x, y);
+      if (q) out.push({ px: q, rect: vp.px });
+    }
+    return out;
   }
   /* ground feet per sheet pixel — the scale a measurement is reported at */
   function ftPerPx(sheet) {
@@ -139,10 +189,7 @@ SBMM.sheetMarks = (function () {
       });
       bar.querySelector('[data-sht="locate-map"]').disabled = true;
       bar.querySelector('[data-sht="locate-3d"]').disabled = true;
-    } else {
-      const f = ftPerPx(st.sheet);
-      state.msg.textContent = `1 px ≈ ${fmt(f, 3)} ft`;
-    }
+    } else status(state, null);
 
     bar.addEventListener("click", e => {
       const b = e.target.closest("[data-sht]");
@@ -233,7 +280,7 @@ SBMM.sheetMarks = (function () {
       s.msg.textContent = "not georeferenced — notes only";
     } else {
       s.msg.className = "shmsg";
-      s.msg.textContent = `1 px ≈ ${fmt(ftPerPx(st.sheet), 3)} ft`;
+      status(s, null);
     }
     st.el.classList.remove("marking");
     paint(s);
@@ -267,8 +314,21 @@ SBMM.sheetMarks = (function () {
 
   function status(state, txt) {
     if (!state.msg) return;
-    const base = state.geo ? `1 px ≈ ${fmt(ftPerPx(state.st.sheet), 3)} ft` : "not georeferenced — notes only";
+    const vps = state.geo && viewportsOf(state.st.sheet);
+    const base = state.geo
+      ? `1 px ≈ ${fmt(ftPerPx(state.st.sheet), 3)} ft` + (vps ? ` · ${vps.length} plan viewports` : "")
+      : "not georeferenced — notes only";
     state.msg.textContent = txt ? txt : base;
+  }
+
+  /* On a sheet with several plans a click has to land on one of them: the
+     title block and the notes have no ground position. Said out loud rather
+     than ignored — a silent refusal is the one thing this app must not do. */
+  function offPlan(state, px) {
+    if (!state.geo || !viewportsOf(state.st.sheet)) return false;
+    if (viewportAt(state.st.sheet, px[0], px[1])) return false;
+    toast(`${state.st.sheet}: that is outside the plan viewports — only the plans are georeferenced`);
+    return true;
   }
 
   function setTool(state, k) {
@@ -301,6 +361,13 @@ SBMM.sheetMarks = (function () {
     const px = viewToPx(state, e);
     const st = state.st;
     if (px[0] < 0 || px[1] < 0 || px[0] > st.iw || px[1] > st.ih) return;
+    if (state.tool !== "note" && offPlan(state, px)) return;
+    /* one mark, one plan: the vertices of a line have to share a viewport */
+    if (state.pts.length && viewportsOf(st.sheet)
+        && viewportAt(st.sheet, px[0], px[1]) !== viewportAt(st.sheet, state.pts[0][0], state.pts[0][1])) {
+      toast(`${st.sheet}: every point of one mark has to be on the same plan viewport`);
+      return;
+    }
 
     if (state.tool === "inspect") {
       const sp = toSP(st.sheet, px[0], px[1]);
@@ -352,7 +419,8 @@ SBMM.sheetMarks = (function () {
        position, so it cannot be a map feature. It is kept on the window and
        reported, rather than silently refused — a silent refusal is the one
        thing this app must not do. */
-    if (!state.geo) {
+    const onPlan = state.geo && !(viewportsOf(st.sheet) && !viewportAt(st.sheet, px[0][0], px[0][1]));
+    if (!onPlan) {
       if (tool !== "note") { toast(st.sheet + " is not georeferenced — only notes can be added"); return; }
       const txt = prompt("Note on " + st.sheet + ":", "");
       if (txt == null || !txt.trim()) { setTool(state, null); return; }
@@ -364,6 +432,7 @@ SBMM.sheetMarks = (function () {
     }
 
     const sp = px.map(p => toSP(st.sheet, p[0], p[1]));
+    if (sp.some(p => !p)) { toast(st.sheet + ": a point of that mark is off the plan"); state.pts = []; paint(state); return; }
     const prov = { source: "sheet", sheet: st.sheet, px };
     let f = null;
     if (tool === "point") {
@@ -457,30 +526,47 @@ SBMM.sheetMarks = (function () {
     for (const f of SBMM.store.features) {
       if (f.visible === false || !f.pts || !f.pts.length) continue;
       if (f.type === "surface" || f.type === "sections") continue;
-      const pv = [];
-      let any = false;
-      for (const p of f.pts) {
-        const q = toPx(st.sheet, p[0], p[1]);
-        if (!q) { pv.length = 0; break; }
-        if (q[0] >= -50 && q[1] >= -50 && q[0] <= W + 50 && q[1] <= H + 50) any = true;
-        pv.push(pxToView(state, q[0], q[1]));
-      }
-      if (!any || !pv.length) continue;
+      /* one pass per plan viewport: on a single-plan sheet that is one pass
+         over the page; on C-202 it is one per plan, each clipped to its own
+         rectangle so a mark never lands on the other plan's notes */
+      const per = toPxAll(st.sheet, f.pts[0][0], f.pts[0][1]);
+      if (!per.length) continue;
       const own = f.props && f.props.provenance && f.props.provenance.sheet === st.sheet;
-      g.strokeStyle = f.id === sel ? "#FFD34D" : (own ? "#7CD0E6" : "rgba(124,208,230,.55)");
-      g.fillStyle = g.strokeStyle;
-      if (pv.length === 1) {
-        g.beginPath(); g.arc(pv[0][0], pv[0][1], 4, 0, 6.2832); g.fill();
-        if (f.type === "text" && f.props && f.props.text) {
-          g.font = "12px Helvetica, Arial, sans-serif";
-          g.fillText(f.props.text, pv[0][0] + 7, pv[0][1] - 5);
+      const col = f.id === sel ? "#FFD34D" : (own ? "#7CD0E6" : "rgba(124,208,230,.55)");
+      for (const { rect } of per) {
+        const lo = rect ? [rect[0] - 50, rect[1] - 50] : [-50, -50];
+        const hi = rect ? [rect[2] + 50, rect[3] + 50] : [W + 50, H + 50];
+        const pv = [];
+        let any = false;
+        for (const p of f.pts) {
+          const hit = toPxAll(st.sheet, p[0], p[1]).find(h => h.rect === rect);
+          if (!hit) { pv.length = 0; break; }
+          const q = hit.px;
+          if (q[0] >= lo[0] && q[1] >= lo[1] && q[0] <= hi[0] && q[1] <= hi[1]) any = true;
+          pv.push(pxToView(state, q[0], q[1]));
         }
-        continue;
+        if (!any || !pv.length) continue;
+        g.save();
+        if (rect) {
+          const a = pxToView(state, rect[0], rect[1]), b = pxToView(state, rect[2], rect[3]);
+          g.beginPath(); g.rect(a[0], a[1], b[0] - a[0], b[1] - a[1]); g.clip();
+        }
+        g.strokeStyle = col;
+        g.fillStyle = col;
+        if (pv.length === 1) {
+          g.beginPath(); g.arc(pv[0][0], pv[0][1], 4, 0, 6.2832); g.fill();
+          if (f.type === "text" && f.props && f.props.text) {
+            g.font = "12px Helvetica, Arial, sans-serif";
+            g.fillText(f.props.text, pv[0][0] + 7, pv[0][1] - 5);
+          }
+        } else {
+          g.beginPath();
+          pv.forEach((p, i) => i ? g.lineTo(p[0], p[1]) : g.moveTo(p[0], p[1]));
+          if (f.type === "area" || f.type === "volume") g.closePath();
+          g.stroke();
+        }
+        g.restore();
       }
-      g.beginPath();
-      pv.forEach((p, i) => i ? g.lineTo(p[0], p[1]) : g.moveTo(p[0], p[1]));
-      if (f.type === "area" || f.type === "volume") g.closePath();
-      g.stroke();
     }
   }
 
@@ -522,7 +608,7 @@ SBMM.sheetMarks = (function () {
   function wire() { /* nothing global — everything is per window */ }
 
   return { wire, attach, detach, resheet, onEscape, paint: st => paint(S.get(st)),
-           affineOf, georeferenced, toSP, toPx, ftPerPx, fromSheet,
+           affineOf, georeferenced, toSP, toPx, toPxAll, viewportsOf, viewportAt, ftPerPx, fromSheet,
            activeCount: () => [...live].filter(s => s.tool).length,
            state: st => S.get(st) };
 })();

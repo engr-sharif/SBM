@@ -38,6 +38,7 @@ in code, and what comes next. It replaces re-reading the chat history that built
 | One layer state for 2D/3D/sheets/exports; no 3D checkboxes | §1 of the spec |
 | Esc always returns to Navigate | Dead-button bug history |
 | Watermark "Mo Sharif - Jacobs 2026" bottom-right, burned into exports | User request |
+| C-202 registered from EA's native North Lobe polygon (v9.1), one affine per plan viewport; the raster and 3D drape are the grading plan | The PDF methods could not place it; the native polygon is the drawn boundary with every vertex surveyed |
 | GitHub repo stays **private**; no CDNs, analytics or network calls | Site imagery + analytical results |
 
 ## What was tried and dropped
@@ -65,7 +66,10 @@ in code, and what comes next. It replaces re-reading the chat history that built
 6. `index.html` help prose still says "Residential remedy design" (group is now
    "Residential design (EA 2025)"); `test/perf.mjs` still references the removed 3D
    checkboxes. Cosmetic.
-7. Ideas he has floated for later: richer sample-result symbology by analyte/date, more
+7. **C-102 and C-203 could be placed the way C-202 was** (`tools/register_sheet_native.py`,
+   native polygon fitted to the plan linework + ortho confirmation). C-203's rectangle is
+   symmetric, so watch the ambiguity.
+8. Ideas he has floated for later: richer sample-result symbology by analyte/date, more
    datasets through `datasets.js` (it is the intended path for any new point data), and
    keeping the app the single place the construction team looks.
 

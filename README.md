@@ -818,8 +818,8 @@ registration.
 
 **The four unregisterable sheets are now covered.** C-102 (staging area), C-202 (North
 Lobe) and C-203 (borrow area) all have exact native geometry; C-101 is a site *index* sheet
-and has no unique geometry to carry. Their rasters remain unplaced — the geometry was the
-point.
+and has no unique geometry to carry. The geometry was the point — and for C-202 the native
+geometry then went on to place the raster too (see *Registering from native geometry* below).
 
 **Excluded on purpose.** The geodatabase also contains `T22_0762_IsolateCurrent` and
 `T22_0762_ResourceCurrentPly` — an archaeological survey of the Elem Indian Colony.
@@ -878,7 +878,7 @@ starts at 54), which is independent evidence the sheet was dropped rather than r
 | C-111 | Lots 1, 5, 7 + EIC Repository | 12 | **yes** |
 | C-112 | Lot 17 | 13 | **yes** |
 | C-201 | East Temporary Stockpile | 14 | **yes** |
-| C-202 | North Lobe grading | 15 | **no** — see below |
+| C-202 | North Lobe grading | 15 | **yes** — from EA's native polygon, both plan viewports (v9.1) |
 | C-203 | Borrow Source Demonstration Area | 16 | **no** — see below |
 | C-501/502/503 | typical details and sections | 17–19 | no — not plan views |
 
@@ -943,7 +943,45 @@ C-107 and C-110 additionally carry a **third** independent check — the extract
 reproduces the area the sheet prints in square feet (C-107: 3,422 vs 3,297 ft²; C-110:
 1,569 vs 1,600 ft²), a scale check that neither the node table nor the imagery supplied.
 
-#### Why four sheets are still not registered
+#### Registering from native geometry — C-202
+
+C-202 defeated both methods above (two printed nodes, two plan viewports on one page — the
+account is kept in the next section), and EA's June-2026 native deliverable is what solved
+it. The geodatabase polygon *Limit of excavation — North Lobe* is the heavy black boundary
+drawn in **both** of the sheet's 1 in = 20 ft plans, and its two southern vertices *are*
+the two printed nodes (81 and 82, to 0.02 ft). Eleven vertices of a distinctive shape give
+22 equations against four unknowns — far more redundancy than any printed node table on
+this set — and each viewport is solved on its own. `tools/register_sheet_native.py`:
+
+1. **Coarse**: rotation swept through 360° at 1°, scale locked to the other 1 in = 20 ft
+   sheets, translation by FFT correlation of the polygon outline against the sheet's heavy
+   ink. C-202 answers at **exactly −90°** (north to the left, as its own north arrow says)
+   with outline-on-ink 0.87 against 0.40 for the runner-up, and one peak per viewport.
+2. **Refine, per viewport**: Nelder–Mead over rotation, scale and translation on the mean
+   ink darkness along the outline (0.991 for both plans; a random placement scores 0.13).
+   Then rotation is locked to the drafting angle and scale to the mean of the two free fits
+   (0.171377 ft/px, −0.05 % from the other 1 in = 20 ft sheets) and only the translation is
+   re-solved. Per-vertex residuals: **median 0.31 / max 1.06 ft** (grading plan),
+   **0.48 / 1.03 ft** (planting plan).
+3. **Independent confirmation**: the app's own orthophoto, which knows nothing about the
+   sheet, rendered into each plan through the recovered transform and correlated with the
+   sheet's embedded aerial. The imagery moves the grading plan **1.79 ft** and the planting
+   plan **1.85 ft** (NCC 0.51 / 0.49 at the peak) — the same 0–2 ft agreement class as
+   every accepted sheet, against 60–130 ft for a wrong registration.
+
+The map raster (`design_C202.png`, 0.5 ft/px) is cut from the **grading plan** — two plans
+of the same ground cannot both be draped, and the grading plan is the design. Both plans
+are georeferenced in the sheet viewer: `sheets_full.json` carries one affine per viewport
+with its pixel rectangle, a mark is placed through whichever plan it is made on, and a
+click on the title block or the notes is refused rather than placed 290 ft off.
+`tools/build_sheet_affine.py` leaves a record marked `affine_source: "native"` alone.
+
+C-102 and C-203 are the obvious next candidates for the same method — both have exact
+native polygons (the staging-area set and the 90 × 120 ft borrow rectangle). C-203's
+rectangle is symmetric, so the ortho confirmation would have to break the four-fold
+ambiguity rather than merely confirm; that is the one thing to watch.
+
+#### Why three sheets are still not registered
 
 Recorded so the work is not repeated:
 
@@ -954,15 +992,18 @@ Recorded so the work is not repeated:
   2.85–280.94 ft. An index sheet is mostly sheet-boundary rectangles and text, so there is
   little that can correlate with imagery. Its plan is ~5,000 × 4,600 ft — nearly the whole
   ortho — so the search window barely fits.
-* **C-202 (North Lobe grading)** — two problems. It prints only **two** nodes, so the table
-  carries no redundancy: any vertex pair at the right separation yields a transform. And its
-  `/VP` data shows **two separate plan viewports at 1 in = 20 ft**, i.e. two different ground
-  areas on one sheet, so a single affine is wrong by construction. The ortho-first attempt
+* **C-202 (North Lobe grading)** — *now registered from native geometry, above; the record
+  of why the PDF methods failed is kept.* Two problems. It prints only **two** nodes, so the
+  table carries no redundancy: any vertex pair at the right separation yields a transform.
+  And its `/VP` data shows **two separate plan viewports at 1 in = 20 ft** — they turned out
+  to be two plans of the *same* ground (grading and restoration planting), but a single
+  affine for the page is still wrong by construction. The ortho-first attempt
   returned peak 0.143 / ratio 1.40 (against 0.159–0.364 / 2.37–4.51 for the sheets that were
   accepted), and its "2 of 2 nodes within 1.5 ft" is worthless — at that sheet's linework
   density the chance of a node landing within 1.5 ft of *some* drawn vertex is **0.78**.
-  Registering C-202 needs it split into its two viewports, each solved separately.
-* **C-203 (Borrow Source Demonstration Area)** — the closest of the four to being solved,
+  Splitting it into its two viewports and solving each against the native polygon is what
+  worked.
+* **C-203 (Borrow Source Demonstration Area)** — the closest of the three to being solved,
   and the one to pick up first next time. Its printed nodes are a plain **90 × 120 ft
   axis-aligned rectangle**: so unspecific that the vote stage emits ~720,000 candidates and
   still had not converged after an hour, and a targeted search for a drawn 129.6 × 172.8 pt

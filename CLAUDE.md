@@ -144,7 +144,7 @@ terrain source, which needs an explicit decision + README/test update).
 | watermark.js | the "Mo Sharif - Jacobs 2026" element AND the burn-in every canvas export goes through (`burn`, `burnWebGL`) |
 | cultural.js | cultural resources (CONFIDENTIAL): off by default, acknowledgement gate, stamp, export gating |
 | pick3d.js | 3D pick registry, hover, identify card, 3D vertex handles |
-| sheetmarks.js | measuring and marking inside a sheet window; sheet px ↔ State Plane |
+| sheetmarks.js | measuring and marking inside a sheet window; sheet px ↔ State Plane, one affine per plan viewport where a sheet has several (C-202) |
 | boot.js | startup sequence, error reporting, first-run hint |
 
 ## Boot cost and the payload contract
@@ -263,8 +263,9 @@ layer defaults **off** and each boundary with a native counterpart carries
   feet, revisit this — do not silently reproject, and do not "fix" it with a shift.
 - **The four unregisterable sheets are solved by native geometry, not by registration.**
   C-102 (staging area), C-202 (North Lobe) and C-203 (borrow area) all have exact native
-  polygons; C-101 is a site *index* sheet with no unique geometry of its own. Their rasters
-  are still unplaced, and that is fine — the geometry is what mattered.
+  polygons; C-101 is a site *index* sheet with no unique geometry of its own. The geometry
+  is what mattered. Since v9.1 the native polygon has also *placed* C-202's raster (see
+  "Registering from native geometry" below); C-101, C-102 and C-203 remain unplaced.
 - **Geometry beats EA's layer names.** `C-SITE-DU-LOT-13` and `C-SITE-DU-LOT-15` are
   swapped in EA's CAD with respect to both the lot polygons and the sheet subjects. The
   builder labels from lot containment + the delivered sheet list and flags the conflict on
@@ -331,8 +332,10 @@ layer defaults **off** and each boundary with a native counterpart carries
 sends GIS/CAD, use it — it is exact, and it is how the four unregisterable sheets got
 covered. The notes below stay because the next set may again be PDFs only.
 
-11 sheets are registered; C-101, C-102, C-202, C-203 are not, and README records exactly
-why for each. If you attempt one of those, the traps below are the whole problem.
+12 sheets are registered; C-101, C-102 and C-203 are not, and README records exactly why
+for each. If you attempt one of those, the traps below are the whole problem — unless the
+sheet draws a polygon that exists in EA's geodatabase, in which case use the native method
+at the end of this section instead.
 
 - **`/VP` is an AutoCAD `/RL` *scale* measure, not GeoPDF `/GEO`.** It looks like
   georeferencing and is not. It does give the exact plan scale — use it, and *lock* it.
@@ -356,6 +359,31 @@ why for each. If you attempt one of those, the traps below are the whole problem
 - Adding a sheet: `data/design/design_Cxxx.png` is globbed by `build_data.py`, but the
   resulting `datajs/i_design_Cxxx_png.js` **must** be added to `index.html`'s script list or
   the overlay is registered, rendered, and invisible.
+
+### Registering from native geometry (v9.1 — how C-202 was placed)
+
+`tools/register_sheet_native.py C-202`. When the plan draws a polygon that exists in
+`data/design_gis.json`, that polygon is a node table with every vertex surveyed: C-202's
+*Limit of excavation — North Lobe* has 11 vertices (22 equations against 4 unknowns) and
+its two southern vertices are the sheet's two printed nodes to 0.02 ft. The tool sweeps
+rotation with the scale locked, correlates the outline against the heavy ink, refines
+per viewport, locks rotation to the drafting angle (−90°) and scale to the mean fit, and
+then confirms independently against the app ortho (which knows nothing of the sheet):
+accept only when the imagery moves the plan by the same 0–2 ft the accepted sheets show.
+Numbers for C-202 are in README and in the sheet's `design_ea.json` record.
+
+- **C-202 has two plan viewports of the same ground** (grading plan, planting plan). One
+  affine for the page is wrong by construction, so `sheets_full.json` carries
+  `viewports: [{name, px:[u0,v0,u1,v1], affine}]` beside the primary `affine`, and
+  `js/sheetmarks.js` georeferences a pixel through the viewport it falls in, refuses a
+  pixel on the title block with a toast, requires every point of one mark to sit on one
+  plan, and paints the store into every viewport (clipped to its rectangle). The map
+  raster and the 3D drape are the *grading* plan only — two plans of one footprint cannot
+  both be draped. `affine_source: "native"` on the record tells `build_sheet_affine.py`
+  to leave it alone (its crop-vs-page correlation would keep only the primary viewport).
+- C-102 and C-203 are the next candidates: both have exact native polygons. C-203's is a
+  symmetric 90 × 120 ft rectangle, so the ortho check has to break a four-fold ambiguity
+  there rather than merely confirm.
 
 ## v9 additions (agent B: cultural resources, 3D picking, sheet marking, watermark)
 
@@ -421,7 +449,8 @@ render index, and `design_ea.json`'s registration describes the *de-rotated crop
 the page. `tools/build_sheet_affine.py` recovers it: scale and rotation are already
 known from the sheet's own registration, so only a translation is unknown, and phase
 correlation of the re-rendered page against the crop's ink recovers it. 11 of 11
-registered sheets came back (ncc 0.31-0.95), each confirmed independently by mapping
+PDF-registered sheets came back (ncc 0.31-0.95) — C-202's comes from the native tool
+instead and is kept by this one — each confirmed independently by mapping
 EA's native geodatabase geometry for that sheet through the affine and requiring it to
 land on the paper (79-100 %). A sheet that fails any gate gets `affine: null` and the
 viewer refuses to georeference a mark on it — **a wrong affine is far worse than none.**
