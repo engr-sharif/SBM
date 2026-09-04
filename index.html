@@ -106,8 +106,8 @@ window.SBMM_PERF = (function () {
     <button class="toolbtn ghost" id="tableBtn" title="Sample results table [T]"><svg class="ic16"><use href="#i-flask"/></svg><span class="tlbl">Samples</span> <kbd>T</kbd></button>
     <button class="toolbtn ghost" id="importBtn" title="Import GeoJSON, DXF, CSV or a saved session (or drag-drop the file)"><svg class="ic16"><use href="#i-in"/></svg><span class="tlbl">Import</span> </button>
     <button class="toolbtn ghost" id="exportBtn" title="Export drawings, session, CSVs"><svg class="ic16"><use href="#i-out"/></svg><span class="tlbl">Export ▾</span></button>
-    <button class="toolbtn ghost" id="undoBtn" title="Undo the last action (Ctrl+Z)"><svg class="ic16"><use href="#i-undo"/></svg><span class="tlbl">Undo</span></button>
-    <button class="toolbtn ghost" id="redoBtn" title="Redo — this build keeps an undo stack only, so there is nothing to redo" disabled><svg class="ic16"><use href="#i-redo"/></svg><span class="tlbl">Redo</span></button>
+    <button class="toolbtn ghost" id="undoBtn" title="Undo the last action (Ctrl+Z)" disabled><svg class="ic16"><use href="#i-undo"/></svg><span class="tlbl">Undo</span></button>
+    <button class="toolbtn ghost" id="redoBtn" title="Redo the last undone action (Ctrl+Y)" disabled><svg class="ic16"><use href="#i-redo"/></svg><span class="tlbl">Redo</span></button>
     <button class="toolbtn ghost" id="clearBtn" title="Remove all drawings"><svg class="ic16"><use href="#i-trash"/></svg><span class="tlbl">Clear</span> </button>
   </div>
 
@@ -569,7 +569,12 @@ window.SBMM_PERF = (function () {
   </tbody></table>
   Grabbing a vertex handle enters <b>edit</b> and releasing it returns you where you were.
   While sketching: click vertices, <kbd>Enter</kbd> or double-click finishes, right-click or
-  <kbd>Backspace</kbd> removes the last vertex, <kbd>Ctrl</kbd><kbd>Z</kbd> undoes.<br><br>
+  <kbd>Backspace</kbd> removes the last vertex, <kbd>Ctrl</kbd><kbd>Z</kbd> undoes.<br>
+  <b>Undo and redo</b> cover every action — drawing, vertex edits, modify commands, pads,
+  sections, smart boundaries, raindrops and deletes. <kbd>Ctrl</kbd><kbd>Z</kbd> or
+  <b>UNDO</b> steps back, <kbd>Ctrl</kbd><kbd>Y</kbd> (or <kbd>Ctrl</kbd><kbd>Shift</kbd><kbd>Z</kbd>,
+  or <b>REDO</b>) steps forward again, 100 steps each way. A new action after an undo drops
+  the branch you left, the way every editor does.<br><br>
 
   <b>Layout</b> — the <b>left dock</b> has <b>Layers</b>, <b>My work</b> (every drawing you
   have made: rename, show/hide, lock, zoom to, organise into folders) and <b>Sheets</b> (a card

@@ -59,6 +59,36 @@ SBMM.store = {
     SBMM.results.checkEmpty();
     this.emit(); this.autosave();
   },
+  /* Put a removed feature back — the SAME object with the SAME id, so a
+     selection, a provenance record, a results card and anything holding a
+     reference all survive a delete/undo round trip (that identity is what makes
+     redo of a delete the same feature rather than a look-alike).
+     `remove()` DETACHES and never destroys: the Leaflet layer, the extra layers
+     (a cut/fill overlay, a design raster, a section band) and the card element
+     are all still on the object, so putting them back is the whole job. Only a
+     feature whose layer was never built or was thrown away needs a new one, and
+     that comes from the type's own builder through `SBMM.tools.relayer` —
+     the same builder `rebuildFeature` uses, with NOTHING recomputed. */
+  readd(f) {
+    if (!f) return null;
+    if (this.features.indexOf(f) >= 0) return f;
+    if (f.visible == null) f.visible = true;
+    this.features.push(f);
+    if (!f.layer && SBMM.tools && SBMM.tools.relayer) SBMM.tools.relayer(f, true);
+    if (f.visible !== false) {
+      if (f.layer) f.layer.addTo(SBMM.map);
+      if (f.extraLayers) f.extraLayers.forEach(l => l.addTo(SBMM.map));
+    }
+    if (f.card && !f.card.isConnected) {
+      const body = $("resBody");
+      if (body) {
+        const ph = body.querySelector(".placeholder"); if (ph) ph.remove();
+        body.prepend(f.card);
+      }
+    }
+    this.emit(); this.autosave();
+    return f;
+  },
   clear() {
     [...this.features].forEach(f => this.remove(f));
     this.select(null);
@@ -198,13 +228,86 @@ SBMM.store = {
   }
 };
 
-/* Undo — stack of {desc, undo()} entries (drawing + edits push here) */
+/* Undo / redo — two stacks of { desc, undo(), redo() } entries.
+
+   BOTH closures are required. An action that can be undone but not redone is a
+   bug, not a design choice, so a push with a missing or non-function `redoFn`
+   reports itself in the console and is dropped rather than quietly leaving a
+   dead entry on the stack. A push also CLEARS the redo stack: a new action
+   after an undo forks history and the abandoned branch is gone, which is what
+   every editor does. Depth 100 each way. */
 SBMM.undo = {
   stack: [],
-  push(desc, fn) { this.stack.push({ desc, fn }); if (this.stack.length > 100) this.stack.shift(); },
+  redoStack: [],
+  DEPTH: 100,
+  subs: [],
+
+  /* fired after every push / pop / redo / clear — and once on subscribe, so a
+     button wired at boot starts in the right state without a second call */
+  onChange(fn) {
+    if (typeof fn !== "function") return () => {};
+    this.subs.push(fn);
+    try { fn(); } catch (e) { console.error(e); }
+    return () => { const i = this.subs.indexOf(fn); if (i >= 0) this.subs.splice(i, 1); };
+  },
+  changed() { this.subs.forEach(fn => { try { fn(); } catch (e) { console.error(e); } }); },
+
+  push(desc, undoFn, redoFn) {
+    if (typeof undoFn !== "function" || typeof redoFn !== "function") {
+      console.error('SBMM.undo.push("' + desc + '") needs BOTH an undo and a redo closure — entry dropped');
+      return null;
+    }
+    const e = { desc, undo: undoFn, redo: redoFn };
+    this.stack.push(e);
+    if (this.stack.length > this.DEPTH) this.stack.shift();
+    this.redoStack.length = 0;
+    this.changed();
+    return e;
+  },
+  /* Forget the last n entries WITHOUT running them. The sketch engine uses it
+     when a sketch ends: the per-vertex entries belong to a sketch that no
+     longer exists, and one "draw Line 3" entry is what the user means by "undo
+     that". Nothing is undone here, so the redo stack is not touched. */
+  drop(n, desc) {
+    let k = 0;
+    while (k < n && this.stack.length
+           && (desc == null || this.stack[this.stack.length - 1].desc === desc)) {
+      this.stack.pop(); k++;
+    }
+    if (k) this.changed();
+    return k;
+  },
+  canUndo() { return this.stack.length > 0; },
+  canRedo() { return this.redoStack.length > 0; },
+  labels() {
+    return {
+      undo: this.stack.length ? this.stack[this.stack.length - 1].desc : null,
+      redo: this.redoStack.length ? this.redoStack[this.redoStack.length - 1].desc : null
+    };
+  },
   pop() {
     const e = this.stack.pop();
-    if (!e) { toast("nothing to undo"); return; }
-    try { e.fn(); toast("undid: " + e.desc); } catch (err) { console.error(err); }
-  }
+    if (!e) { toast("nothing to undo"); this.changed(); return false; }
+    try { e.undo(); } catch (err) {
+      console.error(err); toast("undo failed: " + e.desc); this.changed(); return false;
+    }
+    this.redoStack.push(e);
+    if (this.redoStack.length > this.DEPTH) this.redoStack.shift();
+    toast("undid: " + e.desc);
+    this.changed();
+    return true;
+  },
+  redo() {
+    const e = this.redoStack.pop();
+    if (!e) { toast("nothing to redo"); this.changed(); return false; }
+    try { e.redo(); } catch (err) {
+      console.error(err); toast("redo failed: " + e.desc); this.changed(); return false;
+    }
+    this.stack.push(e);
+    if (this.stack.length > this.DEPTH) this.stack.shift();
+    toast("redid: " + e.desc);
+    this.changed();
+    return true;
+  },
+  clear() { this.stack.length = 0; this.redoStack.length = 0; this.changed(); }
 };

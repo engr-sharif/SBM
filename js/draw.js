@@ -86,7 +86,7 @@ SBMM.draw = (function () {
   function begin(opts) {
     cancel();
     work = {
-      opts, pts: [],
+      opts, pts: [], undos: 0,
       line: L.polyline([], workStyle).addTo(SBMM.map),
       rubber: L.polyline([], { ...workStyle, opacity: .45, weight: 1.5 }).addTo(SBMM.map),
       markers: [], tip: null
@@ -104,10 +104,16 @@ SBMM.draw = (function () {
   }
   function click(x, y) {
     if (!work) return;
+    addVertex(x, y);
+    /* redo re-places the same vertex; both closures no-op safely once the
+       sketch they belong to has been finished or cancelled */
+    if (SBMM.undo.push("add vertex", () => removeLast(), () => addVertex(x, y))) work.undos++;
+  }
+  function addVertex(x, y) {
+    if (!work) return;
     work.pts.push([x, y]);
     const mk = L.circleMarker([y, x], { pane: "drawings", radius: 4, color: "#FFD34D", weight: 2, fillColor: "#1B2429", fillOpacity: 1 }).addTo(SBMM.map);
     work.markers.push(mk);
-    SBMM.undo.push("add vertex", () => removeLast());
     refresh();
   }
   function removeLast() {
@@ -163,6 +169,10 @@ SBMM.draw = (function () {
   }
   function teardown() {
     if (!work) return;
+    /* the per-vertex entries die with the sketch: their closures can no longer
+       do anything, and what the user means by "undo that" once the shape is
+       finished is the whole feature (pushed by the tool's onFinish) */
+    SBMM.undo.drop(work.undos, "add vertex");
     SBMM.map.removeLayer(work.line); SBMM.map.removeLayer(work.rubber);
     work.markers.forEach(m => SBMM.map.removeLayer(m));
     work = null;
@@ -356,6 +366,22 @@ SBMM.draw = (function () {
     $("map").classList.add("editing");
     if (SBMM.mode) SBMM.mode.beginEdit();       // §2: the `edit` mode, cursor + HUD
   }
+  /* One undo entry for a vertex edit: the geometry before it and the geometry
+     after it, both copied now. Every restore hands f.pts a FRESH copy, because
+     a later drag writes through the array in place — hand back the stored one
+     and the next drag would quietly rewrite the history. */
+  function pushPts(desc, before, f) {
+    const after = f.pts.map(q => q.slice());
+    if (JSON.stringify(before) === JSON.stringify(after)) return;
+    const set = v => {
+      f.pts = v.map(q => q.slice());
+      /* the edit session may be long gone by the time this is undone */
+      if (editing && editing.f === f) applyEdit(true);
+      else { SBMM.tools.redraw(f); SBMM.tools.recompute(f, false); SBMM.store.emit(); SBMM.store.autosave(); }
+    };
+    SBMM.undo.push(desc, () => set(before), () => set(after));
+  }
+  let dragFrom = null;
   function buildHandles() {
     clearHandles();
     const { f, closed } = editing;
@@ -372,18 +398,23 @@ SBMM.draw = (function () {
         f.pts[i] = [nx, ny];
         applyEdit(false);
       });
-      mk.on("dragstart", () => {
-        const before = f.pts.map(q => q.slice());
-        SBMM.undo.push("move vertex", () => { f.pts = before; applyEdit(true); });
+      /* The entry is pushed on dragEND, not dragstart: the "after" state has to
+         be captured at the moment the action completes, or a redo would pick up
+         whatever the vertex was moved to later. A drag that ends where it began
+         is not an action and pushes nothing. */
+      mk.on("dragstart", () => { dragFrom = f.pts.map(q => q.slice()); });
+      mk.on("dragend", () => {
+        SBMM.snap.paint(null);
+        applyEdit(true);
+        if (dragFrom) { pushPts("move vertex", dragFrom, f); dragFrom = null; }
       });
-      mk.on("dragend", () => { SBMM.snap.paint(null); applyEdit(true); });
       mk.on("contextmenu", e => {
         L.DomEvent.stop(e);
         if (f.pts.length <= (closed ? 3 : 2)) { toast("can't delete — too few vertices"); return; }
         const before = f.pts.map(q => q.slice());
-        SBMM.undo.push("delete vertex", () => { f.pts = before; applyEdit(true); });
         f.pts.splice(i, 1);
         applyEdit(true);
+        pushPts("delete vertex", before, f);
       });
       editing.vmarks.push(mk);
     });
@@ -394,9 +425,9 @@ SBMM.draw = (function () {
       const mk = L.marker([mid[1], mid[0]], { icon: vertexIcon("mid"), pane: "drawings" }).addTo(SBMM.map);
       mk.on("click", () => {
         const before = f.pts.map(q => q.slice());
-        SBMM.undo.push("insert vertex", () => { f.pts = before; applyEdit(true); });
         f.pts.splice(i + 1, 0, mid);
         applyEdit(true);
+        pushPts("insert vertex", before, f);
       });
       editing.mids.push(mk);
     }
@@ -482,7 +513,14 @@ SBMM.draw = (function () {
       if (e.key === "Shift") modShift = true;
       if (e.key === "F3") { e.preventDefault(); SBMM.snap.setEnabled(null); toast("object snap " + (SBMM.snap.enabled() ? "on" : "off")); return; }
       if (e.key === "F10") { e.preventDefault(); setPolar(null); toast("polar tracking " + (polar ? "on — 15°" : "off")); return; }
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") { e.preventDefault(); SBMM.undo.pop(); return; }
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z" && !e.shiftKey) { e.preventDefault(); SBMM.undo.pop(); return; }
+      /* redo on both of the two conventions — Ctrl+Y (Windows/AutoCAD) and
+         Ctrl+Shift+Z (everywhere else). Same guards as Ctrl+Z above: this
+         handler has already returned for a text field, and the gate stops every
+         key in the capture phase before it reaches here. */
+      if ((e.ctrlKey || e.metaKey) && (e.key.toLowerCase() === "y" || (e.shiftKey && e.key.toLowerCase() === "z"))) {
+        e.preventDefault(); SBMM.undo.redo(); return;
+      }
       /* start typed input from the keyboard, AutoCAD-style */
       if (armed() && !e.ctrlKey && !e.metaKey && !e.altKey && /^[0-9@.\-]$/.test(e.key)) {
         e.preventDefault(); openTyped(e.key); return;

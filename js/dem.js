@@ -47,20 +47,25 @@ class Dem {
 
   /* meta from SBMM_DATA[name], pixels from base64 data-URL image (never taints canvas).
 
+     Since v11 this is the FALLBACK path: boot decodes the four terrain payloads
+     through Dem.loadAll -> Dem.decodeInWorker (below), and lands here only when
+     a browser has no Worker / OffscreenCanvas / createImageBitmap, or a worker
+     failed. It is kept byte-for-byte equivalent to the worker's loop on purpose
+     — the e2e decodes a payload both ways and compares the arrays.
+
      opts.release  false keeps the base64 string; by default it is nulled once the
-                   Float32Array exists — the three terrain payloads are ~28 MB of
+                   Float32Array exists — the terrain payloads are ~31 MB of
                    string nothing reads twice.
 
-     All three terrain payloads decode inside the loader. Deferring the CHM until
-     after the loader cleared was tried and reverted: it bought ~0.55 s of
-     time-to-interactive and spent it on a ~0.6 s main-thread block landing one to
-     three seconds later, on top of whatever the user had already started doing.
-     Banding the getImageData and the drawImage did not fix it — most of the block
-     is inside createImageBitmap decoding an 11.1-megapixel PNG, which is not
-     divisible on the main thread. A longer spinner that names the step it is on
-     is not jank; a stall two seconds into a drag is. If this is ever worth
-     another go, the answer is decoding it in a worker, which needs the job
-     protocol in compute.js to learn about async kernels first. */
+     All four terrain payloads decode inside the loader, the CHM included.
+     Deferring the CHM until after the loader cleared was tried and reverted: it
+     bought ~0.55 s of time-to-interactive and spent it on a ~0.6 s main-thread
+     block landing one to three seconds later, on top of whatever the user had
+     already started doing. Banding the getImageData and the drawImage did not
+     fix it — most of the block is inside createImageBitmap decoding an
+     11.1-megapixel PNG, which is not divisible on the main thread. Moving the
+     whole decode into a worker is what finally fixed it (v11); the CHM stays in
+     the loader because it now costs the boot nothing to keep it there. */
   static async load(name, opts) {
     opts = opts || {};
     const meta = SBMM_DATA[name];
@@ -126,6 +131,178 @@ class Dem {
     return [lo, hi];
   }
 }
+
+/* ---- worker-side decode (v11) -------------------------------------------
+   The four terrain payloads used to decode one after another ON THE MAIN
+   THREAD: createImageBitmap is off-thread, but `drawImage + getImageData`
+   copies 86 MB for the site DEM alone and the terrain-RGB -> Float32 loop is
+   21.6 M iterations, and all of that ran between "decoding terrain…" and the
+   first frame the user could touch. That was the "building workbench" wait.
+
+   Now each payload decodes in its own dedicated worker and only `atob` stays
+   on the main thread (~40 ms per payload; the bytes are then TRANSFERRED, so
+   nothing is copied). The four are started together, so on a multi-core box
+   they overlap; on a single core they cost what they always did but off the
+   thread that paints.
+
+   The worker source is `demDecodeWorkerMain.toString()` wrapped in a Blob URL
+   — the same technique js/jobs.js uses for the compute pool, and the only one
+   that works in BOTH shipping shapes of this app: over file:// nothing can be
+   fetched, and in the dist tools/build_dist.py inlines this file verbatim so
+   the function's source text is byte-identical. This is NOT the compute pool:
+   no job protocol, no js/compute.js, one message each way.
+
+   Everything is feature-detected and every failure falls back to the old
+   main-thread path (Dem.load below) with the payload string still in place,
+   because the release only happens once a Float32Array exists. The two paths
+   run the SAME terrain-RGB loop — it was moved, not rewritten — and the e2e
+   decodes a payload both ways and compares the arrays element by element. */
+function demDecodeWorkerMain() {
+  self.onmessage = function (ev) {
+    var d = ev.data, id = d.id;
+    /* feature-detect INSIDE the worker: a browser can have Worker and still
+       lack OffscreenCanvas, and the host cannot see the worker's globals */
+    if (typeof createImageBitmap !== "function" || typeof OffscreenCanvas !== "function") {
+      self.postMessage({ id: id, unsupported: true });
+      return;
+    }
+    createImageBitmap(new Blob([d.bytes], { type: "image/png" })).then(function (bmp) {
+      var oc = new OffscreenCanvas(d.w, d.h);
+      var g = oc.getContext("2d", { willReadFrequently: true });
+      g.drawImage(bmp, 0, 0);
+      if (bmp.close) bmp.close();
+      var px = g.getImageData(0, 0, d.w, d.h).data;
+      var z = new Float32Array(d.w * d.h), nodata = 0;
+      for (var r = 0; r < d.h; r++) {
+        var srcRow = r, dstRow = d.h - 1 - r;
+        for (var cx = 0; cx < d.w; cx++) {
+          var i = (srcRow * d.w + cx) * 4, v = px[i] * 256 + px[i + 1];
+          if (v === 0) nodata++;
+          z[dstRow * d.w + cx] = v === 0 ? NaN : d.zmin + (v - 1) * d.step;
+        }
+      }
+      self.postMessage({ id: id, z: z, nodata: nodata }, [z.buffer]);
+    }).catch(function (e) {
+      self.postMessage({ id: id, error: (e && e.message) || String(e) });
+    });
+  };
+}
+
+Dem._workerUrl = null;
+/* how many payloads actually decoded in a worker this boot — 4 on a healthy
+   browser, 0 where the fallback took over. The e2e asserts it. */
+SBMM.perf.demWorkers = 0;
+Dem.workerSource = function () {
+  return "/* SBMM DEM decode worker — generated at runtime from js/dem.js */\n" +
+    '"use strict";\n(' + demDecodeWorkerMain.toString() + ")();\n";
+};
+Dem.workerUrl = function () {
+  if (!Dem._workerUrl) Dem._workerUrl = URL.createObjectURL(new Blob([Dem.workerSource()], { type: "text/javascript" }));
+  return Dem._workerUrl;
+};
+
+/* base64 data-URL -> bytes. The one part of the decode that has to stay on the
+   main thread (the string lives here), and the cheapest part of it. */
+Dem.bytes = function (url) {
+  const bin = atob(url.slice(url.indexOf(",") + 1));
+  const buf = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i);
+  return buf;
+};
+
+/* Decode one payload in its own worker. Resolves to { z, nodata } or to null,
+   which means "use the main-thread path" — no Worker, no OffscreenCanvas, a
+   thrown constructor, an error inside, or a timeout. It never rejects: a boot
+   must not fail because a worker did. */
+Dem.decodeInWorker = function (name, meta, url) {
+  return new Promise(resolve => {
+    if (typeof Worker !== "function" || typeof URL === "undefined" || !URL.createObjectURL)
+      return resolve(null);
+    let w = null, settled = false;
+    const finish = v => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      if (w) { try { w.terminate(); } catch (e) {} }
+      resolve(v);
+    };
+    const timer = setTimeout(() => {
+      console.warn("DEM decode worker timed out, decoding on the main thread:", name);
+      finish(null);
+    }, 120000);
+    try { w = new Worker(Dem.workerUrl()); }
+    catch (e) { console.warn("DEM decode workers unavailable, decoding on the main thread:", e.message); return finish(null); }
+    w.onmessage = ev => {
+      const d = ev.data || {};
+      /* nodata is counted for whoever wants it (the e2e compares it against the
+         main-thread path); nothing in the app hangs it on the Dem, so the two
+         paths produce identical objects. */
+      if (d.z) return finish({ z: d.z, nodata: d.nodata });
+      if (d.error) console.warn("DEM decode worker failed on " + name + ":", d.error);
+      finish(null);
+    };
+    w.onerror = e => {
+      console.warn("DEM decode worker error on " + name + ":", (e && e.message) || e);
+      finish(null);
+    };
+    let bytes;
+    try { bytes = Dem.bytes(url); }
+    catch (e) { console.warn("DEM payload could not be decoded:", name, e.message); return finish(null); }
+    try { w.postMessage({ id: name, bytes, w: meta.w, h: meta.h, zmin: meta.zmin, step: meta.step }, [bytes.buffer]); }
+    catch (e) { console.warn("DEM payload could not be transferred:", name, e.message); finish(null); }
+  });
+};
+
+/* Load several payloads at once, one worker each, all started together.
+
+   opts.optional  names whose absence or failure is a warning, not an error
+                  (dem_res and the CHM — see js/boot.js)
+   opts.onOne     (name, { done, total, ms, worker }) as each one lands; boot
+                  uses it for the per-payload perf mark and the loader text.
+
+   Returns { name: Dem }, missing optional payloads simply absent. Required
+   payloads still throw, and the throw still reaches boot.js's error screen. */
+Dem.loadAll = async function (names, opts) {
+  opts = opts || {};
+  const optional = new Set(opts.optional || []);
+  const out = {};
+  const total = names.length;
+  let done = 0;
+  const one = async name => {
+    const meta = SBMM_DATA[name], url = SBMM_DATA[name + "_png"];
+    const t0 = performance.now();
+    let dem = null, viaWorker = false;
+    if (!meta) throw new Error(`DEM payload missing: ${name}`);
+    if (!url) throw new Error(`DEM image payload missing or already released: ${name}_png`);
+    const r = await Dem.decodeInWorker(name, meta, url);
+    if (r) {
+      viaWorker = true;
+      SBMM.perf.demWorkers = (SBMM.perf.demWorkers || 0) + 1;
+      SBMM_DATA[name + "_png"] = null;     /* released only once the array exists */
+      dem = new Dem(meta, r.z);
+    } else {
+      dem = await Dem.load(name);          /* the main-thread path, unchanged */
+    }
+    out[name] = dem;
+    done++;
+    const ms = +(performance.now() - t0).toFixed(1);
+    SBMM.perf.demDecode = SBMM.perf.demDecode || {};
+    SBMM.perf.demDecode[name] = { ms, worker: viaWorker, mpx: +((meta.w * meta.h) / 1e6).toFixed(1) };
+    if (opts.onOne) opts.onOne(name, { done, total, ms, worker: viaWorker });
+    return dem;
+  };
+  /* .map starts every job now: each runs synchronously as far as its atob and
+     postMessage, so payload 2 is being read while payload 1 is already
+     decoding. Promise.allSettled, not all, so one optional failure cannot take
+     a required payload's rejection with it. */
+  const settled = await Promise.allSettled(names.map(one));
+  settled.forEach((s, i) => {
+    if (s.status === "fulfilled") return;
+    if (optional.has(names[i])) { console.warn("optional terrain payload skipped:", names[i], s.reason); return; }
+    throw s.reason;
+  });
+  return out;
+};
 
 /* ---- the DEM stack ------------------------------------------------------
    ONE ordered list, finest first, and everything that asks "what is the ground

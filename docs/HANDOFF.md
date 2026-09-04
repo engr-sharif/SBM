@@ -64,9 +64,25 @@ in code, and what comes next. It replaces re-reading the chat history that built
 2. **The four 0.5-ft (6-in) call-outs** have no model-space geometry in EA's CAD; markers
    sit at the sheet's excavation centroid with a "verify" note. If EA sends the leaders or
    a delineation, `addHalfFootCallouts()` is the single function to change.
-3. **Redo** is not implemented (button shipped disabled).
-4. **Boot ≈ 4.0–4.3 s** on a slow 2-core box; 3.4 s of it is vendor parse + DEM decode.
-   Worker-side DEM decode is the next real win (an async job protocol is the prerequisite).
+3. ~~**Redo** is not implemented (button shipped disabled).~~ **Done (v9.4, v11 §1.)**
+   `SBMM.undo` is two stacks; every push carries an undo AND a redo closure (a push
+   without one reports itself in the console and is dropped), `SBMM.store.readd(f)` puts
+   the same feature object back with the same id, the two buttons mirror the two stacks,
+   and `Ctrl+Y` / `Ctrl+Shift+Z` / `REDO` step forward. The e2e block "9u. redo" is the
+   contract. Still open, and deliberately: the results-card ✕ and the Features-tree
+   delete call `SBMM.store.remove` directly, so those two paths are not undoable — the
+   one-line fix is to route them through `SBMM.tools.deleteFeature(f)` the way ERASE and
+   the 3D Delete key now do.
+4. ~~**Boot ≈ 4.0–4.3 s** on a slow 2-core box; worker-side DEM decode is the next real
+   win.~~ **Done (v11 §3).** The four terrain payloads now decode in four dedicated
+   workers started together (`Dem.loadAll` in `js/dem.js`, called from the loader in
+   `js/boot.js`); only the `atob` stays on the main thread and the bytes are transferred,
+   not copied. On the 2-core test box the terrain block went 1,246 ms → 683 ms and the
+   `boot-done` mark 2.54 s → 1.66 s median, wall-to-first-interaction 4.49 s → 4.01 s.
+   What is left of the boot is vendor parse (~0.6 s) and, in the dist only, parsing ~90 MB
+   of base64 string literals — neither of which a worker can help with. The e2e asserts
+   `SBMM.perf.demWorkers >= 3` and that the worker and main-thread decodes agree cell for
+   cell; `SBMM.perf.demDecode` reports per-payload ms.
 5. **Default-visibility hazard:** `DEFAULT_OVERRIDES` / `DEFAULT_LAYER_OFF` live in three
    places (`js/cadnative.js`, `tools/build_cad_native.py`, `data/design/cad_layer_map.json`).
    Consolidating them into the payload is a good small refactor.
@@ -88,6 +104,31 @@ in code, and what comes next. It replaces re-reading the chat history that built
 10. Ideas he has floated for later: richer sample-result symbology by analyte/date, more
    datasets through `datasets.js` (it is the intended path for any new point data), and
    keeping the app the single place the construction team looks.
+11. **Findings from the kernel harness (v11 §2, `node test/kernels.mjs`)**, none of them
+   fixed yet, all of them small: (a) the `contours` kernel emits two-vertex stubs shorter
+   than 0.1 ft where an isoline clips a cell corner — harmless on the map, noise in a DXF;
+   (b) `contoursFromGrid` and `demRasterRGBA` ignore a windowed `gridSpec` (`i0/j0`)
+   silently and read the whole grid — every caller today passes a full grid, so nothing is
+   wrong yet, but the first windowed caller will get a raster of the wrong place with no
+   error; (c) the TOE/CREST card reports a length 2.0 ft longer than the feature it draws
+   (`js/smartbound.js` sums the un-simplified path — one line); (d) the cross-section
+   end-area check has no `isoTol`, so a section across `res_excbottom` on the 2-ft site
+   DEM shows 1.33 % phantom fill the isopach already knows to discard.
+12. **Storm drainage around Herman (investigated Sep 2026, nothing built).** EA's V-Base
+   drawing carries the discharge system on `V-STRM-STRC` (not `C-SSWR-MAIN-PIPE`, which is
+   one 18-ft segment far to the west): a 783-ft 24-in storm line from 30 ft west of the
+   surveyed pipe outlets to the Clear Lake shore at E 6,371,273 N 2,127,488, plus a 145-ft
+   branch from the south side of the gravel road at E 6,371,958 N 2,127,426. `V-STRM-MRKG`
+   holds six two-point culvert marks, each crossing a `V-ROAD-GRVL` embankment; the two
+   that matter both feed Herman, from the south road (40 ft, E 6,372,718 N 2,127,378) and
+   from Green Pond (62 ft, E 6,373,859 N 2,127,988; Green Pond's low 1391.6 ft drains 641 ft
+   overland into Herman and holds ~23 ac-ft before it spills). Frog Pond (low 1415 ft)
+   spills north-east off the survey, not to Herman. Green and Frog Pond sit EAST of the
+   impoundment, not south. No inverts or diameters in the CAD. Plan, once the manhole
+   survey arrives (rim + invert per structure, diameter, material, connectivity): conduits
+   as a flow feature (inlet, outlet, two inverts; raindrop/overtop/catchment treat one as
+   a shortcut; per-conduit "assume broken" toggle), Manning full-flow capacity per pipe on
+   the Herman card, and the storm line as the continuation of the pipe discharge route.
 
 ## The password gate (v9.3)
 

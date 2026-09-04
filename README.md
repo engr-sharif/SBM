@@ -88,7 +88,10 @@ with end-area volumes cross-checked against the grid, and a one-click **print-re
 sheet**.
 
 **Edit** — every drawn feature can be renamed and re-shaped afterwards (drag vertices,
-click midpoints to insert, right-click to delete); measurements update live. Ctrl+Z undo.
+click midpoints to insert, right-click to delete); measurements update live. Every action —
+drawing, editing, modifying, pads, sections, smart boundaries, raindrops and deletes — is
+undoable with Ctrl+Z (or `UNDO`) and redoable with Ctrl+Y / Ctrl+Shift+Z (or `REDO`), 100
+steps each way; a redo puts the same feature back, with its id, its card and its geometry.
 
 **Draft** — the CAD drafting layer described under *Drafting like AutoCAD* below: object
 snaps, ortho and polar tracking, typed coordinate entry, a command line with AutoCAD
@@ -1346,7 +1349,8 @@ js/                 one concern per file:
   jobs.js           worker pool + job protocol + status-bar progress (SBMM.compute)
   dem.js            DEM decode (terrain-RGB PNG) + bilinear sampling + slope/aspect
   proj.js           State Plane <-> WGS84 local affine
-  state.js          feature store, selection, groups, undo stack, session autosave
+  state.js          feature store, selection, groups, undo/redo stacks, readd,
+                    session autosave
   shell.js          dock tabs, collapse, drag-resize, top-bar overflow
   map.js            Leaflet init, layer-control rows, status bar, context menu, go-to
   layers.js         basemaps, survey contours, DUs, piles, sample points, and the

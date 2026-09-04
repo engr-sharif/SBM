@@ -482,9 +482,9 @@ SBMM.pick3d = (function () {
     if (!f) return;
     /* stop the nav rig from also treating this drag as an orbit */
     e.stopPropagation();
-    const before = f.pts.map(q => q.slice());
-    SBMM.undo.push("move vertex (3D)", () => { f.pts = before; commitEdit(f, false); });
-    dragging = { f, i: v.i };
+    /* the entry is pushed on pointer UP, where the "after" state exists — see
+       the same rule in js/draw.js */
+    dragging = { f, i: v.i, before: f.pts.map(q => q.slice()) };
     ctx.dom.setPointerCapture && ctx.dom.setPointerCapture(e.pointerId);
   }
   function onDrag(e) {
@@ -497,8 +497,14 @@ SBMM.pick3d = (function () {
   }
   function onUp() {
     if (!dragging) return;
-    commitEdit(dragging.f, false);
+    const f = dragging.f, before = dragging.before;
     dragging = null;
+    commitEdit(f, false);
+    const after = f.pts.map(q => q.slice());
+    if (JSON.stringify(before) === JSON.stringify(after)) return;   // a click, not a move
+    /* every restore hands over a fresh copy: the drag writes through f.pts */
+    const set = v => { f.pts = v.map(q => q.slice()); commitEdit(f, false); editHandles(); };
+    SBMM.undo.push("move vertex (3D)", () => set(before), () => set(after));
   }
   function commitEdit(f, live) {
     SBMM.tools.redraw(f);
@@ -517,8 +523,8 @@ SBMM.pick3d = (function () {
     const f = SBMM.store.selectedFeature();
     if (!f) return;
     e.preventDefault();
-    SBMM.store.remove(f);
-    toast("deleted " + (f.name || f.type));
+    /* the undoable delete — the same one ERASE runs (js/tools.js) */
+    if (SBMM.tools.deleteFeature(f)) toast("deleted " + (f.name || f.type));
   }
 
   function wireCanvas() {
