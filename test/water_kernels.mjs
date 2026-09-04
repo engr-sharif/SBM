@@ -284,6 +284,29 @@ try { C.runJob("flowpath", { grid: herman.grid, x: herman.grid.x0, y: herman.gri
 catch (e) { threw = e.message; }
 row("drop outside the window", threw ? "throws" : "silent", "throws", !!threw, "exact", threw);
 
+/* spec §10: the surveyed water surface (Aug 2026) as today's level, and exact
+   stage rows at the pipe invert and the sandbag crest. Reference: the planner's
+   Python (scratchpad/survey_stage_ref.py) with seed cells' ground = the water
+   surface: pipe 1341.55 -> 22.18 ac / 4,755,100 ft3; crest 1343.54 ->
+   6,701,338 ft3; spill 1343.84 -> 6,998,937 ft3; freeboard 7.39 ft. */
+console.log("\n§10   surveyed water surface 1336.45 ft, pipe invert 1341.55, sandbag crest 1343.54");
+const [svOut, svMs] = timed(() => C.runJob("overtop",
+  { grid: herman.grid, seedRing: ring, z0Override: 1336.45, levels: [1341.55, 1343.54] }));
+const sv = svOut.result;
+near("z0 (surveyed override)", sv.z0, 1336.45, 1e-6, " ft");
+near("z0_lidar kept", sv.z0_lidar, ov.z0, 1e-6, " ft");
+near("spill level unchanged", sv.primary.level, ov.primary.level, 1e-6, " ft");
+near("freeboard from surveyed water", sv.freeboard_ft, 7.39, 0.02, " ft");
+pct("storage to spill (surveyed z0)", sv.storage_ft3, 6998937, 0.5);
+const stPipe = sv.stage.find(s => s.extra && Math.abs(s.level - 1341.55) < 1e-6);
+const stCrest = sv.stage.find(s => s.extra && Math.abs(s.level - 1343.54) < 1e-6);
+row("extra stage rows present", stPipe && stCrest ? 2 : 0, 2, !!(stPipe && stCrest), "exact");
+if (stPipe) { pct("pipe stage area (ac)", stPipe.area_ft2 / AC, 22.18, 0.5); pct("pipe stage storage", stPipe.storage_ft3, 4755100, 0.5); }
+if (stCrest) pct("crest stage storage", stCrest.storage_ft3, 6701338, 0.5);
+row("stage table stays sorted", sv.stage.every((s, i) => !i || s.level >= sv.stage[i - 1].level - 1e-9) ? "sorted" : "unsorted",
+    "sorted", sv.stage.every((s, i) => !i || s.level >= sv.stage[i - 1].level - 1e-9), "exact");
+budget("overtop (surveyed z0 + extra levels)", svMs, 4000);
+
 console.log("\n" + (fails ? "FAILED " + fails + " of " + checks : "PASSED all " + checks) +
             " checks" + (warns ? "; " + warns + " over budget" : "") + ".");
 process.exit(fails ? 1 : 0);

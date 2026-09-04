@@ -113,10 +113,21 @@ SBMM.popups = (function () {
     if (p.remedy) h += `<span style="opacity:.7">${esc(p.remedy)}</span><br>`;
     if (p.cad_layer)
       h += `<span style="opacity:.55;font-family:var(--mono);font-size:11px">${esc(p.cad_layer)}</span><br>`;
+    /* the surveyed discharge pipes (spec §10): the invert is the number, and
+       "where does what comes out of this pipe go" is the question */
+    if (p.invert_ft != null)
+      h += `<b>Invert ${fmt(p.invert_ft, 2)} ft</b>`
+        + (p.size_in ? `<span style="opacity:.7"> · ${fmt0(p.size_in)} in ${esc(p.material || "")}</span>` : "") + `<br>`;
     if (p.note) h += `<span style="opacity:.7">${esc(p.note)}</span><br>`;
     if (p.cad_layer_conflict)
       h += `<span class="warntxt">${esc(p.cad_layer_conflict)}</span><br>`;
     h += `<span style="opacity:.55;font-size:11px">${esc(p.provenance || "")}</span>`;
+    if (g && g.type === "LineString" && p.layer === "survey_pipe" && SBMM.water) {
+      const outlet = g.coordinates[0];
+      h += actions(btn("trace discharge", () => SBMM.water.dropAt(outlet[0], outlet[1],
+        { name: SBMM.tools.nextName("Pipe discharge route"), group: "Water" }),
+        "Trace where water leaving this pipe runs (a raindrop from the plotted outlet end)"));
+    }
     if (g && g.type === "Polygon" && p.name) {
       const acts = [];
       /* §5: on a limit of excavation, the question is never "how much material

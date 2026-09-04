@@ -6,12 +6,14 @@ import { chromium } from "playwright";
 import { pathToFileURL } from "node:url";
 import { resolve } from "node:path";
 import { existsSync } from "node:fs";
+import { unlock } from "./gate.mjs";
 const CHROME = process.env.CHROME_BIN || (existsSync("/opt/pw-browsers/chromium-1194/chrome-linux/chrome") ? "/opt/pw-browsers/chromium-1194/chrome-linux/chrome" : undefined);
 const target = process.argv[2];
 const browser = await chromium.launch({ executablePath: CHROME });
 const page = await browser.newPage({ viewport: { width: 1500, height: 950 } });
 page.setDefaultTimeout(180000);
 page.on("pageerror", e => console.log("pageerror:", e.message));
+await unlock(page);  /* the password gate — see test/gate.mjs */
 await page.goto(pathToFileURL(resolve(target)).href);
 await page.waitForSelector("#loading", { state: "hidden", timeout: 120000 });
 const wait = ms => page.waitForTimeout(ms);

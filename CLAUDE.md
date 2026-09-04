@@ -111,6 +111,7 @@ terrain source, which needs an explicit decision + README/test update).
 
 | file | owns |
 |---|---|
+| gate.js | **the password gate** — the FIRST script in `index.html`, before the vendor bundles and the payloads. Full-viewport cover at z 9000, SHA-256 check, remembered unlock, the animated contour field and the flood/reveal unlock |
 | util.js | formatting, geometry helpers, ramps, toast; `$()` |
 | compute.js | **pure** compute kernels (volume grid, rasters, marching squares, ring-aware simplify) — no DOM, no SBMM; runs in workers |
 | jobs.js | worker pool: progress, cancel, transferables; `SBMM.compute` |
@@ -126,7 +127,7 @@ terrain source, which needs an explicit decision + README/test update).
 | analysis.js | slope/aspect/hypso/canopy raster layers, custom contours |
 | draw.js | sketch engine: vertex edit, ortho/polar, typed input (`@150<45`), 3D hooks |
 | snap.js | object snaps (grid-hash index, glyph overlay canvas, F3) |
-| cmdline.js | command bar (`` ` `` / Ctrl+K / `/`), 48 AutoCAD-alias commands, all routed through `SBMM.mode` |
+| cmdline.js | command bar (`` ` `` / Ctrl+K / `/`), 49 AutoCAD-alias commands (LOCK is one), all routed through `SBMM.mode` |
 | results.js | result cards panel |
 | tools.js | measure tools + volume engine (perimeter-TIN memo method + plane/rim/fixed/design bases, range, cut/fill map) + modify tools (offset/mirror/rotate/copy/move/join/explode) + dim/text |
 | design.js | design surfaces: graded/sloped pads, daylight lines, auto-balance |
@@ -145,7 +146,8 @@ terrain source, which needs an explicit decision + README/test update).
 | viewer3d.js | 3D: meshes, drapes, canopy, contours, orbit+fly nav, split mode, draw-in-3D |
 | refsurf.js | EA's four recovered design surfaces as read-only `type:'surface'` store features (§5) — locked, not serialised, re-created on boot |
 | isopach.js | isopach overlay (cut/fill vs lidar), volume-in-polygon-vs-surface, "volume of this excavation"; the comparison tolerance of F9 lives in `compute.js` `isoTol` |
-| water.js | **v10 water** — the raindrop (`flow` feature type, window chaining, ponds, catchment) and the overtopping analysis (rim band, ranked rim lows, level slider, stage–storage chart, overflow route); `SBMM.water` |
+| water.js | **v10 water** — the raindrop (`flow` feature type, window chaining, ponds, catchment) and the overtopping analysis (rim band, ranked rim lows, level slider, stage–storage chart, overflow route, the surveyed stages of §10); `SBMM.water` |
+| survey.js | the **August-2026 Jacobs survey** linework (`data/survey_2026.json`: the two 24-in HDPE discharge pipes, the sandbag wall, the NW Pit low) as read-only rows under Investigations; snap, 3D, export; `SBMM.survey` — the survey's 24 shots are a baked dataset, not this module |
 | layerman.js | the Layer manager dialog: search / toggle / recolour / opacity / source + handle for EA's 110 CAD layer names |
 | sheetcards.js | the Sheets tab — a card per drawing with a thumbnail derived on first open, filtered by lot |
 | popups.js | **the** popup builders — `SBMM.popups.forFeature/forDataset/forGis/forCad/forSample/forTree/forTerrain`. 2D binds them through Leaflet, 3D drops the same string into the pick card |
@@ -645,6 +647,42 @@ above, two things will be walked into again:
 
 ## v10 water — the raindrop and the overtopping analysis
 
+### The August-2026 survey and the Herman stages (spec §10)
+
+`docs/Sulphur Bank Mine - Additional- (1).pdf` is a Jacobs limited topographic
+survey: a CAD vector plot at 1 in = 8 ft (NW Pit inset 1 in = 16 ft), datum
+CCS83 zone 2 USSF / NAVD88 = the app's CRS. `tools/build_survey_2026.py`
+places it from its own five tabulated points with the scale LOCKED and rotation
+zero (residuals 0.01 / 0.02 ft, plan scales recovered to 9.000 and 4.499
+pt/ft) and writes the 24 shots as the baked dataset `survey_2026` (through
+`tools/add_dataset.py`) and the 30 line features as `data/survey_2026.json`
+(the `design_gis` layer schema, group `survey`), rendered by `js/survey.js`.
+The labels on the plot are text-as-outlines, so the elevation beside each
+survey circle was read off the plot and keyed by the circle's drawing index in
+that tool — re-check the table if the PDF is re-issued.
+
+What it changes in the overtopping analysis, and the two things not to undo:
+
+- **The kernel takes `z0Override` and `levels`.** The seed set is still the
+  lidar plateau (the water's footprint), but every seed cell is then water
+  whose ground is unknown and whose surface is the surveyed level: its level
+  is `z0Override`, its storage counts `L − z0Override`, and `z0`, the
+  freeboard and the stage table start there; `z0_lidar` is reported beside
+  it. `levels` adds exact stage rows (`extra: true`) at the pipe invert and the
+  sandbag crest, computed by a direct pass rather than the 0.25-ft buckets.
+  `js/water.js` `surveyFacts(ring)` reads the water level, the two inverts and
+  the sandbag tops from the DATASET (never a constant), and applies them only
+  when the surveyed water-level shot lies inside the ring being analysed.
+- **The order of events is pipes, crest, rim.** Herman: surveyed water
+  1336.45 ft (Aug 2026; the lidar's flat return read 1336.58 in Jan 2024);
+  first discharge through the two 24-in HDPE pipes at invert 1341.55 ft,
+  +5.10 ft, 109.2 ac-ft; the sandbag crest at 1343.54 (+7.09, 153.8 ac-ft);
+  the lidar rim spill at 1343.84 (+7.39, 160.7 ac-ft). The slider walks the
+  stage table by INDEX so it snaps onto the surveyed rows; the pipe discharge
+  route (a raindrop from the plotted west end of the North pipe) shows from
+  the pipe stage, the rim overflow route from the spill. `test/water_kernels.mjs`
+  checks all of it (59 checks) against `scratchpad/survey_stage_ref.py`.
+
 Contract: `docs/V10_WATER_SPEC.md`. Kernels `flowpath`, `overtop`, `catchment` in
 `js/compute.js` (api VERSION 4); host and UI in `js/water.js` (`SBMM.water`).
 **Both tools are static terrain analyses over the lidar bare earth — no rainfall,
@@ -713,6 +751,56 @@ in `applyStyle` / `redraw`. Vertex editing is refused with a toast; the drop mar
 is draggable and `dragend` retraces in place. My work gained a sixth class row,
 **Water** — appended, because `SBMM.myWork.classOf` reads `CLASSES[4]` as "imported
 wins" and that index is load-bearing.
+
+## The password gate (v9.3) — a deterrent, not security
+
+`js/gate.js` puts a password screen in front of the app. **Never describe it as
+security and never build anything on top of it as if it were.** The whole app is in
+the file the browser opens; the check is in that same file. It stops the workbook
+being *used* by whoever the file gets passed to sideways, which is exactly what it
+was asked to do.
+
+- **It is the FIRST script in `index.html`**, before `vendor/leaflet.js` and before the
+  ~130 MB of `datajs` payloads, so it paints before anything else is parsed. The app
+  boots underneath it — the gate covers and blocks, it does not pause boot, and it does
+  not touch the `#loading` logic (loader z 3000, gate z 9000).
+- **z-index 9000** — the one thing above the toast (7000); it is in the stacking comment
+  at the top of `css/app.css`, where all of this lives.
+- **The check is `SHA-256(SALT + password)`** against a hex constant in `js/gate.js`.
+  The plaintext is not in the app, not in the tests and not in the README —
+  `docs/HANDOFF.md` carries it, once, because the repo is private.
+  `python tools/set_password.py "<new>"` rewrites the hash (and that line) and tells
+  you to rebuild the dist. `crypto.subtle` is used where it exists; a pure-JS SHA-256
+  is the fallback, and `test/gate.mjs` checks it against node's crypto.
+- **A remembered unlock** is `localStorage["sbmm.gate.v1"] = {h: <hash>, t: <ms>}`, good
+  for 30 days. `LOCK` / `LOGOUT` in the command bar clears it and puts the screen back.
+  **There is no URL-parameter bypass and no test flag** — adding one would be the whole
+  point thrown away.
+- **Keys are stopped in the capture phase on `document`**, and because gate.js is the
+  first script its listener is the first one registered on that node, so
+  `stopImmediatePropagation()` there beats the capture-phase handlers in `cmdline.js`,
+  `layerman.js`, `cultural.js` and every bubble-phase one in `mode.js` / `sheets.js`.
+  Typing still works: stopping propagation does not stop the browser's default action.
+  Pointer and wheel are stopped in the capture phase on the gate element, with the
+  button wired by delegation on that same node (a capture `stopPropagation` blocks
+  descendants, not siblings — a listener on the button itself would never fire).
+- **The harnesses do not weaken it.** `test/gate.mjs` exports `unlock(page)`, which
+  `page.addInitScript`s the same localStorage record a real unlock writes, reading the
+  hash out of `js/gate.js` with a regex. Every harness that calls `page.goto` calls it
+  first. `test/e2e.mjs` then opens a SECOND page *without* the token and asserts the
+  whole contract; `test/gate_shots.mjs` writes `test/shots/gate.png` and
+  `gate_unlock.png` (not pass-fail — look at them).
+- **Three traps.** (i) `cmdline.js` opens the command bar by itself on a browser's
+  *first* visit and calls `inp.focus()` while doing it — a few seconds into boot, i.e.
+  while someone is already typing their password. Stopping a key's propagation does not
+  stop its default action, so without the capture-phase **focus trap** in `gate.js` the
+  password goes into the command bar behind the gate and Enter submits an empty field.
+  The same auto-open means a fresh-context assertion about "the backtick did not open
+  the command bar" has to close it first. (ii) `page.waitForTimeout` overshoots by
+  400–800 ms on a busy software-GL page, which is why the mid-unlock screenshot has
+  nothing between the wait and the shutter — an `evaluate()` in there photographed the
+  app instead of the animation. (iii) `#gate` sets `user-select:none`, so the password
+  input has to set it back to `text`.
 
 ## Conventions
 

@@ -15,6 +15,32 @@ Both are offline-only by design. Nothing in this app calls out to the internet.
 
 ---
 
+## v9.3 — the password screen
+
+The app now opens on a password screen: the site's own topography, drawn live and drifting,
+with one field on it. Enter the password and the drawing floods with water while the card
+dissolves into it, then the ground surfaces through the flood along a contour line and the
+workbench is there — about a second and a half, and it is skipped entirely for anyone whose
+system asks for reduced motion. Your browser remembers you for 30 days; `LOCK` (or `LOGOUT`)
+in the command bar forgets it again.
+
+It is a **deterrent, not security**. Everything this app needs is inside the file you
+double-click, so the check is in there too and anyone determined enough to read the source
+is past it. What it stops is the file being *used* by whoever it gets passed to. The
+password is never stored — only a SHA-256 of it — so it can be changed
+(`python tools/set_password.py`) but never read back out.
+
+## v9.2a — the August-2026 survey in the app
+
+The Jacobs survey of the Herman Impoundment water level, the two 24-inch discharge pipes
+and their inverts, the sandbag wall and the Northwest Pit low is in: 24 shots as a dataset,
+the pipes, wall and pit contours as their own layers, placed from the survey's own
+coordinates to a hundredth of a foot. The Herman overtopping card now starts from the
+surveyed water (1,336.45 ft) and shows the real order of events: the pipes discharge first
+(invert 1,341.55 ft, +5.10 ft), then the sandbag crest (1,343.54), then the lidar rim
+(1,343.84). The slider snaps to each stage, the pipes get their own discharge route, and a
+pipe's popup offers "trace discharge".
+
 ## v9.2 — water: raindrops and overtopping
 
 Two new tools, both reading the same January-2024 lidar ground the volumes come from.

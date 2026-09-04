@@ -148,7 +148,11 @@ SBMM.cmd = (function () {
     { n: "POLAR", a: ["PO"], d: "toggle polar tracking, 15° (F10)", f: () => { SBMM.draw.setPolar(null); toast("polar tracking " + (SBMM.draw.isPolar() ? "on" : "off")); } },
     { n: "UNDO",  a: ["U"], d: "undo the last action", f: () => SBMM.undo.pop() },
     { n: "CLEAR", a: [], d: "remove every drawn feature", f: () => $("clearBtn").click() },
-    { n: "HELP",  a: ["?", "H"], d: "list every command", f: () => showHelp() }
+    { n: "HELP",  a: ["?", "H"], d: "list every command", f: () => showHelp() },
+    /* the password gate (js/gate.js). Forgetting the remembered unlock and
+       putting the screen back up is one action, so it is one command. */
+    { n: "LOCK",  a: ["LOGOUT", "SIGNOUT"], d: "lock the app — forget this browser's unlock and show the password screen",
+      f: () => { if (SBMM.gate) SBMM.gate.lock(); else toast("no password gate in this build"); } }
   ];
 
   function find(word) {

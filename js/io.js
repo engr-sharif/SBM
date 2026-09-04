@@ -76,6 +76,8 @@ SBMM.io = (function () {
     /* and so does the native EA design — the geometry the measurements were
        made against belongs in the same file as the measurements */
     if (SBMM.designGIS) for (const d of SBMM.designGIS.geoFeatures(P)) feats.push(d);
+    /* and the August-2026 survey linework (the pipes, the sandbag wall) */
+    if (SBMM.survey) for (const d of SBMM.survey.geoFeatures(P)) feats.push(d);
     /* EA's reference design surfaces (§5) are store features so the volume
        engine can use them, but their geometry here is only a footprint bbox and
        the design itself already goes out through js/designgis.js — exporting
