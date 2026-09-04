@@ -80,10 +80,17 @@ SBMM.sections = (function () {
       if (g) { chm = [g]; transfer.push(g.z.buffer); }
     }
 
+    /* the two vertical quantisation steps the end-area tolerance needs (F9,
+       the same pair js/isopach.js ships): the design raster's own step from its
+       spec, the coarsest step in the DEM stack for the ground; a user pad has
+       no raster and so no step */
+    const zstepGround = SBMM.dems.reduce((mx, d) => Math.max(mx, (d.m && d.m.step) || 0), 0);
+    const zstepDesign = (dgrid && dgrid.zstep) || 0;
+
     if (f._secHandle) f._secHandle.cancel();
     const handle = SBMM.compute.run("sections",
       { align, interval: pr.interval || 50, width: pr.width || 200, offStep: OFF_STEP,
-        grids, dgrid, chm },
+        grids, dgrid, chm, zstepDesign, zstepGround },
       { transfer, label: "Sections — " + (f.name || "alignment") });
     f._secHandle = handle;
 

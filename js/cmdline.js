@@ -112,6 +112,12 @@ SBMM.cmd = (function () {
     { n: "OVERTOP", a: ["SPILL", "POUR"],
       d: "overtopping analysis of the Herman Impoundment — spill level, where, and where it goes",
       f: () => SBMM.water.overtopHerman() },
+    { n: "STORM",   a: ["DRAINS", "STORMDRAIN"],
+      d: "storm drains work — assume the CAD/surveyed network carries water (v12)",
+      f: () => {
+        if (!SBMM.storm || !SBMM.storm.data()) { toast("this build has no storm-drainage network"); return; }
+        SBMM.storm.toggle();
+      } },
     { n: "CATCH",   a: ["WATERSHED"],
       d: "contributing area upslope of the selected raindrop",
       f: () => {

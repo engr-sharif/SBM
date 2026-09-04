@@ -29,6 +29,8 @@ in code, and what comes next. It replaces re-reading the chat history that built
 | Lidar bare-earth grid (Jan-30-2024 flight) is *the* terrain; CAD contours are display only | Survey-grade source; golden Pile 1 number guards it |
 | Canopy only over the mine window | Only LAS tile A1 was ever delivered — a data limit, not a bug |
 | EA native GIS/CAD (June 2026) supersedes the PDF-registered sheets | Exact geometry; PDF registration kept only as the record and for the sheet viewer |
+| **Claude merges its own PRs end to end** (Sep 4 2026: "from now on I'd like you to do end to end meaning full merge too") | Build → full matrix on all three builds → commit → push → PR body → ready → merge. Still ask first for anything that moves a golden number, changes the terrain source, or touches the cultural-resources gating |
+| The repository must be **private** — the listing on Sep 4 2026 reported it public and the user was told | Site imagery, sample results, the gated cultural payload and the gate password are in it; if it was public for a while, rotate the gate password (`tools/set_password.py`) |
 | No reprojection between EPSG:2226 and 6418 | Verified empirically at 0.3–1.8 ft; the one exception is the cultural layers (26910 → 2226, different projection) |
 | Lot 13 / Lot 15 CAD layer names are swapped; geometry wins | Flagged on the features, never "corrected" the other way |
 | Cultural resources **included**, gated (off by default, acknowledgement, CONFIDENTIAL stamp, export gate) | User reversed the earlier exclusion; NHPA §304 / ARPA §9 still apply |
@@ -49,6 +51,13 @@ in code, and what comes next. It replaces re-reading the chat history that built
 | **A field build is a THIRD output of the same source**, not a second app: `tools/build_dist.py --field`, one exclusion list, everything else identical | Two apps drift. One source with a packaging switch cannot |
 | **The field build leaves out the 20 full-sheet plan renders**, the CHM, EA's design surfaces and EA's native CAD (~67 MB of 133) | The design *geometry* is what you need on a site walk; the paper, the tree tools, the isopach and 802 layers of drafting linework are a desk job. Everything that reads them says so rather than failing. If he asks for the sheets on the phone, the one line to change is `FIELD_EXCLUDE` in the builder |
 | **Field mode is a UI state (`body.field`), separate from the field build** — it turns on by itself on a touch device ≤ 900 px, and `FIELD` toggles it anywhere, remembered | The full build on a tablet wants the same layout; the field build on a laptop does not. Tying the layout to the packaging would have got both wrong |
+| **The storm-drainage network is in the app (v12) and a conduit is a topological shortcut with an elevation at each end** — no capacity, no hydraulic grade, no surcharge, no time, no Manning | EA's CAD carries no inverts, no diameters and no materials; the only surveyed inverts anywhere are Jacobs' two pipes at the sandbag wall. A capacity number computed from an assumed diameter would be believed |
+| **"Assume for now that they do work"** — every conduit ships `assumed_working` and the master switch defaults ON, remembered | His words. The per-conduit **broken / working** toggle and the `STORM` master switch are how he says otherwise, and a disabled conduit is not passed to the analysis at all, so "off" is exactly the v11 ground-only answer |
+| The nine grates' **alignment is inferred straight between EA's structures**, and Frog Pond's outlet end has no CAD structure at all | EA drew the structures and not the line. Both say `inferred` on the feature and are drawn dashed, in their own layer row, so nobody mistakes them for something surveyed |
+| **A sunken inlet** — an inlet whose surveyed invert lies below the lidar ground at its own cell is a pipe mouth the lidar did not see, and the analysis enters it at the nearest cell at or below that invert within 30 ft, keeping the surveyed invert as the rim | The lidar is Jan 2024; the sandbag wall and the two 24-in pipes were built into a regraded channel afterwards, so the cells at the surveyed inverts read the top of the sandbags (1344.66 / 1344.80 against inverts of 1341.57 / 1341.53). Without the rule the impoundment goes over its rim while a 24-in pipe two feet under the water does nothing. Host-side only; `mouth_moved_ft` is reported so the move is visible, and nothing moves if no cell qualifies |
+| `rim_ft` is computed on boot from `SBMM.elev` and **never baked into the payload**; `invert_ft` is blank until surveyed | The rim must follow the DEM stack, and a guessed invert is the one thing that would make the whole network dishonest. The popups say "not surveyed" |
+| The capture radius is **3 ft**, and a conduit is used **at most once per run** | 3 ft is a grate; the descent walks cell centres on a 1-ft or 2-ft grid, so one cell is not enough to be reachable. Once per run is what stops a loop in a graph nobody has surveyed the direction of |
+| `length_ft` stays **overland**; `pipe_ft` is separate and `total_ft` is the sum | They are different quantities — one measured off the lidar, one off somebody's drawing — and the difference between them is exactly the survey he is about to commission |
 | A password screen in front of the app (v9.3), and it is a **deterrent, not security** | He asked for "something to deter someone from using it", explicitly not full security. Everything ships to the browser, so the check is in the file the browser reads — this stops a colleague, not an attacker |
 
 ## What was tried and dropped
@@ -72,10 +81,9 @@ in code, and what comes next. It replaces re-reading the chat history that built
    without one reports itself in the console and is dropped), `SBMM.store.readd(f)` puts
    the same feature object back with the same id, the two buttons mirror the two stacks,
    and `Ctrl+Y` / `Ctrl+Shift+Z` / `REDO` step forward. The e2e block "9u. redo" is the
-   contract. Still open, and deliberately: the results-card ✕ and the Features-tree
-   delete call `SBMM.store.remove` directly, so those two paths are not undoable — the
-   one-line fix is to route them through `SBMM.tools.deleteFeature(f)` the way ERASE and
-   the 3D Delete key now do.
+   contract. Since v9.7 every user-facing delete (results-card ✕, Features tree,
+   Inspector, popup button, design-surface list) routes through
+   `SBMM.tools.deleteFeature(f)`, so all of them undo.
 4. ~~**Boot ≈ 4.0–4.3 s** on a slow 2-core box; worker-side DEM decode is the next real
    win.~~ **Done (v11 §3).** The four terrain payloads now decode in four dedicated
    workers started together (`Dem.loadAll` in `js/dem.js`, called from the loader in
@@ -89,9 +97,8 @@ in code, and what comes next. It replaces re-reading the chat history that built
 5. **Default-visibility hazard:** `DEFAULT_OVERRIDES` / `DEFAULT_LAYER_OFF` live in three
    places (`js/cadnative.js`, `tools/build_cad_native.py`, `data/design/cad_layer_map.json`).
    Consolidating them into the payload is a good small refactor.
-6. `index.html` help prose still says "Residential remedy design" (group is now
-   "Residential design (EA 2025)"); `test/perf.mjs` still references the removed 3D
-   checkboxes. Cosmetic.
+6. ~~`index.html` help prose still says "Residential remedy design"; `test/perf.mjs` still
+   references the removed 3D checkboxes.~~ **Done (v9.7).**
 7. **C-102 and C-203 could be placed the way C-202 was** (`tools/register_sheet_native.py`,
    native polygon fitted to the plan linework + ortho confirmation). C-203's rectangle is
    symmetric, so watch the ambiguity.
@@ -107,37 +114,78 @@ in code, and what comes next. It replaces re-reading the chat history that built
 10. Ideas he has floated for later: richer sample-result symbology by analyte/date, more
    datasets through `datasets.js` (it is the intended path for any new point data), and
    keeping the app the single place the construction team looks.
-11. **Findings from the kernel harness (v11 §2, `node test/kernels.mjs`)**, none of them
-   fixed yet, all of them small: (a) the `contours` kernel emits two-vertex stubs shorter
-   than 0.1 ft where an isoline clips a cell corner — harmless on the map, noise in a DXF;
-   (b) `contoursFromGrid` and `demRasterRGBA` ignore a windowed `gridSpec` (`i0/j0`)
-   silently and read the whole grid — every caller today passes a full grid, so nothing is
-   wrong yet, but the first windowed caller will get a raster of the wrong place with no
-   error; (c) the TOE/CREST card reports a length 2.0 ft longer than the feature it draws
-   (`js/smartbound.js` sums the un-simplified path — one line); (d) the cross-section
-   end-area check has no `isoTol`, so a section across `res_excbottom` on the 2-ft site
-   DEM shows 1.33 % phantom fill the isopach already knows to discard.
+11. ~~**Findings from the kernel harness (v11 §2)**~~ **All four fixed (v9.7)**, each with
+   an identity check in `test/kernels.mjs`: (a) `contours` drops polylines shorter than a
+   tenth of a sweep cell (43 sub-0.1-ft stubs gone from the 10-ft site set, 218 polylines
+   from 262, nothing over 1 ft touched); (b) `contoursFromGrid` and `demRasterRGBA` honour
+   a windowed `gridSpec` — proven identical to the standalone sub-grid; (c) TOE/CREST
+   keeps a closed chain closed (`ptsFrom(..., keepClosed)`), so the drawn line and the
+   card's Length are the same number; (d) `sections` dead-bands its end areas with the
+   isopach's `isoTol` and returns the per-sample `tol` — the phantom fill on
+   `res_excbottom` is 0.000 % (was 1.33 %), the tolerance there is ≤ 0.04 ft, and the cut
+   it removes is bounded by the dead band itself (1.4 % of a 99.5 ft² cut on the harness
+   alignment, which crosses mostly the 1-ft-to-0 transition at the limit of excavation).
 12. **The sheet viewer has no touch zoom.** `js/sheets.js` zooms a floating sheet window
    with the WHEEL, and a phone has no wheel; panning and the window drag are pointer-based
    and already work. It does not bite in the FIELD build (the full-sheet renders are not in
    it, so no window opens), but it does on a tablet running the full build. The fix is the
    two-pointer pinch `js/viewer3d.js` now has, applied to `wireWindow`'s pointer handlers —
    an hour, and it needs a real tablet to judge.
-13. **Storm drainage around Herman (investigated Sep 2026, nothing built).** EA's V-Base
-   drawing carries the discharge system on `V-STRM-STRC` (not `C-SSWR-MAIN-PIPE`, which is
-   one 18-ft segment far to the west): a 783-ft 24-in storm line from 30 ft west of the
-   surveyed pipe outlets to the Clear Lake shore at E 6,371,273 N 2,127,488, plus a 145-ft
-   branch from the south side of the gravel road at E 6,371,958 N 2,127,426. `V-STRM-MRKG`
-   holds six two-point culvert marks, each crossing a `V-ROAD-GRVL` embankment; the two
-   that matter both feed Herman, from the south road (40 ft, E 6,372,718 N 2,127,378) and
-   from Green Pond (62 ft, E 6,373,859 N 2,127,988; Green Pond's low 1391.6 ft drains 641 ft
-   overland into Herman and holds ~23 ac-ft before it spills). Frog Pond (low 1415 ft)
-   spills north-east off the survey, not to Herman. Green and Frog Pond sit EAST of the
-   impoundment, not south. No inverts or diameters in the CAD. Plan, once the manhole
-   survey arrives (rim + invert per structure, diameter, material, connectivity): conduits
-   as a flow feature (inlet, outlet, two inverts; raindrop/overtop/catchment treat one as
-   a shortcut; per-conduit "assume broken" toggle), Manning full-flow capacity per pipe on
-   the Herman card, and the storm line as the continuation of the pipe discharge route.
+13. **Storm drainage — BUILT (v12, Sep 2026); what is left is the invert survey.**
+   `docs/V12_STORM_SPEC.md` is the contract, `data/storm_network.json` the data (43 nodes,
+   25 conduits, ~27 kB, in the field build too), `tools/build_storm_network.py` the builder,
+   `js/storm.js` the host and `flowpath`'s `conduits` the kernel. A raindrop that reaches
+   within 3 ft of an inlet now goes down the pipe, a depression that fills to an inlet's rim
+   drains through it, and the Herman pipe discharge route runs down EA's storm main to the
+   Clear Lake outfall (934 ft, 797 of it in pipe). The `STORM` switch and a per-conduit
+   broken/working toggle turn any of it off, and off is exactly the v11 ground-only answer.
+   **What is still missing is elevations.** EA's CAD has no inverts, no diameters and no
+   materials anywhere on this system; the only surveyed inverts in existence are Jacobs' two
+   24-in pipes at the sandbag wall (1341.57 / 1341.53 ft). Everything else uses the lidar
+   ground at the structure and says "not surveyed" where an invert should be.
+   **How to load the survey when it arrives:** put a CSV at `data/storm_survey.csv` with the
+   columns `id, invert_ft, rim_ft, size_in, material, status, provenance` — `id` is a node or
+   conduit id out of `data/storm_network.json` (`grate_8`, `road_drain_8_9`, …), any column
+   may be blank — then run `python tools/build_storm_network.py` and `python
+   tools/build_dist.py`. The builder overrides by id and prints how many rows it applied. No
+   code changes; the kernel already prefers a surveyed invert over the ground.
+   With real inverts, three things become worth doing and are NOT in scope until then:
+   Manning full-flow capacity per pipe on the Herman card, the two inferred alignments
+   (`frog_green`, the grate chain) replaced by surveyed ones, and a shot at each of the two
+   pipe mouths on the water side of the sandbag wall (see 14 — the rule that stands in for
+   them today works, but a measurement would beat a nearest-cell search).
+14. **CLOSED (ruling, 4 Sep 2026) — the sunken pipe mouth.** The raindrop and the
+   overtopping tool used to disagree about Herman: the surveyed pipe inverts are 1341.57 /
+   1341.53 ft, but the 1-ft lidar reads the ground at those points as 1344.66 / 1344.80 —
+   above the 1,343.84-ft rim spill — so the raindrop's flood never reached those cells and
+   took the impoundment over its rim, while the overtopping tool, handed the surveyed
+   levels, discharged through the pipes first. **The reason is dates, not error:** the lidar
+   is the January-2024 flight; the sandbag wall and the two 24-in pipes were surveyed in
+   August 2026 and were built into a regraded channel the lidar never saw, so those cells are
+   the top of the sandbags. The rule now is: **an inlet whose surveyed `invert_ft` lies below
+   the lidar ground at its own cell is a pipe mouth the lidar did not see, and it is
+   connected to the water it was built to drain** — the analysis enters it at the nearest DEM
+   cell at or below the invert within 30 ft of the surveyed point, the rim stays the surveyed
+   invert, and `mouth_moved_ft` is reported in the popup and on the card. Nothing within
+   30 ft ⇒ the inlet stays where it was surveyed and says so. It is a host rule
+   (`SBMM.storm.conduitsFor` / `findMouth`, mirrored in `test/kernels.mjs`); the kernel is
+   unchanged. It fires exactly twice today: the North pipe moves 25.6 ft and the South
+   27.1 ft, both onto the channel floor at E 6,372,065 N ~2,127,496, z 1341.50–1341.54.
+   Result: a drop inside the impoundment ponds to 1,341.54 ft and leaves through
+   `herman_pipe_s` → `pipe_to_main` → `storm_main_upper` → `storm_main_lower` → the outfall
+   (813.3 ft in pipe), against the overtopping card's first discharge at 1,341.55 — the two
+   tools now agree. With the drains off it fills 2.30 ft higher and spills over the rim, and
+   the e2e prints both numbers side by side. **What would still be worth having** is a survey
+   shot at each pipe mouth on the water side of the wall: it would replace a nearest-cell
+   search with a measurement, and it is the only thing that would move these numbers again.
+15. **Green Pond's basin drains through the round inlet, not the Spot 8 grate.** Worth
+   telling him, because §1 of the spec expected the grate. Green Pond fills to 1,403.02 ft
+   and spills over its own rim — no inlet inside it is lower — and the water then drops into
+   the small basin at 1,401.62 holding the round inlet at 1,400.9. That culvert ends at an
+   FES pointing at Herman with nothing drawn downstream, so the Frog Pond raindrop reaches
+   Clear Lake by crossing the impoundment (and, since the sunken-inlet ruling, leaving it
+   through the surveyed discharge pipe) rather than going straight down the storm main. If
+   there is a pipe from that FES onward, it is not in EA's CAD and he would know.
 
 ## The password gate (v9.3)
 
@@ -165,7 +213,7 @@ this repo is private; if that ever changes, this line goes first.
 **Three outputs now, and all three are built and tested.** One browser harness at a time —
 two software-GL renderers on this box crash the compositor.
 
-1. `node test/kernels.mjs` (fast, no browser — 136 checks; run it first after any kernel or
+1. `node test/kernels.mjs` (fast, no browser — 140 checks; run it first after any kernel or
    call-site change).
 2. e2e + split3d on the **folder** build.
 3. `python tools/build_dist.py` **and** `python tools/build_dist.py --field`.

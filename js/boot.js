@@ -90,6 +90,7 @@
     SBMM.watermark.wire();
     SBMM.sheetMarks.wire();
     if (SBMM.survey) SBMM.survey.wire();
+    if (SBMM.storm) SBMM.storm.wire();
     SBMM.water.wire();
     /* EA's recovered design surfaces become read-only surface features (§5) —
        after SBMM.design.wire() so the surfaces list exists, and before
