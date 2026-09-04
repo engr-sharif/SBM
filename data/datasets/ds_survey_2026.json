@@ -1,0 +1,306 @@
+{
+ "id": "survey_2026",
+ "name": "Survey \u2014 Aug 2026 (Jacobs)",
+ "kind": "generic",
+ "baked": true,
+ "crs": "EPSG:6418 (NAD83(2011) CA SP Zone 2, ftUS)",
+ "idField": "id",
+ "depthField": null,
+ "style": {
+  "size": 6,
+  "labels": false,
+  "stick3d": false,
+  "color": "#FF9F1C"
+ },
+ "source": "baked from survey_2026_points.csv",
+ "points": [
+  {
+   "id": "Gauge",
+   "x": 6371830.65,
+   "y": 2128869.8,
+   "a": {
+    "description": "Staff gauge at NW Pit",
+    "measure_on": "Center of the 1.0-foot graduation mark",
+    "elevation": 1344.9,
+    "area": "NW Pit",
+    "source": "tabulated (Appendix 1)"
+   }
+  },
+  {
+   "id": "Lowest Ground",
+   "x": 6371833.75,
+   "y": 2128782.35,
+   "a": {
+    "description": "NW Pit ground shot",
+    "measure_on": "Lowest ground shot",
+    "elevation": 1339.03,
+    "area": "NW Pit",
+    "source": "tabulated (Appendix 1)"
+   }
+  },
+  {
+   "id": "Water Level",
+   "x": 6372119.56,
+   "y": 2127446.2,
+   "a": {
+    "description": "Water level at the Herman Impoundment",
+    "measure_on": "Top of water",
+    "elevation": 1336.45,
+    "area": "Herman Impoundment",
+    "source": "tabulated (Appendix 1)"
+   }
+  },
+  {
+   "id": "SD PIPE N",
+   "x": 6372041.23,
+   "y": 2127486.62,
+   "a": {
+    "description": "Corrugated HDPE pipe (North), 24 in",
+    "measure_on": "Invert",
+    "elevation": 1341.57,
+    "area": "Herman Impoundment",
+    "source": "tabulated (Appendix 1)"
+   }
+  },
+  {
+   "id": "SD PIPE S",
+   "x": 6372041.8,
+   "y": 2127483.07,
+   "a": {
+    "description": "Corrugated HDPE pipe (South), 24 in",
+    "measure_on": "Invert",
+    "elevation": 1341.53,
+    "area": "Herman Impoundment",
+    "source": "tabulated (Appendix 1)"
+   }
+  },
+  {
+   "id": "SB-144",
+   "x": 6372044.48,
+   "y": 2127497.38,
+   "a": {
+    "description": "Sandbag wall \u2014 top of sand bags",
+    "measure_on": "Top of sand bags",
+    "elevation": 1343.57,
+    "area": "Sandbag wall",
+    "source": "plot-derived (georeferenced sheet, \u00b10.1 ft)"
+   }
+  },
+  {
+   "id": "SB-217",
+   "x": 6372042.28,
+   "y": 2127495.97,
+   "a": {
+    "description": "Sandbag wall \u2014 toe",
+    "measure_on": "Toe",
+    "elevation": 1343.4,
+    "area": "Sandbag wall",
+    "source": "plot-derived (georeferenced sheet, \u00b10.1 ft)"
+   }
+  },
+  {
+   "id": "SB-226",
+   "x": 6372047.11,
+   "y": 2127496.68,
+   "a": {
+    "description": "Sandbag wall \u2014 toe",
+    "measure_on": "Toe",
+    "elevation": 1343.0,
+    "area": "Sandbag wall",
+    "source": "plot-derived (georeferenced sheet, \u00b10.1 ft)"
+   }
+  },
+  {
+   "id": "SB-160",
+   "x": 6372047.29,
+   "y": 2127487.68,
+   "a": {
+    "description": "Sandbag wall \u2014 top of sand bags",
+    "measure_on": "Top of sand bags",
+    "elevation": 1343.54,
+    "area": "Sandbag wall",
+    "source": "plot-derived (georeferenced sheet, \u00b10.1 ft)"
+   }
+  },
+  {
+   "id": "SB-234",
+   "x": 6372051.88,
+   "y": 2127482.64,
+   "a": {
+    "description": "Sandbag wall \u2014 toe",
+    "measure_on": "Toe",
+    "elevation": 1343.0,
+    "area": "Sandbag wall",
+    "source": "plot-derived (georeferenced sheet, \u00b10.1 ft)"
+   }
+  },
+  {
+   "id": "SB-208",
+   "x": 6372047.11,
+   "y": 2127479.29,
+   "a": {
+    "description": "Sandbag wall \u2014 toe",
+    "measure_on": "Toe",
+    "elevation": 1342.6,
+    "area": "Sandbag wall",
+    "source": "plot-derived (georeferenced sheet, \u00b10.1 ft)"
+   }
+  },
+  {
+   "id": "SB-176",
+   "x": 6372049.39,
+   "y": 2127478.77,
+   "a": {
+    "description": "Sandbag wall \u2014 top of sand bags",
+    "measure_on": "Top of sand bags",
+    "elevation": 1343.65,
+    "area": "Sandbag wall",
+    "source": "plot-derived (georeferenced sheet, \u00b10.1 ft)"
+   }
+  },
+  {
+   "id": "SB-192",
+   "x": 6372041.15,
+   "y": 2127475.78,
+   "a": {
+    "description": "Sandbag wall \u2014 top of sand bags",
+    "measure_on": "Top of sand bags",
+    "elevation": 1344.25,
+    "area": "Sandbag wall",
+    "source": "plot-derived (georeferenced sheet, \u00b10.1 ft)"
+   }
+  },
+  {
+   "id": "NWP-560",
+   "x": 6371831.28,
+   "y": 2128798.83,
+   "a": {
+    "description": "NW Pit spot elevation",
+    "measure_on": "Ground",
+    "elevation": 1340.9,
+    "area": "NW Pit",
+    "source": "plot-derived (georeferenced sheet, \u00b10.1 ft)"
+   }
+  },
+  {
+   "id": "NWP-553",
+   "x": 6371837.15,
+   "y": 2128795.13,
+   "a": {
+    "description": "NW Pit spot elevation",
+    "measure_on": "Ground",
+    "elevation": 1339.5,
+    "area": "NW Pit",
+    "source": "plot-derived (georeferenced sheet, \u00b10.1 ft)"
+   }
+  },
+  {
+   "id": "NWP-546",
+   "x": 6371834.32,
+   "y": 2128775.05,
+   "a": {
+    "description": "NW Pit spot elevation",
+    "measure_on": "Ground",
+    "elevation": 1339.5,
+    "area": "NW Pit",
+    "source": "plot-derived (georeferenced sheet, \u00b10.1 ft)"
+   }
+  },
+  {
+   "id": "NWP-574",
+   "x": 6371859.12,
+   "y": 2128773.15,
+   "a": {
+    "description": "NW Pit spot elevation",
+    "measure_on": "Ground",
+    "elevation": 1341.0,
+    "area": "NW Pit",
+    "source": "plot-derived (georeferenced sheet, \u00b10.1 ft)"
+   }
+  },
+  {
+   "id": "NWP-518",
+   "x": 6371859.28,
+   "y": 2128783.5,
+   "a": {
+    "description": "NW Pit spot elevation",
+    "measure_on": "Ground",
+    "elevation": 1340.1,
+    "area": "NW Pit",
+    "source": "plot-derived (georeferenced sheet, \u00b10.1 ft)"
+   }
+  },
+  {
+   "id": "NWP-525",
+   "x": 6371869.73,
+   "y": 2128784.68,
+   "a": {
+    "description": "NW Pit spot elevation",
+    "measure_on": "Ground",
+    "elevation": 1340.0,
+    "area": "NW Pit",
+    "source": "plot-derived (georeferenced sheet, \u00b10.1 ft)"
+   }
+  },
+  {
+   "id": "NWP-532",
+   "x": 6371877.71,
+   "y": 2128785.87,
+   "a": {
+    "description": "NW Pit spot elevation",
+    "measure_on": "Ground",
+    "elevation": 1341.8,
+    "area": "NW Pit",
+    "source": "plot-derived (georeferenced sheet, \u00b10.1 ft)"
+   }
+  },
+  {
+   "id": "NWP-567",
+   "x": 6371878.45,
+   "y": 2128795.53,
+   "a": {
+    "description": "NW Pit spot elevation",
+    "measure_on": "Ground",
+    "elevation": 1341.9,
+    "area": "NW Pit",
+    "source": "plot-derived (georeferenced sheet, \u00b10.1 ft)"
+   }
+  },
+  {
+   "id": "NWP-581",
+   "x": 6371879.84,
+   "y": 2128775.18,
+   "a": {
+    "description": "NW Pit spot elevation",
+    "measure_on": "Ground",
+    "elevation": 1342.4,
+    "area": "NW Pit",
+    "source": "plot-derived (georeferenced sheet, \u00b10.1 ft)"
+   }
+  },
+  {
+   "id": "NWP-539",
+   "x": 6371884.64,
+   "y": 2128785.72,
+   "a": {
+    "description": "NW Pit spot elevation",
+    "measure_on": "Ground",
+    "elevation": 1341.8,
+    "area": "NW Pit",
+    "source": "plot-derived (georeferenced sheet, \u00b10.1 ft)"
+   }
+  },
+  {
+   "id": "Shore 2",
+   "x": 6372143.63,
+   "y": 2127427.38,
+   "a": {
+    "description": "Shore (water ends) at the Herman Impoundment",
+    "measure_on": "Top of water",
+    "elevation": 1336.44,
+    "area": "Herman Impoundment",
+    "source": "plot-derived (georeferenced sheet, \u00b10.1 ft)"
+   }
+  }
+ ]
+}
