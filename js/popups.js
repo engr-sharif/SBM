@@ -122,6 +122,12 @@ SBMM.popups = (function () {
       /* §5: on a limit of excavation, the question is never "how much material
          is above a fitted base" — it is "how much do we dig out of this". Both
          answers, side by side, because their agreement is the check. */
+      /* v10: any water body is a candidate for the overtopping analysis, and
+         the click that asks the question is the click on the water itself */
+      if (p.layer === "water")
+        acts.push(btn("overtopping analysis",
+          () => SBMM.water.overtop({ ring: g.coordinates[0].map(q => [q[0], q[1]]), name: p.name }),
+          "Where and at what level this water body first spills"));
       if (p.layer === "exc")
         acts.push(btn("volume of this excavation",
           () => SBMM.isopach.excavationVolume(p, g),
@@ -201,7 +207,7 @@ SBMM.popups = (function () {
   const TYPE_FULL = {
     spot: "spot elevation", line: "distance", area: "area", volume: "volume",
     profile: "elevation profile", dim: "aligned dimension", text: "annotation",
-    surface: "design surface", sections: "cross-section set"
+    surface: "design surface", sections: "cross-section set", flow: "raindrop flow path"
   };
   const PROP_LABEL = {
     length_ft: "Length (ft)", grade_pct: "Grade (%)", area_ft2: "Area (ft²)",
@@ -209,11 +215,14 @@ SBMM.popups = (function () {
     src: "DEM source", canopy: "Canopy (ft)", base: "Base surface",
     fill_yd3: "Fill (yd³)", cut_yd3: "Cut (yd³)", net_yd3: "Net (yd³)",
     mean_height_ft: "Mean height (ft)", max_height_ft: "Max height (ft)",
-    text: "Label", size_ft: "Text height (ft)"
+    text: "Label", size_ft: "Text height (ft)",
+    drop_z: "Drop elevation (ft)", fall_ft: "Fall (ft)", dem: "Grid",
+    catchment_ft2: "Contributing area (ft²)"
   };
   const PROP_SKIP = new Set(["profile", "showCutFill", "kind", "padZ", "ratio", "side",
     "gradePct", "gradeDirDeg", "contourInterval", "showContours", "drape3d",
-    "interval", "width", "designId", "showCanopy", "provenance"]);
+    "interval", "width", "designId", "showCanopy", "provenance",
+    "zs", "grids", "blockRing", "blocked", "steps", "minPondDepth", "searched_ft", "hops"]);
 
   function forFeature(f) {
     const p = f.props || {};
@@ -227,8 +236,28 @@ SBMM.popups = (function () {
     const pairs = Object.keys(p)
       .filter(k => !PROP_SKIP.has(k) && p[k] != null && typeof p[k] !== "object")
       .map(k => [PROP_LABEL[k] || k, p[k]]);
-    if (pairs.length) h += attrTable(pairs);
+    /* A flow path is a computed run, not a drawn shape: the questions a user
+       actually has of it are how far, how far down, where it ends and what it
+       ponded in on the way — so it gets its own rows rather than the generic
+       property dump (v10 §4.1). */
+    if (f.type === "flow") {
+      const np = (p.ponds || []).length;
+      h += attrTable([
+        ["Length (ft)", p.length_ft],
+        ["Fall (ft)", p.fall_ft],
+        ["Grade (%)", p.grade_pct == null ? null : Math.abs(p.grade_pct)],
+        ["Ends", SBMM.water ? SBMM.water.endSentence(p) : (p.end && p.end.reason)],
+        ["Ponds crossed", np],
+        ["Grid", (p.grids && p.grids.length > 1 ? p.grids.join(" → ") : p.dem) + " lidar"]
+      ]);
+    } else if (pairs.length) h += attrTable(pairs);
     const acts = [];
+    if (f.type === "flow" && SBMM.water) {
+      acts.push(btn("profile", () => SBMM.water.makeProfile(f), "Elevation profile along the run"));
+      acts.push(btn("catchment", () => SBMM.water.catchment(f), "Everything that drains to the drop"));
+      acts.push(btn("retrace", () => SBMM.water.retrace(f), "Run the trace again from the drop"));
+      acts.push(btn("3D", () => SBMM.viewer3d.openAt(p.drop[0], p.drop[1])));
+    }
     acts.push(btn("select", () => SBMM.store.select(f.id)));
     if (f.type !== "spot" && !f.locked)
       acts.push(btn("edit vertices", () => SBMM.tools.editFeature(f)));
@@ -272,7 +301,9 @@ SBMM.popups = (function () {
         + btn("drop marker", () => {
           const f = SBMM.tools.dropSpot(x, y);
           SBMM.store.select(f.id);
-        }, "Create a spot-elevation feature here"));
+        }, "Create a spot-elevation feature here")
+        + btn("trace a raindrop", () => SBMM.water.dropAt(x, y),
+              "Follow the water downhill from this point over the lidar ground"));
   }
 
   function copyText(s) {

@@ -652,6 +652,114 @@ internal clearings, so its ring area reads larger — on the test area, 10.28 ac
 around 9.36 ac of actual canopy. Quoting the ring area as canopy would overstate a
 clearing quantity by a tenth, so both are carried and the card says which is which.
 
+## Water — raindrop and overtopping
+
+Two static terrain analyses over the same January-2024 lidar bare earth the volumes come
+from. Neither is hydraulics: there is no rainfall, runoff, infiltration, seepage, wave
+run-up or time anywhere in either of them. They say what the ground shape implies, at
+planning level, and every card says so.
+
+### Raindrop (`R`, `DROP`, the Water ▾ menu, or "trace a raindrop" on any point card)
+
+Click anywhere and a drop lands there and runs downhill by **steepest descent (D8)** over
+the finest DEM that covers it — 1-ft over the mine window and the residential lots, 2-ft
+elsewhere. Where the run reaches a low point it **ponds**: the depression is filled to its
+pour point by a priority flood, the pond is drawn with its level, depth, area and volume,
+and the drop carries on from the pour point. Descent reads a pond cell as its pond's
+*level*, never its floor, so a drop that leaves a pond cannot fall back into it.
+
+A pond is reported when it is deeper than **0.25 ft** — the lidar noise floor. Anything
+shallower is crossed silently, because a "pond" 0.1 ft deep on a 1-ft grid is a rounding
+artefact drawn as a water body.
+
+The run ends in one of three ways, and the end marker says which:
+
+| ends | what it means |
+|---|---|
+| `reaches Clear Lake / survey limit` | the next cell has no surveyed ground under it |
+| `ponds here — no outlet within N ft` | a genuine sink: the depression's outlet is not inside the search window |
+| `stopped at the length cap` | 20,000 ft or eight chained windows |
+
+The window is a square **±700 ft on a 1-ft grid, ±1,400 ft on the 2-ft grid**, centred on
+the drop. If the run leaves it, the host re-runs it centred on the exit cell, on whichever
+DEM covers *that* point — so a run that starts on the 1-ft mine grid and leaves it carries
+on over the 2-ft site grid, and the card lists every grid it used. One analysis is still
+computed on one grid at a time; what changes at the seam is stated rather than blended.
+
+The result is an ordinary feature of the new type **`flow`**: it is in My work under a new
+**Water** class row, in the Inspector, in sessions, in GeoJSON (a `LineString` plus one
+`Polygon` per pond) and DXF (`WATER` and `WATER-PONDS`), undoable, and drawn in both 2D and
+3D. Its vertices are not editable — a flow path is traced, not drawn — but the **raindrop
+marker is draggable**, and dropping it retraces in place, keeping the feature, its id and
+its card, with one undo entry that puts the old run back.
+
+Two actions on the card go further: **profile** turns the run into an ordinary elevation
+profile feature with the interactive chart, and **catchment** floods upslope on the
+pit-filled DEM to give everything that drains to the drop. A catchment that reaches the
+edge of its window is reported as a lower bound and says so.
+
+### Overtopping (`OVERTOP`, the Water ▾ menu, or a water polygon's popup)
+
+For a water body — the Herman Impoundment by default, or any pond under a click — this
+answers where and at what level it first spills.
+
+The **water surface** is not assumed: it is the lidar's own flat return over the pond.
+`z0` is the median elevation of the DEM cells inside the water polygon, and the seed is
+every cell within 0.3 ft of it. For Herman that is 223,894 cells — 20.6 ac at 1,336.58 ft.
+
+From that seed a **sealed** priority flood raises the level. A neighbour below the current
+level either lies inside the same depression (its pit-filled elevation equals the pour
+level) and is flooded, or **escapes** — its filled elevation is strictly below the level,
+so water reaching it drains away to a sink — and is sealed off as a wall while the cell
+that touched it is recorded as a **spill cell**. The first spill cell is the answer:
+
+| Herman Impoundment | |
+|---|---|
+| water surface (lidar, Jan 2024) | 1,336.58 ft |
+| spill elevation | 1,343.84 ft |
+| freeboard | 7.26 ft |
+| spills at | E 6,371,926, N 2,127,692 |
+| storage to spill | 158.0 ac-ft (6,881,929 ft³) |
+| area at spill | 22.83 ac |
+| rim lows within +3 ft | 5 (1,343.84 · 1,344.34 · 1,346.52 · 1,346.68 · 1,346.76) |
+| overflow route | 966 ft, reaches Clear Lake |
+
+The **escape test is against the pit-filled DEM, not against "is the neighbour lower"**,
+and that distinction is the whole analysis. Every shoreline cell of a 20-acre pond has a
+lower neighbour somewhere; testing for one reports a spill at the water's edge and a
+freeboard of 0 ft. Testing whether that neighbour *drains to a sink below the current
+level* is what separates the far side of the dam from a puddle inside the bowl.
+
+Around the water the tool paints a **ring of rim elevations**: every rim cell within 3 ft
+above the spill, coloured by how far above it stands — hot red at the spill, fading to pale
+yellow at +3 ft — with the exact spill cells picked out in saturated red so they survive
+any zoom. The low points are clustered, ranked ①②③ and labelled on the map and in a table
+on the card; clicking either zooms to it. A **level slider** walks the water from today's
+surface past the spill: below the spill the label reads "no overflow", at it the overflow
+route appears and the label reads "OVERFLOWS at ①", and above it the label adds "(if the
+rim at ① were raised)" — because above the spill the sealed flood is describing a *change
+to the site*, not a prediction. A **stage–storage chart** plots storage in ac-ft and area
+in ac against level, with the spill marked.
+
+Two of the outputs are real features and survive in the session: the **overflow route**
+(a `flow`, traced from the spill's lowest escaping neighbour with the impoundment itself
+pre-marked as a pond with no outlet, so a route that curls back ends there rather than
+climbing in) and the **pond at the spill level** (an `area` carrying the analysis on
+`props.overtop`). The band, the markers and the slider are overlay, not data: they are
+recomputed by running the analysis again, which takes a couple of seconds.
+
+The overflow route is deliberately traced on the **same grid and window as the analysis
+that produced it**. Retracing it on the finest DEM under the spill would be a second
+analysis wearing the first one's answer.
+
+### Where the numbers come from
+
+Both tools are kernels in `js/compute.js` (`flowpath`, `overtop`, `catchment`), so they run
+in a worker with progress and cancellation. They were validated against an independent
+Python implementation of the same definitions over the same PNG-decoded grids:
+`test/water_kernels.mjs` reproduces all 37 reference numbers in `docs/V10_WATER_SPEC.md` §9
+in node, without a browser, and is the fast loop for anyone touching them.
+
 ## Canopy v2 and the tree inventory
 
 ### The cleaned canopy model

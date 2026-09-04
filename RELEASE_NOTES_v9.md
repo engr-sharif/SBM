@@ -15,6 +15,55 @@ Both are offline-only by design. Nothing in this app calls out to the internet.
 
 ---
 
+## v9.2 — water: raindrops and overtopping
+
+Two new tools, both reading the same January-2024 lidar ground the volumes come from.
+
+**Raindrop** — press <kbd>R</kbd> (or `DROP`, or the new **Water ▾** menu, or "trace a
+raindrop" on any point card) and click anywhere. A drop lands there and runs downhill,
+on the 1-ft grid where there is one and the 2-ft grid elsewhere. Where it reaches a low
+point it **ponds**: the hollow fills to its pour point, the pond is drawn with its level,
+depth, area and volume, and the drop carries on out of it. The run ends where the ground
+runs out (Clear Lake or the edge of the survey), in a hollow with no way out, or at the
+length cap — and the label at the end says which. Every click makes another drop; the
+mode stays armed until <kbd>Esc</kbd>.
+
+The run is an ordinary drawing: it is in **My work** under a new **Water** row, it has a
+results card with the numbers and a profile of the run, it saves in the session, and it
+exports to GeoJSON and DXF (the ponds go out too, on `WATER-PONDS`). **Drag the raindrop
+marker** and it retraces from wherever you dropped it. The card also offers **profile**
+(the full interactive elevation chart) and **catchment** (everything that drains to that
+point).
+
+**Overtopping** — `OVERTOP`, the Water menu, or the popup on any water polygon. For the
+Herman Impoundment it answers: it spills at **1,343.84 ft**, which is **7.26 ft** of
+freeboard over today's water at 1,336.58 ft; getting there takes **158 ac-ft** and the
+pond grows to **22.8 ac**; it goes over the rim at E 6,371,926 / N 2,127,692 and the
+overflow runs **966 ft** to Clear Lake.
+
+Around the water it paints a **ring of rim elevations** — hot red where the rim is at the
+spill, fading to pale yellow 3 ft above it — with the exact overtopping cells picked out
+and the low points **ranked ①②③** on the map and in a table you can zoom from. Five rim
+lows sit within 3 ft of the spill. A **slider** walks the water level from today's surface
+past the spill: below it the card says "no overflow", at it the overflow route appears,
+and above it the card is explicit that it is now describing what would happen *if the low
+rim were raised*. A stage–storage chart plots storage and area against level.
+
+The overflow route and the pond at the spill level become real features and stay in the
+session; the coloured band and the markers are overlay and come back by running the
+analysis again.
+
+**What these tools are not.** There is no rainfall, no runoff volume, no infiltration, no
+seepage through the dam and no time in any of it. They are terrain analyses: they say
+where the ground shape sends water and at what elevation it goes over, at planning level,
+from survey-grade ground truth. Anything involving a storm, a flow rate or a dam break is
+a different kind of model and would need inflow data this app does not have.
+
+Every number above is reproduced by an independent implementation of the same definitions
+written before the code was — 49 checks in `test/water_kernels.mjs`.
+
+---
+
 ## v9.1 — 3 September 2026
 
 **C-202 (North Lobe Grading) is now placed on the map and drapes in 3D.** It was the one

@@ -6,7 +6,8 @@ SBMM.io = (function () {
   function featGeom(f, project) {
     const P = project;   // p -> coordinate pair
     if (f.type === "spot" || f.type === "text") return { type: "Point", coordinates: P(f.pts[0]) };
-    if (f.type === "line" || f.type === "profile" || f.type === "dim" || f.type === "sections")
+    if (f.type === "line" || f.type === "profile" || f.type === "dim" || f.type === "sections"
+        || f.type === "flow")
       return { type: "LineString", coordinates: f.pts.map(P) };
     return { type: "Polygon", coordinates: [[...f.pts, f.pts[0]].map(P)] };
   }
@@ -34,6 +35,18 @@ SBMM.io = (function () {
                       slope_HV: f.props.ratio, layer: "GRADING" },
         geometry: { type: "LineString", coordinates: line.map(P) }
       }));
+    }
+    /* A raindrop's ponds are geometry the run implies but does not draw: the
+       LineString says where the water went, the pond polygons say where it
+       stood and how much of it. Both belong in the same file. */
+    if (f.type === "flow" && f.props && f.props.ponds) {
+      f.props.ponds.forEach((pd, i) => (pd.rings || []).forEach((ring, k) => out.push({
+        type: "Feature",
+        properties: { name: `${f.name} pond ${i + 1}` + (k ? " (" + (k + 1) + ")" : ""),
+                      tool: "pond", parent: f.name, level: pd.level, depth_ft: pd.depth_ft,
+                      area_ft2: pd.area_ft2, volume_ft3: pd.volume_ft3, layer: "WATER-PONDS" },
+        geometry: { type: "Polygon", coordinates: [ring.map(P)] }
+      })));
     }
     if (f.type === "sections" && f._sec) {
       const R = f._sec;

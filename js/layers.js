@@ -232,7 +232,10 @@ SBMM.myWork = (function () {
     ["measurements", "Measurements",   "#4FCE9B", f => ["line", "area", "volume", "profile"].includes(f.type)],
     ["sections",     "Sections",       "#F0A6D0", f => f.type === "sections"],
     ["pads",         "Design pads",    "#4FD8E6", f => f.type === "surface" && !(f.props && f.props.ref)],
-    ["imported",     "Imported",       "#E8B34B", f => !!(f.props && f.props.imported) || /^(DXF|Import)/i.test(f.group || "")]
+    ["imported",     "Imported",       "#E8B34B", f => !!(f.props && f.props.imported) || /^(DXF|Import)/i.test(f.group || "")],
+    /* v10 — raindrop flow paths. Appended rather than inserted: classOf() reads
+       CLASSES[4] as "imported wins", and that index is load-bearing. */
+    ["water",        "Water",          "#55C1FF", f => f.type === "flow"]
   ];
   let built = false;
 
