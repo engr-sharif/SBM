@@ -1205,6 +1205,10 @@ table.rimtbl .minib{padding:0 6px;font-size:10px}
    badge, no pulse — the pipes are a fact, the spill is the alarm */
 .spillmk.pipe .badge{background:var(--gold);color:#1B1400;border-color:#5A4200}
 .spillmk.pipe .lbl{color:var(--gold)}
+/* v13 §2: the conduit spill — the FIRST discharge, through a storm structure
+   somebody drew, so it wears the storm colour rather than the spill's red */
+.spillmk.conduit .badge{background:var(--storm);color:#0B1218;border-color:#2E4A5E}
+.spillmk.conduit .lbl{color:var(--storm)}
 
 /* ======================= the password gate (js/gate.js) =======================
    z-index 9000 — the only thing above the toast. It covers the whole viewport

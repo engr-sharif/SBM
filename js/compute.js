@@ -2298,13 +2298,26 @@ var SBMM_COMPUTE = (function SBMMComputeModule() {
      job: { grid, seedRing | seedPoint:[x,y], plateauTol=0.3, rimRange=3,
             levelStep=0.25, maxClusters=12, outlineTol=null,
             z0Override=null,   // today's water surface from a survey, when the lidar plateau is stale
-            levels=null }      // extra stage rows at exact elevations (a pipe invert, a crest)
+            levels=null,       // extra stage rows at exact elevations (a pipe invert, a crest)
+            conduits=null, captureFt=3 }   // v13: the storm network, as flowpath takes it
 
      z0Override (spec §10): the seed set is still found from the lidar plateau
      (the water's footprint), but every seed cell is then treated as water whose
      ground is unknown and whose surface is z0Override: its level is z0Override,
      its storage counts (L - z0Override), and z0 / freeboard / the stage table
-     start there. The lidar plateau is reported as z0_lidar.                    */
+     start there. The lidar plateau is reported as z0_lidar.
+
+     v13 (docs/V13_WATER3D_SPEC.md §2) — the CONDUIT SPILL. `job.conduits` is the
+     same flat record `flowpath` takes ({id, ix, iy, rim, ox, oy, next, len,
+     mouth_moved_ft}) with the same capture index, and it adds exactly one thing:
+     during the sealed inside-out flood, the FIRST inlet whose rim the rising
+     level reaches is reported as `conduitSpill`, with one `extra` stage row at
+     its level. The flood itself is UNCHANGED — the rim spill, `primary`,
+     `clusters`, `band`, `spillMask`, `freeboard_ft`, `storage_ft3` and the
+     0.25-ft `stage` buckets are exactly what they were — and `fillDem` is NOT
+     seeded here (that is the `flowpath` rule; seeding `F` would move the escape
+     test and with it every §9.2/§10 golden). With `conduits` absent or empty not
+     one line of it runs and the kernel is bit-identical to v12.                */
   function overtop(job, onProgress) {
     var g = job.grid, w = g.sw, h = g.sh, cell = g.cell, z = g.z, n = w * h;
     var X0 = g.x0 + g.i0 * cell, Y0 = g.y0 + g.j0 * cell;
@@ -2352,6 +2365,65 @@ var SBMM_COMPUTE = (function SBMMComputeModule() {
 
     var F = fillDem(z, w, h, onProgress, 0, 0.45);
 
+    /* ---- v13: the inlet index (built AFTER the fill, which it does NOT seed) -
+       The same capture disc `flowpath` builds — nearest inlet wins where two
+       overlap, so the answer does not depend on the order the host listed them —
+       but `fillDem` above is called exactly as it was in v10/v12, WITHOUT sinks.
+       Seeding it is the flowpath rule and would move `F`, and `F` is what the
+       escape test asks: every rim spill, freeboard and stage number in §9.2/§10
+       would move with it.                                                       */
+    var CDo = (job.conduits && job.conduits.length) ? job.conduits : null;
+    var inAt = null, inD = null, cSeen = null, cCell = null, cPend = null;
+    var conduitSpill = null;
+    if (CDo) {
+      var capF = job.captureFt == null ? 3 : job.captureFt;
+      inAt = new Int32Array(n); inD = new Float32Array(n);
+      for (i = 0; i < n; i++) { inAt[i] = -1; inD[i] = Infinity; }
+      cSeen = new Uint8Array(CDo.length); cCell = new Int32Array(CDo.length); cPend = [];
+      var crc2 = Math.max(0, Math.ceil(capF / cell)), ck2, cii2, cjj2;
+      for (ck2 = 0; ck2 < CDo.length; ck2++) {
+        var Ck2 = CDo[ck2];
+        var ki2 = Math.round((Ck2.ix - X0) / cell), kj2 = Math.round((Ck2.iy - Y0) / cell);
+        for (cjj2 = kj2 - crc2; cjj2 <= kj2 + crc2; cjj2++) {
+          if (cjj2 < 0 || cjj2 >= h) continue;
+          for (cii2 = ki2 - crc2; cii2 <= ki2 + crc2; cii2++) {
+            if (cii2 < 0 || cii2 >= w) continue;
+            var kdx2 = X0 + cii2 * cell - Ck2.ix, kdy2 = Y0 + cjj2 * cell - Ck2.iy;
+            var kd2 = Math.sqrt(kdx2 * kdx2 + kdy2 * kdy2);
+            if (kd2 > capF) continue;
+            var kx2 = cjj2 * w + cii2;
+            if (isNaN(z[kx2])) continue;
+            if (kd2 < inD[kx2]) { inD[kx2] = kd2; inAt[kx2] = ck2; }
+          }
+        }
+      }
+    }
+    /* a flooded cell reaches an inlet: the conduit joins the pending list once,
+       with the capture cell CLOSEST to the structure */
+    function reachC(idx) {
+      var kk = inAt[idx];
+      if (kk < 0) return;
+      if (!cSeen[kk]) { cSeen[kk] = 1; cCell[kk] = idx; cPend.push(kk); }
+      else if (inD[idx] < inD[cCell[kk]]) cCell[kk] = idx;
+    }
+    /* the FIRST inlet whose rim the level has reached. Submerged inlets stay in
+       `cPend` and are re-tested on every rise, exactly as flowpath does. */
+    function testC(cur2) {
+      if (conduitSpill || !cPend.length) return;
+      var bestRim = Infinity, bestK = -1, pi2;
+      for (pi2 = 0; pi2 < cPend.length; pi2++) {
+        var pk2 = cPend[pi2], pr2 = CDo[pk2].rim;
+        if (pr2 == null || !isFinite(pr2)) pr2 = z[cCell[pk2]];
+        if (pr2 <= cur2 + 1e-9 && pr2 < bestRim) { bestRim = pr2; bestK = pk2; }
+      }
+      if (bestK < 0) return;
+      var bc = cCell[bestK], bi = bc % w, bj = (bc - bi) / w, C2 = CDo[bestK];
+      conduitSpill = { id: C2.id, level: bestRim,
+                       x: X0 + bi * cell, y: Y0 + bj * cell,
+                       outlet: [C2.ox, C2.oy], next: C2.next == null ? null : C2.next,
+                       mouth_moved_ft: C2.mouth_moved_ft == null ? null : C2.mouth_moved_ft };
+    }
+
     /* ---- the sealed inside-out flood (§2 "Spill (pour point) and rim lows") -
        Sealed: a neighbour water would escape through is a WALL — it is recorded
        as a spill and never flooded — so the flood keeps describing the
@@ -2366,6 +2438,7 @@ var SBMM_COMPUTE = (function SBMMComputeModule() {
       k = j * w + i;
       if (!seed[k]) continue;
       flooded[k] = 1; level[k] = z0; nFlood++;
+      if (CDo) reachC(k);                       // v13: an inlet inside the water body
       for (t = 0; t < 8; t++) {
         ni = i + W_DI[t]; nj = j + W_DJ[t];
         if (ni < 0 || nj < 0 || ni >= w || nj >= h) continue;
@@ -2380,6 +2453,7 @@ var SBMM_COMPUTE = (function SBMMComputeModule() {
       for (k = 0; k < n; k++) if (seed[k]) level[k] = z0;
     }
     var cur = z0, spills = [], primary = -1, primaryLevel = NaN, primaryNext = -1;
+    if (CDo) testC(cur);                        // an inlet already under water
     var reason = "ok", cap = Math.floor(n * 0.6), nm, rr, ci, cj, cidx;
     while (H.n > 0) {
       nm = heapPop(H); rr = (nm / w) | 0; ci = nm - rr * w; cj = h - 1 - rr;
@@ -2398,6 +2472,10 @@ var SBMM_COMPUTE = (function SBMMComputeModule() {
         }
       }
       flooded[cidx] = 1; level[cidx] = cur; nFlood++;
+      /* v13 §2: the conduit spill, recorded BESIDE the rim analysis — the flood
+         itself carries on unchanged, so `primary` and everything measured from
+         it are what they were before this line existed. */
+      if (CDo && !conduitSpill) { reachC(cidx); testC(cur); }
       if (esc) {
         spills.push(cidx);
         if (primary < 0) { primary = cidx; primaryLevel = cur; primaryNext = bestN; }
@@ -2495,23 +2573,49 @@ var SBMM_COMPUTE = (function SBMMComputeModule() {
     /* exact rows at the caller's own elevations (a pipe invert, a sandbag
        crest): a direct pass each, no bucketing, inserted in level order and
        flagged so the UI can tell them from the regular steps */
-    var extra = job.levels || [];
-    for (var e0 = 0; e0 < extra.length; e0++) {
-      var Lx = +extra[e0];
-      if (isNaN(Lx) || Lx < z0 - 1e-9) continue;
-      var aX = 0, sX = 0, emask = new Uint8Array(n);
-      for (k = 0; k < fn; k++) {
-        var xc = flist[k];
+    function directRow(Lx) {
+      var aX = 0, sX = 0, emask = new Uint8Array(n), kk2;
+      for (kk2 = 0; kk2 < fn; kk2++) {
+        var xc = flist[kk2];
         if (level[xc] > Lx + 1e-9) continue;
         aX++; emask[xc] = 1;
         var zgx = seed[xc] ? z0 : z[xc];
         if (zgx < Lx) sX += Lx - zgx;
       }
-      var row = { level: Lx, area_ft2: aX * a2, storage_ft3: sX * a2, extra: true,
-                  rings: maskRings(emask, w, h, cell, X0, Y0, bb, oTol) };
+      return { level: Lx, area_ft2: aX * a2, storage_ft3: sX * a2, extra: true,
+               rings: maskRings(emask, w, h, cell, X0, Y0, bb, oTol) };
+    }
+    function insertRow(row) {
       var at = 0;
-      while (at < stage.length && stage[at].level < Lx - 1e-9) at++;
-      if (at < stage.length && Math.abs(stage[at].level - Lx) < 1e-9) stage[at] = row; else stage.splice(at, 0, row);
+      while (at < stage.length && stage[at].level < row.level - 1e-9) at++;
+      if (at < stage.length && Math.abs(stage[at].level - row.level) < 1e-9) stage[at] = row;
+      else stage.splice(at, 0, row);
+      return row;
+    }
+    var extra = job.levels || [], surveyedRows = [];
+    for (var e0 = 0; e0 < extra.length; e0++) {
+      var Lx = +extra[e0];
+      if (isNaN(Lx) || Lx < z0 - 1e-9) continue;
+      surveyedRows.push(insertRow(directRow(Lx)));
+    }
+    /* v13 §2 "Stage row for the conduit": one exact row at the conduit spill,
+       UNLESS a surveyed row sits within 0.1 ft of it — the survey wins, gains
+       `via`, and the kernel's 1341.5x is not shown twice beside the 1341.55 the
+       engineer measured. */
+    if (conduitSpill) {
+      var csL = conduitSpill.level, mergedRow = null;
+      for (k = 0; k < surveyedRows.length; k++)
+        if (Math.abs(surveyedRows[k].level - csL) <= 0.1) { mergedRow = surveyedRows[k]; break; }
+      /* and a regular 0.25-ft step that lands on it exactly is tagged rather
+         than recomputed, so the stage table stays the no-conduit table */
+      if (!mergedRow) for (k = 0; k < stage.length; k++)
+        if (Math.abs(stage[k].level - csL) < 1e-9) { mergedRow = stage[k]; break; }
+      if (mergedRow) { mergedRow.via = conduitSpill.id; conduitSpill.stageLevel = mergedRow.level; }
+      else if (csL >= z0 - 1e-9 && csL <= sp + rimRange + 1e-9) {
+        var crow = insertRow(directRow(csL));
+        crow.via = conduitSpill.id;
+        conduitSpill.stageLevel = csL;
+      } else conduitSpill.stageLevel = csL;
     }
 
     /* ---- the rim band and the spill cells --------------------------------- */
@@ -2533,6 +2637,10 @@ var SBMM_COMPUTE = (function SBMMComputeModule() {
                    next: primaryNext < 0 ? null
                        : [X0 + nx2 * cell, Y0 + (((primaryNext - nx2) / w)) * cell] },
         freeboard_ft: sp - z0, storage_ft3: storage, area_ft2: area,
+        /* v13 §2: the first discharge through the storm network, beside the rim
+           spill and never in place of it. null when there is no network. */
+        conduitSpill: conduitSpill,
+        freeboardConduit_ft: conduitSpill ? conduitSpill.level - z0 : null,
         clusters: clusters, stage: stage,
         /* x0/y0 are the CENTRE of cell (0,0); an image overlay of v spans
            x0-cell/2 .. x0+(nx-0.5)*cell (bx0..bx1 below), row 0 = south. */
@@ -2588,7 +2696,7 @@ var SBMM_COMPUTE = (function SBMMComputeModule() {
   }
 
   var api = {
-    VERSION: 6,
+    VERSION: 7,
     runJob: runJob,
     volumeGrid: volumeGrid,
     isopachGrid: isopachGrid,

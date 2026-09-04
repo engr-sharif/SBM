@@ -134,4 +134,53 @@ await page.evaluate(async () => {
 await page.waitForTimeout(2500);
 await shot("water_survey");
 
+/* ---- 6. v13: Frog Pond, the first discharge through the culvert ---- */
+/* The defect the v13 spec exists for: the natural rim spill sits ten feet from
+   a culvert inlet 0.30 ft lower, so the overflow used to run north over the
+   ground. With the conduit rule the FIRST discharge is `pond_culvert` and the
+   route goes into Green Pond, out through its FES and down the road drain. */
+const frog = await page.evaluate(async () => {
+  if (SBMM.viewer3d.isOpen()) SBMM.viewer3d.toggle();
+  await new Promise(r => setTimeout(r, 600));
+  SBMM.water.clearOvertop();
+  const ring = SBMM_DATA.design_gis.features.find(
+    f => f.properties.layer === "water" && f.properties.name === "Frog Pond").geometry.coordinates[0];
+  const R = await SBMM.water.overtop({ ring: ring.map(q => [q[0], q[1]]), name: "Frog Pond" });
+  if (!R) return null;
+  const route = SBMM.store.features.filter(f => f.type === "flow" && /first-discharge route/.test(f.name)).pop();
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  const eat = pts => { for (const p of pts) { x0 = Math.min(x0, p[0]); y0 = Math.min(y0, p[1]);
+                                             x1 = Math.max(x1, p[0]); y1 = Math.max(y1, p[1]); } };
+  eat(ring.map(q => [q[0], q[1]]));
+  /* only as far as Green Pond: the chain runs 3,000 ft to Clear Lake and the
+     picture is about the two ponds and the culvert between them */
+  if (route) eat(route.pts.filter(p => p[0] > 6373700));
+  SBMM.store.select(null);
+  SBMM.map.fitBounds([[y0, x0], [y1, x1]], { animate: false, padding: [40, 40] });
+  return { spill: R.primary.level, first: R.conduitSpill && R.conduitSpill.level,
+           via: R.conduitSpill && R.conduitSpill.id,
+           legs: route ? (route.props.legs || []).map(l => l.id) : null };
+});
+console.log("frog overtop:", JSON.stringify(frog));
+await wait(2400);
+await shot("frog_overtop_2d");
+
+/* ---- 7. and in 3D: the stage surface and the animated route ---- */
+await page.evaluate(() => SBMM.viewer3d.toggle());
+await page.waitForFunction(() => document.getElementById("view3d").style.display === "block"
+  && document.getElementById("v3dStatus").textContent === "", null, { timeout: 240000 });
+await wait(3000);
+await page.evaluate(() => {
+  const R = SBMM.water.active();
+  const cs = R.conduitSpill || R.primary;
+  SBMM.viewer3d.frameBox(cs.x - 420, cs.y - 420, cs.x + 420, cs.y + 420);
+});
+await wait(3000);
+console.log("frog 3D:", JSON.stringify(await page.evaluate(() => {
+  const s = SBMM.viewer3d.stats();
+  return { stage: s.waterStage, particles: s.waterParticles, anim: s.waterAnim.length,
+           waterDraped: s.waterDraped };
+})));
+await shot("frog_overtop_3d");
+
 await browser.close();

@@ -1555,6 +1555,187 @@ function secStorm() {
       "overland into the impoundment, then out through the surveyed pipe");
 }
 
+/* ======================= 11. WATER3D (v13 §4) ============================ */
+/* docs/V13_WATER3D_SPEC.md §2/§4 — `overtop` gains the CONDUIT SPILL. The call
+   site mirrored is js/water.js overtop(): the water polygon's bbox +/- 800 ft on
+   SBMM.demForBox, plateauTol 0.3, rimRange 3, levelStep 0.25, and the conduit
+   list from SBMM.storm.conduitsFor(bbox) — the same flattening the storm section
+   above ports out of js/storm.js.
+
+   The first check of every case is the IDENTITY: the conduit spill is ADDED
+   beside the rim analysis and never in place of it, so `primary`, `clusters`,
+   the band bytes, the spill mask, the storage and the area must be the
+   no-conduit run's, field for field. Everything else in this file's water and
+   storm sections is a golden measured on that run. */
+function waterRing(name) {
+  const gis = T.readJSON("data/design_gis.json");
+  const f = gis.features.find(x => x.properties && x.properties.layer === "water" &&
+                                   x.properties.name === name);
+  if (!f) throw new Error('no water-layer feature named "' + name + '" in data/design_gis.json');
+  return f.geometry.coordinates[0].map(q => [q[0], q[1]]);
+}
+/* js/water.js overtop(): one job, run twice — with the network and without */
+function overtopPair(M, ring, opts) {
+  opts = opts || {};
+  const b = ring.reduce((a, p) => [Math.min(a[0], p[0]), Math.min(a[1], p[1]),
+                                   Math.max(a[2], p[0]), Math.max(a[3], p[1])],
+                        [1e12, 1e12, -1e12, -1e12]);
+  const pad = 800;
+  const bbox = [b[0] - pad, b[1] - pad, b[2] + pad, b[3] + pad];
+  const dem = T.demForBox(bbox) || T.loadDem("dem_site");
+  const base = { plateauTol: 0.3, rimRange: 3, levelStep: 0.25, maxClusters: 12,
+                 seedRing: ring };
+  if (opts.z0Override != null) base.z0Override = opts.z0Override;
+  if (opts.levels) base.levels = opts.levels;
+  const cds = M.conduitsFor(bbox);
+  const A = C.runJob("overtop", Object.assign({ grid: T.gridSpec(dem, bbox, 0) }, base)).result;
+  const B = C.runJob("overtop", Object.assign({ grid: T.gridSpec(dem, bbox, 0) }, base,
+                     { conduits: cds, captureFt: 3 })).result;
+  return { A, B, cds, dem, bbox };
+}
+const sameArr = (u, v) => u.length === v.length &&
+  u.every((q, i) => q === v[i] || (Number.isNaN(q) && Number.isNaN(v[i])));
+function identity(tag, A, B) {
+  row(tag + ": primary", JSON.stringify(B.primary) === JSON.stringify(A.primary) ? "identical" : "DIFFER",
+      "identical", JSON.stringify(B.primary) === JSON.stringify(A.primary), "field for field");
+  row(tag + ": clusters", JSON.stringify(B.clusters) === JSON.stringify(A.clusters) ? "identical" : "DIFFER",
+      "identical", JSON.stringify(B.clusters) === JSON.stringify(A.clusters), "field for field");
+  row(tag + ": band bytes", sameArr(Array.from(A.band.v), Array.from(B.band.v)) ? "identical" : "DIFFER",
+      "identical", sameArr(Array.from(A.band.v), Array.from(B.band.v)), "cell for cell");
+  row(tag + ": spill mask", sameArr(Array.from(A.spillMask.v), Array.from(B.spillMask.v)) ? "identical" : "DIFFER",
+      "identical", sameArr(Array.from(A.spillMask.v), Array.from(B.spillMask.v)), "cell for cell");
+  near(tag + ": freeboard", B.freeboard_ft, A.freeboard_ft, 0, " ft");
+  near(tag + ": storage", B.storage_ft3, A.storage_ft3, 0, " ft3");
+  near(tag + ": area", B.area_ft2, A.area_ft2, 0, " ft2");
+  near(tag + ": z0", B.z0, A.z0, 0, " ft");
+  /* the stage table apart from the one row the conduit adds or tags */
+  const strip = s => s.map(r => [+r.level.toFixed(6), +r.area_ft2.toFixed(6), +r.storage_ft3.toFixed(6)]);
+  const extraRow = B.stage.length - A.stage.length;
+  const bStripped = strip(B.stage.filter((r, i) => !(r.via && B.stage.length > A.stage.length)));
+  row(tag + ": stage rows", B.stage.length, A.stage.length + extraRow,
+      extraRow === 0 || extraRow === 1, "0 or 1 added");
+  row(tag + ": stage levels/areas/storage", JSON.stringify(bStripped) === JSON.stringify(strip(A.stage))
+        ? "identical" : "DIFFER", "identical",
+      JSON.stringify(bStripped) === JSON.stringify(strip(A.stage)), "apart from the conduit row");
+}
+function secWater3d() {
+  const M = stormModel();
+
+  /* ---- §4, first bullet: Frog Pond ------------------------------------- */
+  /* The defect this spec exists for: the rim spill is 10 ft from the culvert
+     inlet and 0.30 ft above it, so without the conduit rule the overflow route
+     runs north over the ground instead of into Green Pond. */
+  console.log("\n§4.1  Frog Pond (the EAST pond) — the culvert under the paved road");
+  const fp = overtopPair(M, waterRing("Frog Pond"));
+  note("conduits in the window: " + fp.cds.map(c => c.id).join(", "));
+  row("conduit spill id", fp.B.conduitSpill && fp.B.conduitSpill.id, "pond_culvert",
+      !!fp.B.conduitSpill && fp.B.conduitSpill.id === "pond_culvert", "exact");
+  near("first discharge level", fp.B.conduitSpill.level, 1415.74, 0.05, " ft");
+  near("rim spill unchanged", fp.B.primary.level, 1416.04, 0.05, " ft");
+  dist("rim spill cell", fp.B.primary.x, fp.B.primary.y, 6374410, 2127918, 15);
+  dist("the conduit spill cell is the inlet", fp.B.conduitSpill.x, fp.B.conduitSpill.y,
+       M.byId.frog_out.x, M.byId.frog_out.y, 3);
+  near("freeboard to first discharge", fp.B.freeboardConduit_ft, fp.B.conduitSpill.level - fp.B.z0, 1e-9, " ft");
+  row("the outlet is the culvert's own", "E " + fp.B.conduitSpill.outlet[0] + " N " + fp.B.conduitSpill.outlet[1],
+      "E " + M.byId.frog_culvert_out.x + " N " + M.byId.frog_culvert_out.y,
+      fp.B.conduitSpill.outlet[0] === M.byId.frog_culvert_out.x
+      && fp.B.conduitSpill.outlet[1] === M.byId.frog_culvert_out.y, "exact");
+  {
+    const vr = fp.B.stage.find(s => s.via === "pond_culvert");
+    row("one stage row carries the via", vr ? "yes" : "none", "yes", !!vr, "exact");
+    if (vr) {
+      near("the via row is at the conduit level", vr.level, fp.B.conduitSpill.level, 1e-9, " ft");
+      row("and is an exact row", !!vr.extra, true, !!vr.extra, "exact");
+      note("first discharge " + vr.level.toFixed(2) + " ft: " + (vr.area_ft2 / AC).toFixed(3) +
+           " ac, " + (vr.storage_ft3 / AC).toFixed(2) + " ac-ft (recorded from this commit)");
+      pct("via row storage (recorded)", vr.storage_ft3 / AC, 0.82, 2);
+      pct("via row area (recorded)", vr.area_ft2 / AC, 1.135, 2);
+    }
+  }
+  identity("Frog Pond", fp.A, fp.B);
+
+  /* ---- §4, second bullet: Green Pond ----------------------------------- */
+  console.log("\n§4.2  Green Pond (the WEST pond) — the FES on its west shore");
+  const gp = overtopPair(M, waterRing("Green Pond"));
+  row("conduit spill id", gp.B.conduitSpill && gp.B.conduitSpill.id, "green_outlet",
+      !!gp.B.conduitSpill && gp.B.conduitSpill.id === "green_outlet", "exact");
+  near("first discharge level", gp.B.conduitSpill.level, 1394.48, 0.05, " ft");
+  near("= the lidar ground at the FES", gp.B.conduitSpill.level, M.rimFor("green_outlet_fes"), 1e-9, " ft");
+  near("rim spill unchanged", gp.B.primary.level, 1399.14, 0.05, " ft");
+  row("the first discharge is 4.6 ft below the rim spill",
+      (gp.B.primary.level - gp.B.conduitSpill.level).toFixed(2), "> 4",
+      gp.B.primary.level - gp.B.conduitSpill.level > 4, "the defect, in one number");
+  identity("Green Pond", gp.A, gp.B);
+
+  /* ---- §4, third bullet: Herman, with the §10 surveyed levels ---------- */
+  /* Every §9.2/§10 number must be untouched, and the surveyed 1341.55 row must
+     carry the via rather than a second row 0.02 ft under it. */
+  console.log("\n§4.3  Herman Impoundment — the surveyed stages of §10, plus the via");
+  const hm = overtopPair(M, hermanRing().map(q => [q[0], q[1]]),
+                         { z0Override: 1336.45, levels: [1341.55, 1343.54] });
+  near("z0 (surveyed override)", hm.B.z0, 1336.45, 1e-6, " ft");
+  near("rim spill unchanged", hm.B.primary.level, 1343.84, 0.05, " ft");
+  near("freeboard from surveyed water", hm.B.freeboard_ft, 7.39, 0.02, " ft");
+  pct("storage to spill (surveyed z0)", hm.B.storage_ft3, 6998937, 0.5);
+  row("conduit spill id", hm.B.conduitSpill && hm.B.conduitSpill.id, "herman_pipe_s",
+      !!hm.B.conduitSpill && hm.B.conduitSpill.id === "herman_pipe_s", "exact");
+  near("its level = the lower surveyed invert", hm.B.conduitSpill.level, 1341.53, 1e-9, " ft");
+  near("it merges onto the surveyed row", hm.B.conduitSpill.stageLevel, 1341.55, 1e-9, " ft");
+  exact("no duplicate row", hm.B.stage.length, hm.A.stage.length);
+  {
+    const vr = hm.B.stage.filter(s => s.via);
+    exact("exactly one row carries a via", vr.length, 1);
+    near("and it is the surveyed 1341.55", vr[0].level, 1341.55, 1e-9, " ft");
+    pct("pipe stage storage unchanged", vr[0].storage_ft3 / AC, 109.16, 0.5);
+    pct("pipe stage area unchanged", vr[0].area_ft2 / AC, 22.18, 0.5);
+  }
+  identity("Herman", hm.A, hm.B);
+
+  /* ---- §4, fourth bullet: the stage rings ------------------------------- */
+  /* The rings are what 2D fills and 3D builds its water surface from, so they
+     have to close and to bound the area the same row reports. */
+  console.log("\n§4.4  stage rings");
+  {
+    const sp = hm.B.stage.reduce((best, s) =>
+      Math.abs(s.level - hm.B.primary.level) < Math.abs(best.level - hm.B.primary.level) ? s : best,
+      hm.B.stage[0]);
+    row("the rim-spill row has rings", sp.rings.length, ">= 1", sp.rings.length >= 1, "at least one");
+    const closed = sp.rings.every(r => r.length > 3 &&
+      Math.abs(r[0][0] - r[r.length - 1][0]) < 1e-6 && Math.abs(r[0][1] - r[r.length - 1][1]) < 1e-6);
+    row("every ring closes", closed ? "closed" : "OPEN", "closed", closed, "first == last");
+    /* outer rings first (traceMask sorts by area), so outer minus holes */
+    const ar = sp.rings.map(polyArea);
+    const net = ar[0] - ar.slice(1).reduce((a, v) => a + v, 0);
+    pct("ring area = the row's area_ft2", net, sp.area_ft2, 2);
+    note("rim-spill stage " + sp.level.toFixed(2) + " ft: " + sp.rings.length + " rings, " +
+         (net / AC).toFixed(2) + " ac net against " + (sp.area_ft2 / AC).toFixed(2) + " ac");
+  }
+
+  /* ---- §4, fifth bullet: absent and empty ------------------------------- */
+  /* The strongest statement in this section: with no network the v13 kernel is
+     the v12 kernel, so every §9.2/§10 golden above is still a golden. */
+  console.log("\n§4.5  the identity — conduits absent vs conduits: []");
+  {
+    const ring = hermanRing().map(q => [q[0], q[1]]);
+    const b = ring.reduce((a, p) => [Math.min(a[0], p[0]), Math.min(a[1], p[1]),
+                                     Math.max(a[2], p[0]), Math.max(a[3], p[1])],
+                          [1e12, 1e12, -1e12, -1e12]);
+    const bbox = [b[0] - 800, b[1] - 800, b[2] + 800, b[3] + 800];
+    const dem = T.demForBox(bbox) || T.loadDem("dem_site");
+    const base = { plateauTol: 0.3, rimRange: 3, levelStep: 0.25, maxClusters: 12, seedRing: ring };
+    const [E, ems] = timed(() => C.runJob("overtop",
+      Object.assign({ grid: T.gridSpec(dem, bbox, 0) }, base, { conduits: [], captureFt: 3 })).result);
+    const A = C.runJob("overtop", Object.assign({ grid: T.gridSpec(dem, bbox, 0) }, base)).result;
+    row("conduitSpill is null", String(E.conduitSpill), "null", E.conduitSpill === null, "exact");
+    row("freeboardConduit is null", String(E.freeboardConduit_ft), "null",
+        E.freeboardConduit_ft === null, "exact");
+    identity("empty list", A, E);
+    row("no row carries a via", E.stage.filter(s => s.via).length, 0,
+        E.stage.filter(s => s.via).length === 0, "exact");
+    budget("overtop (conduits: [])", ems, 5000);
+  }
+}
+
 /* ============================== run ====================================== */
 const SECTIONS = [
   { key: "volume", run: secVolume },
@@ -1566,7 +1747,8 @@ const SECTIONS = [
   { key: "smart", run: secSmart },
   { key: "trees", run: secTrees },
   { key: "water", run: secWater },
-  { key: "storm", run: secStorm }
+  { key: "storm", run: secStorm },
+  { key: "water3d", run: secWater3d }
 ];
 
 if (listOnly) {
@@ -1577,8 +1759,8 @@ if (listOnly) {
 const C = loadCompute();
 const Delaunay = loadDelaunay();
 console.log("SBMM kernel harness — js/compute.js VERSION " + C.VERSION +
-            (C.VERSION === 6 ? "" : "  (!! expected 6)"));
-if (C.VERSION !== 6) { fails++; checks++; }
+            (C.VERSION === 7 ? "" : "  (!! expected 7)"));
+if (C.VERSION !== 7) { fails++; checks++; }
 
 /* every kernel runJob dispatches must have a section here (V11 spec §2.4) */
 const COVERED = ["volume", "isopach", "raster", "contours", "design", "balance", "sections",
