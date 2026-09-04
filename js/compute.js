@@ -1725,11 +1725,25 @@ var SBMM_COMPUTE = (function SBMMComputeModule() {
      difference between ~2 s and ~0.4 s on a 2-million-cell window and cannot
      change a single value (F is the minimal maximum over all escape paths, so it
      does not depend on the order cells are settled in).                        */
-  function fillDem(z, w, h, onProgress, p0, p1) {
+  function fillDem(z, w, h, onProgress, p0, p1, sinks) {
     var n = w * h, F = new Float32Array(n), closed = new Uint8Array(n);
     var H = heapNew(1 << 15), q = new Int32Array(n), qh = 0, qt = 0;
     var i, j, k, t, ni, nj, vi, edge;
     for (i = 0; i < n; i++) F[i] = NaN;
+    /* v12: a conduit inlet is a SINK at its rim. Water standing on a capture
+       cell drains the moment it reaches the rim, so the filled DEM around that
+       inlet must say so — F = max(z, rim) — or a depression drained by a grate
+       still looks full to the escape test, and a flood arriving over a saddle
+       from a neighbouring lobe takes both lobes to the saddle level instead of
+       stopping there and letting the lower lobe drain at the rim. Absent (the
+       no-conduit case) nothing here runs and F is the v10 fill to the bit. */
+    if (sinks) for (k = 0; k < sinks.length; k++) {
+      var sk = sinks[k][0], skey = sinks[k][1];
+      if (closed[sk] || isNaN(z[sk])) continue;
+      if (!(skey > z[sk])) skey = z[sk];
+      closed[sk] = 1; F[sk] = skey;
+      heapPush(H, skey, (h - 1 - ((sk - sk % w) / w)) * w + (sk % w));
+    }
     for (j = 0; j < h; j++) for (i = 0; i < w; i++) {
       k = j * w + i;
       if (isNaN(z[k])) { closed[k] = 1; continue; }
@@ -1842,34 +1856,7 @@ var SBMM_COMPUTE = (function SBMMComputeModule() {
     var maxSteps = job.maxSteps == null ? 4e6 : job.maxSteps;
     var i, j, t, ni, nj, vi;
 
-    var F = fillDem(z, w, h, onProgress, 0, 0.55);
-    var pondId = new Int32Array(n);
-    var ponds = [null];                                    // 1-based, ponds[0] unused
-
-    /* the impoundment, pre-marked as a pond with no outlet (§2 "Overflow route"):
-       an overflow route that ever comes back to the water body ends there rather
-       than climbing back in. Its cells are the water surface — inside the ring AND
-       on the plateau — not merely inside the ring, or the dry bank inside the
-       polygon would read as water and pull the route in. */
-    if (job.blockRing && job.blockRing.length >= 3) {
-      var bmask = ringMask(job.blockRing, w, h, cell, X0, Y0);
-      var vals = new Float64Array(n), m = 0;
-      for (i = 0; i < n; i++) if (bmask[i] && !isNaN(z[i])) vals[m++] = z[i];
-      if (m) {
-        var bz0 = job.blockLevel == null ? medianOf(vals, m) : job.blockLevel;
-        var btol = job.plateauTol == null ? 0.3 : job.plateauTol;
-        var P0 = { level: bz0, outlet: -1, entry: -1, zmin: bz0, count: 0, sumZ: 0,
-                   bb: [w, h, -1, -1], blocked: true };
-        ponds.push(P0);
-        for (j = 0; j < h; j++) for (i = 0; i < w; i++) {
-          vi = j * w + i;
-          if (!bmask[vi] || isNaN(z[vi]) || Math.abs(z[vi] - bz0) > btol) continue;
-          pondId[vi] = 1; P0.count++;
-        }
-      }
-    }
-
-    /* ---- v12: the inlet index -------------------------------------------
+    /* ---- v12: the inlet index (built BEFORE the fill, which it seeds) ------
        `inletAt` is the conduit index whose capture disc (captureFt, default 3 ft
        — a grate is a few feet across and the descent walks cell centres, so a
        disc rather than one cell is what makes the network reachable on a 2-ft
@@ -1878,7 +1865,7 @@ var SBMM_COMPUTE = (function SBMMComputeModule() {
        listed the conduits in. */
     var CD = (job.conduits && job.conduits.length) ? job.conduits : null;
     var inletAt = null, inletD = null, cdUsed = null, cdIx = null, capFt = 0;
-    var cdSeen = null, cdCell = null;
+    var cdSeen = null, cdCell = null, sinks = null;
     var legs = [], pipeFt = 0, ck, cii, cjj, crc;
     if (CD) {
       capFt = job.captureFt == null ? 3 : job.captureFt;
@@ -1904,6 +1891,39 @@ var SBMM_COMPUTE = (function SBMMComputeModule() {
             if (isNaN(z[kidx])) continue;
             if (kd < inletD[kidx]) { inletD[kidx] = kd; inletAt[kidx] = ck; }
           }
+        }
+      }
+      /* every capture cell is a sink at its conduit's rim (ground if no rim) */
+      sinks = [];
+      for (i = 0; i < n; i++) if (inletAt[i] >= 0) {
+        var srim = CD[inletAt[i]].rim;
+        sinks.push([i, (srim == null || !isFinite(srim)) ? z[i] : srim]);
+      }
+    }
+
+    var F = fillDem(z, w, h, onProgress, 0, 0.55, sinks);
+    var pondId = new Int32Array(n);
+    var ponds = [null];                                    // 1-based, ponds[0] unused
+
+    /* the impoundment, pre-marked as a pond with no outlet (§2 "Overflow route"):
+       an overflow route that ever comes back to the water body ends there rather
+       than climbing back in. Its cells are the water surface — inside the ring AND
+       on the plateau — not merely inside the ring, or the dry bank inside the
+       polygon would read as water and pull the route in. */
+    if (job.blockRing && job.blockRing.length >= 3) {
+      var bmask = ringMask(job.blockRing, w, h, cell, X0, Y0);
+      var vals = new Float64Array(n), m = 0;
+      for (i = 0; i < n; i++) if (bmask[i] && !isNaN(z[i])) vals[m++] = z[i];
+      if (m) {
+        var bz0 = job.blockLevel == null ? medianOf(vals, m) : job.blockLevel;
+        var btol = job.plateauTol == null ? 0.3 : job.plateauTol;
+        var P0 = { level: bz0, outlet: -1, entry: -1, zmin: bz0, count: 0, sumZ: 0,
+                   bb: [w, h, -1, -1], blocked: true };
+        ponds.push(P0);
+        for (j = 0; j < h; j++) for (i = 0; i < w; i++) {
+          vi = j * w + i;
+          if (!bmask[vi] || isNaN(z[vi]) || Math.abs(z[vi] - bz0) > btol) continue;
+          pondId[vi] = 1; P0.count++;
         }
       }
     }

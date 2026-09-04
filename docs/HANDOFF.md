@@ -53,8 +53,10 @@ in code, and what comes next. It replaces re-reading the chat history that built
 | **Field mode is a UI state (`body.field`), separate from the field build** — it turns on by itself on a touch device ≤ 900 px, and `FIELD` toggles it anywhere, remembered | The full build on a tablet wants the same layout; the field build on a laptop does not. Tying the layout to the packaging would have got both wrong |
 | **The storm-drainage network is in the app (v12) and a conduit is a topological shortcut with an elevation at each end** — no capacity, no hydraulic grade, no surcharge, no time, no Manning | EA's CAD carries no inverts, no diameters and no materials; the only surveyed inverts anywhere are Jacobs' two pipes at the sandbag wall. A capacity number computed from an assumed diameter would be believed |
 | **"Assume for now that they do work"** — every conduit ships `assumed_working` and the master switch defaults ON, remembered | His words. The per-conduit **broken / working** toggle and the `STORM` master switch are how he says otherwise, and a disabled conduit is not passed to the analysis at all, so "off" is exactly the v11 ground-only answer |
-| The nine grates' **alignment is inferred straight between EA's structures**, and Frog Pond's outlet end has no CAD structure at all | EA drew the structures and not the line. Both say `inferred` on the feature and are drawn dashed, in their own layer row, so nobody mistakes them for something surveyed |
+| The nine grates' **alignment is inferred straight between EA's structures**; the culvert between the two ponds and Frog Pond's outlet pipe to the Spot 8 grate have no CAD line either | EA drew the structures and not the line. Both say `inferred` on the feature and are drawn dashed, in their own layer row, so nobody mistakes them for something surveyed |
 | **A sunken inlet** — an inlet whose surveyed invert lies below the lidar ground at its own cell is a pipe mouth the lidar did not see, and the analysis enters it at the nearest cell at or below that invert within 30 ft, keeping the surveyed invert as the rim | The lidar is Jan 2024; the sandbag wall and the two 24-in pipes were built into a regraded channel afterwards, so the cells at the surveyed inverts read the top of the sandbags (1344.66 / 1344.80 against inverts of 1341.57 / 1341.53). Without the rule the impoundment goes over its rim while a 24-in pipe two feet under the water does nothing. Host-side only; `mouth_moved_ft` is reported so the move is visible, and nothing moves if no cell qualifies |
+| **The ponds east of the impoundment, per the engineer (Sep 2026)**: Green Pond (east) → culvert under the paved road → Frog Pond (west) → the FES on its west shore → piped to the Spot 8 grate → the road drain → Clear Lake; the round inlet is Frog Pond's high-level overflow to Herman | His reading of the site over a first guess from the drawing. **Naming.** The engineer calls the east pond (E 6,374,450–6,374,726, floor 1,415 ft) *Green Pond* and the west pond (E 6,373,925–6,374,152, floor 1,391.6 ft) *Frog Pond*; EA's geodatabase `water` layer labels them the other way round. The storm network uses the engineer's names and says so on every node it touches; EA's polygons are left as delivered (precedent: EA's CAD swaps `C-SITE-DU-LOT-13/15` too). |
+| **A conduit inlet is a sink in the filled DEM** (`fillDem` seeded with the capture cells at their rims, only when conduits are present) | Frog Pond has two lobes; without the seed one flood took both to the saddle and reported the FES at 1,402.4 instead of 1,394.5. The no-conduit fill is unchanged to the bit |
 | `rim_ft` is computed on boot from `SBMM.elev` and **never baked into the payload**; `invert_ft` is blank until surveyed | The rim must follow the DEM stack, and a guessed invert is the one thing that would make the whole network dishonest. The popups say "not surveyed" |
 | The capture radius is **3 ft**, and a conduit is used **at most once per run** | 3 ft is a grate; the descent walks cell centres on a 1-ft or 2-ft grid, so one cell is not enough to be reachable. Once per run is what stops a loop in a graph nobody has surveyed the direction of |
 | `length_ft` stays **overland**; `pipe_ft` is separate and `total_ft` is the sum | They are different quantities — one measured off the lidar, one off somebody's drawing — and the difference between them is exactly the survey he is about to commission |
@@ -151,7 +153,7 @@ in code, and what comes next. It replaces re-reading the chat history that built
    code changes; the kernel already prefers a surveyed invert over the ground.
    With real inverts, three things become worth doing and are NOT in scope until then:
    Manning full-flow capacity per pipe on the Herman card, the two inferred alignments
-   (`frog_green`, the grate chain) replaced by surveyed ones, and a shot at each of the two
+   (`pond_culvert`, `frog_outlet`, the grate chain) replaced by surveyed ones, and a shot at each of the two
    pipe mouths on the water side of the sandbag wall (see 14 — the rule that stands in for
    them today works, but a measurement would beat a nearest-cell search).
 14. **CLOSED (ruling, 4 Sep 2026) — the sunken pipe mouth.** The raindrop and the
@@ -178,14 +180,14 @@ in code, and what comes next. It replaces re-reading the chat history that built
    the e2e prints both numbers side by side. **What would still be worth having** is a survey
    shot at each pipe mouth on the water side of the wall: it would replace a nearest-cell
    search with a measurement, and it is the only thing that would move these numbers again.
-15. **Green Pond's basin drains through the round inlet, not the Spot 8 grate.** Worth
-   telling him, because §1 of the spec expected the grate. Green Pond fills to 1,403.02 ft
-   and spills over its own rim — no inlet inside it is lower — and the water then drops into
-   the small basin at 1,401.62 holding the round inlet at 1,400.9. That culvert ends at an
-   FES pointing at Herman with nothing drawn downstream, so the Frog Pond raindrop reaches
-   Clear Lake by crossing the impoundment (and, since the sunken-inlet ruling, leaving it
-   through the surveyed discharge pipe) rather than going straight down the storm main. If
-   there is a pipe from that FES onward, it is not in EA's CAD and he would know.
+15. ~~Green Pond's basin drains through the round inlet, not the Spot 8 grate.~~ **Superseded
+   (4 Sep 2026)** by the engineer's reading: Green Pond is the EAST pond and drains through a
+   culvert under the paved road into Frog Pond (west); Frog Pond overflows through the FES on
+   its west shore, piped to the Spot 8 grate; the round inlet is the high-level overflow to
+   Herman. Built as `pond_culvert` / `frog_outlet` (inferred) and asserted in §6.6 of the
+   kernel harness and e2e "9s. storm". Still worth asking him: which end of Frog Pond's outlet
+   pipe the FES is (the intake in the pond is not drawn), and whether EA's pond labels are
+   really the wrong way round — the app uses his names on the network and EA's on the polygons.
 
 ## The password gate (v9.3)
 
@@ -213,7 +215,7 @@ this repo is private; if that ever changes, this line goes first.
 **Three outputs now, and all three are built and tested.** One browser harness at a time —
 two software-GL renderers on this box crash the compositor.
 
-1. `node test/kernels.mjs` (fast, no browser — 140 checks; run it first after any kernel or
+1. `node test/kernels.mjs` (fast, no browser — 229 checks; run it first after any kernel or
    call-site change).
 2. e2e + split3d on the **folder** build.
 3. `python tools/build_dist.py` **and** `python tools/build_dist.py --field`.

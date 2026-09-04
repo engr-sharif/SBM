@@ -798,8 +798,9 @@ is, where it came from, its ground and its invert, its length and its fall.
 
 | conduit | from → to | source | note |
 |---|---|---|---|
-| `frog_green` | Frog Pond west shore (Spot 5, **inferred — no CAD structure**) → the `STRM FES` at Green Pond's east shore | the engineer's spots + EA's FES | 491 ft; the pipe he says joins the two ponds. Its inlet end is to be surveyed |
-| `green_riser` | the `STRM INLET ROUND` at Green Pond's NW corner → an `STRM FES` discharging toward Herman | CAD culvert mark `E5D2D` | 62 ft under the gravel road |
+| `pond_culvert` | Green Pond's west shore (the **east** pond; Spot 5, **inferred — no CAD structure**) → Spot 1, 75 ft west, under the paved road | the engineer's spots | the culvert between the two ponds; discharges overland into Frog Pond (the west pond). Inverts unknown |
+| `frog_outlet` | the `STRM FES` on Frog Pond's west shore → the Spot 8 grate | EA's FES + the engineer | 106 ft, **inferred**: Frog Pond's overflow, piped under the road into the road drain — not into the impoundment |
+| `green_riser` | the `STRM INLET ROUND` at Frog Pond's NW corner → an `STRM FES` discharging toward Herman | CAD culvert mark `E5D2D` | 62 ft under the gravel road; the pond's **high-level** overflow, above the FES |
 | `road_drain_8_9` … `road_drain_14_15` | grate Spot 8 → 9 → 10 → 11 → 12 → 13 → 14 → 15 | EA's structures; **alignment inferred straight — EA drew no line here** | the culvert along the top of the grates, 1,895 ft in seven conduits so a survey can fill inverts one at a time |
 | `road_drain_15_branch` | grate Spot 15 → the branch start (a bend, no structure) | inferred straight | 155 ft |
 | `branch` | the branch start → the junction grate | CAD line `E943F` | 149 ft |
@@ -838,13 +839,12 @@ Two answers worth having in front of you:
   road-drain conduits, the branch and EA's storm main — ending in Clear Lake at the outfall.
   With the drains off, the same drop runs 2,268 ft overland into the Herman Impoundment,
   fills it to 1,343.84 ft and spills over its rim.
-- A drop at **Frog Pond's low**: it fills Frog Pond, takes the 491-ft pipe to Green Pond,
-  fills Green Pond to 1,403.02 ft where it spills over its own rim, drops into the small
-  basin below and takes the round inlet's 62-ft culvert toward Herman, crosses the
-  impoundment — which fills to 1,341.54 ft and leaves through the surveyed South discharge
-  pipe — and runs down the storm main to the Clear Lake outfall: **1,887 ft overland,
-  1,366 ft in pipe** through six conduits. With the drains off it never leaves the
-  north-east corner: it spills off the survey.
+- A drop at **Green Pond's low** (the east pond): it takes the culvert under the paved road
+  into Frog Pond, which fills 3.1 ft to the FES on its west shore (1,394.50 ft), takes the
+  pipe to the Spot 8 grate and the whole road drain to the Clear Lake outfall — **630 ft
+  overland, 2,969 ft in pipe** through twelve conduits, never touching the impoundment. With
+  the drains off it never leaves the north-east corner: it spills off the survey.
+- **Naming.** The engineer calls the east pond (E 6,374,450–6,374,726, floor 1,415 ft) *Green Pond* and the west pond (E 6,373,925–6,374,152, floor 1,391.6 ft) *Frog Pond*; EA's geodatabase `water` layer labels them the other way round. The storm network uses the engineer's names and says so on every node it touches; EA's polygons are left as delivered (precedent: EA's CAD swaps `C-SITE-DU-LOT-13/15` too).
 
 The **Herman pipe discharge route** (on the overtopping card) now reads *"934 ft · 797 ft in
 pipe · Clear Lake outfall"*: what leaves the surveyed 24-in pipes goes down EA's drawn storm

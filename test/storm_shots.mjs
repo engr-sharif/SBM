@@ -1,6 +1,6 @@
 /* v12 storm-drainage shots (docs/V12_STORM_SPEC.md §6).
 
-   Two pictures: the south-road grate chain with a Frog Pond raindrop running
+   Two pictures: the south-road grate chain with a Green Pond (east pond) raindrop running
    down it in 2D, and the same network draped in 3D. Not pass/fail — this is
    what "the pipe reads as a pipe and the flow reads as water" is judged
    against, so look at them.
@@ -36,9 +36,9 @@ await page.evaluate(() => {
   SBMM.cmd.open(false);
 });
 
-/* ---- 1. the chain, with a Frog Pond raindrop on it ---- */
+/* ---- 1. the chain, with a Green Pond raindrop on it ---- */
 const run = await page.evaluate(async () => {
-  const f = await SBMM.water.dropAt(6374418, 2127912, { name: "Frog Pond drop" });
+  const f = await SBMM.water.dropAt(6374418, 2127912, { name: "Green Pond drop" });
   if (!f) return null;
   SBMM.store.select(null);            // selection paints the run gold; this is about the blues
   SBMM.shell.setRightTab("results");

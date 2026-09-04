@@ -4,9 +4,9 @@
    storm structures and storm line out of V-Base.dwg, the six V-STRM-MRKG
    culvert marks, Jacobs' two surveyed 24-in HDPE discharge pipes at the Herman
    sandbag wall, and the south-road drain the project engineer identified along
-   the nine grate inlets — Frog Pond → Green Pond → the grates → the junction →
-   the Clear Lake outfall. `tools/build_storm_network.py` assembles all of that
-   into data/storm_network.json (43 nodes, 25 conduits); this module renders it
+   the nine grate inlets — Green Pond (east) → Frog Pond (west) → its FES → the
+   grates → the junction → the Clear Lake outfall. `tools/build_storm_network.py` assembles all of that
+   into data/storm_network.json (44 nodes, 26 conduits); this module renders it
    and answers ONE question for the raindrop: which conduits are in play.
 
    Three things about it are the whole design:
