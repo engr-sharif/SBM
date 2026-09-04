@@ -78,9 +78,9 @@ resolved through `pathToFileURL`, so Windows paths work. Runs are slow under sof
 warm, covering EVERY kernel in `js/compute.js`'s `runJob`.** Run it after any change to
 `js/compute.js` or to a call site that builds a job, before you reach for Playwright:
 ```
-node test/kernels.mjs                  # every section (229 checks)
+node test/kernels.mjs                  # every section (304 checks)
 node test/kernels.mjs --only water     # one or more sections, comma-separated
-node test/kernels.mjs --list           # volume isopach raster contours design sections smart trees water storm
+node test/kernels.mjs --list           # volume isopach raster contours design sections smart trees water storm water3d
 node test/water_kernels.mjs            # a thin alias for --only water
 ```
 It loads `js/compute.js` through `vm.runInThisContext` (the module is context-free, which
@@ -91,8 +91,8 @@ time; any FAIL exits non-zero. Three rules govern it:
 - **Each section builds its job the way the app builds it** and names the call site it
   mirrors (`js/tools.js` buildVolumeJob, `js/isopach.js` show, `js/design.js` jobFor,
   `js/smartbound.js` runWand/runCbound/runToe/runStands, `js/sections.js` regenerate,
-  `js/analysis.js` demRaster/contoursFromDem, `js/trees.js` detect, `js/water.js` traceRun,
-  `js/storm.js` conduitsFor). A harness that invents its own job proves the kernel runs,
+  `js/analysis.js` demRaster/contoursFromDem, `js/trees.js` detect, `js/water.js`
+  traceRun/overtop, `js/storm.js` conduitsFor). A harness that invents its own job proves the kernel runs,
   not that the app is right.
 - **Every number has a provenance**: a published golden (Pile 1's 278.4 yd³, EA's printed
   excavation area, `docs/V10_WATER_SPEC.md` §9), an arithmetic identity (2πr for a cone's
@@ -225,7 +225,7 @@ terrain source, which needs an explicit decision + README/test update).
 | viewer3d.js | 3D: meshes, drapes, canopy, contours, orbit+fly nav, split mode, draw-in-3D |
 | refsurf.js | EA's four recovered design surfaces as read-only `type:'surface'` store features (§5) — locked, not serialised, re-created on boot |
 | isopach.js | isopach overlay (cut/fill vs lidar), volume-in-polygon-vs-surface, "volume of this excavation"; the comparison tolerance of F9 lives in `compute.js` `isoTol` |
-| water.js | **v10 water** — the raindrop (`flow` feature type, window chaining, ponds, catchment) and the overtopping analysis (rim band, ranked rim lows, level slider, stage–storage chart, overflow route, the surveyed stages of §10); `SBMM.water` |
+| water.js | **v10 water, v13 conduit spill** — the raindrop (`flow` feature type, window chaining, ponds, catchment) and the overtopping analysis (rim band, ranked rim lows, level slider, stage–storage chart, overflow route, the surveyed stages of §10); `SBMM.water` |
 | survey.js | the **August-2026 Jacobs survey** linework (`data/survey_2026.json`: the two 24-in HDPE discharge pipes, the sandbag wall, the NW Pit low) as read-only rows under Investigations; snap, 3D, export; `SBMM.survey` — the survey's 24 shots are a baked dataset, not this module |
 | storm.js | **v12 storm drainage** — EA's storm structures and storm line, the six CAD culvert marks, Jacobs' two surveyed 24-in pipes and the south-road grate chain, as read-only project data (`data/storm_network.json`): three layer rows under Site framework, rims from `SBMM.elev` on boot, the "storm drains work" switch, per-conduit broken/working, snap, 3D, exports, and `conduitsFor(bbox)` — the list `js/water.js` hands the kernel; `SBMM.storm` |
 | layerman.js | the Layer manager dialog: search / toggle / recolour / opacity / source + handle for EA's 110 CAD layer names |
@@ -985,6 +985,72 @@ not before the sunken-inlet rule: a drop inside the impoundment ponds to 1,341.5
 in pipe, against the overtopping card's first discharge at 1,341.55. With the
 drains off the same drop fills to the lidar rim at 1,343.84 and spills over it —
 2.30 ft higher — which is exactly what the rule buys and what the e2e prints.
+
+## v13 — the overtopping analysis honours the conduits, and water moves in 3D
+
+Contract: `docs/V13_WATER3D_SPEC.md`. Kernel: `overtop` gains `conduits` / `captureFt`
+(**api VERSION 7**); host in `js/water.js`; the animation and the stage surface in
+`js/viewer3d.js`. Harness section `water3d` in `test/kernels.mjs`, e2e block
+**"9t. overtop + conduits"**.
+
+**The conduit spill.** `overtop` takes the same flat conduit record `flowpath` takes and
+builds the same capture index. During the sealed inside-out flood the FIRST inlet whose rim
+the rising level reaches is reported as `conduitSpill = {id, level, x, y, outlet, next,
+mouth_moved_ft, stageLevel}`, with `freeboardConduit_ft` beside the rim's `freeboard_ft`
+and one `extra` stage row at that level carrying `via: id`. Submerged inlets are tracked
+and re-tested as the level rises, exactly as `flowpath` does.
+
+Four things here are traps:
+
+- **`fillDem` is NOT seeded in `overtop`.** Seeding it with the capture cells is the
+  *flowpath* rule (v12); `F` is what the escape test asks, so seeding it here would move the
+  rim spill, the freeboard, the storage, the band and every §9.2/§10 golden. The conduit
+  spill is **added beside** the rim analysis and never in place of it, and the harness
+  proves the identity field by field (primary, clusters, band bytes, spill mask, freeboard,
+  storage, area, stage levels/areas/storage) on Frog Pond, Green Pond, Herman and an empty
+  conduit list.
+- **A stage row is merged, not duplicated.** A surveyed `levels` row within **0.1 ft** of
+  the conduit level wins and gains `via` (Herman: the kernel's 1341.53 lands on the
+  survey's 1341.55); a regular 0.25-ft step that coincides exactly is tagged rather than
+  recomputed, so the table stays the no-conduit table. Only a level that matches neither
+  inserts a row.
+- **One route, not two.** The host traces a first-discharge route by dropping a raindrop ON
+  the conduit spill's kernel cell with the network on and `blockRing` = the water body — but
+  when the conduit spill IS the surveyed pipe (`facts.pipeInvert` within 0.1 ft) the v10
+  pipe discharge route stands and nothing is traced again. `js/water.js` `ov.csIsPipe` is
+  that test, and it also suppresses the second "C" marker and the second card row.
+- **Block 9w of the e2e passes `storm:false`** as well as `survey:false`: it is the
+  pure-lidar §9.2 reference, and it doubles as v13's "with the network off the analysis is
+  bit-identical to today's".
+
+Recorded numbers (regression guards, `test/kernels.mjs --only water3d`): Frog Pond
+`pond_culvert` 1415.74 (rim spill 1416.04), Green Pond `green_outlet` 1394.50 (rim spill
+1399.14), Herman `herman_pipe_s` merged onto the surveyed 1341.55 row (rim spill 1343.84,
+44 stage rows either way).
+
+**Water in 3D** (`js/viewer3d.js`). Two objects, and both have rules:
+
+- **The particle stream.** One `THREE.Points` per visible `flow`, built inside
+  `overlayGroup` (so a rebuild throws it away — `waterAnim` is reset there too). Each
+  overland stretch is densified at 10 ft and draped ONCE per rebuild; each conduit leg is a
+  straight two-point track at its own elevations. Particles are ~20 ft apart and move at
+  ~40 ft/s; the render loop advances one scalar and writes into a pre-allocated
+  `Float32Array` through a binary search on the cumulative arc length — **no per-frame
+  allocation and no per-frame `drapeZ`**. It requests frames at ~30 fps **only while a
+  visible flow exists and "animate water" is on**, which is what keeps `test/perf.mjs`'s
+  idle-render count at 0. The particles carry no `userData.pick`, so §3.3's "not pickable"
+  is a property of the code.
+- **The stage surface.** `SBMM.viewer3d.setWaterStage({rings, level, labels} | null)`, owned
+  by `js/water.js` (`SBMM.water.stageSpec()`, which `show()` also pulls so an analysis
+  opened while 2D-only appears). One `ShapeGeometry` at `z = level − ZMID` with holes
+  resolved by containment depth (`maskRings` sorts by area and flags nothing), plus a text
+  sprite at each rim low, the conduit spill and the surveyed pipes. `applyLevel` pushes a
+  new spec on every slider step; `clearOvertop` pushes `null`.
+- The **"Animate water"** switch lives in the 3D *View settings* popover (`#v3dAnimWater`),
+  defaults on, and is remembered through the new `SBMM.view.pref(key[, value])` — the same
+  `localStorage` record the camera uses. It is in the field build too. It is NOT on the
+  toolbar row itself: that row is measured and reflowed by `reflowBar()` at four widths, and
+  a fifth control there is a layout problem for a switch nobody touches twice.
 
 ## Undo and redo (v9.4) — the both-closures rule and `readd`
 

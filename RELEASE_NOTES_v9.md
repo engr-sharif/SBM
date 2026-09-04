@@ -17,6 +17,42 @@ All three are offline-only by design. Nothing in this app calls out to the inter
 
 ---
 
+## v9.9 — the overflow tool goes down the pipe, and water moves in 3D
+
+Two things you asked for.
+
+**Frog Pond flows into Green Pond now.** The overflow tool knew nothing about the storm
+drains — it only ever looked for the low point of the rim — so on Frog Pond it found the
+natural rim spill at 1,416.04 ft, ten feet from the culvert inlet on the west shore and
+0.30 ft above it, and sent the overflow north over the ground. The raindrop had the pipe
+rule since v9.8; the overtopping analysis has it now:
+
+- The card carries a **First discharge** row above the rim spill: *"through pond culvert at
+  1,415.74 ft · +0.74 ft · 0.82 ac-ft"*, with a **C** marker on the map at the inlet and its
+  own **first-discharge route** — the culvert under the paved road into Green Pond, out
+  through Green Pond's flared end, down the road drain, 2,969 ft of it in pipe, to the Clear
+  Lake outfall. Green Pond does the same at its own flared end, 1,394.50 ft, 4.6 ft below
+  its natural rim.
+- **The level slider snaps onto it.** Below the first discharge neither route is drawn; at
+  it the pipe route appears; at the rim spill the overland overflow joins it.
+- **Herman is unchanged and says one more thing.** Its first discharge is still the two
+  surveyed 24-in pipes at 1,341.55 ft, and that row now names the pipe it goes through
+  (`via herman_pipe_s`). Nothing is listed or traced twice. Every rim number — spill
+  1,343.84 ft, freeboard 7.39 ft, 161 ac-ft to spill — is exactly what it was.
+- Switch the drains off (`STORM`) and the analysis is the terrain's alone again, to the
+  last decimal.
+
+**Water moves in 3D.** Every flow path on screen — a raindrop, an overflow route, a
+first-discharge route — carries a stream of particles running along it at about 40 ft/s,
+draped on the ground where the water is on the ground and running straight down the pipe,
+in the storm colour, where it is not. With an overtopping analysis open the 3D view also
+draws the **water surface at the slider's level** as a translucent sheet at that elevation,
+labelled at each rim low and at the pipes; move the slider and the water moves. There is an
+**Animate water** switch in the 3D View settings (on by default, remembered) — and with no
+flow on screen the 3D view still costs nothing when it is sitting still.
+
+---
+
 ## v9.8 — the storm drains
 
 Until now a raindrop that reached a grate walked straight past it. The site's drainage
