@@ -45,6 +45,13 @@ The harnesses use Playwright's own chromium unless `CHROME_BIN` points at one (t
 build box's `/opt/pw-browsers/...` path is tried first and skipped if absent); paths are
 resolved through `pathToFileURL`, so Windows paths work. Runs are slow under software GL
 (180 s default timeouts are intentional). All four must pass.
+`test/water_kernels.mjs` is a **node** harness (no browser) over the three water kernels:
+it loads `js/compute.js` through `vm`, reads the planner's two fixtures and prints all 49
+`docs/V10_WATER_SPEC.md` §9 reference numbers beside what the kernels produce
+(`node test/water_kernels.mjs <fixture dir>`). It is the fast loop for anything touching
+`flowpath` / `overtop` / `catchment` — seconds, not minutes.
+`test/water_shots.mjs` writes the four v10 water shots (raindrop 2D/3D, Herman
+overtopping 2D/3D) into `test/shots/`; not pass-fail — look at them.
 `test/v9_shots.mjs` writes the §11 audit shots (2D, 3D, split, a sheet window with a mark,
 the cultural acknowledgement, the Layer manager, the isopach) into `test/shots/`;
 `test/phaseB_shots.mjs` writes the sheet-viewer / layers / dataset screenshots. Neither is
@@ -138,6 +145,7 @@ terrain source, which needs an explicit decision + README/test update).
 | viewer3d.js | 3D: meshes, drapes, canopy, contours, orbit+fly nav, split mode, draw-in-3D |
 | refsurf.js | EA's four recovered design surfaces as read-only `type:'surface'` store features (§5) — locked, not serialised, re-created on boot |
 | isopach.js | isopach overlay (cut/fill vs lidar), volume-in-polygon-vs-surface, "volume of this excavation"; the comparison tolerance of F9 lives in `compute.js` `isoTol` |
+| water.js | **v10 water** — the raindrop (`flow` feature type, window chaining, ponds, catchment) and the overtopping analysis (rim band, ranked rim lows, level slider, stage–storage chart, overflow route); `SBMM.water` |
 | layerman.js | the Layer manager dialog: search / toggle / recolour / opacity / source + handle for EA's 110 CAD layer names |
 | sheetcards.js | the Sheets tab — a card per drawing with a thumbnail derived on first open, filtered by lot |
 | popups.js | **the** popup builders — `SBMM.popups.forFeature/forDataset/forGis/forCad/forSample/forTree/forTerrain`. 2D binds them through Leaflet, 3D drops the same string into the pick card |
@@ -634,6 +642,77 @@ above, two things will be walked into again:
   builds `designGIS` → `CadNative` → `designEA`, and `designea.js` puts its
   per-sheet raster rows last under a `Sheets (draped)` sub-header with the
   `sheets3d` master switch. The e2e asserts no sheet row precedes that header.
+
+## v10 water — the raindrop and the overtopping analysis
+
+Contract: `docs/V10_WATER_SPEC.md`. Kernels `flowpath`, `overtop`, `catchment` in
+`js/compute.js` (api VERSION 4); host and UI in `js/water.js` (`SBMM.water`).
+**Both tools are static terrain analyses over the lidar bare earth — no rainfall,
+runoff, infiltration, seepage, wave run-up or time.** If the user asks for any of
+those, that is a new spec, not an extension of this one.
+
+The definitions, in short (§2 has them in full):
+
+- **Descent** is D8 on cell centres, strictly downhill (`drop > 1e-9`), over ONE
+  grid per analysis (`SBMM.demAt` / `SBMM.demForBox`). A NoData neighbour ends the
+  run (`nodata`); the window edge ends it (`window`) and the *host* re-runs from
+  the exit cell.
+- **A pond** is a priority flood from a pit up to its pour point. Descent reads a
+  pond cell as its pond's **level**, never its floor, so the drop leaving a pond
+  cannot fall back in. Ponds shallower than **0.25 ft** (the lidar noise floor)
+  are crossed but never reported or drawn.
+- **The water surface** of an impoundment is the lidar's flat return: `z0` = the
+  median z inside the polygon, seed = cells within `plateauTol` (0.3 ft) of it.
+- **The spill** is found by a *sealed* inside-out flood: a neighbour below the
+  current level that escapes is walled off and the cell that touched it is a spill
+  cell. The **rim band** is every flooded cell between the spill and +3 ft.
+- **Windows**: raindrop = a square ±700 ft on a 1-ft grid, ±1,400 ft on the 2-ft
+  grid, re-centred on the exit for up to 8 hops / 20,000 ft. Overtopping = the
+  water polygon's bbox ±800 ft, grown by 800 ft and retried on `reason:"window"`.
+
+Four things here are traps:
+
+- **The escape test is against the FILLED DEM `F`, not "is the neighbour lower".**
+  Every shoreline cell of a 20-acre pond has a lower neighbour somewhere, so the
+  naive test reports a spill at the water's edge and a **freeboard of 0 ft** on the
+  Herman shoreline. The test that means something is `F_n < L − 1e-6`: does water
+  reaching that neighbour drain to a sink *strictly below* the current level. And
+  it must be strict — every interior cell of a depression has `F` exactly equal to
+  its pour level, so `≤` lets the flood "escape" into a cell a hundredth of a foot
+  under its own surface.
+- **The sealed flood needs ONE global flooded/wall mask**, not a per-level one: a
+  cell walled off at 1,343.8 ft must stay walled at 1,346 ft, or the flood pours
+  through the spill it just found and the rim band becomes the whole valley.
+- **The overflow route runs on the analysis's own grid and window**, passed in
+  explicitly (`dropAt(x, y, { dem, window })`). The Herman spill sits inside the
+  1-ft mine window, so the default DEM pick would retrace it on a different grid
+  in a 1,400-ft box — a second analysis wearing the first one's answer, and one
+  too small to hold the 1,900-ft impoundment it has to treat as blocked.
+- **The animated flow line is SVG.** The map is `preferCanvas`, so a canvas vector
+  has no DOM element and `className` on it reaches nothing (the same bug that made
+  `.sheetpulse` dead CSS). `js/map.js` creates a `water` pane at z 470 with
+  `pointer-events:none`, and `js/water.js` renders into it with its own `L.svg`
+  renderer. That pane sits ABOVE `drawings`: if it ever became a canvas or took
+  pointer events it would swallow every click on the map, and the e2e clicks a
+  decision unit through a drawn flow to prove it does not.
+
+Smaller notes: the kernels sample at `x0 + i*cell` (the app's `Dem.at` convention),
+so kernel positions sit half a cell south-west of the spec's §9 reference labels —
+0.71 ft on the 1-ft grid, 1.41 ft on the 2-ft; that is inside every §9 tolerance and
+must not be "corrected". `flowpath` also returns `lengthRaw_ft` and `zEnd_ft` (the
+last *surveyed* z — `end[2]` is NaN when the run stops on NoData). `overtop.band`
+carries `bx0/by0/bx1/by1`, the exact image-overlay rectangle: `x0/y0` are cell
+CENTRES, so recomputing the rectangle from them is half a cell wrong.
+
+`flow` is a new feature type: `SBMM.tools.rebuildFeature` dispatches it to
+`SBMM.water.mkFlow`, which rebuilds from `props` and **never recomputes** (loading a
+session must not spawn compute jobs; the e2e asserts zero jobs across a round trip).
+Its layer is a `FeatureGroup` rebuilt by `SBMM.water.buildFlow` on style/selection
+change — the same shape `dim` and `text` already use, and why `flow` is special-cased
+in `applyStyle` / `redraw`. Vertex editing is refused with a toast; the drop marker
+is draggable and `dragend` retraces in place. My work gained a sixth class row,
+**Water** — appended, because `SBMM.myWork.classOf` reads `CLASSES[4]` as "imported
+wins" and that index is load-bearing.
 
 ## Conventions
 

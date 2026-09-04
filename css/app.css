@@ -23,6 +23,10 @@
   /* accents */
   --acc:#4FB3CE; --acc2:#7CD0E6; --accdim:rgba(79,179,206,.16);
   --green:#5FBF8F; --red:#E4796A; --amber:#E8B34B; --gold:#FFD34D; --violet:#C792EA;
+  /* water (v10 §7) — nothing else in the app uses these hues, which is the
+     point: water reads as water in 2D, in 3D, on the cards and in the legend */
+  --water:#55C1FF; --water2:#9FDCFF; --water3:#DFF4FF;
+  --waterdim:rgba(85,193,255,.28); --spill:#FF4D3D;
   /* metrics */
   --topH:48px; --statusH:30px; --railW:44px; --gripW:5px; --cmdH:0px;
   --botH:calc(var(--statusH) + var(--cmdH));
@@ -936,7 +940,7 @@ canvas.shmark{position:absolute;left:0;top:0;width:100%;height:100%;pointer-even
 .toolbtn.menub[aria-expanded="true"]{background:var(--panel3);border-color:var(--line2)}
 .menu .ci kbd{float:right;margin-left:10px}
 .menu .ci.sep{border-top:1px solid var(--line);margin-top:3px;padding-top:9px;border-radius:0 0 5px 5px}
-#drawMenu,#designMenu{top:calc(var(--topH) + 4px);min-width:262px}
+#drawMenu,#designMenu,#waterMenu{top:calc(var(--topH) + 4px);min-width:262px}
 .toolbtn[disabled]{opacity:.4;cursor:not-allowed}
 .toolbtn[disabled]:hover{background:transparent;border-color:transparent;color:var(--mut)}
 
@@ -1091,3 +1095,81 @@ canvas.shmark{position:absolute;left:0;top:0;width:100%;height:100%;pointer-even
 /* the mode HUD sits bottom-centre of the stage; in split that is where the 2D
    pane's zoom control lives, so lift the control clear of it */
 body.v3dsplit .leaflet-control-zoom{margin-bottom:44px !important}
+
+
+/* ==================================================================== */
+/* Water — the raindrop and the overtopping overlay (v10 §4.3)          */
+/* ==================================================================== */
+/* The flow animation. The dashes are drawn by Leaflet into the SVG `water`
+   pane (z 470, pointer-events:none), so `className` reaches a real element and
+   the whole animation is one CSS rule — zero JavaScript per frame. Under
+   prefers-reduced-motion the dashes stay, they simply stop moving. */
+@keyframes flowdash{to{stroke-dashoffset:-16}}
+@media (prefers-reduced-motion: no-preference){
+  path.flowanim{animation:flowdash .9s linear infinite}
+}
+path.flowanim{pointer-events:none}
+
+/* the teardrop marker */
+.dropmk{cursor:grab;filter:drop-shadow(0 1px 2px rgba(0,0,0,.6))}
+.dropmk:active{cursor:grabbing}
+.dropmk svg{display:block}
+
+/* the pond label — only shown once the pond is wide enough to read (js/water.js
+   sets the marker opacity on zoom) */
+.pondlbl{width:0 !important;height:0 !important;overflow:visible;pointer-events:none;
+  transition:opacity .12s linear}
+.pondlbl span{position:absolute;left:0;top:0;transform:translate(-50%,-50%);white-space:nowrap;
+  font-family:var(--mono);font-size:10px;color:var(--water3);
+  text-shadow:0 0 3px #0E1418,0 0 3px #0E1418,0 0 5px #0E1418}
+
+/* where the run ends, and why */
+.flowend{width:0 !important;height:0 !important;overflow:visible;pointer-events:none}
+.flowend .dot{position:absolute;left:-5px;top:-5px;width:10px;height:10px;border-radius:50%;
+  background:var(--water2);border:1.5px solid #0E1418;box-shadow:0 0 6px rgba(85,193,255,.7)}
+.flowend .lbl{position:absolute;left:9px;top:-7px;white-space:nowrap;font-size:10.5px;
+  color:var(--water3);text-shadow:0 0 3px #0E1418,0 0 3px #0E1418,0 0 6px #0E1418}
+
+/* the ranked rim lows. The primary pulses because it is the answer to the
+   question the user asked: THIS is where it goes over. */
+@keyframes spillpulse{
+  0%{box-shadow:0 0 0 0 rgba(255,77,61,.55)}
+  70%{box-shadow:0 0 0 12px rgba(255,77,61,0)}
+  100%{box-shadow:0 0 0 0 rgba(255,77,61,0)}
+}
+.spillmk{width:0 !important;height:0 !important;overflow:visible}
+.spillmk .badge{position:absolute;display:flex;align-items:center;justify-content:center;
+  left:-8px;top:-8px;width:16px;height:16px;border-radius:50%;cursor:pointer;
+  background:#12181C;border:1.5px solid var(--amber);color:var(--amber);
+  font-size:11px;line-height:1;font-weight:700}
+.spillmk.pri .badge{left:-11px;top:-11px;width:22px;height:22px;font-size:14px;
+  border-color:var(--spill);color:#fff;background:var(--spill)}
+@media (prefers-reduced-motion: no-preference){
+  .spillmk.pri .badge{animation:spillpulse 1.9s ease-out infinite}
+}
+.spillmk .lbl{position:absolute;left:14px;white-space:nowrap;font-size:10.5px;
+  color:var(--ink);text-shadow:0 0 3px #0E1418,0 0 3px #0E1418,0 0 6px #0E1418;
+  pointer-events:none}
+/* a hairline from the badge up or down to its stepped-away label, so which
+   number belongs to which rim low is not left to the reader to guess */
+.spillmk .lead{position:absolute;left:9px;width:1px;background:rgba(232,179,75,.55);
+  pointer-events:none}
+.spillmk.pri .lbl{left:16px;color:#FFD9D3;font-weight:600}
+
+/* the results cards */
+.flowprof,.wchart{margin-top:7px}
+.flowspark text,.stagechart text{font-family:var(--mono);font-size:10px;fill:var(--mut)}
+.crow.btns.flowbtns{margin-top:6px}
+table.rimtbl{width:100%;border-collapse:collapse;font-size:11px;margin-top:9px}
+table.rimtbl th{text-align:left;color:var(--mut);font-size:9.5px;text-transform:uppercase;
+  letter-spacing:.6px;padding:3px 4px;border-bottom:1px solid var(--line);font-weight:600}
+table.rimtbl td{padding:3px 4px;border-bottom:1px solid rgba(44,59,69,.5);color:var(--ink2)}
+table.rimtbl td.num{text-align:right;font-family:var(--mono);font-variant-numeric:tabular-nums}
+table.rimtbl td.rk{color:var(--amber);font-size:13px;width:18px}
+table.rimtbl td.rk.pri{color:var(--spill)}
+table.rimtbl tr:hover td{background:var(--panel2)}
+table.rimtbl .minib{padding:0 6px;font-size:10px}
+.wslider{margin-top:9px}
+.wslider input[type=range]{width:100%;accent-color:var(--water)}
+.wslabel{font-size:11px;color:var(--water3);margin-bottom:3px}
+.rimleg .rampbar{flex:1;min-width:70px;height:9px;border-radius:2px}

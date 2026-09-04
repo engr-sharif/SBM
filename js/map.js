@@ -15,6 +15,14 @@ SBMM.initMap = function () {
   map.createPane("analysis"); map.getPane("analysis").style.zIndex = 320;
   map.createPane("vectors");  map.getPane("vectors").style.zIndex = 420;
   map.createPane("drawings"); map.getPane("drawings").style.zIndex = 460;
+  /* The animated flow line (v10) lives above the drawings in its own pane, and
+     that pane is deliberately NOT a canvas: js/water.js renders into it with an
+     L.svg renderer, because a canvas vector has no DOM element and `className`
+     on it reaches nothing (the dead `.sheetpulse` CSS was the same bug). Being
+     SVG and pointer-events:none also keeps it out of the pass-through below —
+     it never receives an event, so nothing has to be handed down through it. */
+  map.createPane("water");    map.getPane("water").style.zIndex = 470;
+  map.getPane("water").style.pointerEvents = "none";
 
   /* ---------- canvas pane pass-through ----------------------------------
      `preferCanvas` gives every pane its own full-size <canvas>, and a canvas is

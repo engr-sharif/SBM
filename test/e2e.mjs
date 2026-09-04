@@ -2465,6 +2465,432 @@ if (excVol.depth !== 1) { console.log("FAIL: the Lot 15 limit should carry depth
 }
 
 /* ==================================================================== */
+/* 9w. water — raindrop and overtopping (docs/V10_WATER_SPEC.md §4.5)    */
+/* ==================================================================== */
+/* The reference numbers are §9 of the water spec, computed by the planner with
+   an independent Python implementation of §2 on the same PNG-decoded grids.
+   They are constants here so a change of terrain source shows up as an
+   argument about the numbers rather than a quiet drift in the assertions. */
+const WREF = {
+  drop: [6371200, 2128674],          // §9.1, on the app's node convention
+  dropZ: 1358.44, dropZTol: 0.05,
+  reason: "nodata",
+  end: [6370884.5, 2128611.5], endTol: 3,
+  lastZ: 1326.10, lastZTol: 0.1,
+  lengthRaw: 409.6,                  // simplified path: -3 % / +0.5 %
+  ponds: 2,
+  pond1: { level: 1330.96, cells: 12 },
+  pond2: { level: 1329.76, cells: 19 },
+  catchment: 3046,                   // ft2, +/- 3 %
+  /* §9.2 — Herman Impoundment on the 2-ft site grid */
+  z0: 1336.58, z0Tol: 0.02,
+  seedCells: 223969,
+  spill: 1343.84, spillTol: 0.05,
+  spillAt: [6371927, 2127693], spillTol_ft: 15,
+  next: [6371925, 2127693], nextTol: 6,
+  freeboard: 7.26, freeboardTol: 0.05,
+  storage: 6881929,                  // ft3, +/- 3 %
+  areaAtSpill: 22.83,                // ac, +/- 3 %
+  rimLow2: { level: 1344.34, at: [6372015, 2127571] },
+  routeReason: "nodata",
+  routeEnd: [6371177, 2127473], routeEndTol: 50,
+  routeLength: 974,                  // ft, +/- 10 %
+  stageRows: 42
+};
+const wdist = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]);
+const errBeforeWater = errors.length;
+
+/* --- 1. the mode, the menu and the commands -------------------------- */
+const wmode = await page.evaluate(async () => {
+  const wait = ms => new Promise(r => setTimeout(r, ms));
+  const key = k => document.dispatchEvent(new KeyboardEvent("keydown", { key: k, bubbles: true }));
+  SBMM.mode.navigate();
+  key("r"); await wait(80);
+  const armed = {
+    mode: SBMM.mode.current(), tool: SBMM.tools.active(),
+    cursor: document.getElementById("stage").dataset.cursor,
+    hud: document.querySelector("#modeHud .mhname").textContent,
+    btnLit: document.getElementById("waterMenuBtn").classList.contains("active"),
+    btnLabel: document.querySelector("#waterMenuBtn .tlbl").textContent,
+    tip: (document.getElementById("sketchTip").textContent || "").slice(0, 9)
+  };
+  key("Escape"); await wait(80);
+  const back = { mode: SBMM.mode.current(),
+                 btnLabel: document.querySelector("#waterMenuBtn .tlbl").textContent };
+  const cmds = ["DROP", "RAIN", "RAINDROP", "WATERDROP", "FLOW", "OVERTOP", "SPILL", "POUR",
+                "CATCH", "WATERSHED"].map(n => [n, (SBMM.cmd.find(n) || {}).n || null]);
+  const menu = [...document.querySelectorAll("#waterMenu .ci")].map(c => c.dataset.m || c.dataset.a);
+  /* the animated flow pane must be SVG and must not take pointer events (§4.3) */
+  const pane = SBMM.map.getPane("water");
+  return { armed, back, cmds, menu,
+           pane: { z: getComputedStyle(pane).zIndex, pe: getComputedStyle(pane).pointerEvents,
+                   canvas: !!pane.querySelector("canvas") } };
+});
+console.log("water mode:", JSON.stringify(wmode.armed), "| Esc ->", JSON.stringify(wmode.back));
+console.log("water commands:", wmode.cmds.map(c => c[0] + "->" + c[1]).join(" "), "| menu:", wmode.menu.join(","));
+console.log("water pane:", JSON.stringify(wmode.pane));
+if (wmode.armed.mode !== "raindrop" || wmode.armed.tool !== "raindrop")
+  { console.log("FAIL: R did not arm the raindrop mode"); process.exit(1); }
+if (wmode.armed.cursor !== "crosshair" || wmode.armed.hud !== "Raindrop")
+  { console.log("FAIL: the raindrop mode did not own the cursor and the HUD"); process.exit(1); }
+if (!wmode.armed.btnLit || wmode.armed.btnLabel !== "Raindrop ▾")
+  { console.log("FAIL: the Water ▾ button must light and name the active mode (F7)"); process.exit(1); }
+if (wmode.back.mode !== "navigate" || wmode.back.btnLabel !== "Water ▾")
+  { console.log("FAIL: Esc did not return the Water menu button to its home label"); process.exit(1); }
+for (const [alias, cmd] of wmode.cmds)
+  if (!cmd) { console.log("FAIL: water command missing:", alias); process.exit(1); }
+if (wmode.cmds[0][1] !== "DROP" || wmode.cmds[5][1] !== "OVERTOP" || wmode.cmds[8][1] !== "CATCH")
+  { console.log("FAIL: a water alias resolves to the wrong command", wmode.cmds); process.exit(1); }
+if (wmode.menu.join(",") !== "raindrop,overtop,overtop-click,water-clear")
+  { console.log("FAIL: the Water menu is wrong:", wmode.menu); process.exit(1); }
+if (wmode.pane.pe !== "none" || wmode.pane.canvas)
+  { console.log("FAIL: the water pane must be an SVG pane that takes no pointer events"); process.exit(1); }
+
+/* --- 2. the golden raindrop (§9.1) ----------------------------------- */
+const wdrop = await page.evaluate(async (D) => {
+  const f = await SBMM.water.dropAt(D[0], D[1]);
+  if (!f) return { err: "dropAt returned nothing" };
+  const p = f.props;
+  /* The run must descend, and the only thing that can lift it is crossing a
+     depression: it enters at the floor and leaves at the pour point, which is
+     higher. So a rise is legitimate exactly when it is no bigger than a pond
+     the run crossed — including the ones too shallow to report, which are
+     crossed silently and are why "non-increasing except at a REPORTED pond
+     level" is not the right test (this run has three rises of 0.02-0.08 ft in
+     puddles under the 0.25 ft reporting floor). Anything bigger than that is
+     the drop climbing a hill, which is a broken trace. */
+  const rises = [];
+  for (let i = 1; i < p.zs.length; i++)
+    if (p.zs[i] != null && p.zs[i - 1] != null && p.zs[i] > p.zs[i - 1] + 0.01)
+      rises.push(+(p.zs[i] - p.zs[i - 1]).toFixed(3));
+  const maxPond = Math.max(p.minPondDepth, ...p.ponds.map(q => q.depth_ft));
+  const badRises = rises.filter(d => d > maxPond + 0.01);
+  return {
+    id: f.id, type: f.type, group: f.group, n: f.pts.length,
+    dropZ: p.drop_z, length: p.length_ft, fall: p.fall_ft, grade: p.grade_pct,
+    reason: p.end.reason, end: [p.end.x, p.end.y], lastZ: p.end.z_last,
+    ponds: p.ponds.map(q => ({ level: q.level, cells: q.cells, depth: q.depth_ft,
+                               vol: q.volume_ft3, rings: (q.rings || []).length })),
+    dem: p.dem, grids: p.grids, hops: p.hops, zs: p.zs.length,
+    rises, maxPond, badRises,
+    cls: SBMM.myWork.classOf(f),
+    inTree: [...document.querySelectorAll("#featureTree .ftrow")].some(r => r.dataset.fid === f.id),
+    onMap: SBMM.map.hasLayer(f.layer),
+    subLayers: f.layer.getLayers().length,
+    animPaths: document.querySelectorAll(".leaflet-pane path.flowanim").length,
+    dropMarker: !!document.querySelector(".dropmk"),
+    endMarker: !!document.querySelector(".flowend"),
+    card: !!(f.card && f.card.querySelector(".flowspark"))
+  };
+}, WREF.drop);
+console.log("raindrop:", JSON.stringify(wdrop));
+if (wdrop.err) { console.log("FAIL:", wdrop.err); process.exit(1); }
+if (wdrop.type !== "flow" || wdrop.group !== "Water" || wdrop.cls !== "water")
+  { console.log("FAIL: a raindrop must be a `flow` feature in the Water class"); process.exit(1); }
+if (Math.abs(wdrop.dropZ - WREF.dropZ) > WREF.dropZTol)
+  { console.log("FAIL: z at the drop", wdrop.dropZ, "vs", WREF.dropZ); process.exit(1); }
+if (wdrop.reason !== WREF.reason)
+  { console.log("FAIL: the run should reach Clear Lake, got", wdrop.reason); process.exit(1); }
+if (wdist(wdrop.end, WREF.end) > WREF.endTol)
+  { console.log("FAIL: the run ends at", wdrop.end, "not", WREF.end); process.exit(1); }
+if (Math.abs(wdrop.lastZ - WREF.lastZ) > WREF.lastZTol)
+  { console.log("FAIL: last surveyed z", wdrop.lastZ, "vs", WREF.lastZ); process.exit(1); }
+{
+  const d = (wdrop.length - WREF.lengthRaw) / WREF.lengthRaw * 100;
+  console.log("  run length", wdrop.length, "ft vs unsimplified", WREF.lengthRaw, "->", d.toFixed(2), "%");
+  if (d < -3 || d > 0.5) { console.log("FAIL: the simplified run length is outside -3 % / +0.5 %"); process.exit(1); }
+}
+if (wdrop.ponds.length !== WREF.ponds)
+  { console.log("FAIL: expected", WREF.ponds, "ponds, got", wdrop.ponds.length); process.exit(1); }
+for (const [i, ref] of [[0, WREF.pond1], [1, WREF.pond2]]) {
+  const got = wdrop.ponds[i];
+  if (Math.abs(got.level - ref.level) > 0.03 || Math.abs(got.cells - ref.cells) > 2)
+    { console.log("FAIL: pond", i + 1, JSON.stringify(got), "vs", JSON.stringify(ref)); process.exit(1); }
+  if (!got.rings) { console.log("FAIL: pond", i + 1, "has no outline to draw"); process.exit(1); }
+}
+if (wdrop.badRises.length)
+  { console.log("FAIL: the run climbs", wdrop.badRises, "ft — bigger than any depression it crossed"); process.exit(1); }
+if (!wdrop.inTree || !wdrop.onMap)
+  { console.log("FAIL: the flow is not in the My-work tree / on the map"); process.exit(1); }
+if (wdrop.subLayers < 5 || !wdrop.animPaths || !wdrop.dropMarker || !wdrop.endMarker || !wdrop.card)
+  { console.log("FAIL: the flow is not fully drawn (glow/line/ponds/drop/end/animation/card)"); process.exit(1); }
+
+/* the exports carry the run AND its ponds, and a session round-trip rebuilds
+   both without running a single compute job */
+const wexport = await page.evaluate(() => {
+  const fc = SBMM.io.collection("sp");
+  const line = fc.features.find(f => f.properties.tool === "flow");
+  const ponds = fc.features.filter(f => f.properties.tool === "pond");
+  const dxf = SBMM.dxf.buildDXF ? SBMM.dxf.buildDXF() : null;
+  const f = SBMM.store.features.find(g => g.type === "flow");
+  const spec = SBMM.store.serialize().features.find(x => x.type === "flow");
+  const s0 = SBMM.compute.stats.workerJobs + SBMM.compute.stats.syncJobs;
+  SBMM.store.remove(f);
+  const nf = SBMM.tools.rebuildFeature(spec);
+  const s1 = SBMM.compute.stats.workerJobs + SBMM.compute.stats.syncJobs;
+  return {
+    lineType: line && line.geometry.type, lineN: line && line.geometry.coordinates.length,
+    lineLen: line && line.properties.length_ft,
+    ponds: ponds.length,
+    pondProps: ponds[0] && ["parent", "level", "depth_ft", "area_ft2", "volume_ft3"]
+      .every(k => ponds[0].properties[k] != null),
+    dxfLayers: dxf ? /WATER-PONDS/.test(dxf) : null,
+    rebuilt: { n: nf.pts.length, ponds: nf.props.ponds.length, len: nf.props.length_ft,
+               type: nf.type, drawn: SBMM.map.hasLayer(nf.layer) },
+    jobs: s1 - s0
+  };
+});
+console.log("flow export / round trip:", JSON.stringify(wexport));
+if (wexport.lineType !== "LineString" || !wexport.ponds || !wexport.pondProps)
+  { console.log("FAIL: GeoJSON must carry the run as a LineString plus one polygon per pond"); process.exit(1); }
+if (wexport.rebuilt.n !== wdrop.n || wexport.rebuilt.ponds !== wdrop.ponds.length || !wexport.rebuilt.drawn)
+  { console.log("FAIL: a flow did not survive serialise -> remove -> rebuild"); process.exit(1); }
+if (wexport.jobs !== 0)
+  { console.log("FAIL: rebuilding a flow ran", wexport.jobs, "compute jobs — it must rebuild from props"); process.exit(1); }
+
+/* --- 3. the new pane must not eat pointer events --------------------- */
+/* preferCanvas plus a pane above the drawings is exactly the shape of the bug
+   in CLAUDE.md, so the check is a real click on a decision unit with a flow and
+   the animated water pane on the map. */
+await page.evaluate(() => { SBMM.mode.navigate(); SBMM.map.closePopup(); });
+const duAim = await page.evaluate(() => {
+  const gisAt = (x, y) => {
+    const D = SBMM_DATA.design_gis;
+    return D && D.features.some(f => f.geometry.type === "Polygon"
+      && SBMM.layerState.isOn("design", "gis_" + f.properties.layer)
+      && pointInPoly(x, y, f.geometry.coordinates[0]));
+  };
+  const near = (x, y) => SBMM.samples.some(p => Math.hypot(p.x - x, p.y - y) < 60)
+    || SBMM_DATA.piles.some(p => pointInPoly(x, y, p.ring))
+    || SBMM.store.features.some(f => f.pts.some(q => Math.hypot(q[0] - x, q[1] - y) < 60));
+  for (const d of SBMM_DATA.dus) {
+    const b = d.ring.reduce((a, p) => [Math.min(a[0], p[0]), Math.min(a[1], p[1]),
+                                       Math.max(a[2], p[0]), Math.max(a[3], p[1])],
+                            [1e12, 1e12, -1e12, -1e12]);
+    for (let k = 0; k < 40; k++) {
+      const x = b[0] + (b[2] - b[0]) * (0.1 + 0.8 * ((k * 7) % 40) / 40);
+      const y = b[1] + (b[3] - b[1]) * (0.1 + 0.8 * ((k * 13) % 40) / 40);
+      if (!pointInPoly(x, y, d.ring)) continue;
+      if ((d.holes || []).some(h => pointInPoly(x, y, h))) continue;
+      if (gisAt(x, y) || near(x, y)) continue;
+      return { name: d.name, x, y };
+    }
+  }
+  return null;
+});
+if (!duAim) { console.log("FAIL: could not find a clear point inside a decision unit"); process.exit(1); }
+const duScr = await page.evaluate(async (t) => {
+  SBMM.map.invalidateSize();
+  SBMM.map.setView([t.y, t.x], 1, { animate: false });
+  await new Promise(r => setTimeout(r, 400));
+  const p = SBMM.map.latLngToContainerPoint([t.y, t.x]);
+  const box = document.getElementById("map").getBoundingClientRect();
+  return { x: Math.round(box.left + p.x), y: Math.round(box.top + p.y) };
+}, duAim);
+await page.mouse.click(duScr.x, duScr.y);
+await page.waitForTimeout(600);
+const duPop = await page.evaluate(() => ({
+  txt: (document.querySelector(".leaflet-popup-content") || {}).textContent || "",
+  anim: document.querySelectorAll(".leaflet-pane path.flowanim").length
+}));
+console.log(`pass-through with the water pane up: clicked ${duAim.name} -> "${duPop.txt.trim().split("\n")[0]}"`,
+            "| animated flow paths on the map:", duPop.anim);
+if (!duPop.txt.includes(duAim.name))
+  { console.log("FAIL: the water pane swallowed a click meant for a decision unit"); process.exit(1); }
+await page.evaluate(() => { SBMM.map.closePopup(); });
+
+/* --- 4. the overtopping analysis (§9.2) ------------------------------ */
+const wover = await page.evaluate(async () => {
+  const R = await SBMM.water.overtopHerman();
+  if (!R) return { err: "overtopHerman returned nothing" };
+  const route = SBMM.store.features.find(f => f.type === "flow" && /overflow route/.test(f.name));
+  const pool = SBMM.store.features.find(f => f.type === "area" && /at spill/.test(f.name));
+  const sl = document.getElementById("wsRange");
+  const before = { route: route ? route.visible : null,
+                   label: (document.querySelector(".wslabel") || {}).textContent || "" };
+  /* below the spill the route is hidden; back at the spill it returns */
+  sl.value = String(R.z0 + 1);
+  sl.dispatchEvent(new Event("input"));
+  await new Promise(r => setTimeout(r, 120));
+  const low = { route: route ? route.visible : null,
+                label: (document.querySelector(".wslabel") || {}).textContent || "" };
+  sl.value = sl.getAttribute("value");
+  sl.dispatchEvent(new Event("input"));
+  await new Promise(r => setTimeout(r, 120));
+  const back = { route: route ? route.visible : null,
+                 label: (document.querySelector(".wslabel") || {}).textContent || "" };
+  return {
+    z0: R.z0, seedCells: R.seedCells, spill: R.primary.level,
+    spillAt: [R.primary.x, R.primary.y], next: R.primary.next,
+    freeboard: R.freeboard_ft, storage: R.storage_ft3, areaAc: R.area_ft2 / 43560,
+    clusters: R.clusters.map(c => ({ rank: c.rank, level: c.level, above: c.above_ft,
+                                     at: [c.x, c.y], cells: c.cells })),
+    stage: R.stage.length, reason: R.reason,
+    band: !!(R.band && R.band.v), spillCells: R.spillMask
+      ? R.spillMask.v.reduce((n, v) => n + (v ? 1 : 0), 0) : 0,
+    overlay: !!document.querySelector(".leaflet-pane img.leaflet-image-layer"),
+    markers: document.querySelectorAll(".spillmk").length,
+    priPulse: !!document.querySelector(".spillmk.pri"),
+    rimRows: document.querySelectorAll("table.rimtbl tr[data-x]").length,
+    chart: !!document.querySelector(".stagechart"),
+    slider: sl ? { min: +sl.min, max: +sl.max, step: +sl.step, val: +sl.value } : null,
+    before, low, back,
+    route: route ? { name: route.name, len: route.props.length_ft, reason: route.props.end.reason,
+                     end: [route.props.end.x, route.props.end.y], dem: route.props.dem,
+                     ponds: route.props.ponds.length } : null,
+    pool: pool ? { name: pool.name, overtop: pool.props.overtop } : null,
+    drape: SBMM.water.drapeSpec() ? "yes" : "no"
+  };
+});
+console.log("overtopping:", JSON.stringify({
+  z0: wover.z0, spill: wover.spill, at: wover.spillAt, freeboard: wover.freeboard,
+  storage: wover.storage, areaAc: wover.areaAc, clusters: wover.clusters.length,
+  stage: wover.stage, markers: wover.markers, spillCells: wover.spillCells, route: wover.route
+}));
+if (wover.err) { console.log("FAIL:", wover.err); process.exit(1); }
+if (Math.abs(wover.z0 - WREF.z0) > WREF.z0Tol)
+  { console.log("FAIL: water surface", wover.z0, "vs", WREF.z0); process.exit(1); }
+if (Math.abs(wover.seedCells - WREF.seedCells) / WREF.seedCells > 0.005)
+  { console.log("FAIL: seed cells", wover.seedCells, "vs", WREF.seedCells); process.exit(1); }
+if (Math.abs(wover.spill - WREF.spill) > WREF.spillTol)
+  { console.log("FAIL: spill level", wover.spill, "vs", WREF.spill); process.exit(1); }
+if (wdist(wover.spillAt, WREF.spillAt) > WREF.spillTol_ft)
+  { console.log("FAIL: spill position", wover.spillAt, "vs", WREF.spillAt); process.exit(1); }
+if (wdist(wover.next, WREF.next) > WREF.nextTol)
+  { console.log("FAIL: primary.next", wover.next, "vs", WREF.next); process.exit(1); }
+if (Math.abs(wover.freeboard - WREF.freeboard) > WREF.freeboardTol)
+  { console.log("FAIL: freeboard", wover.freeboard, "vs", WREF.freeboard); process.exit(1); }
+if (Math.abs(wover.storage - WREF.storage) / WREF.storage > 0.03)
+  { console.log("FAIL: storage to spill", wover.storage, "vs", WREF.storage); process.exit(1); }
+if (Math.abs(wover.areaAc - WREF.areaAtSpill) / WREF.areaAtSpill > 0.03)
+  { console.log("FAIL: area at spill", wover.areaAc, "vs", WREF.areaAtSpill); process.exit(1); }
+if (wover.clusters.length < 3)
+  { console.log("FAIL: fewer than three rim lows within +3 ft"); process.exit(1); }
+{
+  const c2 = wover.clusters[1];
+  if (Math.abs(c2.level - WREF.rimLow2.level) > 0.05 || wdist(c2.at, WREF.rimLow2.at) > 20)
+    { console.log("FAIL: rim low 2", JSON.stringify(c2), "vs", JSON.stringify(WREF.rimLow2)); process.exit(1); }
+}
+if (wover.stage !== WREF.stageRows)
+  { console.log("FAIL: the stage table has", wover.stage, "rows, expected", WREF.stageRows); process.exit(1); }
+if (!wover.band || !wover.spillCells || !wover.overlay)
+  { console.log("FAIL: the rim band overlay is not on the map"); process.exit(1); }
+if (wover.markers !== wover.clusters.length || !wover.priPulse)
+  { console.log("FAIL: the ranked rim markers are missing"); process.exit(1); }
+if (wover.rimRows !== wover.clusters.length || !wover.chart)
+  { console.log("FAIL: the card is missing the rim-lows table or the stage chart"); process.exit(1); }
+if (!wover.slider || Math.abs(wover.slider.min - wover.z0) > 1e-6
+    || Math.abs(wover.slider.step - 0.25) > 1e-9
+    || wover.slider.val < wover.spill || wover.slider.val > wover.spill + 0.25 + 1e-9)
+  { console.log("FAIL: the level slider is wrong:", JSON.stringify(wover.slider)); process.exit(1); }
+if (wover.before.route !== true || wover.low.route !== false || wover.back.route !== true)
+  { console.log("FAIL: the slider must hide the overflow route below the spill and show it at it"); process.exit(1); }
+if (!/no overflow/.test(wover.low.label) || !/OVERFLOWS/.test(wover.back.label))
+  { console.log("FAIL: the slider label does not say whether it overflows:", wover.low.label, "|", wover.back.label); process.exit(1); }
+if (!wover.route) { console.log("FAIL: no overflow route feature was created"); process.exit(1); }
+if (wover.route.reason !== WREF.routeReason)
+  { console.log("FAIL: the overflow route ends", wover.route.reason, "not", WREF.routeReason); process.exit(1); }
+if (wdist(wover.route.end, WREF.routeEnd) > WREF.routeEndTol)
+  { console.log("FAIL: the overflow route ends at", wover.route.end, "not", WREF.routeEnd); process.exit(1); }
+if (Math.abs(wover.route.len - WREF.routeLength) / WREF.routeLength > 0.10)
+  { console.log("FAIL: the overflow route is", wover.route.len, "ft, expected", WREF.routeLength); process.exit(1); }
+if (wover.route.dem !== "2-ft")
+  { console.log("FAIL: the overflow route must run on the same grid as the analysis, got", wover.route.dem); process.exit(1); }
+if (!wover.pool || !wover.pool.overtop || Math.abs(wover.pool.overtop.spill - WREF.spill) > WREF.spillTol)
+  { console.log("FAIL: the 'at spill' polygon is missing its overtopping record"); process.exit(1); }
+if (wover.drape !== "yes") { console.log("FAIL: drapeSpec() is null after an overtopping analysis"); process.exit(1); }
+
+/* --- 5. the flow and the band reach 3D ------------------------------- */
+const w3d = await page.evaluate(async () => {
+  const wait = ms => new Promise(r => setTimeout(r, ms));
+  const wasOpen = SBMM.viewer3d.isOpen();
+  if (!wasOpen) { await SBMM.viewer3d.toggle(); await wait(1400); }
+  SBMM.viewer3d.refreshOverlays();
+  await wait(500);
+  const f = SBMM.store.features.find(g => g.type === "flow" && !/overflow/.test(g.name));
+  const kind = () => SBMM.pick3d.registered().filter(r => r.kind === "feature").length;
+  const withFlow = kind();
+  SBMM.store.setVisible(f, false);
+  SBMM.viewer3d.refreshOverlays();
+  await wait(400);
+  const without = kind();
+  SBMM.store.setVisible(f, true);
+  SBMM.viewer3d.refreshOverlays();
+  await wait(400);
+  const back = kind();
+  if (SBMM.viewer3d.refreshDrapes) SBMM.viewer3d.refreshDrapes();
+  await wait(900);
+  const st = SBMM.viewer3d.stats();
+  const out = { withFlow, without, back, waterDraped: st.waterDraped, isopachDraped: st.isopachDraped };
+  /* the 3D card and the 2D popup are the same builder — the only way "the same
+     popup" is a fact about the code rather than a claim about two copies */
+  const html = SBMM.popups.forFeature(f);
+  out.popupHasLength = /Length/.test(html);
+  out.popupHasActions = /retrace/.test(html) && /catchment/.test(html);
+  if (!wasOpen) { await SBMM.viewer3d.toggle(); await wait(500); }
+  return out;
+});
+console.log("water in 3D:", JSON.stringify(w3d));
+if (w3d.withFlow - w3d.without < 3 || w3d.back !== w3d.withFlow)
+  { console.log("FAIL: the flow's 3D objects are not in the pick registry"); process.exit(1); }
+if (!w3d.waterDraped) { console.log("FAIL: the rim band is not draped in 3D"); process.exit(1); }
+if (!w3d.popupHasLength || !w3d.popupHasActions)
+  { console.log("FAIL: the flow popup is missing its rows or actions"); process.exit(1); }
+
+/* --- 6. the catchment (§9.1) ----------------------------------------- */
+const wcatch = await page.evaluate(async () => {
+  const f = SBMM.store.features.find(g => g.type === "flow" && !/overflow/.test(g.name));
+  const a = await SBMM.water.catchment(f);
+  if (!a) return { err: "catchment returned nothing" };
+  return { type: a.type, area: a.props.catchment_ft2, cells: a.props.catchment_cells,
+           partial: a.props.catchment_partial, n: a.pts.length, name: a.name };
+});
+console.log("catchment:", JSON.stringify(wcatch));
+if (wcatch.err) { console.log("FAIL:", wcatch.err); process.exit(1); }
+if (wcatch.type !== "area" || Math.abs(wcatch.area - WREF.catchment) / WREF.catchment > 0.05)
+  { console.log("FAIL: contributing area", wcatch.area, "vs", WREF.catchment); process.exit(1); }
+
+/* --- 7. clearOvertop keeps the two features, drops the overlay -------- */
+const wclear = await page.evaluate(() => {
+  const before = SBMM.store.features.length;
+  SBMM.water.clearOvertop();
+  return { kept: SBMM.store.features.length === before,
+           /* both of these are huge typed-array-bearing objects when they exist,
+              and the question here is only whether they still do */
+           drape: !!SBMM.water.drapeSpec(), active: !!SBMM.water.active(),
+           overlay: document.querySelectorAll(".spillmk").length,
+           card: !!document.querySelector("table.rimtbl") };
+});
+console.log("clear water overlays:", JSON.stringify(wclear));
+if (!wclear.kept) { console.log("FAIL: clearing the overlay deleted features"); process.exit(1); }
+if (wclear.drape || wclear.active || wclear.overlay || wclear.card)
+  { console.log("FAIL: clearOvertop left the overlay behind"); process.exit(1); }
+
+/* --- 8. window chaining, as a manual check (§9.1's note) -------------- */
+/* Not a golden: the planner kept this drop precisely because it runs off the
+   edge of its window and has to be re-run on the next grid. What is asserted is
+   the CHAINING, not a number. */
+const wchain = await page.evaluate(async () => {
+  const f = await SBMM.water.dropAt(6371600, 2128900);
+  if (!f) return { err: "no feature" };
+  const p = f.props;
+  const out = { n: f.pts.length, len: p.length_ft, hops: p.hops, grids: p.grids,
+                reason: p.end.reason, ponds: p.ponds.length,
+                deepest: Math.max(0, ...p.ponds.map(q => q.depth_ft)) };
+  SBMM.store.remove(f);
+  return out;
+});
+console.log("window chaining check (drop 6371600, 2128900):", JSON.stringify(wchain));
+if (wchain.err) { console.log("FAIL:", wchain.err); process.exit(1); }
+if (!wchain.hops || wchain.grids.length < 1)
+  { console.log("FAIL: a run that leaves its window must be re-run on the next one"); process.exit(1); }
+
+if (errors.length !== errBeforeWater) {
+  console.log("FAIL: page errors during the water block:",
+              errors.slice(errBeforeWater, errBeforeWater + 6)); process.exit(1);
+}
+
+/* ==================================================================== */
 /* 9j. one layer state (§1/§4) and the tool-mode machine (§2)            */
 /* ==================================================================== */
 const lstate = await page.evaluate(async () => {

@@ -40,6 +40,10 @@ in code, and what comes next. It replaces re-reading the chat history that built
 | Watermark "Mo Sharif - Jacobs 2026" bottom-right, burned into exports | User request |
 | C-202 registered from EA's native North Lobe polygon (v9.1), one affine per plan viewport; the raster and 3D drape are the grading plan | The PDF methods could not place it; the native polygon is the drawn boundary with every vertex surveyed |
 | GitHub repo stays **private**; no CDNs, analytics or network calls | Site imagery + analytical results |
+| The water tools (v10) are **static terrain analyses only** — no rainfall, runoff, infiltration, seepage, wave run-up or time | He asked "use the topo and predict"; the topo is what the app has ground truth for, and a hydraulic answer dressed in the same UI would be believed |
+| A pond is reported at **0.25 ft** depth and deeper | The lidar noise floor: a 0.1-ft "pond" on a 1-ft grid is a rounding artefact drawn as a water body |
+| Raindrop windows are **±700 ft on a 1-ft grid, ±1,400 ft on the 2-ft**, re-centred on the exit for up to 8 hops / 20,000 ft | Big enough that most runs finish in one window; small enough that a click answers in about a second. The chaining is what keeps a long run honest across a grid change, and the card lists the grids it used |
+| The overtopping overflow route runs on the **same grid and window as the analysis** | Retracing it on the finest DEM under the spill would be a second analysis wearing the first one's answer |
 
 ## What was tried and dropped
 
@@ -69,7 +73,13 @@ in code, and what comes next. It replaces re-reading the chat history that built
 7. **C-102 and C-203 could be placed the way C-202 was** (`tools/register_sheet_native.py`,
    native polygon fitted to the plan linework + ortho confirmation). C-203's rectangle is
    symmetric, so watch the ambiguity.
-8. Ideas he has floated for later: richer sample-result symbology by analyte/date, more
+8. **Hydraulics and rainfall are out of scope** for the water tools, deliberately
+   (see the decisions table). If he asks for runoff volumes, a design storm, culverts,
+   pipes, a dam-break, or "how long would it take to fill" — **ask before adding**. Those
+   need inflow data and a hydraulic model, neither of which is in this repo, and the
+   honest first step is naming what would have to be brought in rather than extending a
+   terrain analysis until it looks like one.
+9. Ideas he has floated for later: richer sample-result symbology by analyte/date, more
    datasets through `datasets.js` (it is the intended path for any new point data), and
    keeping the app the single place the construction team looks.
 
