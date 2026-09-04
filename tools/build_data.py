@@ -27,7 +27,7 @@ OUT  = os.path.join(ROOT, "datajs")
 
 JSON_FILES = ["affine", "dem_site", "dem_abp", "dem_res", "chm", "contours_site", "contours_abp",
               "dus", "piles", "points", "ortho_abp", "ortho_mine", "ortho_site",
-              "design_ea", "design_gis", "sheets_full"]
+              "design_ea", "design_gis", "sheets_full", "survey_2026"]
 # cad_native / cad_surfaces are NOT in JSON_FILES: tools/build_cad_native.py and
 # tools/build_cad_surfaces.py write datajs/d_cad_native.js and
 # datajs/d_cad_surfaces.js themselves, because both need a shape this generic

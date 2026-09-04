@@ -9,6 +9,8 @@
      5600       modals: help, command help, the report, the dataset dialog
      7000       toasts, which must be readable over every one of the above
                 (a toast behind a sheet window is a failure the user never sees)
+     9000       the password gate (js/gate.js) — the one thing above the toast,
+                because while it is up nothing behind it may be seen or reached
    --------------------------------------------------------------------------- */
 /* SBMM Site Explorer — workbench shell
    Dark GIS/CAD language: one page, three docked regions + a stage.
@@ -23,6 +25,10 @@
   /* accents */
   --acc:#4FB3CE; --acc2:#7CD0E6; --accdim:rgba(79,179,206,.16);
   --green:#5FBF8F; --red:#E4796A; --amber:#E8B34B; --gold:#FFD34D; --violet:#C792EA;
+  /* water (v10 §7) — nothing else in the app uses these hues, which is the
+     point: water reads as water in 2D, in 3D, on the cards and in the legend */
+  --water:#55C1FF; --water2:#9FDCFF; --water3:#DFF4FF;
+  --waterdim:rgba(85,193,255,.28); --spill:#FF4D3D;
   /* metrics */
   --topH:48px; --statusH:30px; --railW:44px; --gripW:5px; --cmdH:0px;
   --botH:calc(var(--statusH) + var(--cmdH));
@@ -936,7 +942,7 @@ canvas.shmark{position:absolute;left:0;top:0;width:100%;height:100%;pointer-even
 .toolbtn.menub[aria-expanded="true"]{background:var(--panel3);border-color:var(--line2)}
 .menu .ci kbd{float:right;margin-left:10px}
 .menu .ci.sep{border-top:1px solid var(--line);margin-top:3px;padding-top:9px;border-radius:0 0 5px 5px}
-#drawMenu,#designMenu{top:calc(var(--topH) + 4px);min-width:262px}
+#drawMenu,#designMenu,#waterMenu{top:calc(var(--topH) + 4px);min-width:262px}
 .toolbtn[disabled]{opacity:.4;cursor:not-allowed}
 .toolbtn[disabled]:hover{background:transparent;border-color:transparent;color:var(--mut)}
 
@@ -1091,3 +1097,160 @@ canvas.shmark{position:absolute;left:0;top:0;width:100%;height:100%;pointer-even
 /* the mode HUD sits bottom-centre of the stage; in split that is where the 2D
    pane's zoom control lives, so lift the control clear of it */
 body.v3dsplit .leaflet-control-zoom{margin-bottom:44px !important}
+
+
+/* ==================================================================== */
+/* Water — the raindrop and the overtopping overlay (v10 §4.3)          */
+/* ==================================================================== */
+/* The flow animation. The dashes are drawn by Leaflet into the SVG `water`
+   pane (z 470, pointer-events:none), so `className` reaches a real element and
+   the whole animation is one CSS rule — zero JavaScript per frame. Under
+   prefers-reduced-motion the dashes stay, they simply stop moving. */
+@keyframes flowdash{to{stroke-dashoffset:-16}}
+@media (prefers-reduced-motion: no-preference){
+  path.flowanim{animation:flowdash .9s linear infinite}
+}
+path.flowanim{pointer-events:none}
+
+/* the teardrop marker */
+.dropmk{cursor:grab;filter:drop-shadow(0 1px 2px rgba(0,0,0,.6))}
+.dropmk:active{cursor:grabbing}
+.dropmk svg{display:block}
+
+/* the pond label — only shown once the pond is wide enough to read (js/water.js
+   sets the marker opacity on zoom) */
+.pondlbl{width:0 !important;height:0 !important;overflow:visible;pointer-events:none;
+  transition:opacity .12s linear}
+.pondlbl span{position:absolute;left:0;top:0;transform:translate(-50%,-50%);white-space:nowrap;
+  font-family:var(--mono);font-size:10px;color:var(--water3);
+  text-shadow:0 0 3px #0E1418,0 0 3px #0E1418,0 0 5px #0E1418}
+
+/* where the run ends, and why */
+.flowend{width:0 !important;height:0 !important;overflow:visible;pointer-events:none}
+.flowend .dot{position:absolute;left:-5px;top:-5px;width:10px;height:10px;border-radius:50%;
+  background:var(--water2);border:1.5px solid #0E1418;box-shadow:0 0 6px rgba(85,193,255,.7)}
+.flowend .lbl{position:absolute;left:9px;top:-7px;white-space:nowrap;font-size:10.5px;
+  color:var(--water3);text-shadow:0 0 3px #0E1418,0 0 3px #0E1418,0 0 6px #0E1418}
+
+/* the ranked rim lows. The primary pulses because it is the answer to the
+   question the user asked: THIS is where it goes over. */
+@keyframes spillpulse{
+  0%{box-shadow:0 0 0 0 rgba(255,77,61,.55)}
+  70%{box-shadow:0 0 0 12px rgba(255,77,61,0)}
+  100%{box-shadow:0 0 0 0 rgba(255,77,61,0)}
+}
+.spillmk{width:0 !important;height:0 !important;overflow:visible}
+.spillmk .badge{position:absolute;display:flex;align-items:center;justify-content:center;
+  left:-8px;top:-8px;width:16px;height:16px;border-radius:50%;cursor:pointer;
+  background:#12181C;border:1.5px solid var(--amber);color:var(--amber);
+  font-size:11px;line-height:1;font-weight:700}
+.spillmk.pri .badge{left:-11px;top:-11px;width:22px;height:22px;font-size:14px;
+  border-color:var(--spill);color:#fff;background:var(--spill)}
+@media (prefers-reduced-motion: no-preference){
+  .spillmk.pri .badge{animation:spillpulse 1.9s ease-out infinite}
+}
+.spillmk .lbl{position:absolute;left:14px;white-space:nowrap;font-size:10.5px;
+  color:var(--ink);text-shadow:0 0 3px #0E1418,0 0 3px #0E1418,0 0 6px #0E1418;
+  pointer-events:none}
+/* a hairline from the badge up or down to its stepped-away label, so which
+   number belongs to which rim low is not left to the reader to guess */
+.spillmk .lead{position:absolute;left:9px;width:1px;background:rgba(232,179,75,.55);
+  pointer-events:none}
+.spillmk.pri .lbl{left:16px;color:#FFD9D3;font-weight:600}
+
+/* the results cards */
+.flowprof,.wchart{margin-top:7px}
+.flowspark text,.stagechart text{font-family:var(--mono);font-size:10px;fill:var(--mut)}
+.crow.btns.flowbtns{margin-top:6px}
+table.rimtbl{width:100%;border-collapse:collapse;font-size:11px;margin-top:9px}
+table.rimtbl th{text-align:left;color:var(--mut);font-size:9.5px;text-transform:uppercase;
+  letter-spacing:.6px;padding:3px 4px;border-bottom:1px solid var(--line);font-weight:600}
+table.rimtbl td{padding:3px 4px;border-bottom:1px solid rgba(44,59,69,.5);color:var(--ink2)}
+table.rimtbl td.num{text-align:right;font-family:var(--mono);font-variant-numeric:tabular-nums}
+table.rimtbl td.rk{color:var(--amber);font-size:13px;width:18px}
+table.rimtbl td.rk.pri{color:var(--spill)}
+table.rimtbl tr:hover td{background:var(--panel2)}
+table.rimtbl .minib{padding:0 6px;font-size:10px}
+.wslider{margin-top:9px}
+.wslider input[type=range]{width:100%;accent-color:var(--water)}
+.wslabel{font-size:11px;color:var(--water3);margin-bottom:3px}
+.rimleg .rampbar{flex:1;min-width:70px;height:9px;border-radius:2px}
+
+/* the surveyed discharge pipes on the overtopping overlay (spec §10): a gold
+   badge, no pulse — the pipes are a fact, the spill is the alarm */
+.spillmk.pipe .badge{background:var(--gold);color:#1B1400;border-color:#5A4200}
+.spillmk.pipe .lbl{color:var(--gold)}
+
+/* ======================= the password gate (js/gate.js) =======================
+   z-index 9000 — the only thing above the toast. It covers the whole viewport
+   while the app boots underneath it; the living contour field behind the card
+   is drawn by gate.js into #gateCv. Colours come from the same :root tokens as
+   the rest of the app, and the flood uses the v10 water tokens on purpose: the
+   unlock is the terrain surfacing through water. */
+#gate{position:fixed;inset:0;z-index:9000;overflow:hidden;
+  background:var(--bg);
+  display:flex;align-items:center;justify-content:center;
+  -webkit-user-select:none;user-select:none;
+  will-change:clip-path}
+#gate.fadeout{opacity:0;transition:opacity .3s var(--ease)}
+#gateCv{position:absolute;inset:0;display:block}
+/* a vignette so the card sits in the field rather than on it */
+#gateVig{position:absolute;inset:0;pointer-events:none;
+  background:radial-gradient(115% 88% at 50% 46%,rgba(0,0,0,0) 24%,rgba(6,10,13,.55) 68%,rgba(6,10,13,.86) 100%)}
+
+#gateCard{position:relative;width:min(92vw,400px);padding:30px 30px 22px;
+  background:linear-gradient(180deg,rgba(30,42,49,.86),rgba(18,26,31,.9));
+  border:1px solid rgba(124,208,230,.20);border-radius:14px;
+  box-shadow:0 24px 70px rgba(0,0,0,.62),0 0 0 1px rgba(0,0,0,.35),
+             inset 0 1px 0 rgba(255,255,255,.05);
+  backdrop-filter:blur(9px) saturate(115%);-webkit-backdrop-filter:blur(9px) saturate(115%);
+  text-align:center;
+  animation:gatein .62s var(--ease) both;
+  transition:transform .38s cubic-bezier(.4,0,.2,1),opacity .34s var(--ease),filter .38s var(--ease);
+  will-change:transform,opacity}
+#gateCard.gone{transform:translateY(-26px) scale(.965);opacity:0;filter:blur(7px)}
+#gateCard.shake{animation:gshake .42s cubic-bezier(.36,.07,.19,.97) both}
+@keyframes gatein{from{opacity:0;transform:translateY(14px) scale(.985)}to{opacity:1;transform:none}}
+@keyframes gshake{
+  10%,90%{transform:translateX(-2px)} 20%,80%{transform:translateX(4px)}
+  30%,50%,70%{transform:translateX(-7px)} 40%,60%{transform:translateX(7px)}
+  100%{transform:none}}
+
+.gmark{width:44px;height:44px;margin:0 auto 13px}
+.gmark svg{width:44px;height:44px;fill:none;stroke-linecap:round;stroke-linejoin:round;overflow:visible}
+.gmark .gring circle{stroke:rgba(124,208,230,.34);stroke-width:1}
+.gmark .gtopo{stroke:var(--acc);stroke-width:1.3;opacity:.85}
+.gmark .gtopo3{stroke:var(--acc2);opacity:.6}
+
+#gateCard .gtitle{font-size:20px;font-weight:700;letter-spacing:.3px;color:var(--ink);line-height:1.2}
+#gateCard .gtitle span{color:var(--acc);font-weight:600}
+#gateCard .gsub{margin-top:6px;font-size:11.5px;color:var(--mut);letter-spacing:.2px}
+
+.grow{display:flex;gap:8px;margin-top:20px}
+#gatePw{flex:1;min-width:0;height:38px;padding:0 12px;font-family:var(--mono);font-size:13px;
+  letter-spacing:2px;color:var(--ink);background:rgba(10,15,19,.72);
+  border:1px solid var(--line2);border-radius:var(--r2);outline:none;
+  transition:border-color .15s var(--ease),box-shadow .15s var(--ease)}
+#gatePw{-webkit-user-select:text;user-select:text}   /* #gate sets none for the rest */
+#gatePw::placeholder{color:var(--mut2);letter-spacing:.4px;font-family:inherit}
+#gatePw:focus{border-color:var(--acc);box-shadow:0 0 0 3px var(--accdim)}
+#gatePw:disabled{opacity:.5}
+#gateGo{height:38px;padding:0 18px;font-family:inherit;font-size:12.5px;font-weight:650;
+  color:#06222C;background:var(--acc);border:1px solid var(--acc);border-radius:var(--r2);
+  cursor:pointer;transition:background .13s var(--ease),transform .1s var(--ease)}
+#gateGo:hover{background:var(--acc2)}
+#gateGo:active{transform:translateY(.5px)}
+
+#gateMsg{min-height:16px;margin-top:11px;font-size:11.5px;color:var(--mut);letter-spacing:.1px}
+#gateMsg.bad{color:var(--red)}
+
+#gateCard .gfoot{margin-top:20px;padding-top:13px;border-top:1px solid rgba(124,208,230,.13);
+  font-size:10.5px;color:var(--mut2);letter-spacing:.25px}
+
+/* the gate is screen furniture; it must never reach paper */
+@media print{ #gate{display:none !important} }
+
+@media (prefers-reduced-motion: reduce){
+  #gateCard{animation:none}
+  #gateCard.shake{animation:none;outline:1px solid var(--red)}
+}

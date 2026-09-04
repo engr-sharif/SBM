@@ -3,6 +3,7 @@
    import, and the tooltip/label consistency sweep. Prints, does not assert.   */
 import { chromium } from "playwright";
 import { existsSync as __ex } from "node:fs";
+import { unlock } from "./gate.mjs";
 const CHROME = process.env.CHROME_BIN || (__ex("/opt/pw-browsers/chromium-1194/chrome-linux/chrome") ? "/opt/pw-browsers/chromium-1194/chrome-linux/chrome" : undefined); // undefined = Playwright's own chromium (npx playwright install chromium)
 
 const target = process.argv[2];
@@ -15,6 +16,7 @@ page.on("console", m => { if (m.type() === "error") errs.push("console: " + m.te
 page.on("dialog", d => d.accept());
 
 console.log(`\n=== audit2: ${process.argv[3] || target} ===`);
+await unlock(page);  /* the password gate — see test/gate.mjs */
 await page.goto("file://" + target);
 await page.waitForSelector("#loading", { state: "hidden", timeout: 180000 });
 await page.evaluate(() => SBMM.chmReady);

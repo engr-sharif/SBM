@@ -502,16 +502,31 @@ SBMM.viewer3d = (function () {
      overlay's own footprint, textured with the heat map js/isopach.js already
      painted for the 2D map. Reusing that PNG is the point — one picture, one
      legend, two views, and no second colour ramp to keep in step. */
-  let isoMesh = null, isoKey = null;
-  async function refreshIsopach() {
-    const spec = SBMM.isopach && SBMM.isopach.drapeSpec();
+  /* Since v10 there is more than one of these — the isopach heat map and the
+     water tool's rim band — so the mechanism is a small LIST rather than one
+     named mesh. One mesh per source, keyed on the source's own URL and bounds
+     so a repaint that changes nothing costs nothing. `refreshIsopach` stays as
+     an alias: it is what js/isopach.js and the e2e both call. */
+  const DRAPES = [
+    ["isopach", () => SBMM.isopach && SBMM.isopach.drapeSpec && SBMM.isopach.drapeSpec()],
+    ["water", () => SBMM.water && SBMM.water.drapeSpec && SBMM.water.drapeSpec()]
+  ];
+  const drapeMesh = {}, drapeKey = {};
+  function refreshDrapes() { return Promise.all(DRAPES.map(d => syncDrape(d[0], d[1]))); }
+  function refreshIsopach() { return refreshDrapes(); }
+  async function syncDrape(name, specOf) {
+    let spec = null;
+    try { spec = specOf(); } catch (e) { spec = null; }
     const key = spec ? spec.url.length + ":" + spec.bounds.join(",") : null;
-    if (key === isoKey) return;
-    isoKey = key;
-    if (isoMesh) {
-      scene.remove(isoMesh);
-      isoMesh.geometry.dispose(); isoMesh.material.map.dispose(); isoMesh.material.dispose();
-      isoMesh = null;
+    if (key === drapeKey[name]) return;
+    drapeKey[name] = key;
+    const old = drapeMesh[name];
+    if (old) {
+      scene.remove(old);
+      old.geometry.dispose();
+      if (old.material.map) old.material.map.dispose();
+      old.material.dispose();
+      delete drapeMesh[name];
     }
     if (!spec || !scene) { requestRender(); return; }
     const [x0, y0, x1, y1] = spec.bounds;
@@ -547,14 +562,15 @@ SBMM.viewer3d = (function () {
       g.setAttribute("position", new THREE.BufferAttribute(pos, 3));
       g.setAttribute("uv", new THREE.BufferAttribute(uv, 2));
       g.setIndex(idx);
-      isoMesh = new THREE.Mesh(g, new THREE.MeshBasicMaterial({
+      const mesh = new THREE.Mesh(g, new THREE.MeshBasicMaterial({
         map: tex, transparent: true, depthWrite: false, alphaTest: 0.02,
         side: THREE.DoubleSide, toneMapped: false
       }));
-      isoMesh.renderOrder = 4;
-      isoMesh.scale.z = exag();
-      scene.add(isoMesh);
-    } catch (e) { console.error("isopach drape", e); }
+      mesh.renderOrder = 4;
+      mesh.scale.z = exag();
+      scene.add(mesh);
+      drapeMesh[name] = mesh;
+    } catch (e) { console.error(name + " drape", e); }
     requestRender();
   }
 
@@ -582,6 +598,15 @@ SBMM.viewer3d = (function () {
         const o = drapedLine(r.ring, new THREE.Color(r.color).getHex(), true, 3);
         /* userData.pick is what js/pick3d.js walks the overlay group for; it is
            the only thing that makes a 3D click able to say what it hit (§8) */
+        o.userData.pick = { kind: "gis", props: r.props, geom: r.geom };
+        overlayGroup.add(o);
+      }
+    }
+    /* the August-2026 survey linework (spec §10): the pipes, the sandbag wall
+       and the pit contours, draped like the design polygons and pickable */
+    if (SBMM.survey && SBMM.survey.lines3d) {
+      for (const r of SBMM.survey.lines3d()) {
+        const o = drapedLine(r.ring, new THREE.Color(r.color).getHex(), false, r.width || 2);
         o.userData.pick = { kind: "gis", props: r.props, geom: r.geom };
         overlayGroup.add(o);
       }
@@ -621,7 +646,8 @@ SBMM.viewer3d = (function () {
         overlayGroup.add(drapedLine(r.ring, DCOL[r.conf] || 0xcccccc, true, 3));
     }
     {
-      const COLORS = { line: 0x4FB3CE, area: 0x4FB3CE, volume: 0x4FCE9B, profile: 0xC792EA, dim: 0xE8B34B, text: 0xE8EEF1 };
+      const COLORS = { line: 0x4FB3CE, area: 0x4FB3CE, volume: 0x4FCE9B, profile: 0xC792EA,
+                       dim: 0xE8B34B, text: 0xE8EEF1, flow: 0x55C1FF };
       /* every object a feature contributes carries its id, so a 3D click can
          select, inspect and edit exactly the feature a 2D click would (§8) */
       const own = (o, f) => { o.userData.pick = { kind: "feature", fid: f.id }; return o; };
@@ -647,6 +673,23 @@ SBMM.viewer3d = (function () {
           const sp = textSprite((f.props && f.props.text) || f.name || "text", col,
             clamp((f.props && f.props.size_ft) || 20, 8, 120));
           sp.position.set(tx - CX, ty - CY, drapeZ(tx, ty, 26));
+          overlayGroup.add(own(sp, f));
+          continue;
+        }
+        /* v10: the run drapes like any line, and the two things that make it a
+           WATER feature ride with it — each pond as a closed draped ring at its
+           own level, and the drop itself as a small sphere you can pick. */
+        if (f.type === "flow") {
+          overlayGroup.add(own(drapedLine(f.pts, col, false, sel ? 4.5 : 3), f));
+          const pr = f.props || {};
+          for (const pd of (pr.ponds || []))
+            for (const ring of (pd.rings || []))
+              if (ring && ring.length > 2)
+                overlayGroup.add(own(drapedLine(ring, 0x55C1FF, true, 2), f));
+          const dp = pr.drop || f.pts[0];
+          const sp = new THREE.Mesh(new THREE.SphereGeometry(6, 12, 12),
+            new THREE.MeshBasicMaterial({ color: sel ? 0xFFD34D : 0x9FDCFF }));
+          sp.position.set(dp[0] - CX, dp[1] - CY, drapeZ(dp[0], dp[1], 6));
           overlayGroup.add(own(sp, f));
           continue;
         }
@@ -1337,7 +1380,7 @@ SBMM.viewer3d = (function () {
       if (contourGroup) contourGroup.scale.z = zx;
       if (sketchObj) sketchObj.scale.z = zx;
       if (sheetGroup) sheetGroup.scale.z = zx;
-      if (isoMesh) isoMesh.scale.z = zx;
+      for (const k in drapeMesh) drapeMesh[k].scale.z = zx;
       $("v3dExagVal").textContent = zx.toFixed(1) + "×";
       nav.st.forceApply = true;
       requestRender();
@@ -1610,6 +1653,10 @@ SBMM.viewer3d = (function () {
       return;
     }
     rebuildOverlays();
+    /* an isopach or a rim band painted while the 3D view was SHUT still has to
+       appear when it opens; init() only runs once, so replaying it belongs here
+       with the rest of the deferred state rather than there */
+    refreshDrapes();
     syncSheets();          // replay any sheet drapes enabled while 2D-only
     /* and replay the rest of the layer state: contours, canopy and the sheet
        master may all have been toggled while the 3D view did not exist */
@@ -1719,7 +1766,8 @@ SBMM.viewer3d = (function () {
         ? contourGroup.children.reduce((n, o) => n + o.geometry.getAttribute("position").count, 0) : 0,
       contoursVisible: !!(contourGroup && contourGroup.visible),
       canopyVisible: !!(canopyMesh && canopyMesh.visible),
-      isopachDraped: !!isoMesh,
+      isopachDraped: !!drapeMesh.isopach,
+      waterDraped: !!drapeMesh.water,
       cadDrapeBudgetSkipped: lastCadSkip,
       contourSegments: SBMM._v3dContourDrop || null,
       sheetDrapes: [...sheetMeshes.keys()].sort(),
@@ -1745,7 +1793,8 @@ SBMM.viewer3d = (function () {
     navMode: () => (nav ? nav.mode() : null),
     preset, frame: frameSelectionOrSite, frameBox, northUp: () => nav && nav.northUp(),
     refreshOverlays: () => { if (open) rebuildOverlays(); },
-    refreshIsopach: () => { if (open) refreshIsopach(); },
+    refreshIsopach: () => { if (open) refreshDrapes(); },
+    refreshDrapes: () => { if (open) refreshDrapes(); },
     sheetDrape, sheetDrapeNames: () => [...wantSheets].sort(),
     requestRender, reflowBar
   };
