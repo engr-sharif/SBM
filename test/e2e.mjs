@@ -3118,7 +3118,7 @@ if (errors.length !== errBeforeSurvey) {
 /* ==================================================================== */
 /* 9s. storm drainage (docs/V12_STORM_SPEC.md §6)                       */
 /* ==================================================================== */
-/* The network is read-only project data — 43 structures and 25 conduits out of
+/* The network is read-only project data — 44 structures and 26 conduits out of
    EA's CAD, Jacobs' survey and the project engineer's identification of the
    south-road drain — and it changes exactly one thing about the raindrop: a run
    that reaches an inlet leaves the ground and reappears at the outlet. The
@@ -3165,9 +3165,9 @@ console.log("storm network:", JSON.stringify({ nodes: stormBase.nodes, conduits:
   glyphs: stormBase.glyphs, arrows: stormBase.arrows, rim: stormBase.rim, invert: stormBase.invert,
   inBox: stormBase.inBox.length, snap: stormBase.snap, dxf: stormBase.dxfLayers, cmd: stormBase.cmd }));
 if (stormBase.err) { console.log("FAIL:", stormBase.err); process.exit(1); }
-if (stormBase.nodes !== 43 || stormBase.conduits !== 25)
-  { console.log("FAIL: the payload is not 43 nodes / 25 conduits"); process.exit(1); }
-if (stormBase.layers.map(l => l.join(":")).join(",") !== "storm_nodes:43,storm_cad:15,storm_inferred:10")
+if (stormBase.nodes !== 44 || stormBase.conduits !== 26)
+  { console.log("FAIL: the payload is not 44 nodes / 26 conduits"); process.exit(1); }
+if (stormBase.layers.map(l => l.join(":")).join(",") !== "storm_nodes:44,storm_cad:15,storm_inferred:11")
   { console.log("FAIL: the three layers' counts:", JSON.stringify(stormBase.layers)); process.exit(1); }
 if (stormBase.rowsOn !== 3 || !stormBase.subHeader || stormBase.rowLabels.length !== 3)
   { console.log("FAIL: the three rows are not on under the Storm drainage sub-header",
@@ -3175,7 +3175,7 @@ if (stormBase.rowsOn !== 3 || !stormBase.subHeader || stormBase.rowLabels.length
 for (const [key, n] of stormBase.layers)
   if (!stormBase.rowLabels.some(l => l.includes("(" + n + ")")))
     { console.log("FAIL: no row labelled with", key, "count", n); process.exit(1); }
-if (stormBase.glyphs !== 43 || stormBase.arrows !== 25)
+if (stormBase.glyphs !== 44 || stormBase.arrows !== 26)
   { console.log("FAIL: structures/arrows drawn:", stormBase.glyphs, stormBase.arrows); process.exit(1); }
 /* the popup: what it is, where it came from, and the two elevations — one of
    which is honestly "not surveyed" */
@@ -3215,10 +3215,13 @@ if (stormBase.cmd !== "STORM" || !stormBase.menu)
   { console.log("FAIL: STORM is not a command / not in the Water menu"); process.exit(1); }
 
 /* --- the raindrop with and without the network ----------------------- */
-/* Frog Pond's low (Spot 5). With the drains on it fills Frog Pond, takes the
-   pipe to Green Pond, takes Green Pond's round inlet and ends in Clear Lake;
-   with them off it spills north-east off the survey, which is what §1 of the
-   spec says the bare terrain does. */
+/* Green Pond's low — the EAST pond, Spot 5 (the engineer's names; EA's
+   geodatabase labels the two ponds the other way round). With the drains on it
+   fills the east pond, takes the culvert under the paved road into the west
+   pond (Frog Pond), which overflows through the FES on its west shore, piped
+   to the Spot 8 grate and down the road drain to the Clear Lake outfall —
+   never entering the impoundment; with them off it spills north-east off the
+   survey, which is what the bare terrain does. */
 const FROG = [6374418, 2127912];
 const stormDrop = await page.evaluate(async (P) => {
   const jobs0 = SBMM.compute.stats.workerJobs + SBMM.compute.stats.syncJobs;
@@ -3252,16 +3255,16 @@ console.log("storm raindrop:", JSON.stringify({ legs: stormDrop.legs, pipe: stor
   ponds: stormDrop.ponds, via: stormDrop.via, rebuilt: stormDrop.rebuilt, jobs: stormDrop.jobs,
   pipeLabels: stormDrop.pipeLabels }));
 if (stormDrop.err) { console.log("FAIL:", stormDrop.err); process.exit(1); }
-if (stormDrop.legs.join(",") !== "frog_green,green_riser,herman_pipe_s,pipe_to_main,storm_main_upper,storm_main_lower")
-  { console.log("FAIL: the Frog Pond chain is wrong, got", stormDrop.legs); process.exit(1); }
-if (Math.abs(stormDrop.pipe - 1366.1) > 0.5)
-  { console.log("FAIL: pipe_ft", stormDrop.pipe, "vs 1366.1"); process.exit(1); }
+if (stormDrop.legs.join(",") !== "pond_culvert,frog_outlet,road_drain_8_9,road_drain_9_10,road_drain_10_11,road_drain_11_12,road_drain_12_13,road_drain_13_14,road_drain_14_15,road_drain_15_branch,branch,storm_main_lower")
+  { console.log("FAIL: the Green Pond chain is wrong, got", stormDrop.legs); process.exit(1); }
+if (Math.abs(stormDrop.pipe - 2969.4) > 0.5)
+  { console.log("FAIL: pipe_ft", stormDrop.pipe, "vs 2969.4"); process.exit(1); }
 if (!stormDrop.outfall)
   { console.log("FAIL: the Frog Pond drop should reach the Clear Lake outfall"); process.exit(1); }
 if (Math.abs(stormDrop.total - (stormDrop.len + stormDrop.pipe)) > 0.2)
   { console.log("FAIL: total_ft must be overland + pipe"); process.exit(1); }
-if (stormDrop.via !== "green_riser")
-  { console.log("FAIL: a pond drained by a grate must record it, got", stormDrop.via); process.exit(1); }
+if (stormDrop.vias.join(",") !== "frog_outlet")
+  { console.log("FAIL: the west pond must drain through its FES (the drop sits on the culvert inlet, so the east pond forms no pond), got", stormDrop.vias); process.exit(1); }
 if (wdist(stormDrop.end, [6371177, 2127474]) > 5)
   { console.log("FAIL: the drop should end in Clear Lake, got", stormDrop.end); process.exit(1); }
 for (const t of ["In pipes", "Total", "Storm drains", "drains to"])
@@ -3372,10 +3375,10 @@ for (const t of ["drains to", "24 in corrugated HDPE", "inlet cell moved"])
 const stormRest = await page.evaluate(async () => {
   const wait = ms => new Promise(r => setTimeout(r, ms));
   /* a broken conduit is not passed to the kernel at all */
-  SBMM.storm.setStatus("frog_green", "broken");
+  SBMM.storm.setStatus("pond_culvert", "broken");
   const brokenOut = SBMM.storm.conduitsFor([6374000, 2127700, 6374800, 2128100]).length;
   const persisted = JSON.parse(localStorage.getItem("sbmm.storm.v1") || "{}");
-  SBMM.storm.setStatus("frog_green", "assumed_working");
+  SBMM.storm.setStatus("pond_culvert", "assumed_working");
   const backOut = SBMM.storm.conduitsFor([6374000, 2127700, 6374800, 2128100]).length;
   /* 3D: the conduits and the structures reach the scene */
   const wasOpen = SBMM.viewer3d.isOpen();
@@ -3399,7 +3402,7 @@ const stormRest = await page.evaluate(async () => {
   const sf = fc.features.filter(f => /^storm_/.test((f.properties || {}).layer || ""));
   const dxf = SBMM.dxf.buildDXF();
   return {
-    brokenOut, backOut, persistedBroken: (persisted.status || {}).frog_green || null,
+    brokenOut, backOut, persistedBroken: (persisted.status || {}).pond_culvert || null,
     withNet, without, back,
     geo: sf.length, geoPts: sf.filter(f => f.geometry.type === "Point").length,
     geoSource: sf.every(f => !!f.properties.source),
@@ -3409,11 +3412,11 @@ const stormRest = await page.evaluate(async () => {
 console.log("storm broken/3D/export:", JSON.stringify(stormRest));
 if (stormRest.brokenOut !== stormRest.backOut - 1 || stormRest.persistedBroken !== "broken")
   { console.log("FAIL: a broken conduit must leave the kernel list and persist"); process.exit(1); }
-if (stormRest.withNet - stormRest.without !== 25 || stormRest.back !== stormRest.withNet)
-  { console.log("FAIL: the 25 conduits are not in the 3D pick registry",
+if (stormRest.withNet - stormRest.without !== 26 || stormRest.back !== stormRest.withNet)
+  { console.log("FAIL: the 26 conduits are not in the 3D pick registry",
                 stormRest.withNet, stormRest.without, stormRest.back); process.exit(1); }
-if (stormRest.geo !== 68 || stormRest.geoPts !== 43 || !stormRest.geoSource)
-  { console.log("FAIL: the GeoJSON must carry 43 structures + 25 conduits, each with a source",
+if (stormRest.geo !== 70 || stormRest.geoPts !== 44 || !stormRest.geoSource)
+  { console.log("FAIL: the GeoJSON must carry 44 structures + 26 conduits, each with a source",
                 JSON.stringify(stormRest)); process.exit(1); }
 if (!stormRest.dxf) { console.log("FAIL: the DXF is missing the STORM-* layers"); process.exit(1); }
 if (errors.length !== errBeforeStorm) {

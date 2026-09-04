@@ -26,7 +26,8 @@ What it reads
                                 conduit id. Re-run this tool, then build_dist.
 
 What is inferred, and says so on the feature (`source`):
-  frog_green      Frog Pond's outlet end has no CAD structure — the user's Spot 5
+  pond_culvert    the culvert between the two ponds (Spot 5 -> Spot 1); no CAD structure
+  frog_outlet     the west pond's FES piped to the Spot 8 grate; EA drew the FES, not the pipe
   road_drain_*    EA drew the nine grates but no line between them; straight
                   segments between consecutive structures
   pipe_to_main    EA's drawn storm line starts 13 ft west of the surveyed pipe's
@@ -139,22 +140,36 @@ def main():
         conduits.append(c); return c
     def xy(n): return (n["x"], n["y"])
 
-    # ---- Frog Pond -> Green Pond ---------------------------------------------
-    frog = node("frog_outlet", "inferred", 6374418, 2127912, "Frog Pond outlet (inferred)",
-                provenance=USER_PROV,
-                note="Spot 5: the west shore of Frog Pond. No structure in EA's CAD; the pipe's inlet end is to be surveyed.")
-    green_fes = struct_node("green_fes", 6373928.8, 2127878.1, "FES at Green Pond (east shore)",
-                            note="Spot 7: the flared end where the Frog Pond pipe discharges into Green Pond.")
-    conduit("frog_green", "frog_outlet", "green_fes", [xy(frog), (6374349, 2127915), xy(green_fes)],
-            "inferred", provenance=USER_PROV,
-            note="The pipe connecting Frog Pond to Green Pond (user, Sep 2026), through Spot 6. Not drawn in the CAD; inverts unknown.")
-
+    # ---- the two ponds east of the impoundment ------------------------------
+    # NAMING. The engineer calls the EAST pond (E 6,374,450-6,374,726, floor
+    # 1,415 ft) Green Pond and the WEST pond (E 6,373,925-6,374,152, floor
+    # 1,391.6 ft) Frog Pond; EA's geodatabase `water` layer labels them the
+    # other way round. The network uses the engineer's names (he walks the
+    # site) and records the conflict on every node it touches; EA's polygons
+    # are left as delivered. Precedent: EA's CAD swaps C-SITE-DU-LOT-13/15 too.
+    NAME_NOTE = ("Naming: the engineer calls the east pond Green Pond and the west pond Frog Pond; "
+                 "EA's geodatabase labels them the other way round. Engineer's names used here.")
+    # Green Pond (east, upper) -> Frog Pond (west, lower): a short culvert under
+    # the paved road between them, engineer's Spot 5 -> Spot 1 (Sep 2026)
+    gp_out = node("green_out", "inferred", 6374418, 2127912, "Green Pond outlet (east pond, inferred)",
+                  provenance=USER_PROV,
+                  note="Spot 5: the west shore of the east pond. No structure in EA's CAD; the culvert inlet is to be surveyed. " + NAME_NOTE)
+    gp_in = node("green_culvert_out", "inferred", 6374343, 2127914, "Culvert outlet toward Frog Pond (inferred)",
+                 provenance=USER_PROV,
+                 note="Spot 1: the west end of the culvert under the paved road, 75 ft from Spot 5, discharging overland into the west pond. No structure in EA's CAD.")
+    conduit("pond_culvert", "green_out", "green_culvert_out", [xy(gp_out), xy(gp_in)], "inferred", provenance=USER_PROV,
+            note="The culvert under the paved road from Green Pond (east) to Frog Pond (west) (engineer, Sep 2026). Not drawn in the CAD; inverts unknown.")
+    # Frog Pond (west, lower) overflows through the STRM FES on its west shore,
+    # piped under the road to the Spot 8 grate and so into the road drain — NOT
+    # into the impoundment (engineer, Sep 2026)
+    frog_fes = struct_node("frog_outlet_fes", 6373928.8, 2127878.1, "FES — Frog Pond outlet (west shore)",
+                           note="Spot 7: the flared end on the west shore of the west pond, its overflow outlet; piped to the Spot 8 grate. " + NAME_NOTE)
     # ---- Green Pond riser -> culvert under the road -> toward Herman ----------
-    riser = struct_node("green_riser", 6373917.1, 2127966.3, "Round inlet at Green Pond (NW corner)")
-    riser_fes = struct_node("green_riser_fes", 6373859.1, 2127987.9, "FES toward Herman (Green Pond culvert)")
-    mark = byHandle["E5D2D"]
+    riser = struct_node("green_riser", 6373917.1, 2127966.3, "Round inlet at Frog Pond (NW corner) — high-level overflow",
+                        note="STRM INLET ROUND. The engineer reads it as the pond's high-level overflow: only if the water reaches this rim does it go under the road to the impoundment. " + NAME_NOTE)
+    riser_fes = struct_node("green_riser_fes", 6373859.1, 2127987.9, "FES toward Herman (Frog Pond high-level culvert)")
     conduit("green_riser", "green_riser", "green_riser_fes", [xy(riser), xy(riser_fes)], "cad_mark", ["E5D2D"],
-            note="V-STRM-MRKG culvert mark E5D2D, 62 ft under the gravel road between Green Pond and the impoundment.")
+            note="V-STRM-MRKG culvert mark E5D2D, 62 ft under the gravel road from the round inlet toward the impoundment. The pond's normal outlet is the FES on its west shore (frog_outlet); this one takes water only above the round inlet's rim.")
 
     # ---- the south-road drain: nine grates, then the drawn branch -------------
     spots = [(8, 6373831.3, 2127919.1), (9, 6373657.8, 2127751.0), (10, 6373483.9, 2127666.5),
@@ -164,6 +179,8 @@ def main():
     for k, x, y in spots:
         grates.append(struct_node(f"grate_{k}", x, y, f"Grate inlet — Spot {k}",
                                   note="STRM INLET SQUARE block; one of the nine grates of the south-road drain."))
+    conduit("frog_outlet", "frog_outlet_fes", "grate_8", [xy(frog_fes), xy(grates[0])], "inferred", provenance=USER_PROV,
+            note="Frog Pond's overflow: from the FES on its west shore under the road to the Spot 8 grate and into the road drain (engineer, Sep 2026). Not drawn in the CAD; inverts unknown.")
     for a, b in zip(grates, grates[1:]):
         conduit(f"road_drain_{a['id'].split('_')[1]}_{b['id'].split('_')[1]}", a["id"], b["id"], [xy(a), xy(b)],
                 "structures_chain", provenance=USER_PROV,

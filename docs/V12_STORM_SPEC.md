@@ -52,8 +52,9 @@ The network, upstream to downstream (all coordinates EPSG:6418 ft):
 
 | id | from | to | source | note |
 |---|---|---|---|---|
-| `frog_green` | Frog Pond west shore, Spot 5 (6374418, 2127912) — **inferred node, no CAD structure** | `STRM FES` at Green Pond east shore (6373928.8, 2127878.1) | user's spots + CAD FES; alignment through Spot 6 (6374349, 2127915) | the pipe the user says connects the two ponds; 490 ft; inlet end to be surveyed |
-| `green_riser` | `STRM INLET ROUND` at Green Pond NW corner (6373917.1, 2127966.3) | `STRM FES` (6373859.1, 2127987.9), discharging toward Herman | CAD culvert mark `E5D2D` (62 ft under the gravel road) | Green Pond's drawn outlet toward the impoundment |
+| `pond_culvert` | Green Pond (the EAST pond) west shore, Spot 5 (6374418, 2127912) — **inferred node** | Spot 1 (6374343, 2127914) — **inferred node**, 75 ft west under the paved road; discharges overland into Frog Pond (the west pond) | the engineer (Sep 2026) | the culvert between the two ponds; inverts unknown |
+| `frog_outlet` | `STRM FES` on Frog Pond's west shore (6373928.8, 2127878.1) | grate Spot 8 (6373831.3, 2127919.1) | EA's FES + the engineer; **inferred line** | Frog Pond's overflow, 106 ft, piped under the road into the road drain — not into the impoundment |
+| `green_riser` | `STRM INLET ROUND` at Frog Pond's NW corner (6373917.1, 2127966.3) | `STRM FES` (6373859.1, 2127987.9), discharging toward Herman | CAD culvert mark `E5D2D` (62 ft under the gravel road) | the pond's HIGH-LEVEL overflow: only water above the round inlet's rim goes to Herman |
 | `road_drain_1..8` | grate Spot 8 (6373831.3, 2127919.1) → Spot 9 (6373657.8, 2127751.0) → 10 (6373483.9, 2127666.5) → 11 (6373149.3, 2127447.4) → 12 (6372938.3, 2127429.4) → 13 (6372790.9, 2127435.7) → 14 (6372491.9, 2127398.4) → 15 (6372095.0, 2127351.9) | the next grate | CAD structures; **alignment inferred straight between structures — EA drew no line here** | the culvert "along the top of the grates", 2,090 ft; one conduit per pair so a survey can fill inverts one by one |
 | `road_drain_9` | grate Spot 15 | branch start (6371958.6, 2127426.4), a bend node with no structure | inferred straight | 157 ft |
 | `branch` | branch start | junction grate `STRM INLET SQUARE` (6371825.8, 2127494.2) | CAD line `E943F` | 145 ft |
@@ -70,17 +71,19 @@ Direction rule: a conduit's `from` is upstream. For the chain, `branch`,
 description and by the ground (1397 → 1352 → 1340 → 1333 ft). For every
 other pair it is the higher lidar ground end → the lower.
 
-What the lidar says without the pipes, and why it matters: a raindrop at
-every one of the nine grates runs overland into the impoundment or stays in
-the road ditch; Green Pond's low (1391.6 ft) drains overland through the
-`E5D2D` culvert into Herman after filling 11.8 ft; Frog Pond's low
-(1415 ft) spills north-east off the survey. With the pipes assumed working
-the picture the user describes appears: Frog → Green → (whichever inlet in
-Green Pond's basin is lowest: the Spot 8 grate at ground 1397.4 ft, or the
-round inlet at 1400.9 ft, until a survey says otherwise) → the road drain →
-the junction → Clear Lake. The app must show both — the ground-only answer
-is what the terrain says, the piped answer is what the user asked for — and
-the difference between them is exactly the inverts he is going to survey.
+Revised 2026-09-04 by the engineer ("i think there was some confusion"): flow goes
+from Green Pond (east) to Frog Pond (west) through the culvert under the paved road
+(Spot 5 → Spot 1); when Frog Pond overflows it leaves through the FES on its west
+shore to the Spot 8 grate and the road drain, and it does not overflow into the
+impoundment; the round inlet at the pond's corner is the high-level overflow that
+takes water under the road to Herman only if the pond gets that high. **Naming.** The engineer calls the east pond (E 6,374,450–6,374,726, floor 1,415 ft) *Green Pond* and the west pond (E 6,373,925–6,374,152, floor 1,391.6 ft) *Frog Pond*; EA's geodatabase `water` layer labels them the other way round. The storm network uses the engineer's names and says so on every node it touches; EA's polygons are left as delivered (precedent: EA's CAD swaps `C-SITE-DU-LOT-13/15` too).
+
+What the lidar says without the pipes: a raindrop at every one of the nine grates
+runs overland into the impoundment or stays in the road ditch; the west pond's low
+(1391.6 ft) fills 11.8 ft and spills over its own rim toward the round inlet's
+basin; the east pond's low (1415 ft) spills north-east off the survey. With the
+pipes assumed working the engineer's picture appears, and the difference between
+the two answers is exactly the inverts he is going to survey.
 
 ## 2. Definitions (the accuracy contract)
 
@@ -135,6 +138,12 @@ the difference between them is exactly the inverts he is going to survey.
   outlet is the conduit. Completion (every cell under the level) runs as
   now. A pond with a natural pour point lower than every inlet in it spills
   over the ground, as now.
+- **An inlet is a sink in the filled DEM** (added 2026-09-04). `fillDem` is
+  seeded with every capture cell at its conduit's rim (`F = max(z, rim)`), so
+  the escape test knows a depression drained by a grate. Only when conduits are
+  present; the no-conduit fill is unchanged to the bit. Without it a flood that
+  arrives in one lobe of a two-lobe pond takes both lobes to the saddle before
+  it finds the inlet in the other (Frog Pond: 1,402.44 instead of 1,394.50).
 - **A blocked pond** (the Herman ring in the overflow/pipe routes) keeps
   its rule: a route arriving in it ends there.
 - **Disabled**: a conduit with `status: "broken"`, or the whole network when
@@ -277,15 +286,15 @@ dispatch; `flowpath` is covered, this section covers its `conduits` path):
   host does — mirror `SBMM.storm.conduitsFor` in the harness): a drop at
   the Spot 8 grate reaches the outfall node with `pipe_ft` = the chain's
   summed length ±0.5 ft and ends by overland descent at Clear Lake NoData
-  near E 6,371,177 N 2,127,474; a drop at Frog Pond's low fills Frog Pond to
-  the Spot 5 rim, takes `frog_green`, fills Green Pond to the lowest inlet
-  in its basin and reaches the outfall; the same two drops with the network
+  near E 6,371,177 N 2,127,474; a drop at Green Pond's low (the east pond, Spot 5)
+  takes `pond_culvert`, fills Frog Pond to its FES rim, takes `frog_outlet` and
+  the road drain and reaches the outfall; the same two drops with the network
   off reproduce today's answers (Herman / off the survey). Record the
   numbers as regression guards and say they were recorded.
 
 `test/e2e.mjs`, block **"9v. storm"**: the three rows exist with the right
 counts; a grate popup names `STRM INLET SQUARE` and EA's CAD; `DROP` at
-Frog Pond's low creates a `flow` with `legs.length >= 2` ending near the
+Green Pond's low creates a `flow` with `legs.length >= 2` ending near the
 lake and the card shows "In pipes"; `STORM` off → the same drop ends off the
 survey with no legs; the Herman analysis's pipe discharge route row reads
 "in pipe" and the route ends at the outfall; a session round-trip restores
@@ -294,7 +303,7 @@ tagged objects); GeoJSON export carries the network with `source` on every
 feature; alias collisions 0. Field e2e: the rows and the switch exist.
 
 Shots: `test/storm_shots.mjs` → `storm_2d.png` (the south-road chain with a
-Frog Pond raindrop on it), `storm_3d.png`. Look at them.
+Green Pond raindrop on it), `storm_3d.png`. Look at them.
 
 Every harness passes on folder, full dist and field dist; golden unchanged.
 
