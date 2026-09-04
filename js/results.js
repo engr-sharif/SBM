@@ -21,7 +21,7 @@ SBMM.results = (function () {
       <span class="ic" data-a="edit" title="Edit vertices">✎</span>` : ""}
       <span class="ic x" data-a="del" title="Remove">✕</span></span></h4>
       <div class="rows">${rowsHtml(rows)}</div>`;
-    el.querySelector('[data-a="del"]').onclick = () => { f ? SBMM.store.remove(f) : el.remove(); checkEmpty(); };
+    el.querySelector('[data-a="del"]').onclick = () => { f ? SBMM.tools.deleteFeature(f) : el.remove(); checkEmpty(); };
     if (f) {
       el.classList.toggle("sel", SBMM.store.selected === f.id);
       el.addEventListener("mousedown", e => {

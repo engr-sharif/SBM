@@ -1,0 +1,1307 @@
+{
+ "source": "EA Final Design CAD (V-STRM-STRC / V-STRM-MRKG / C-STRM-MAIN-PIPE) + the geodatabase storm structures + Jacobs Aug-2026 survey + the project engineer's identification of the south-road drain",
+ "crs": "EPSG:6418 (NAD83(2011) CA zone 2, US survey ft)",
+ "built": "2026-09-04",
+ "spec": "docs/V12_STORM_SPEC.md",
+ "nodes": [
+  {
+   "id": "frog_outlet",
+   "kind": "inferred",
+   "x": 6374418,
+   "y": 2127912,
+   "name": "Frog Pond outlet (inferred)",
+   "invert_ft": null,
+   "size_in": null,
+   "cad_block": null,
+   "cad_handle": null,
+   "provenance": "Identified by the project engineer (Sep 2026) from EA's CAD structures; alignment not drawn in the CAD",
+   "note": "Spot 5: the west shore of Frog Pond. No structure in EA's CAD; the pipe's inlet end is to be surveyed."
+  },
+  {
+   "id": "green_fes",
+   "kind": "fes",
+   "x": 6373928.82,
+   "y": 2127878.15,
+   "name": "FES at Green Pond (east shore)",
+   "invert_ft": null,
+   "size_in": null,
+   "cad_block": "STRM FES",
+   "cad_handle": null,
+   "provenance": "EA Final Design CAD (V-Base.dwg / C-BASE.dwg, DWG->DXF via libredwg master)",
+   "note": "Spot 7: the flared end where the Frog Pond pipe discharges into Green Pond."
+  },
+  {
+   "id": "green_riser",
+   "kind": "round_inlet",
+   "x": 6373917.11,
+   "y": 2127966.29,
+   "name": "Round inlet at Green Pond (NW corner)",
+   "invert_ft": null,
+   "size_in": null,
+   "cad_block": "STRM INLET ROUND",
+   "cad_handle": null,
+   "provenance": "EA Final Design CAD (V-Base.dwg / C-BASE.dwg, DWG->DXF via libredwg master)",
+   "note": null
+  },
+  {
+   "id": "green_riser_fes",
+   "kind": "fes",
+   "x": 6373859.12,
+   "y": 2127987.91,
+   "name": "FES toward Herman (Green Pond culvert)",
+   "invert_ft": null,
+   "size_in": null,
+   "cad_block": "STRM FES",
+   "cad_handle": null,
+   "provenance": "EA Final Design CAD (V-Base.dwg / C-BASE.dwg, DWG->DXF via libredwg master)",
+   "note": null
+  },
+  {
+   "id": "grate_8",
+   "kind": "grate",
+   "x": 6373831.3,
+   "y": 2127919.08,
+   "name": "Grate inlet \u2014 Spot 8",
+   "invert_ft": null,
+   "size_in": null,
+   "cad_block": "STRM INLET SQUARE",
+   "cad_handle": null,
+   "provenance": "EA Final Design CAD (V-Base.dwg / C-BASE.dwg, DWG->DXF via libredwg master)",
+   "note": "STRM INLET SQUARE block; one of the nine grates of the south-road drain."
+  },
+  {
+   "id": "grate_9",
+   "kind": "grate",
+   "x": 6373657.82,
+   "y": 2127750.96,
+   "name": "Grate inlet \u2014 Spot 9",
+   "invert_ft": null,
+   "size_in": null,
+   "cad_block": "STRM INLET SQUARE",
+   "cad_handle": null,
+   "provenance": "EA Final Design CAD (V-Base.dwg / C-BASE.dwg, DWG->DXF via libredwg master)",
+   "note": "STRM INLET SQUARE block; one of the nine grates of the south-road drain."
+  },
+  {
+   "id": "grate_10",
+   "kind": "grate",
+   "x": 6373483.93,
+   "y": 2127666.5,
+   "name": "Grate inlet \u2014 Spot 10",
+   "invert_ft": null,
+   "size_in": null,
+   "cad_block": "STRM INLET SQUARE",
+   "cad_handle": null,
+   "provenance": "EA Final Design CAD (V-Base.dwg / C-BASE.dwg, DWG->DXF via libredwg master)",
+   "note": "STRM INLET SQUARE block; one of the nine grates of the south-road drain."
+  },
+  {
+   "id": "grate_11",
+   "kind": "grate",
+   "x": 6373149.33,
+   "y": 2127447.38,
+   "name": "Grate inlet \u2014 Spot 11",
+   "invert_ft": null,
+   "size_in": null,
+   "cad_block": "STRM INLET SQUARE",
+   "cad_handle": null,
+   "provenance": "EA Final Design CAD (V-Base.dwg / C-BASE.dwg, DWG->DXF via libredwg master)",
+   "note": "STRM INLET SQUARE block; one of the nine grates of the south-road drain."
+  },
+  {
+   "id": "grate_12",
+   "kind": "grate",
+   "x": 6372938.27,
+   "y": 2127429.38,
+   "name": "Grate inlet \u2014 Spot 12",
+   "invert_ft": null,
+   "size_in": null,
+   "cad_block": "STRM INLET SQUARE",
+   "cad_handle": null,
+   "provenance": "EA Final Design CAD (V-Base.dwg / C-BASE.dwg, DWG->DXF via libredwg master)",
+   "note": "STRM INLET SQUARE block; one of the nine grates of the south-road drain."
+  },
+  {
+   "id": "grate_13",
+   "kind": "grate",
+   "x": 6372790.93,
+   "y": 2127435.74,
+   "name": "Grate inlet \u2014 Spot 13",
+   "invert_ft": null,
+   "size_in": null,
+   "cad_block": "STRM INLET SQUARE",
+   "cad_handle": null,
+   "provenance": "EA Final Design CAD (V-Base.dwg / C-BASE.dwg, DWG->DXF via libredwg master)",
+   "note": "STRM INLET SQUARE block; one of the nine grates of the south-road drain."
+  },
+  {
+   "id": "grate_14",
+   "kind": "grate",
+   "x": 6372491.87,
+   "y": 2127398.38,
+   "name": "Grate inlet \u2014 Spot 14",
+   "invert_ft": null,
+   "size_in": null,
+   "cad_block": "STRM INLET SQUARE",
+   "cad_handle": null,
+   "provenance": "EA Final Design CAD (V-Base.dwg / C-BASE.dwg, DWG->DXF via libredwg master)",
+   "note": "STRM INLET SQUARE block; one of the nine grates of the south-road drain."
+  },
+  {
+   "id": "grate_15",
+   "kind": "grate",
+   "x": 6372094.96,
+   "y": 2127351.85,
+   "name": "Grate inlet \u2014 Spot 15",
+   "invert_ft": null,
+   "size_in": null,
+   "cad_block": "STRM INLET SQUARE",
+   "cad_handle": null,
+   "provenance": "EA Final Design CAD (V-Base.dwg / C-BASE.dwg, DWG->DXF via libredwg master)",
+   "note": "STRM INLET SQUARE block; one of the nine grates of the south-road drain."
+  },
+  {
+   "id": "branch_start",
+   "kind": "bend",
+   "x": 6371958.6,
+   "y": 2127426.42,
+   "name": "Branch start (drawn line begins)",
+   "invert_ft": null,
+   "size_in": null,
+   "cad_block": null,
+   "cad_handle": "E943F",
+   "provenance": "EA Final Design CAD (V-Base.dwg / C-BASE.dwg, DWG->DXF via libredwg master)",
+   "note": "Spot 16/17: the east end of EA's drawn branch line E943F. No structure drawn here."
+  },
+  {
+   "id": "junction",
+   "kind": "grate",
+   "x": 6371825.76,
+   "y": 2127494.21,
+   "name": "Junction grate (branch meets the storm main)",
+   "invert_ft": null,
+   "size_in": null,
+   "cad_block": "STRM INLET SQUARE",
+   "cad_handle": null,
+   "provenance": "EA Final Design CAD (V-Base.dwg / C-BASE.dwg, DWG->DXF via libredwg master)",
+   "note": "STRM INLET SQUARE at the end of E943F, on the storm main."
+  },
+  {
+   "id": "herman_pipe_n_inv",
+   "kind": "pipe_end",
+   "x": 6372041.23,
+   "y": 2127486.62,
+   "name": "24 in corrugated HDPE pipe (North) \u2014 surveyed invert",
+   "invert_ft": 1341.57,
+   "size_in": 24,
+   "cad_block": null,
+   "cad_handle": null,
+   "provenance": "Jacobs, Additional Limited Topographic Survey, Aug 2026 (docs/Sulphur Bank Mine - Additional- (1).pdf)",
+   "note": "Invert surveyed at the sandbag-wall end."
+  },
+  {
+   "id": "herman_pipe_n_end",
+   "kind": "pipe_end",
+   "x": 6372025.33,
+   "y": 2127481.72,
+   "name": "24 in corrugated HDPE pipe (North) \u2014 plotted west end",
+   "invert_ft": null,
+   "size_in": 24,
+   "cad_block": null,
+   "cad_handle": null,
+   "provenance": "Jacobs, Additional Limited Topographic Survey, Aug 2026 (docs/Sulphur Bank Mine - Additional- (1).pdf)",
+   "note": "The plotted extent of the pipe on the survey sheet, not a surveyed point."
+  },
+  {
+   "id": "herman_pipe_s_inv",
+   "kind": "pipe_end",
+   "x": 6372041.79,
+   "y": 2127483.07,
+   "name": "24 in corrugated HDPE pipe (South) \u2014 surveyed invert",
+   "invert_ft": 1341.53,
+   "size_in": 24,
+   "cad_block": null,
+   "cad_handle": null,
+   "provenance": "Jacobs, Additional Limited Topographic Survey, Aug 2026 (docs/Sulphur Bank Mine - Additional- (1).pdf)",
+   "note": "Invert surveyed at the sandbag-wall end."
+  },
+  {
+   "id": "herman_pipe_s_end",
+   "kind": "pipe_end",
+   "x": 6372025.85,
+   "y": 2127478.79,
+   "name": "24 in corrugated HDPE pipe (South) \u2014 plotted west end",
+   "invert_ft": null,
+   "size_in": 24,
+   "cad_block": null,
+   "cad_handle": null,
+   "provenance": "Jacobs, Additional Limited Topographic Survey, Aug 2026 (docs/Sulphur Bank Mine - Additional- (1).pdf)",
+   "note": "The plotted extent of the pipe on the survey sheet, not a surveyed point."
+  },
+  {
+   "id": "storm_main_east",
+   "kind": "bend",
+   "x": 6372013.4,
+   "y": 2127476.07,
+   "name": "Storm main \u2014 east end of the drawn line",
+   "invert_ft": null,
+   "size_in": null,
+   "cad_block": null,
+   "cad_handle": "E943C",
+   "provenance": "EA Final Design CAD (V-Base.dwg / C-BASE.dwg, DWG->DXF via libredwg master)",
+   "note": "Where EA's storm line begins, 13 ft west of the surveyed pipe's plotted end."
+  },
+  {
+   "id": "outfall",
+   "kind": "outfall",
+   "x": 6371273.02,
+   "y": 2127487.87,
+   "name": "Clear Lake outfall (end of the drawn line)",
+   "invert_ft": null,
+   "size_in": null,
+   "cad_block": null,
+   "cad_handle": "E943C",
+   "provenance": "EA Final Design CAD (V-Base.dwg / C-BASE.dwg, DWG->DXF via libredwg master)",
+   "note": "The west end of EA's storm line at the Clear Lake shore. No headwall or FES drawn."
+  },
+  {
+   "id": "south_culvert_a",
+   "kind": "fes",
+   "x": 6372717.86,
+   "y": 2127378.24,
+   "name": "FES \u2014 outlet end (south_culvert)",
+   "invert_ft": null,
+   "size_in": null,
+   "cad_block": "STRM FES",
+   "cad_handle": null,
+   "provenance": "EA Final Design CAD (V-Base.dwg / C-BASE.dwg, DWG->DXF via libredwg master)",
+   "note": null
+  },
+  {
+   "id": "south_culvert_b",
+   "kind": "fes",
+   "x": 6372740.63,
+   "y": 2127345.23,
+   "name": "FES \u2014 inlet end (south_culvert)",
+   "invert_ft": null,
+   "size_in": null,
+   "cad_block": "STRM FES",
+   "cad_handle": null,
+   "provenance": "EA Final Design CAD (V-Base.dwg / C-BASE.dwg, DWG->DXF via libredwg master)",
+   "note": null
+  },
+  {
+   "id": "culvert_north_a",
+   "kind": "fes",
+   "x": 6372633.25,
+   "y": 2129574.47,
+   "name": "FES \u2014 inlet end (culvert_north)",
+   "invert_ft": null,
+   "size_in": null,
+   "cad_block": "STRM FES",
+   "cad_handle": null,
+   "provenance": "EA Final Design CAD (V-Base.dwg / C-BASE.dwg, DWG->DXF via libredwg master)",
+   "note": null
+  },
+  {
+   "id": "culvert_north_b",
+   "kind": "fes",
+   "x": 6372635.25,
+   "y": 2129658.22,
+   "name": "FES \u2014 outlet end (culvert_north)",
+   "invert_ft": null,
+   "size_in": null,
+   "cad_block": "STRM FES",
+   "cad_handle": null,
+   "provenance": "EA Final Design CAD (V-Base.dwg / C-BASE.dwg, DWG->DXF via libredwg master)",
+   "note": null
+  },
+  {
+   "id": "culvert_ne_a",
+   "kind": "fes",
+   "x": 6374313.37,
+   "y": 2128687.87,
+   "name": "FES \u2014 outlet end (culvert_ne)",
+   "invert_ft": null,
+   "size_in": null,
+   "cad_block": "STRM FES",
+   "cad_handle": null,
+   "provenance": "EA Final Design CAD (V-Base.dwg / C-BASE.dwg, DWG->DXF via libredwg master)",
+   "note": null
+  },
+  {
+   "id": "culvert_ne_b",
+   "kind": "fes",
+   "x": 6374394.29,
+   "y": 2128657.1,
+   "name": "FES \u2014 inlet end (culvert_ne)",
+   "invert_ft": null,
+   "size_in": null,
+   "cad_block": "STRM FES",
+   "cad_handle": null,
+   "provenance": "EA Final Design CAD (V-Base.dwg / C-BASE.dwg, DWG->DXF via libredwg master)",
+   "note": null
+  },
+  {
+   "id": "culvert_sw_a",
+   "kind": "fes",
+   "x": 6370494.87,
+   "y": 2126293.82,
+   "name": "FES \u2014 inlet end (culvert_sw)",
+   "invert_ft": null,
+   "size_in": null,
+   "cad_block": "STRM FES",
+   "cad_handle": null,
+   "provenance": "EA Final Design CAD (V-Base.dwg / C-BASE.dwg, DWG->DXF via libredwg master)",
+   "note": null
+  },
+  {
+   "id": "culvert_sw_b",
+   "kind": "fes",
+   "x": 6370506.04,
+   "y": 2126321.64,
+   "name": "FES \u2014 outlet end (culvert_sw)",
+   "invert_ft": null,
+   "size_in": null,
+   "cad_block": "STRM FES",
+   "cad_handle": null,
+   "provenance": "EA Final Design CAD (V-Base.dwg / C-BASE.dwg, DWG->DXF via libredwg master)",
+   "note": null
+  },
+  {
+   "id": "culvert_w_a",
+   "kind": "fes",
+   "x": 6369457.24,
+   "y": 2125854.19,
+   "name": "FES \u2014 outlet end (culvert_w)",
+   "invert_ft": null,
+   "size_in": null,
+   "cad_block": "STRM FES",
+   "cad_handle": null,
+   "provenance": "EA Final Design CAD (V-Base.dwg / C-BASE.dwg, DWG->DXF via libredwg master)",
+   "note": null
+  },
+  {
+   "id": "culvert_w_b",
+   "kind": "fes",
+   "x": 6369477.57,
+   "y": 2125841.69,
+   "name": "FES \u2014 inlet end (culvert_w)",
+   "invert_ft": null,
+   "size_in": null,
+   "cad_block": "STRM FES",
+   "cad_handle": null,
+   "provenance": "EA Final Design CAD (V-Base.dwg / C-BASE.dwg, DWG->DXF via libredwg master)",
+   "note": null
+  },
+  {
+   "id": "fes_single_0",
+   "kind": "fes",
+   "x": 6374592.14,
+   "y": 2129647.36,
+   "name": "FES (single, no mate drawn)",
+   "invert_ft": null,
+   "size_in": null,
+   "cad_block": "STRM FES",
+   "cad_handle": null,
+   "provenance": "EA Final Design CAD (V-Base.dwg / C-BASE.dwg, DWG->DXF via libredwg master)",
+   "note": "A flared end with no counterpart within 40 ft; the culvert it belongs to is not in the CAD."
+  },
+  {
+   "id": "culvert_pair_1_a",
+   "kind": "fes",
+   "x": 6374655.23,
+   "y": 2129656.47,
+   "name": "FES \u2014 outlet end (culvert_pair_1)",
+   "invert_ft": null,
+   "size_in": null,
+   "cad_block": "STRM FES",
+   "cad_handle": null,
+   "provenance": "EA Final Design CAD (V-Base.dwg / C-BASE.dwg, DWG->DXF via libredwg master)",
+   "note": null
+  },
+  {
+   "id": "culvert_pair_1_b",
+   "kind": "fes",
+   "x": 6374675.76,
+   "y": 2129657.93,
+   "name": "FES \u2014 inlet end (culvert_pair_1)",
+   "invert_ft": null,
+   "size_in": null,
+   "cad_block": "STRM FES",
+   "cad_handle": null,
+   "provenance": "EA Final Design CAD (V-Base.dwg / C-BASE.dwg, DWG->DXF via libredwg master)",
+   "note": null
+  },
+  {
+   "id": "culvert_pair_2_a",
+   "kind": "fes",
+   "x": 6374708.53,
+   "y": 2130265.98,
+   "name": "FES \u2014 outlet end (culvert_pair_2)",
+   "invert_ft": null,
+   "size_in": null,
+   "cad_block": "STRM FES",
+   "cad_handle": null,
+   "provenance": "EA Final Design CAD (V-Base.dwg / C-BASE.dwg, DWG->DXF via libredwg master)",
+   "note": null
+  },
+  {
+   "id": "culvert_pair_2_b",
+   "kind": "fes",
+   "x": 6374725.05,
+   "y": 2130263.92,
+   "name": "FES \u2014 inlet end (culvert_pair_2)",
+   "invert_ft": null,
+   "size_in": null,
+   "cad_block": "STRM FES",
+   "cad_handle": null,
+   "provenance": "EA Final Design CAD (V-Base.dwg / C-BASE.dwg, DWG->DXF via libredwg master)",
+   "note": null
+  },
+  {
+   "id": "culvert_pair_3_a",
+   "kind": "fes",
+   "x": 6374657.61,
+   "y": 2130405.17,
+   "name": "FES \u2014 outlet end (culvert_pair_3)",
+   "invert_ft": null,
+   "size_in": null,
+   "cad_block": "STRM FES",
+   "cad_handle": null,
+   "provenance": "EA Final Design CAD (V-Base.dwg / C-BASE.dwg, DWG->DXF via libredwg master)",
+   "note": null
+  },
+  {
+   "id": "culvert_pair_3_b",
+   "kind": "fes",
+   "x": 6374674.94,
+   "y": 2130401.28,
+   "name": "FES \u2014 inlet end (culvert_pair_3)",
+   "invert_ft": null,
+   "size_in": null,
+   "cad_block": "STRM FES",
+   "cad_handle": null,
+   "provenance": "EA Final Design CAD (V-Base.dwg / C-BASE.dwg, DWG->DXF via libredwg master)",
+   "note": null
+  },
+  {
+   "id": "fes_single_4",
+   "kind": "fes",
+   "x": 6375137.13,
+   "y": 2128885.45,
+   "name": "FES (single, no mate drawn)",
+   "invert_ft": null,
+   "size_in": null,
+   "cad_block": "STRM FES",
+   "cad_handle": null,
+   "provenance": "EA Final Design CAD (V-Base.dwg / C-BASE.dwg, DWG->DXF via libredwg master)",
+   "note": "A flared end with no counterpart within 40 ft; the culvert it belongs to is not in the CAD."
+  },
+  {
+   "id": "fes_single_5",
+   "kind": "fes",
+   "x": 6369555.17,
+   "y": 2126129.68,
+   "name": "FES (single, no mate drawn)",
+   "invert_ft": null,
+   "size_in": null,
+   "cad_block": "STRM FES",
+   "cad_handle": null,
+   "provenance": "EA Final Design CAD (V-Base.dwg / C-BASE.dwg, DWG->DXF via libredwg master)",
+   "note": "A flared end with no counterpart within 40 ft; the culvert it belongs to is not in the CAD."
+  },
+  {
+   "id": "fes_single_6",
+   "kind": "fes",
+   "x": 6372005.52,
+   "y": 2125344.84,
+   "name": "FES (single, no mate drawn)",
+   "invert_ft": null,
+   "size_in": null,
+   "cad_block": "STRM FES",
+   "cad_handle": null,
+   "provenance": "EA Final Design CAD (V-Base.dwg / C-BASE.dwg, DWG->DXF via libredwg master)",
+   "note": "A flared end with no counterpart within 40 ft; the culvert it belongs to is not in the CAD."
+  },
+  {
+   "id": "fes_single_7",
+   "kind": "fes",
+   "x": 6373680.12,
+   "y": 2125832.06,
+   "name": "FES (single, no mate drawn)",
+   "invert_ft": null,
+   "size_in": null,
+   "cad_block": "STRM FES",
+   "cad_handle": null,
+   "provenance": "EA Final Design CAD (V-Base.dwg / C-BASE.dwg, DWG->DXF via libredwg master)",
+   "note": "A flared end with no counterpart within 40 ft; the culvert it belongs to is not in the CAD."
+  },
+  {
+   "id": "lot25_cb",
+   "kind": "grate",
+   "x": 6370523.48,
+   "y": 2129506.47,
+   "name": "Catch basin \u2014 Lot 25 yard drain",
+   "invert_ft": null,
+   "size_in": null,
+   "cad_block": null,
+   "cad_handle": "379EC",
+   "provenance": "EA Final Design CAD (V-Base.dwg / C-BASE.dwg, DWG->DXF via libredwg master)",
+   "note": "C-STRM-MAIN-PIPE structure symbol at the pipe's east end (C-BASE)."
+  },
+  {
+   "id": "lot25_out",
+   "kind": "pipe_end",
+   "x": 6370393.96,
+   "y": 2129568.19,
+   "name": "Yard drain outlet \u2014 Lot 25",
+   "invert_ft": null,
+   "size_in": null,
+   "cad_block": null,
+   "cad_handle": "378C8",
+   "provenance": "EA Final Design CAD (V-Base.dwg / C-BASE.dwg, DWG->DXF via libredwg master)",
+   "note": "The west end of the drawn pipe."
+  }
+ ],
+ "conduits": [
+  {
+   "id": "frog_green",
+   "from": "frog_outlet",
+   "to": "green_fes",
+   "pts": [
+    [
+     6374418,
+     2127912
+    ],
+    [
+     6374349,
+     2127915
+    ],
+    [
+     6373928.82,
+     2127878.15
+    ]
+   ],
+   "length_ft": 490.9,
+   "size_in": null,
+   "material": null,
+   "source": "inferred",
+   "cad_handles": [],
+   "provenance": "Identified by the project engineer (Sep 2026) from EA's CAD structures; alignment not drawn in the CAD",
+   "note": "The pipe connecting Frog Pond to Green Pond (user, Sep 2026), through Spot 6. Not drawn in the CAD; inverts unknown.",
+   "status": "assumed_working"
+  },
+  {
+   "id": "green_riser",
+   "from": "green_riser",
+   "to": "green_riser_fes",
+   "pts": [
+    [
+     6373917.11,
+     2127966.29
+    ],
+    [
+     6373859.12,
+     2127987.91
+    ]
+   ],
+   "length_ft": 61.9,
+   "size_in": null,
+   "material": null,
+   "source": "cad_mark",
+   "cad_handles": [
+    "E5D2D"
+   ],
+   "provenance": "EA Final Design CAD (V-Base.dwg / C-BASE.dwg, DWG->DXF via libredwg master)",
+   "note": "V-STRM-MRKG culvert mark E5D2D, 62 ft under the gravel road between Green Pond and the impoundment.",
+   "status": "assumed_working"
+  },
+  {
+   "id": "road_drain_8_9",
+   "from": "grate_8",
+   "to": "grate_9",
+   "pts": [
+    [
+     6373831.3,
+     2127919.08
+    ],
+    [
+     6373657.82,
+     2127750.96
+    ]
+   ],
+   "length_ft": 241.6,
+   "size_in": null,
+   "material": null,
+   "source": "structures_chain",
+   "cad_handles": [],
+   "provenance": "Identified by the project engineer (Sep 2026) from EA's CAD structures; alignment not drawn in the CAD",
+   "note": "The culvert along the top of the grates (user, Sep 2026). EA drew the structures, not the line; alignment taken straight between them.",
+   "status": "assumed_working"
+  },
+  {
+   "id": "road_drain_9_10",
+   "from": "grate_9",
+   "to": "grate_10",
+   "pts": [
+    [
+     6373657.82,
+     2127750.96
+    ],
+    [
+     6373483.93,
+     2127666.5
+    ]
+   ],
+   "length_ft": 193.3,
+   "size_in": null,
+   "material": null,
+   "source": "structures_chain",
+   "cad_handles": [],
+   "provenance": "Identified by the project engineer (Sep 2026) from EA's CAD structures; alignment not drawn in the CAD",
+   "note": "The culvert along the top of the grates (user, Sep 2026). EA drew the structures, not the line; alignment taken straight between them.",
+   "status": "assumed_working"
+  },
+  {
+   "id": "road_drain_10_11",
+   "from": "grate_10",
+   "to": "grate_11",
+   "pts": [
+    [
+     6373483.93,
+     2127666.5
+    ],
+    [
+     6373149.33,
+     2127447.38
+    ]
+   ],
+   "length_ft": 400.0,
+   "size_in": null,
+   "material": null,
+   "source": "structures_chain",
+   "cad_handles": [],
+   "provenance": "Identified by the project engineer (Sep 2026) from EA's CAD structures; alignment not drawn in the CAD",
+   "note": "The culvert along the top of the grates (user, Sep 2026). EA drew the structures, not the line; alignment taken straight between them.",
+   "status": "assumed_working"
+  },
+  {
+   "id": "road_drain_11_12",
+   "from": "grate_11",
+   "to": "grate_12",
+   "pts": [
+    [
+     6373149.33,
+     2127447.38
+    ],
+    [
+     6372938.27,
+     2127429.38
+    ]
+   ],
+   "length_ft": 211.8,
+   "size_in": null,
+   "material": null,
+   "source": "structures_chain",
+   "cad_handles": [],
+   "provenance": "Identified by the project engineer (Sep 2026) from EA's CAD structures; alignment not drawn in the CAD",
+   "note": "The culvert along the top of the grates (user, Sep 2026). EA drew the structures, not the line; alignment taken straight between them.",
+   "status": "assumed_working"
+  },
+  {
+   "id": "road_drain_12_13",
+   "from": "grate_12",
+   "to": "grate_13",
+   "pts": [
+    [
+     6372938.27,
+     2127429.38
+    ],
+    [
+     6372790.93,
+     2127435.74
+    ]
+   ],
+   "length_ft": 147.5,
+   "size_in": null,
+   "material": null,
+   "source": "structures_chain",
+   "cad_handles": [],
+   "provenance": "Identified by the project engineer (Sep 2026) from EA's CAD structures; alignment not drawn in the CAD",
+   "note": "The culvert along the top of the grates (user, Sep 2026). EA drew the structures, not the line; alignment taken straight between them.",
+   "status": "assumed_working"
+  },
+  {
+   "id": "road_drain_13_14",
+   "from": "grate_13",
+   "to": "grate_14",
+   "pts": [
+    [
+     6372790.93,
+     2127435.74
+    ],
+    [
+     6372491.87,
+     2127398.38
+    ]
+   ],
+   "length_ft": 301.4,
+   "size_in": null,
+   "material": null,
+   "source": "structures_chain",
+   "cad_handles": [],
+   "provenance": "Identified by the project engineer (Sep 2026) from EA's CAD structures; alignment not drawn in the CAD",
+   "note": "The culvert along the top of the grates (user, Sep 2026). EA drew the structures, not the line; alignment taken straight between them.",
+   "status": "assumed_working"
+  },
+  {
+   "id": "road_drain_14_15",
+   "from": "grate_14",
+   "to": "grate_15",
+   "pts": [
+    [
+     6372491.87,
+     2127398.38
+    ],
+    [
+     6372094.96,
+     2127351.85
+    ]
+   ],
+   "length_ft": 399.6,
+   "size_in": null,
+   "material": null,
+   "source": "structures_chain",
+   "cad_handles": [],
+   "provenance": "Identified by the project engineer (Sep 2026) from EA's CAD structures; alignment not drawn in the CAD",
+   "note": "The culvert along the top of the grates (user, Sep 2026). EA drew the structures, not the line; alignment taken straight between them.",
+   "status": "assumed_working"
+  },
+  {
+   "id": "road_drain_15_branch",
+   "from": "grate_15",
+   "to": "branch_start",
+   "pts": [
+    [
+     6372094.96,
+     2127351.85
+    ],
+    [
+     6371958.6,
+     2127426.42
+    ]
+   ],
+   "length_ft": 155.4,
+   "size_in": null,
+   "material": null,
+   "source": "structures_chain",
+   "cad_handles": [],
+   "provenance": "Identified by the project engineer (Sep 2026) from EA's CAD structures; alignment not drawn in the CAD",
+   "note": "Straight between the last grate and the start of the drawn branch.",
+   "status": "assumed_working"
+  },
+  {
+   "id": "branch",
+   "from": "branch_start",
+   "to": "junction",
+   "pts": [
+    [
+     6371958.6,
+     2127426.42
+    ],
+    [
+     6371870.38,
+     2127471.67
+    ],
+    [
+     6371825.76,
+     2127494.21
+    ]
+   ],
+   "length_ft": 149.1,
+   "size_in": null,
+   "material": null,
+   "source": "cad_line",
+   "cad_handles": [
+    "E943F",
+    "E9440"
+   ],
+   "provenance": "EA Final Design CAD (V-Base.dwg / C-BASE.dwg, DWG->DXF via libredwg master)",
+   "note": "EA's drawn branch line, 145 ft.",
+   "status": "assumed_working"
+  },
+  {
+   "id": "herman_pipe_n",
+   "from": "herman_pipe_n_inv",
+   "to": "herman_pipe_n_end",
+   "pts": [
+    [
+     6372041.23,
+     2127486.62
+    ],
+    [
+     6372025.33,
+     2127481.72
+    ]
+   ],
+   "length_ft": 16.6,
+   "size_in": 24,
+   "material": "corrugated HDPE",
+   "source": "survey",
+   "cad_handles": [],
+   "provenance": "Jacobs, Additional Limited Topographic Survey, Aug 2026 (docs/Sulphur Bank Mine - Additional- (1).pdf)",
+   "note": "One of the two 24-in corrugated HDPE barrels through the sandbag wall.",
+   "status": "assumed_working"
+  },
+  {
+   "id": "herman_pipe_s",
+   "from": "herman_pipe_s_inv",
+   "to": "herman_pipe_s_end",
+   "pts": [
+    [
+     6372041.79,
+     2127483.07
+    ],
+    [
+     6372025.85,
+     2127478.79
+    ]
+   ],
+   "length_ft": 16.5,
+   "size_in": 24,
+   "material": "corrugated HDPE",
+   "source": "survey",
+   "cad_handles": [],
+   "provenance": "Jacobs, Additional Limited Topographic Survey, Aug 2026 (docs/Sulphur Bank Mine - Additional- (1).pdf)",
+   "note": "One of the two 24-in corrugated HDPE barrels through the sandbag wall.",
+   "status": "assumed_working"
+  },
+  {
+   "id": "pipe_to_main",
+   "from": "herman_pipe_n_end",
+   "to": "storm_main_east",
+   "pts": [
+    [
+     6372025.33,
+     2127481.72
+    ],
+    [
+     6372013.4,
+     2127476.07
+    ]
+   ],
+   "length_ft": 13.2,
+   "size_in": 24,
+   "material": null,
+   "source": "inferred",
+   "cad_handles": [],
+   "provenance": "Identified by the project engineer (Sep 2026) from EA's CAD structures; alignment not drawn in the CAD",
+   "note": "The connection between the surveyed pipes and EA's drawn storm line (user, Sep 2026): the drawn line starts 13 ft west of the plotted pipe end.",
+   "status": "assumed_working"
+  },
+  {
+   "id": "storm_main_upper",
+   "from": "storm_main_east",
+   "to": "junction",
+   "pts": [
+    [
+     6372013.4,
+     2127476.07
+    ],
+    [
+     6371997.05,
+     2127472.29
+    ],
+    [
+     6371977.53,
+     2127468.71
+    ],
+    [
+     6371957.63,
+     2127465.9
+    ],
+    [
+     6371934.6,
+     2127464.2
+    ],
+    [
+     6371916.26,
+     2127464.23
+    ],
+    [
+     6371895.47,
+     2127466.14
+    ],
+    [
+     6371885.61,
+     2127471.11
+    ],
+    [
+     6371868.05,
+     2127481.72
+    ],
+    [
+     6371825.76,
+     2127494.21
+    ]
+   ],
+   "length_ft": 194.7,
+   "size_in": 24,
+   "material": null,
+   "source": "cad_line",
+   "cad_handles": [
+    "E943C",
+    "E943D",
+    "E943E",
+    "E9441",
+    "E9442"
+   ],
+   "provenance": "EA Final Design CAD (V-Base.dwg / C-BASE.dwg, DWG->DXF via libredwg master)",
+   "note": "EA's storm main, drawn as a 24-in double line with a centreline; the junction grate sits 5.6 ft off the centreline.",
+   "status": "assumed_working"
+  },
+  {
+   "id": "storm_main_lower",
+   "from": "junction",
+   "to": "outfall",
+   "pts": [
+    [
+     6371825.76,
+     2127494.21
+    ],
+    [
+     6371775.1,
+     2127522.65
+    ],
+    [
+     6371672.88,
+     2127557.04
+    ],
+    [
+     6371653.91,
+     2127565.23
+    ],
+    [
+     6371599.98,
+     2127582.41
+    ],
+    [
+     6371560.31,
+     2127583.44
+    ],
+    [
+     6371543.45,
+     2127578.42
+    ],
+    [
+     6371504.82,
+     2127563.42
+    ],
+    [
+     6371490.33,
+     2127557.99
+    ],
+    [
+     6371464.89,
+     2127549.02
+    ],
+    [
+     6371436.78,
+     2127541.78
+    ],
+    [
+     6371390.44,
+     2127531.25
+    ],
+    [
+     6371312.26,
+     2127516.15
+    ],
+    [
+     6371273.02,
+     2127487.87
+    ]
+   ],
+   "length_ft": 588.9,
+   "size_in": 24,
+   "material": null,
+   "source": "cad_line",
+   "cad_handles": [
+    "E943C",
+    "E943D",
+    "E943E",
+    "E9443",
+    "E9444"
+   ],
+   "provenance": "EA Final Design CAD (V-Base.dwg / C-BASE.dwg, DWG->DXF via libredwg master)",
+   "note": "EA's storm main from the junction to the lake.",
+   "status": "assumed_working"
+  },
+  {
+   "id": "south_culvert",
+   "from": "south_culvert_b",
+   "to": "south_culvert_a",
+   "pts": [
+    [
+     6372740.63,
+     2127345.23
+    ],
+    [
+     6372717.86,
+     2127378.24
+    ]
+   ],
+   "length_ft": 40.1,
+   "size_in": null,
+   "material": null,
+   "source": "cad_mark",
+   "cad_handles": [
+    "E5D2E"
+   ],
+   "provenance": "EA Final Design CAD (V-Base.dwg / C-BASE.dwg, DWG->DXF via libredwg master)",
+   "note": "V-STRM-MRKG culvert mark E5D2E, 40 ft under the south road; discharges toward the impoundment's south shore. Not part of the grate chain. Direction from lidar ground (1356.2 -> 1359.5 ft).",
+   "status": "assumed_working"
+  },
+  {
+   "id": "culvert_north",
+   "from": "culvert_north_a",
+   "to": "culvert_north_b",
+   "pts": [
+    [
+     6372633.25,
+     2129574.47
+    ],
+    [
+     6372635.25,
+     2129658.22
+    ]
+   ],
+   "length_ft": 83.8,
+   "size_in": null,
+   "material": null,
+   "source": "cad_mark",
+   "cad_handles": [
+    "E5D2B"
+   ],
+   "provenance": "EA Final Design CAD (V-Base.dwg / C-BASE.dwg, DWG->DXF via libredwg master)",
+   "note": "V-STRM-MRKG culvert mark E5D2B. Direction from lidar ground (1338.3 -> 1338.0 ft).",
+   "status": "assumed_working"
+  },
+  {
+   "id": "culvert_ne",
+   "from": "culvert_ne_b",
+   "to": "culvert_ne_a",
+   "pts": [
+    [
+     6374394.29,
+     2128657.1
+    ],
+    [
+     6374313.37,
+     2128687.87
+    ]
+   ],
+   "length_ft": 86.6,
+   "size_in": null,
+   "material": null,
+   "source": "cad_mark",
+   "cad_handles": [
+    "E5D2C"
+   ],
+   "provenance": "EA Final Design CAD (V-Base.dwg / C-BASE.dwg, DWG->DXF via libredwg master)",
+   "note": "V-STRM-MRKG culvert mark E5D2C. Direction from lidar ground (1399.4 -> 1399.4 ft).",
+   "status": "assumed_working"
+  },
+  {
+   "id": "culvert_sw",
+   "from": "culvert_sw_a",
+   "to": "culvert_sw_b",
+   "pts": [
+    [
+     6370494.87,
+     2126293.82
+    ],
+    [
+     6370506.04,
+     2126321.64
+    ]
+   ],
+   "length_ft": 30.0,
+   "size_in": null,
+   "material": null,
+   "source": "cad_mark",
+   "cad_handles": [
+    "E5D2F"
+   ],
+   "provenance": "EA Final Design CAD (V-Base.dwg / C-BASE.dwg, DWG->DXF via libredwg master)",
+   "note": "V-STRM-MRKG culvert mark E5D2F. Direction from lidar ground (1335.4 -> 1332.8 ft).",
+   "status": "assumed_working"
+  },
+  {
+   "id": "culvert_w",
+   "from": "culvert_w_b",
+   "to": "culvert_w_a",
+   "pts": [
+    [
+     6369477.57,
+     2125841.69
+    ],
+    [
+     6369457.24,
+     2125854.19
+    ]
+   ],
+   "length_ft": 23.9,
+   "size_in": null,
+   "material": null,
+   "source": "cad_mark",
+   "cad_handles": [
+    "E5D30"
+   ],
+   "provenance": "EA Final Design CAD (V-Base.dwg / C-BASE.dwg, DWG->DXF via libredwg master)",
+   "note": "V-STRM-MRKG culvert mark E5D30. Direction from lidar ground (1508.4 -> 1511.9 ft).",
+   "status": "assumed_working"
+  },
+  {
+   "id": "culvert_pair_1",
+   "from": "culvert_pair_1_b",
+   "to": "culvert_pair_1_a",
+   "pts": [
+    [
+     6374675.76,
+     2129657.93
+    ],
+    [
+     6374655.23,
+     2129656.47
+    ]
+   ],
+   "length_ft": 20.6,
+   "size_in": null,
+   "material": null,
+   "source": "cad_pair",
+   "cad_handles": [],
+   "provenance": "EA Final Design CAD (V-Base.dwg / C-BASE.dwg, DWG->DXF via libredwg master)",
+   "note": "Two flared ends 21 ft apart with no culvert mark; direction from lidar ground (1357.5 -> 1357.8 ft).",
+   "status": "assumed_working"
+  },
+  {
+   "id": "culvert_pair_2",
+   "from": "culvert_pair_2_b",
+   "to": "culvert_pair_2_a",
+   "pts": [
+    [
+     6374725.05,
+     2130263.92
+    ],
+    [
+     6374708.53,
+     2130265.98
+    ]
+   ],
+   "length_ft": 16.6,
+   "size_in": null,
+   "material": null,
+   "source": "cad_pair",
+   "cad_handles": [],
+   "provenance": "EA Final Design CAD (V-Base.dwg / C-BASE.dwg, DWG->DXF via libredwg master)",
+   "note": "Two flared ends 17 ft apart with no culvert mark; direction from lidar ground (1345.7 -> 1346.2 ft).",
+   "status": "assumed_working"
+  },
+  {
+   "id": "culvert_pair_3",
+   "from": "culvert_pair_3_b",
+   "to": "culvert_pair_3_a",
+   "pts": [
+    [
+     6374674.94,
+     2130401.28
+    ],
+    [
+     6374657.61,
+     2130405.17
+    ]
+   ],
+   "length_ft": 17.8,
+   "size_in": null,
+   "material": null,
+   "source": "cad_pair",
+   "cad_handles": [],
+   "provenance": "EA Final Design CAD (V-Base.dwg / C-BASE.dwg, DWG->DXF via libredwg master)",
+   "note": "Two flared ends 18 ft apart with no culvert mark; direction from lidar ground (1343.9 -> 1344.4 ft).",
+   "status": "assumed_working"
+  },
+  {
+   "id": "lot25_yard",
+   "from": "lot25_cb",
+   "to": "lot25_out",
+   "pts": [
+    [
+     6370523.48,
+     2129506.47
+    ],
+    [
+     6370515.03,
+     2129497.28
+    ],
+    [
+     6370483.64,
+     2129489.42
+    ],
+    [
+     6370475.75,
+     2129494.15
+    ],
+    [
+     6370468.38,
+     2129523.58
+    ],
+    [
+     6370393.96,
+     2129568.19
+    ]
+   ],
+   "length_ft": 171.1,
+   "size_in": null,
+   "material": null,
+   "source": "cad_line",
+   "cad_handles": [
+    "378C6",
+    "378C7"
+   ],
+   "provenance": "EA Final Design CAD (V-Base.dwg / C-BASE.dwg, DWG->DXF via libredwg master)",
+   "note": "EA's residential yard drain at Lot 25 (C-BASE C-STRM-MAIN-PIPE), unrelated to the impoundment.",
+   "status": "assumed_working"
+  }
+ ],
+ "layers": [
+  {
+   "key": "storm_nodes",
+   "name": "Storm structures",
+   "group": "storm",
+   "color": "#7FA7C9",
+   "kind": "point",
+   "count": 43,
+   "provenance": "EA Final Design CAD (V-Base.dwg / C-BASE.dwg, DWG->DXF via libredwg master)"
+  },
+  {
+   "key": "storm_cad",
+   "name": "Storm conduits \u2014 drawn in CAD / surveyed",
+   "group": "storm",
+   "color": "#7FA7C9",
+   "kind": "line",
+   "count": 15,
+   "provenance": "EA Final Design CAD (V-Base.dwg / C-BASE.dwg, DWG->DXF via libredwg master)"
+  },
+  {
+   "key": "storm_inferred",
+   "name": "Storm conduits \u2014 inferred",
+   "group": "storm",
+   "color": "#7FA7C9",
+   "kind": "line",
+   "count": 10,
+   "provenance": "Identified by the project engineer (Sep 2026) from EA's CAD structures; alignment not drawn in the CAD"
+  }
+ ]
+}

@@ -639,6 +639,26 @@ SBMM.viewer3d = (function () {
         overlayGroup.add(o);
       }
     }
+    /* the storm-drainage network (v12 §5.1): the conduits draped on the ground
+       and a dot at every structure, in the storm colour rather than the water
+       one — the pipes are infrastructure, the flow is the terrain's answer. */
+    if (SBMM.storm && SBMM.storm.lines3d) {
+      const SC = new THREE.Color(SBMM.storm.COLOR || "#7FA7C9").getHex();
+      for (const r of SBMM.storm.lines3d()) {
+        const o = drapedLine(r.ring, new THREE.Color(r.color).getHex(), false, r.width || 2);
+        o.userData.pick = { kind: "gis", props: r.props, geom: r.geom };
+        overlayGroup.add(o);
+      }
+      const sp = SBMM.storm.points3d();
+      if (sp.length) {
+        const pos = [];
+        for (const q of sp) pos.push(q.x - CX, q.y - CY, drapeZ(q.x, q.y, 5));
+        const gg = new THREE.BufferGeometry();
+        gg.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+        overlayGroup.add(new THREE.Points(gg,
+          new THREE.PointsMaterial({ size: 7, color: SC, sizeAttenuation: true })));
+      }
+    }
     /* EA native CAD design linework. designgis owns the authoritative polygons;
        these are the drafted lines around them, and they were previously visible
        in 2D only — which meant clicking one in 3D found nothing at all. */
@@ -714,6 +734,20 @@ SBMM.viewer3d = (function () {
             for (const ring of (pd.rings || []))
               if (ring && ring.length > 2)
                 overlayGroup.add(own(drapedLine(ring, 0x55C1FF, true, 2), f));
+          /* v12: a conduit leg is a STRAIGHT line between its two ends at their
+             own elevations — not draped, because the water is under the ground
+             there and a draped line would draw a pipe following the hill it
+             passes beneath. */
+          for (const lg of (pr.legs || [])) {
+            if (!lg.from || !lg.to) continue;
+            const za = lg.from_z == null ? drapeZ(lg.from[0], lg.from[1], 0) : lg.from_z - ZMID;
+            const zb = lg.to_z == null ? drapeZ(lg.to[0], lg.to[1], 0) : lg.to_z - ZMID;
+            const gg = new THREE.BufferGeometry().setFromPoints([
+              new THREE.Vector3(lg.from[0] - CX, lg.from[1] - CY, za + 1),
+              new THREE.Vector3(lg.to[0] - CX, lg.to[1] - CY, zb + 1)]);
+            overlayGroup.add(own(new THREE.Line(gg, new THREE.LineBasicMaterial(
+              { color: 0x7FA7C9, transparent: true, opacity: .95 })), f));
+          }
           const dp = pr.drop || f.pts[0];
           const sp = new THREE.Mesh(new THREE.SphereGeometry(6, 12, 12),
             new THREE.MeshBasicMaterial({ color: sel ? 0xFFD34D : 0x9FDCFF }));

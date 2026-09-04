@@ -131,8 +131,13 @@ console.log("3D idle 2 s:", JSON.stringify(idle));
 
 /* everything on, then measure a forced render */
 const heavy = await page.evaluate(async () => {
-  const set = (id, v) => { const e = document.getElementById(id); if (e && e.type === "checkbox" && e.checked !== v) { e.checked = v; e.onchange && e.onchange(); e.dispatchEvent(new Event("change")); } };
-  ["v3dCanopy", "v3dContours", "v3dDus", "v3dPiles", "v3dDrawn", "v3dPts", "v3dDesign", "v3dData", "v3dSheets"].forEach(id => set(id, true));
+  /* there are no 3D checkboxes any more (v9 §1/§4): SBMM.layerState is the one
+     answer to "is this layer on", in 2D and in 3D alike, so "everything on" is
+     every group switched on plus the three lazily-built base layers */
+  const LS = SBMM.layerState;
+  for (const g of ["framework", "design", "invest", "mywork"]) LS.setGroup(g, true);
+  for (const id of ["canopy", "contours_site", "contours_abp"]) if (LS.get("base", id)) LS.set("base", id, { on: true });
+  if (LS.get("design", "sheets3d")) LS.set("design", "sheets3d", { on: true });
   const d = document.getElementById("v3dDetail"); if (d) { d.value = "high"; d.onchange && d.onchange(); }
   await new Promise(r => setTimeout(r, 6000));
   const a = SBMM.viewer3d.stats();
@@ -146,13 +151,15 @@ console.log("3D everything-on frame cost:", heavy.msPerFrame, "ms | gpu:", JSON.
 
 /* leak check: 10 toggle cycles of the lazily-built things */
 const leak = await page.evaluate(async () => {
-  const cyc = async (id) => {
-    const e = document.getElementById(id); if (!e) return;
-    e.checked = !e.checked; e.onchange && e.onchange(); e.dispatchEvent(new Event("change"));
+  const LS = SBMM.layerState;
+  const cyc = async ([g, id]) => {
+    if (!LS.get(g, id)) return;
+    LS.set(g, id, { on: !LS.isOn(g, id) });
     await new Promise(r => setTimeout(r, 120));
   };
   const before = SBMM.viewer3d.stats().gpu;
-  for (let i = 0; i < 10; i++) { for (const id of ["v3dCanopy", "v3dContours", "v3dSheets"]) { await cyc(id); await cyc(id); } }
+  const lazy = [["base", "canopy"], ["base", "contours_abp"], ["design", "sheets3d"]];
+  for (let i = 0; i < 10; i++) { for (const l of lazy) { await cyc(l); await cyc(l); } }
   await new Promise(r => setTimeout(r, 1500));
   const after = SBMM.viewer3d.stats().gpu;
   return { before, after };

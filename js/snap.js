@@ -112,6 +112,13 @@ SBMM.snap = (function () {
         const sv = SBMM.survey.snapPaths();
         for (const r of sv.rings) addPath(statix, r, false);
       }
+      /* the storm network (v12): the conduits as paths, the structures as points
+         — a grate is exactly the kind of thing a drafter starts a line from */
+      if (SBMM.storm) {
+        const sm = SBMM.storm.snapPaths();
+        for (const r of sm.rings) addPath(statix, r, false);
+        for (const q of sm.pts) addPt(statix, q[0], q[1]);
+      }
       /* EA design boundaries snap like any other project linework */
       if (SBMM.designEA) {
         const dz = SBMM.designEA.snapPaths();

@@ -122,10 +122,10 @@ const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 /* js/smartbound.js ptsFrom — including its trim: a marching-squares ring
    repeats its first vertex and a polygon feature must not, so the traced
    vertex COUNT the app reports is one below the kernel's nPts. */
-function ptsFrom(coords, n) {
+function ptsFrom(coords, n, keepClosed) {
   const out = new Array(n);
   for (let i = 0; i < n; i++) out[i] = [coords[i * 2], coords[i * 2 + 1]];
-  if (out.length > 3) {
+  if (out.length > 3 && !keepClosed) {
     const a = out[0], b = out[out.length - 1];
     if (Math.abs(a[0] - b[0]) < 1e-6 && Math.abs(a[1] - b[1]) < 1e-6) out.pop();
   }
@@ -420,6 +420,19 @@ function secRaster() {
   near("hypso min = window z min", f0, wlo, abp.m.step, " ft");
   near("hypso max = window z max", f1, whi, abp.m.step, " ft");
   note("coarse quantum " + q.toFixed(3) + " ft, refined bracket +/- " + (2 * q).toFixed(3) + " ft");
+  /* identity: the same window shipped as a WINDOW of dem_abp (i0/j0/sw/sh)
+     must paint the same bytes as the standalone sub-grid — the kernel used to
+     size its output from g.w/g.h and read NaN outside the window */
+  const winSpec = T.gridSpec(abp, [6371200, 2128600, 6371800, 2129200], 0);
+  const RA = C.runJob("raster", { grid: win, stride: 1, alpha: 255, kind: "slope",
+                                  ramp: COARSE, zlo: 0, zhi: 1, nanColor: null }).result;
+  const RB = C.runJob("raster", { grid: winSpec, stride: 1, alpha: 255, kind: "slope",
+                                  ramp: COARSE, zlo: 0, zhi: 1, nanColor: null }).result;
+  let bytesOff = 0;
+  if (RA.W === RB.W && RA.H === RB.H) { for (let k = 0; k < RA.rgba.length; k++) if (RA.rgba[k] !== RB.rgba[k]) bytesOff++; }
+  else bytesOff = -1;
+  row("windowed spec = standalone sub-grid (slope)", bytesOff < 0 ? "size differs" : bytesOff + " bytes differ",
+      "0 bytes", bytesOff === 0, "identity", RB.W + "x" + RB.H + " from window " + winSpec.i0 + "/" + winSpec.j0);
   /* NoData must stay transparent, not become a colour */
   const site = T.loadDem("dem_site");
   const lake = T.subGrid(site, [6368900, 2125200, 6369500, 2125800]);
@@ -474,6 +487,10 @@ function secContours() {
   const rings = all.filter(g => g.len > 1);
   const stubs = all.length - rings.length;
   exact("ring count", rings.length, 9);
+  /* the kernel now drops any polyline shorter than half a sweep cell, so the
+     stubs never leave it: a DXF of these contours has nine entities, not
+     nine plus a scatter of sub-0.1-ft two-vertex fragments */
+  exact("stubs emitted", stubs, 0);
   let worst = 0, worstLv = null;
   for (const g of rings) {
     const r = R0 * (100 - g.lv) / 100;
@@ -482,9 +499,6 @@ function secContours() {
   }
   row("every ring length = 2*pi*r", worst.toFixed(3) + " % worst", "< 1 %", worst < 1, "identity",
       "at the " + worstLv + "-ft ring");
-  row("stubs are only stubs", Math.max(0, ...all.filter(g => g.len <= 1).map(g => g.len)).toFixed(3) + " ft longest",
-      "< 0.1 ft", all.every(g => g.len > 1 || (g.len < 0.1 && g.n === 2)), "2 vertices, < 0.1 ft",
-      stubs + " of them");
   for (const g of rings)
     note("level " + String(g.lv).padStart(3) + " ft: r " + (R0 * (100 - g.lv) / 100).toFixed(0) +
          " ft, " + g.n + " vertices, " + g.len.toFixed(1) + " ft (2*pi*r = " +
@@ -492,16 +506,19 @@ function secContours() {
   budget("contours (cone)", ms, 4000);
 
   /* ---- the real 2-ft site grid over the mine area -------------------------
-     js/analysis.js contoursFromDem(). NOTE: contoursFromGrid indexes
-     z[j*g.w + i] and sizes its sweep from g.w/g.h, so it only ever works on a
-     WHOLE-grid spec — the app always hands it gridSpec(dem) with no bbox. A
-     windowed spec would silently produce nothing, so the window here is cut as
-     a standalone grid (test/lib/terrain.mjs subGrid). Stride is the app's own:
-     max(round(interval/cell), ceil(sqrt(cells/1.5e6))) = 5 at 10 ft on 2 ft.  */
+     js/analysis.js contoursFromDem() hands the kernel gridSpec(dem) with no
+     bbox, i.e. the whole grid. The kernel also honours a WINDOWED spec now
+     (i0/j0/sw/sh) — it used to size its sweep from g.w/g.h and read nothing —
+     so the window here is shipped both ways, as a standalone grid (subGrid)
+     and as a window of the site grid, and the two results must be identical.
+     Stride is the app's own: max(round(interval/cell), ceil(sqrt(cells/1.5e6)))
+     = 5 at 10 ft on 2 ft. */
   const site = T.loadDem("dem_site"), abp = T.loadDem("dem_abp");
-  const mine = T.subGrid(site, [abp.m.x0, abp.m.y0,
-                                abp.m.x0 + (abp.m.w - 1) * abp.m.cell,
-                                abp.m.y0 + (abp.m.h - 1) * abp.m.cell]);
+  const mineBox = [abp.m.x0, abp.m.y0,
+                   abp.m.x0 + (abp.m.w - 1) * abp.m.cell,
+                   abp.m.y0 + (abp.m.h - 1) * abp.m.cell];
+  const mine = T.subGrid(site, mineBox);
+  const mineWin = T.gridSpec(site, mineBox, 0);
   const stride = Math.max(Math.max(1, Math.round(10 / site.m.cell)),
                           Math.ceil(Math.sqrt(mine.w * mine.h / 1.5e6)));
   console.log("\ncontours — the real 2-ft site grid over the mine-area window (" +
@@ -513,9 +530,17 @@ function secContours() {
   /* recorded from this commit — a regression guard on the marching-squares
      chaining and the ring-aware simplify over real terrain, where there is no
      closed form to compare against */
-  pct("polylines", rall.length, 262, 5);
+  pct("polylines", rall.length, 218, 5);                 // 262 before the stub floor: 43 stubs under 0.1 ft and one under 1 ft
   pct("polylines over 10 ft", rall.filter(g => g.len > 10).length, 189, 5);
   row("not truncated", RR.truncated, false, RR.truncated === false, "exact");
+  /* identity: the same ground shipped as a window of the site grid */
+  const RW = C.runJob("contours", { grid: mineWin, interval: 10, stride, maxPts: 500000 }).result;
+  let wdiff = 0;
+  const same = RW.coords.length === RR.coords.length && RW.levels.length === RR.levels.length;
+  if (same) for (let k = 0; k < RR.coords.length; k++) wdiff = Math.max(wdiff, Math.abs(RW.coords[k] - RR.coords[k]));
+  row("windowed spec = standalone sub-grid", same ? wdiff.toFixed(6) + " ft worst" : "shape differs",
+      "identical", same && wdiff < 1e-6, "identity",
+      "window i0/j0 " + mineWin.i0 + "/" + mineWin.j0 + ", " + mineWin.sw + "x" + mineWin.sh);
   note(vtx + " vertices over " + new Set(Array.from(RR.levels)).size + " levels (" +
        Math.min(...RR.levels) + " to " + Math.max(...RR.levels) + " ft), total length " +
        rall.reduce((a, g) => a + g.len, 0).toFixed(0) + " ft");
@@ -691,38 +716,65 @@ function secSections() {
   const bbox2 = [b[0][0] - half, b[0][1] - half, b[1][0] + half, b[1][1] + half];
   const dgrid = T.surfaceGridSpec("res_excbottom", bbox2);
   console.log("\nsections — the same kernel with res_excbottom attached, over the Southern Residence");
-  const R2 = C.runJob("sections", { align: bAlign, interval, width, offStep,
-                                    grids: T.gridsFor(bbox2), dgrid, chm: null }).result;
-  let cutSum = 0, fillSum = 0, worstA = 0, nOff = 0, worstNeg = 0;
+  /* the two quantisation steps js/sections.js ships (the same pair the
+     isopach ships): the design raster's own, and the coarsest in the DEM stack */
+  const zstepGround = T.dems().reduce((mx, d) => Math.max(mx, (d.m && d.m.step) || 0), 0);
+  const secJob = { align: bAlign, interval, width, offStep, grids: T.gridsFor(bbox2), dgrid, chm: null,
+                   zstepDesign: dgrid.zstep || 0, zstepGround };
+  const R2 = C.runJob("sections", secJob).result;
+  let cutSum = 0, fillSum = 0, worstA = 0, nOff = 0, worstNeg = 0, tolMax = 0, nDead = 0;
   for (let s = 0; s < R2.ns; s++) {
     let net = 0;
     for (let o = 0; o + 1 < R2.no; o++) {
       const k1 = s * R2.no + o, k2 = k1 + 1;
       const g1 = R2.ground[k1], g2 = R2.ground[k2], d1 = R2.design[k1], d2 = R2.design[k2];
       if (isNaN(g1) || isNaN(g2) || isNaN(d1) || isNaN(d2)) continue;
-      const h1 = g1 - d1, h2 = g2 - d2;
+      let h1 = g1 - d1, h2 = g2 - d2;
       if (h1 < 0) { nOff++; worstNeg = Math.max(worstNeg, -h1); }
+      /* the kernel's dead band, re-applied here from the `tol` it reports */
+      tolMax = Math.max(tolMax, R2.tol[k1]);
+      if (Math.abs(h1) <= R2.tol[k1]) { if (h1 !== 0) nDead++; h1 = 0; }
+      if (Math.abs(h2) <= R2.tol[k2]) h2 = 0;
       net += (h1 + h2) / 2 * offStep;
     }
     /* the kernel splits each trapezoid at its zero crossing so cut and fill
        never mix; that partition is exact, so cutA - fillA must equal the plain
-       trapezoid to the bit. This is an identity, not a recorded number. */
+       trapezoid of the dead-banded differences to the bit. This is an identity,
+       not a recorded number. */
     worstA = Math.max(worstA, Math.abs(net - (R2.cutA[s] - R2.fillA[s])));
     cutSum += R2.cutA[s]; fillSum += R2.fillA[s];
   }
-  row("end areas exist", R2.cutA ? "cutA + fillA" : "missing", "cutA + fillA", !!R2.cutA, "exact");
+  row("end areas exist", R2.cutA ? "cutA + fillA + tol" : "missing", "cutA + fillA + tol", !!(R2.cutA && R2.tol), "exact");
   row("cutA - fillA = plain trapezoid", worstA, "<= 1e-9 ft2", worstA <= 1e-9, "identity",
       "cut " + cutSum.toFixed(1) + " ft2, fill " + fillSum.toFixed(2) + " ft2 over " + R2.ns + " stations");
   /* res_excbottom is existing ground minus a depth, so real fill is impossible.
-     What survives is the two rasters disagreeing at their own quantisation:
-     the DEM is bilinear over 0.02-ft steps and dgridAt interpolates the design
-     BILINEARLY between nodes that were built nearest-cell, so the difference
-     dips a few hundredths below zero on a slope. That is exactly the effect
-     ruling F9's isoTol exists for, and the sections kernel has no equivalent —
-     recorded here so it stays small rather than becoming a quantity. */
-  atMost("design-above-ground, worst", +worstNeg.toFixed(3), 0.1, " ft");
-  row("fill vs cut", (100 * fillSum / cutSum).toFixed(2) + " %", "< 2 %",
-      fillSum < 0.02 * cutSum, "quantisation only", nOff + " of " + (R2.ns * (R2.no - 1)) + " offsets");
+     What the raw profiles carry is the two rasters disagreeing at their own
+     quantisation: the DEM is bilinear over 0.02-ft steps and dgridAt
+     interpolates the design BILINEARLY between nodes that were built
+     nearest-cell, so the difference dips a few hundredths below zero on a
+     slope. The PROFILE keeps that (it is what the rasters say); the END AREAS
+     dead-band it with the isopach's isoTol (ruling F9), so the fill a section
+     quotes on this surface is nothing rather than 1.3 %. */
+  atMost("design-above-ground in the raw profile, worst", +worstNeg.toFixed(3), 0.1, " ft");
+  row("tolerance applied", tolMax.toFixed(3) + " ft max", "< 0.2 ft", tolMax > 0 && tolMax < 0.2, "isoTol",
+      nDead + " offsets dead-banded of " + nOff + " below ground");
+  row("fill vs cut", (100 * fillSum / cutSum).toFixed(3) + " %", "< 0.05 %",
+      fillSum < 0.0005 * cutSum, "F9 dead band", "was 1.33 % before the tolerance");
+  /* and the tolerance cannot eat more than it is allowed to: the cut it
+     removes is bounded by the dead band itself — sum of tol x offStep over the
+     offsets it zeroed — which is an inequality that holds by construction,
+     against the same run with no tolerance. (Here that is 1.4 % of a 99.5 ft2
+     cut, because this alignment crosses mostly the 1-ft-to-0 transition at the
+     limit of excavation, where the difference is small by design.) */
+  const R3 = C.runJob("sections", { ...secJob, zstepDesign: 0, zstepGround: 0 }).result;
+  let cutRaw = 0; for (let s = 0; s < R3.ns; s++) cutRaw += R3.cutA[s];
+  let bound = 0;
+  for (let k = 0; k < R2.ns * R2.no; k++) {
+    const h = R2.ground[k] - R2.design[k];
+    if (!isNaN(h) && Math.abs(h) <= R2.tol[k]) bound += R2.tol[k] * offStep;
+  }
+  row("cut removed <= the dead band", (cutRaw - cutSum).toFixed(2) + " ft2", "<= " + bound.toFixed(2) + " ft2",
+      cutRaw - cutSum <= bound + 1e-9, "inequality", (100 * cutSum / cutRaw).toFixed(2) + " % of the raw " + cutRaw.toFixed(1) + " ft2 kept");
 }
 
 /* ==================== 7. SMART BOUNDARIES ================================= */
@@ -804,21 +856,22 @@ function secSmart() {
   const [tout, tms] = timed(() => C.runJob("toecrest",
     { grid: ts.g, cx: PX, cy: PY, thresh: DEF.toe.thresh, smooth: DEF.toe.smooth }));
   const TC = tout.result;
-  const tpts = ptsFrom(TC.coords, TC.nPts);
+  const tpts = ptsFrom(TC.coords, TC.nPts, true);        // runToe keeps a closed chain closed
   row("a usable line", TC.nPts >= 3, true, TC.nPts >= 3, "exact", tpts.length + " vertices");
   /* recorded from this commit */
   pct("line length", TC.length, 154.1, 3);
   atMost("distance from the click", +TC.distFt.toFixed(1), 60, " ft");
-  /* R.length is measured over the kernel's own coords. js/smartbound.js then
-     runs them through ptsFrom, which drops a repeated first vertex — and this
-     chain IS closed, so the LINE feature the app builds is one segment (2.0 ft)
-     shorter than the "Length" row the card prints beside it. Both numbers are
-     recorded so the discrepancy is visible rather than latent. */
+  /* R.length is measured over the kernel's own coords. js/smartbound.js runToe
+     hands them to ptsFrom with keepClosed, so a chain that goes all the way
+     round the pile keeps its closing segment and the LINE feature the app
+     builds is the length the card prints — an identity. (Before v9.7 ptsFrom
+     dropped the repeated vertex here and the line was one segment, 2.0 ft,
+     shorter than its own card.) */
   const rawLen = (function () { let s = 0; for (let i = 1; i < TC.nPts; i++)
     s += Math.hypot(TC.coords[i * 2] - TC.coords[(i - 1) * 2], TC.coords[i * 2 + 1] - TC.coords[(i - 1) * 2 + 1]); return s; })();
   near("length over the raw coords", rawLen, TC.length, 0.01, " ft");
-  near("length after ptsFrom's trim", (function () { let s = 0; for (let i = 1; i < tpts.length; i++) s += dist2d(tpts[i - 1], tpts[i]); return s; })(),
-       152.113, 0.05, " ft");
+  near("the app's line = the kernel's length", (function () { let s = 0; for (let i = 1; i < tpts.length; i++) s += dist2d(tpts[i - 1], tpts[i]); return s; })(),
+       TC.length, 1e-6, " ft");
   note(TC.chains + " chains crossed the threshold in this window; the one nearest the click was taken");
   budget("toecrest", tms, 10000);
 
@@ -1080,6 +1133,412 @@ function secWater() {
   budget("overtop (surveyed z0 + extra levels)", svMs, 4000);
 }
 
+
+/* ============================ 10. STORM ================================== */
+/* docs/V12_STORM_SPEC.md §6. `flowpath` is covered by the water section above;
+   this one covers its `conduits` path — the storm network as a set of
+   topological shortcuts with an elevation at each end.
+
+   The call site mirrored is js/water.js traceRun() + js/storm.js conduitsFor():
+   the same window squares (700 ft on a 1-ft grid, 1,400 ft on the 2-ft), the
+   same "conduits whose INLET is inside this window, minus the ones this run has
+   already used", the same flattening of the node graph into `next`, and the same
+   re-centring on `exit` for reason "window" AND reason "conduit". A harness that
+   invented its own job would prove the kernel runs, not that the app is right. */
+
+/* --- js/storm.js, in node ------------------------------------------------ */
+function stormModel() {
+  const NET = T.readJSON("data/storm_network.json");
+  const byId = Object.fromEntries(NET.nodes.map(n => [n.id, n]));
+  const rims = {};
+  for (const n of NET.nodes) { const z = T.elev(n.x, n.y); rims[n.id] = Number.isNaN(z) ? null : +z.toFixed(2); }
+  const nextOf = {};
+  for (const c of NET.conduits) {
+    const nx = NET.conduits.find(q => q.from === c.to && q.id !== c.id);
+    nextOf[c.id] = nx ? nx.id : null;
+  }
+  /* §2 "Rim for the kernel": the surveyed invert where one exists, else the
+     lidar ground. Never anything else. */
+  const rimFor = id => byId[id].invert_ft != null ? byId[id].invert_ft : rims[id];
+  /* §2 "a sunken inlet" — js/storm.js findMouth(), ported. The lidar is Jan 2024
+     and the two discharge pipes were built into a channel it never saw, so the
+     cells at the surveyed invert points read the top of the sandbag wall. An
+     inlet whose invert is below the lidar ground at its own cell enters the pipe
+     at the NEAREST cell at or below the invert within 30 ft; the rim stays the
+     survey's, and nothing moves if no such cell exists. */
+  const MOUTH_SEARCH_FT = 30;
+  const mouths = {};
+  for (const n of NET.nodes) {
+    if (n.invert_ft == null) continue;
+    const dem = T.demAt(n.x, n.y);
+    if (!dem) continue;
+    const gz = dem.at(n.x, n.y);
+    if (Number.isNaN(gz) || gz <= n.invert_ft + 1e-9) continue;
+    const m = dem.m, cell = m.cell, rc = Math.ceil(MOUTH_SEARCH_FT / cell);
+    const i0 = Math.round((n.x - m.x0) / cell), j0 = Math.round((n.y - m.y0) / cell);
+    let best = null, bd = Infinity;
+    for (let j = j0 - rc; j <= j0 + rc; j++) {
+      if (j < 0 || j >= m.h) continue;
+      for (let i = i0 - rc; i <= i0 + rc; i++) {
+        if (i < 0 || i >= m.w) continue;
+        const z = dem.atGrid(i, j);
+        if (Number.isNaN(z) || z > n.invert_ft) continue;
+        const x = m.x0 + i * cell, y = m.y0 + j * cell;
+        const d = Math.hypot(x - n.x, y - n.y);
+        if (d > MOUTH_SEARCH_FT || d >= bd) continue;
+        bd = d; best = { x, y, z: +z.toFixed(2), moved: +d.toFixed(1), ground: +gz.toFixed(2) };
+      }
+    }
+    mouths[n.id] = best || { x: n.x, y: n.y, z: null, moved: null, ground: +gz.toFixed(2) };
+  }
+  const conduitsFor = bbox => NET.conduits
+    .filter(c => {
+      const a = byId[c.from];
+      return a.x >= bbox[0] && a.x <= bbox[2] && a.y >= bbox[1] && a.y <= bbox[3];
+    })
+    .map(c => {
+      const a = byId[c.from], mo = mouths[c.from];
+      const use = (mo && mo.moved != null) ? mo : null;
+      return { id: c.id, ix: use ? use.x : a.x, iy: use ? use.y : a.y, rim: rimFor(c.from),
+               ox: byId[c.to].x, oy: byId[c.to].y, len: c.length_ft,
+               mouth_moved_ft: use ? use.moved : null, next: nextOf[c.id] };
+    });
+  return { NET, byId, rims, rimFor, mouths, conduitsFor };
+}
+
+/* js/water.js traceRun(), the window chain and all */
+function hostRun(M, x, y, storm) {
+  let dem = T.demAt(x, y);
+  if (!dem) return null;
+  let cx = x, cy = y, hops = 0, prevReason = null, pipeFt = 0, lengthSum = 0;
+  const pts = [], ponds = [], legs = [], used = new Set(), grids = [];
+  let reason = "steps", end = null;
+  for (;;) {
+    const half = dem.m.cell <= 1.0 ? 700 : 1400;
+    const win = [cx - half, cy - half, cx + half, cy + half];
+    const grid = T.gridSpec(dem, win, 0);
+    if (!grid) { reason = "nodata"; break; }
+    const gl = dem.m.cell + "-ft";
+    if (grids[grids.length - 1] !== gl) grids.push(gl);
+    const cds = storm ? M.conduitsFor(win).filter(c => !used.has(c.id)) : [];
+    const R = C.runJob("flowpath", { grid, x: cx, y: cy,
+      conduits: cds.length ? cds : null, captureFt: 3 }).result;
+    const skip = (pts.length && prevReason !== "conduit") ? 1 : 0;
+    const base = pts.length;
+    for (let i = skip; i < R.n; i++) pts.push([R.pts[i * 3], R.pts[i * 3 + 1]]);
+    for (const lg of (R.legs || [])) { used.add(lg.id); legs.push({ ...lg, at: base + lg.at - skip }); }
+    pipeFt += R.pipe_ft || 0;
+    lengthSum += R.length_ft || 0;
+    for (const p of R.ponds) ponds.push(p);
+    prevReason = R.reason; reason = R.reason; end = R.end;
+    if (R.reason !== "window" && R.reason !== "conduit") break;
+    if (hops >= 7 || lengthSum >= 20000) { reason = "steps"; break; }
+    const ex = R.exit;
+    if (!ex) break;
+    const nd = T.demAt(ex[0], ex[1]);
+    if (!nd) {
+      reason = "nodata";
+      if (R.reason === "conduit") { pts.push([ex[0], ex[1]]); end = [ex[0], ex[1], NaN]; }
+      break;
+    }
+    dem = nd; cx = ex[0]; cy = ex[1]; hops++;
+  }
+  return { pts, reason, end, ponds, legs, pipeFt, length: lengthSum, hops, grids };
+}
+
+function secStorm() {
+  /* ---- the identity (§6, first bullet) -------------------------------- */
+  /* Absent, and empty, must be the v10 kernel to the bit. This is the check
+     that lets every water number above stay a golden rather than becoming an
+     argument about whether v12 moved it. */
+  const abp = T.loadDem("dem_abp");
+  const D = T.readJSON(path.join(FIX, "drop_ref.json")).swale.drop;
+  const mk = () => T.gridSpec(abp, [D[0] - 700, D[1] - 700, D[0] + 700, D[1] + 700], 0);
+  const sc = mk().cell, dx = D[0] - sc / 2, dy = D[1] - sc / 2;
+  console.log("\n§6.1  the identity — conduits absent vs conduits: []");
+  const A = C.runJob("flowpath", { grid: mk(), x: dx, y: dy }).result;
+  const B = C.runJob("flowpath", { grid: mk(), x: dx, y: dy, conduits: [], captureFt: 3 }).result;
+  /* NaN-safe: a run that ends on a NoData cell carries a NaN z on its last
+     vertex, and NaN !== NaN would call two identical arrays different */
+  const same = (u, v) => u.length === v.length &&
+    u.every((q, i) => q === v[i] || (Number.isNaN(q) && Number.isNaN(v[i])));
+  exact("identical vertex count", B.n, A.n);
+  row("identical pts", same(Array.from(A.pts), Array.from(B.pts)) ? "identical" : "DIFFER",
+      "identical", same(Array.from(A.pts), Array.from(B.pts)), "bit for bit");
+  row("identical ponds", JSON.stringify(A.ponds) === JSON.stringify(B.ponds) ? "identical" : "DIFFER",
+      "identical", JSON.stringify(A.ponds) === JSON.stringify(B.ponds), "bit for bit");
+  exact("identical reason", B.reason, A.reason);
+  exact("no legs without a network", B.legs.length, 0);
+  exact("no pipe without a network", B.pipe_ft, 0);
+  near("length_ft unchanged", B.length_ft, A.length_ft, 0, " ft");
+
+  /* ---- a synthetic basin (§6, second bullet) --------------------------- */
+  /* A paraboloid pit 40 ft across with its natural pour point 6 ft above the
+     floor, an inlet on its side 2 ft above the floor, and the outlet out on the
+     far slope. Every number here is an arithmetic identity of that surface, not
+     a measurement of anything. */
+  console.log("\n§6.2  a synthetic basin — an inlet 2 ft up a bowl whose rim is 6 ft up");
+  const R0 = 40, ZF = 100, RIMZ = 106;
+  const bowl = T.synthGrid(0, 0, 1, 300, 300, (x, y) => {
+    const r = Math.hypot(x - 150, y - 150);
+    return r < R0 ? ZF + 6 * (r / R0) * (r / R0) : RIMZ - (r - R0) * 0.05;
+  });
+  /* the inlet: the cell nearest 2 ft above the floor, due east of the centre */
+  const ri = Math.round(R0 * Math.sqrt(2 / 6));            // r where z = floor + 2
+  const ix = 150 + ri, iy = 150;
+  const izRaw = bowl.z[Math.round(iy) * bowl.sw + Math.round(ix)];
+  const oxy = [150 - 120, 150];                            // out on the far slope
+  const bj = { grid: bowl, x: 150, y: 150, simplifyFt: 0, minPondDepth: 0.25,
+               conduits: [{ id: "syn", ix, iy, rim: izRaw, ox: oxy[0], oy: oxy[1], next: null }],
+               captureFt: 3 };
+  const [bOut, bMs] = timed(() => C.runJob("flowpath", bj));
+  const bR = bOut.result;
+  exact("one conduit leg", bR.legs.length, 1);
+  near("pond level = the inlet rim", bR.ponds[0].level, izRaw, 1e-6, " ft");
+  near("pond depth = rim - floor", bR.ponds[0].depth_ft, izRaw - ZF, 1e-4, " ft");
+  /* the pour point is the flooded capture cell nearest the structure at the
+     instant the level reaches the rim — 1 ft short of the inlet's own cell here,
+     because the ring of cells at exactly the rim elevation pops in a fixed
+     tie-break order and the inlet's own cell is not the first of them */
+  const bd = Math.hypot(bR.legs[0].from[0] - ix, bR.legs[0].from[1] - iy);
+  row("the leg leaves from the inlet", bd.toFixed(2), "<= 3", bd <= 3, "captureFt");
+  near("pipe_ft = the straight distance", bR.pipe_ft,
+       Math.hypot(oxy[0] - bR.legs[0].from[0], oxy[1] - bR.legs[0].from[1]), 1e-6, " ft");
+  {
+    /* the run continues from the outlet: the vertex after the leg is the outlet
+       cell, and the run then descends the far slope to the window edge */
+    const at = bR.legs[0].at;
+    const nx = [bR.pts[(at + 1) * 3], bR.pts[(at + 1) * 3 + 1]];
+    row("the run resumes at the outlet", "E " + nx[0].toFixed(1) + " N " + nx[1].toFixed(1),
+        "E " + oxy[0].toFixed(1) + " N " + oxy[1].toFixed(1),
+        Math.hypot(nx[0] - oxy[0], nx[1] - oxy[1]) <= 1.5, "within 1.5 ft");
+    exact("reason after the pipe", bR.reason, "window");
+  }
+  /* the same basin with NO network fills to its rim and spills over the ground */
+  const bNo = C.runJob("flowpath", { grid: bowl, x: 150, y: 150, simplifyFt: 0 }).result;
+  /* the rim is 106 by construction; the cell nearest it is a fraction under,
+     because the cells sit on integer coordinates and r = 40 falls between them */
+  near("without the pipe the pond fills to the rim", bNo.ponds[0].level, RIMZ, 0.1, " ft");
+  exact("without the pipe there is no leg", bNo.legs.length, 0);
+  budget("flowpath (synthetic basin)", bMs, 1500);
+
+  /* ---- a slope with an inlet 20 ft downhill (§6, third bullet) ---------- */
+  console.log("\n§6.3  a plane slope — an inlet 20 ft downhill of the drop");
+  /* z falls to the EAST, so the drop runs east and the inlet is downhill of it */
+  const slope = T.synthGrid(0, 0, 1, 300, 300, (x) => 200 - x * 0.1);
+  const sIn = [170, 150], sOut = [240, 150];
+  const sR = C.runJob("flowpath", { grid: slope, x: 150, y: 150, simplifyFt: 0,
+    conduits: [{ id: "syn", ix: sIn[0], iy: sIn[1], rim: 200 - sIn[0] * 0.1,
+                 ox: sOut[0], oy: sOut[1], next: null }], captureFt: 3 }).result;
+  exact("one leg on the slope", sR.legs.length, 1);
+  const sd = Math.hypot(sR.legs[0].from[0] - sIn[0], sR.legs[0].from[1] - sIn[1]);
+  row("the leg starts within captureFt of the inlet", sd.toFixed(2), "<= 3", sd <= 3, "captureFt");
+  near("pipe_ft = the straight distance from there", sR.pipe_ft,
+       Math.hypot(sOut[0] - sR.legs[0].from[0], sOut[1] - sR.legs[0].from[1]), 1e-6, " ft");
+  /* the overland length is the two walked stretches and nothing else: the drop
+     to the capture cell, then the outlet to the window's east edge */
+  near("overland length excludes the pipe", sR.length_ft,
+       (sR.legs[0].from[0] - 150) + (slope.sw - 1 - sOut[0]), 1e-6, " ft");
+  exact("the leg starts at the last overland vertex", sR.legs[0].at,
+        Math.round(sR.legs[0].from[0] - 150));
+
+  /* ---- an outlet outside the window (§6, fourth bullet) ----------------- */
+  console.log("\n§6.4  an outlet outside the window");
+  const oR = C.runJob("flowpath", { grid: slope, x: 150, y: 150, simplifyFt: 0,
+    conduits: [{ id: "syn", ix: sIn[0], iy: sIn[1], rim: 200 - sIn[0] * 0.1,
+                 ox: 800, oy: 150, next: null }], captureFt: 3 }).result;
+  exact("reason", oR.reason, "conduit");
+  row("exit is the outlet", "E " + oR.exit[0] + " N " + oR.exit[1], "E 800 N 150",
+      oR.exit[0] === 800 && oR.exit[1] === 150, "exact");
+  exact("one leg before the window ended", oR.legs.length, 1);
+
+  /* ---- the real network (§6, fifth bullet) ------------------------------ */
+  /* RECORDED FROM THIS COMMIT and thereafter asserted as regression guards.
+     What is NOT recorded but derived: the pipe lengths are the conduits' own
+     `length_ft` out of data/storm_network.json, summed along the chain, so the
+     pipe totals below are arithmetic on the payload rather than a measurement —
+     if the network is rebuilt and a length moves, this fails and says so. */
+  const M = stormModel();
+  const chain = ids => ids.reduce((a, id) => a + M.NET.conduits.find(c => c.id === id).length_ft, 0);
+
+  /* ---- the sunken inlets (§2 "a sunken inlet", ruling Sep 2026) --------- */
+  /* The lidar is Jan 2024; the sandbag wall and the two 24-in pipes were built
+     afterwards, so the 1-ft cells at the surveyed invert points read the top of
+     the sandbags. RECORDED FROM THIS COMMIT, but every number is checkable: the
+     grounds are SBMM.elev at the surveyed points, the mouths are DEM cells at or
+     below the surveyed inverts, and both are inside the 30-ft search. */
+  console.log("\n§6.0  the sunken pipe mouths");
+  exact("inlets moved", Object.keys(M.mouths).length, 2);
+  for (const [id, ref] of [["herman_pipe_n_inv", { g: 1344.66, inv: 1341.57, x: 6372065, y: 2127496, z: 1341.54, d: 25.6 }],
+                           ["herman_pipe_s_inv", { g: 1344.80, inv: 1341.53, x: 6372065, y: 2127497, z: 1341.50, d: 27.1 }]]) {
+    const mo = M.mouths[id];
+    near(id + " lidar ground", mo.ground, ref.g, 0.02, " ft");
+    near(id + " mouth moved", mo.moved, ref.d, 0.2, " ft");
+    dist(id + " mouth cell", mo.x, mo.y, ref.x, ref.y, 1.5);
+    near(id + " mouth cell z", mo.z, ref.z, 0.02, " ft");
+    row(id + " mouth is at or below the invert", mo.z, "<= " + ref.inv, mo.z <= ref.inv + 1e-9, "exact");
+    row(id + " rim is still the survey's", M.rimFor(id), ref.inv, M.rimFor(id) === ref.inv, "exact");
+    row(id + " is within the 30-ft search", mo.moved, "<= 30", mo.moved <= 30, "exact");
+  }
+  {
+    /* an inlet with no invert, or one whose invert is not below its ground, is
+       not moved — the rule is about a pipe mouth the lidar did not see */
+    const notMoved = ["grate_8", "green_riser", "herman_pipe_n_end", "outfall"]
+      .filter(id => M.mouths[id]).length;
+    exact("inlets without a sunken invert stay put", notMoved, 0);
+    const c = M.conduitsFor([6372000, 2127400, 6372100, 2127550]).find(q => q.id === "herman_pipe_n");
+    row("conduitsFor hands the kernel the mouth", c ? "E " + c.ix + " N " + c.iy : "missing",
+        "E 6372065 N 2127496", !!c && c.ix === 6372065 && c.iy === 2127496, "exact",
+        "mouth_moved_ft " + (c && c.mouth_moved_ft));
+    row("and the surveyed invert as its rim", c && c.rim, 1341.57, !!c && c.rim === 1341.57, "exact");
+  }
+
+  console.log("\n§6.5  the real network — a drop at the Spot 8 grate (E 6,373,831 N 2,127,919)");
+  const g8 = M.byId.grate_8;
+  const [s8, s8ms] = timed(() => hostRun(M, g8.x, g8.y, true));
+  const s8chain = ["road_drain_8_9", "road_drain_9_10", "road_drain_10_11", "road_drain_11_12",
+                   "road_drain_12_13", "road_drain_13_14", "road_drain_14_15",
+                   "road_drain_15_branch", "branch", "storm_main_lower"];
+  exact("legs, grate 8 -> the outfall", s8.legs.length, s8chain.length);
+  row("the chain it took", s8.legs.map(l => l.id).join(","), s8chain.join(","),
+      s8.legs.map(l => l.id).join(",") === s8chain.join(","), "exact");
+  near("pipe_ft = the summed conduit lengths", s8.pipeFt, chain(s8chain), 0.5, " ft");
+  exact("the last leg ends at the outfall",
+        M.NET.conduits.find(c => c.id === s8.legs[s8.legs.length - 1].id).to, "outfall");
+  exact("reason", s8.reason, "nodata");
+  dist("ends in Clear Lake", s8.end[0], s8.end[1], 6371177, 2127474, 3);
+  near("overland length (recorded)", s8.length, 137.0, 1, " ft");
+  note("Spot 8: " + s8.length.toFixed(1) + " ft overland + " + s8.pipeFt.toFixed(1) +
+       " ft in pipe = " + (s8.length + s8.pipeFt).toFixed(1) + " ft, " + s8.ponds.length +
+       " ponds, " + s8.hops + " windows chained [" + s8.grids + "]");
+  budget("the Spot 8 drop (storm on)", s8ms, 12000);
+
+  const s8off = hostRun(M, g8.x, g8.y, false);
+  exact("with the drains off, no legs", s8off.legs.length, 0);
+  exact("with the drains off, reason", s8off.reason, "nodata");
+  near("with the drains off, overland (recorded)", s8off.length, 2267.6, 3, " ft");
+  row("with the drains off it crosses the impoundment",
+      s8off.ponds.some(p => p.cells > 200000) ? "yes" : "no", "yes",
+      s8off.ponds.some(p => p.cells > 200000), "exact",
+      "the 22.8-ac Herman pond at 1,343.84 ft");
+  note("Spot 8, drains off: " + s8off.length.toFixed(1) + " ft overland, " +
+       s8off.ponds.length + " ponds, deepest " +
+       Math.max(...s8off.ponds.map(p => p.depth_ft)).toFixed(2) + " ft");
+
+  console.log("\n§6.6  the real network — a drop at Frog Pond's low (Spot 5, E 6,374,418 N 2,127,912)");
+  const fp = M.byId.frog_outlet;
+  const [fr, frms] = timed(() => hostRun(M, fp.x, fp.y, true));
+  const frChain = ["frog_green", "green_riser", "herman_pipe_s", "pipe_to_main",
+                   "storm_main_upper", "storm_main_lower"];
+  row("the chain it took", fr.legs.map(l => l.id).join(","), frChain.join(","),
+      fr.legs.map(l => l.id).join(",") === frChain.join(","), "exact");
+  exact("legs", fr.legs.length, frChain.length);
+  near("pipe_ft = the summed conduit lengths", fr.pipeFt, chain(frChain), 0.5, " ft");
+  exact("and it reaches the outfall",
+        M.NET.conduits.find(c => c.id === fr.legs[fr.legs.length - 1].id).to, "outfall");
+  row("Frog Pond fills and drains through the pipe",
+      fr.ponds[0].depth_ft.toFixed(2), "11.84", Math.abs(fr.ponds[0].depth_ft - 11.84) <= 0.05,
+      "+/- 0.05 ft", "recorded from this commit");
+  row("a pond reports the grate it drains to",
+      (fr.ponds.find(p => p.via) || {}).via || "none", "green_riser",
+      (fr.ponds.find(p => p.via) || {}).via === "green_riser", "exact");
+  near("the pond that takes the inlet (recorded)",
+       (fr.ponds.find(p => p.via) || {}).level, 1401.62, 0.05, " ft");
+  exact("reason", fr.reason, "nodata");
+  dist("ends in Clear Lake", fr.end[0], fr.end[1], 6371177, 2127474, 3);
+  near("overland length (recorded)", fr.length, 1886.5, 3, " ft");
+  row("and the impoundment drains through the surveyed pipes",
+      (fr.ponds.filter(p => p.via).map(p => p.via).join(",")), "green_riser,herman_pipe_s",
+      fr.ponds.filter(p => p.via).map(p => p.via).join(",") === "green_riser,herman_pipe_s", "exact");
+  note("Frog Pond: " + fr.length.toFixed(1) + " ft overland + " + fr.pipeFt.toFixed(1) +
+       " ft in pipe, " + fr.ponds.length + " ponds, " + fr.hops + " windows [" + fr.grids + "]. " +
+       "Green Pond spills over its own rim at " + fr.ponds[0].level.toFixed(2) +
+       "; the round inlet takes the water below it, and the impoundment leaves through the pipes.");
+  budget("the Frog Pond drop (storm on)", frms, 20000);
+
+  const froff = hostRun(M, fp.x, fp.y, false);
+  exact("with the drains off, no legs", froff.legs.length, 0);
+  row("with the drains off it leaves the survey to the north-east",
+      "E " + froff.end[0].toFixed(0) + " N " + froff.end[1].toFixed(0), "E 6375216 N 2128916",
+      Math.hypot(froff.end[0] - 6375216, froff.end[1] - 2128916) <= 3, "within 3 ft",
+      "recorded from this commit; §1 predicts it spills north-east off the survey");
+  near("with the drains off, overland (recorded)", froff.length, 1468.6, 3, " ft");
+
+  console.log("\n§6.7  the Herman pipe discharge route (the plotted west end of the North pipe)");
+  const pw = M.byId.herman_pipe_n_end;
+  const hp = hostRun(M, pw.x, pw.y, true);
+  const hpChain = ["pipe_to_main", "storm_main_upper", "storm_main_lower"];
+  row("the chain it took", hp.legs.map(l => l.id).join(","), hpChain.join(","),
+      hp.legs.map(l => l.id).join(",") === hpChain.join(","), "exact");
+  near("pipe_ft = 13.2 + 194.7 + 588.9", hp.pipeFt, chain(hpChain), 0.5, " ft");
+  dist("ends in Clear Lake", hp.end[0], hp.end[1], 6371177, 2127474, 3);
+  near("overland length (recorded)", hp.length, 137.0, 1, " ft");
+  note("Herman pipe discharge: " + hp.length.toFixed(1) + " ft overland + " +
+       hp.pipeFt.toFixed(1) + " ft in pipe = " + (hp.length + hp.pipeFt).toFixed(1) + " ft to the lake");
+  const hpoff = hostRun(M, pw.x, pw.y, false);
+  near("with the drains off, overland (recorded)", hpoff.length, 1091.0, 3, " ft");
+  exact("with the drains off, no legs", hpoff.legs.length, 0);
+
+  /* ---- the Herman water-level shot (the ruling's own case) -------------- */
+  /* The surveyed water-level shot of Aug 2026, inside the impoundment. With the
+     network on, the pond stops at the LOWER of the two surveyed inverts and
+     leaves through that pipe, the storm main and the outfall — which is what the
+     overtopping tool has said since v10 §10 and what the raindrop could not say
+     until the sunken-inlet rule. Recorded from this commit; the pipe total is
+     arithmetic on the payload's conduit lengths. */
+  console.log("\n§6.8  a raindrop inside the Herman Impoundment (the surveyed water-level shot)");
+  const WL = [6372119.56, 2127446.20];
+  const [hw, hwms] = timed(() => hostRun(M, WL[0], WL[1], true));
+  const via = (hw.ponds.find(p => p.via) || {}).via || null;
+  row("the impoundment drains through a surveyed pipe", via, "herman_pipe_s or _n",
+      via === "herman_pipe_s" || via === "herman_pipe_n", "either");
+  near("pond level = the lower surveyed invert", (hw.ponds.find(p => p.via) || {}).level,
+       1341.5, 0.05, " ft");
+  const hwChain = [via, "pipe_to_main", "storm_main_upper", "storm_main_lower"];
+  row("the chain it took", hw.legs.map(l => l.id).join(","), hwChain.join(","),
+      hw.legs.map(l => l.id).join(",") === hwChain.join(","), "exact");
+  near("pipe_ft = 16.5 + 13.2 + 194.7 + 588.9", hw.pipeFt, chain(hwChain), 1, " ft");
+  exact("it ends at the outfall",
+        M.NET.conduits.find(c => c.id === hw.legs[hw.legs.length - 1].id).to, "outfall");
+  exact("reason", hw.reason, "nodata");
+  dist("then overland to Clear Lake", hw.end[0], hw.end[1], 6371177, 2127474, 3);
+  near("overland length (recorded)", hw.length, 2637.5, 3, " ft");
+  note("Herman water level: " + hw.length.toFixed(1) + " ft overland + " + hw.pipeFt.toFixed(1) +
+       " ft in pipe, via " + via + ", pond " +
+       (hw.ponds.find(p => p.via) || {}).level.toFixed(2) + " ft (" +
+       (hw.ponds.find(p => p.via) || {}).depth_ft.toFixed(2) + " ft deep, " +
+       (hw.ponds.find(p => p.via) || {}).cells + " cells)");
+  budget("the Herman water-level drop (storm on)", hwms, 20000);
+
+  const hwoff = hostRun(M, WL[0], WL[1], false);
+  exact("with the drains off, no legs", hwoff.legs.length, 0);
+  /* the impoundment, not the flat lidar water surface the drop starts on (which
+     is also a large "pond", 0.34 ft deep, and comes first in trace order) */
+  near("with the drains off it fills to the lidar rim (recorded)",
+       (hwoff.ponds.find(p => p.cells > 200000 && p.depth_ft > 5) || {}).level, 1343.84, 0.02, " ft");
+  near("with the drains off, overland (recorded)", hwoff.length, 3520.6, 3, " ft");
+  note("Herman water level, drains off: " + hwoff.length.toFixed(1) + " ft overland, spills over the " +
+       "1,343.84-ft rim; the 2.30-ft difference from the pipe invert is what the sunken-inlet rule buys");
+
+  /* ---- a broken conduit is simply not passed --------------------------- */
+  /* js/storm.js drops a "broken" conduit from conduitsFor(), so the kernel is
+     never told about it — with EVERY conduit broken the analysis is bit for bit
+     the ground-only one, and with only the first of a chain broken the water
+     stays on the ground until it meets the next inlet downstream. */
+  const allBrk = { ...M, conduitsFor: () => [] };
+  const s8none = hostRun(allBrk, g8.x, g8.y, true);
+  exact("every conduit broken: no legs", s8none.legs.length, 0);
+  near("and reproduces the drains-off answer", s8none.length, s8off.length, 0.01, " ft");
+  const brk = { ...M, conduitsFor: bbox => M.conduitsFor(bbox).filter(c => c.id !== "road_drain_8_9") };
+  const s8b = hostRun(brk, g8.x, g8.y, true);
+  row("one broken conduit is not used", s8b.legs.some(l => l.id === "road_drain_8_9") ? "used" : "skipped",
+      "skipped", !s8b.legs.some(l => l.id === "road_drain_8_9"), "exact");
+  row("and the water runs on to the next inlet downstream",
+      s8b.legs.length ? s8b.legs[0].id : "none", "herman_pipe_s",
+      !!s8b.legs.length && s8b.legs[0].id === "herman_pipe_s", "exact",
+      "overland into the impoundment, then out through the surveyed pipe");
+}
+
 /* ============================== run ====================================== */
 const SECTIONS = [
   { key: "volume", run: secVolume },
@@ -1090,7 +1549,8 @@ const SECTIONS = [
   { key: "sections", run: secSections },
   { key: "smart", run: secSmart },
   { key: "trees", run: secTrees },
-  { key: "water", run: secWater }
+  { key: "water", run: secWater },
+  { key: "storm", run: secStorm }
 ];
 
 if (listOnly) {
@@ -1101,8 +1561,8 @@ if (listOnly) {
 const C = loadCompute();
 const Delaunay = loadDelaunay();
 console.log("SBMM kernel harness — js/compute.js VERSION " + C.VERSION +
-            (C.VERSION === 4 ? "" : "  (!! expected 4)"));
-if (C.VERSION !== 4) { fails++; checks++; }
+            (C.VERSION === 6 ? "" : "  (!! expected 6)"));
+if (C.VERSION !== 6) { fails++; checks++; }
 
 /* every kernel runJob dispatches must have a section here (V11 spec §2.4) */
 const COVERED = ["volume", "isopach", "raster", "contours", "design", "balance", "sections",
