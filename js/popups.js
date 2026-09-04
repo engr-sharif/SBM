@@ -288,7 +288,7 @@ SBMM.popups = (function () {
     else if (SBMM.tools.canMove(f))
       acts.push(btn("move", () => SBMM.tools.opMoveCopy(f, false),
                     "Pick a base point and a destination to move this where it belongs"));
-    acts.push(btn("delete", () => SBMM.store.remove(f)));
+    acts.push(btn("delete", () => SBMM.tools.deleteFeature(f)));
     if (prov && prov.source === "sheet" && SBMM.sheets)
       acts.push(btn("open " + prov.sheet, () => SBMM.sheets.open(prov.sheet)));
     h += actions(acts.join(""));

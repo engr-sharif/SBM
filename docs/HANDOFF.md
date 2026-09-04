@@ -72,10 +72,9 @@ in code, and what comes next. It replaces re-reading the chat history that built
    without one reports itself in the console and is dropped), `SBMM.store.readd(f)` puts
    the same feature object back with the same id, the two buttons mirror the two stacks,
    and `Ctrl+Y` / `Ctrl+Shift+Z` / `REDO` step forward. The e2e block "9u. redo" is the
-   contract. Still open, and deliberately: the results-card ✕ and the Features-tree
-   delete call `SBMM.store.remove` directly, so those two paths are not undoable — the
-   one-line fix is to route them through `SBMM.tools.deleteFeature(f)` the way ERASE and
-   the 3D Delete key now do.
+   contract. Since v9.7 every user-facing delete (results-card ✕, Features tree,
+   Inspector, popup button, design-surface list) routes through
+   `SBMM.tools.deleteFeature(f)`, so all of them undo.
 4. ~~**Boot ≈ 4.0–4.3 s** on a slow 2-core box; worker-side DEM decode is the next real
    win.~~ **Done (v11 §3).** The four terrain payloads now decode in four dedicated
    workers started together (`Dem.loadAll` in `js/dem.js`, called from the loader in
@@ -89,9 +88,8 @@ in code, and what comes next. It replaces re-reading the chat history that built
 5. **Default-visibility hazard:** `DEFAULT_OVERRIDES` / `DEFAULT_LAYER_OFF` live in three
    places (`js/cadnative.js`, `tools/build_cad_native.py`, `data/design/cad_layer_map.json`).
    Consolidating them into the payload is a good small refactor.
-6. `index.html` help prose still says "Residential remedy design" (group is now
-   "Residential design (EA 2025)"); `test/perf.mjs` still references the removed 3D
-   checkboxes. Cosmetic.
+6. ~~`index.html` help prose still says "Residential remedy design"; `test/perf.mjs` still
+   references the removed 3D checkboxes.~~ **Done (v9.7).**
 7. **C-102 and C-203 could be placed the way C-202 was** (`tools/register_sheet_native.py`,
    native polygon fitted to the plan linework + ortho confirmation). C-203's rectangle is
    symmetric, so watch the ambiguity.
@@ -107,16 +105,17 @@ in code, and what comes next. It replaces re-reading the chat history that built
 10. Ideas he has floated for later: richer sample-result symbology by analyte/date, more
    datasets through `datasets.js` (it is the intended path for any new point data), and
    keeping the app the single place the construction team looks.
-11. **Findings from the kernel harness (v11 §2, `node test/kernels.mjs`)**, none of them
-   fixed yet, all of them small: (a) the `contours` kernel emits two-vertex stubs shorter
-   than 0.1 ft where an isoline clips a cell corner — harmless on the map, noise in a DXF;
-   (b) `contoursFromGrid` and `demRasterRGBA` ignore a windowed `gridSpec` (`i0/j0`)
-   silently and read the whole grid — every caller today passes a full grid, so nothing is
-   wrong yet, but the first windowed caller will get a raster of the wrong place with no
-   error; (c) the TOE/CREST card reports a length 2.0 ft longer than the feature it draws
-   (`js/smartbound.js` sums the un-simplified path — one line); (d) the cross-section
-   end-area check has no `isoTol`, so a section across `res_excbottom` on the 2-ft site
-   DEM shows 1.33 % phantom fill the isopach already knows to discard.
+11. ~~**Findings from the kernel harness (v11 §2)**~~ **All four fixed (v9.7)**, each with
+   an identity check in `test/kernels.mjs`: (a) `contours` drops polylines shorter than a
+   tenth of a sweep cell (43 sub-0.1-ft stubs gone from the 10-ft site set, 218 polylines
+   from 262, nothing over 1 ft touched); (b) `contoursFromGrid` and `demRasterRGBA` honour
+   a windowed `gridSpec` — proven identical to the standalone sub-grid; (c) TOE/CREST
+   keeps a closed chain closed (`ptsFrom(..., keepClosed)`), so the drawn line and the
+   card's Length are the same number; (d) `sections` dead-bands its end areas with the
+   isopach's `isoTol` and returns the per-sample `tol` — the phantom fill on
+   `res_excbottom` is 0.000 % (was 1.33 %), the tolerance there is ≤ 0.04 ft, and the cut
+   it removes is bounded by the dead band itself (1.4 % of a 99.5 ft² cut on the harness
+   alignment, which crosses mostly the 1-ft-to-0 transition at the limit of excavation).
 12. **The sheet viewer has no touch zoom.** `js/sheets.js` zooms a floating sheet window
    with the WHEEL, and a phone has no wheel; panning and the window drag are pointer-based
    and already work. It does not bite in the FIELD build (the full-sheet renders are not in
@@ -165,7 +164,7 @@ this repo is private; if that ever changes, this line goes first.
 **Three outputs now, and all three are built and tested.** One browser harness at a time —
 two software-GL renderers on this box crash the compositor.
 
-1. `node test/kernels.mjs` (fast, no browser — 136 checks; run it first after any kernel or
+1. `node test/kernels.mjs` (fast, no browser — 140 checks; run it first after any kernel or
    call-site change).
 2. e2e + split3d on the **folder** build.
 3. `python tools/build_dist.py` **and** `python tools/build_dist.py --field`.

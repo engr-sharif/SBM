@@ -95,7 +95,7 @@ SBMM.features = (function () {
     el.querySelector(".eye").onclick = e => { e.stopPropagation(); SBMM.store.setVisible(f, f.visible === false); };
     el.querySelector(".lock").onclick = e => { e.stopPropagation(); SBMM.store.setLocked(f, !f.locked); };
     el.querySelector(".zoom").onclick = e => { e.stopPropagation(); SBMM.store.select(f.id); SBMM.tools.zoomTo(f); };
-    el.querySelector(".del").onclick = e => { e.stopPropagation(); SBMM.store.remove(f); };
+    el.querySelector(".del").onclick = e => { e.stopPropagation(); SBMM.tools.deleteFeature(f); };
 
     el.addEventListener("dragstart", e => {
       e.dataTransfer.setData("text/plain", f.id);
@@ -304,7 +304,7 @@ SBMM.props = (function () {
 
     host.querySelector('[data-a="zoom"]').onclick = () => SBMM.tools.zoomTo(f);
     host.querySelector('[data-a="edit"]').onclick = () => SBMM.tools.editFeature(f);
-    host.querySelector('[data-a="del"]').onclick = () => SBMM.store.remove(f);
+    host.querySelector('[data-a="del"]').onclick = () => SBMM.tools.deleteFeature(f);
 
     const nm = $("pName");
     nm.onchange = nm.onblur = () => {
