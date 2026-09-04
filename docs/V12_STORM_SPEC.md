@@ -87,6 +87,11 @@ the two answers is exactly the inverts he is going to survey.
 
 ## 2. Definitions (the accuracy contract)
 
+> **v13 (`docs/V13_WATER3D_SPEC.md`)** extends these to the OVERTOPPING analysis:
+> `overtop` takes the same `conduits` / `captureFt` and reports the `conduitSpill` —
+> the first inlet whose rim the sealed flood's level reaches — beside the rim spill.
+> Read that file before changing anything below.
+
 - **Node**: a point with `kind ∈ {grate, round_inlet, fes, pipe_end,
   bend, junction, outfall, inferred}`, `x, y`, and two elevations: `rim_ft`
   (the lidar ground at the point, computed by the app on boot through

@@ -779,6 +779,13 @@ SBMM.water = (function () {
       source: d.name
     };
   }
+  /* a conduit's short human name — "pond culvert", the same words the raindrop
+     card uses for a leg. The raw id goes on the card's second line so a reader
+     can find it in the payload. */
+  function conduitLabel(id) {
+    if (SBMM.storm && SBMM.storm.shortLabel) return SBMM.storm.shortLabel(id);
+    return String(id).replace(/_/g, " ");
+  }
   function stageAt(R, level) {
     return (R.stage || []).find(s => Math.abs(s.level - level) < 1e-6) || null;
   }
@@ -811,6 +818,13 @@ SBMM.water = (function () {
       if (!grid) { toast("that water body is outside the surveyed terrain"); return null; }
       const job = { grid, plateauTol: PLATEAU_TOL, rimRange: RIM_RANGE,
                     levelStep: LEVEL_STEP, maxClusters: 12 };
+      /* v13 §2: the storm network, the same list the raindrop is handed — the
+         conduit spill is recorded BESIDE the rim analysis, so with the drains
+         off (or in a build with no network) this is [] and the answer is the
+         v10/v12 answer to the bit. */
+      const cds = (SBMM.storm && SBMM.storm.data() && spec.storm !== false)
+        ? SBMM.storm.conduitsFor(bbox) : [];
+      if (cds.length) { job.conduits = cds; job.captureFt = SBMM.storm.captureFt(); }
       if (ring) job.seedRing = ring.map(q => [q[0], q[1]]); else job.seedPoint = [point[0], point[1]];
       /* spec §10: a surveyed water surface is today's level; the pipe invert
          and the sandbag crest become exact stage rows */
@@ -840,7 +854,18 @@ SBMM.water = (function () {
     if (R.reason === "window")
       toast("the spill search filled the window — treat the rim beyond it as unchecked", 5200);
 
-    ov = { name, R, dem, markers: [], level: R.primary.level, facts };
+    ov = { name, R, dem, markers: [], level: R.primary.level, facts, ring: ring || null };
+    /* v13 §2: the first discharge through a storm conduit. On Herman the
+       conduit spill IS the surveyed pipe (1341.53 against the survey's 1341.55),
+       so the §10 pipe row and the surveyed pipe route stand and nothing is
+       traced twice; anywhere else it is a new row, a new marker and a new
+       route. */
+    const CS = R.conduitSpill || null;
+    ov.conduitSpill = CS;
+    ov.conduitLevel = CS ? (CS.stageLevel != null ? CS.stageLevel : CS.level) : null;
+    ov.conduitLabel = CS ? conduitLabel(CS.id) : null;
+    ov.csIsPipe = !!(CS && facts && facts.pipeInvert != null
+                     && Math.abs(CS.level - facts.pipeInvert) <= 0.1);
 
     /* the rim band + the exact spill cells, one canvas */
     const painted = paintBand(R);
@@ -918,6 +943,26 @@ SBMM.water = (function () {
       mk.addTo(SBMM.map);
       ov.markers.push(mk);
     }
+    /* the conduit spill's own marker — "C", beside the rim's ①, so the two
+       answers are visibly two answers (v13 §2) */
+    if (CS && !ov.csIsPipe) {
+      const mk = L.marker([CS.y, CS.x], {
+        pane: "drawings",
+        icon: L.divIcon({
+          className: "spillmk conduit", iconSize: [0, 0],
+          /* BELOW the badge, not level with it: the conduit spill is usually a
+             few feet from the rim spill, so two labels at the same offset land
+             on top of each other and neither can be read (the ranked rim lows
+             are stepped down the page for the same reason) */
+          html: `<span class="badge">C</span><span class="lbl mono" style="top:10px">`
+            + `${esc(ov.conduitLabel.toUpperCase())} ${fmt(ov.conduitLevel, 2)} ft · `
+            + `+${fmt(ov.conduitLevel - R.z0, 2)} ft</span>`
+        })
+      });
+      mk.on("click", () => SBMM.map.setView([CS.y, CS.x], Math.max(SBMM.map.getZoom(), 3)));
+      mk.addTo(SBMM.map);
+      ov.markers.push(mk);
+    }
     if (facts && facts.outlet) {
       const pr = await dropAt(facts.outlet[0], facts.outlet[1], {
         name: `${name} pipe discharge route`, group: "Water", quiet: true,
@@ -934,6 +979,19 @@ SBMM.water = (function () {
           SBMM.store.emit();
         }
       }
+    }
+    /* the first-discharge route: a raindrop dropped ON the conduit spill's own
+       kernel cell with the network on, so its first leg is the conduit and it
+       carries on down the chain, and with the water body blocked so a route that
+       comes back to it ends there (v13 §2). Herman's is already traced from the
+       surveyed pipe outlet, and one route is enough. */
+    if (CS && !ov.csIsPipe) {
+      const cr = await dropAt(CS.x, CS.y, {
+        name: `${name} first-discharge route (${ov.conduitLabel})`, group: "Water", quiet: true,
+        dem, window: bbox, plateauTol: PLATEAU_TOL,
+        blockRing: ring || (s0 && s0.rings && s0.rings.length ? s0.rings[0] : null)
+      });
+      if (cr) { ov.conduitRoute = cr; cr.props.blockRing = null; }
     }
     const nx = R.primary.next;
     if (nx) {
@@ -1025,16 +1083,22 @@ SBMM.water = (function () {
     const F = ov.facts;
     const piping = !!(F && F.pipeInvert != null && level >= F.pipeInvert - 1e-6);
     const overCrest = !!(F && F.wallCrest != null && level >= F.wallCrest - 1e-6);
-    const changed = ov.spilling !== spilling || ov.piping !== piping;
-    ov.spilling = spilling; ov.piping = piping;
+    /* v13: below the conduit level neither route shows; from it the conduit
+       route shows; from the rim spill the rim route shows too. */
+    const draining = !!(ov.conduitRoute && ov.conduitLevel != null
+                        && level >= ov.conduitLevel - 1e-6);
+    const changed = ov.spilling !== spilling || ov.piping !== piping || ov.draining !== draining;
+    ov.spilling = spilling; ov.piping = piping; ov.draining = draining;
     if (ov.route) SBMM.store.setVisible(ov.route, spilling);
     if (ov.pipeRoute) SBMM.store.setVisible(ov.pipeRoute, piping);
+    if (ov.conduitRoute) SBMM.store.setVisible(ov.conduitRoute, draining);
     const el = ov.card && ov.card.querySelector(".wslabel");
     if (el) {
       const store = s ? s.storage_ft3 : 0;
       let state = spilling ? "OVERFLOWS the rim at ①"
         : overCrest ? "above the sandbag crest · discharging through the pipes"
         : piping ? "discharging through the 24-in pipes"
+        : draining ? "discharging through " + ov.conduitLabel
         : "no discharge";
       if (level > R.primary.level + 1e-6) state += " (if the rim at ① were raised)";
       el.textContent = `water level ${fmt(level, 2)} ft · +${fmt(level - R.z0, 2)} ft above today · `
@@ -1045,6 +1109,35 @@ SBMM.water = (function () {
        rebuilding every draped ring per pixel is how a smooth control becomes a
        slideshow */
     if (changed && SBMM.viewer3d.isOpen()) SBMM.viewer3d.refreshOverlays();
+    /* the stage surface in 3D, at the slider's own level (v13 §3.2). This one
+       IS cheap to move — one ShapeGeometry at a constant z — so it follows every
+       step of the slider rather than only the changes of state. */
+    if (SBMM.viewer3d.setWaterStage) SBMM.viewer3d.setWaterStage(stageSpec());
+  }
+
+  /* what js/viewer3d.js draws as the water surface: the flooded outline at the
+     slider's level, plus the labels the 2D markers carry (v13 §3.2). */
+  function stageSpec() {
+    if (!ov || ov.hidden || !ov.R || !ov.R.primary) return null;
+    const R = ov.R, level = ov.level == null ? R.primary.level : ov.level;
+    const s = nearestStage(R, level);
+    if (!s || !s.rings || !s.rings.length) return null;
+    /* the rim lows of one impoundment cluster in the same corner, so their
+       sprites overlap unless they are stepped — the same reason the 2D markers
+       step their labels down the page by rank */
+    const labels = (R.clusters || []).map(cl => ({
+      x: cl.x, y: cl.y, z: cl.level, lift: 14 + (cl.rank - 1) * 26,
+      text: (cl.rank === 1 ? "rim spill" : "rim low " + cl.rank) + " · " + fmt(cl.level, 2) + " ft",
+      color: cl.rank === 1 ? C.spill : "#E8B34B"
+    }));
+    if (ov.conduitSpill && !ov.csIsPipe)
+      labels.push({ x: ov.conduitSpill.x, y: ov.conduitSpill.y, z: ov.conduitLevel, lift: 40,
+                    text: "first discharge · " + ov.conduitLabel + " · " + fmt(ov.conduitLevel, 2) + " ft",
+                    color: STORM_COL });
+    if (ov.facts && ov.facts.pipeXY && ov.facts.pipeInvert != null)
+      labels.push({ x: ov.facts.pipeXY[0], y: ov.facts.pipeXY[1], z: ov.facts.pipeInvert, lift: 40,
+                    text: "24-in pipes · " + fmt(ov.facts.pipeInvert, 2) + " ft", color: "#E8B34B" });
+    return { rings: s.rings, level: s.level, labels };
   }
 
   function overtopCard() {
@@ -1057,9 +1150,28 @@ SBMM.water = (function () {
       rows.push(["Water surface (surveyed, Aug 2026)", fmt(R.z0, 2) + " ft"]);
       rows.push(["Lidar plateau (Jan 2024)", fmt(R.z0_lidar != null ? R.z0_lidar : R.z0, 2) + " ft"]);
     } else rows.push(["Water surface (lidar, Jan 2024)", fmt(R.z0, 2) + " ft"]);
+    /* v13 §2: the first discharge through the storm network, ABOVE the rim
+       spill, because it happens first. On Herman the conduit spill is the
+       surveyed pipe, so the §10 row below carries the `via` instead of a
+       second row saying the same thing one hundredth of a foot lower. */
+    if (ov.conduitSpill && !ov.csIsPipe) {
+      const cst = stageAt(R, ov.conduitLevel);
+      rows.push(["First discharge",
+        `through ${ov.conduitLabel} at ${fmt(ov.conduitLevel, 2)} ft · `
+        + `+${fmt(ov.conduitLevel - R.z0, 2)} ft`
+        + (cst ? ` · ${fmt(acft(cst.storage_ft3), 2)} ac-ft` : "")]);
+      rows.push(["", `${ov.conduitSpill.id} · ${SBMM.storm ? SBMM.storm.labelOf(ov.conduitSpill.id) : ""}`]);
+      const cr = ov.conduitRoute ? ov.conduitRoute.props : null;
+      rows.push(["First-discharge route", !cr ? "—"
+        : (cr.pipe_ft > 0
+            ? `${fmt0(cr.total_ft)} ft · ${fmt0(cr.pipe_ft)} ft in pipe · `
+              + (cr.outfall ? "Clear Lake outfall" : endShort(cr))
+            : `${fmt0(cr.length_ft)} ft · ${endShort(cr)}`)]);
+    }
     if (F && F.pipeInvert != null) {
       const st = stageAt(R, F.pipeInvert);
-      rows.push(["First discharge", `24-in HDPE pipes · invert ${fmt(F.pipeInvert, 2)} ft · +${fmt(F.pipeInvert - R.z0, 2)} ft`]);
+      rows.push(["First discharge", `24-in HDPE pipes · invert ${fmt(F.pipeInvert, 2)} ft · +${fmt(F.pipeInvert - R.z0, 2)} ft`
+        + (ov.csIsPipe ? ` · via ${ov.conduitSpill.id}` : "")]);
       if (st) rows.push(["Storage to the pipes", `${fmt(acft(st.storage_ft3), 1)} ac-ft · ${fmt(acft(st.area_ft2), 2)} ac`]);
       const pt = ov.pipeRoute ? ov.pipeRoute.props : null;
       /* v12 §5.2: with the storm network on, what leaves the pipes is not a
@@ -1078,7 +1190,9 @@ SBMM.water = (function () {
         + (st ? ` · ${fmt(acft(st.storage_ft3), 1)} ac-ft` : "")]);
     }
     rows.push(
-      [F ? "Rim spill (lidar)" : "Spill elevation", fmt(R.primary.level, 2) + " ft"],
+      /* "Rim spill" rather than "Spill elevation" the moment there is something
+         to tell it apart from — a surveyed pipe, or a storm conduit (v13 §2) */
+      [(F || ov.conduitSpill) ? "Rim spill (lidar)" : "Spill elevation", fmt(R.primary.level, 2) + " ft"],
       ["Freeboard to the rim", fmt(R.freeboard_ft, 2) + " ft"],
       ["Spills at", `${fmt0(R.primary.x)} E, ${fmt0(R.primary.y)} N`],
       ["Storage to spill", fmt(acft(R.storage_ft3), 1) + " ac-ft"],
@@ -1181,6 +1295,7 @@ SBMM.water = (function () {
     for (const m of ov.markers) { if (on) SBMM.map.removeLayer(m); else m.addTo(SBMM.map); }
     if (btn) btn.textContent = on ? "show overlay" : "hide overlay";
     if (SBMM.viewer3d.isOpen() && SBMM.viewer3d.refreshDrapes) SBMM.viewer3d.refreshDrapes();
+    if (SBMM.viewer3d.setWaterStage) SBMM.viewer3d.setWaterStage(stageSpec());
   }
 
   /* storage (ac-ft, right axis) and area (ac, left axis) against level, with the
@@ -1241,6 +1356,7 @@ SBMM.water = (function () {
     ov = null;
     SBMM.results.checkEmpty();
     if (SBMM.viewer3d.isOpen() && SBMM.viewer3d.refreshDrapes) SBMM.viewer3d.refreshDrapes();
+    if (SBMM.viewer3d.setWaterStage) SBMM.viewer3d.setWaterStage(null);
   }
 
   /* what js/viewer3d.js drapes on the terrain — the same picture as 2D, so
@@ -1306,7 +1422,7 @@ SBMM.water = (function () {
     });
   }
 
-  return { surveyFacts,
+  return { surveyFacts, stageSpec,
     wire, dropAt, mkFlow, buildFlow, retrace, catchment, makeProfile,
     overtop, overtopHerman, overtopAt, clearOvertop, drapeSpec, active,
     refreshLabels, fillFlowCard, endSentence, endShort, pickPond,

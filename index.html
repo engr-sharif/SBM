@@ -402,6 +402,9 @@ window.SBMM_BUILD="full";
       <label>Fly speed <span class="mono" id="v3dSpeedVal">1.0×</span>
         <input type="range" id="v3dSpeed" min="0.2" max="4" step="0.1" value="1"></label>
       <label class="chk"><input type="checkbox" id="v3dClampTerrain" checked> Keep camera above the ground</label>
+      <!-- v13 §3.1: the flow-path particles. Default on, remembered in the same
+           localStorage record js/view.js keeps the camera in. -->
+      <label class="chk"><input type="checkbox" id="v3dAnimWater" checked> Animate water</label>
     </div>
 
     <div id="v3dHelpPop" class="popover">

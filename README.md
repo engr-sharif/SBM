@@ -925,6 +925,57 @@ The overflow route is deliberately traced on the **same grid and window as the a
 that produced it**. Retracing it on the finest DEM under the spill would be a second
 analysis wearing the first one's answer.
 
+#### First discharge — the storm network (v13)
+
+A pond rarely spills over its rim first. If a storm inlet stands inside the rim, the water
+leaves through it, and since v13 the overtopping analysis knows that: `overtop` takes the
+same conduit list the raindrop takes, and during the sealed flood the **first inlet whose
+rim the rising level reaches** is reported as the **conduit spill** — a "First discharge"
+row above the rim spill, an exact stage row at that level, a "C" marker on the map, and its
+own route, a raindrop dropped on the inlet with the network on. Submerged inlets are
+tracked and re-tested as the level rises, exactly the way `flowpath` does it.
+
+It is **added beside the rim analysis, never in place of it**. The flood itself is
+untouched: the rim spill, the ranked rim lows, the band, the freeboard, the storage and the
+0.25-ft stage buckets are the numbers they were, and `fillDem` is *not* seeded here (that is
+the raindrop's rule). With the drains off, or in a build with no network, the analysis is
+bit-identical to v10's — `test/kernels.mjs --only water3d` asserts that field by field.
+
+| | first discharge | rim spill |
+|---|---|---|
+| **Frog Pond** (the east pond) | `pond_culvert` at **1,415.74 ft** (+0.74, 0.8 ac-ft) | 1,416.04 ft (+1.04) |
+| **Green Pond** (the west pond) | `green_outlet` at **1,394.50 ft** (+2.90, 2.1 ac-ft) | 1,399.14 ft (+7.54) |
+| **Herman Impoundment** | the surveyed 24-in pipes at **1,341.55 ft**, `via herman_pipe_s` | 1,343.84 ft |
+
+Frog Pond is the case that prompted it. Its natural rim spill is ten feet from the culvert
+inlet on its west shore and 0.30 ft above it, so the overflow route used to run *north* over
+the ground. Now the first-discharge route takes the culvert under the paved road into Green
+Pond, leaves through Green Pond's own FES, and runs the road drain to the Clear Lake
+outfall — 2,969 ft of it in pipe. On Herman the conduit spill *is* the surveyed pipe
+(1,341.53 against the survey's 1,341.55), so the surveyed row simply gains `via
+herman_pipe_s`: one row, one marker, one route, no double-counting.
+
+The level slider snaps onto the conduit row as it does the surveyed ones. Below it neither
+route shows; from it the first-discharge route shows; from the rim spill the rim overflow
+joins it.
+
+### Water in 3D (v13)
+
+Every visible flow path carries a **particle stream** in 3D: dots spaced ~20 ft along the
+arc, moving at 40 ft/s, draped on the terrain over each overland stretch and running
+straight down each conduit leg in the storm colour, so the pipe visibly carries the water
+underground. The geometry and the draped elevations are computed **once per overlay
+rebuild**; the render loop only advances a scalar and writes into a pre-allocated array,
+and it asks for frames *only* while a visible flow is on screen and **Animate water** (View
+settings, default on, remembered) is ticked. With nothing flowing the 3D view still costs
+zero renders when idle. The particles are not pickable — the flow's own draped line is
+still what a click selects.
+
+With an overtopping analysis open, the 3D view also draws the **water surface at the slider
+level** as a translucent blue polygon at that elevation (holes honoured), with a label at
+each rim low, at the conduit spill and at the surveyed pipes. Moving the slider moves the
+surface; closing the analysis clears it.
+
 ### Where the numbers come from
 
 Both tools are kernels in `js/compute.js` (`flowpath`, `overtop`, `catchment`), so they run
