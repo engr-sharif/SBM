@@ -3215,10 +3215,10 @@ if (stormBase.cmd !== "STORM" || !stormBase.menu)
   { console.log("FAIL: STORM is not a command / not in the Water menu"); process.exit(1); }
 
 /* --- the raindrop with and without the network ----------------------- */
-/* Green Pond's low — the EAST pond, Spot 5 (the engineer's names; EA's
-   geodatabase labels the two ponds the other way round). With the drains on it
-   fills the east pond, takes the culvert under the paved road into the west
-   pond (Frog Pond), which overflows through the FES on its west shore, piped
+/* Frog Pond's low — the EAST pond, Spot 5 (EA's geodatabase names, confirmed
+   by the engineer). With the drains on it takes the culvert under the paved
+   road into the west pond (Green Pond), which overflows through the FES on its
+   west shore, piped
    to the Spot 8 grate and down the road drain to the Clear Lake outfall —
    never entering the impoundment; with them off it spills north-east off the
    survey, which is what the bare terrain does. */
@@ -3255,15 +3255,15 @@ console.log("storm raindrop:", JSON.stringify({ legs: stormDrop.legs, pipe: stor
   ponds: stormDrop.ponds, via: stormDrop.via, rebuilt: stormDrop.rebuilt, jobs: stormDrop.jobs,
   pipeLabels: stormDrop.pipeLabels }));
 if (stormDrop.err) { console.log("FAIL:", stormDrop.err); process.exit(1); }
-if (stormDrop.legs.join(",") !== "pond_culvert,frog_outlet,road_drain_8_9,road_drain_9_10,road_drain_10_11,road_drain_11_12,road_drain_12_13,road_drain_13_14,road_drain_14_15,road_drain_15_branch,branch,storm_main_lower")
-  { console.log("FAIL: the Green Pond chain is wrong, got", stormDrop.legs); process.exit(1); }
+if (stormDrop.legs.join(",") !== "pond_culvert,green_outlet,road_drain_8_9,road_drain_9_10,road_drain_10_11,road_drain_11_12,road_drain_12_13,road_drain_13_14,road_drain_14_15,road_drain_15_branch,branch,storm_main_lower")
+  { console.log("FAIL: the Frog Pond chain is wrong, got", stormDrop.legs); process.exit(1); }
 if (Math.abs(stormDrop.pipe - 2969.4) > 0.5)
   { console.log("FAIL: pipe_ft", stormDrop.pipe, "vs 2969.4"); process.exit(1); }
 if (!stormDrop.outfall)
   { console.log("FAIL: the Frog Pond drop should reach the Clear Lake outfall"); process.exit(1); }
 if (Math.abs(stormDrop.total - (stormDrop.len + stormDrop.pipe)) > 0.2)
   { console.log("FAIL: total_ft must be overland + pipe"); process.exit(1); }
-if (stormDrop.vias.join(",") !== "frog_outlet")
+if (stormDrop.vias.join(",") !== "green_outlet")
   { console.log("FAIL: the west pond must drain through its FES (the drop sits on the culvert inlet, so the east pond forms no pond), got", stormDrop.vias); process.exit(1); }
 if (wdist(stormDrop.end, [6371177, 2127474]) > 5)
   { console.log("FAIL: the drop should end in Clear Lake, got", stormDrop.end); process.exit(1); }

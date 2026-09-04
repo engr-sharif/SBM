@@ -36,9 +36,9 @@ await page.evaluate(() => {
   SBMM.cmd.open(false);
 });
 
-/* ---- 1. the chain, with a Green Pond raindrop on it ---- */
+/* ---- 1. the chain, with a Frog Pond raindrop on it ---- */
 const run = await page.evaluate(async () => {
-  const f = await SBMM.water.dropAt(6374418, 2127912, { name: "Green Pond drop" });
+  const f = await SBMM.water.dropAt(6374418, 2127912, { name: "Frog Pond drop" });
   if (!f) return null;
   SBMM.store.select(null);            // selection paints the run gold; this is about the blues
   SBMM.shell.setRightTab("results");
