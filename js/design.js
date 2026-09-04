@@ -435,7 +435,11 @@ SBMM.design = (function () {
       const props = { kind, padZ: z };
       if (kind === "plane") props.gradePct = 2;
       const f = mkSurface(pts, srcName ? srcName + " — pad" : null, props);
-      SBMM.undo.push("design surface", () => SBMM.store.remove(f));
+      /* redo puts the same surface back with the raster it already generated;
+         it regenerates only if that raster was thrown away meanwhile */
+      SBMM.undo.push("design surface",
+        () => SBMM.store.remove(f),
+        () => { SBMM.store.readd(f); if (!f._surf) regenerate(f); });
       SBMM.store.select(f.id);
       SBMM.tools.zoomTo(f);
       return f;
@@ -458,7 +462,9 @@ SBMM.design = (function () {
     const f = SBMM.store.selectedFeature();
     const go = pts => {
       const s = mkSurface(pts, "Existing ground copy", { kind: "existing" });
-      SBMM.undo.push("existing-ground surface", () => SBMM.store.remove(s));
+      SBMM.undo.push("existing-ground surface",
+        () => SBMM.store.remove(s),
+        () => { SBMM.store.readd(s); if (!s._surf) regenerate(s); });
       SBMM.store.select(s.id);
     };
     if (f && f.pts && f.pts.length > 2) { go(f.pts.map(p => p.slice())); return; }

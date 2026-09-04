@@ -1247,10 +1247,237 @@ table.rimtbl .minib{padding:0 6px;font-size:10px}
 #gateCard .gfoot{margin-top:20px;padding-top:13px;border-top:1px solid rgba(124,208,230,.13);
   font-size:10.5px;color:var(--mut2);letter-spacing:.25px}
 
+/* On a phone the gate is the first thing a thumb touches, so it gets the same
+   44-px / 16-px treatment field mode gives everything else. This does not weaken
+   the gate in any way — it is only the size of the two controls. (Under 16 px iOS
+   zooms the whole page the moment the password field takes focus, which throws the
+   card off screen mid-typing.) */
+@media (pointer: coarse){
+  #gatePw{height:48px;font-size:16px}
+  #gateGo{height:48px;min-width:96px;font-size:15px}
+  #gateCard{width:min(94vw,420px);padding:26px 22px 20px}
+}
+
 /* the gate is screen furniture; it must never reach paper */
 @media print{ #gate{display:none !important} }
 
 @media (prefers-reduced-motion: reduce){
   #gateCard{animation:none}
   #gateCard.shake{animation:none;outline:1px solid var(--red)}
+}
+
+/* =====================================================================
+   FIELD MODE (docs/V11_SPEC.md §4.3)
+
+   `body.field` is the ONE switch. Nothing below applies without it, which is
+   what makes "desktop is untouched" a property of the stylesheet rather than a
+   promise. Metrics: the 8-px grid the rest of the app uses, a 44-px minimum hit
+   target, and 16-px control fonts — under 16 px iOS zooms the whole page on
+   focus, which throws the map away mid-tap.
+
+   Stacking (see the band comment at the top of this file): the field chrome
+   sits in the docks/topbar band, 1100-1400. The bottom sheets and the bottom
+   card are 1360-1380, above the docks they re-use; the scrim is 1340. Toasts
+   (7000), modals (5600) and the gate (9000) are all still above it.
+   ===================================================================== */
+
+/* the touch gestures the 3D rig needs (js/viewer3d.js): without this the
+   browser takes a two-finger drag for a page scroll before the rig sees it */
+#v3dCanvas{touch-action:none}
+
+body.field{ --fbarH:76px; --ftopH:44px }
+
+/* --- the app's own chrome, out of the way ------------------------------- */
+body.field #topbar{display:none}
+body.field #leftdock .dockrail,
+body.field #rightdock .dockrail,
+body.field .dockgrip,
+body.field #leftCollapse,
+body.field #rightCollapse,
+body.field #scalebar,
+body.field .leaflet-control-zoom{display:none}
+body.field #status{height:26px;font-size:11.5px;gap:8px;bottom:var(--fbarH)}
+body.field #status .statgrp,
+body.field #status #sLL,
+body.field #status #sScale,
+body.field #status #sDem{display:none}
+body.field #cmdbar{bottom:calc(var(--fbarH) + 26px)}
+
+body.field #stage{top:var(--ftopH);left:0;right:0;bottom:calc(var(--fbarH) + 26px)}
+body.field #tableDrawer,
+body.field #secDrawer{left:0;right:0;bottom:calc(var(--fbarH) + 26px)}
+
+/* the Mode HUD moves above the action bar and gets out of the middle */
+/* the command bar opens BELOW the HUD (js/cmdline.js opens it by itself on a
+   first visit), so the HUD has to make room for it or the two overlap */
+body.field #modeHud{left:8px;right:8px;transform:none;max-width:none;
+  bottom:calc(var(--fbarH) + 30px + var(--cmdH));font-size:12.5px;padding:7px 10px}
+/* a HUD floating over an open sheet or card is chrome talking over the thing
+   the user just asked for */
+body.field.fovl #modeHud{display:none}
+body.field #toast{bottom:calc(var(--fbarH) + 70px + var(--cmdH));font-size:14px;padding:11px 16px;
+  max-width:calc(100vw - 24px)}
+
+/* --- the slim top bar --------------------------------------------------- */
+#fieldTop{display:none}
+body.field #fieldTop{position:absolute;top:0;left:0;right:0;height:var(--ftopH);
+  display:flex;align-items:center;gap:8px;padding:0 10px;z-index:1200;
+  background:linear-gradient(180deg,#1A242A,#151D22);border-bottom:1px solid var(--line)}
+#fieldTop .ftmark{font-weight:700;font-size:14px;letter-spacing:.2px}
+#fieldTop .ftmode{color:var(--acc2);font-size:13px;font-weight:600;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#fieldTop .ftbtn{width:44px;height:36px;display:flex;align-items:center;justify-content:center;
+  background:var(--panel2);border:1px solid var(--line);border-radius:var(--r2);
+  color:var(--ink2);cursor:pointer}
+#fieldTop .ftbtn:active{background:var(--panel3)}
+
+/* --- the bottom action bar ---------------------------------------------- */
+#fieldBar{display:none}
+body.field #fieldBar{position:absolute;left:0;right:0;bottom:0;height:var(--fbarH);
+  display:grid;grid-template-columns:repeat(7,1fr);gap:2px;padding:4px 4px calc(4px + env(safe-area-inset-bottom,0px));
+  background:linear-gradient(180deg,#161E23,#101619);border-top:1px solid var(--line);
+  z-index:1380}
+#fieldBar .fbtn{min-height:44px;display:flex;flex-direction:column;align-items:center;
+  justify-content:center;gap:3px;background:transparent;border:1px solid transparent;
+  border-radius:var(--r2);color:var(--ink2);font-family:inherit;font-size:11px;cursor:pointer;
+  padding:4px 2px;line-height:1.1}
+#fieldBar .fbtn span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+#fieldBar .fbtn:active{background:var(--panel3)}
+#fieldBar .fbtn.live{color:var(--acc2)}
+#fieldBar .fbtn.live .ic18{filter:drop-shadow(0 0 4px var(--acc))}
+
+/* --- the More sheet ------------------------------------------------------ */
+#fieldMore{position:absolute;left:0;right:0;bottom:var(--fbarH);z-index:1370;
+  background:var(--panel);border-top:1px solid var(--line2);border-radius:14px 14px 0 0;
+  box-shadow:var(--sh3);padding:0 10px 14px;max-height:60vh;overflow:auto}
+#fieldMore .fmgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+#fieldMore .fmbtn{min-height:48px;background:var(--panel2);border:1px solid var(--line);
+  border-radius:var(--r2);color:var(--ink);font-family:inherit;font-size:15px;cursor:pointer}
+#fieldMore .fmbtn:active{background:var(--panel3)}
+.fmgrab,.fcgrab,.fsgrab{height:26px;flex:none;display:flex;align-items:center;justify-content:center;
+  cursor:grab;touch-action:none}
+.fmgrab::after,.fcgrab::after,.fsgrab::after{content:"";width:42px;height:4px;border-radius:2px;
+  background:var(--line2)}
+body:not(.field) .fsgrab{display:none}
+
+/* --- popups become a bottom card ---------------------------------------- */
+#fieldCard{position:absolute;left:0;right:0;bottom:var(--fbarH);z-index:1360;
+  background:var(--panel);border-top:1px solid var(--line2);border-radius:14px 14px 0 0;
+  box-shadow:var(--sh3);max-height:58vh;display:flex;flex-direction:column}
+#fieldCard .fcbody{overflow:auto;padding:2px 14px 16px;font-size:14px;line-height:1.5}
+/* a portrait photo at full width is taller than the card: cap it so the picture
+   and what the app knows about it are on screen together */
+#fieldCard .photofull img{max-height:34vh;width:auto;max-width:100%;margin:0 auto}
+#fieldCard .fcbody .dspop td{font-size:13.5px;padding:5px 6px}
+#fieldCard .fcbody .pop-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
+#fieldCard .fcbody .pop-actions .minib{min-height:44px;display:flex;align-items:center;
+  justify-content:center;font-size:14px}
+#fieldScrim{position:absolute;inset:0;z-index:1340;background:rgba(6,10,13,.45)}
+
+/* --- the docks, as bottom sheets ---------------------------------------- */
+body.field #leftdock,
+body.field #rightdock{position:absolute;top:auto;left:0;right:0;width:auto;
+  bottom:var(--fbarH);height:60vh;max-height:60vh;border:none;border-top:1px solid var(--line2);
+  border-radius:14px 14px 0 0;box-shadow:var(--sh3);z-index:1360;
+  transform:translateY(105%);transition:transform .2s var(--ease);flex-direction:column}
+body.field[data-fsheet="left"] #leftdock,
+body.field[data-fsheet="right"] #rightdock{transform:translateY(0)}
+body.field #leftdock.dragging,
+body.field #rightdock.dragging{transition:none}
+body.field .docktabs .dtab{min-height:44px;font-size:14px;padding:0 12px}
+body.field .dockbody{flex:1;min-height:0}
+body.field .lyr{min-height:44px}
+body.field .lyr input[type=checkbox]{width:20px;height:20px}
+body.field select,
+body.field input[type=text],
+body.field input[type=number],
+body.field input[type=search],
+body.field textarea,
+body.field #cmdIn,
+body.field #gotoInp{font-size:16px}   /* 16px or iOS zooms the page on focus */
+
+/* --- the 3D view, collapsed (§4.3: style + frame + back) ---------------- */
+body.field #view3d .v3dbar{gap:8px;padding:0 8px}
+body.field #view3d .v3dbar > b,
+body.field #view3d .v3dbar .vsep,
+body.field #view3d #v3dSplit,
+body.field #view3d #v3dFly,
+body.field #view3d #v3dGoto2d,
+body.field #view3d #v3dLayersBtn,
+body.field #view3d #v3dSnap,
+body.field #view3d #v3dCoord,
+body.field #view3d #v3dStatus,
+body.field #view3d .v3dopt[data-optlabel="Relief"],
+body.field #view3d .v3dopt[data-optlabel="Mesh detail"]{display:none}
+body.field #view3d .v3dbar .minib,
+body.field #view3d .v3dbar select{min-height:38px;font-size:14px}
+body.field #v3dNav .navrow:first-child{display:none}
+body.field #v3dNav .navbtn{min-height:44px;min-width:44px;font-size:13px}
+
+/* --- field photos (§4.4) ------------------------------------------------ */
+.photomk .pmframe{display:block;width:44px;height:34px;border-radius:3px;overflow:hidden;
+  border:2px solid var(--amber);background:#0E1418;box-shadow:var(--sh2)}
+.photomk.sel .pmframe{border-color:var(--gold)}
+.photomk .pmframe img{width:100%;height:100%;object-fit:cover;display:block}
+.photomk .pmno{display:flex;width:100%;height:100%;align-items:center;justify-content:center;
+  font-size:8px;color:var(--mut2);text-align:center}
+.photomk .pmpin{display:block;width:0;height:0;margin:0 auto;
+  border-left:5px solid transparent;border-right:5px solid transparent;
+  border-top:8px solid var(--amber)}
+.photofull{margin:6px 0}
+.photofull img{width:100%;height:auto;border-radius:var(--r2);display:block;background:#0A0F12}
+.photonote{margin:4px 0 6px;white-space:pre-wrap;color:var(--ink2)}
+.leaflet-popup.photopop .leaflet-popup-content{min-width:220px}
+
+/* --- the device position (§4.4) -----------------------------------------
+   A divIcon, not a circleMarker: the map is `preferCanvas`, so a canvas vector
+   has no DOM element and neither this pulse nor the heading arrow would have
+   anywhere to live (the dead `.sheetpulse` CSS was the same mistake). */
+.fixmk{width:0;height:0}
+.fixmk .fixdot{position:absolute;left:-9px;top:-9px;width:18px;height:18px;border-radius:50%;
+  background:var(--acc);border:2.5px solid #fff;box-shadow:0 0 10px rgba(79,179,206,.95),var(--sh1)}
+.fixmk .fixdot::after{content:"";position:absolute;inset:-6px;border-radius:50%;
+  border:2px solid var(--acc2);opacity:.7;animation:fixpulse 1.9s ease-out infinite}
+.fixmk .fixhead{display:none;position:absolute;left:-8px;top:-30px;width:0;height:0;
+  border-left:8px solid transparent;border-right:8px solid transparent;
+  border-bottom:15px solid var(--acc2);transform-origin:50% 200%}
+@keyframes fixpulse{0%{transform:scale(.7);opacity:.85}100%{transform:scale(2.2);opacity:0}}
+
+/* --- nearest samples card ----------------------------------------------- */
+.fnlist{margin-top:8px}
+.fnrow{display:flex;align-items:center;gap:8px;min-height:44px;padding:4px 6px;
+  border-bottom:1px solid var(--line);cursor:pointer}
+.fnrow:active{background:var(--panel3)}
+.fnrow b{min-width:78px}
+
+/* --- the big-target prompt (NOTE, the photo export question) ------------ */
+.fmodal .fask{width:min(94vw,440px)}
+.fmodal .fask textarea{width:100%;font-family:inherit;font-size:16px;padding:9px 11px;
+  background:var(--panel2);border:1px solid var(--line);border-radius:var(--r2);color:var(--ink);
+  resize:vertical}
+.fmodal .mfoot{display:flex;gap:8px;justify-content:flex-end}
+.fmodal .mfoot .minib{min-height:44px;padding:0 18px;font-size:14px}
+.fmodal .mfoot .minib.pri{background:var(--acc);border-color:var(--acc);color:#06222C;font-weight:650}
+
+/* --- a sheet card with no render (the field build) ---------------------- */
+.shcard.norender{opacity:.72}
+.shcard.norender .shthumb{background:var(--panel3)}
+.shcard .shnone{font-size:10.5px;color:var(--mut2);text-align:center;line-height:1.3;padding:4px}
+
+/* The mark stays on the STAGE — above the action bar, and BELOW the bottom
+   sheets (1360) rather than over them, so it does not read as the last line of
+   whatever list is up. It comes back the moment the sheet is dismissed, and the
+   burn-in on exports is untouched either way. */
+body.field #watermark{bottom:calc(var(--fbarH) + 30px);right:8px;font-size:10px;z-index:1355}
+body.field .cultstamp{top:calc(var(--ftopH) + 6px);font-size:10.5px;max-width:calc(100vw - 16px)}
+
+/* --- modals, full-screen on a phone ------------------------------------- */
+body.field #help .box{width:100vw;max-width:100vw;height:100%;max-height:100%;
+  border-radius:0;font-size:14px}
+body.field .modal .mbox{width:min(96vw,560px);max-height:88vh}
+
+@media (prefers-reduced-motion: reduce){
+  body.field #leftdock,
+  body.field #rightdock{transition:none}
+  .fixmk .fixdot::after{animation:none;opacity:.35}
 }

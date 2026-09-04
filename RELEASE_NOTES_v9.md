@@ -2,16 +2,89 @@
 
 Release notes, 2 September 2026. Author: Mohammad Sharif (Jacobs, Task 2.1.5).
 
-Two files ship together and are built from the same source:
+Three files ship together and are built from the same source:
 
-- **`SBMM_Site_Explorer.html`** — the single-file build (~132 MB). Double-click it.
+- **`SBMM_Site_Explorer.html`** — the single-file build (~133 MB). Double-click it.
   Everything is inside it: terrain, imagery, the drawings, the data. No server, no
   install, no network.
+- **`SBMM_Site_Explorer_field.html`** — the same app at **~65 MB**, for the phone
+  (new in v9.6, below).
 - **`sbmm-site-explorer/`** — the same app as a folder (`index.html` + `js/` +
   `datajs/` + `vendor/`). Use this one if you want to read or change the code, or
   to host it internally.
 
-Both are offline-only by design. Nothing in this app calls out to the internet.
+All three are offline-only by design. Nothing in this app calls out to the internet.
+
+---
+
+## v9.6 — the app in the field
+
+**A field mode, and a field build.** Two things, because they answer two different
+questions.
+
+**Field mode** re-lays the whole app for a phone held in one hand on a site walk. It comes
+on by itself when the app is opened on a touch device with a narrow screen, and the `FIELD`
+command — or the switch in Help — turns it on or off anywhere; what you choose is
+remembered. Nothing about the desktop layout changes without it.
+
+Across the bottom: **Position · Inspect · Raindrop · Photo · Note · Layers**, and a
+**More** sheet with Distance, Area, Samples nearby, Sheets, 3D, My work, Results, Help,
+Lock and the way back out. The panels come up as sheets you slide away with a thumb, popups
+arrive as full-width cards at the bottom, and every target is thumb-sized. In 3D one finger
+orbits and two fingers pan and pinch.
+
+- **Position** shows where you are standing, on the map, with the accuracy circle the phone
+  reports and a heading arrow when it has one — converted into the site's State Plane
+  coordinates through the same ±1 ft affine everything else uses. If the browser will not
+  give a position, or you decline it, the app tells you and puts nothing on the map. It
+  never guesses.
+- **Photo** takes a picture and puts it on the map. It reads the photo's own GPS tag and
+  places it there; failing that, at where you are standing; failing that, where you tap —
+  and the card says which of the three it was, along with when the picture was taken. A
+  photo is an ordinary drawing after that: it is in **My work** under a new **Field**
+  heading, it stands up in the 3D view as a small billboard of itself, it saves in a
+  session file, and it exports to GeoJSON and DXF. The GeoJSON asks first whether to carry
+  the pictures themselves, because twenty photos is twenty megabytes.
+- **Note** is the ordinary annotation through a big-button flow — type it, tap where it
+  goes — and **Samples nearby** lists the twenty nearest sample locations to where you are,
+  one tap to fly to each.
+
+**The field build** (`SBMM_Site_Explorer_field.html`) is the same app, about half the size,
+so it will open on a phone. Four things are left out of it: the twenty full-page plan
+renders, the canopy model, EA's recovered design surfaces and EA's native CAD — the paper
+and the desk work. Everything else is exactly the app you know: all three elevation grids,
+all the imagery, the design geometry, the sheet overlays, the sample and well data, the
+August-2026 survey, the water tools and the volume engine. Anywhere one of the four is
+needed, the app says plainly that it is not in this build — the Sheets tab still lists all
+twenty drawings, greyed — rather than failing.
+
+Pile 1 still measures 278.4 yd³ of fill and −48.1 net, in all three builds.
+
+---
+
+## v9.5 — the app opens faster
+
+The terrain now decodes in the background. The three elevation grids and the canopy model
+used to be unpacked one after another on the same thread that draws the screen, which is
+what the "building workbench" pause was; they are now unpacked side by side, off that
+thread, and the loader counts them off as they land. On the slow two-core machine the tests
+run on, the app is ready in **1.7 seconds instead of 2.5**, and the terrain step itself
+went from 1.25 s to 0.68 s. Nothing about the terrain changed — the elevations are
+bit-for-bit the ones the app has always read, and the tests prove it by unpacking a grid
+both ways and comparing every cell.
+
+---
+
+## v9.4 — redo
+
+The Redo button works. Everything you do — drawing, dragging a vertex, the modify
+commands, a graded pad, a set of sections, a smart boundary, a raindrop, a delete — can now
+be stepped back with **Ctrl+Z** (or `UNDO`) and stepped forward again with **Ctrl+Y**,
+**Ctrl+Shift+Z** or the new `REDO` command, a hundred steps each way. Both buttons say what
+they will do: "Redo: retrace Raindrop 3". A redo brings back the *same* drawing — its name,
+its results card, its folder and its id — not a copy of it, so anything that referred to it
+still does. Starting something new after an undo drops the branch you left, the way every
+editor does. Deleting a feature with `ERASE` is now undoable too.
 
 ---
 

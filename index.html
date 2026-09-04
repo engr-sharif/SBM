@@ -21,6 +21,10 @@ window.SBMM_PERF = (function () {
     }
   };
 })();
+/* Which of the three builds this is. tools/build_dist.py rewrites the value
+   ("full" / "field"); the folder build reads "full". js/util.js copies it onto
+   SBMM_DATA.build once the payloads have parsed, which is where the app asks. */
+window.SBMM_BUILD="full";
 </script>
 </head>
 <body>
@@ -106,8 +110,8 @@ window.SBMM_PERF = (function () {
     <button class="toolbtn ghost" id="tableBtn" title="Sample results table [T]"><svg class="ic16"><use href="#i-flask"/></svg><span class="tlbl">Samples</span> <kbd>T</kbd></button>
     <button class="toolbtn ghost" id="importBtn" title="Import GeoJSON, DXF, CSV or a saved session (or drag-drop the file)"><svg class="ic16"><use href="#i-in"/></svg><span class="tlbl">Import</span> </button>
     <button class="toolbtn ghost" id="exportBtn" title="Export drawings, session, CSVs"><svg class="ic16"><use href="#i-out"/></svg><span class="tlbl">Export ▾</span></button>
-    <button class="toolbtn ghost" id="undoBtn" title="Undo the last action (Ctrl+Z)"><svg class="ic16"><use href="#i-undo"/></svg><span class="tlbl">Undo</span></button>
-    <button class="toolbtn ghost" id="redoBtn" title="Redo — this build keeps an undo stack only, so there is nothing to redo" disabled><svg class="ic16"><use href="#i-redo"/></svg><span class="tlbl">Redo</span></button>
+    <button class="toolbtn ghost" id="undoBtn" title="Undo the last action (Ctrl+Z)" disabled><svg class="ic16"><use href="#i-undo"/></svg><span class="tlbl">Undo</span></button>
+    <button class="toolbtn ghost" id="redoBtn" title="Redo the last undone action (Ctrl+Y)" disabled><svg class="ic16"><use href="#i-redo"/></svg><span class="tlbl">Redo</span></button>
     <button class="toolbtn ghost" id="clearBtn" title="Remove all drawings"><svg class="ic16"><use href="#i-trash"/></svg><span class="tlbl">Clear</span> </button>
   </div>
 
@@ -569,7 +573,12 @@ window.SBMM_PERF = (function () {
   </tbody></table>
   Grabbing a vertex handle enters <b>edit</b> and releasing it returns you where you were.
   While sketching: click vertices, <kbd>Enter</kbd> or double-click finishes, right-click or
-  <kbd>Backspace</kbd> removes the last vertex, <kbd>Ctrl</kbd><kbd>Z</kbd> undoes.<br><br>
+  <kbd>Backspace</kbd> removes the last vertex, <kbd>Ctrl</kbd><kbd>Z</kbd> undoes.<br>
+  <b>Undo and redo</b> cover every action — drawing, vertex edits, modify commands, pads,
+  sections, smart boundaries, raindrops and deletes. <kbd>Ctrl</kbd><kbd>Z</kbd> or
+  <b>UNDO</b> steps back, <kbd>Ctrl</kbd><kbd>Y</kbd> (or <kbd>Ctrl</kbd><kbd>Shift</kbd><kbd>Z</kbd>,
+  or <b>REDO</b>) steps forward again, 100 steps each way. A new action after an undo drops
+  the branch you left, the way every editor does.<br><br>
 
   <b>Layout</b> — the <b>left dock</b> has <b>Layers</b>, <b>My work</b> (every drawing you
   have made: rename, show/hide, lock, zoom to, organise into folders) and <b>Sheets</b> (a card
@@ -687,7 +696,27 @@ window.SBMM_PERF = (function () {
 
   <b>Export</b> — GeoJSON in WGS84 or State Plane (EPSG:6418), DXF R12 in raw State Plane feet
   for AutoCAD and Civil 3D, session files you can reload or share, and CSVs of results, samples
-  and datasets. Drag-drop a GeoJSON, DXF or CSV onto the map to import it.
+  and datasets. Drag-drop a GeoJSON, DXF or CSV onto the map to import it.<br><br>
+
+  <b>In the field</b> — <label class="chk" style="display:inline-flex;gap:6px;align-items:center">
+  <input type="checkbox" id="fieldSwitch"> <b>Field mode</b></label> (also the
+  <span class="mono">FIELD</span> command) lays the whole app out for a phone: a bottom bar with
+  <b>Position</b>, <b>Inspect</b>, <b>Raindrop</b>, <b>Photo</b>, <b>Note</b> and <b>Layers</b>,
+  the docks as sheets that slide up from the bottom, popups as full-width cards, and 44-px
+  targets throughout. It switches itself on at start on a touch device with a narrow screen, and
+  your choice is remembered.<br>
+  <b>Position</b> uses the browser's own geolocation and converts it through the site affine
+  (±1 ft) — nothing is ever placed without a real fix. <b>Photo</b> takes a picture, reads its
+  EXIF orientation, time and GPS, and puts it on the map at its own tag, else at the device
+  position, else where you tap; it becomes an ordinary feature that appears in My work, exports,
+  drapes in 3D and travels in the session file (the GeoJSON export asks before it carries the
+  images). <b>Note</b> is a text feature through a big-button flow, and
+  <b>Samples nearby</b> lists the twenty nearest sample locations to where you are standing.<br>
+  There is also a <b>field build</b> — <span class="mono">SBMM_Site_Explorer_field.html</span> —
+  about half the size, for opening on a phone. It leaves out the 20 full-sheet plan renders, the
+  canopy height model, EA's recovered design surfaces and EA's native CAD; everything that reads
+  them says so rather than failing. The terrain, the imagery, the design geometry, the datasets,
+  the survey and every tool are all still there.
 </div></div>
 
 <!-- The password gate is deliberately the FIRST script: it paints before the
@@ -811,6 +840,9 @@ window.SBMM_PERF = (function () {
 <script src="js/water.js"></script>
 <script src="js/refsurf.js"></script>
 <script src="js/sheetcards.js"></script>
+<!-- field mode + the field capabilities (docs/V11_SPEC.md §4). After every
+     module it calls, before boot.js, which turns it on. -->
+<script src="js/field.js"></script>
 <script>SBMM_PERF.mark("app-js")</script>
 <script src="js/boot.js"></script>
 </body>

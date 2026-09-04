@@ -163,7 +163,9 @@ SBMM.refSurf = (function () {
     const list = manifest();
     const nr = notRecovered();
     if (!list.length && !nr.length) {
-      host.innerHTML = `<div class="surfnone mut">No EA design surfaces in this build.</div>`;
+      host.innerHTML = `<div class="surfnone mut">${SBMM.isField && SBMM.isField()
+        ? "EA's design surfaces are not in the field build — the isopach and the design-base volumes need the full build."
+        : "No EA design surfaces in this build."}</div>`;
       return;
     }
     host.innerHTML = list.map(m => {

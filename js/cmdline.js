@@ -64,7 +64,7 @@ SBMM.cmd = (function () {
     { n: "EXPLODE", a: ["X"],   d: "polygon → open line",
       f: () => withTarget("EXPLODE", f => SBMM.tools.opExplode(f)) },
     { n: "ERASE",   a: ["E", "DEL"], d: "delete the selected feature",
-      f: () => withTarget("ERASE", f => SBMM.store.remove(f)) },
+      f: () => withTarget("ERASE", f => SBMM.tools.deleteFeature(f)) },
 
     { n: "DIM",  a: ["DIMALIGNED", "DIMLINEAR"], d: "aligned dimension between two points", f: () => mode("dimension") },
     { n: "TEXT", a: ["MTEXT", "TX"], d: "place an annotation (optional leader)", arg: "label",
@@ -144,9 +144,20 @@ SBMM.cmd = (function () {
     { n: "DATASET", a: ["DATA", "IMPORTCSV", "CSVIN"], d: "import a CSV of coordinates as a dataset (wells, borings, anything)",
       f: () => SBMM.datasets.pickFile() },
 
+    /* ---- field mode (v11 §4.4) ---- */
+    { n: "FIELD", a: ["MOBILE", "PHONE"], d: "field mode — big-target touch layout for a phone in the field",
+      f: () => SBMM.field.toggle() },
+    { n: "GPS", a: ["POSITION", "WHEREAMI"], d: "show the device position on the map (and follow it)",
+      f: () => SBMM.field.locate() },
+    { n: "PHOTO", a: ["PIC", "CAMERA"], d: "take a photo and place it on the map",
+      f: () => SBMM.field.photo() },
+    { n: "NOTE", a: ["MEMO"], d: "type a note and tap where it goes",
+      f: () => SBMM.field.note() },
+
     { n: "OSNAP", a: ["OS", "SNAP"], d: "toggle object snap (F3)", f: () => { SBMM.snap.setEnabled(null); toast("object snap " + (SBMM.snap.enabled() ? "on" : "off")); } },
     { n: "POLAR", a: ["PO"], d: "toggle polar tracking, 15° (F10)", f: () => { SBMM.draw.setPolar(null); toast("polar tracking " + (SBMM.draw.isPolar() ? "on" : "off")); } },
     { n: "UNDO",  a: ["U"], d: "undo the last action", f: () => SBMM.undo.pop() },
+    { n: "REDO",  a: ["RE", "Y"], d: "redo the last undone action (Ctrl+Y)", f: () => SBMM.undo.redo() },
     { n: "CLEAR", a: [], d: "remove every drawn feature", f: () => $("clearBtn").click() },
     { n: "HELP",  a: ["?", "H"], d: "list every command", f: () => showHelp() },
     /* the password gate (js/gate.js). Forgetting the remembered unlock and
