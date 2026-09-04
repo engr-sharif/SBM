@@ -99,6 +99,12 @@
     SBMM.isopach.wire();
     SBMM.layerMan.wire();
     SBMM.sheetCards.wire();
+    /* Field mode (v11 §4.3). autoDetect() switches it on by itself on a touch
+       device with a narrow viewport, unless a stored preference says otherwise;
+       `body.field` is the one switch, and desktop is untouched without it.
+       Before SBMM.mode.wire() so the Mode HUD paints once, in the right box. */
+    SBMM.field.autoDetect();
+    SBMM.field.wire();
     SBMM.wireSelection();
     /* the tool-mode machine owns the tool buttons, the cursor, the mode HUD and
        every single-key shortcut (§2) */

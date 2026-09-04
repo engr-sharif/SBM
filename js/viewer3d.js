@@ -305,6 +305,34 @@ SBMM.viewer3d = (function () {
     return s;
   }
 
+  /* One texture per photo feature, decoded once. The image is a data URL, so
+     the load is synchronous-ish but still async: the sprite goes into the scene
+     grey and asks for one more frame when the pixels arrive. */
+  const photoTex = new Map();          // feature id -> {tex, aspect}
+  function photoSprite(f, sel) {
+    const src = (f.props && (f.props.thumb || f.props.img)) || null;
+    if (!src) return null;
+    let rec = photoTex.get(f.id);
+    if (!rec || rec.src !== src) {
+      const img = new Image();
+      rec = { src, tex: new THREE.Texture(img), aspect: 1 };
+      img.onload = () => {
+        rec.tex.needsUpdate = true;
+        rec.aspect = img.width / Math.max(1, img.height);
+        requestRender();
+      };
+      img.src = src;
+      rec.tex.minFilter = THREE.LinearFilter;
+      photoTex.set(f.id, rec);
+    }
+    const mat = new THREE.SpriteMaterial({ map: rec.tex, transparent: true,
+      color: sel ? 0xFFF0C0 : 0xFFFFFF, depthTest: true });
+    const sp = new THREE.Sprite(mat);
+    const h = sel ? 58 : 46;
+    sp.scale.set(h * rec.aspect, h, 1);
+    return sp;
+  }
+
   function designMesh(f) {
     const s = f._surf;
     /* rebuildOverlays() runs on every selection change; sampling ~48k ground
@@ -701,6 +729,21 @@ SBMM.viewer3d = (function () {
           overlayGroup.add(own(s, f));
           continue;
         }
+        /* v11 §4.4 — a field photo stands on the ground as a billboard of its
+           own thumbnail, so "what does it look like there" is answerable from
+           the model. The texture is cached per feature: a sprite is rebuilt on
+           every overlay pass and re-decoding a data URL each time would cost
+           more than the whole overlay. */
+        if (f.type === "photo") {
+          const [x, y] = f.pts[0];
+          const sp = photoSprite(f, sel);
+          if (sp) { sp.position.set(x - CX, y - CY, drapeZ(x, y, 34)); overlayGroup.add(own(sp, f)); }
+          const st = new THREE.Mesh(new THREE.SphereGeometry(sel ? 6 : 4, 8, 8),
+            new THREE.MeshBasicMaterial({ color: sel ? 0xFFD34D : 0xE8B34B }));
+          st.position.set(x - CX, y - CY, drapeZ(x, y, 4));
+          overlayGroup.add(own(st, f));
+          continue;
+        }
         overlayGroup.add(own(drapedLine(f.pts, col, f.type === "area" || f.type === "volume", sel ? 4.5 : 3), f));
       }
     }
@@ -1042,13 +1085,61 @@ SBMM.viewer3d = (function () {
       return camera.position.clone().addScaledVector(dir, st.sph.r);
     }
 
+    /* ---- touch (v11 §4.3) ------------------------------------------
+       The rig is pointer-based, so ONE finger already orbits. What it did not
+       have is the second finger: a two-finger gesture arrived as two competing
+       one-finger drags and the camera lurched. `touches` tracks the live touch
+       pointers, and while there are two of them the drag becomes a PINCH —
+       spread/pinch dollies, moving the midpoint pans — which is the gesture
+       every map on a phone has taught the user to expect. Mouse and pen are
+       untouched: they never enter this map. */
+    const touches = new Map();          // pointerId -> {x, y}
+    let pinch = null;                   // {d, cx, cy}
+    const pinchOf = () => {
+      const a = [...touches.values()];
+      if (a.length < 2) return null;
+      return { d: Math.hypot(a[0].x - a[1].x, a[0].y - a[1].y),
+               cx: (a[0].x + a[1].x) / 2, cy: (a[0].y + a[1].y) / 2 };
+    };
+    /* pan the camera plane by a screen delta — the same maths the right-drag
+       pan uses, factored out so the pinch can borrow it */
+    function panBy(dx, dy) {
+      const el = dom.clientHeight || 1;
+      const k = 2 * st.sph.r * Math.tan((camera.fov * Math.PI / 180) / 2) / el;
+      const right = new THREE.Vector3(), up = new THREE.Vector3();
+      camera.matrixWorld.extractBasis(right, up, new THREE.Vector3());
+      st.targetDst.add(right.multiplyScalar(-dx * k).add(up.multiplyScalar(dy * k)));
+    }
+
     dom.addEventListener("pointerdown", e => {
       if (e.pointerType === "mouse" && e.button === 2) e.preventDefault();
-      dom.setPointerCapture(e.pointerId);
+      /* capture is a convenience, not a requirement: it throws for a pointer id
+         the browser has no active pointer for (a synthetic event, a pointer
+         already released), and a throw here would leave the rig un-armed with
+         no error the user could see */
+      try { dom.setPointerCapture(e.pointerId); } catch (err) {}
+      if (e.pointerType === "touch") {
+        touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+        if (touches.size >= 2) { pinch = pinchOf(); st.drag = "pinch"; return; }
+      }
       st.lastX = e.clientX; st.lastY = e.clientY;
       st.drag = e.button === 0 ? (st.mode === "fly" ? "look" : "orbit") : "pan";
     });
     dom.addEventListener("pointermove", e => {
+      if (e.pointerType === "touch" && touches.has(e.pointerId))
+        touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (st.drag === "pinch") {
+        const now = pinchOf();
+        if (!now || !pinch) return;
+        if (now.d > 4 && pinch.d > 4) {
+          const r = clamp(st.dst.r * (pinch.d / now.d), MINR, MAXR);
+          st.dst.r = r;
+        }
+        panBy(now.cx - pinch.cx, now.cy - pinch.cy);
+        pinch = now;
+        requestRender();
+        return;
+      }
       if (!st.drag) return;
       const dx = e.clientX - st.lastX, dy = e.clientY - st.lastY;
       st.lastX = e.clientX; st.lastY = e.clientY;
@@ -1072,7 +1163,24 @@ SBMM.viewer3d = (function () {
       }
       requestRender();
     });
-    const endDrag = e => { st.drag = null; try { dom.releasePointerCapture(e.pointerId); } catch (err) {} };
+    const endDrag = e => {
+      if (e.pointerType === "touch") {
+        touches.delete(e.pointerId);
+        if (touches.size === 1) {
+          /* one finger lifted out of a pinch: carry on orbiting from where the
+             other one is, rather than jumping by the gap between them */
+          const a = [...touches.values()][0];
+          st.lastX = a.x; st.lastY = a.y;
+          st.drag = st.mode === "fly" ? "look" : "orbit";
+          pinch = null;
+          try { dom.releasePointerCapture(e.pointerId); } catch (err) {}
+          return;
+        }
+        pinch = null;
+      }
+      st.drag = null;
+      try { dom.releasePointerCapture(e.pointerId); } catch (err) {}
+    };
     dom.addEventListener("pointerup", endDrag);
     dom.addEventListener("pointercancel", endDrag);
 
@@ -1775,6 +1883,11 @@ SBMM.viewer3d = (function () {
         (n, m) => n + m.geometry.getAttribute("position").count, 0),
       sheetDrapesVisible: !!(sheetGroup && sheetGroup.visible),
       navMode: nav ? nav.mode() : null,
+      /* the orbit rig's target state — what a drag or a pinch actually moves.
+         Reading the camera position instead would be reading the eased
+         FOLLOWER, which lags a gesture by a few frames. */
+      orbit: nav ? { theta: +nav.st.dst.theta.toFixed(4), phi: +nav.st.dst.phi.toFixed(4),
+                     r: +nav.st.dst.r.toFixed(1) } : null,
       fov: camera ? camera.fov : null,
       cameraZ: camera ? +camera.position.z.toFixed(1) : null,
       renderOnDemand: true,

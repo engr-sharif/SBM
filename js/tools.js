@@ -94,7 +94,9 @@ SBMM.tools = (function () {
     surface: { pane: "drawings", color: "#4FD8E6", weight: 2, fillOpacity: .07 },
     sections:{ pane: "drawings", color: "#F0A6D0", weight: 2.5 },
     /* v10 — water reads as water everywhere it appears (§7) */
-    flow:    { pane: "drawings", color: "#55C1FF", weight: 2.75 }
+    flow:    { pane: "drawings", color: "#55C1FF", weight: 2.75 },
+    /* v11 §4.4 — a field photo: a framed thumbnail marker, not a stroked shape */
+    photo:   { pane: "drawings", color: "#E8B34B", weight: 2 }
   };
   const SEL_COLOR = "#FFD34D";
   function baseStyle(t) { return styles[t] || styles.area; }
@@ -108,6 +110,7 @@ SBMM.tools = (function () {
        copy in the water pane), so it is rebuilt rather than re-styled — the
        same shape dim and text already use */
     if (f.type === "flow") { SBMM.water.buildFlow(f); return; }
+    if (f.type === "photo") { SBMM.field.buildPhoto(f); return; }
     if (!f.layer.setStyle) return;
     const base = baseStyle(f.type);
     const sel = SBMM.store.selected === f.id;
@@ -125,7 +128,7 @@ SBMM.tools = (function () {
 
   function layerFor(f) {
     const ll = f.pts.map(p => [p[1], p[0]]);
-    if (f.type === "dim" || f.type === "text" || f.type === "flow") return L.featureGroup([]);
+    if (f.type === "dim" || f.type === "text" || f.type === "flow" || f.type === "photo") return L.featureGroup([]);
     if (f.type === "spot") {
       return L.circleMarker(ll[0], { pane: "drawings", radius: 5, color: "#FFD34D", weight: 2, fillColor: "#12181C", fillOpacity: 1 });
     }
@@ -138,6 +141,7 @@ SBMM.tools = (function () {
   function redraw(f) {
     if (f.type === "dim" || f.type === "text") { buildAnno(f); return; }
     if (f.type === "flow") { SBMM.water.buildFlow(f); return; }
+    if (f.type === "photo") { SBMM.field.buildPhoto(f); return; }
     const ll = f.pts.map(p => [p[1], p[0]]);
     if (f.type === "spot") f.layer.setLatLng(ll[0]);
     else f.layer.setLatLngs(OPEN_TYPES.has(f.type) ? ll : [ll]);
@@ -160,7 +164,7 @@ SBMM.tools = (function () {
     /* On a REBUILD the three FeatureGroup types are empty shells until their
        own builder fills them again (buildAnno here, js/water.js buildFlow);
        at creation the caller does that itself a moment later. */
-    if (rebuild && (f.type === "dim" || f.type === "text" || f.type === "flow")) redraw(f);
+    if (rebuild && (f.type === "dim" || f.type === "text" || f.type === "flow" || f.type === "photo")) redraw(f);
     if (rebuild && f.card && f.layer.on) {
       f.layer.on("mouseover", () => f.card.classList.add("hl"));
       f.layer.on("mouseout", () => f.card.classList.remove("hl"));
@@ -184,9 +188,22 @@ SBMM.tools = (function () {
       SBMM.map.fitBounds(L.latLngBounds(ll).pad(0.4));
     }
   }
+  /* Which features can have their vertices dragged, and which can be translated.
+     ONE list, because the popup card has to offer exactly the actions
+     editFeature would accept — a button that only ever raises a toast is worse
+     than no button. `spot` and `photo` are single points (there is nothing to
+     drag but the point itself, which is what MOVE is for); a `flow` is traced
+     from the terrain rather than drawn, and a reference surface is EA's data. */
+  const NO_VERTEX_EDIT = new Set(["spot", "photo", "flow"]);
+  function canEditVertices(f) { return !!f && !f.locked && !NO_VERTEX_EDIT.has(f.type); }
+  function canMove(f) { return !!f && !f.locked && f.type !== "flow" && !(f.props && f.props.ref); }
+
   function editFeature(f) {
     if (f.locked) { toast("feature is locked — unlock it in the Features tab"); return; }
     if (f.type === "spot") { toast("spot elevations can't be edited — delete and re-drop"); return; }
+    /* a photo is one point: where it was taken. MOVE corrects that; there is no
+       second vertex to drag. */
+    if (f.type === "photo") { toast("a photo is a single point — use MOVE to correct where it was taken"); return; }
     /* a flow path is computed from the terrain, not drawn: moving a vertex would
        make it a line that claims to be a trace. Move the DROP instead. */
     if (f.type === "flow") { toast("a flow path is traced, not drawn — drag the raindrop to retrace"); return; }
@@ -770,6 +787,9 @@ SBMM.tools = (function () {
     /* v10 additions — a raindrop flow path. Rebuilt from props, never recomputed:
        loading a session or importing a file must not spawn compute jobs. */
     else if (type === "flow") { f = SBMM.water.mkFlow(pts, name, props, spec); }
+    /* v11 additions — a field photo. Rebuilt from props like `flow`: a session
+       or an import must not go looking for a camera. */
+    else if (type === "photo") { f = SBMM.field.mkPhoto(pts, name, props, spec); }
     else return null;
     if (name) {
       f.name = name;
@@ -1303,7 +1323,8 @@ SBMM.tools = (function () {
   function nextName(base) { seq[base] = (seq[base] || 0) + 1; return `${base} ${seq[base]}`; }
 
   return { setTool, active, rearm, mapClick, dropSpot, inspectAt, mkVolume, volumeOfPile, volumeOfRing, volumeOfRingPts,
-           editFeature, zoomTo, rebuildFeature, recompute, applyStyle, redraw, relayer, deleteFeature,
+           editFeature, canEditVertices, canMove,
+           zoomTo, rebuildFeature, recompute, applyStyle, redraw, relayer, deleteFeature,
            defaultColor, baseStyle, compVolume, wire,
            /* earthworks (phase 3) */
            buildVolumeJob, baseLabel, volumeRange, refreshBaseSelects, newFeature,

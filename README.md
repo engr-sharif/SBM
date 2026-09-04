@@ -7,9 +7,12 @@ network needed.
 
 ## Two ways to run it
 
+Three outputs, one source.
+
 | | |
 |---|---|
-| **`dist/SBMM_Site_Explorer.html`** | One self-contained file (~94 MB — the full-resolution plan sheets are most of it). **Double-click it and it works** — on any computer, from a USB stick, from email. This is the copy to hand to the team. |
+| **`dist/SBMM_Site_Explorer.html`** | One self-contained file (~133 MB — the full-resolution plan sheets and EA's native CAD are most of it). **Double-click it and it works** — on any computer, from a USB stick, from email. This is the copy to hand to the team. |
+| **`dist/SBMM_Site_Explorer_field.html`** | The same app at **~65 MB**, for opening on a phone (`python tools/build_dist.py --field`). See [In the field](#in-the-field). |
 | **This folder (`index.html`)** | The development layout — same app split into modules. Also opens by double-click, and hosts directly on GitHub Pages. This is the copy to iterate on with Claude Code. |
 
 > **Why the old version hung on "Loading terrain…":** it loaded data with `fetch()`, which
@@ -31,6 +34,56 @@ is stop the file being used by whoever it reaches sideways. The password itself 
 written anywhere in this repository except the private handover note; the app stores only a
 SHA-256 of it, so a forgotten password is replaced (`python tools/set_password.py "New"`),
 never recovered.
+
+## In the field
+
+The app has a **field mode**: the whole layout re-laid for a phone held in one hand on a
+site walk. It switches itself on at start on a touch device with a narrow screen, and the
+`FIELD` command (or the switch in Help) turns it on or off anywhere; your choice is
+remembered. Nothing about the desktop layout changes without it.
+
+- **A bottom action bar** — **Position**, **Inspect**, **Raindrop**, **Photo**, **Note**,
+  **Layers**, and a **More** sheet with Distance, Area, Samples nearby, Sheets, 3D, My
+  work, Results, Help, Lock and the way back out. Everything is a 44-px target and every
+  control is at 16 px, which is the size below which iOS zooms the page under your thumb.
+- **The docks become sheets** that slide up from the bottom to 60 % of the screen, one at a
+  time, and drag down to dismiss. **Popups become full-width cards** at the bottom — the
+  same content the desktop popup shows, in a shape you can read at arm's length.
+- **Position** uses the browser's own geolocation, converts it through the site affine
+  (±1 ft), and draws a pulsing marker inside its accuracy circle, with a heading arrow when
+  the device reports one and follow-the-map on by default. If the browser has no
+  geolocation, or you decline it, the app says so and places nothing — it never guesses
+  where you are.
+- **Photo** takes a picture with the phone camera, reads its EXIF orientation, time and GPS
+  tag, downscales it to 1600 px, and puts it on the map — at its own GPS position, or at the
+  device position, or where you tap, and the card says which. A photo is an ordinary
+  feature: it appears in **My work** under a new **Field** class, it drapes in 3D as a
+  billboard of itself, it survives a session file, and it exports to GeoJSON and DXF (the
+  GeoJSON asks before it carries the images, because twenty photos is twenty megabytes).
+- **Note** is the ordinary text annotation through a big-button flow, and **Samples
+  nearby** lists the twenty nearest sample locations to where you are standing, one tap to
+  fly to each.
+- In 3D, one finger orbits and two fingers pan and pinch; the view opens at standard mesh
+  detail, and the toolbar collapses to drape, frame and back.
+
+### The field build
+
+`python tools/build_dist.py --field` writes `dist/SBMM_Site_Explorer_field.html`, about
+half the size of the full one, because four payloads are left out:
+
+| left out | why |
+|---|---|
+| the 20 full-sheet plan renders (~27 MB) | the design *geometry* is still there, from EA's geodatabase; the paper is not |
+| the canopy height model (~7 MB) | the tree tools are a desk job |
+| EA's four recovered design surfaces (~11 MB) | so are the isopach and the design-base volumes |
+| EA's native CAD (~22 MB) | 802 layers of drafting linework you do not read on a phone |
+
+Everything else is unchanged: all three elevation grids, all the imagery, the design
+geometry, the registered sheet overlays, the datasets, the August-2026 survey, the water
+tools, the volume engine and the cultural layer (still gated). Every part of the app that
+reads one of the four says plainly that it is not in this build rather than failing — the
+Sheets tab still lists all twenty drawings, greyed, and the design-surfaces list says where
+they went.
 
 ## What it does
 

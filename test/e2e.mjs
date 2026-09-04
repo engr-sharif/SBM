@@ -664,7 +664,7 @@ const sessionRT = await page.evaluate(() => {
 });
 console.log("session round-trip:", JSON.stringify(sessionRT));
 /* v7 adds the layer state (§4); every bump so far has been purely additive */
-if (sessionRT.version !== 7 || Math.abs(sessionRT.dim - 100) > 0.01 || sessionRT.text !== "Stockpile A" || sessionRT.leader !== 2) {
+if (sessionRT.version !== 8 || Math.abs(sessionRT.dim - 100) > 0.01 || sessionRT.text !== "Stockpile A" || sessionRT.leader !== 2) {
   console.log("FAIL: dim/text did not survive the session round-trip"); process.exit(1);
 }
 const v2ok = await page.evaluate(() => {
@@ -911,7 +911,7 @@ const v5 = await page.evaluate(async () => {
            regen: !!(surf && surf._surf), loops: surf && surf._daylight ? surf._daylight.length : 0 };
 });
 console.log("session round-trip (surfaces + sections):", JSON.stringify(v5));
-if (v5.version !== 7 || v5.back !== v5.saved) { console.log("FAIL: session round-trip lost a surface or a section set"); process.exit(1); }
+if (v5.version !== 8 || v5.back !== v5.saved) { console.log("FAIL: session round-trip lost a surface or a section set"); process.exit(1); }
 if (!v5.regen || !v5.loops) { console.log("FAIL: a restored design surface did not regenerate its raster"); process.exit(1); }
 if (v5.ratio !== 3 || v5.side !== "out" || v5.kind !== "pad") { console.log("FAIL: surface parameters did not survive the session"); process.exit(1); }
 
@@ -3950,7 +3950,7 @@ const rt = await page.evaluate(async () => {
 console.log(`session v${rt.version}: writes ${JSON.stringify(rt.written)} (baked excluded), `
   + `removed ok ${rt.gone}, restored ${rt.restored} with ${rt.n} points as ${rt.kind}/${rt.style}, `
   + `row ${rt.row}, tab ${rt.tab}`);
-if (rt.version !== 7) { console.log("FAIL: session version did not bump to 7"); process.exit(1); }
+if (rt.version !== 8) { console.log("FAIL: session version did not bump to 8"); process.exit(1); }
 if (rt.written.length !== 1 || rt.written[0] !== "testpits") { console.log("FAIL: session should serialise imported datasets only"); process.exit(1); }
 if (!rt.restored || rt.n !== 3 || !rt.row || !rt.tab) { console.log("FAIL: dataset did not survive the session round-trip"); process.exit(1); }
 if (errors.length !== errBeforeDs) {

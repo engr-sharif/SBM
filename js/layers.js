@@ -238,7 +238,11 @@ SBMM.myWork = (function () {
     ["imported",     "Imported",       "#E8B34B", f => !!(f.props && f.props.imported) || /^(DXF|Import)/i.test(f.group || "")],
     /* v10 — raindrop flow paths. Appended rather than inserted: classOf() reads
        CLASSES[4] as "imported wins", and that index is load-bearing. */
-    ["water",        "Water",          "#55C1FF", f => f.type === "flow"]
+    ["water",        "Water",          "#55C1FF", f => f.type === "flow"],
+    /* v11 §4.4 — field photos and the notes taken with them. APPENDED for the
+       same reason "water" was: classOf() reads CLASSES[4] as "imported wins"
+       and that index is load-bearing. */
+    ["field",        "Field",          "#E8B34B", f => f.type === "photo"]
   ];
   let built = false;
 

@@ -5,6 +5,16 @@ window.SBMM = window.SBMM || {};
    ever goes missing so nothing here has to null-check */
 window.SBMM_PERF = window.SBMM_PERF || { marks: [], mark: function () {}, report: function () { return []; } };
 SBMM.perf = window.SBMM_PERF;
+/* Which build this is: "full" (the folder build and dist/SBMM_Site_Explorer.html)
+   or "field" (dist/SBMM_Site_Explorer_field.html, four payloads lighter — see
+   tools/build_dist.py). index.html carries the stamp in its head script and the
+   builder rewrites it; this runs after the payloads have parsed, so the answer
+   lives where everything else asks its questions. */
+/* Do NOT create SBMM_DATA here: js/boot.js reports its absence as "data payloads
+   did not load", which is the one error message that names the real problem. */
+if (window.SBMM_DATA) SBMM_DATA.build = window.SBMM_BUILD || "full";
+SBMM.build = () => (window.SBMM_DATA && SBMM_DATA.build) || window.SBMM_BUILD || "full";
+SBMM.isField = () => SBMM.build() === "field";
 
 const $ = id => document.getElementById(id);
 const fmt = (v, d = 1) => v == null || isNaN(v) ? "—" :
@@ -66,6 +76,45 @@ function simplifyLine(pts, tol) {
   const out = [];
   for (let i = 0; i < pts.length; i++) if (keep[i]) out.push(pts[i]);
   return out;
+}
+
+/* Bring an element into view inside ITS OWN scroller, and nowhere else.
+
+   `el.scrollIntoView({block:"nearest"})` is not that: when the element is
+   outside the viewport the browser also scrolls the DOCUMENT to reach it. The
+   page is `overflow:hidden`, which stops a user scrolling but not a
+   programmatic one — so selecting a feature whose results card sat in a panel
+   that was off-screen (a field-mode bottom sheet, translated 105 % down)
+   scrolled the whole document 453 px and every absolutely positioned thing in
+   the app — the action bar, the sheets, the status bar — moved with it. Nothing
+   errored; the layout just silently came apart.
+
+   So: find the nearest scrollable ancestor and move ITS scrollTop. If there
+   isn't one, do nothing, which is the right answer. */
+function scrollIntoPane(el) {
+  if (!el || !el.parentElement) return null;
+  let p = el.parentElement, hit = null;
+  while (p && p !== document.body && p !== document.documentElement) {
+    const cs = getComputedStyle(p);
+    const scrolls = v => v === "auto" || v === "scroll";
+    const canY = scrolls(cs.overflowY) && p.scrollHeight > p.clientHeight + 1;
+    const canX = scrolls(cs.overflowX) && p.scrollWidth > p.clientWidth + 1;
+    if (canY || canX) {
+      const r = el.getBoundingClientRect(), q = p.getBoundingClientRect();
+      if (canY) {
+        if (r.top < q.top) p.scrollTop -= (q.top - r.top);
+        else if (r.bottom > q.bottom) p.scrollTop += (r.bottom - q.bottom);
+      }
+      if (canX) {
+        if (r.left < q.left) p.scrollLeft -= (q.left - r.left);
+        else if (r.right > q.right) p.scrollLeft += (r.right - q.right);
+      }
+      hit = p;
+      break;
+    }
+    p = p.parentElement;
+  }
+  return hit;
 }
 
 /* small toast */

@@ -207,6 +207,13 @@ SBMM.dxf = (function () {
   function emitFeature(w, f, lay) {
     const t = f.type;
     if (t === "spot") { w(0, "POINT"); w(8, lay); w(10, N(f.pts[0][0])); w(20, N(f.pts[0][1])); w(30, "0.0"); return; }
+    /* a field photo is a located observation: the point, plus its name as text
+       so the record is readable in CAD without the image travelling with it */
+    if (t === "photo") {
+      w(0, "POINT"); w(8, lay); w(10, N(f.pts[0][0])); w(20, N(f.pts[0][1])); w(30, "0.0");
+      text(w, lay, [f.pts[0][0] + 6, f.pts[0][1] + 6], 8, f.name || "photo", 0);
+      return;
+    }
     if (t === "area" || t === "volume" || t === "surface") { polyline(w, lay, f.pts, true); return; }
     if (t === "line" || t === "profile" || t === "sections" || t === "flow") { polyline(w, lay, f.pts, false); return; }
     if (t === "text") {

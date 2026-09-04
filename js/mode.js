@@ -156,6 +156,31 @@ SBMM.mode = (function () {
     return over3d ? "3d" : "2d";
   }
 
+  /* Field mode is a touch device, and a prompt that says "wheel to zoom · click
+     to identify" on a phone is telling the user to do something they cannot.
+
+     This is a mapping over the FINAL string the HUD paints, not a second set of
+     tips: `#sketchTip` keeps the exact words js/draw.js and js/tools.js write
+     (the harnesses read those, and they are the machine-readable prompt), and
+     the MODES table below is untouched. One place, keyed on `body.field`. */
+  const TOUCH_WORDS = [
+    [/\bdouble-click\b/g, "double-tap"],
+    [/\bright-click\b/g, "press and hold"],
+    [/\bright-drag\b/g, "two-finger drag"],
+    [/\bright \/ middle-drag\b/g, "two-finger drag"],
+    [/\bwheel to zoom\b/g, "pinch to zoom"],
+    [/\bscroll to zoom\b/g, "pinch to zoom"],
+    [/\bclicks\b/g, "taps"],
+    [/\bclick\b/g, "tap"],
+    [/\bclicking\b/g, "tapping"]
+  ];
+  function forTouch(s) {
+    if (!s || !document.body.classList.contains("field")) return s;
+    let out = s;
+    for (const [re, to] of TOUCH_WORDS) out = out.replace(re, to);
+    return out;
+  }
+
   function paintHud() {
     const el = document.getElementById("modeHud");
     if (!el) return;
@@ -171,7 +196,7 @@ SBMM.mode = (function () {
     }
     const base = (view() === "3d" && d.next3d) ? d.next3d : d.next;
     const next = h || [base, d.more].filter(Boolean).join(" · ");
-    el.querySelector(".mhnext").textContent = next || "";
+    el.querySelector(".mhnext").textContent = forTouch(next) || "";
     el.querySelector(".mhesc").textContent = cur === "navigate" ? "" : "Esc → Navigate";
     el.classList.toggle("nav", cur === "navigate");
   }
@@ -310,6 +335,9 @@ SBMM.mode = (function () {
     }
     /* opening, closing or splitting the 3D view changes what Navigate means */
     SBMM.events.on("view", () => paintHud());
+    /* and so does turning field mode on or off — the same prompt, in the words
+       of the device that is in front of the user */
+    SBMM.events.on("field", () => paintHud());
 
     /* the two top-bar drop-downs */
     wireMenu("drawMenuBtn", "drawMenu");

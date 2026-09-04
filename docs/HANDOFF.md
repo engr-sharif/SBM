@@ -46,6 +46,9 @@ in code, and what comes next. It replaces re-reading the chat history that built
 | A pond is reported at **0.25 ft** depth and deeper | The lidar noise floor: a 0.1-ft "pond" on a 1-ft grid is a rounding artefact drawn as a water body |
 | Raindrop windows are **±700 ft on a 1-ft grid, ±1,400 ft on the 2-ft**, re-centred on the exit for up to 8 hops / 20,000 ft | Big enough that most runs finish in one window; small enough that a click answers in about a second. The chaining is what keeps a long run honest across a grid change, and the card lists the grids it used |
 | The overtopping overflow route runs on the **same grid and window as the analysis** | Retracing it on the finest DEM under the spill would be a second analysis wearing the first one's answer |
+| **A field build is a THIRD output of the same source**, not a second app: `tools/build_dist.py --field`, one exclusion list, everything else identical | Two apps drift. One source with a packaging switch cannot |
+| **The field build leaves out the 20 full-sheet plan renders**, the CHM, EA's design surfaces and EA's native CAD (~67 MB of 133) | The design *geometry* is what you need on a site walk; the paper, the tree tools, the isopach and 802 layers of drafting linework are a desk job. Everything that reads them says so rather than failing. If he asks for the sheets on the phone, the one line to change is `FIELD_EXCLUDE` in the builder |
+| **Field mode is a UI state (`body.field`), separate from the field build** — it turns on by itself on a touch device ≤ 900 px, and `FIELD` toggles it anywhere, remembered | The full build on a tablet wants the same layout; the field build on a laptop does not. Tying the layout to the packaging would have got both wrong |
 | A password screen in front of the app (v9.3), and it is a **deterrent, not security** | He asked for "something to deter someone from using it", explicitly not full security. Everything ships to the browser, so the check is in the file the browser reads — this stops a colleague, not an attacker |
 
 ## What was tried and dropped
@@ -114,7 +117,13 @@ in code, and what comes next. It replaces re-reading the chat history that built
    (`js/smartbound.js` sums the un-simplified path — one line); (d) the cross-section
    end-area check has no `isoTol`, so a section across `res_excbottom` on the 2-ft site
    DEM shows 1.33 % phantom fill the isopach already knows to discard.
-12. **Storm drainage around Herman (investigated Sep 2026, nothing built).** EA's V-Base
+12. **The sheet viewer has no touch zoom.** `js/sheets.js` zooms a floating sheet window
+   with the WHEEL, and a phone has no wheel; panning and the window drag are pointer-based
+   and already work. It does not bite in the FIELD build (the full-sheet renders are not in
+   it, so no window opens), but it does on a tablet running the full build. The fix is the
+   two-pointer pinch `js/viewer3d.js` now has, applied to `wireWindow`'s pointer handlers —
+   an hour, and it needs a real tablet to judge.
+13. **Storm drainage around Herman (investigated Sep 2026, nothing built).** EA's V-Base
    drawing carries the discharge system on `V-STRM-STRC` (not `C-SSWR-MAIN-PIPE`, which is
    one 18-ft segment far to the west): a 783-ft 24-in storm line from 30 ft west of the
    surveyed pipe outlets to the Clear Lake shore at E 6,371,273 N 2,127,488, plus a 145-ft
@@ -153,13 +162,24 @@ this repo is private; if that ever changes, this line goes first.
 
 ## Delivery procedure (what "ship it" means)
 
-1. Four test runs pass: e2e + split3d on the folder build, then `python tools/build_dist.py`,
-   then both on `dist/SBMM_Site_Explorer.html`. Golden Pile 1 = 278.4 yd³ fill / −48.1 net ±10.
-2. Regenerate and **look at** `test/shots/` (`node test/v9_shots.mjs <abs path to index.html>`).
-3. Copy `dist/SBMM_Site_Explorer.html` and this folder to
-   `C:\Users\nawaz\WORK\SBMM\Site Explorer WebApp\` (the dist beside the `sbmm-site-explorer\`
-   folder). Old versions go to `_to_delete\v<N>_<date>\`, never deleted by the tool.
-4. Bump `RELEASE_NOTES_v<N>.md`, update CLAUDE.md / this file where behaviour changed.
+**Three outputs now, and all three are built and tested.** One browser harness at a time —
+two software-GL renderers on this box crash the compositor.
+
+1. `node test/kernels.mjs` (fast, no browser — 136 checks; run it first after any kernel or
+   call-site change).
+2. e2e + split3d on the **folder** build.
+3. `python tools/build_dist.py` **and** `python tools/build_dist.py --field`.
+4. e2e + split3d on `dist/SBMM_Site_Explorer.html`.
+5. `node test/e2e_field.mjs dist/SBMM_Site_Explorer_field.html field` (Playwright's Pixel 7
+   descriptor; add the full dist as a third argument for the boot comparison).
+   Golden Pile 1 = 278.4 yd³ fill / −48.1 net ±10 in every one of them.
+6. Regenerate and **look at** `test/shots/` — `node test/v9_shots.mjs <abs path to index.html>`
+   and `node test/field_shots.mjs <abs path to the field dist>`.
+7. Copy `dist/SBMM_Site_Explorer.html`, `dist/SBMM_Site_Explorer_field.html` and this folder
+   to `C:\Users\nawaz\WORK\SBMM\Site Explorer WebApp\` (both dists beside the
+   `sbmm-site-explorer\` folder). Old versions go to `_to_delete\v<N>_<date>\`, never
+   deleted by the tool.
+8. Bump `RELEASE_NOTES_v<N>.md`, update CLAUDE.md / this file where behaviour changed.
 
 ## Source data that is NOT in this repo (on the user's machine)
 

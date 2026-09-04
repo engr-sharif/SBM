@@ -167,7 +167,12 @@ SBMM.store = {
          not know rather than failing. Design rasters and section samples are NOT
          serialised — they are derived, and regenerating them from the geometry and
          the parameters is both cheaper than storing them and guaranteed current. */
-      app: "SBMM Site Explorer", version: 7, saved: new Date().toISOString(),
+      /* v8 adds the `photo` feature type (v11 §4.4). Additive like every bump
+         before it: restore() dispatches on each feature's own type, so a v2-v7
+         file loads here unchanged, and a v8 file opened in an older build
+         simply skips the photos rather than failing. A session with photos is
+         large — accepted, and the export dialog says so. */
+      app: "SBMM Site Explorer", version: 8, saved: new Date().toISOString(),
       crs: "EPSG:6418 (NAD83(2011) CA SP Zone 2, ftUS)",
       groups: this.allGroups(),
       /* v6 adds imported datasets (js/datasets.js). Additive like every bump

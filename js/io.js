@@ -5,7 +5,7 @@ SBMM.io = (function () {
 
   function featGeom(f, project) {
     const P = project;   // p -> coordinate pair
-    if (f.type === "spot" || f.type === "text") return { type: "Point", coordinates: P(f.pts[0]) };
+    if (f.type === "spot" || f.type === "text" || f.type === "photo") return { type: "Point", coordinates: P(f.pts[0]) };
     if (f.type === "line" || f.type === "profile" || f.type === "dim" || f.type === "sections"
         || f.type === "flow")
       return { type: "LineString", coordinates: f.pts.map(P) };
@@ -65,7 +65,14 @@ SBMM.io = (function () {
     return out;
   }
 
-  function collection(mode) {  // mode: "wgs84" | "sp"
+  /* Whether a photo's base64 image travels in the file. Off unless the export
+     dialog was ticked (v11 §4.4): the location, time, note and how the photo
+     was placed always go out, the picture only when asked for, because twenty
+     photos is twenty megabytes inside a GeoJSON most GIS tools will ignore. */
+  let photoImages = false;
+
+  function collection(mode, opts) {  // mode: "wgs84" | "sp"
+    if (opts && typeof opts.photoImages === "boolean") photoImages = opts.photoImages;
     const P = mode === "wgs84"
       ? p => SBMM.toLL(p[0], p[1]).map(v => +v.toFixed(7))
       : p => [+p[0].toFixed(2), +p[1].toFixed(2)];
@@ -85,7 +92,7 @@ SBMM.io = (function () {
     SBMM.store.features.filter(f => !(f.props && f.props.ref)).forEach((f, i) => {
       feats.push({
         type: "Feature",
-        properties: { name: f.name || f.type + " " + (i + 1), tool: f.type, ...scrubProps(f.props), ...extraProps(f, P) },
+        properties: { name: f.name || f.type + " " + (i + 1), tool: f.type, ...scrubProps(f.props, f), ...extraProps(f, P) },
         geometry: featGeom(f, P)
       });
       for (const d of derived(f, P)) feats.push(d);
@@ -105,10 +112,16 @@ SBMM.io = (function () {
     if (cultMeta) fc.metadata = { confidential: cultMeta };
     return fc;
   }
-  function scrubProps(p) {
+  function scrubProps(p, f) {
     if (!p) return {};
+    const isPhoto = !!(f && f.type === "photo");
     const o = {};
-    for (const k in p) if (k !== "profile" && k !== "showCutFill" && typeof p[k] !== "object") o[k] = p[k];
+    for (const k in p) {
+      if (k === "profile" || k === "showCutFill" || typeof p[k] === "object") continue;
+      /* a photo's picture is behind the export checkbox; its record is not */
+      if (isPhoto && (k === "img" || k === "thumb") && !photoImages) continue;
+      o[k] = p[k];
+    }
     return o;
   }
 
@@ -118,6 +131,14 @@ SBMM.io = (function () {
     if (SBMM.cultural && !(await SBMM.cultural.gateExport("GeoJSON export"))) {
       toast("export cancelled");
       return;
+    }
+    /* §4.4: photos ask once, with a checkbox, before they go anywhere */
+    const nPhoto = SBMM.store.features.filter(f => f.type === "photo").length;
+    photoImages = false;
+    if (nPhoto && SBMM.field && SBMM.field.askPhotoExport) {
+      const ans = await SBMM.field.askPhotoExport(nPhoto);
+      if (!ans) { toast("export cancelled"); return; }
+      photoImages = !!ans.images;
     }
     const fc = collection(mode);
     download(`sbmm_features_${mode === "sp" ? "stateplane_6418" : "wgs84"}.geojson`,
