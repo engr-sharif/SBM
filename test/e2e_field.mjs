@@ -235,7 +235,7 @@ const storm = await page.evaluate(() => {
 });
 console.log("storm network:", JSON.stringify(storm));
 if (storm.err) fail("the storm network is missing from the field build", storm);
-if (storm.nodes !== 43 || storm.conduits !== 25 || storm.rowsOn !== 3 || storm.glyphs !== 43)
+if (storm.nodes !== 44 || storm.conduits !== 26 || storm.rowsOn !== 3 || storm.glyphs !== 44)
   fail("the storm rows did not build in field mode", storm);
 if (!storm.chip || storm.off !== 0 || storm.on < 1)
   fail("the storm master switch does not work in field mode", storm);

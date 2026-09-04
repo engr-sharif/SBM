@@ -5,50 +5,63 @@
  "spec": "docs/V12_STORM_SPEC.md",
  "nodes": [
   {
-   "id": "frog_outlet",
+   "id": "green_out",
    "kind": "inferred",
    "x": 6374418,
    "y": 2127912,
-   "name": "Frog Pond outlet (inferred)",
+   "name": "Green Pond outlet (east pond, inferred)",
    "invert_ft": null,
    "size_in": null,
    "cad_block": null,
    "cad_handle": null,
    "provenance": "Identified by the project engineer (Sep 2026) from EA's CAD structures; alignment not drawn in the CAD",
-   "note": "Spot 5: the west shore of Frog Pond. No structure in EA's CAD; the pipe's inlet end is to be surveyed."
+   "note": "Spot 5: the west shore of the east pond. No structure in EA's CAD; the culvert inlet is to be surveyed. Naming: the engineer calls the east pond Green Pond and the west pond Frog Pond; EA's geodatabase labels them the other way round. Engineer's names used here."
   },
   {
-   "id": "green_fes",
+   "id": "green_culvert_out",
+   "kind": "inferred",
+   "x": 6374343,
+   "y": 2127914,
+   "name": "Culvert outlet toward Frog Pond (inferred)",
+   "invert_ft": null,
+   "size_in": null,
+   "cad_block": null,
+   "cad_handle": null,
+   "provenance": "Identified by the project engineer (Sep 2026) from EA's CAD structures; alignment not drawn in the CAD",
+   "note": "Spot 1: the west end of the culvert under the paved road, 75 ft from Spot 5, discharging overland into the west pond. No structure in EA's CAD."
+  },
+  {
+   "id": "frog_outlet_fes",
    "kind": "fes",
    "x": 6373928.82,
    "y": 2127878.15,
-   "name": "FES at Green Pond (east shore)",
+   "name": "FES \u2014 Frog Pond outlet (west shore)",
    "invert_ft": null,
    "size_in": null,
    "cad_block": "STRM FES",
    "cad_handle": null,
    "provenance": "EA Final Design CAD (V-Base.dwg / C-BASE.dwg, DWG->DXF via libredwg master)",
-   "note": "Spot 7: the flared end where the Frog Pond pipe discharges into Green Pond."
+   "note": "Spot 7: the flared end on the west shore of the west pond, its overflow outlet; piped to the Spot 8 grate. Naming: the engineer calls the east pond Green Pond and the west pond Frog Pond; EA's geodatabase labels them the other way round. Engineer's names used here."
   },
   {
    "id": "green_riser",
    "kind": "round_inlet",
    "x": 6373917.11,
    "y": 2127966.29,
-   "name": "Round inlet at Green Pond (NW corner)",
+   "name": "Round inlet at Frog Pond (NW corner) \u2014 high-level overflow",
    "invert_ft": null,
    "size_in": null,
    "cad_block": "STRM INLET ROUND",
    "cad_handle": null,
    "provenance": "EA Final Design CAD (V-Base.dwg / C-BASE.dwg, DWG->DXF via libredwg master)",
-   "note": null
+   "note": "STRM INLET ROUND. The engineer reads it as the pond's high-level overflow: only if the water reaches this rim does it go under the road to the impoundment. Naming: the engineer calls the east pond Green Pond and the west pond Frog Pond; EA's geodatabase labels them the other way round. Engineer's names used here."
   },
   {
    "id": "green_riser_fes",
    "kind": "fes",
    "x": 6373859.12,
    "y": 2127987.91,
-   "name": "FES toward Herman (Green Pond culvert)",
+   "name": "FES toward Herman (Frog Pond high-level culvert)",
    "invert_ft": null,
    "size_in": null,
    "cad_block": "STRM FES",
@@ -566,30 +579,26 @@
  ],
  "conduits": [
   {
-   "id": "frog_green",
-   "from": "frog_outlet",
-   "to": "green_fes",
+   "id": "pond_culvert",
+   "from": "green_out",
+   "to": "green_culvert_out",
    "pts": [
     [
      6374418,
      2127912
     ],
     [
-     6374349,
-     2127915
-    ],
-    [
-     6373928.82,
-     2127878.15
+     6374343,
+     2127914
     ]
    ],
-   "length_ft": 490.9,
+   "length_ft": 75.0,
    "size_in": null,
    "material": null,
    "source": "inferred",
    "cad_handles": [],
    "provenance": "Identified by the project engineer (Sep 2026) from EA's CAD structures; alignment not drawn in the CAD",
-   "note": "The pipe connecting Frog Pond to Green Pond (user, Sep 2026), through Spot 6. Not drawn in the CAD; inverts unknown.",
+   "note": "The culvert under the paved road from Green Pond (east) to Frog Pond (west) (engineer, Sep 2026). Not drawn in the CAD; inverts unknown.",
    "status": "assumed_working"
   },
   {
@@ -614,7 +623,30 @@
     "E5D2D"
    ],
    "provenance": "EA Final Design CAD (V-Base.dwg / C-BASE.dwg, DWG->DXF via libredwg master)",
-   "note": "V-STRM-MRKG culvert mark E5D2D, 62 ft under the gravel road between Green Pond and the impoundment.",
+   "note": "V-STRM-MRKG culvert mark E5D2D, 62 ft under the gravel road from the round inlet toward the impoundment. The pond's normal outlet is the FES on its west shore (frog_outlet); this one takes water only above the round inlet's rim.",
+   "status": "assumed_working"
+  },
+  {
+   "id": "frog_outlet",
+   "from": "frog_outlet_fes",
+   "to": "grate_8",
+   "pts": [
+    [
+     6373928.82,
+     2127878.15
+    ],
+    [
+     6373831.3,
+     2127919.08
+    ]
+   ],
+   "length_ft": 105.8,
+   "size_in": null,
+   "material": null,
+   "source": "inferred",
+   "cad_handles": [],
+   "provenance": "Identified by the project engineer (Sep 2026) from EA's CAD structures; alignment not drawn in the CAD",
+   "note": "Frog Pond's overflow: from the FES on its west shore under the road to the Spot 8 grate and into the road drain (engineer, Sep 2026). Not drawn in the CAD; inverts unknown.",
    "status": "assumed_working"
   },
   {
@@ -1282,7 +1314,7 @@
    "group": "storm",
    "color": "#7FA7C9",
    "kind": "point",
-   "count": 43,
+   "count": 44,
    "provenance": "EA Final Design CAD (V-Base.dwg / C-BASE.dwg, DWG->DXF via libredwg master)"
   },
   {
@@ -1300,7 +1332,7 @@
    "group": "storm",
    "color": "#7FA7C9",
    "kind": "line",
-   "count": 10,
+   "count": 11,
    "provenance": "Identified by the project engineer (Sep 2026) from EA's CAD structures; alignment not drawn in the CAD"
   }
  ]
