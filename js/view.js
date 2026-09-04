@@ -91,5 +91,18 @@ SBMM.view = (function () {
     SBMM.map.on("moveend zoomend", save);
   }
 
-  return { restore2d, watch, save3d, stored3d, read };
+  /* A small named preference, in the same guarded store as the two views (v13
+     §3.1 wants "animate water" remembered where the rest of the 3D view state
+     lives). `pref(k)` reads, `pref(k, v)` writes; both are silent on failure and
+     a missing key reads as undefined so the caller keeps its own default. */
+  function pref(key, val) {
+    const p = read().prefs;
+    if (val === undefined) return (p && typeof p === "object") ? p[key] : undefined;
+    const o = Object.assign({}, p || {});
+    o[key] = val;
+    write({ prefs: o });
+    return val;
+  }
+
+  return { restore2d, watch, save3d, stored3d, read, pref };
 })();

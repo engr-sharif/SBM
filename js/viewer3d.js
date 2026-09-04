@@ -21,6 +21,19 @@ SBMM.viewer3d = (function () {
   let CX = 0, CY = 0, ZMID = 0;
   let texCache = {};
   let needsRender = true, rafId = 0, renderCount = 0, frameCount = 0;
+  /* v13 §3.1 — the animated flow. One THREE.Points per visible `flow` feature;
+     every stretch's densified geometry and cumulative arc length is precomputed
+     once per overlay rebuild, and the render loop only advances a scalar and
+     writes into a pre-allocated position array (no per-frame allocation, no
+     per-frame drapeZ). The loop asks for frames ONLY while a visible flow exists
+     and the toggle is on, so test/perf.mjs's idle-render count stays 0. */
+  let waterAnim = [], animOn = true, animT = 0, animLast = 0;
+  const WATER_SPEED_FPS = 40;      // ground speed of a particle, ft/s
+  const WATER_SPACING_FT = 20;     // spacing along the arc
+  const WATER_FPS_MS = 32;         // ~30 fps
+  /* v13 §3.2 — the overtopping stage surface, owned by js/water.js through
+     setWaterStage() and cleared when the analysis closes. */
+  let stageGroup = null, stageKey = null, stageInfo = null;
   /* last terrain raycast, keyed to the cursor position — raycasting a 1.5M-vertex mesh
      is the expensive part of hovering, so the wheel handler reuses the hover's result */
   let lastPick = { x: -1e9, y: -1e9, p: null, t: 0 };
@@ -223,6 +236,226 @@ SBMM.viewer3d = (function () {
     }
     const g = new THREE.BufferGeometry().setFromPoints(dense);
     return new THREE.Line(g, new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.95, linewidth: width || 1 }));
+  }
+
+  /* ================================================================== */
+  /* v13 §3.1 — animated flow particles                                  */
+  /* ================================================================== */
+  /* A TRACK is one stretch of a run: an overland stretch draped on the terrain
+     and resampled at 10 ft (the same density drapedLine uses), or a conduit leg,
+     which is a straight line between its two ends at their own elevations and is
+     NOT draped — the water is under the ground there. Each track carries its own
+     cumulative arc length so the render loop can place a particle by a single
+     binary search. */
+  function makeTrack(pts, pipe, zA, zB) {
+    const xs = [], ys = [], zs = [];
+    if (pipe) {
+      xs.push(pts[0][0] - CX, pts[1][0] - CX);
+      ys.push(pts[0][1] - CY, pts[1][1] - CY);
+      zs.push((zA == null ? drapeZ(pts[0][0], pts[0][1], 0) : zA - ZMID) + 1,
+              (zB == null ? drapeZ(pts[1][0], pts[1][1], 0) : zB - ZMID) + 1);
+    } else {
+      for (let i = 1; i < pts.length; i++) {
+        const a = pts[i - 1], b = pts[i], d = dist2d(a, b), n = Math.max(1, Math.ceil(d / 10));
+        for (let k = i === 1 ? 0 : 1; k <= n; k++) {
+          const x = a[0] + (b[0] - a[0]) * k / n, y = a[1] + (b[1] - a[1]) * k / n;
+          xs.push(x - CX); ys.push(y - CY); zs.push(drapeZ(x, y, 4));
+        }
+      }
+    }
+    if (xs.length < 2) return null;
+    const cum = new Float32Array(xs.length);
+    for (let i = 1; i < xs.length; i++)
+      cum[i] = cum[i - 1] + Math.hypot(xs[i] - xs[i - 1], ys[i] - ys[i - 1]);
+    const len = cum[cum.length - 1];
+    if (!(len > 1)) return null;
+    return { xs: Float32Array.from(xs), ys: Float32Array.from(ys), zs: Float32Array.from(zs),
+             cum, len, pipe: !!pipe };
+  }
+
+  /* the stretches of a run, split at each conduit leg exactly the way
+     js/water.js buildFlow splits them for the 2D map */
+  function flowTracks(f) {
+    const p = f.props || {};
+    const legs = (p.legs || []).filter(lg => lg.at != null && lg.at >= 0);
+    const cuts = [...new Set(legs.map(lg => lg.at))].sort((a, b) => a - b);
+    const out = [];
+    let st = 0;
+    for (const cut of cuts) {
+      if (cut >= st && cut + 1 - st > 1) {
+        const t = makeTrack(f.pts.slice(st, cut + 1), false);
+        if (t) out.push(t);
+      }
+      st = cut + 1;
+    }
+    if (f.pts.length - st > 1) { const t = makeTrack(f.pts.slice(st), false); if (t) out.push(t); }
+    for (const lg of legs) {
+      if (!lg.from || !lg.to) continue;
+      const t = makeTrack([lg.from, lg.to], true, lg.from_z, lg.to_z);
+      if (t) out.push(t);
+    }
+    return out;
+  }
+
+  function addFlowParticles(f, sel) {
+    const tracks = flowTracks(f);
+    if (!tracks.length) return null;
+    let N = 0;
+    const counts = tracks.map(t => {
+      const n = clamp(Math.round(t.len / WATER_SPACING_FT), 1, 400);
+      N += n; return n;
+    });
+    if (!N) return null;
+    const pos = new Float32Array(N * 3), col = new Float32Array(N * 3);
+    const pIdx = new Int32Array(N), pBase = new Float32Array(N);
+    const water = new THREE.Color(sel ? 0xFFD34D : 0x55C1FF), storm = new THREE.Color(0x7FA7C9);
+    let k = 0;
+    for (let ti = 0; ti < tracks.length; ti++) {
+      const t = tracks[ti], n = counts[ti], gap = t.len / n;
+      const c = t.pipe ? storm : water;
+      for (let i = 0; i < n; i++, k++) {
+        pIdx[k] = ti; pBase[k] = i * gap;
+        col[k * 3] = c.r; col[k * 3 + 1] = c.g; col[k * 3 + 2] = c.b;
+        pos[k * 3] = t.xs[0]; pos[k * 3 + 1] = t.ys[0]; pos[k * 3 + 2] = t.zs[0];
+      }
+    }
+    const g = new THREE.BufferGeometry();
+    const attr = new THREE.BufferAttribute(pos, 3);
+    attr.setUsage(THREE.DynamicDrawUsage);
+    g.setAttribute("position", attr);
+    g.setAttribute("color", new THREE.BufferAttribute(col, 3));
+    const obj = new THREE.Points(g, new THREE.PointsMaterial({
+      size: sel ? 9 : 6, vertexColors: true, sizeAttenuation: true,
+      transparent: true, opacity: 0.95, depthWrite: false }));
+    obj.frustumCulled = false;
+    obj.visible = animOn;
+    /* §3.3: NOT pickable — no userData.pick, so pick3d.syncScene() ignores it
+       and the flow's own draped line stays the pick target. */
+    overlayGroup.add(obj);
+    waterAnim.push({ fid: f.id, obj, attr, pos, tracks, pIdx, pBase, n: N });
+    return obj;
+  }
+
+  function stepWaterAnim(dt) {
+    animT += dt * WATER_SPEED_FPS;
+    for (let a = 0; a < waterAnim.length; a++) {
+      const A = waterAnim[a], pos = A.pos;
+      for (let k = 0; k < A.n; k++) {
+        const t = A.tracks[A.pIdx[k]];
+        let s = (A.pBase[k] + animT) % t.len;
+        if (s < 0) s += t.len;
+        let lo = 0, hi = t.cum.length - 1;
+        while (lo + 1 < hi) { const m = (lo + hi) >> 1; if (t.cum[m] <= s) lo = m; else hi = m; }
+        const seg = t.cum[hi] - t.cum[lo];
+        const u = seg > 1e-9 ? (s - t.cum[lo]) / seg : 0;
+        pos[k * 3] = t.xs[lo] + (t.xs[hi] - t.xs[lo]) * u;
+        pos[k * 3 + 1] = t.ys[lo] + (t.ys[hi] - t.ys[lo]) * u;
+        pos[k * 3 + 2] = t.zs[lo] + (t.zs[hi] - t.zs[lo]) * u;
+      }
+      A.attr.needsUpdate = true;
+    }
+  }
+
+  function setAnimWater(on) {
+    animOn = !!on;
+    for (const A of waterAnim) A.obj.visible = animOn;
+    const el = $("v3dAnimWater");
+    if (el && el.checked !== animOn) el.checked = animOn;
+    if (SBMM.view && SBMM.view.pref) SBMM.view.pref("animWater", animOn);
+    animLast = 0;
+    requestRender();
+  }
+
+  /* ================================================================== */
+  /* v13 §3.2 — the overtopping stage surface                            */
+  /* ================================================================== */
+  /* A filled polygon at the slider's level, holes honoured. maskRings hands the
+     rings back largest-first with no hole flag, so nesting is worked out here:
+     a ring contained by an odd number of others is a hole of the smallest ring
+     that contains it. */
+  function ringHas(r, x, y) {
+    let inn = false;
+    for (let i = 0, j = r.length - 1; i < r.length; j = i++) {
+      const xi = r[i][0], yi = r[i][1], xj = r[j][0], yj = r[j][1];
+      if (((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / ((yj - yi) || 1e-12) + xi)) inn = !inn;
+    }
+    return inn;
+  }
+  function absArea(r) {
+    let s = 0;
+    for (let i = 0; i < r.length; i++) { const a = r[i], b = r[(i + 1) % r.length]; s += a[0] * b[1] - b[0] * a[1]; }
+    return Math.abs(s) / 2;
+  }
+  function disposeStage() {
+    if (!stageGroup) return;
+    stageGroup.traverse(o => {
+      if (o.geometry) o.geometry.dispose();
+      if (o.material && o.material.map && o.isMesh) o.material.map.dispose();
+      if (o.material && o.isMesh) o.material.dispose();
+    });
+    if (scene) scene.remove(stageGroup);
+    stageGroup = null; stageInfo = null;
+  }
+  function setWaterStage(spec) {
+    if (!scene) { stageKey = null; return; }
+    const key = spec ? spec.level.toFixed(3) + ":" + spec.rings.length + ":"
+      + spec.rings.reduce((n, r) => n + r.length, 0) + ":" + (spec.labels || []).length : null;
+    if (key === stageKey) return;
+    stageKey = key;
+    disposeStage();
+    if (!spec) { requestRender(); return; }
+    const rings = (spec.rings || []).filter(r => r && r.length > 2);
+    if (!rings.length) { stageKey = null; requestRender(); return; }
+    const areas = rings.map(absArea);
+    const depth = rings.map((r, i) => {
+      let d = 0;
+      for (let j = 0; j < rings.length; j++)
+        if (j !== i && areas[j] > areas[i] && ringHas(rings[j], r[0][0], r[0][1])) d++;
+      return d;
+    });
+    const shapes = [];
+    for (let i = 0; i < rings.length; i++) {
+      if (depth[i] % 2) continue;                       // a hole, handled below
+      const sh = new THREE.Shape(rings[i].map(q => new THREE.Vector2(q[0] - CX, q[1] - CY)));
+      for (let j = 0; j < rings.length; j++) {
+        if (depth[j] !== depth[i] + 1) continue;
+        /* the hole's immediate parent is the smallest containing ring */
+        let par = -1;
+        for (let m = 0; m < rings.length; m++)
+          if (depth[m] === depth[i] && areas[m] > areas[j] && ringHas(rings[m], rings[j][0][0], rings[j][0][1])
+              && (par < 0 || areas[m] < areas[par])) par = m;
+        if (par !== i) continue;
+        sh.holes.push(new THREE.Path(rings[j].map(q => new THREE.Vector2(q[0] - CX, q[1] - CY))));
+      }
+      shapes.push(sh);
+    }
+    if (!shapes.length) { stageKey = null; requestRender(); return; }
+    const zc = spec.level - ZMID;
+    const geo = new THREE.ShapeGeometry(shapes);
+    geo.translate(0, 0, zc);
+    const mesh = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({
+      color: 0x55C1FF, transparent: true, opacity: 0.34, depthWrite: false,
+      side: THREE.DoubleSide, toneMapped: false }));
+    mesh.renderOrder = 5;
+    const grp = new THREE.Group();
+    grp.add(mesh);
+    for (const lb of (spec.labels || [])) {
+      if (lb.x == null || lb.z == null) continue;
+      const sp = textSprite(lb.text, new THREE.Color(lb.color || "#55C1FF").getHex(), 26);
+      sp.position.set(lb.x - CX, lb.y - CY, lb.z - ZMID + (lb.lift == null ? 14 : lb.lift));
+      grp.add(sp);
+    }
+    grp.scale.z = exag();
+    scene.add(grp);
+    stageGroup = grp;
+    /* read the z back out of the geometry rather than repeating the arithmetic:
+       the harness's "at level - ZMID" check then measures the mesh, not a
+       number this function copied from its own input */
+    const pa = geo.getAttribute("position");
+    stageInfo = { level: spec.level, z: +pa.array[2].toFixed(4), rings: rings.length,
+                  shapes: shapes.length, labels: (spec.labels || []).length,
+                  verts: pa.count };
+    requestRender();
   }
 
   /* Survey contour lines in 3D. No drape sampling is needed — a contour's level IS its
@@ -607,6 +840,10 @@ SBMM.viewer3d = (function () {
     if (!scene) return;
     if (overlayGroup) scene.remove(overlayGroup);
     overlayGroup = new THREE.Group();
+    /* the particle streams live inside overlayGroup, so a rebuild throws the old
+       ones away with it; the list has to go with them or the loop keeps writing
+       into geometry nothing draws (v13 §3.1) */
+    waterAnim = []; animLast = 0;
     const zx = exag();
     if (LS("framework", "dus")) {
       const DU_COLOR = { "DU-1N": 0xE4796A, "DU-1S": 0xE4796A, "DU-2": 0x5B8FF9, "DU-3": 0x4FCE9B };
@@ -753,6 +990,8 @@ SBMM.viewer3d = (function () {
             new THREE.MeshBasicMaterial({ color: sel ? 0xFFD34D : 0x9FDCFF }));
           sp.position.set(dp[0] - CX, dp[1] - CY, drapeZ(dp[0], dp[1], 6));
           overlayGroup.add(own(sp, f));
+          /* v13 §3.1: and the water moving along it */
+          addFlowParticles(f, sel);
           continue;
         }
         if (f.type === "spot") {
@@ -1499,6 +1738,18 @@ SBMM.viewer3d = (function () {
       if (!open) { rafId = 0; return; }
       rafId = requestAnimationFrame(loop);
       frameCount++;
+      /* v13 §3.1: frames are requested ONLY while a visible flow exists and the
+         toggle is on — with nothing on screen this branch never runs and the
+         idle-render count stays 0 (test/perf.mjs). */
+      if (animOn && waterAnim.length) {
+        const now = performance.now();
+        if (!animLast) animLast = now - WATER_FPS_MS;
+        if (now - animLast >= WATER_FPS_MS) {
+          stepWaterAnim(Math.min(0.25, (now - animLast) / 1000));
+          animLast = now;
+          needsRender = true;
+        }
+      } else animLast = 0;
       const moved = nav.update();
       if (moved || needsRender) {
         needsRender = false;
@@ -1522,6 +1773,7 @@ SBMM.viewer3d = (function () {
       if (contourGroup) contourGroup.scale.z = zx;
       if (sketchObj) sketchObj.scale.z = zx;
       if (sheetGroup) sheetGroup.scale.z = zx;
+      if (stageGroup) stageGroup.scale.z = zx;
       for (const k in drapeMesh) drapeMesh[k].scale.z = zx;
       $("v3dExagVal").textContent = zx.toFixed(1) + "×";
       nav.st.forceApply = true;
@@ -1652,6 +1904,15 @@ SBMM.viewer3d = (function () {
 
     const lyBtn = $("v3dLayersBtn");
     if (lyBtn) lyBtn.onclick = () => SBMM.shell.setTab("layers");
+
+    /* v13 §3.1: "animate water", default on, remembered in the same store the
+       rest of the 3D view state uses (js/view.js). */
+    {
+      const rem = SBMM.view && SBMM.view.pref ? SBMM.view.pref("animWater") : undefined;
+      animOn = rem === undefined ? true : !!rem;
+      const aw = $("v3dAnimWater");
+      if (aw) { aw.checked = animOn; aw.onchange = e => setAnimWater(e.target.checked); }
+    }
 
     /* replay the whole state the first time the view is built, so opening 3D
        shows what 2D has been showing all along */
@@ -1799,6 +2060,9 @@ SBMM.viewer3d = (function () {
        appear when it opens; init() only runs once, so replaying it belongs here
        with the rest of the deferred state rather than there */
     refreshDrapes();
+    /* and the water stage surface, if an overtopping analysis is open (v13 §3.2) */
+    stageKey = null;
+    setWaterStage(SBMM.water && SBMM.water.stageSpec ? SBMM.water.stageSpec() : null);
     syncSheets();          // replay any sheet drapes enabled while 2D-only
     /* and replay the rest of the layer state: contours, canopy and the sheet
        master may all have been toggled while the 3D view did not exist */
@@ -1910,6 +2174,19 @@ SBMM.viewer3d = (function () {
       canopyVisible: !!(canopyMesh && canopyMesh.visible),
       isopachDraped: !!drapeMesh.isopach,
       waterDraped: !!drapeMesh.water,
+      /* v13: the animated flow and the stage surface */
+      waterAnimOn: animOn,
+      waterAnim: waterAnim.map(a => ({ fid: a.fid, n: a.n, tracks: a.tracks.length,
+                                       pipes: a.tracks.filter(t => t.pipe).length })),
+      waterParticles: waterAnim.reduce((n, a) => n + a.n, 0),
+      /* how far along its track the animation has walked, and where the first
+         particle of the first stream is standing — the two things a harness can
+         watch to prove the water is actually moving */
+      waterAnimT: +animT.toFixed(3),
+      waterSample: waterAnim.length
+        ? [+waterAnim[0].pos[0].toFixed(3), +waterAnim[0].pos[1].toFixed(3),
+           +waterAnim[0].pos[2].toFixed(3)] : null,
+      waterStage: stageInfo, zmid: ZMID,
       cadDrapeBudgetSkipped: lastCadSkip,
       contourSegments: SBMM._v3dContourDrop || null,
       sheetDrapes: [...sheetMeshes.keys()].sort(),
@@ -1943,6 +2220,10 @@ SBMM.viewer3d = (function () {
     refreshIsopach: () => { if (open) refreshDrapes(); },
     refreshDrapes: () => { if (open) refreshDrapes(); },
     sheetDrape, sheetDrapeNames: () => [...wantSheets].sort(),
+    /* v13: the water stage surface (js/water.js owns the spec) and the
+       "animate water" switch */
+    setWaterStage: spec => { if (scene) setWaterStage(spec); },
+    animateWater: on => { if (on === undefined) return animOn; setAnimWater(on); return animOn; },
     requestRender, reflowBar
   };
 })();

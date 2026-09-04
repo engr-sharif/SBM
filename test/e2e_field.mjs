@@ -693,11 +693,20 @@ const v3d = await page.evaluate(() => ({
   barShown: [...document.querySelectorAll("#view3d .v3dbar > *")]
     .filter(e => getComputedStyle(e).display !== "none")
     .map(e => e.id || (e.querySelector("select") ? "drape" : e.tagName.toLowerCase())),
-  orbit: SBMM.viewer3d.stats().orbit
+  orbit: SBMM.viewer3d.stats().orbit,
+  /* v13 §3.1: "animate water" is on in the field build too — the particles are
+     cheap, the terrain is the cost */
+  animBox: !!document.getElementById("v3dAnimWater"),
+  animChecked: !!(document.getElementById("v3dAnimWater") || {}).checked,
+  animOn: SBMM.viewer3d.stats().waterAnimOn,
+  stage3d: typeof SBMM.viewer3d.setWaterStage
 }));
 console.log(`3D on touch: open ${v3d.open} · detail "${v3d.detail}" · canvas touch-action `
-  + `"${v3d.touchAction}" · bar shows ${JSON.stringify(v3d.barShown)}`);
+  + `"${v3d.touchAction}" · bar shows ${JSON.stringify(v3d.barShown)}`
+  + ` · animate water ${v3d.animBox ? "present" : "MISSING"}/${v3d.animOn}`);
 if (!v3d.open) fail("the 3D view did not open");
+if (!v3d.animBox || !v3d.animChecked || v3d.animOn !== true || v3d.stage3d !== "function")
+  fail("the field build must carry the 'animate water' toggle, on, and setWaterStage", v3d);
 if (v3d.detail !== "std") fail("3D did not open at standard detail in field mode", v3d.detail);
 if (v3d.touchAction !== "none") fail("the 3D canvas does not take touch gestures", v3d.touchAction);
 

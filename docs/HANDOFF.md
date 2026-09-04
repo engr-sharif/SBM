@@ -60,6 +60,11 @@ in code, and what comes next. It replaces re-reading the chat history that built
 | `rim_ft` is computed on boot from `SBMM.elev` and **never baked into the payload**; `invert_ft` is blank until surveyed | The rim must follow the DEM stack, and a guessed invert is the one thing that would make the whole network dishonest. The popups say "not surveyed" |
 | The capture radius is **3 ft**, and a conduit is used **at most once per run** | 3 ft is a grate; the descent walks cell centres on a 1-ft or 2-ft grid, so one cell is not enough to be reachable. Once per run is what stops a loop in a graph nobody has surveyed the direction of |
 | `length_ft` stays **overland**; `pipe_ft` is separate and `total_ft` is the sum | They are different quantities — one measured off the lidar, one off somebody's drawing — and the difference between them is exactly the survey he is about to commission |
+| **The overtopping analysis honours the storm conduits too (v13)**: the conduit spill is the FIRST inlet whose rim the sealed flood's level reaches, reported BESIDE the rim spill and never in place of it | His words: *"why does frog pond when i try the overflow tool it goes off to the north of the site rather then flowing into green pond"*. The raindrop had the pipe rule since v12; the overflow tool did not, and on Frog Pond the rim spill sits ten feet from a culvert inlet 0.30 ft lower. Adding it beside the rim analysis (and NOT seeding `fillDem` in `overtop`, which is the raindrop's rule) is what keeps every §9.2/§10 Herman golden exactly where it was |
+| A conduit stage row **merges into a surveyed `levels` row within 0.1 ft, and the survey wins** | Herman's kernel answer is 1,341.53 and the survey's is 1,341.55. Two rows a hundredth of a foot apart, one of them measured with an instrument, is noise pretending to be information |
+| **The first-discharge route is one route**: where the conduit spill is the surveyed pipe (Herman), the surveyed pipe route stands and nothing is traced again | Two identical blue lines on the same pipe is how a card stops being read |
+| **Water in 3D is animation, not a new analysis** (v13): particles ~20 ft apart at ~40 ft/s along the flow, the stage surface at the slider's level | He asked for the 2D flow animation in 3D. It draws what is already computed; it does not add a number anyone could quote |
+| The 3D render loop asks for frames **only while a visible flow exists and "animate water" is on** | The on-demand loop is why an idle 3D view costs nothing, and `test/perf.mjs` asserts 0 idle renders. An animation that always runs would have quietly thrown that away |
 | A password screen in front of the app (v9.3), and it is a **deterrent, not security** | He asked for "something to deter someone from using it", explicitly not full security. Everything ships to the browser, so the check is in the file the browser reads — this stops a colleague, not an attacker |
 
 ## What was tried and dropped
@@ -107,6 +112,15 @@ in code, and what comes next. It replaces re-reading the chat history that built
 8. **The pipes' capacity is not modelled.** The overtopping card says the pipes discharge
    from 1341.55 ft; how much they can pass, and whether the pond keeps rising with them
    flowing, is hydraulics (see the next item).
+8a. ~~**The overtopping tool ignores the storm network.**~~ **Done (v13).** `overtop` takes
+   `conduits`/`captureFt` the way `flowpath` does and reports a `conduitSpill`; the card
+   carries a *First discharge* row above the rim spill, the slider snaps onto it, and it has
+   its own route. **The raindrop and the overtopping analysis now agree on Frog Pond and
+   Green Pond as they already did on Herman**: Frog Pond discharges through `pond_culvert`
+   at 1,415.74 ft into Green Pond (rim spill 1,416.04), Green Pond through `green_outlet` at
+   1,394.50 (rim spill 1,399.14), Herman through `herman_pipe_s` on the surveyed 1,341.55
+   row (rim spill 1,343.84). `test/kernels.mjs --only water3d` and the e2e block
+   "9t. overtop + conduits" are the contract.
 9. **Hydraulics and rainfall are out of scope** for the water tools, deliberately
    (see the decisions table). If he asks for runoff volumes, a design storm, culverts,
    pipes, a dam-break, or "how long would it take to fill" — **ask before adding**. Those

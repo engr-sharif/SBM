@@ -2801,9 +2801,12 @@ await page.evaluate(() => { SBMM.map.closePopup(); });
 
 /* --- 4. the overtopping analysis (§9.2) ------------------------------ */
 const wover = await page.evaluate(async () => {
-  /* survey:false — this block checks the pure-lidar §9.2 reference; the
-     surveyed stages (spec §10) are checked in block 9v below */
-  const R = await SBMM.water.overtopHerman({ survey: false });
+  /* survey:false, storm:false — this block checks the PURE-LIDAR §9.2
+     reference: no surveyed stages (spec §10, block 9v below) and no storm
+     network (v13 §2, block 9t below), so the numbers here are the terrain's
+     alone. It is also v13 §4's "with the network off the analysis is
+     bit-identical to today's", asserted on Herman. */
+  const R = await SBMM.water.overtopHerman({ survey: false, storm: false });
   if (!R) return { err: "overtopHerman returned nothing" };
   const route = SBMM.store.features.find(f => f.type === "flow" && /overflow route/.test(f.name));
   const pool = SBMM.store.features.find(f => f.type === "area" && /at spill/.test(f.name));
@@ -3422,6 +3425,270 @@ if (!stormRest.dxf) { console.log("FAIL: the DXF is missing the STORM-* layers")
 if (errors.length !== errBeforeStorm) {
   console.log("FAIL: page errors during the storm block:",
               errors.slice(errBeforeStorm, errBeforeStorm + 6)); process.exit(1);
+}
+
+/* ==================================================================== */
+/* 9t. overtop + conduits, and water in 3D (docs/V13_WATER3D_SPEC.md)    */
+/* ==================================================================== */
+/* Two things. (1) The overtopping analysis now honours the storm network the
+   way the raindrop already did: the FIRST discharge is the first inlet whose
+   rim the rising water reaches, reported BESIDE the rim spill and never in
+   place of it, with its own route. Frog Pond is the case the user reported —
+   the natural rim spill at 1,416.04 ft is ten feet from a culvert inlet 0.30 ft
+   lower, so without this the overflow ran north over the ground instead of into
+   Green Pond. (2) Water moves in 3D: a particle stream on every visible flow,
+   and the stage surface at the slider's level.
+   The numbers are test/kernels.mjs section `water3d`, which computes them from
+   the same payload the app reads. */
+const errBeforeW13 = errors.length;
+const w13 = await page.evaluate(async () => {
+  const wait = ms => new Promise(r => setTimeout(r, ms));
+  const ringOf = nm => SBMM_DATA.design_gis.features.find(
+    f => f.properties.layer === "water" && f.properties.name === nm).geometry.coordinates[0];
+  const out = {};
+  const run = async (nm) => {
+    SBMM.water.clearOvertop();
+    await wait(150);
+    const R = await SBMM.water.overtop({ ring: ringOf(nm).map(q => [q[0], q[1]]), name: nm });
+    if (!R) return null;
+    await wait(250);
+    const card = [...document.querySelectorAll("#resBody .res")].find(c => /Overtopping/.test(c.textContent));
+    const cr = SBMM.store.features.filter(f => f.type === "flow" && /first-discharge route/.test(f.name)).pop();
+    const rr = SBMM.store.features.filter(f => f.type === "flow"
+      && f.name.indexOf(nm) === 0 && /overflow route/.test(f.name)).pop();
+    return {
+      spill: R.primary.level, spillAt: [R.primary.x, R.primary.y],
+      cs: R.conduitSpill && { id: R.conduitSpill.id, level: R.conduitSpill.level,
+                              at: [R.conduitSpill.x, R.conduitSpill.y] },
+      fbCond: R.freeboardConduit_ft, stageRows: R.stage.length,
+      viaRows: R.stage.filter(s => s.via).map(s => [s.level, s.via]),
+      card: card ? card.textContent : "",
+      markerC: document.querySelectorAll(".spillmk.conduit").length,
+      route: cr ? { name: cr.name, legs: (cr.props.legs || []).map(l => l.id),
+                    end: [cr.props.end.x, cr.props.end.y], reason: cr.props.end.reason,
+                    pipe: cr.props.pipe_ft, outfall: !!cr.props.outfall, visible: cr.visible } : null,
+      rim: rr ? { name: rr.name, len: rr.props.length_ft, end: [rr.props.end.x, rr.props.end.y],
+                  reason: rr.props.end.reason, visible: rr.visible } : null
+    };
+  };
+  out.frog = await run("Frog Pond");
+  /* the slider: below the conduit level neither route shows, at it the conduit
+     route does, at the rim spill the rim route joins it */
+  {
+    const R = SBMM.water.active();
+    const card = [...document.querySelectorAll("#resBody .res")].find(c => /Overtopping/.test(c.textContent));
+    const sl = card.querySelector("#wsRange");
+    const cs = R.conduitSpill;
+    const iC = R.stage.findIndex(s => Math.abs(s.level - cs.level) < 1e-6);
+    const vis = () => {
+      const cr = SBMM.store.features.filter(f => f.type === "flow" && /first-discharge route/.test(f.name)).pop();
+      const rr = SBMM.store.features.filter(f => f.type === "flow" && /Frog Pond overflow route/.test(f.name)).pop();
+      return { c: cr ? cr.visible : null, r: rr ? rr.visible : null,
+               label: (card.querySelector(".wslabel") || {}).textContent || "" };
+    };
+    const set = async i => { sl.value = String(i); sl.dispatchEvent(new Event("input")); await wait(120); };
+    out.sliderIdxConduit = iC;
+    await set(Math.max(0, iC - 1)); out.below = vis();
+    await set(iC); out.atConduit = vis();
+    await set(R.stage.length - 1); out.atTop = vis();
+    await set(iC); await wait(60);
+  }
+  out.green = await run("Green Pond");
+  /* Herman keeps its §10 card: the conduit spill IS the surveyed pipe, so the
+     pipe row gains the via and nothing is traced or listed twice */
+  SBMM.water.clearOvertop();
+  await wait(150);
+  const HR = await SBMM.water.overtop({ ring: ringOf("Herman Impoundment").map(q => [q[0], q[1]]),
+                                        name: "Herman Impoundment" });
+  await wait(300);
+  const hcard = [...document.querySelectorAll("#resBody .res")].find(c => /Overtopping/.test(c.textContent));
+  out.herman = {
+    spill: HR.primary.level, freeboard: HR.freeboard_ft, stageRows: HR.stage.length,
+    cs: HR.conduitSpill && { id: HR.conduitSpill.id, level: HR.conduitSpill.level,
+                             stageLevel: HR.conduitSpill.stageLevel },
+    viaRows: HR.stage.filter(s => s.via).map(s => [s.level, s.via]),
+    card: hcard ? hcard.textContent : "",
+    markerC: document.querySelectorAll(".spillmk.conduit").length,
+    extraRoutes: SBMM.store.features.filter(f => f.type === "flow"
+      && /^Herman Impoundment first-discharge route/.test(f.name)).length
+  };
+  return out;
+});
+console.log("v13 Frog Pond:", JSON.stringify({ spill: w13.frog.spill, cs: w13.frog.cs,
+  fbCond: +w13.frog.fbCond.toFixed(2), viaRows: w13.frog.viaRows, markerC: w13.frog.markerC,
+  route: w13.frog.route, rim: w13.frog.rim && { len: w13.frog.rim.len, end: w13.frog.rim.end } }));
+console.log("v13 slider:", JSON.stringify({ idx: w13.sliderIdxConduit, below: w13.below,
+  atConduit: w13.atConduit, atTop: w13.atTop }));
+console.log("v13 Green Pond:", JSON.stringify({ spill: w13.green.spill, cs: w13.green.cs,
+  route: w13.green.route && { legs: w13.green.route.legs, end: w13.green.route.end } }));
+console.log("v13 Herman:", JSON.stringify({ spill: w13.herman.spill, freeboard: w13.herman.freeboard,
+  cs: w13.herman.cs, viaRows: w13.herman.viaRows, markerC: w13.herman.markerC,
+  extraRoutes: w13.herman.extraRoutes }));
+
+/* --- Frog Pond ------------------------------------------------------- */
+if (!w13.frog || !w13.frog.cs) { console.log("FAIL: Frog Pond has no conduit spill"); process.exit(1); }
+if (w13.frog.cs.id !== "pond_culvert" || Math.abs(w13.frog.cs.level - 1415.74) > 0.05)
+  { console.log("FAIL: Frog Pond's first discharge", JSON.stringify(w13.frog.cs)); process.exit(1); }
+if (Math.abs(w13.frog.spill - 1416.04) > 0.05 || wdist(w13.frog.spillAt, [6374410, 2127918]) > 15)
+  { console.log("FAIL: Frog Pond's rim spill moved", w13.frog.spill, w13.frog.spillAt); process.exit(1); }
+for (const t of ["First discharge", "through pond culvert", "1,415.74", "pond_culvert",
+                 "First-discharge route", "Rim spill", "1,416.04"])
+  if (!w13.frog.card.includes(t)) { console.log("FAIL: the Frog Pond card lacks '" + t + "'"); process.exit(1); }
+if (w13.frog.markerC !== 1) { console.log("FAIL: no 'C' marker at the conduit spill"); process.exit(1); }
+if (!w13.frog.route) { console.log("FAIL: no first-discharge route on Frog Pond"); process.exit(1); }
+if (w13.frog.route.legs[0] !== "pond_culvert")
+  { console.log("FAIL: the first-discharge route must start in the culvert:", w13.frog.route.legs); process.exit(1); }
+if (w13.frog.route.legs[w13.frog.route.legs.length - 1] !== "storm_main_lower" || !w13.frog.route.outfall)
+  { console.log("FAIL: the first-discharge route must reach the outfall:", w13.frog.route.legs); process.exit(1); }
+if (!w13.frog.route.legs.includes("green_outlet"))
+  { console.log("FAIL: the route must leave Green Pond through its FES:", w13.frog.route.legs); process.exit(1); }
+if (w13.frog.route.reason !== "nodata" || wdist(w13.frog.route.end, [6371177, 2127474]) > 5)
+  { console.log("FAIL: the first-discharge route ends", w13.frog.route.reason, w13.frog.route.end); process.exit(1); }
+/* the defect, stated as the user stated it: it does NOT go north */
+if (w13.frog.route.end[1] >= 2128000)
+  { console.log("FAIL: the first-discharge route still runs north:", w13.frog.route.end); process.exit(1); }
+if (!w13.frog.rim || w13.frog.rim.reason == null)
+  { console.log("FAIL: the rim overflow route is gone"); process.exit(1); }
+if (w13.frog.viaRows.length !== 1 || w13.frog.viaRows[0][1] !== "pond_culvert")
+  { console.log("FAIL: exactly one stage row carries the via:", JSON.stringify(w13.frog.viaRows)); process.exit(1); }
+
+/* --- the slider ------------------------------------------------------ */
+if (w13.below.c !== false || w13.below.r !== false)
+  { console.log("FAIL: below the conduit level neither route may show:", JSON.stringify(w13.below)); process.exit(1); }
+if (w13.atConduit.c !== true || w13.atConduit.r !== false)
+  { console.log("FAIL: at the conduit level only the conduit route shows:", JSON.stringify(w13.atConduit)); process.exit(1); }
+if (w13.atTop.c !== true || w13.atTop.r !== true)
+  { console.log("FAIL: above the rim spill both routes show:", JSON.stringify(w13.atTop)); process.exit(1); }
+if (!/discharging through pond culvert/.test(w13.atConduit.label))
+  { console.log("FAIL: the slider label at the conduit level:", w13.atConduit.label); process.exit(1); }
+
+/* --- Green Pond ------------------------------------------------------ */
+if (!w13.green.cs || w13.green.cs.id !== "green_outlet" || Math.abs(w13.green.cs.level - 1394.48) > 0.05)
+  { console.log("FAIL: Green Pond's first discharge", JSON.stringify(w13.green.cs)); process.exit(1); }
+if (Math.abs(w13.green.spill - 1399.14) > 0.05)
+  { console.log("FAIL: Green Pond's rim spill moved", w13.green.spill); process.exit(1); }
+if (!w13.green.route || w13.green.route.legs[0] !== "green_outlet" || !w13.green.route.outfall)
+  { console.log("FAIL: Green Pond's first-discharge route", JSON.stringify(w13.green.route)); process.exit(1); }
+
+/* --- Herman: unchanged, plus the via --------------------------------- */
+if (Math.abs(w13.herman.spill - 1343.84) > 0.05 || Math.abs(w13.herman.freeboard - 7.39) > 0.05)
+  { console.log("FAIL: Herman's rim spill / freeboard moved", w13.herman.spill, w13.herman.freeboard); process.exit(1); }
+if (!w13.herman.cs || w13.herman.cs.id !== "herman_pipe_s"
+    || Math.abs(w13.herman.cs.stageLevel - 1341.55) > 1e-6)
+  { console.log("FAIL: Herman's conduit spill", JSON.stringify(w13.herman.cs)); process.exit(1); }
+if (w13.herman.viaRows.length !== 1 || Math.abs(w13.herman.viaRows[0][0] - 1341.55) > 1e-6
+    || w13.herman.viaRows[0][1] !== "herman_pipe_s")
+  { console.log("FAIL: the via must sit on the surveyed 1341.55 row:", JSON.stringify(w13.herman.viaRows)); process.exit(1); }
+if (w13.herman.stageRows !== 44)
+  { console.log("FAIL: Herman's stage table gained a duplicate row:", w13.herman.stageRows); process.exit(1); }
+if (w13.herman.markerC !== 0 || w13.herman.extraRoutes !== 0)
+  { console.log("FAIL: Herman must not get a second marker or a second route"); process.exit(1); }
+for (const t of ["24-in HDPE pipes", "via herman_pipe_s", "Rim spill"])
+  if (!w13.herman.card.includes(t)) { console.log("FAIL: the Herman card lacks '" + t + "'"); process.exit(1); }
+
+/* --- water in 3D ----------------------------------------------------- */
+/* The particles: precomputed per rebuild, advanced in the render loop, and the
+   loop asks for frames ONLY while a visible flow is on screen — which is why
+   test/perf.mjs's idle-render count is still 0. */
+const w13d = await page.evaluate(async () => {
+  const wait = ms => new Promise(r => setTimeout(r, ms));
+  const out = {};
+  const wasOpen = SBMM.viewer3d.isOpen();
+  if (!wasOpen) { await SBMM.viewer3d.toggle(); await wait(1600); }
+  SBMM.viewer3d.animateWater(true);
+  /* one visible flow: the first-discharge route, which has conduit legs too */
+  const flows = SBMM.store.features.filter(f => f.type === "flow");
+  const keep = flows.filter(f => /first-discharge route/.test(f.name)).pop() || flows[0];
+  for (const f of flows) SBMM.store.setVisible(f, f === keep);
+  SBMM.viewer3d.refreshOverlays();
+  await wait(600);
+  const st = SBMM.viewer3d.stats();
+  out.anim = st.waterAnim;
+  out.particles = st.waterParticles;
+  out.animOn = st.waterAnimOn;
+  out.picked = SBMM.pick3d.registered().filter(r => r.kind === "feature").length;
+  /* four seconds, not one: a render under software GL takes about half a second,
+     so the loop asking for ~30 fps is served at two or three. What is asserted is
+     that it keeps asking and the water keeps moving, against an idle view that
+     issues none at all (the same measurement block 9e makes). */
+  const a = SBMM.viewer3d.stats();
+  await wait(4000);
+  const a2 = SBMM.viewer3d.stats();
+  out.rendersWithFlow = a2.renderCount - a.renderCount;
+  out.animAdvance = +(a2.waterAnimT - a.waterAnimT).toFixed(2);
+  out.moved = a.waterSample && a2.waterSample
+    ? +Math.hypot(a2.waterSample[0] - a.waterSample[0], a2.waterSample[1] - a.waterSample[1]).toFixed(2)
+    : null;
+  /* the toggle off stops the frames */
+  SBMM.viewer3d.animateWater(false);
+  await wait(400);
+  const b = SBMM.viewer3d.stats();
+  await wait(3000);
+  const b2 = SBMM.viewer3d.stats();
+  out.rendersToggledOff = b2.renderCount - b.renderCount;
+  out.frozen = +(b2.waterAnimT - b.waterAnimT).toFixed(2);
+  SBMM.viewer3d.animateWater(true);
+  await wait(150);
+  /* the stage surface follows the slider */
+  const card = [...document.querySelectorAll("#resBody .res")].find(c => /Overtopping/.test(c.textContent));
+  const sl = card && card.querySelector("#wsRange");
+  const R = SBMM.water.active();
+  out.stageAtDefault = SBMM.viewer3d.stats().waterStage;
+  out.zmid = SBMM.viewer3d.stats().zmid;
+  if (sl) {
+    sl.value = "0"; sl.dispatchEvent(new Event("input"));
+    await wait(300);
+    out.stageAtZero = SBMM.viewer3d.stats().waterStage;
+    out.stageLevelZero = R.stage[0].level;
+  }
+  /* no visible flow at all: no particles, and no renders */
+  for (const f of SBMM.store.features) if (f.type === "flow") SBMM.store.setVisible(f, false);
+  SBMM.viewer3d.refreshOverlays();
+  await wait(500);
+  out.animAfterHide = SBMM.viewer3d.stats().waterAnim.length;
+  await wait(700);
+  const c = SBMM.viewer3d.stats().renderCount;
+  await wait(3000);
+  out.rendersNoFlow = SBMM.viewer3d.stats().renderCount - c;
+  /* closing the analysis clears the stage surface */
+  SBMM.water.clearOvertop();
+  await wait(400);
+  out.stageAfterClear = SBMM.viewer3d.stats().waterStage;
+  for (const f of SBMM.store.features) if (f.type === "flow") SBMM.store.setVisible(f, true);
+  SBMM.viewer3d.refreshOverlays();
+  await wait(400);
+  if (!wasOpen) { await SBMM.viewer3d.toggle(); await wait(500); }
+  return out;
+});
+console.log("v13 water in 3D:", JSON.stringify(w13d));
+if (!w13d.anim || w13d.anim.length !== 1 || w13d.anim[0].n < 10)
+  { console.log("FAIL: the visible flow has no particle stream:", JSON.stringify(w13d.anim)); process.exit(1); }
+if (!w13d.anim[0].pipes)
+  { console.log("FAIL: the conduit legs must carry their own particles"); process.exit(1); }
+if (w13d.rendersWithFlow < 3)
+  { console.log("FAIL: an animated flow must drive the render loop, got", w13d.rendersWithFlow); process.exit(1); }
+/* the particles advance at 40 ft/s of WALL clock, and under software GL the loop
+   is served about one frame a second, so four seconds is ~160 ft of travel; 20 is
+   the floor that separates "moving" from "stuck" without pinning a frame rate */
+if (w13d.animAdvance < 20 || !(w13d.moved > 0))
+  { console.log("FAIL: the particles did not move:", w13d.animAdvance, w13d.moved); process.exit(1); }
+if (w13d.rendersToggledOff > 1 || w13d.frozen !== 0)
+  { console.log("FAIL: 'animate water' off must stop the frames, got",
+                w13d.rendersToggledOff, w13d.frozen); process.exit(1); }
+if (w13d.animAfterHide !== 0 || w13d.rendersNoFlow > 1)
+  { console.log("FAIL: with no visible flow the loop must idle, got",
+                w13d.animAfterHide, w13d.rendersNoFlow); process.exit(1); }
+if (!w13d.stageAtDefault || Math.abs(w13d.stageAtDefault.z - (w13d.stageAtDefault.level - w13d.zmid)) > 0.01)
+  { console.log("FAIL: the stage surface is not at level - ZMID:", JSON.stringify(w13d.stageAtDefault)); process.exit(1); }
+if (!w13d.stageAtZero || Math.abs(w13d.stageAtZero.level - w13d.stageLevelZero) > 1e-6
+    || Math.abs(w13d.stageAtZero.z - w13d.stageAtDefault.z) < 0.5)
+  { console.log("FAIL: the stage surface did not follow the slider:",
+                JSON.stringify(w13d.stageAtZero), JSON.stringify(w13d.stageAtDefault)); process.exit(1); }
+if (w13d.stageAfterClear !== null)
+  { console.log("FAIL: closing the analysis must clear the stage surface"); process.exit(1); }
+if (errors.length !== errBeforeW13) {
+  console.log("FAIL: page errors during the v13 water block:",
+              errors.slice(errBeforeW13, errBeforeW13 + 6)); process.exit(1);
 }
 
 /* ==================================================================== */
