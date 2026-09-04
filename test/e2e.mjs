@@ -3235,6 +3235,39 @@ if (!rdel.back.here || !rdel.back.onMap || !rdel.back.card || !rdel.back.inTree 
   { console.log("FAIL: undo of a delete did not bring the same feature back"); process.exit(1); }
 if (rdel.goneAgain) { console.log("FAIL: redo did not delete the feature again"); process.exit(1); }
 
+/* --- 3b. the other delete paths are the same action (v9.7) ----------
+   The results-card ✕, the Features-tree bin and the popup's delete button all
+   route through SBMM.tools.deleteFeature now, so each of them undoes. */
+const rdel2 = await page.evaluate(async () => {
+  const wait = ms => new Promise(r => setTimeout(r, ms));
+  const out = {};
+  const mk = () => SBMM.tools.rebuildFeature({ type: "line", pts: [[6371400, 2128600], [6371500, 2128600]] });
+  /* results card ✕ */
+  let f = mk(); await wait(60);
+  const x = f.card && f.card.querySelector('[data-a="del"]');
+  if (!x) return { err: "no card ✕" };
+  x.click(); await wait(80);
+  out.card = { gone: SBMM.store.features.indexOf(f) < 0, label: SBMM.undo.labels().undo };
+  SBMM.undo.pop(); await wait(80);
+  out.card.back = SBMM.store.features.indexOf(f) >= 0 && !!(f.layer && SBMM.map.hasLayer(f.layer));
+  SBMM.tools.deleteFeature(f); await wait(40);
+  /* Features-tree bin */
+  f = mk(); await wait(120);
+  const row = document.querySelector('#featureTree .ftrow[data-fid="' + f.id + '"] .del');
+  if (!row) return { err: "no tree row bin", ...out };
+  row.click(); await wait(80);
+  out.tree = { gone: SBMM.store.features.indexOf(f) < 0, label: SBMM.undo.labels().undo };
+  SBMM.undo.pop(); await wait(80);
+  out.tree.back = SBMM.store.features.indexOf(f) >= 0 && !!(f.layer && SBMM.map.hasLayer(f.layer));
+  SBMM.tools.deleteFeature(f); await wait(40);
+  return out;
+});
+console.log("delete paths undo:", JSON.stringify(rdel2));
+if (rdel2.err) { console.log("FAIL: " + rdel2.err); process.exit(1); }
+for (const k of ["card", "tree"])
+  if (!rdel2[k].gone || !/^delete /.test(rdel2[k].label || "") || !rdel2[k].back)
+    { console.log("FAIL: the " + k + " delete is not an undoable action"); process.exit(1); }
+
 /* --- 4. a raindrop, and its animated copy in the water pane ---------- */
 const rflow = await page.evaluate(async (DROP) => {
   const wait = ms => new Promise(r => setTimeout(r, ms));

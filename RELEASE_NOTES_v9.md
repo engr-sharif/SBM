@@ -17,6 +17,25 @@ All three are offline-only by design. Nothing in this app calls out to the inter
 
 ---
 
+## v9.7 — seven small things put right
+
+- **Every delete undoes.** The ✕ on a results card, the bin in the Features tree and the
+  Inspector, the delete button in a popup and the one in the design-surface list all go
+  through the same action ERASE uses, so Ctrl+Z brings the feature back whichever way you
+  removed it.
+- **TOE and CREST** keep a line that goes all the way round a pile closed, and the Length
+  on the card is now the length of the line you see (it read 2 ft long before).
+- **Cross-sections** no longer report phantom fill against EA's excavation-bottom surface
+  outside the mine window: the end areas use the same resolution-aware tolerance the
+  isopach has used since v9, and the section card is unchanged otherwise.
+- **Contour exports** no longer carry the sub-0.1-ft two-vertex fragments marching
+  squares left behind (43 of them in the 10-ft site set); nothing longer than a foot
+  changed.
+- Two raster kernels now honour a windowed grid, which nothing used yet and the first
+  caller would have found the hard way.
+- The help panel names the design group correctly, and the performance diagnostic drives
+  the layer state rather than checkboxes that no longer exist.
+
 ## v9.6 — the app in the field
 
 **A field mode, and a field build.** Two things, because they answer two different

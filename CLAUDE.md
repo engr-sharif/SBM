@@ -78,7 +78,7 @@ resolved through `pathToFileURL`, so Windows paths work. Runs are slow under sof
 warm, covering EVERY kernel in `js/compute.js`'s `runJob`.** Run it after any change to
 `js/compute.js` or to a call site that builds a job, before you reach for Playwright:
 ```
-node test/kernels.mjs                  # every section (136 checks)
+node test/kernels.mjs                  # every section (140 checks)
 node test/kernels.mjs --only water     # one or more sections, comma-separated
 node test/kernels.mjs --list           # volume isopach raster contours design sections smart trees water
 node test/water_kernels.mjs            # a thin alias for --only water
@@ -100,6 +100,17 @@ time; any FAIL exits non-zero. Three rules govern it:
   labelled regression guards.
 - **A new kernel gets a section here before it ships.** The harness greps `runJob`'s
   dispatch and fails on any kind it does not cover.
+- **Every raster kernel honours a windowed `gridSpec`** (`i0/j0/sw/sh`), and the harness
+  proves it by shipping the same ground both as a window of the site grid and as a
+  standalone sub-grid and requiring identical output (`contours`, `raster`). Before v9.7
+  `contoursFromGrid` and `demRasterRGBA` sized their sweep from `g.w/g.h` and silently read
+  NaN outside the window; every caller happened to pass a whole grid. Do not reintroduce a
+  `g.w`-sized sweep. Two more v9.7 rules live in the kernels: `contours` drops any polyline
+  shorter than a tenth of a sweep cell (the sub-0.1-ft stubs marching squares leaves when
+  two crossings round into different chaining keys — 43 of 262 on the 10-ft site set), and
+  `sections` dead-bands its end areas with the isopach's `isoTol` (the same
+  `zstepDesign`/`zstepGround` the isopach ships, from `js/sections.js`) and returns the
+  per-sample `tol` so the harness can restate the cut−fill identity through it.
 
 Terrain comes from `test/lib/terrain.mjs` — `loadDem` in `js/dem.js`'s exact layout,
 `gridSpec`/`gridsFor` ported verbatim from `js/jobs.js`, `loadSurface` reading EA's design
@@ -125,7 +136,7 @@ have changed behaviour, and read the output:
 ```
 node test/boot_time.mjs /abs/path/index.html 3     # boot to first interaction + the stage table
 node test/perf.mjs   /abs/path/index.html folder   # 3D / memory numbers (its layer-toggle loop
-                                                   #   still drives the removed 3D checkboxes)
+                                                   #   drives SBMM.layerState, not checkboxes)
 node test/audit.mjs  /abs/path/index.html folder   # every tool, command, dialog + its toasts
 node test/audit2.mjs /abs/path/index.html folder   # sheet viewer, properties, split, report
 ```
@@ -788,7 +799,7 @@ What it changes in the overtopping analysis, and the two things not to undo:
   checks all of it (59 checks) against `scratchpad/survey_stage_ref.py`.
 
 Contract: `docs/V10_WATER_SPEC.md`. Kernels `flowpath`, `overtop`, `catchment` in
-`js/compute.js` (api VERSION 4); host and UI in `js/water.js` (`SBMM.water`).
+`js/compute.js` (api VERSION 4, now 5 after the v9.7 fixes); host and UI in `js/water.js` (`SBMM.water`).
 **Both tools are static terrain analyses over the lidar bare earth — no rainfall,
 runoff, infiltration, seepage, wave run-up or time.** If the user asks for any of
 those, that is a new spec, not an extension of this one.
@@ -893,9 +904,10 @@ SBMM.undo.drop(n, desc)                // forget trailing entries WITHOUT runnin
   entry from the tool's `onFinish`. Undo after drawing removes the shape, not its last
   vertex.
 - Deleting is an action: `SBMM.tools.deleteFeature(f)` removes and pushes the entry, and is
-  what `ERASE` and the 3D Delete key call. The results-card ✕ and the Features-tree delete
-  still call `SBMM.store.remove` directly and are NOT undoable — route them through
-  `deleteFeature` when those two files are next touched.
+  what `ERASE`, the 3D Delete key, the results-card ✕, the Features-tree and Inspector
+  deletes, the popup's delete button and the design-surface list's delete all call (v9.7).
+  **A new user-facing delete path calls `deleteFeature`, never `SBMM.store.remove`** — the
+  only direct `remove` calls left are inside undo/redo closures.
 - The two buttons are a view onto the two stacks (`js/boot.js`, through `onChange`):
   disabled when their stack is empty, titled with the entry's description. Keys are
   `Ctrl+Z` / `Ctrl+Y` / `Ctrl+Shift+Z` in `js/draw.js`, under the same guards (not while

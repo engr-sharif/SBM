@@ -122,10 +122,10 @@ const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 /* js/smartbound.js ptsFrom — including its trim: a marching-squares ring
    repeats its first vertex and a polygon feature must not, so the traced
    vertex COUNT the app reports is one below the kernel's nPts. */
-function ptsFrom(coords, n) {
+function ptsFrom(coords, n, keepClosed) {
   const out = new Array(n);
   for (let i = 0; i < n; i++) out[i] = [coords[i * 2], coords[i * 2 + 1]];
-  if (out.length > 3) {
+  if (out.length > 3 && !keepClosed) {
     const a = out[0], b = out[out.length - 1];
     if (Math.abs(a[0] - b[0]) < 1e-6 && Math.abs(a[1] - b[1]) < 1e-6) out.pop();
   }
@@ -420,6 +420,19 @@ function secRaster() {
   near("hypso min = window z min", f0, wlo, abp.m.step, " ft");
   near("hypso max = window z max", f1, whi, abp.m.step, " ft");
   note("coarse quantum " + q.toFixed(3) + " ft, refined bracket +/- " + (2 * q).toFixed(3) + " ft");
+  /* identity: the same window shipped as a WINDOW of dem_abp (i0/j0/sw/sh)
+     must paint the same bytes as the standalone sub-grid — the kernel used to
+     size its output from g.w/g.h and read NaN outside the window */
+  const winSpec = T.gridSpec(abp, [6371200, 2128600, 6371800, 2129200], 0);
+  const RA = C.runJob("raster", { grid: win, stride: 1, alpha: 255, kind: "slope",
+                                  ramp: COARSE, zlo: 0, zhi: 1, nanColor: null }).result;
+  const RB = C.runJob("raster", { grid: winSpec, stride: 1, alpha: 255, kind: "slope",
+                                  ramp: COARSE, zlo: 0, zhi: 1, nanColor: null }).result;
+  let bytesOff = 0;
+  if (RA.W === RB.W && RA.H === RB.H) { for (let k = 0; k < RA.rgba.length; k++) if (RA.rgba[k] !== RB.rgba[k]) bytesOff++; }
+  else bytesOff = -1;
+  row("windowed spec = standalone sub-grid (slope)", bytesOff < 0 ? "size differs" : bytesOff + " bytes differ",
+      "0 bytes", bytesOff === 0, "identity", RB.W + "x" + RB.H + " from window " + winSpec.i0 + "/" + winSpec.j0);
   /* NoData must stay transparent, not become a colour */
   const site = T.loadDem("dem_site");
   const lake = T.subGrid(site, [6368900, 2125200, 6369500, 2125800]);
@@ -474,6 +487,10 @@ function secContours() {
   const rings = all.filter(g => g.len > 1);
   const stubs = all.length - rings.length;
   exact("ring count", rings.length, 9);
+  /* the kernel now drops any polyline shorter than half a sweep cell, so the
+     stubs never leave it: a DXF of these contours has nine entities, not
+     nine plus a scatter of sub-0.1-ft two-vertex fragments */
+  exact("stubs emitted", stubs, 0);
   let worst = 0, worstLv = null;
   for (const g of rings) {
     const r = R0 * (100 - g.lv) / 100;
@@ -482,9 +499,6 @@ function secContours() {
   }
   row("every ring length = 2*pi*r", worst.toFixed(3) + " % worst", "< 1 %", worst < 1, "identity",
       "at the " + worstLv + "-ft ring");
-  row("stubs are only stubs", Math.max(0, ...all.filter(g => g.len <= 1).map(g => g.len)).toFixed(3) + " ft longest",
-      "< 0.1 ft", all.every(g => g.len > 1 || (g.len < 0.1 && g.n === 2)), "2 vertices, < 0.1 ft",
-      stubs + " of them");
   for (const g of rings)
     note("level " + String(g.lv).padStart(3) + " ft: r " + (R0 * (100 - g.lv) / 100).toFixed(0) +
          " ft, " + g.n + " vertices, " + g.len.toFixed(1) + " ft (2*pi*r = " +
@@ -492,16 +506,19 @@ function secContours() {
   budget("contours (cone)", ms, 4000);
 
   /* ---- the real 2-ft site grid over the mine area -------------------------
-     js/analysis.js contoursFromDem(). NOTE: contoursFromGrid indexes
-     z[j*g.w + i] and sizes its sweep from g.w/g.h, so it only ever works on a
-     WHOLE-grid spec — the app always hands it gridSpec(dem) with no bbox. A
-     windowed spec would silently produce nothing, so the window here is cut as
-     a standalone grid (test/lib/terrain.mjs subGrid). Stride is the app's own:
-     max(round(interval/cell), ceil(sqrt(cells/1.5e6))) = 5 at 10 ft on 2 ft.  */
+     js/analysis.js contoursFromDem() hands the kernel gridSpec(dem) with no
+     bbox, i.e. the whole grid. The kernel also honours a WINDOWED spec now
+     (i0/j0/sw/sh) — it used to size its sweep from g.w/g.h and read nothing —
+     so the window here is shipped both ways, as a standalone grid (subGrid)
+     and as a window of the site grid, and the two results must be identical.
+     Stride is the app's own: max(round(interval/cell), ceil(sqrt(cells/1.5e6)))
+     = 5 at 10 ft on 2 ft. */
   const site = T.loadDem("dem_site"), abp = T.loadDem("dem_abp");
-  const mine = T.subGrid(site, [abp.m.x0, abp.m.y0,
-                                abp.m.x0 + (abp.m.w - 1) * abp.m.cell,
-                                abp.m.y0 + (abp.m.h - 1) * abp.m.cell]);
+  const mineBox = [abp.m.x0, abp.m.y0,
+                   abp.m.x0 + (abp.m.w - 1) * abp.m.cell,
+                   abp.m.y0 + (abp.m.h - 1) * abp.m.cell];
+  const mine = T.subGrid(site, mineBox);
+  const mineWin = T.gridSpec(site, mineBox, 0);
   const stride = Math.max(Math.max(1, Math.round(10 / site.m.cell)),
                           Math.ceil(Math.sqrt(mine.w * mine.h / 1.5e6)));
   console.log("\ncontours — the real 2-ft site grid over the mine-area window (" +
@@ -513,9 +530,17 @@ function secContours() {
   /* recorded from this commit — a regression guard on the marching-squares
      chaining and the ring-aware simplify over real terrain, where there is no
      closed form to compare against */
-  pct("polylines", rall.length, 262, 5);
+  pct("polylines", rall.length, 218, 5);                 // 262 before the stub floor: 43 stubs under 0.1 ft and one under 1 ft
   pct("polylines over 10 ft", rall.filter(g => g.len > 10).length, 189, 5);
   row("not truncated", RR.truncated, false, RR.truncated === false, "exact");
+  /* identity: the same ground shipped as a window of the site grid */
+  const RW = C.runJob("contours", { grid: mineWin, interval: 10, stride, maxPts: 500000 }).result;
+  let wdiff = 0;
+  const same = RW.coords.length === RR.coords.length && RW.levels.length === RR.levels.length;
+  if (same) for (let k = 0; k < RR.coords.length; k++) wdiff = Math.max(wdiff, Math.abs(RW.coords[k] - RR.coords[k]));
+  row("windowed spec = standalone sub-grid", same ? wdiff.toFixed(6) + " ft worst" : "shape differs",
+      "identical", same && wdiff < 1e-6, "identity",
+      "window i0/j0 " + mineWin.i0 + "/" + mineWin.j0 + ", " + mineWin.sw + "x" + mineWin.sh);
   note(vtx + " vertices over " + new Set(Array.from(RR.levels)).size + " levels (" +
        Math.min(...RR.levels) + " to " + Math.max(...RR.levels) + " ft), total length " +
        rall.reduce((a, g) => a + g.len, 0).toFixed(0) + " ft");
@@ -691,38 +716,65 @@ function secSections() {
   const bbox2 = [b[0][0] - half, b[0][1] - half, b[1][0] + half, b[1][1] + half];
   const dgrid = T.surfaceGridSpec("res_excbottom", bbox2);
   console.log("\nsections — the same kernel with res_excbottom attached, over the Southern Residence");
-  const R2 = C.runJob("sections", { align: bAlign, interval, width, offStep,
-                                    grids: T.gridsFor(bbox2), dgrid, chm: null }).result;
-  let cutSum = 0, fillSum = 0, worstA = 0, nOff = 0, worstNeg = 0;
+  /* the two quantisation steps js/sections.js ships (the same pair the
+     isopach ships): the design raster's own, and the coarsest in the DEM stack */
+  const zstepGround = T.dems().reduce((mx, d) => Math.max(mx, (d.m && d.m.step) || 0), 0);
+  const secJob = { align: bAlign, interval, width, offStep, grids: T.gridsFor(bbox2), dgrid, chm: null,
+                   zstepDesign: dgrid.zstep || 0, zstepGround };
+  const R2 = C.runJob("sections", secJob).result;
+  let cutSum = 0, fillSum = 0, worstA = 0, nOff = 0, worstNeg = 0, tolMax = 0, nDead = 0;
   for (let s = 0; s < R2.ns; s++) {
     let net = 0;
     for (let o = 0; o + 1 < R2.no; o++) {
       const k1 = s * R2.no + o, k2 = k1 + 1;
       const g1 = R2.ground[k1], g2 = R2.ground[k2], d1 = R2.design[k1], d2 = R2.design[k2];
       if (isNaN(g1) || isNaN(g2) || isNaN(d1) || isNaN(d2)) continue;
-      const h1 = g1 - d1, h2 = g2 - d2;
+      let h1 = g1 - d1, h2 = g2 - d2;
       if (h1 < 0) { nOff++; worstNeg = Math.max(worstNeg, -h1); }
+      /* the kernel's dead band, re-applied here from the `tol` it reports */
+      tolMax = Math.max(tolMax, R2.tol[k1]);
+      if (Math.abs(h1) <= R2.tol[k1]) { if (h1 !== 0) nDead++; h1 = 0; }
+      if (Math.abs(h2) <= R2.tol[k2]) h2 = 0;
       net += (h1 + h2) / 2 * offStep;
     }
     /* the kernel splits each trapezoid at its zero crossing so cut and fill
        never mix; that partition is exact, so cutA - fillA must equal the plain
-       trapezoid to the bit. This is an identity, not a recorded number. */
+       trapezoid of the dead-banded differences to the bit. This is an identity,
+       not a recorded number. */
     worstA = Math.max(worstA, Math.abs(net - (R2.cutA[s] - R2.fillA[s])));
     cutSum += R2.cutA[s]; fillSum += R2.fillA[s];
   }
-  row("end areas exist", R2.cutA ? "cutA + fillA" : "missing", "cutA + fillA", !!R2.cutA, "exact");
+  row("end areas exist", R2.cutA ? "cutA + fillA + tol" : "missing", "cutA + fillA + tol", !!(R2.cutA && R2.tol), "exact");
   row("cutA - fillA = plain trapezoid", worstA, "<= 1e-9 ft2", worstA <= 1e-9, "identity",
       "cut " + cutSum.toFixed(1) + " ft2, fill " + fillSum.toFixed(2) + " ft2 over " + R2.ns + " stations");
   /* res_excbottom is existing ground minus a depth, so real fill is impossible.
-     What survives is the two rasters disagreeing at their own quantisation:
-     the DEM is bilinear over 0.02-ft steps and dgridAt interpolates the design
-     BILINEARLY between nodes that were built nearest-cell, so the difference
-     dips a few hundredths below zero on a slope. That is exactly the effect
-     ruling F9's isoTol exists for, and the sections kernel has no equivalent —
-     recorded here so it stays small rather than becoming a quantity. */
-  atMost("design-above-ground, worst", +worstNeg.toFixed(3), 0.1, " ft");
-  row("fill vs cut", (100 * fillSum / cutSum).toFixed(2) + " %", "< 2 %",
-      fillSum < 0.02 * cutSum, "quantisation only", nOff + " of " + (R2.ns * (R2.no - 1)) + " offsets");
+     What the raw profiles carry is the two rasters disagreeing at their own
+     quantisation: the DEM is bilinear over 0.02-ft steps and dgridAt
+     interpolates the design BILINEARLY between nodes that were built
+     nearest-cell, so the difference dips a few hundredths below zero on a
+     slope. The PROFILE keeps that (it is what the rasters say); the END AREAS
+     dead-band it with the isopach's isoTol (ruling F9), so the fill a section
+     quotes on this surface is nothing rather than 1.3 %. */
+  atMost("design-above-ground in the raw profile, worst", +worstNeg.toFixed(3), 0.1, " ft");
+  row("tolerance applied", tolMax.toFixed(3) + " ft max", "< 0.2 ft", tolMax > 0 && tolMax < 0.2, "isoTol",
+      nDead + " offsets dead-banded of " + nOff + " below ground");
+  row("fill vs cut", (100 * fillSum / cutSum).toFixed(3) + " %", "< 0.05 %",
+      fillSum < 0.0005 * cutSum, "F9 dead band", "was 1.33 % before the tolerance");
+  /* and the tolerance cannot eat more than it is allowed to: the cut it
+     removes is bounded by the dead band itself — sum of tol x offStep over the
+     offsets it zeroed — which is an inequality that holds by construction,
+     against the same run with no tolerance. (Here that is 1.4 % of a 99.5 ft2
+     cut, because this alignment crosses mostly the 1-ft-to-0 transition at the
+     limit of excavation, where the difference is small by design.) */
+  const R3 = C.runJob("sections", { ...secJob, zstepDesign: 0, zstepGround: 0 }).result;
+  let cutRaw = 0; for (let s = 0; s < R3.ns; s++) cutRaw += R3.cutA[s];
+  let bound = 0;
+  for (let k = 0; k < R2.ns * R2.no; k++) {
+    const h = R2.ground[k] - R2.design[k];
+    if (!isNaN(h) && Math.abs(h) <= R2.tol[k]) bound += R2.tol[k] * offStep;
+  }
+  row("cut removed <= the dead band", (cutRaw - cutSum).toFixed(2) + " ft2", "<= " + bound.toFixed(2) + " ft2",
+      cutRaw - cutSum <= bound + 1e-9, "inequality", (100 * cutSum / cutRaw).toFixed(2) + " % of the raw " + cutRaw.toFixed(1) + " ft2 kept");
 }
 
 /* ==================== 7. SMART BOUNDARIES ================================= */
@@ -804,21 +856,22 @@ function secSmart() {
   const [tout, tms] = timed(() => C.runJob("toecrest",
     { grid: ts.g, cx: PX, cy: PY, thresh: DEF.toe.thresh, smooth: DEF.toe.smooth }));
   const TC = tout.result;
-  const tpts = ptsFrom(TC.coords, TC.nPts);
+  const tpts = ptsFrom(TC.coords, TC.nPts, true);        // runToe keeps a closed chain closed
   row("a usable line", TC.nPts >= 3, true, TC.nPts >= 3, "exact", tpts.length + " vertices");
   /* recorded from this commit */
   pct("line length", TC.length, 154.1, 3);
   atMost("distance from the click", +TC.distFt.toFixed(1), 60, " ft");
-  /* R.length is measured over the kernel's own coords. js/smartbound.js then
-     runs them through ptsFrom, which drops a repeated first vertex — and this
-     chain IS closed, so the LINE feature the app builds is one segment (2.0 ft)
-     shorter than the "Length" row the card prints beside it. Both numbers are
-     recorded so the discrepancy is visible rather than latent. */
+  /* R.length is measured over the kernel's own coords. js/smartbound.js runToe
+     hands them to ptsFrom with keepClosed, so a chain that goes all the way
+     round the pile keeps its closing segment and the LINE feature the app
+     builds is the length the card prints — an identity. (Before v9.7 ptsFrom
+     dropped the repeated vertex here and the line was one segment, 2.0 ft,
+     shorter than its own card.) */
   const rawLen = (function () { let s = 0; for (let i = 1; i < TC.nPts; i++)
     s += Math.hypot(TC.coords[i * 2] - TC.coords[(i - 1) * 2], TC.coords[i * 2 + 1] - TC.coords[(i - 1) * 2 + 1]); return s; })();
   near("length over the raw coords", rawLen, TC.length, 0.01, " ft");
-  near("length after ptsFrom's trim", (function () { let s = 0; for (let i = 1; i < tpts.length; i++) s += dist2d(tpts[i - 1], tpts[i]); return s; })(),
-       152.113, 0.05, " ft");
+  near("the app's line = the kernel's length", (function () { let s = 0; for (let i = 1; i < tpts.length; i++) s += dist2d(tpts[i - 1], tpts[i]); return s; })(),
+       TC.length, 1e-6, " ft");
   note(TC.chains + " chains crossed the threshold in this window; the one nearest the click was taken");
   budget("toecrest", tms, 10000);
 
@@ -1101,8 +1154,8 @@ if (listOnly) {
 const C = loadCompute();
 const Delaunay = loadDelaunay();
 console.log("SBMM kernel harness — js/compute.js VERSION " + C.VERSION +
-            (C.VERSION === 4 ? "" : "  (!! expected 4)"));
-if (C.VERSION !== 4) { fails++; checks++; }
+            (C.VERSION === 5 ? "" : "  (!! expected 5)"));
+if (C.VERSION !== 5) { fails++; checks++; }
 
 /* every kernel runJob dispatches must have a section here (V11 spec §2.4) */
 const COVERED = ["volume", "isopach", "raster", "contours", "design", "balance", "sections",

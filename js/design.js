@@ -528,7 +528,7 @@ SBMM.design = (function () {
       row.onclick = e => { if (!e.target.closest(".ftb")) SBMM.store.select(f.id); };
       row.querySelector(".seye").onclick = e => { e.stopPropagation(); SBMM.store.setVisible(f, f.visible === false); render(f); };
       row.querySelector(".sbal2").onclick = e => { e.stopPropagation(); balance(f); };
-      row.querySelector(".sdel").onclick = e => { e.stopPropagation(); SBMM.store.remove(f); };
+      row.querySelector(".sdel").onclick = e => { e.stopPropagation(); SBMM.tools.deleteFeature(f); };
     });
     $("surfNew").onclick = () => cmdPad("pad");
     $("surfNewG").onclick = () => cmdPad("plane");

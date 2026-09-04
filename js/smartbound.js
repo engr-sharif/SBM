@@ -158,11 +158,13 @@ SBMM.smartbound = (function () {
   /* ------------------------------------------------------------------ */
   /* feature helpers                                                     */
   /* ------------------------------------------------------------------ */
-  function ptsFrom(coords, n) {
+  function ptsFrom(coords, n, keepClosed) {
     const out = new Array(n);
     for (let i = 0; i < n; i++) out[i] = [coords[i * 2], coords[i * 2 + 1]];
-    /* a marching-squares ring repeats its first vertex; a polygon feature must not */
-    if (out.length > 3) {
+    /* a marching-squares ring repeats its first vertex; a polygon feature must
+       not — but a LINE built from a closed chain must keep it, or it loses its
+       closing segment and is one segment shorter than the kernel measured */
+    if (out.length > 3 && !keepClosed) {
       const a = out[0], b = out[out.length - 1];
       if (Math.abs(a[0] - b[0]) < 1e-6 && Math.abs(a[1] - b[1]) < 1e-6) out.pop();
     }
@@ -335,7 +337,10 @@ SBMM.smartbound = (function () {
     const job = { grid: spec.g, cx: x, cy: y, thresh: P.toe.thresh, smooth: P.toe.smooth };
     const R = await SBMM.compute.run("toecrest", job,
       { transfer: [spec.g.z.buffer], label: "Toe / crest — tracing" }).promise;
-    const pts = ptsFrom(R.coords, R.nPts);
+    /* keepClosed: a toe or crest that goes all the way round a pile is a closed
+       chain, and the line feature keeps the closing segment (the card's Length
+       and the drawn line are then the same number) */
+    const pts = ptsFrom(R.coords, R.nPts, true);
     if (pts.length < 2) throw new Error("no usable break line near that click");
     const label = P.toe.mode === "crest" ? "Crest" : "Toe";
     const name = SBMM.tools.nextName(label + " line");
@@ -345,7 +350,9 @@ SBMM.smartbound = (function () {
       "hydrologically conditioned break line — it finds where the ground changes steepness, which " +
       "is what a toe or a crest is, but it has no idea which side is uphill. Check it before you use it.");
     SBMM.results.setRows(f.card, [
-      ["Length", fmt(R.length, 0) + " ft"],
+      /* the feature's own length — the one number the line, the Inspector and
+         the card all agree on */
+      ["Length", fmt(f.props.length_ft, 0) + " ft"],
       ["Vertices", String(R.nPts)],
       ["Threshold", (P.toe.thresh * 100).toFixed(0) + " % (" + label.toLowerCase() + ")"],
       ["Nearest to click", fmt(R.distFt, 0) + " ft"]

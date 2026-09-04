@@ -430,17 +430,22 @@ var SBMM_COMPUTE = (function SBMMComputeModule() {
      Returns RGBA rows north-first (canvas order), exactly like the old demRaster(). */
   function demRasterRGBA(job, onProgress) {
     var g = job.grid, s = job.stride || 1, alpha = job.alpha, kind = job.kind;
-    var W = Math.floor((g.w - 1) / s) + 1, H = Math.floor((g.h - 1) / s) + 1;
+    /* the raster covers the WINDOW the spec ships (i0/j0/sw/sh), which is the
+       whole grid when the caller passed no bbox. gz() takes full-grid indices,
+       so the sweep runs over window cells and offsets them by i0/j0; a raster
+       that sized itself from g.w/g.h would read NaN everywhere outside the
+       window and paint the wrong place with no error. */
+    var W = Math.floor((g.sw - 1) / s) + 1, H = Math.floor((g.sh - 1) / s) + 1;
     var px = new Uint8ClampedArray(W * H * 4);
     var ramp = job.ramp, nanColor = job.nanColor || null;
     var zlo = job.zlo, zhi = job.zhi, span = Math.max(1e-9, zhi - zlo);
 
     for (var j = 0; j < H; j++) {
       var outRow = H - 1 - j;                 // canvas row 0 = north
-      var gj = Math.min(g.h - 1, j * s);
+      var gj = g.j0 + Math.min(g.sh - 1, j * s);
       for (var i = 0; i < W; i++) {
         var k = (outRow * W + i) * 4;
-        var gi = Math.min(g.w - 1, i * s);
+        var gi = g.i0 + Math.min(g.sw - 1, i * s);
         var rgb = null;
         if (kind === "slope") {
           var sa = slopeAspect(g, gi, gj);
@@ -471,8 +476,19 @@ var SBMM_COMPUTE = (function SBMMComputeModule() {
      than a few hundred thousand two-element arrays. */
   function contoursFromGrid(job, onProgress) {
     var g = job.grid, interval = job.interval, s = job.stride;
-    var w = g.w, h = g.h, z = g.z, cell = g.cell, X0 = g.x0, Y0 = g.y0;
+    /* z is the WINDOW's array (sw x sh, row-major), so the sweep runs over the
+       window and its origin is the window's south-west corner. For a whole-grid
+       spec i0 = j0 = 0 and sw/sh = w/h, and nothing here changes. */
+    var w = g.sw, h = g.sh, z = g.z, cell = g.cell;
+    var X0 = g.x0 + g.i0 * cell, Y0 = g.y0 + g.j0 * cell;
     var maxPts = job.maxPts || 500000;
+    /* A polyline shorter than a tenth of a sweep cell is a STUB: two crossings
+       of one cell that almost coincide, whose ends round into different 0.1-ft
+       chaining keys from their neighbours' and so never join the ring they
+       belong to. It draws as nothing on the map and is a junk entity in a DXF
+       (43 of them, all under 0.1 ft, on the 10-ft site set). The floor is a
+       tenth of a cell so that a real corner clip a few feet long survives. */
+    var stubFt = cell * s * 0.1;
     var lo = Infinity, hi = -Infinity;
     for (var k = 0; k < z.length; k += 7) { var v = z[k]; if (!isNaN(v)) { if (v < lo) lo = v; if (v > hi) hi = v; } }
 
@@ -540,7 +556,10 @@ var SBMM_COMPUTE = (function SBMMComputeModule() {
           }
         }
         if (line.length >= 3) line = simplifyPath(line, cell * s * 0.3);
-        if (line.length >= 2) {
+        var lineLen = 0;
+        for (var ql = 1; ql < line.length; ql++)
+          lineLen += Math.hypot(line[ql][0] - line[ql - 1][0], line[ql][1] - line[ql - 1][1]);
+        if (line.length >= 2 && lineLen >= stubFt) {
           levels.push(lv);
           for (var q = 0; q < line.length; q++) { coords.push(line[q][0]); coords.push(line[q][1]); }
           offsets.push(coords.length / 2);
@@ -898,10 +917,27 @@ var SBMM_COMPUTE = (function SBMMComputeModule() {
     }
 
     /* per-station cut / fill end areas vs the design surface (ft²), by the
-       trapezoid rule across the offset axis */
-    var cutA = null, fillA = null;
+       trapezoid rule across the offset axis.
+
+       The same tolerance the isopach applies (ruling F9, isoTol): a ground /
+       design difference inside the two rasters' quantisation steps, plus the
+       slope-times-cell-mismatch allowance where the ground grid is coarser
+       than the design, is treated as zero. Without it a section across
+       res_excbottom on the 2-ft site DEM reported 1.3 % phantom fill on a
+       surface that is all cut by construction. The PROFILE arrays are not
+       touched — the drawing shows the rasters as they are; only the areas
+       someone quotes are dead-banded — and `tol` is returned per sample so
+       the host and the harness can see exactly what was applied. */
+    var cutA = null, fillA = null, tol = null;
     if (design) {
       cutA = new Float64Array(ns); fillA = new Float64Array(ns);
+      tol = new Float32Array(ns * no);
+      var dcell = job.dgrid.cell || 1;
+      for (var kt = 0; kt < ns * no; kt++) {
+        var st = (kt - kt % no) / no, ot = kt % no;
+        tol[kt] = isoTol(job, job.grids, cx[st] + dx_[st] * (-half + ot * offStep),
+                                          cy[st] + dy_[st] * (-half + ot * offStep), dcell);
+      }
       for (var ss = 0; ss < ns; ss++) {
         var c = 0, fl = 0;
         for (var oo = 0; oo + 1 < no; oo++) {
@@ -909,6 +945,8 @@ var SBMM_COMPUTE = (function SBMMComputeModule() {
           var g1 = ground[k1], g2 = ground[k2], d1 = design[k1], d2 = design[k2];
           if (isNaN(g1) || isNaN(g2) || isNaN(d1) || isNaN(d2)) continue;
           var h1 = g1 - d1, h2 = g2 - d2;
+          if (Math.abs(h1) <= tol[k1]) h1 = 0;
+          if (Math.abs(h2) <= tol[k2]) h2 = 0;
           /* split the trapezoid at the zero crossing so cut and fill never mix */
           if (h1 >= 0 && h2 >= 0) c += (h1 + h2) / 2 * offStep;
           else if (h1 <= 0 && h2 <= 0) fl += (-h1 - h2) / 2 * offStep;
@@ -924,11 +962,12 @@ var SBMM_COMPUTE = (function SBMMComputeModule() {
     }
     var out = { ns: ns, no: no, offStep: offStep, half: half, interval: interval, total: total,
                 sta: sta, cx: cx, cy: cy, nx: dx_, ny: dy_,
-                ground: ground, design: design, canopy: canopy, cutA: cutA, fillA: fillA };
+                ground: ground, design: design, canopy: canopy, cutA: cutA, fillA: fillA,
+                tol: tol };
     var tr = [sta.buffer, cx.buffer, cy.buffer, dx_.buffer, dy_.buffer, ground.buffer];
     if (design) tr.push(design.buffer);
     if (canopy) tr.push(canopy.buffer);
-    if (cutA) { tr.push(cutA.buffer); tr.push(fillA.buffer); }
+    if (cutA) { tr.push(cutA.buffer); tr.push(fillA.buffer); tr.push(tol.buffer); }
     return { result: out, transfer: tr };
   }
 
@@ -2343,7 +2382,7 @@ var SBMM_COMPUTE = (function SBMMComputeModule() {
   }
 
   var api = {
-    VERSION: 4,
+    VERSION: 5,
     runJob: runJob,
     volumeGrid: volumeGrid,
     isopachGrid: isopachGrid,
