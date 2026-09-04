@@ -1246,7 +1246,7 @@ function hostRun(M, x, y, storm) {
   return { pts, reason, end, ponds, legs, pipeFt, length: lengthSum, hops, grids };
 }
 
-/* §6.6, recorded from this commit: the Green Pond (east) drop's overland length and the west pond's depth when it overflows through its FES */
+/* §6.6, recorded from this commit: the Frog Pond drop's overland length and the west pond's depth when it overflows through its FES */
 const RECORDED_GP_OVERLAND = 629.9, RECORDED_WP_DEPTH = 3.08;
 function secStorm() {
   /* ---- the identity (§6, first bullet) -------------------------------- */
@@ -1427,16 +1427,15 @@ function secStorm() {
        s8off.ponds.length + " ponds, deepest " +
        Math.max(...s8off.ponds.map(p => p.depth_ft)).toFixed(2) + " ft");
 
-  console.log("\n§6.6  the real network — a drop at Green Pond's low (the EAST pond, Spot 5, E 6,374,418 N 2,127,912)");
-  /* The engineer's reading (Sep 2026): the east pond (his Green Pond) drains
-     through a culvert under the paved road into the west pond (his Frog Pond);
-     the west pond overflows through the STRM FES on its west shore, piped to
-     the Spot 8 grate and down the road drain — NOT into the impoundment. The
-     round inlet is a high-level overflow above that. EA's geodatabase labels
-     the two ponds the other way round; the network uses his names. */
-  const fp = M.byId.green_out;
+  console.log("\n§6.6  the real network — a drop at Frog Pond's low (the EAST pond, Spot 5, E 6,374,418 N 2,127,912)");
+  /* The engineer's reading (Sep 2026), with EA's names (Frog Pond = the east
+     pond, Green Pond = the west, confirmed by him): Frog Pond drains through
+     a culvert under the paved road into Green Pond; Green Pond overflows
+     through the FES on its west shore, piped to the Spot 8 grate and the road
+     drain, never into the impoundment. */
+  const fp = M.byId.frog_out;
   const [fr, frms] = timed(() => hostRun(M, fp.x, fp.y, true));
-  const frChain = ["pond_culvert", "frog_outlet", "road_drain_8_9", "road_drain_9_10", "road_drain_10_11",
+  const frChain = ["pond_culvert", "green_outlet", "road_drain_8_9", "road_drain_9_10", "road_drain_10_11",
                    "road_drain_11_12", "road_drain_12_13", "road_drain_13_14", "road_drain_14_15",
                    "road_drain_15_branch", "branch", "storm_main_lower"];
   row("the chain it took", fr.legs.map(l => l.id).join(","), frChain.join(","),
@@ -1453,10 +1452,10 @@ function secStorm() {
      one flood took both lobes to the saddle and reported the FES at 1402.4. */
   const vias = fr.ponds.filter(p => p.via).map(p => p.via);
   row("the west pond drains through its FES to the Spot 8 grate",
-      vias.join(","), "frog_outlet", vias.join(",") === "frog_outlet", "exact");
-  const wp = fr.ponds.find(p => p.via === "frog_outlet");
+      vias.join(","), "green_outlet", vias.join(",") === "green_outlet", "exact");
+  const wp = fr.ponds.find(p => p.via === "green_outlet");
   near("the west pond's level = the FES rim (lidar ground at the FES)", wp ? wp.level : NaN,
-       M.rimFor("frog_outlet_fes"), 0.05, " ft");
+       M.rimFor("green_outlet_fes"), 0.05, " ft");
   const eastLobe = fr.ponds.find(p => !p.via && Math.abs(p.level - 1402.44) < 0.05);
   row("the east lobe stops at its saddle, above the FES, with no via",
       eastLobe ? eastLobe.level.toFixed(2) + " (" + eastLobe.depth_ft.toFixed(2) + " ft deep)" : "none",
@@ -1467,11 +1466,11 @@ function secStorm() {
   dist("ends in Clear Lake", fr.end[0], fr.end[1], 6371177, 2127474, 3);
   near("overland length (recorded)", fr.length, RECORDED_GP_OVERLAND, 3, " ft");
   near("the west pond's depth at overflow (recorded)", wp ? wp.depth_ft : NaN, RECORDED_WP_DEPTH, 0.05, " ft");
-  note("Green Pond (east): " + fr.length.toFixed(1) + " ft overland + " + fr.pipeFt.toFixed(1) +
+  note("Frog Pond (east): " + fr.length.toFixed(1) + " ft overland + " + fr.pipeFt.toFixed(1) +
        " ft in pipe, " + fr.ponds.length + " ponds, " + fr.hops + " windows [" + fr.grids + "]. " +
        "East pond level " + fr.ponds[0].level.toFixed(2) + " (" + fr.ponds[0].depth_ft.toFixed(2) + " ft deep), " +
        "west pond level " + (wp ? wp.level.toFixed(2) + " (" + wp.depth_ft.toFixed(2) + " ft deep)" : "n/a"));
-  budget("the Green Pond drop (storm on)", frms, 20000);
+  budget("the Frog Pond drop (storm on)", frms, 20000);
 
   const froff = hostRun(M, fp.x, fp.y, false);
   exact("with the drains off, no legs", froff.legs.length, 0);
