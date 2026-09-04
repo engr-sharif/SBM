@@ -74,13 +74,13 @@ The harnesses use Playwright's own chromium unless `CHROME_BIN` points at one (t
 build box's `/opt/pw-browsers/...` path is tried first and skipped if absent); paths are
 resolved through `pathToFileURL`, so Windows paths work. Runs are slow under software GL
 (180 s default timeouts are intentional). All four must pass.
-**`test/kernels.mjs` is the fast loop — a node harness, no browser, ~11 s cold and ~9 s
+**`test/kernels.mjs` is the fast loop — a node harness, no browser, ~19 s cold and ~17 s
 warm, covering EVERY kernel in `js/compute.js`'s `runJob`.** Run it after any change to
 `js/compute.js` or to a call site that builds a job, before you reach for Playwright:
 ```
-node test/kernels.mjs                  # every section (140 checks)
+node test/kernels.mjs                  # every section (228 checks)
 node test/kernels.mjs --only water     # one or more sections, comma-separated
-node test/kernels.mjs --list           # volume isopach raster contours design sections smart trees water
+node test/kernels.mjs --list           # volume isopach raster contours design sections smart trees water storm
 node test/water_kernels.mjs            # a thin alias for --only water
 ```
 It loads `js/compute.js` through `vm.runInThisContext` (the module is context-free, which
@@ -91,8 +91,9 @@ time; any FAIL exits non-zero. Three rules govern it:
 - **Each section builds its job the way the app builds it** and names the call site it
   mirrors (`js/tools.js` buildVolumeJob, `js/isopach.js` show, `js/design.js` jobFor,
   `js/smartbound.js` runWand/runCbound/runToe/runStands, `js/sections.js` regenerate,
-  `js/analysis.js` demRaster/contoursFromDem, `js/trees.js` detect). A harness that
-  invents its own job proves the kernel runs, not that the app is right.
+  `js/analysis.js` demRaster/contoursFromDem, `js/trees.js` detect, `js/water.js` traceRun,
+  `js/storm.js` conduitsFor). A harness that invents its own job proves the kernel runs,
+  not that the app is right.
 - **Every number has a provenance**: a published golden (Pile 1's 278.4 yd³, EA's printed
   excavation area, `docs/V10_WATER_SPEC.md` §9), an arithmetic identity (2πr for a cone's
   contour ring, a bilinear port for a section's ground, `cutA − fillA` = the plain
@@ -124,7 +125,9 @@ a PNG and it misses. `test/fixtures/` holds the water references (`drop_ref.json
 unclear; the water windows are now cut from the real PNGs with `gridSpec` and the harness
 asserts their shape before it asserts anything measured in them.
 `test/water_shots.mjs` writes the four v10 water shots (raindrop 2D/3D, Herman
-overtopping 2D/3D) into `test/shots/`; not pass-fail — look at them.
+overtopping 2D/3D) into `test/shots/` and `test/storm_shots.mjs` the two v12 storm shots
+(the south-road grate chain with a Frog Pond raindrop on it, and the network draped in 3D);
+neither is pass-fail — look at them.
 `test/field_shots.mjs` writes the four v11 field shots (field_map, field_layers,
 field_photo, field_3d) into `test/shots/` on the Pixel 7 descriptor; not pass-fail — look
 at them.
@@ -224,6 +227,7 @@ terrain source, which needs an explicit decision + README/test update).
 | isopach.js | isopach overlay (cut/fill vs lidar), volume-in-polygon-vs-surface, "volume of this excavation"; the comparison tolerance of F9 lives in `compute.js` `isoTol` |
 | water.js | **v10 water** — the raindrop (`flow` feature type, window chaining, ponds, catchment) and the overtopping analysis (rim band, ranked rim lows, level slider, stage–storage chart, overflow route, the surveyed stages of §10); `SBMM.water` |
 | survey.js | the **August-2026 Jacobs survey** linework (`data/survey_2026.json`: the two 24-in HDPE discharge pipes, the sandbag wall, the NW Pit low) as read-only rows under Investigations; snap, 3D, export; `SBMM.survey` — the survey's 24 shots are a baked dataset, not this module |
+| storm.js | **v12 storm drainage** — EA's storm structures and storm line, the six CAD culvert marks, Jacobs' two surveyed 24-in pipes and the south-road grate chain, as read-only project data (`data/storm_network.json`): three layer rows under Site framework, rims from `SBMM.elev` on boot, the "storm drains work" switch, per-conduit broken/working, snap, 3D, exports, and `conduitsFor(bbox)` — the list `js/water.js` hands the kernel; `SBMM.storm` |
 | layerman.js | the Layer manager dialog: search / toggle / recolour / opacity / source + handle for EA's 110 CAD layer names |
 | sheetcards.js | the Sheets tab — a card per drawing with a thumbnail derived on first open, filtered by lot |
 | field.js | **field mode (`body.field`) and the field capabilities (§4)** — the trigger and `SBMM.field`, the slim top bar / bottom action bar / More sheet, docks as bottom sheets, popups as bottom cards, Position (`watchPosition`, never fabricated), Photo (the `photo` feature type + a small EXIF reader), Note, Samples nearby |
@@ -866,6 +870,106 @@ in `applyStyle` / `redraw`. Vertex editing is refused with a toast; the drop mar
 is draggable and `dragend` retraces in place. My work gained a sixth class row,
 **Water** — appended, because `SBMM.myWork.classOf` reads `CLASSES[4]` as "imported
 wins" and that index is load-bearing.
+
+## v12 storm drainage — the raindrop goes down the pipe
+
+Contract: `docs/V12_STORM_SPEC.md`. Data `data/storm_network.json` +
+`datajs/d_storm_network.js` (43 nodes, 25 conduits, ~27 kB, in the field build),
+built by `tools/build_storm_network.py`; host `js/storm.js` (`SBMM.storm`);
+kernel: `flowpath` gains `conduits` / `captureFt` (**api VERSION 6**).
+
+**A conduit is a topological shortcut with an elevation at each end.** No
+capacity, no hydraulic grade line, no surcharge, no time, no Manning — the
+popups and the cards say so in those words. Pipe capacity waits for the invert
+survey and is a separate spec (§7).
+
+The definitions, in short (`docs/V12_STORM_SPEC.md` §2 has them in full):
+
+- **Node**: `kind ∈ {grate, round_inlet, fes, pipe_end, bend, junction, outfall,
+  inferred}`, `x, y`, and two elevations — `rim_ft`, the lidar ground, **computed
+  on boot by `js/storm.js` from `SBMM.elev` and never baked**, so it follows the
+  DEM stack; and `invert_ft`, surveyed or `null`. Only the two Jacobs pipe nodes
+  at the sandbag wall have an invert. **Never invent one**: the popup says "not
+  surveyed", the card says "unknown — no invert".
+- **Rim for the kernel** = `invert_ft` if surveyed else `rim_ft`.
+- **A sunken inlet** (ruling, 2026-09-04, spec §2). The lidar is the Jan-2024
+  flight; the sandbag wall and the two 24-in pipes were built afterwards, into a
+  regraded channel it never saw, which is why the 1-ft cells at the surveyed
+  invert points read 1344.66 / 1344.80 — the top of the sandbags, not the pipe.
+  **An inlet whose surveyed invert is below the lidar ground at its own cell is a
+  pipe mouth the lidar did not see.** `js/storm.js` `findMouth()` then hands the
+  kernel the **nearest DEM cell at or below the invert within 30 ft** of the
+  surveyed point, keeps the surveyed invert as the rim, and records
+  `mouth_moved_ft` (25.6 ft for the North pipe, 27.1 for the South) so the popup
+  and the card say so. Nothing within 30 ft ⇒ the inlet stays put and the popup
+  says *that*. It is a HOST rule — no kernel change — and the pond rule below
+  then stops the Herman pond at the invert instead of taking it over the rim.
+- **Inlet** = a conduit's `from` node; its **capture** is every cell within
+  `captureFt` (**3 ft**, a ruling) of it. Where two discs overlap the nearest
+  inlet wins, so the index does not depend on the order the host listed them.
+- **The shortcut rule**: descent standing on a capture cell leaves the ground,
+  gains a **leg** to the conduit's `to` node and on through whatever conduit
+  starts there (`next`, transitively, **each conduit at most once per run** —
+  the host carries the used set across windows), and continues by ordinary
+  descent from the last outlet. An outlet outside the window ends it with
+  `reason: "conduit"` and `exit` = that node; the host re-centres exactly as it
+  does for `"window"`.
+- **The pond rule**: during the priority flood, a popped cell that is a capture
+  cell whose conduit's rim the level has reached stops the flood there — the
+  pond's outlet is the conduit, and the pond reports `via`.
+- **Disabled** means *not passed to the kernel at all*: a conduit marked
+  `broken`, or the whole network with the "storm drains work" switch off. The
+  analysis is then exactly the ground-only one — the e2e proves the two agree to
+  0.01 ft.
+- **`length_ft` stays overland and `pipe_ft` is separate** (`total_ft` is the
+  sum). They are different quantities — one measured off the lidar, one off
+  somebody's drawing — and adding them would hide the one he is going to survey.
+
+Chrome: three layer rows under a **Storm drainage** sub-header in Site framework
+(`storm_nodes` 43, `storm_cad` 15, `storm_inferred` 10, all default ON); the
+`STORM` command and the Water ▾ menu toggle the master switch; a chip on the
+raindrop Mode HUD shows its state; `SBMM.popups.forStorm(node, conduit)` builds
+both popups and carries the per-conduit broken/working toggle. Preferences live
+in `localStorage["sbmm.storm.v1"]` (`{enabled, status:{id:"broken"}}`).
+
+Four things here are traps:
+
+- **The kernel must be bit-identical with `conduits` absent or empty.** Every
+  water golden in `test/kernels.mjs` and `test/e2e.mjs` was measured on the v10
+  kernel, so the `storm` section asserts the §9.1 raindrop's `pts`, `ponds` and
+  `reason` are identical both ways before it asserts anything else. Keep every
+  new branch behind `if (CD)`.
+- **A conduit hop does not repeat a vertex, a window hop does.** `js/water.js`
+  `traceRun` drops the first vertex of each new window because it repeats the
+  exit cell — but a conduit reappears at the OUTLET, which was never a vertex,
+  so `skip` is 0 there. Get this wrong and every piped run loses its outlet.
+- **The overland length is accumulated per window, not measured off the
+  assembled polyline.** `lineLength(pts)` over a run with legs in it would count
+  the pipe as ground. The kernel's per-window `length_ft` already excludes the
+  jumps and consecutive windows share their join vertex, so the sum is exactly
+  the old number when nothing went through a pipe.
+- **A run with legs is not one polyline.** `buildFlow` splits `f.pts` at each
+  `leg.at` and draws the ground per stretch, with the pipe drawn as itself (a
+  straight dashed line in `--storm`, a hollow ring at the inlet, an "in pipe"
+  label at zoom ≥ 2, a straight un-draped tube in 3D). One polyline through both
+  would draw water running over the ground along the pipe, which is the one
+  thing this must not say.
+
+One finding worth keeping, and it is terrain rather than code:
+**Green Pond's basin drains through the ROUND INLET, not the Spot 8 grate.**
+Green Pond fills to 1,403.02 ft and spills over its own rim — no inlet cell
+inside it is lower — and the water then drops into the small basin at 1,401.62
+that holds the round inlet at 1,400.9. That conduit ends at an FES pointing at
+Herman with nothing downstream in the CAD, so the Frog Pond run crosses the
+impoundment before it reaches a pipe again.
+
+**The raindrop and the overtopping tool now agree about Herman**, which they did
+not before the sunken-inlet rule: a drop inside the impoundment ponds to 1,341.54
+(the lower surveyed invert is 1,341.53) and leaves through `herman_pipe_s` →
+`pipe_to_main` → `storm_main_upper` → `storm_main_lower` → the outfall, 813.3 ft
+in pipe, against the overtopping card's first discharge at 1,341.55. With the
+drains off the same drop fills to the lidar rim at 1,343.84 and spills over it —
+2.30 ft higher — which is exactly what the rule buys and what the e2e prints.
 
 ## Undo and redo (v9.4) — the both-closures rule and `readd`
 

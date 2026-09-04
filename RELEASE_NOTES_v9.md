@@ -17,6 +17,74 @@ All three are offline-only by design. Nothing in this app calls out to the inter
 
 ---
 
+## v9.8 — the storm drains
+
+Until now a raindrop that reached a grate walked straight past it. The site's drainage
+system is now in the app — **43 structures and 25 conduits**, from EA's V-Base drawing, the
+geodatabase's storm structures, the August-2026 Jacobs survey and your own identification of
+the culvert along the top of the grates — and the water uses it.
+
+- **Three new layers**, on by default, under *Site framework → Storm drainage*: the
+  structures (grates, round inlets, flared ends, the two surveyed pipe ends, the Clear Lake
+  outfall), the conduits EA drew or Jacobs surveyed, and the conduits inferred from the
+  structures. Each pipe carries an arrowhead at its outlet so you can read which way the
+  water goes. Click anything for what it is, where it came from, its ground and its invert,
+  its length and its fall.
+- **A raindrop that reaches within 3 ft of an inlet goes down the pipe**, and a hollow that
+  fills to an inlet's rim drains through it instead of over the rim. The run is drawn with
+  the pipe as a pipe — a straight dashed steel-blue leg with an "in pipe" label, and a
+  straight tube in 3D — and the card reports **In pipes** and **Total** beside **Run
+  length**, which stays the distance over the ground. A pond drained by a grate says which
+  one ("drains to Grate inlet — Spot 8 at 1,397.3 ft").
+- **A drop on the Spot 8 grate** now runs 137 ft over the ground and **2,789 ft in pipe** —
+  the seven road-drain conduits, the branch, and EA's storm main — and ends at the Clear
+  Lake outfall. With the drains switched off it does what v11 did: 2,268 ft overland into
+  the Herman Impoundment, which fills to 1,343.84 ft and spills over its rim.
+- **Frog Pond and Green Pond are connected**, as you said. A drop at Frog Pond's low fills
+  the pond, takes the 491-ft pipe to Green Pond, fills Green Pond to 1,403.02 ft, leaves
+  through the round inlet's culvert toward Herman, crosses the impoundment and goes out
+  through the surveyed discharge pipe and the storm main to the outfall — **1,887 ft over the
+  ground and 1,366 ft in pipe**, six conduits. With the drains off it never leaves the
+  north-east corner.
+- **The Herman discharge pipes are connected to the storm main.** The *Pipe discharge route*
+  row on the overtopping card now reads **"934 ft · 797 ft in pipe · Clear Lake outfall"**
+  instead of stopping at a stub of overland flow.
+- **`STORM`** (also in the Water ▾ menu, and a chip on the raindrop prompt) switches the
+  whole network off, and every analysis is then exactly the ground-only one. Each conduit's
+  popup has its own **broken / working** toggle for the pipe you have just found collapsed.
+  Both are remembered between sessions.
+- The network snaps like any other linework, drapes in 3D, and goes out with the GeoJSON and
+  the DXF (on `STORM-STRUCT`, `STORM-CONDUIT` and `STORM-INFERRED`). It is in the field
+  build too — it is 27 kB.
+
+**What this is not.** A conduit here is a topological shortcut with an elevation at each
+end. There is no pipe capacity, no hydraulic grade line, no surcharge and no time in any of
+it, and the popups say so. EA's CAD carries no inverts, no diameters and no materials
+anywhere on this system; the only surveyed inverts in existence are your two 24-in pipes at
+the sandbag wall. Every other structure uses the lidar ground and says **"not surveyed"**
+where an invert should be — nothing is guessed. When the manhole survey arrives it drops
+straight in: a CSV of `id, invert_ft, rim_ft, size_in, material`, one line to rebuild, no
+code.
+
+**The sunken pipe mouth.** The lidar is the January-2024 flight; the sandbag wall and the two
+24-inch pipes were surveyed in August 2026 and were built into a regraded channel it never
+saw. The 1-ft cells at your surveyed invert points read 1,344.66 and 1,344.80 ft — the top of
+the sandbags, not the pipe. So the app treats **an inlet whose surveyed invert is below the
+lidar ground at its own cell as a pipe mouth the lidar did not see**, and enters it at the
+nearest cell the lidar *does* see at or below that invert, within 30 ft — 25.6 ft for the
+North pipe, 27.1 ft for the South, onto the channel floor at 1,341.5 ft. The rim stays your
+surveyed invert, and both the structure's popup and the raindrop's card say the inlet cell
+was moved and by how much. Nothing is invented: the invert is yours, the cell is one the
+lidar measured, and if there is nothing low enough within 30 ft the inlet stays where you
+surveyed it and the popup says that instead.
+
+What it changes: **a drop inside the Herman Impoundment now ponds to 1,341.54 ft and leaves
+through the South pipe, the storm main and the outfall — 813 ft in pipe** — rather than
+filling 2.30 ft higher and going over the rim. That is the same first discharge the
+overtopping card has shown since v9.2 (1,341.55 ft), so the raindrop and the overtopping
+analysis now agree about the impoundment. Switch the drains off and the raindrop goes back to
+the rim, which is the honest before-and-after of the survey.
+
 ## v9.7 — seven small things put right
 
 - **Every delete undoes.** The ✕ on a results card, the bin in the Features tree and the

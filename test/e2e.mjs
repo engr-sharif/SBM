@@ -2637,7 +2637,7 @@ for (const [alias, cmd] of wmode.cmds)
   if (!cmd) { console.log("FAIL: water command missing:", alias); process.exit(1); }
 if (wmode.cmds[0][1] !== "DROP" || wmode.cmds[5][1] !== "OVERTOP" || wmode.cmds[8][1] !== "CATCH")
   { console.log("FAIL: a water alias resolves to the wrong command", wmode.cmds); process.exit(1); }
-if (wmode.menu.join(",") !== "raindrop,overtop,overtop-click,water-clear")
+if (wmode.menu.join(",") !== "raindrop,overtop,overtop-click,storm-toggle,water-clear")
   { console.log("FAIL: the Water menu is wrong:", wmode.menu); process.exit(1); }
 if (wmode.pane.pe !== "none" || wmode.pane.canvas)
   { console.log("FAIL: the water pane must be an SVG pane that takes no pointer events"); process.exit(1); }
@@ -2758,6 +2758,10 @@ const duAim = await page.evaluate(() => {
   };
   const near = (x, y) => SBMM.samples.some(p => Math.hypot(p.x - x, p.y - y) < 60)
     || SBMM_DATA.piles.some(p => pointInPoly(x, y, p.ring))
+    /* v12: the storm structures are DOM markers in the vectors pane and take
+       clicks like anything else */
+    || ((SBMM_DATA.storm_network || { nodes: [] }).nodes || [])
+         .some(n => Math.hypot(n.x - x, n.y - y) < 60)
     || SBMM.store.features.some(f => f.pts.some(q => Math.hypot(q[0] - x, q[1] - y) < 60));
   for (const d of SBMM_DATA.dus) {
     const b = d.ring.reduce((a, p) => [Math.min(a[0], p[0]), Math.min(a[1], p[1]),
@@ -3033,7 +3037,10 @@ const survey = await page.evaluate(async () => {
   out.crestStage = st(1343.54) ? { storage: st(1343.54).storage_ft3, extra: !!st(1343.54).extra } : null;
   const card = [...document.querySelectorAll("#resBody .res")].find(c => /Overtopping/.test(c.textContent));
   out.cardText = card ? card.textContent : "";
-  out.pipeRoute = SBMM.store.features.filter(f => f.type === "flow" && /pipe discharge route/.test(f.name)).map(f => ({ len: f.props.length_ft, reason: f.props.end.reason }));
+  out.pipeRoute = SBMM.store.features.filter(f => f.type === "flow" && /pipe discharge route/.test(f.name))
+    .map(f => ({ len: f.props.length_ft, reason: f.props.end.reason, name: f.name,
+                 pipe: f.props.pipe_ft, total: f.props.total_ft, outfall: !!f.props.outfall,
+                 legs: (f.props.legs || []).map(l => l.id) }));
   out.pipeMarker = document.querySelectorAll(".spillmk.pipe").length;
   const sl = card && card.querySelector("#wsRange");
   out.sliderMax = sl ? +sl.max : -1; out.sliderVal = sl ? +sl.value : -1;
@@ -3088,6 +3095,17 @@ if (!survey.crestStage || !survey.crestStage.extra || Math.abs(survey.crestStage
 for (const t of ["surveyed, Aug 2026", "First discharge", "1,341.55", "Sandbag wall crest", "1,343.54", "Rim spill", "Pipe discharge route"])
   if (!survey.cardText.includes(t)) { console.log("FAIL: the Herman card lacks '" + t + "'"); process.exit(1); }
 if (survey.pipeRoute.length !== 1 || !(survey.pipeRoute[0].len > 50)) { console.log("FAIL: no pipe discharge route"); process.exit(1); }
+/* v12 §5.2: with the storm network on, what leaves the surveyed pipes goes down
+   EA's drawn storm main to the Clear Lake outfall, and the row says how far of
+   it is in pipe rather than reporting the overland stub alone. */
+if (!survey.pipeRoute[0].outfall || survey.pipeRoute[0].legs.join(",") !== "pipe_to_main,storm_main_upper,storm_main_lower")
+  { console.log("FAIL: the pipe discharge route did not follow the storm main:", JSON.stringify(survey.pipeRoute[0])); process.exit(1); }
+if (Math.abs(survey.pipeRoute[0].pipe - 796.8) > 0.5)
+  { console.log("FAIL: pipe length of the discharge route", survey.pipeRoute[0].pipe, "vs 796.8"); process.exit(1); }
+if (!/storm main/.test(survey.pipeRoute[0].name))
+  { console.log("FAIL: the route that reaches the outfall must say so in its name:", survey.pipeRoute[0].name); process.exit(1); }
+for (const t of ["in pipe", "Clear Lake outfall"])
+  if (!survey.cardText.includes(t)) { console.log("FAIL: the Herman card's pipe route row lacks '" + t + "'"); process.exit(1); }
 if (survey.pipeMarker !== 1) { console.log("FAIL: no pipe marker"); process.exit(1); }
 if (!/discharging through the 24-in pipes/.test(survey.labelAtPipe) || !/surveyed stage/.test(survey.labelAtPipe))
   { console.log("FAIL: the slider label at the pipe stage: " + survey.labelAtPipe); process.exit(1); }
@@ -3095,6 +3113,312 @@ if (survey.pipeRouteShownAtPipe !== true || survey.overflowShownAtPipe !== false
   { console.log("FAIL: route visibility at the pipe stage (pipe route on, rim overflow off)"); process.exit(1); }
 if (errors.length !== errBeforeSurvey) {
   console.log("FAIL: page errors during the survey block:", errors.slice(errBeforeSurvey, errBeforeSurvey + 6)); process.exit(1);
+}
+
+/* ==================================================================== */
+/* 9s. storm drainage (docs/V12_STORM_SPEC.md §6)                       */
+/* ==================================================================== */
+/* The network is read-only project data — 43 structures and 25 conduits out of
+   EA's CAD, Jacobs' survey and the project engineer's identification of the
+   south-road drain — and it changes exactly one thing about the raindrop: a run
+   that reaches an inlet leaves the ground and reappears at the outlet. The
+   numbers here are the kernel harness's (test/kernels.mjs section `storm`),
+   which computes them from the payload's own conduit lengths. */
+const errBeforeStorm = errors.length;
+const stormBase = await page.evaluate(() => {
+  const D = SBMM_DATA.storm_network;
+  if (!D) return { err: "no storm_network payload" };
+  const rowsOn = D.layers.filter(l => SBMM.layerState.isOn("framework", l.key));
+  const g8 = D.nodes.find(n => n.id === "grate_8");
+  const gj = D.conduits.find(c => c.id === "storm_main_lower");
+  return {
+    nodes: D.nodes.length, conduits: D.conduits.length,
+    layers: D.layers.map(l => [l.key, l.count]),
+    rowsOn: rowsOn.length,
+    rowLabels: [...document.querySelectorAll("#projLayers .lyr")]
+      .filter(r => /^storm_/.test(r.dataset.lid)).map(r => r.querySelector(".lbl").textContent),
+    subHeader: [...document.querySelectorAll("#projLayers .lsub")].some(h => /Storm drainage/.test(h.textContent)),
+    glyphs: document.querySelectorAll(".stormnode").length,
+    arrows: document.querySelectorAll(".stormarrow").length,
+    nodePopup: SBMM.popups.forStorm(g8, null),
+    conduitPopup: SBMM.popups.forStorm(null, gj),
+    rim: SBMM.storm.rimFor("grate_8"),
+    invert: SBMM.storm.rimFor("herman_pipe_n_inv"),
+    enabled: SBMM.storm.enabled(),
+    captureFt: SBMM.storm.captureFt(),
+    /* conduitsFor is what the kernel is handed: inlets inside the box only */
+    inBox: SBMM.storm.conduitsFor([6372400, 2127300, 6374000, 2128000]).map(c => c.id),
+    /* the sunken pipe mouths (§2, ruling Sep 2026) */
+    mouths: Object.keys(SBMM.storm.mouths()).sort(),
+    mouthN: SBMM.storm.mouthOf("herman_pipe_n_inv"),
+    mouthKernel: SBMM.storm.conduitsFor([6372000, 2127400, 6372100, 2127550])
+      .filter(c => c.id === "herman_pipe_n")
+      .map(c => [c.ix, c.iy, c.rim, c.mouth_moved_ft])[0],
+    snap: SBMM.storm.snapPaths().rings.length + "/" + SBMM.storm.snapPaths().pts.length,
+    dxfLayers: [...new Set(SBMM.storm.dxfEntities().map(e => e.layer))].sort(),
+    cmd: (SBMM.cmd.find("STORM") || {}).n,
+    menu: [...document.querySelectorAll("#waterMenu .ci")].some(c => c.dataset.a === "storm-toggle")
+  };
+});
+console.log("storm network:", JSON.stringify({ nodes: stormBase.nodes, conduits: stormBase.conduits,
+  layers: stormBase.layers, rowsOn: stormBase.rowsOn, subHeader: stormBase.subHeader,
+  glyphs: stormBase.glyphs, arrows: stormBase.arrows, rim: stormBase.rim, invert: stormBase.invert,
+  inBox: stormBase.inBox.length, snap: stormBase.snap, dxf: stormBase.dxfLayers, cmd: stormBase.cmd }));
+if (stormBase.err) { console.log("FAIL:", stormBase.err); process.exit(1); }
+if (stormBase.nodes !== 43 || stormBase.conduits !== 25)
+  { console.log("FAIL: the payload is not 43 nodes / 25 conduits"); process.exit(1); }
+if (stormBase.layers.map(l => l.join(":")).join(",") !== "storm_nodes:43,storm_cad:15,storm_inferred:10")
+  { console.log("FAIL: the three layers' counts:", JSON.stringify(stormBase.layers)); process.exit(1); }
+if (stormBase.rowsOn !== 3 || !stormBase.subHeader || stormBase.rowLabels.length !== 3)
+  { console.log("FAIL: the three rows are not on under the Storm drainage sub-header",
+                JSON.stringify(stormBase.rowLabels)); process.exit(1); }
+for (const [key, n] of stormBase.layers)
+  if (!stormBase.rowLabels.some(l => l.includes("(" + n + ")")))
+    { console.log("FAIL: no row labelled with", key, "count", n); process.exit(1); }
+if (stormBase.glyphs !== 43 || stormBase.arrows !== 25)
+  { console.log("FAIL: structures/arrows drawn:", stormBase.glyphs, stormBase.arrows); process.exit(1); }
+/* the popup: what it is, where it came from, and the two elevations — one of
+   which is honestly "not surveyed" */
+for (const t of ["Grate inlet", "STRM INLET SQUARE", "V-Base.dwg", "not surveyed", "Ground (lidar)"])
+  if (!stormBase.nodePopup.includes(t))
+    { console.log("FAIL: the grate popup lacks '" + t + "'"); process.exit(1); }
+for (const t of ["Clear Lake outfall", "mark broken", "assumed working", "no capacity"])
+  if (!stormBase.conduitPopup.includes(t))
+    { console.log("FAIL: the conduit popup lacks '" + t + "'"); process.exit(1); }
+if (Math.abs(stormBase.rim - 1397.33) > 0.05)
+  { console.log("FAIL: grate 8's rim is the lidar ground, got", stormBase.rim); process.exit(1); }
+if (Math.abs(stormBase.invert - 1341.57) > 1e-9)
+  { console.log("FAIL: a surveyed invert must win over the ground, got", stormBase.invert); process.exit(1); }
+/* A SUNKEN INLET: the lidar is Jan 2024 and the sandbag wall came after it, so
+   the cell at the surveyed invert point reads the top of the sandbags. The
+   analysis enters the pipe at the nearest cell the lidar DOES see at or below
+   the invert, within 30 ft; the rim stays the survey's. */
+console.log("sunken mouths:", stormBase.mouths.join(","), "| N ->", JSON.stringify(stormBase.mouthN),
+            "| to the kernel:", JSON.stringify(stormBase.mouthKernel));
+if (stormBase.mouths.join(",") !== "herman_pipe_n_inv,herman_pipe_s_inv")
+  { console.log("FAIL: exactly the two surveyed pipe ends are sunken inlets"); process.exit(1); }
+if (!stormBase.mouthN || Math.abs(stormBase.mouthN.moved - 25.6) > 0.2
+    || Math.abs(stormBase.mouthN.ground - 1344.66) > 0.02
+    || !(stormBase.mouthN.z <= 1341.57 + 1e-9) || stormBase.mouthN.moved > 30)
+  { console.log("FAIL: the North pipe's mouth:", JSON.stringify(stormBase.mouthN)); process.exit(1); }
+if (!stormBase.mouthKernel || stormBase.mouthKernel[0] !== 6372065 || stormBase.mouthKernel[1] !== 2127496
+    || stormBase.mouthKernel[2] !== 1341.57 || Math.abs(stormBase.mouthKernel[3] - 25.6) > 0.2)
+  { console.log("FAIL: conduitsFor must hand the kernel the mouth with the surveyed rim:",
+                JSON.stringify(stormBase.mouthKernel)); process.exit(1); }
+if (!stormBase.enabled || stormBase.captureFt !== 3)
+  { console.log("FAIL: the drains default on with a 3-ft capture"); process.exit(1); }
+if (!stormBase.inBox.includes("road_drain_8_9") || stormBase.inBox.includes("storm_main_lower"))
+  { console.log("FAIL: conduitsFor must select on the INLET's position:", stormBase.inBox); process.exit(1); }
+if (stormBase.dxfLayers.join(",") !== "STORM-CONDUIT,STORM-INFERRED,STORM-STRUCT")
+  { console.log("FAIL: the DXF layers:", stormBase.dxfLayers); process.exit(1); }
+if (stormBase.cmd !== "STORM" || !stormBase.menu)
+  { console.log("FAIL: STORM is not a command / not in the Water menu"); process.exit(1); }
+
+/* --- the raindrop with and without the network ----------------------- */
+/* Frog Pond's low (Spot 5). With the drains on it fills Frog Pond, takes the
+   pipe to Green Pond, takes Green Pond's round inlet and ends in Clear Lake;
+   with them off it spills north-east off the survey, which is what §1 of the
+   spec says the bare terrain does. */
+const FROG = [6374418, 2127912];
+const stormDrop = await page.evaluate(async (P) => {
+  const jobs0 = SBMM.compute.stats.workerJobs + SBMM.compute.stats.syncJobs;
+  const f = await SBMM.water.dropAt(P[0], P[1], { name: "Storm test drop" });
+  if (!f) return { err: "dropAt returned nothing" };
+  const p = f.props;
+  const card = f.card ? f.card.textContent : "";
+  /* the session round trip: the legs come back and nothing is recomputed */
+  const spec = SBMM.store.serialize().features.find(x => x.name === "Storm test drop");
+  const j0 = SBMM.compute.stats.workerJobs + SBMM.compute.stats.syncJobs;
+  SBMM.store.remove(f);
+  const nf = SBMM.tools.rebuildFeature(spec);
+  const j1 = SBMM.compute.stats.workerJobs + SBMM.compute.stats.syncJobs;
+  const out = {
+    legs: (p.legs || []).map(l => l.id), pipe: p.pipe_ft, total: p.total_ft,
+    len: p.length_ft, storm: p.storm, reason: p.end.reason, end: [p.end.x, p.end.y],
+    outfall: !!p.outfall,
+    ponds: p.ponds.length, via: (p.ponds.find(q => q.via) || {}).via || null,
+    vias: p.ponds.filter(q => q.via).map(q => q.via),
+    card, jobs0,
+    rebuilt: { legs: (nf.props.legs || []).length, pipe: nf.props.pipe_ft,
+               drawn: SBMM.map.hasLayer(nf.layer), sub: nf.layer.getLayers().length },
+    jobs: j1 - j0,
+    pipeLabels: document.querySelectorAll(".flowpipe").length
+  };
+  SBMM.store.remove(nf);
+  return out;
+}, FROG);
+console.log("storm raindrop:", JSON.stringify({ legs: stormDrop.legs, pipe: stormDrop.pipe,
+  total: stormDrop.total, len: stormDrop.len, reason: stormDrop.reason, end: stormDrop.end,
+  ponds: stormDrop.ponds, via: stormDrop.via, rebuilt: stormDrop.rebuilt, jobs: stormDrop.jobs,
+  pipeLabels: stormDrop.pipeLabels }));
+if (stormDrop.err) { console.log("FAIL:", stormDrop.err); process.exit(1); }
+if (stormDrop.legs.join(",") !== "frog_green,green_riser,herman_pipe_s,pipe_to_main,storm_main_upper,storm_main_lower")
+  { console.log("FAIL: the Frog Pond chain is wrong, got", stormDrop.legs); process.exit(1); }
+if (Math.abs(stormDrop.pipe - 1366.1) > 0.5)
+  { console.log("FAIL: pipe_ft", stormDrop.pipe, "vs 1366.1"); process.exit(1); }
+if (!stormDrop.outfall)
+  { console.log("FAIL: the Frog Pond drop should reach the Clear Lake outfall"); process.exit(1); }
+if (Math.abs(stormDrop.total - (stormDrop.len + stormDrop.pipe)) > 0.2)
+  { console.log("FAIL: total_ft must be overland + pipe"); process.exit(1); }
+if (stormDrop.via !== "green_riser")
+  { console.log("FAIL: a pond drained by a grate must record it, got", stormDrop.via); process.exit(1); }
+if (wdist(stormDrop.end, [6371177, 2127474]) > 5)
+  { console.log("FAIL: the drop should end in Clear Lake, got", stormDrop.end); process.exit(1); }
+for (const t of ["In pipes", "Total", "Storm drains", "drains to"])
+  if (!stormDrop.card.includes(t)) { console.log("FAIL: the raindrop card lacks '" + t + "'"); process.exit(1); }
+if (stormDrop.rebuilt.legs !== stormDrop.legs.length || !stormDrop.rebuilt.drawn || stormDrop.jobs !== 0)
+  { console.log("FAIL: a flow with legs did not survive a session round trip without recomputing",
+                JSON.stringify(stormDrop.rebuilt), stormDrop.jobs); process.exit(1); }
+if (!stormDrop.pipeLabels) { console.log("FAIL: the conduit legs are not drawn"); process.exit(1); }
+
+/* STORM off: the same drop, ground only */
+const stormOff = await page.evaluate(async (P) => {
+  SBMM.cmd.run("STORM");
+  const off = !SBMM.storm.enabled();
+  const f = await SBMM.water.dropAt(P[0], P[1], { name: "Storm off drop" });
+  const p = f.props;
+  const out = { off, legs: (p.legs || []).length, pipe: p.pipe_ft, storm: p.storm,
+                len: p.length_ft, end: [p.end.x, p.end.y], card: f.card ? f.card.textContent : "",
+                empty: SBMM.storm.conduitsFor([6372400, 2127300, 6374000, 2128000]).length };
+  SBMM.store.remove(f);
+  SBMM.cmd.run("STORM");
+  out.backOn = SBMM.storm.enabled();
+  return out;
+}, FROG);
+console.log("storm off:", JSON.stringify(stormOff.end), "legs", stormOff.legs, "len", stormOff.len,
+            "| conduitsFor while off:", stormOff.empty, "| back on:", stormOff.backOn);
+if (!stormOff.off || stormOff.backOn !== true)
+  { console.log("FAIL: STORM did not toggle the master switch both ways"); process.exit(1); }
+if (stormOff.legs !== 0 || stormOff.pipe !== 0 || stormOff.storm !== false || stormOff.empty !== 0)
+  { console.log("FAIL: with the drains off nothing may reach the kernel"); process.exit(1); }
+if (wdist(stormOff.end, [6375216, 2128916]) > 5)
+  { console.log("FAIL: with the drains off the drop leaves the survey north-east, got", stormOff.end); process.exit(1); }
+if (!stormOff.card.includes("ground only"))
+  { console.log("FAIL: the card must say the drains were off"); process.exit(1); }
+
+/* --- the sunken inlet: a drop inside the Herman Impoundment ---------- */
+/* The ruling's own case. The surveyed water-level shot of Aug 2026 sits in the
+   impoundment; with the network on the pond stops at the lower of the two
+   surveyed inverts and leaves through that pipe, EA's storm main and the
+   outfall — which is what the overtopping card's "First discharge" row has said
+   since v10 §10 and what the raindrop could not say until the mouths moved. */
+const WLSHOT = [6372119.56, 2127446.20];
+const stormWater = await page.evaluate(async (P) => {
+  const f = await SBMM.water.dropAt(P[0], P[1], { name: "Herman water drop" });
+  if (!f) return { err: "dropAt returned nothing" };
+  const p = f.props;
+  const pond = p.ponds.find(q => q.via) || null;
+  const out = {
+    legs: (p.legs || []).map(l => l.id), pipe: p.pipe_ft, len: p.length_ft,
+    outfall: !!p.outfall, end: [p.end.x, p.end.y],
+    pond: pond ? { level: pond.level, via: pond.via, depth: pond.depth_ft } : null,
+    card: f.card ? f.card.textContent : "",
+    popup: SBMM.popups.forFeature(f)
+  };
+  SBMM.store.remove(f);
+  /* the same drop with the drains off fills to the lidar rim instead */
+  SBMM.cmd.run("STORM");
+  const g = await SBMM.water.dropAt(P[0], P[1], { name: "Herman water drop (off)" });
+  const q = g.props;
+  const big = q.ponds.filter(r => r.cells > 200000 && r.depth_ft > 5)[0] || null;
+  out.offLevel = big ? big.level : null;
+  out.offLen = q.length_ft;
+  SBMM.store.remove(g);
+  SBMM.cmd.run("STORM");
+  out.backOn = SBMM.storm.enabled();
+  /* what the overtopping card says the first discharge is — the two tools now
+     agree about the impoundment, which is the whole point of the ruling */
+  out.facts = SBMM.water.surveyFacts(
+    SBMM_DATA.design_gis.features.find(f2 => f2.properties.name === "Herman Impoundment")
+      .geometry.coordinates[0]);
+  return out;
+}, WLSHOT);
+console.log("sunken inlet drop:", JSON.stringify({ legs: stormWater.legs, pipe: stormWater.pipe,
+  len: stormWater.len, pond: stormWater.pond, end: stormWater.end, offLevel: stormWater.offLevel,
+  offLen: stormWater.offLen, firstDischarge: stormWater.facts && stormWater.facts.pipeInvert }));
+if (stormWater.err) { console.log("FAIL:", stormWater.err); process.exit(1); }
+if (!stormWater.pond || !/^herman_pipe_[ns]$/.test(stormWater.pond.via))
+  { console.log("FAIL: the impoundment must drain through a surveyed pipe, got",
+                JSON.stringify(stormWater.pond)); process.exit(1); }
+if (Math.abs(stormWater.pond.level - 1341.5) > 0.05)
+  { console.log("FAIL: the pond must stop at the lower surveyed invert, got", stormWater.pond.level); process.exit(1); }
+if (stormWater.legs.join(",") !== stormWater.pond.via + ",pipe_to_main,storm_main_upper,storm_main_lower")
+  { console.log("FAIL: the chain out of the impoundment:", stormWater.legs); process.exit(1); }
+if (Math.abs(stormWater.pipe - 813.3) > 1 || !stormWater.outfall)
+  { console.log("FAIL: pipe_ft", stormWater.pipe, "vs 813.3, outfall", stormWater.outfall); process.exit(1); }
+if (wdist(stormWater.end, [6371177, 2127474]) > 5)
+  { console.log("FAIL: the drop should end in Clear Lake, got", stormWater.end); process.exit(1); }
+if (Math.abs(stormWater.offLevel - 1343.84) > 0.02 || stormWater.backOn !== true)
+  { console.log("FAIL: with the drains off the impoundment fills to the lidar rim, got",
+                stormWater.offLevel); process.exit(1); }
+/* the card names the pipe and says the inlet cell moved */
+for (const t of ["drains to", "24 in corrugated HDPE", "inlet cell moved"])
+  if (!stormWater.card.includes(t))
+    { console.log("FAIL: the raindrop card lacks '" + t + "'"); process.exit(1); }
+{
+  /* one line: the raindrop and the overtopping card now agree about the
+     impoundment's first discharge, to the difference between the surveyed
+     invert and the lidar cell the analysis enters the pipe at */
+  const d = Math.abs(stormWater.pond.level - stormWater.facts.pipeInvert);
+  console.log(`the two tools agree about Herman: the overtopping card's first discharge is `
+    + `${stormWater.facts.pipeInvert} ft (surveyed pipe invert) and the raindrop ponds to `
+    + `${stormWater.pond.level} ft before taking ${stormWater.pond.via} — ${d.toFixed(2)} ft apart; `
+    + `with the drains off the same drop fills to ${stormWater.offLevel} ft and spills over the rim `
+    + `(${(stormWater.offLevel - stormWater.pond.level).toFixed(2)} ft higher).`);
+  if (d > 0.1) { console.log("FAIL: the raindrop and the overtopping card disagree by", d); process.exit(1); }
+}
+
+/* --- a broken conduit, 3D, and the exports --------------------------- */
+const stormRest = await page.evaluate(async () => {
+  const wait = ms => new Promise(r => setTimeout(r, ms));
+  /* a broken conduit is not passed to the kernel at all */
+  SBMM.storm.setStatus("frog_green", "broken");
+  const brokenOut = SBMM.storm.conduitsFor([6374000, 2127700, 6374800, 2128100]).length;
+  const persisted = JSON.parse(localStorage.getItem("sbmm.storm.v1") || "{}");
+  SBMM.storm.setStatus("frog_green", "assumed_working");
+  const backOut = SBMM.storm.conduitsFor([6374000, 2127700, 6374800, 2128100]).length;
+  /* 3D: the conduits and the structures reach the scene */
+  const wasOpen = SBMM.viewer3d.isOpen();
+  if (!wasOpen) { await SBMM.viewer3d.toggle(); await wait(1400); }
+  SBMM.viewer3d.refreshOverlays();
+  await wait(600);
+  const withNet = SBMM.pick3d.registered().filter(r => r.kind === "gis").length;
+  SBMM.layerState.set("framework", "storm_cad", { on: false });
+  SBMM.layerState.set("framework", "storm_inferred", { on: false });
+  SBMM.viewer3d.refreshOverlays();
+  await wait(600);
+  const without = SBMM.pick3d.registered().filter(r => r.kind === "gis").length;
+  SBMM.layerState.set("framework", "storm_cad", { on: true });
+  SBMM.layerState.set("framework", "storm_inferred", { on: true });
+  SBMM.viewer3d.refreshOverlays();
+  await wait(600);
+  const back = SBMM.pick3d.registered().filter(r => r.kind === "gis").length;
+  if (!wasOpen) { await SBMM.viewer3d.toggle(); await wait(500); }
+  /* the exports */
+  const fc = SBMM.io.collection("sp");
+  const sf = fc.features.filter(f => /^storm_/.test((f.properties || {}).layer || ""));
+  const dxf = SBMM.dxf.buildDXF();
+  return {
+    brokenOut, backOut, persistedBroken: (persisted.status || {}).frog_green || null,
+    withNet, without, back,
+    geo: sf.length, geoPts: sf.filter(f => f.geometry.type === "Point").length,
+    geoSource: sf.every(f => !!f.properties.source),
+    dxf: ["STORM-STRUCT", "STORM-CONDUIT", "STORM-INFERRED"].every(l => dxf.includes(l))
+  };
+});
+console.log("storm broken/3D/export:", JSON.stringify(stormRest));
+if (stormRest.brokenOut !== stormRest.backOut - 1 || stormRest.persistedBroken !== "broken")
+  { console.log("FAIL: a broken conduit must leave the kernel list and persist"); process.exit(1); }
+if (stormRest.withNet - stormRest.without !== 25 || stormRest.back !== stormRest.withNet)
+  { console.log("FAIL: the 25 conduits are not in the 3D pick registry",
+                stormRest.withNet, stormRest.without, stormRest.back); process.exit(1); }
+if (stormRest.geo !== 68 || stormRest.geoPts !== 43 || !stormRest.geoSource)
+  { console.log("FAIL: the GeoJSON must carry 43 structures + 25 conduits, each with a source",
+                JSON.stringify(stormRest)); process.exit(1); }
+if (!stormRest.dxf) { console.log("FAIL: the DXF is missing the STORM-* layers"); process.exit(1); }
+if (errors.length !== errBeforeStorm) {
+  console.log("FAIL: page errors during the storm block:",
+              errors.slice(errBeforeStorm, errBeforeStorm + 6)); process.exit(1);
 }
 
 /* ==================================================================== */
