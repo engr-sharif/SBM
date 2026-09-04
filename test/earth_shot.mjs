@@ -10,6 +10,7 @@ const browser = await chromium.launch({ executablePath: CHROME });
 const page = await browser.newPage({ viewport: { width: 1500, height: 950 } });
 page.setDefaultTimeout(180000);
 page.on("pageerror", e => console.log("ERR", e.message));
+await unlock(page);  /* the password gate — see test/gate.mjs */
 await page.goto("file://" + target);
 await page.waitForSelector("#loading", { state: "hidden", timeout: 60000 });
 
@@ -59,6 +60,7 @@ console.log("shot: /tmp/shot_surf_props.png");
 /* the report sheet — captured standalone at paper width, which is the only honest
    way to judge a print layout */
 import { writeFileSync } from "fs";
+import { unlock } from "./gate.mjs";
 const volHTML = await page.evaluate(async () => {
   const v = SBMM.store.features.find(f => f.type === "volume");
   return await SBMM.report.buildHTML(v);
@@ -82,6 +84,7 @@ await page.screenshot({ path: "/tmp/shot_report_modal.png" });
 console.log("shot: /tmp/shot_report_modal.png");
 
 const sheet = await browser.newPage({ viewport: { width: 816, height: 1056 } });
+await unlock(sheet);  /* the password gate — see test/gate.mjs */
 await sheet.goto("file:///tmp/report_volume.html");
 await sheet.waitForTimeout(900);
 await sheet.screenshot({ path: "/tmp/shot_report_sheet.png", fullPage: true });

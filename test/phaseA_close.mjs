@@ -2,6 +2,7 @@
    ground and that its transparent regions composite correctly against the
    terrain (no black paper, no sorting halo at the edges). */
 import { chromium } from "playwright";
+import { unlock } from "./gate.mjs";
 
 const target = process.argv[2];
 const out = process.argv[3] || "/tmp";
@@ -12,6 +13,7 @@ const browser = await chromium.launch({
 const page = await browser.newPage({ viewport: { width: 1500, height: 950 } });
 page.setDefaultTimeout(180000);
 page.on("pageerror", e => console.log("pageerror:", e.message));
+await unlock(page);  /* the password gate — see test/gate.mjs */
 await page.goto("file://" + target);
 await page.waitForSelector("#loading", { state: "hidden", timeout: 90000 });
 

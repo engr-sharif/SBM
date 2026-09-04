@@ -2051,7 +2051,15 @@ var SBMM_COMPUTE = (function SBMMComputeModule() {
 
   /* ---- OVERTOP -------------------------------------------------------------
      job: { grid, seedRing | seedPoint:[x,y], plateauTol=0.3, rimRange=3,
-            levelStep=0.25, maxClusters=12, outlineTol=null }                   */
+            levelStep=0.25, maxClusters=12, outlineTol=null,
+            z0Override=null,   // today's water surface from a survey, when the lidar plateau is stale
+            levels=null }      // extra stage rows at exact elevations (a pipe invert, a crest)
+
+     z0Override (spec §10): the seed set is still found from the lidar plateau
+     (the water's footprint), but every seed cell is then treated as water whose
+     ground is unknown and whose surface is z0Override: its level is z0Override,
+     its storage counts (L - z0Override), and z0 / freeboard / the stage table
+     start there. The lidar plateau is reported as z0_lidar.                    */
   function overtop(job, onProgress) {
     var g = job.grid, w = g.sw, h = g.sh, cell = g.cell, z = g.z, n = w * h;
     var X0 = g.x0 + g.i0 * cell, Y0 = g.y0 + g.j0 * cell;
@@ -2121,6 +2129,11 @@ var SBMM_COMPUTE = (function SBMMComputeModule() {
         inHeap[vi] = 1; heapPush(H, z[vi], (h - 1 - nj) * w + ni);
       }
     }
+    var z0lidar = z0;
+    if (job.z0Override != null && !isNaN(job.z0Override)) {
+      z0 = +job.z0Override;
+      for (k = 0; k < n; k++) if (seed[k]) level[k] = z0;
+    }
     var cur = z0, spills = [], primary = -1, primaryLevel = NaN, primaryNext = -1;
     var reason = "ok", cap = Math.floor(n * 0.6), nm, rr, ci, cj, cidx;
     while (H.n > 0) {
@@ -2171,7 +2184,11 @@ var SBMM_COMPUTE = (function SBMMComputeModule() {
       flist.push(k);
       if (i < bb[0]) bb[0] = i; if (j < bb[1]) bb[1] = j;
       if (i > bb[2]) bb[2] = i; if (j > bb[3]) bb[3] = j;
-      if (level[k] <= sp + 1e-9) { area++; if (z[k] < sp) storage += sp - z[k]; }
+      if (level[k] <= sp + 1e-9) {
+        area++;
+        var zg = seed[k] ? z0 : z[k];             // a water cell's ground is its surface
+        if (zg < sp) storage += sp - zg;
+      }
     }
     fn = flist.length;
     area *= cell * cell; storage *= cell * cell;
@@ -2212,7 +2229,7 @@ var SBMM_COMPUTE = (function SBMMComputeModule() {
     var nSteps = Math.max(1, Math.floor((sp + rimRange - z0) / step + 1e-9) + 1);
     var cA = new Float64Array(nSteps + 1), cN = new Float64Array(nSteps + 1), cZ = new Float64Array(nSteps + 1);
     for (k = 0; k < fn; k++) {
-      var fc = flist[k], lv = level[fc], zc = z[fc];
+      var fc = flist[k], lv = level[fc], zc = seed[fc] ? z0 : z[fc];
       var ka = Math.ceil((lv - z0 - 1e-9) / step); if (ka < 0) ka = 0;
       if (ka <= nSteps) cA[ka]++;
       var act = lv > zc ? lv : zc;
@@ -2230,6 +2247,27 @@ var SBMM_COMPUTE = (function SBMMComputeModule() {
                    rings: maskRings(smask, w, h, cell, X0, Y0, bb, oTol) });
       if (onProgress) onProgress(0.85 + 0.13 * (k + 1) / nSteps);
     }
+    /* exact rows at the caller's own elevations (a pipe invert, a sandbag
+       crest): a direct pass each, no bucketing, inserted in level order and
+       flagged so the UI can tell them from the regular steps */
+    var extra = job.levels || [];
+    for (var e0 = 0; e0 < extra.length; e0++) {
+      var Lx = +extra[e0];
+      if (isNaN(Lx) || Lx < z0 - 1e-9) continue;
+      var aX = 0, sX = 0, emask = new Uint8Array(n);
+      for (k = 0; k < fn; k++) {
+        var xc = flist[k];
+        if (level[xc] > Lx + 1e-9) continue;
+        aX++; emask[xc] = 1;
+        var zgx = seed[xc] ? z0 : z[xc];
+        if (zgx < Lx) sX += Lx - zgx;
+      }
+      var row = { level: Lx, area_ft2: aX * a2, storage_ft3: sX * a2, extra: true,
+                  rings: maskRings(emask, w, h, cell, X0, Y0, bb, oTol) };
+      var at = 0;
+      while (at < stage.length && stage[at].level < Lx - 1e-9) at++;
+      if (at < stage.length && Math.abs(stage[at].level - Lx) < 1e-9) stage[at] = row; else stage.splice(at, 0, row);
+    }
 
     /* ---- the rim band and the spill cells --------------------------------- */
     var band = new Float32Array(n), sm = new Uint8Array(n);
@@ -2245,7 +2283,7 @@ var SBMM_COMPUTE = (function SBMMComputeModule() {
     if (onProgress) onProgress(1);
     return {
       result: {
-        z0: z0, cell: cell, seedCells: seedCells, seedArea_ft2: seedCells * a2,
+        z0: z0, z0_lidar: z0lidar, cell: cell, seedCells: seedCells, seedArea_ft2: seedCells * a2,
         primary: { level: sp, x: X0 + px * cell, y: Y0 + py * cell,
                    next: primaryNext < 0 ? null
                        : [X0 + nx2 * cell, Y0 + (((primaryNext - nx2) / w)) * cell] },

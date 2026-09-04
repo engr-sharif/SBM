@@ -570,10 +570,62 @@ SBMM.water = (function () {
     return null;
   }
 
-  function overtopHerman() {
+  /* ---------- the August-2026 survey (spec §10) ----------
+     Read from the baked dataset, not from a constant: if the survey is
+     re-issued the dataset is rebuilt and the card follows. `ring` decides
+     whether the facts apply — only when the surveyed water-level shot lies
+     inside the water body being analysed. */
+  function ringContains(ring, x, y) {
+    let inside = false;
+    for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+      const xi = ring[i][0], yi = ring[i][1], xj = ring[j][0], yj = ring[j][1];
+      if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / ((yj - yi) || 1e-12) + xi) inside = !inside;
+    }
+    return inside;
+  }
+  function distToRing(ring, x, y) {
+    let best = Infinity;
+    for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+      const ax = ring[j][0], ay = ring[j][1], bx = ring[i][0], by = ring[i][1];
+      const dx = bx - ax, dy = by - ay, L2 = dx * dx + dy * dy;
+      const t = L2 > 0 ? Math.max(0, Math.min(1, ((x - ax) * dx + (y - ay) * dy) / L2)) : 0;
+      const d = Math.hypot(x - (ax + t * dx), y - (ay + t * dy));
+      if (d < best) best = d;
+    }
+    return best;
+  }
+  function surveyFacts(ring) {
+    const sets = (window.SBMM_DATA && SBMM_DATA.datasets) || [];
+    const d = sets.find(x => x.id === "survey_2026");
+    if (!d || !d.points) return null;
+    const by = id => d.points.find(q => q.id === id);
+    const wl = by("Water Level");
+    /* the water-level shot is taken AT the shoreline ("shore — water ends"),
+       which is exactly where a GIS water polygon drawn a year earlier is a few
+       feet off; inside the ring, or within 25 ft of its edge, counts */
+    if (!wl || !ring || !(ringContains(ring, wl.x, wl.y) || distToRing(ring, wl.x, wl.y) <= 25)) return null;
+    const z = q => (q && q.a && typeof q.a.elevation === "number") ? q.a.elevation : null;
+    const pn = by("SD PIPE N"), ps = by("SD PIPE S");
+    const inv = [z(pn), z(ps)].filter(v => v != null);
+    const tops = d.points.filter(q => q.a && /top of sand bags/i.test(q.a.measure_on || "")).map(z).filter(v => v != null);
+    return {
+      waterLevel: z(wl), waterXY: [wl.x, wl.y],
+      pipeInvert: inv.length ? +(inv.reduce((a, b) => a + b, 0) / inv.length).toFixed(2) : null,
+      pipeInverts: inv,
+      pipeXY: pn ? [(pn.x + (ps ? ps.x : pn.x)) / 2, (pn.y + (ps ? ps.y : pn.y)) / 2] : null,
+      wallCrest: tops.length ? Math.min(...tops) : null, wallTops: tops,
+      outlet: SBMM.survey && SBMM.survey.pipeOutlet ? SBMM.survey.pipeOutlet() : null,
+      source: d.name
+    };
+  }
+  function stageAt(R, level) {
+    return (R.stage || []).find(s => Math.abs(s.level - level) < 1e-6) || null;
+  }
+
+  function overtopHerman(opts) {
     const h = hermanRing();
     if (!h) { toast("the Herman Impoundment polygon is not in this build's design payload"); return Promise.resolve(null); }
-    return overtop({ ring: h.ring, name: h.name });
+    return overtop(Object.assign({ ring: h.ring, name: h.name }, opts || {}));
   }
   function overtopAt(x, y) {
     const wb = waterBodyAt(x, y);
@@ -589,7 +641,7 @@ SBMM.water = (function () {
     clearOvertop();
 
     let pad = 800;
-    let R = null, dem = null, bbox = null;
+    let R = null, dem = null, bbox = null, facts = null;
     for (let attempt = 0; attempt < 3; attempt++) {
       const b = ring ? bboxOf(ring) : [point[0], point[1], point[0], point[1]];
       bbox = [b[0] - pad, b[1] - pad, b[2] + pad, b[3] + pad];
@@ -599,6 +651,11 @@ SBMM.water = (function () {
       const job = { grid, plateauTol: PLATEAU_TOL, rimRange: RIM_RANGE,
                     levelStep: LEVEL_STEP, maxClusters: 12 };
       if (ring) job.seedRing = ring.map(q => [q[0], q[1]]); else job.seedPoint = [point[0], point[1]];
+      /* spec §10: a surveyed water surface is today's level; the pipe invert
+         and the sandbag crest become exact stage rows */
+      facts = (ring && spec.survey !== false) ? surveyFacts(ring) : null;
+      if (facts && facts.waterLevel != null) job.z0Override = facts.waterLevel;
+      if (facts) job.levels = [facts.pipeInvert, facts.wallCrest].filter(v => v != null);
       try {
         R = await SBMM.compute.run("overtop", job,
           { transfer: [grid.z.buffer], label: "Overtopping — " + name }).promise;
@@ -622,7 +679,7 @@ SBMM.water = (function () {
     if (R.reason === "window")
       toast("the spill search filled the window — treat the rim beyond it as unchecked", 5200);
 
-    ov = { name, R, dem, markers: [], level: R.primary.level };
+    ov = { name, R, dem, markers: [], level: R.primary.level, facts };
 
     /* the rim band + the exact spill cells, one canvas */
     const painted = paintBand(R);
@@ -684,6 +741,28 @@ SBMM.water = (function () {
         };
         ov.pool = pool;
       }
+    }
+    /* the surveyed discharge pipes: a marker at the inverts and the route
+       water takes after it leaves them (spec §10.4) */
+    if (facts && facts.pipeXY && facts.pipeInvert != null) {
+      const mk = L.marker([facts.pipeXY[1], facts.pipeXY[0]], {
+        pane: "drawings",
+        icon: L.divIcon({
+          className: "spillmk pipe", iconSize: [0, 0],
+          html: `<span class="badge">P</span><span class="lbl mono" style="top:-8px">`
+            + `PIPES ${fmt(facts.pipeInvert, 2)} ft · +${fmt(facts.pipeInvert - R.z0, 2)} ft</span>`
+        })
+      });
+      mk.on("click", () => SBMM.map.setView([facts.pipeXY[1], facts.pipeXY[0]], Math.max(SBMM.map.getZoom(), 3)));
+      mk.addTo(SBMM.map);
+      ov.markers.push(mk);
+    }
+    if (facts && facts.outlet) {
+      const pr = await dropAt(facts.outlet[0], facts.outlet[1], {
+        name: `${name} pipe discharge route`, group: "Water", quiet: true,
+        blockRing: ring, plateauTol: PLATEAU_TOL
+      });
+      if (pr) { ov.pipeRoute = pr; pr.props.blockRing = null; }
     }
     const nx = R.primary.next;
     if (nx) {
@@ -772,16 +851,24 @@ SBMM.water = (function () {
       }).addTo(ov.water);
     }
     const spilling = level >= R.primary.level - 1e-6;
-    const changed = ov.spilling !== spilling;
-    ov.spilling = spilling;
-    if (ov.route && changed) SBMM.store.setVisible(ov.route, spilling);
+    const F = ov.facts;
+    const piping = !!(F && F.pipeInvert != null && level >= F.pipeInvert - 1e-6);
+    const overCrest = !!(F && F.wallCrest != null && level >= F.wallCrest - 1e-6);
+    const changed = ov.spilling !== spilling || ov.piping !== piping;
+    ov.spilling = spilling; ov.piping = piping;
+    if (ov.route) SBMM.store.setVisible(ov.route, spilling);
+    if (ov.pipeRoute) SBMM.store.setVisible(ov.pipeRoute, piping);
     const el = ov.card && ov.card.querySelector(".wslabel");
     if (el) {
       const store = s ? s.storage_ft3 : 0;
+      let state = spilling ? "OVERFLOWS the rim at ①"
+        : overCrest ? "above the sandbag crest · discharging through the pipes"
+        : piping ? "discharging through the 24-in pipes"
+        : "no discharge";
+      if (level > R.primary.level + 1e-6) state += " (if the rim at ① were raised)";
       el.textContent = `water level ${fmt(level, 2)} ft · +${fmt(level - R.z0, 2)} ft above today · `
-        + `${fmt(acft(store), 1)} ac-ft to store · `
-        + (spilling ? "OVERFLOWS at ①" : "no overflow")
-        + (level > R.primary.level + 1e-6 ? " (if the rim at ① were raised)" : "");
+        + `${fmt(acft(store), 1)} ac-ft to store · ` + state
+        + (s && s.extra ? " · surveyed stage" : "");
     }
     /* only when the answer changed — a slider drag fires this per pixel, and
        rebuilding every draped ring per pixel is how a smooth control becomes a
@@ -793,17 +880,34 @@ SBMM.water = (function () {
     const R = ov.R;
     const grid = gridLabel(ov.dem) + " lidar grid";
     const rt = ov.route ? ov.route.props : null;
-    const rows = [
-      ["Water surface (lidar, Jan 2024)", fmt(R.z0, 2) + " ft"],
-      ["Spill elevation", fmt(R.primary.level, 2) + " ft"],
-      ["Freeboard", fmt(R.freeboard_ft, 2) + " ft"],
+    const F = ov.facts;
+    const rows = [];
+    if (F && F.waterLevel != null) {
+      rows.push(["Water surface (surveyed, Aug 2026)", fmt(R.z0, 2) + " ft"]);
+      rows.push(["Lidar plateau (Jan 2024)", fmt(R.z0_lidar != null ? R.z0_lidar : R.z0, 2) + " ft"]);
+    } else rows.push(["Water surface (lidar, Jan 2024)", fmt(R.z0, 2) + " ft"]);
+    if (F && F.pipeInvert != null) {
+      const st = stageAt(R, F.pipeInvert);
+      rows.push(["First discharge", `24-in HDPE pipes · invert ${fmt(F.pipeInvert, 2)} ft · +${fmt(F.pipeInvert - R.z0, 2)} ft`]);
+      if (st) rows.push(["Storage to the pipes", `${fmt(acft(st.storage_ft3), 1)} ac-ft · ${fmt(acft(st.area_ft2), 2)} ac`]);
+      const pt = ov.pipeRoute ? ov.pipeRoute.props : null;
+      rows.push(["Pipe discharge route", pt ? `${fmt0(pt.length_ft)} ft · ${endShort(pt)}` : "—"]);
+    }
+    if (F && F.wallCrest != null) {
+      const st = stageAt(R, F.wallCrest);
+      rows.push(["Sandbag wall crest", `${fmt(F.wallCrest, 2)} ft · +${fmt(F.wallCrest - R.z0, 2)} ft`
+        + (st ? ` · ${fmt(acft(st.storage_ft3), 1)} ac-ft` : "")]);
+    }
+    rows.push(
+      [F ? "Rim spill (lidar)" : "Spill elevation", fmt(R.primary.level, 2) + " ft"],
+      ["Freeboard to the rim", fmt(R.freeboard_ft, 2) + " ft"],
       ["Spills at", `${fmt0(R.primary.x)} E, ${fmt0(R.primary.y)} N`],
       ["Storage to spill", fmt(acft(R.storage_ft3), 1) + " ac-ft"],
       ["", fmt0(R.storage_ft3) + " ft³"],
       ["Area at spill", fmt(acft(R.area_ft2), 2) + " ac"],
       ["Overflow route", rt ? `${fmt0(rt.length_ft)} ft · ${endShort(rt)}` : "—"],
       ["Grid", grid + " · " + fmt0(R.seedCells) + " cells of water surface"]
-    ];
+    );
     const el = SBMM.results.card(null, "Overtopping — " + ov.name, rows);
     ov.card = el;
 
@@ -828,17 +932,23 @@ SBMM.water = (function () {
     /* the level slider */
     const sl = document.createElement("div");
     sl.className = "wslider";
-    const lo = R.z0, hi = R.primary.level + RIM_RANGE;
-    /* the slider's steps run from z0, and the spill almost never lands exactly on
-       one — so the default is the first step AT OR ABOVE the spill. Snapping the
-       other way would open the card saying "no overflow" about an analysis whose
-       whole subject is the overflow. */
-    const dflt = lo + Math.ceil((R.primary.level - lo) / LEVEL_STEP) * LEVEL_STEP;
+    /* The slider walks the STAGE TABLE by index rather than a numeric step: the
+       regular rows run from z0 every 0.25 ft, and the surveyed rows (a pipe
+       invert, a sandbag crest) sit between them at their exact elevations, so
+       the thumb snaps onto them. The spill almost never lands on a regular
+       step, so the default is the first row AT OR ABOVE the spill — snapping
+       the other way would open the card saying "no overflow" about an analysis
+       whose whole subject is the overflow. */
+    const S = R.stage || [];
+    let di = S.findIndex(x => x.level >= R.primary.level - 1e-6);
+    if (di < 0) di = S.length - 1;
     sl.innerHTML = `<div class="wslabel mono"></div>
-      <input type="range" id="wsRange" min="${lo}" max="${Math.max(hi, dflt)}" step="${LEVEL_STEP}" value="${dflt}">`;
+      <input type="range" id="wsRange" min="0" max="${Math.max(0, S.length - 1)}" step="1" value="${di}">`;
     el.appendChild(sl);
-    sl.querySelector("#wsRange").addEventListener("input", ev => applyLevel(+ev.target.value));
-    ov.defaultLevel = dflt;
+    sl.querySelector("#wsRange").addEventListener("input", ev => {
+      const st = S[+ev.target.value]; if (st) applyLevel(st.level);
+    });
+    ov.defaultLevel = S[di] ? S[di].level : R.primary.level;
 
     /* the stage–storage chart */
     const ch = document.createElement("div");
@@ -869,11 +979,19 @@ SBMM.water = (function () {
     el.appendChild(btns);
 
     SBMM.results.appendNote(el,
-      "Static spill analysis on the " + grid + " lidar bare earth: the water surface is the "
-      + "lidar's flat return over the pond (" + fmt(R.z0, 1) + " ft), the spill is the lowest rim "
+      "Static spill analysis on the " + grid + " lidar bare earth: "
+      + (F && F.waterLevel != null
+        ? "today's water surface is the surveyed level (Jacobs, Aug 2026, " + fmt(R.z0, 2) + " ft) over the lidar's "
+          + "water footprint (its flat return read " + fmt(R.z0_lidar != null ? R.z0_lidar : R.z0, 2) + " ft in Jan 2024); "
+          + "the first discharge is the surveyed 24-in pipes, the rim spill is the lidar's; "
+          + "the sandbag wall beside the pipes is surveyed at " + fmt(F.wallCrest, 2) + " ft, the lidar rim there reads higher (rim low ②) — "
+          + "the survey is the current truth for the wall itself. "
+        : "the water surface is the lidar's flat return over the pond (" + fmt(R.z0, 1) + " ft), ")
+      + "the spill is the lowest rim "
       + "cell from which water drains away (pit-filled DEM), storage is geometric. Above the spill "
       + "the table describes a sealed flood — what would happen if the low rim at ① were raised. "
-      + "No inflow, wave run-up, seepage or erosion — planning-level.");
+      + "No inflow, wave run-up, seepage or erosion — planning-level."
+      + (F ? " Surveyed levels are used where they exist; the lidar supplies the terrain." : ""));
   }
 
   function toggleOverlay(btn) {
@@ -894,11 +1012,12 @@ SBMM.water = (function () {
     const W = 300, H = 110, L = 30, Rr = 32, T = 8, B = 18;
     const pw = W - L - Rr, ph = H - T - B;
     const l0 = S[0].level, l1 = S[S.length - 1].level;
-    let aMax = 0, sMax = 0;
-    for (const s of S) { aMax = Math.max(aMax, acft(s.area_ft2)); sMax = Math.max(sMax, acft(s.storage_ft3)); }
+    let aMax = 0, aMin = Infinity, sMax = 0;
+    for (const s of S) { aMax = Math.max(aMax, acft(s.area_ft2)); aMin = Math.min(aMin, acft(s.area_ft2)); sMax = Math.max(sMax, acft(s.storage_ft3)); }
     aMax = aMax || 1; sMax = sMax || 1;
+    if (!isFinite(aMin) || aMax - aMin < 1e-9) aMin = 0;
     const X = l => L + pw * (l - l0) / ((l1 - l0) || 1);
-    const Ya = a => T + ph * (1 - a / aMax);
+    const Ya = a => T + ph * (1 - (a - aMin) / (aMax - aMin || 1));
     const Ys = s => T + ph * (1 - s / sMax);
     let ps = "", pa = "";
     S.forEach(s => {
@@ -906,15 +1025,28 @@ SBMM.water = (function () {
       pa += (pa ? " L" : "M") + ` ${X(s.level).toFixed(1)} ${Ya(acft(s.area_ft2)).toFixed(1)}`;
     });
     const xs = X(R.primary.level);
-    return `<svg viewBox="0 0 ${W} ${H}" class="axis stagechart">
+    /* the surveyed stages (spec §10): dashed rules at the pipe invert and the
+       sandbag crest, labelled so the chart reads as the sequence of events */
+    let rules = "";
+    const F = ov && ov.facts;
+    if (F) {
+      const marks = [[F.pipeInvert, "pipes"], [F.wallCrest, "crest"]];
+      for (const [lv, lab] of marks) {
+        if (lv == null || lv < l0 || lv > l1) continue;
+        const xr = X(lv).toFixed(1);
+        rules += `<line x1="${xr}" x2="${xr}" y1="${T}" y2="${T + ph}" stroke="${C.drop}" stroke-width="1" stroke-dasharray="3 3"/>`
+          + `<text x="${(+xr + 3).toFixed(1)}" y="${T + ph - 3}" fill="${C.drop}">${lab}</text>`;
+      }
+    }
+    return `<svg viewBox="0 0 ${W} ${H}" class="axis stagechart">${rules}
       <line class="gridl" x1="${L}" x2="${W - Rr}" y1="${T}" y2="${T}"/>
       <line class="gridl" x1="${L}" x2="${W - Rr}" y1="${T + ph}" y2="${T + ph}"/>
       <path d="${pa}" fill="none" stroke="${C.drop}" stroke-width="1.3" stroke-dasharray="4 3"/>
       <path d="${ps}" fill="none" stroke="${C.line}" stroke-width="1.6"/>
       <line x1="${xs.toFixed(1)}" x2="${xs.toFixed(1)}" y1="${T}" y2="${T + ph}" stroke="${C.spill}" stroke-width="1"/>
       <text x="${(xs + 3).toFixed(1)}" y="${T + 9}" fill="${C.spill}">spill</text>
-      <text x="${L - 3}" y="${T + 8}" text-anchor="end">${fmt(aMax, 0)}</text>
-      <text x="${L - 3}" y="${T + ph}" text-anchor="end">ac</text>
+      <text x="${L - 3}" y="${T + 8}" text-anchor="end">${fmt(aMax, 1)}</text>
+      <text x="${L - 3}" y="${T + ph}" text-anchor="end">${fmt(aMin, 1)} ac</text>
       <text x="${W - Rr + 3}" y="${T + 8}">${fmt(sMax, 0)}</text>
       <text x="${W - Rr + 3}" y="${T + ph}">ac-ft</text>
       <text x="${L}" y="${H - 4}">${fmt(l0, 1)}</text>
@@ -991,7 +1123,7 @@ SBMM.water = (function () {
     });
   }
 
-  return {
+  return { surveyFacts,
     wire, dropAt, mkFlow, buildFlow, retrace, catchment, makeProfile,
     overtop, overtopHerman, overtopAt, clearOvertop, drapeSpec, active,
     refreshLabels, fillFlowCard, endSentence, endShort, pickPond,

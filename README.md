@@ -18,6 +18,20 @@ network needed.
 > so double-clicking just works. There is also real error reporting now: if something does
 > fail, the loader says what and why instead of spinning forever.
 
+## Opening it — the password screen
+
+The app asks for a password before it shows anything. Type it, press **Enter**, and the
+survey drawing on the screen floods and the site surfaces up through it. Your browser
+remembers the unlock for 30 days; typing `LOCK` (or `LOGOUT`) in the command bar forgets
+it and puts the screen back up — useful before handing your laptop to someone.
+
+This is a **deterrent, not security**, and it is not pretending otherwise: everything the
+app needs is inside the file the browser opens, so the check lives there too. What it does
+is stop the file being used by whoever it reaches sideways. The password itself is not
+written anywhere in this repository except the private handover note; the app stores only a
+SHA-256 of it, so a forgotten password is replaced (`python tools/set_password.py "New"`),
+never recovered.
+
 ## What it does
 
 **One workbench, organised by what you are doing.** The top bar carries the tools as
@@ -654,6 +668,13 @@ clearing quantity by a tenth, so both are carried and the card says which is whi
 
 ## Water — raindrop and overtopping
 
+> **Herman Impoundment, with the survey in.** Today's water is the surveyed **1,336.45 ft**
+> (Aug 2026). The first discharge is not the rim: it is the two 24-in pipes at invert
+> **1,341.55 ft**, 5.10 ft up and 109 ac-ft away. The sandbag crest beside them is 1,343.54;
+> the lidar rim spills at **1,343.84 ft**, 7.39 ft up and 161 ac-ft away, and the overflow
+> runs 966 ft west to Clear Lake. The card shows all three stages, the slider snaps to them,
+> and each has its own route.
+
 Two static terrain analyses over the same January-2024 lidar bare earth the volumes come
 from. Neither is hydraulics: there is no rainfall, runoff, infiltration, seepage, wave
 run-up or time anywhere in either of them. They say what the ground shape implies, at
@@ -697,6 +718,16 @@ Two actions on the card go further: **profile** turns the run into an ordinary e
 profile feature with the interactive chart, and **catchment** floods upslope on the
 pit-filled DEM to give everything that drains to the drop. A catchment that reaches the
 edge of its window is reported as a lower bound and says so.
+
+### The August-2026 survey
+
+A Jacobs limited topographic survey of the Herman Impoundment water level, the two 24-inch
+corrugated HDPE discharge pipes and their inverts, the sandbag wall beside them (top and
+toe) and the Northwest Pit low is in the app: its 24 shots as the **Survey — Aug 2026**
+dataset under Investigations, its linework (pipes, wall, pit contours) as five rows of its
+own, snappable, draped in 3D and exported with everything else. The plot was placed from its
+own tabulated points to 0.01–0.02 ft (`tools/build_survey_2026.py`). Click a pipe for its
+invert and **trace discharge** — where water leaving the pipe runs.
 
 ### Overtopping (`OVERTOP`, the Water ▾ menu, or a water polygon's popup)
 

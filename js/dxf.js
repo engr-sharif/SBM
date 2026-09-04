@@ -105,6 +105,9 @@ SBMM.dxf = (function () {
        Civil 3D user gets the limits of excavation back as real linework */
     const dgis = SBMM.designGIS ? SBMM.designGIS.dxfEntities() : [];
     for (const d of dgis) layers.set(d.layer, toACI(d.color));
+    /* the August-2026 survey linework on SURVEY-* layers */
+    const dsurv = SBMM.survey ? SBMM.survey.dxfEntities() : [];
+    for (const d of dsurv) layers.set(d.layer, toACI(d.color));
 
     /* extents */
     let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
@@ -116,7 +119,7 @@ SBMM.dxf = (function () {
       if (p.x < x0) x0 = p.x; if (p.x > x1) x1 = p.x;
       if (p.y < y0) y0 = p.y; if (p.y > y1) y1 = p.y;
     }
-    for (const d of dgis) for (const p of (d.pts || [d.point])) {
+    for (const d of [...dgis, ...dsurv]) for (const p of (d.pts || [d.point])) {
       if (p[0] < x0) x0 = p[0]; if (p[0] > x1) x1 = p[0];
       if (p[1] < y0) y0 = p[1]; if (p[1] > y1) y1 = p[1];
     }
@@ -147,7 +150,7 @@ SBMM.dxf = (function () {
       w(0, "POINT"); w(8, d.layer); w(10, N(p.x)); w(20, N(p.y)); w(30, "0.0");
       text(w, d.layer, [p.x + 3, p.y + 3], 6, p.id, 0);
     }
-    for (const d of dgis) {
+    for (const d of [...dgis, ...dsurv]) {
       if (d.point) { w(0, "POINT"); w(8, d.layer); w(10, N(d.point[0])); w(20, N(d.point[1])); w(30, "0.0"); }
       else if (d.pts && d.pts.length > 1) polyline(w, d.layer, d.pts, !!d.closed);
     }

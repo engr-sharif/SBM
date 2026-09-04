@@ -107,6 +107,11 @@ SBMM.snap = (function () {
         for (const r of dg.rings) addPath(statix, r, true);
         for (const q of dg.pts) addPt(statix, q[0], q[1]);
       }
+      /* the surveyed pipes, sandbag wall and pit contours (spec §10) */
+      if (SBMM.survey) {
+        const sv = SBMM.survey.snapPaths();
+        for (const r of sv.rings) addPath(statix, r, false);
+      }
       /* EA design boundaries snap like any other project linework */
       if (SBMM.designEA) {
         const dz = SBMM.designEA.snapPaths();

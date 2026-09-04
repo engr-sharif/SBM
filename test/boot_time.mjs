@@ -17,6 +17,7 @@ import { chromium } from "playwright";
 import { pathToFileURL as __furl } from "node:url";
 import { resolve as __res } from "node:path";
 import { existsSync as __ex } from "node:fs";
+import { unlock } from "./gate.mjs";
 const CHROME = process.env.CHROME_BIN || (__ex("/opt/pw-browsers/chromium-1194/chrome-linux/chrome") ? "/opt/pw-browsers/chromium-1194/chrome-linux/chrome" : undefined); // undefined = Playwright's own chromium (npx playwright install chromium)
 
 const target = process.argv[2] || "/home/claude/repo/index.html";
@@ -32,6 +33,7 @@ for (let i = 0; i < runs; i++) {
   const page = await browser.newPage({ viewport: { width: 1600, height: 1000 } });
   page.setDefaultTimeout(300000);
   const t0 = Date.now();
+  await unlock(page);  /* the password gate — see test/gate.mjs */
   await page.goto(__furl(__res(target)).href);
   await page.waitForSelector("#loading", { state: "hidden", timeout: 300000 });
   await page.click('.toolbtn[data-mode="measure.area"]');

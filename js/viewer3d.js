@@ -602,6 +602,15 @@ SBMM.viewer3d = (function () {
         overlayGroup.add(o);
       }
     }
+    /* the August-2026 survey linework (spec §10): the pipes, the sandbag wall
+       and the pit contours, draped like the design polygons and pickable */
+    if (SBMM.survey && SBMM.survey.lines3d) {
+      for (const r of SBMM.survey.lines3d()) {
+        const o = drapedLine(r.ring, new THREE.Color(r.color).getHex(), false, r.width || 2);
+        o.userData.pick = { kind: "gis", props: r.props, geom: r.geom };
+        overlayGroup.add(o);
+      }
+    }
     /* EA native CAD design linework. designgis owns the authoritative polygons;
        these are the drafted lines around them, and they were previously visible
        in 2D only — which meant clicking one in 3D found nothing at all. */

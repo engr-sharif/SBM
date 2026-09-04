@@ -4,6 +4,7 @@ import { chromium } from "playwright";
 import { pathToFileURL as __furl } from "node:url";
 import { resolve as __res } from "node:path";
 import { existsSync as __ex } from "node:fs";
+import { unlock, gatePassword } from "./gate.mjs";
 const CHROME = process.env.CHROME_BIN || (__ex("/opt/pw-browsers/chromium-1194/chrome-linux/chrome") ? "/opt/pw-browsers/chromium-1194/chrome-linux/chrome" : undefined); // undefined = Playwright's own chromium (npx playwright install chromium)
 
 const target = process.argv[2]; // path to index.html or dist html
@@ -21,6 +22,7 @@ page.on("pageerror", e => errors.push("pageerror: " + e.message));
 page.on("console", m => { if (m.type() === "error") errors.push("console: " + m.text()); });
 
 console.log(`\n=== ${label} ===`);
+await unlock(page);  /* the password gate — see test/gate.mjs */
 await page.goto(__furl(__res(target)).href);
 
 /* 1. boot completes (the old app hung here forever) */
@@ -31,6 +33,100 @@ await page.waitForSelector("#loading", { state: "hidden", timeout: 60000 })
     process.exit(1);
   });
 console.log("boot: OK (loader cleared)");
+
+/* 1a. THE PASSWORD GATE (v9.3).
+   A second page, opened with no unlock token, so it meets the gate the way a
+   colleague would. The gate must cover at z 9000, must let neither a keystroke
+   nor a map click through to the app booting underneath it, must refuse a wrong
+   password, and must let the right one in and then take itself out of the DOM.
+   The password is not written in this file: test/gate.mjs reads it out of the
+   one place the repo documents it and checks it against js/gate.js's hash. */
+{
+  const gp = await browser.newPage({ viewport: { width: 1280, height: 860 } });
+  gp.setDefaultTimeout(180000);
+  const gerr = [];
+  gp.on("pageerror", e => gerr.push("pageerror: " + e.message));
+  gp.on("console", m => { if (m.type() === "error") gerr.push("console: " + m.text()); });
+  await gp.goto(__furl(__res(target)).href);           // deliberately NOT unlocked
+  await gp.waitForSelector("#gate", { timeout: 60000 });
+
+  const g0 = await gp.evaluate(() => {
+    const g = document.getElementById("gate"), r = g.getBoundingClientRect();
+    return {
+      z: getComputedStyle(g).zIndex,
+      covers: r.width >= innerWidth - 1 && r.height >= innerHeight - 1 && r.top <= 0 && r.left <= 0,
+      field: !!document.getElementById("gateCv"),
+      foot: (document.querySelector("#gateCard .gfoot") || {}).textContent,
+      locked: SBMM.gate.locked(),
+      token: localStorage.getItem("sbmm.gate.v1")
+    };
+  });
+  console.log("gate: shown | z:", g0.z, "| covers viewport:", g0.covers,
+              "| contour field:", g0.field, "| locked:", g0.locked);
+  if (!g0.locked || !g0.covers || g0.z !== "9000" || !g0.field) {
+    console.log("FAIL: the gate is not a full-viewport cover at z 9000", g0); process.exit(1); }
+  if (g0.foot !== "Developed by Mo Sharif 2026. All rights reserved.") {
+    console.log("FAIL: gate footer line is", JSON.stringify(g0.foot)); process.exit(1); }
+  if (g0.token) { console.log("FAIL: an unlock token existed before anyone unlocked"); process.exit(1); }
+
+  /* the app keeps booting underneath the gate — the gate covers, it does not pause */
+  await gp.waitForSelector("#loading", { state: "hidden", timeout: 180000 });
+
+  /* nothing reaches the app while it is locked */
+  await gp.evaluate(() => {
+    window.__mapClicks = 0;
+    SBMM.map.on("click", () => window.__mapClicks++);
+    /* the command bar opens itself on a browser's FIRST visit (cmdline.js), and this
+       page is always a first visit — close it, so "did ` reopen it" means something */
+    SBMM.cmd.open(false);
+  });
+  await gp.keyboard.press("3");          // would open 3D
+  await gp.keyboard.press("`");          // would open the command bar
+  await gp.mouse.click(700, 470);        // would reach the map
+  await gp.waitForTimeout(600);
+  const g1 = await gp.evaluate(() => ({
+    open3d: SBMM.viewer3d.isOpen(),
+    cmdOpen: document.body.classList.contains("cmdopen"),
+    mapClicks: window.__mapClicks,
+    gate: !!document.getElementById("gate")
+  }));
+  console.log("gate blocks: 3D open:", g1.open3d, "| command bar open:", g1.cmdOpen,
+              "| map clicks:", g1.mapClicks, "| gate still up:", g1.gate);
+  if (g1.open3d || g1.cmdOpen || g1.mapClicks !== 0 || !g1.gate) {
+    console.log("FAIL: input reached the app while the gate was up", g1); process.exit(1); }
+
+  /* a wrong password is refused, quietly */
+  await gp.fill("#gatePw", "sulphurbank");
+  await gp.click("#gateGo");
+  await gp.waitForTimeout(700);
+  const g2 = await gp.evaluate(() => ({
+    gate: !!document.getElementById("gate"),
+    msg: (document.getElementById("gateMsg") || {}).textContent,
+    val: (document.getElementById("gatePw") || {}).value,
+    shook: !!document.querySelector("#gateCard.shake"),
+    token: localStorage.getItem("sbmm.gate.v1")
+  }));
+  console.log("wrong password:", JSON.stringify(g2.msg), "| field cleared:", g2.val === "",
+              "| shaken:", g2.shook, "| gate still up:", g2.gate);
+  if (!g2.gate || g2.val !== "" || !g2.shook || g2.token || !/that is not it/.test(g2.msg || "")) {
+    console.log("FAIL: a wrong password was not refused properly", g2); process.exit(1); }
+
+  /* the right one lets you in, and the gate leaves */
+  await gp.fill("#gatePw", gatePassword());
+  await gp.keyboard.press("Enter");
+  await gp.waitForFunction(() => !document.getElementById("gate"), null, { timeout: 2000 })
+    .catch(() => { console.log("FAIL: the gate was still in the DOM 2 s after the right password"); process.exit(1); });
+  const g3 = await gp.evaluate(() => {
+    let t = null; try { t = JSON.parse(localStorage.getItem("sbmm.gate.v1") || "null"); } catch (e) {}
+    return { token: !!(t && t.h && t.t), locked: SBMM.gate.locked(),
+             gate: !!document.getElementById("gate"), stage: !!document.getElementById("map") };
+  });
+  console.log("unlocked: gate removed:", !g3.gate, "| token stored:", g3.token, "| locked:", g3.locked);
+  if (g3.gate || !g3.token || g3.locked || !g3.stage) {
+    console.log("FAIL: unlock did not complete cleanly", g3); process.exit(1); }
+  if (gerr.length) { console.log("FAIL: errors on the gate page:", gerr.slice(0, 5)); process.exit(1); }
+  await gp.close();
+}
 
 /* 2. core readouts */
 const checks = await page.evaluate(() => {
@@ -2701,15 +2797,19 @@ await page.evaluate(() => { SBMM.map.closePopup(); });
 
 /* --- 4. the overtopping analysis (§9.2) ------------------------------ */
 const wover = await page.evaluate(async () => {
-  const R = await SBMM.water.overtopHerman();
+  /* survey:false — this block checks the pure-lidar §9.2 reference; the
+     surveyed stages (spec §10) are checked in block 9v below */
+  const R = await SBMM.water.overtopHerman({ survey: false });
   if (!R) return { err: "overtopHerman returned nothing" };
   const route = SBMM.store.features.find(f => f.type === "flow" && /overflow route/.test(f.name));
   const pool = SBMM.store.features.find(f => f.type === "area" && /at spill/.test(f.name));
   const sl = document.getElementById("wsRange");
   const before = { route: route ? route.visible : null,
                    label: (document.querySelector(".wslabel") || {}).textContent || "" };
-  /* below the spill the route is hidden; back at the spill it returns */
-  sl.value = String(R.z0 + 1);
+  /* below the spill the route is hidden; back at the spill it returns. The
+     slider walks the stage table by index (spec §10), so "z0 + 1 ft" is the
+     index of the first row at or above that level */
+  sl.value = String(Math.max(0, R.stage.findIndex(st => st.level >= R.z0 + 1 - 1e-9)));
   sl.dispatchEvent(new Event("input"));
   await new Promise(r => setTimeout(r, 120));
   const low = { route: route ? route.visible : null,
@@ -2726,6 +2826,7 @@ const wover = await page.evaluate(async () => {
     clusters: R.clusters.map(c => ({ rank: c.rank, level: c.level, above: c.above_ft,
                                      at: [c.x, c.y], cells: c.cells })),
     stage: R.stage.length, reason: R.reason,
+    sliderLevel: (R.stage[+sl.getAttribute("value")] || {}).level,
     band: !!(R.band && R.band.v), spillCells: R.spillMask
       ? R.spillMask.v.reduce((n, v) => n + (v ? 1 : 0), 0) : 0,
     overlay: !!document.querySelector(".leaflet-pane img.leaflet-image-layer"),
@@ -2779,13 +2880,15 @@ if (wover.markers !== wover.clusters.length || !wover.priPulse)
   { console.log("FAIL: the ranked rim markers are missing"); process.exit(1); }
 if (wover.rimRows !== wover.clusters.length || !wover.chart)
   { console.log("FAIL: the card is missing the rim-lows table or the stage chart"); process.exit(1); }
-if (!wover.slider || Math.abs(wover.slider.min - wover.z0) > 1e-6
-    || Math.abs(wover.slider.step - 0.25) > 1e-9
-    || wover.slider.val < wover.spill || wover.slider.val > wover.spill + 0.25 + 1e-9)
-  { console.log("FAIL: the level slider is wrong:", JSON.stringify(wover.slider)); process.exit(1); }
+/* the slider is index-based over the stage table (spec §10): 0 .. rows-1, step 1,
+   defaulting to the first row at or above the spill */
+if (!wover.slider || wover.slider.min !== 0 || wover.slider.step !== 1
+    || wover.slider.max !== wover.stage - 1
+    || wover.sliderLevel == null || wover.sliderLevel < wover.spill - 1e-6 || wover.sliderLevel > wover.spill + 0.25 + 1e-9)
+  { console.log("FAIL: the level slider is wrong:", JSON.stringify(wover.slider), wover.sliderLevel); process.exit(1); }
 if (wover.before.route !== true || wover.low.route !== false || wover.back.route !== true)
   { console.log("FAIL: the slider must hide the overflow route below the spill and show it at it"); process.exit(1); }
-if (!/no overflow/.test(wover.low.label) || !/OVERFLOWS/.test(wover.back.label))
+if (!/no (overflow|discharge)/.test(wover.low.label) || !/OVERFLOWS/.test(wover.back.label))
   { console.log("FAIL: the slider label does not say whether it overflows:", wover.low.label, "|", wover.back.label); process.exit(1); }
 if (!wover.route) { console.log("FAIL: no overflow route feature was created"); process.exit(1); }
 if (wover.route.reason !== WREF.routeReason)
@@ -2888,6 +2991,110 @@ if (!wchain.hops || wchain.grids.length < 1)
 if (errors.length !== errBeforeWater) {
   console.log("FAIL: page errors during the water block:",
               errors.slice(errBeforeWater, errBeforeWater + 6)); process.exit(1);
+}
+
+/* ==================================================================== */
+/* 9v. the August-2026 survey (docs/V10_WATER_SPEC.md §10)               */
+/*                                                                       */
+/* The survey payload and its dataset load; the pipes carry their inverts;*/
+/* and the Herman analysis uses the surveyed water surface as today's    */
+/* level with the pipe invert and the sandbag crest as exact stages,     */
+/* ahead of the lidar rim spill. Reference numbers: the planner's Python */
+/* over the same grid (survey_stage_ref): pipe 1341.55 -> 109.16 ac-ft,  */
+/* crest 1343.54 -> 153.84, spill 1343.84 -> 160.67; freeboard 7.39.     */
+/* ==================================================================== */
+const errBeforeSurvey = errors.length;
+const survey = await page.evaluate(async () => {
+  const out = {};
+  const D = SBMM_DATA.survey_2026;
+  out.layers = D && D.layers ? D.layers.length : 0;
+  out.features = D && D.features ? D.features.length : 0;
+  out.rowsOn = (D ? D.layers : []).filter(l => SBMM.layerState.isOn("invest", "survey_" + l.key)).length;
+  out.subHeader = [...document.querySelectorAll("#investLayers .lsub")].some(h => /Survey/.test(h.textContent));
+  const ds = (SBMM_DATA.datasets || []).find(d => d.id === "survey_2026");
+  out.points = ds ? ds.points.length : 0;
+  const wl = ds && ds.points.find(p => p.id === "Water Level");
+  out.waterLevel = wl ? [wl.x, wl.y, wl.a.elevation] : null;
+  const pipeN = D.features.find(f => f.properties.layer === "survey_pipe" && /North/.test(f.properties.name));
+  out.pipePopup = pipeN ? SBMM.popups.forGis(pipeN.properties, pipeN.geometry) : "";
+  out.outlet = SBMM.survey.pipeOutlet();
+  out.geo = SBMM.survey.geoFeatures(p => p).length;
+  out.dxf = new Set(SBMM.survey.dxfEntities().map(e => e.layer)).size;
+  out.snap = SBMM.survey.snapPaths().rings.length;
+  /* the Herman analysis with the surveyed stages */
+  const ring = SBMM_DATA.design_gis.features.find(f => f.properties.name === "Herman Impoundment").geometry.coordinates[0];
+  out.facts = SBMM.water.surveyFacts(ring);
+  const R = await SBMM.water.overtop({ ring, name: "Herman Impoundment" });
+  await new Promise(r => setTimeout(r, 400));
+  out.z0 = R.z0; out.z0lidar = R.z0_lidar; out.spill = R.primary.level; out.freeboard = R.freeboard_ft;
+  out.storageSpill = R.storage_ft3;
+  const st = lv => R.stage.find(s => Math.abs(s.level - lv) < 1e-6);
+  out.pipeStage = st(1341.55) ? { storage: st(1341.55).storage_ft3, area: st(1341.55).area_ft2, extra: !!st(1341.55).extra } : null;
+  out.crestStage = st(1343.54) ? { storage: st(1343.54).storage_ft3, extra: !!st(1343.54).extra } : null;
+  const card = [...document.querySelectorAll("#resBody .res")].find(c => /Overtopping/.test(c.textContent));
+  out.cardText = card ? card.textContent : "";
+  out.pipeRoute = SBMM.store.features.filter(f => f.type === "flow" && /pipe discharge route/.test(f.name)).map(f => ({ len: f.props.length_ft, reason: f.props.end.reason }));
+  out.pipeMarker = document.querySelectorAll(".spillmk.pipe").length;
+  const sl = card && card.querySelector("#wsRange");
+  out.sliderMax = sl ? +sl.max : -1; out.sliderVal = sl ? +sl.value : -1;
+  /* the slider walks the stage table: the pipe row must be reachable exactly */
+  const idx = R.stage.findIndex(s => Math.abs(s.level - 1341.55) < 1e-6);
+  if (sl && idx >= 0) { sl.value = idx; sl.dispatchEvent(new Event("input")); }
+  await new Promise(r => setTimeout(r, 200));
+  out.labelAtPipe = card ? card.querySelector(".wslabel").textContent : "";
+  /* the LAST of each: the lidar-only block above left its own overflow route
+     behind (features survive clearOvertop by design) */
+  const flows = SBMM.store.features.filter(f => f.type === "flow");
+  const pr = flows.filter(f => /pipe discharge route/.test(f.name)).pop();
+  const orr = flows.filter(f => /overflow route/.test(f.name)).pop();
+  out.pipeRouteShownAtPipe = pr ? pr.visible !== false : null;
+  out.overflowShownAtPipe = orr ? orr.visible !== false : null;
+  SBMM.water.clearOvertop();
+  await new Promise(r => setTimeout(r, 200));
+  return out;
+});
+console.log("survey 2026:", JSON.stringify({ layers: survey.layers, features: survey.features, rowsOn: survey.rowsOn,
+  subHeader: survey.subHeader, points: survey.points, waterLevel: survey.waterLevel, outlet: survey.outlet,
+  geo: survey.geo, dxfLayers: survey.dxf, snap: survey.snap, facts: survey.facts && { wl: survey.facts.waterLevel,
+  pipe: survey.facts.pipeInvert, crest: survey.facts.wallCrest } }));
+console.log("Herman with the survey:", JSON.stringify({ z0: survey.z0, z0lidar: survey.z0lidar, spill: survey.spill,
+  freeboard: survey.freeboard, storageSpillAcft: +(survey.storageSpill / 43560).toFixed(2),
+  pipeStage: survey.pipeStage && { acft: +(survey.pipeStage.storage / 43560).toFixed(2), ac: +(survey.pipeStage.area / 43560).toFixed(2), extra: survey.pipeStage.extra },
+  crestStage: survey.crestStage && { acft: +(survey.crestStage.storage / 43560).toFixed(2), extra: survey.crestStage.extra },
+  pipeRoute: survey.pipeRoute, pipeMarker: survey.pipeMarker, slider: [survey.sliderVal, survey.sliderMax],
+  labelAtPipe: survey.labelAtPipe, pipeRouteShownAtPipe: survey.pipeRouteShownAtPipe, overflowShownAtPipe: survey.overflowShownAtPipe }));
+if (survey.layers !== 5 || survey.features !== 30 || survey.rowsOn !== 5 || !survey.subHeader)
+  { console.log("FAIL: the survey payload did not build its five rows"); process.exit(1); }
+if (survey.points !== 24 || !survey.waterLevel || Math.abs(survey.waterLevel[0] - 6372119.56) > 0.01
+    || Math.abs(survey.waterLevel[1] - 2127446.20) > 0.01 || Math.abs(survey.waterLevel[2] - 1336.45) > 1e-9)
+  { console.log("FAIL: the survey dataset is missing or its water-level shot is wrong"); process.exit(1); }
+if (!/1,?341\.57/.test(survey.pipePopup) || !/trace discharge/.test(survey.pipePopup))
+  { console.log("FAIL: the pipe popup does not carry the invert and the discharge action"); process.exit(1); }
+if (!survey.outlet || Math.abs(survey.outlet[0] - 6372025.33) > 3 || Math.abs(survey.outlet[1] - 2127481.72) > 3)
+  { console.log("FAIL: pipe outlet is not the plotted west end"); process.exit(1); }
+if (survey.geo !== 30 || survey.dxf < 4 || survey.snap !== 30) { console.log("FAIL: survey export/snap paths"); process.exit(1); }
+if (!survey.facts || Math.abs(survey.facts.pipeInvert - 1341.55) > 1e-9 || Math.abs(survey.facts.wallCrest - 1343.54) > 1e-9)
+  { console.log("FAIL: survey facts not read from the dataset"); process.exit(1); }
+if (Math.abs(survey.z0 - 1336.45) > 1e-6 || Math.abs(survey.z0lidar - 1336.58) > 0.02)
+  { console.log("FAIL: the Herman analysis did not take the surveyed water surface"); process.exit(1); }
+if (Math.abs(survey.spill - 1343.84) > 0.05 || Math.abs(survey.freeboard - 7.39) > 0.05)
+  { console.log("FAIL: rim spill / freeboard from the surveyed water"); process.exit(1); }
+if (Math.abs(survey.storageSpill / 43560 - 160.67) > 160.67 * 0.01) { console.log("FAIL: storage to spill from the surveyed water"); process.exit(1); }
+if (!survey.pipeStage || !survey.pipeStage.extra || Math.abs(survey.pipeStage.storage / 43560 - 109.16) > 109.16 * 0.01
+    || Math.abs(survey.pipeStage.area / 43560 - 22.18) > 22.18 * 0.01)
+  { console.log("FAIL: the pipe stage row"); process.exit(1); }
+if (!survey.crestStage || !survey.crestStage.extra || Math.abs(survey.crestStage.storage / 43560 - 153.84) > 153.84 * 0.01)
+  { console.log("FAIL: the sandbag crest stage row"); process.exit(1); }
+for (const t of ["surveyed, Aug 2026", "First discharge", "1,341.55", "Sandbag wall crest", "1,343.54", "Rim spill", "Pipe discharge route"])
+  if (!survey.cardText.includes(t)) { console.log("FAIL: the Herman card lacks '" + t + "'"); process.exit(1); }
+if (survey.pipeRoute.length !== 1 || !(survey.pipeRoute[0].len > 50)) { console.log("FAIL: no pipe discharge route"); process.exit(1); }
+if (survey.pipeMarker !== 1) { console.log("FAIL: no pipe marker"); process.exit(1); }
+if (!/discharging through the 24-in pipes/.test(survey.labelAtPipe) || !/surveyed stage/.test(survey.labelAtPipe))
+  { console.log("FAIL: the slider label at the pipe stage: " + survey.labelAtPipe); process.exit(1); }
+if (survey.pipeRouteShownAtPipe !== true || survey.overflowShownAtPipe !== false)
+  { console.log("FAIL: route visibility at the pipe stage (pipe route on, rim overflow off)"); process.exit(1); }
+if (errors.length !== errBeforeSurvey) {
+  console.log("FAIL: page errors during the survey block:", errors.slice(errBeforeSurvey, errBeforeSurvey + 6)); process.exit(1);
 }
 
 /* ==================================================================== */
@@ -3318,7 +3525,8 @@ console.log(`well ground elevation vs the 2024 lidar DEM: n=${seeds.demChecked} 
 if (seeds.wells < 90 || seeds.borings < 40) { console.log("FAIL: seed datasets did not load"); process.exit(1); }
 if (!seeds.wellsInSite || !seeds.boringsInSite) { console.log("FAIL: a seeded point is outside the site window"); process.exit(1); }
 if (!(seeds.demMed < 3)) { console.log("FAIL: well coordinates disagree with the terrain — median", seeds.demMed, "ft"); process.exit(1); }
-if (seeds.rows !== 2 || seeds.tabs !== 3) { console.log("FAIL: dataset rows/tabs not built"); process.exit(1); }
+/* three baked datasets since the August-2026 survey (spec §10): wells, borings, survey */
+if (seeds.rows !== 3 || seeds.tabs !== 4) { console.log("FAIL: dataset rows/tabs not built (expected 3 datasets, 4 tabs)"); process.exit(1); }
 
 /* import a synthetic CSV through the real file path: a File -> FileReader ->
    the mapping dialog -> "Add to map". Deliberately headed N/E rather than X/Y,

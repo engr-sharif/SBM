@@ -10,6 +10,7 @@ import { chromium } from "playwright";
 import { pathToFileURL as __furl } from "node:url";
 import { resolve as __res } from "node:path";
 import { existsSync as __ex } from "node:fs";
+import { unlock } from "./gate.mjs";
 const CHROME = process.env.CHROME_BIN || (__ex("/opt/pw-browsers/chromium-1194/chrome-linux/chrome") ? "/opt/pw-browsers/chromium-1194/chrome-linux/chrome" : undefined);
 
 const target = process.argv[2] || "/home/user/SBM/index.html";
@@ -18,6 +19,7 @@ const browser = await chromium.launch({ executablePath: CHROME });
 const page = await browser.newPage({ viewport: { width: 1600, height: 1000 } });
 page.setDefaultTimeout(180000);
 page.on("pageerror", e => console.log("PAGEERROR", e.message));
+await unlock(page);  /* the password gate — see test/gate.mjs */
 await page.goto(__furl(__res(target)).href);
 await page.waitForSelector("#loading", { state: "hidden", timeout: 240000 });
 const wait = ms => page.waitForTimeout(ms);
@@ -114,5 +116,22 @@ console.log("3D drape:", JSON.stringify(await page.evaluate(() => {
   return { waterDraped: s.waterDraped, sceneObjects: s.sceneObjects };
 })));
 await shot("water_overtop_3d");
+
+/* spec §10.6: the surveyed pipes, the sandbag wall and the pipe-stage marker at
+   the impoundment's south rim, 2D */
+await page.evaluate(async () => {
+  if (SBMM.viewer3d.isOpen()) SBMM.viewer3d.toggle();
+  await new Promise(r => setTimeout(r, 600));
+  const ring = SBMM_DATA.design_gis.features.find(f => f.properties.name === "Herman Impoundment").geometry.coordinates[0];
+  await SBMM.water.overtop({ ring, name: "Herman Impoundment" });
+  const card = [...document.querySelectorAll("#resBody .res")].find(c => /Overtopping/.test(c.textContent));
+  const sl = card && card.querySelector("#wsRange");
+  const R = SBMM.water.active();
+  const idx = R.stage.findIndex(s => Math.abs(s.level - 1341.55) < 1e-6);
+  if (sl && idx >= 0) { sl.value = idx; sl.dispatchEvent(new Event("input")); }
+  SBMM.map.setView([2127488, 6372040], 3);
+});
+await page.waitForTimeout(2500);
+await shot("water_survey");
 
 await browser.close();
