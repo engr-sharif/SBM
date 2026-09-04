@@ -543,3 +543,101 @@ named "Herman Impoundment" in `data/design_gis.json` (551 vertices).
 | ponds on the route ≥ 0.25 ft | 14 (the reference JSON carries all of them); the two real ones: level 1339.54 / 1.42 ft / 317 cells / 804 ft³ and 1337.24 / 1.56 ft / 367 cells / 1,307 ft³ | count ±1, levels ±0.03 |
 
 The full stage table (every 0.25 ft from 1336.58 to 1346.83) is in the JSON.
+
+
+---------------------------------------------------------------------------
+
+## 10. The August-2026 survey (added 2026-09-04) — Agent C
+
+The user's team surveyed the Herman Impoundment water level, the two 24-inch
+corrugated HDPE discharge pipes and their inverts, the sandbag wall beside
+them (top and toe), the Northwest Pit low (spot elevations, contours, the
+staff gauge) and two shore marks. The report is
+`docs/Sulphur Bank Mine - Additional- (1).pdf`; `tools/build_survey_2026.py`
+georeferences its vector plot from the tabulated points (residuals 0.01–0.02
+ft, see its docstring) and writes:
+
+- `data/datasets/survey_2026_points.csv` → baked by `tools/add_dataset.py`
+  into `data/datasets/ds_survey_2026.json` (**already done**; 24 points,
+  colour `#FF9F1C`, kind generic; attributes `description`, `measure_on`,
+  `elevation`, `area`, `source` where source says whether the point is
+  tabulated in the report or read off the georeferenced plot).
+- `data/survey_2026.json` — 30 line features on five layers in the
+  `design_gis.json` schema (`layers[]` with key/name/group/color/kind/count,
+  `features[]` with `properties.layer`), group **`survey`**.
+
+### 10.1 What to build
+
+1. **Payload.** Add `survey_2026` to `JSON_FILES` in `tools/build_data.py`
+   and `<script src="datajs/d_survey_2026.js">` to `index.html` after
+   `d_design_gis.js`. Run `tools/build_data.py` (this also refreshes
+   `d_datasets.js` with the new dataset — the e2e's baked-dataset assertions
+   move from 2 datasets / 3 table tabs to 3 / 4; update them, and keep the
+   wells and borings probes as they are).
+2. **Linework.** Generalise `js/designgis.js` to render more than one
+   payload: the EA payload as today, plus `SBMM_DATA.survey_2026` whose
+   `survey` group goes under the **Investigations** (`invest`) layer group
+   with the sub-header `Survey — Aug 2026 (Jacobs)`, rows per layer, all
+   **on by default** (five thin layers near two spots; they drown nothing),
+   the same popups (`SBMM.popups.forGis` — name, layer, provenance, plus
+   `invert_ft` / `size_in` / `note` where present), the same 3D drape path,
+   the same osnap and GeoJSON/DXF export paths. Do not put these features in
+   `design_gis.json`; the e2e counts it (802) and it is EA's deliverable.
+3. **The dataset** needs nothing new — `js/datasets.js` already draws baked
+   datasets, tables them, exports them and drapes them in 3D. Check that its
+   popup shows `elevation` and `measure_on` prominently (add them to the
+   generic popup's first rows if it does not).
+4. **Overtopping card, Herman** (`js/water.js`): when the survey dataset is
+   present, the analysis picks up two surveyed facts and the card shows
+   them beside the lidar values —
+   - **water surface**: `Water Level` point, 1336.45 ft (Aug 2026), against
+     the lidar plateau 1336.58 (Jan 2024). Use the surveyed value as the
+     starting level `z0` of the stage table and slider (kernel option
+     `z0Override`; the seed set is still the lidar plateau), and say so.
+   - **first discharge is the pipes, not the rim**: the two inverts (mean
+     1341.55 ft) are 5.10 ft above today's water and 2.29 ft below the rim
+     spill (1343.84). Add a `pipe` stage: a marker at the pipe inverts, a
+     dashed rule on the stage-storage chart labelled "pipe invert 1341.55",
+     rows `First discharge` (pipes, +5.10 ft, storage to invert in ac-ft)
+     and `Rim spill` (1343.84, +7.39 ft above the surveyed water); the slider
+     snaps to both. At the pipe stage show a **pipe discharge route**: a
+     raindrop from the pipes' west end (the plotted end of the North pipe,
+     E ≈ 6372025, N ≈ 2127487) — reason and end reported like the overflow
+     route — as a `flow` feature named "Herman pipe discharge route".
+   - **sandbag wall crest**: min top-of-bags 1343.54 ft (four shots
+     1343.54–1344.25) — a row `Sandbag wall crest` (+7.09 ft above today's
+     water; 0.30 ft below the rim spill). Note in the card that the wall
+     stands beside the pipes on the impoundment's south rim and that the
+     lidar rim there (rim low ② at +0.50 ft) predates any change to the
+     bags — the survey is the current truth for the wall itself.
+   The card's method note gains one sentence: "Surveyed levels (Jacobs, Aug
+   2026) are used where they exist; the lidar (Jan 2024) supplies the
+   terrain."
+5. **Popup on the pipes** (`forGis`): action "trace discharge" → the same
+   raindrop from the pipe's west end.
+6. **Tests** (`test/e2e.mjs`): the survey payload loads (5 layers, 30
+   features, all rows on); the dataset has 24 points with `Water Level` at
+   E 6372119.56 N 2127446.20 z 1336.45; the pipe N invert popup names
+   1341.57; the Herman card reports z0 1336.45 (surveyed), pipe stage
+   1341.55 with storage to invert within ±3 % of the kernel's own stage
+   interpolation, rim spill 1343.84, wall crest 1343.54; the pipe discharge
+   route exists as a `flow` feature. `test/water_shots.mjs` adds
+   `water_survey.png`: the wall, pipes and the pipe-stage marker framed at
+   the south rim.
+7. **Docs**: CLAUDE.md (code map: `build_survey_2026.py`; a paragraph under
+   the water section on the survey and the pipe stage), README, HANDOFF
+   (decision: surveyed levels override lidar where they exist), release
+   notes.
+
+### 10.2 Reference numbers
+
+| quantity | value |
+|---|---|
+| surveyed water level (Aug 2026) | 1336.45 ft at E 6372119.56 N 2127446.20 |
+| lidar plateau (Jan 2024) | 1336.58 ft |
+| pipe inverts N / S | 1341.57 / 1341.53 ft at E 6372041.23 N 2127486.62 / E 6372041.80 N 2127483.07 |
+| pipe stage above surveyed water | 5.10 ft |
+| rim spill (lidar) | 1343.84 ft, +7.39 ft above surveyed water |
+| sandbag wall top / toe | 1343.54–1344.25 / 1342.6–1343.4 ft |
+| wall and pipes extent | E 6372025–6372052, N 2127476–2127500 |
+| NW Pit lowest ground | 1339.03 ft at E 6371833.75 N 2128782.35; staff gauge 1344.90 at E 6371830.65 N 2128869.80 |
