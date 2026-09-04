@@ -1601,6 +1601,706 @@ var SBMM_COMPUTE = (function SBMMComputeModule() {
   /* ============================ job dispatch ============================= */
   /* The single entry point used by BOTH the worker and the synchronous fallback,
      so the two paths can never drift apart. Returns { result, transfer }. */
+  /* ============================== WATER (v10) ==============================
+     docs/V10_WATER_SPEC.md §2/§3 — the raindrop (steepest descent with fill-spill
+     ponds), impoundment overtopping, and the contributing area of a drop. Three
+     kernels over ONE window of ONE DEM (never a mix of grids, §2), sharing:
+
+       * one typed-array binary min-heap — Float64 keys, Int32 payloads, nothing
+         allocated per push;
+       * fillDem() — the Barnes-2014 outside-in priority flood. F[c] is the level
+         water at c must reach before it can leave the window, so `F[v] < level`
+         is the exact test for "water arriving at v drains AWAY". This is the
+         whole accuracy story of both tools: the naive test ("v is lower than the
+         pond surface, so it spills there") reports a 0-ft freeboard on the shore
+         of every impoundment, because the shoreline is full of cells a few
+         inches below the water that drain nowhere;
+       * the 8-neighbour order below, which is fixed. Descent and both floods take
+         the FIRST best neighbour in this order and the heap breaks equal-key ties
+         on the payload, so every number these kernels produce is deterministic —
+         which matters on a quantised lidar grid, where exact elevation ties
+         between adjacent cells are common rather than exotic.
+
+     Cell (i,j) of the window is the DEM sample at X0 + i*cell, Y0 + j*cell
+     (X0 = grid.x0 + grid.i0*cell): the sample is the CENTRE of the cell, so a
+     raster of the window spans X0 - cell/2 .. X0 + (w - 0.5)*cell — the same
+     convention pileWand's preview uses. Row 0 is south, like every grid here. */
+
+  var W_DI = [-1, 0, 1, -1, 1, -1, 0, 1];
+  var W_DJ = [1, 1, 1, 0, 0, -1, -1, -1];
+  var W_SQ = 1.4142135623730951;
+  var W_DD = [W_SQ, 1, W_SQ, 1, 1, W_SQ, 1, W_SQ];
+
+  /* ---- shared min-heap ---------------------------------------------------
+     The payload is the cell's NORTH-MAJOR index nmi = (h-1-j)*w + i, not the
+     storage index j*w+i. Both identify the cell; using the north-major one makes
+     the tie-break "top-left first", which is the order the reference implementation
+     of §2 used, so the goldens in §9 are reproducible cell for cell. Decode with
+     r = (nmi/w)|0; i = nmi - r*w; j = h-1-r.                                   */
+  function heapNew(cap) {
+    cap = Math.max(64, cap | 0);
+    return { k: new Float64Array(cap), v: new Int32Array(cap), n: 0, topKey: 0 };
+  }
+  function heapClear(H) { H.n = 0; }
+  function heapGrow(H) {
+    var m = H.k.length * 2, k = new Float64Array(m), v = new Int32Array(m);
+    k.set(H.k); v.set(H.v); H.k = k; H.v = v;
+  }
+  function heapPush(H, key, val) {
+    if (H.n === H.k.length) heapGrow(H);
+    var k = H.k, v = H.v, i = H.n++, p, tk, tv;
+    k[i] = key; v[i] = val;
+    while (i > 0) {
+      p = (i - 1) >> 1;
+      if (k[i] < k[p] || (k[i] === k[p] && v[i] < v[p])) {
+        tk = k[p]; k[p] = k[i]; k[i] = tk;
+        tv = v[p]; v[p] = v[i]; v[i] = tv;
+        i = p;
+      } else break;
+    }
+  }
+  /* returns the payload; its key lands in H.topKey */
+  function heapPop(H) {
+    var k = H.k, v = H.v, n = --H.n, rv = v[0], i = 0, l, r, m, tk, tv;
+    H.topKey = k[0];
+    if (n > 0) {
+      k[0] = k[n]; v[0] = v[n];
+      for (;;) {
+        l = i * 2 + 1; r = l + 1; m = i;
+        if (l < n && (k[l] < k[m] || (k[l] === k[m] && v[l] < v[m]))) m = l;
+        if (r < n && (k[r] < k[m] || (k[r] === k[m] && v[r] < v[m]))) m = r;
+        if (m === i) break;
+        tk = k[m]; k[m] = k[i]; k[i] = tk;
+        tv = v[m]; v[m] = v[i]; v[i] = tv;
+        i = m;
+      }
+    }
+    return rv;
+  }
+
+  /* ---- filled DEM --------------------------------------------------------
+     Outside-in priority flood from every sink — NoData cells and the window edge
+     (§2 "Filled DEM F"). F = max(z, level of the cell it was reached from); NaN
+     stays NaN. Barnes' FIFO refinement: a neighbour that is already at or below
+     the current level joins a plain queue instead of the heap, which is the
+     difference between ~2 s and ~0.4 s on a 2-million-cell window and cannot
+     change a single value (F is the minimal maximum over all escape paths, so it
+     does not depend on the order cells are settled in).                        */
+  function fillDem(z, w, h, onProgress, p0, p1) {
+    var n = w * h, F = new Float32Array(n), closed = new Uint8Array(n);
+    var H = heapNew(1 << 15), q = new Int32Array(n), qh = 0, qt = 0;
+    var i, j, k, t, ni, nj, vi, edge;
+    for (i = 0; i < n; i++) F[i] = NaN;
+    for (j = 0; j < h; j++) for (i = 0; i < w; i++) {
+      k = j * w + i;
+      if (isNaN(z[k])) { closed[k] = 1; continue; }
+      edge = (i === 0 || j === 0 || i === w - 1 || j === h - 1);
+      if (!edge) for (t = 0; t < 8; t++) {
+        ni = i + W_DI[t]; nj = j + W_DJ[t];
+        if (ni < 0 || nj < 0 || ni >= w || nj >= h) continue;
+        if (isNaN(z[nj * w + ni])) { edge = true; break; }
+      }
+      if (edge) { closed[k] = 1; F[k] = z[k]; heapPush(H, z[k], (h - 1 - j) * w + i); }
+    }
+    var done = 0, lev, c, ci, cj, nm, rr;
+    while (H.n > 0 || qh < qt) {
+      if (qh < qt) { c = q[qh++]; ci = c % w; cj = (c - ci) / w; lev = F[c]; }
+      else {
+        nm = heapPop(H); rr = (nm / w) | 0; ci = nm - rr * w; cj = h - 1 - rr;
+        c = cj * w + ci; lev = H.topKey;
+      }
+      for (t = 0; t < 8; t++) {
+        ni = ci + W_DI[t]; nj = cj + W_DJ[t];
+        if (ni < 0 || nj < 0 || ni >= w || nj >= h) continue;
+        vi = nj * w + ni;
+        if (closed[vi]) continue;
+        closed[vi] = 1;
+        if (z[vi] <= lev) { F[vi] = lev; q[qt++] = vi; }
+        else { F[vi] = z[vi]; heapPush(H, z[vi], (h - 1 - nj) * w + ni); }
+      }
+      if (onProgress && ((++done & 32767) === 0)) onProgress(p0 + (p1 - p0) * (done / n));
+    }
+    if (onProgress) onProgress(p1);
+    return F;
+  }
+
+  /* even-odd scanline rasterisation of a ring onto the window's cells. Same
+     inclusion rule as pointInPoly() (a cell centre exactly on a crossing counts
+     as inside on the left edge only), but 551 edges per ROW instead of per cell. */
+  function ringMask(ring, w, h, cell, X0, Y0, mask) {
+    if (!mask) mask = new Uint8Array(w * h);
+    var np = ring.length, i, j;
+    if (np < 3) return mask;
+    var ymin = Infinity, ymax = -Infinity;
+    for (i = 0; i < np; i++) { if (ring[i][1] < ymin) ymin = ring[i][1]; if (ring[i][1] > ymax) ymax = ring[i][1]; }
+    var j0 = Math.max(0, Math.ceil((ymin - Y0) / cell)), j1 = Math.min(h - 1, Math.floor((ymax - Y0) / cell));
+    var xs = [];
+    for (j = j0; j <= j1; j++) {
+      var py = Y0 + j * cell;
+      xs.length = 0;
+      for (i = 0; i < np; i++) {
+        var a = ring[i], b = ring[(i + 1) % np];
+        if ((a[1] > py) !== (b[1] > py)) xs.push((b[0] - a[0]) * (py - a[1]) / (b[1] - a[1]) + a[0]);
+      }
+      if (xs.length < 2) continue;
+      xs.sort(function (p, q) { return p - q; });
+      for (var s = 0; s + 1 < xs.length; s += 2) {
+        var ia = Math.max(0, Math.ceil((xs[s] - X0) / cell));
+        var ib = Math.min(w - 1, Math.ceil((xs[s + 1] - X0) / cell) - 1);
+        for (i = ia; i <= ib; i++) mask[j * w + i] = 1;
+      }
+    }
+    return mask;
+  }
+
+  function medianOf(vals, m) {
+    var a = vals.subarray(0, m);
+    a.sort(function (p, q) { return p - q; });
+    return m % 2 ? a[(m - 1) >> 1] : (a[m / 2 - 1] + a[m / 2]) / 2;
+  }
+
+  /* rings of a cell mask, traced in the mask's own bounding box (padded one cell
+     so a ring that does not touch the window edge always closes) */
+  function maskRings(mask, w, h, cell, X0, Y0, bb, tol) {
+    var i0 = Math.max(0, bb[0] - 1), j0 = Math.max(0, bb[1] - 1);
+    var i1 = Math.min(w - 1, bb[2] + 1), j1 = Math.min(h - 1, bb[3] + 1);
+    var bw = i1 - i0 + 1, bh = j1 - j0 + 1;
+    if (bw < 2 || bh < 2) return [];
+    var sub = new Uint8Array(bw * bh), i, j;
+    for (j = 0; j < bh; j++) for (i = 0; i < bw; i++) sub[j * bw + i] = mask[(j0 + j) * w + i0 + i];
+    var rings = traceMask(sub, bw, bh, cell, X0 + i0 * cell, Y0 + j0 * cell, tol);
+    var out = [];
+    for (i = 0; i < rings.length; i++) out.push(rings[i].pts);
+    return out;
+  }
+
+  /* ---- FLOWPATH ------------------------------------------------------------
+     job: { grid, x, y, minPondDepth=0.25, maxSteps=4e6, simplifyFt=null,
+            blockRing=null, plateauTol=0.3, blockLevel=null }                   */
+  function flowpath(job, onProgress) {
+    var g = job.grid, w = g.sw, h = g.sh, cell = g.cell, z = g.z, n = w * h;
+    var X0 = g.x0 + g.i0 * cell, Y0 = g.y0 + g.j0 * cell;
+    var minDepth = job.minPondDepth == null ? 0.25 : job.minPondDepth;
+    var maxSteps = job.maxSteps == null ? 4e6 : job.maxSteps;
+    var i, j, t, ni, nj, vi;
+
+    var F = fillDem(z, w, h, onProgress, 0, 0.55);
+    var pondId = new Int32Array(n);
+    var ponds = [null];                                    // 1-based, ponds[0] unused
+
+    /* the impoundment, pre-marked as a pond with no outlet (§2 "Overflow route"):
+       an overflow route that ever comes back to the water body ends there rather
+       than climbing back in. Its cells are the water surface — inside the ring AND
+       on the plateau — not merely inside the ring, or the dry bank inside the
+       polygon would read as water and pull the route in. */
+    if (job.blockRing && job.blockRing.length >= 3) {
+      var bmask = ringMask(job.blockRing, w, h, cell, X0, Y0);
+      var vals = new Float64Array(n), m = 0;
+      for (i = 0; i < n; i++) if (bmask[i] && !isNaN(z[i])) vals[m++] = z[i];
+      if (m) {
+        var bz0 = job.blockLevel == null ? medianOf(vals, m) : job.blockLevel;
+        var btol = job.plateauTol == null ? 0.3 : job.plateauTol;
+        var P0 = { level: bz0, outlet: -1, entry: -1, zmin: bz0, count: 0, sumZ: 0,
+                   bb: [w, h, -1, -1], blocked: true };
+        ponds.push(P0);
+        for (j = 0; j < h; j++) for (i = 0; i < w; i++) {
+          vi = j * w + i;
+          if (!bmask[vi] || isNaN(z[vi]) || Math.abs(z[vi] - bz0) > btol) continue;
+          pondId[vi] = 1; P0.count++;
+        }
+      }
+    }
+
+    var si = Math.round((job.x - X0) / cell), sj = Math.round((job.y - Y0) / cell);
+    if (si < 0 || sj < 0 || si >= w || sj >= h) throw new Error("the drop is outside the terrain window");
+    var cur = sj * w + si;
+    if (isNaN(z[cur])) throw new Error("no surveyed terrain under that point");
+
+    var path = [cur], reason = null, steps = 0, exitIdx = -1;
+    var H = heapNew(1 << 14), stamp = new Int32Array(n), pushed;
+
+    function effOf(idx) { var k = pondId[idx]; return k ? ponds[k].level : z[idx]; }
+
+    while (steps < maxSteps) {
+      steps++;
+      if (onProgress && (steps & 4095) === 0) onProgress(0.55 + 0.35 * Math.min(1, steps / 200000));
+      i = cur % w; j = (cur - i) / w;
+      if (i === 0 || j === 0 || i === w - 1 || j === h - 1) { reason = "window"; exitIdx = cur; break; }
+
+      /* steepest descent on EFFECTIVE elevation: a pond cell reads as its pond's
+         level, never its floor, so from an outlet (which lies below the level) the
+         pond is uphill and the drop cannot fall back into it. */
+      var ze = effOf(cur), bDrop = -1, bIdx = -1, nod = -1;
+      for (t = 0; t < 8; t++) {
+        ni = i + W_DI[t]; nj = j + W_DJ[t];
+        if (ni < 0 || nj < 0 || ni >= w || nj >= h) continue;
+        vi = nj * w + ni;
+        if (isNaN(z[vi])) { nod = vi; break; }
+        var dr = (ze - effOf(vi)) / W_DD[t];
+        if (dr > 1e-9 && dr > bDrop) { bDrop = dr; bIdx = vi; }
+      }
+      if (nod >= 0) { path.push(nod); reason = "nodata"; break; }
+
+      if (bIdx >= 0) {
+        var pk = pondId[bIdx];
+        if (pk) {                                  /* arriving into an existing pond */
+          path.push(bIdx);
+          if (ponds[pk].outlet < 0) { reason = "pond"; break; }
+          cur = ponds[pk].outlet; path.push(cur);
+        } else { cur = bIdx; path.push(cur); }
+        continue;
+      }
+
+      /* ---- a pit: flood it until water escapes (§2 "Pond (fill-spill)") ---- */
+      var pid = ponds.length;
+      var P = { level: z[cur], outlet: -1, entry: cur, zmin: z[cur], count: 0, sumZ: 0,
+                bb: [w, h, -1, -1], blocked: false };
+      ponds.push(P);
+      heapClear(H);
+      heapPush(H, z[cur], (h - 1 - j) * w + i); stamp[cur] = pid;
+      var level = z[cur], outlet = -1, ui, uj, uidx, nm, rr;
+      while (H.n > 0) {
+        nm = heapPop(H); rr = (nm / w) | 0; ui = nm - rr * w; uj = h - 1 - rr;
+        uidx = uj * w + ui;
+        if (pondId[uidx]) continue;
+        if (H.topKey > level) level = H.topKey;
+        pondId[uidx] = pid;
+        P.count++; P.sumZ += z[uidx];
+        if (z[uidx] < P.zmin) P.zmin = z[uidx];
+        if (ui < P.bb[0]) P.bb[0] = ui; if (uj < P.bb[1]) P.bb[1] = uj;
+        if (ui > P.bb[2]) P.bb[2] = ui; if (uj > P.bb[3]) P.bb[3] = uj;
+        if (ui === 0 || uj === 0 || ui === w - 1 || uj === h - 1) { reason = "window"; exitIdx = uidx; break; }
+
+        var eNod = -1, eIdx = -1, eDrop = -1;
+        for (t = 0; t < 8; t++) {
+          ni = ui + W_DI[t]; nj = uj + W_DJ[t];
+          if (ni < 0 || nj < 0 || ni >= w || nj >= h) continue;
+          vi = nj * w + ni;
+          if (isNaN(z[vi])) { eNod = vi; break; }
+          if (pondId[vi]) continue;
+          /* ESCAPES: below the rising surface AND draining to a sink strictly
+             below it. F_v === level for every cell of this depression, so the
+             test on F must be strict — with `<=` the flood "escapes" into a cell
+             a hundredth of a foot under its own water surface and stops there. */
+          if (z[vi] < level - 1e-9 && F[vi] < level - 1e-6) {
+            var ed = (level - z[vi]) / W_DD[t];
+            if (ed > eDrop) { eDrop = ed; eIdx = vi; }
+          }
+        }
+        if (eNod >= 0) { path.push(eNod); reason = "nodata"; break; }
+        if (eIdx >= 0) { outlet = eIdx; break; }
+        for (t = 0; t < 8; t++) {
+          ni = ui + W_DI[t]; nj = uj + W_DJ[t];
+          if (ni < 0 || nj < 0 || ni >= w || nj >= h) continue;
+          vi = nj * w + ni;
+          if (isNaN(z[vi]) || pondId[vi] || stamp[vi] === pid) continue;
+          stamp[vi] = pid; heapPush(H, z[vi], (h - 1 - nj) * w + ni);
+        }
+      }
+      /* completion: everything still under the pour level is under water unless it
+         escapes (then it is a wall, and the flood never crosses it). Without this
+         the polygon is only the cells the climb happened to pop, not the pond. */
+      if (outlet >= 0) {
+        while (H.n > 0 && H.k[0] <= level + 1e-9) {
+          nm = heapPop(H); rr = (nm / w) | 0; ui = nm - rr * w; uj = h - 1 - rr;
+          uidx = uj * w + ui;
+          if (pondId[uidx]) continue;
+          if (z[uidx] < level - 1e-9 && F[uidx] < level - 1e-6) continue;
+          pondId[uidx] = pid;
+          P.count++; P.sumZ += z[uidx];
+          if (z[uidx] < P.zmin) P.zmin = z[uidx];
+          if (ui < P.bb[0]) P.bb[0] = ui; if (uj < P.bb[1]) P.bb[1] = uj;
+          if (ui > P.bb[2]) P.bb[2] = ui; if (uj > P.bb[3]) P.bb[3] = uj;
+          for (t = 0; t < 8; t++) {
+            ni = ui + W_DI[t]; nj = uj + W_DJ[t];
+            if (ni < 0 || nj < 0 || ni >= w || nj >= h) continue;
+            vi = nj * w + ni;
+            if (isNaN(z[vi]) || pondId[vi] || stamp[vi] === pid) continue;
+            if (z[vi] > level + 1e-9) continue;
+            stamp[vi] = pid; heapPush(H, z[vi], (h - 1 - nj) * w + ni);
+          }
+        }
+      }
+      P.level = level; P.outlet = outlet;
+      if (reason) break;
+      if (outlet < 0) { reason = "pond"; break; }
+      cur = outlet; path.push(cur);
+    }
+    if (!reason) reason = "steps";
+    if (onProgress) onProgress(0.92);
+
+    /* the run, as [x,y,z] triples; simplifyPath carries the third element through */
+    var raw = [], rawLen = 0, zEnd = NaN, k;
+    for (k = 0; k < path.length; k++) {
+      i = path[k] % w; j = (path[k] - i) / w;
+      var pz = z[path[k]];
+      raw.push([X0 + i * cell, Y0 + j * cell, pz]);
+      if (!isNaN(pz)) zEnd = pz;
+      if (k) rawLen += Math.hypot(raw[k][0] - raw[k - 1][0], raw[k][1] - raw[k - 1][1]);
+    }
+    var tol = job.simplifyFt == null ? 0.6 * cell : job.simplifyFt;
+    var sp = tol > 0 ? simplifyPath(raw, tol) : raw;
+    var pts = new Float64Array(sp.length * 3), len = 0;
+    for (k = 0; k < sp.length; k++) {
+      pts[k * 3] = sp[k][0]; pts[k * 3 + 1] = sp[k][1]; pts[k * 3 + 2] = sp[k][2];
+      if (k) len += Math.hypot(sp[k][0] - sp[k - 1][0], sp[k][1] - sp[k - 1][1]);
+    }
+
+    var out = [];
+    for (k = 1; k < ponds.length; k++) {
+      var Q = ponds[k];
+      if (Q.blocked || !Q.count) continue;
+      var depth = Q.level - Q.zmin;
+      if (depth < minDepth) continue;
+      var ei = Q.entry % w, ej = (Q.entry - ei) / w;
+      out.push({
+        level: Q.level, depth_ft: depth, cells: Q.count,
+        area_ft2: Q.count * cell * cell,
+        volume_ft3: (Q.level * Q.count - Q.sumZ) * cell * cell,
+        rings: pondRings(pondId, k, w, h, cell, X0, Y0, Q.bb),
+        entry: [X0 + ei * cell, Y0 + ej * cell],
+        outlet: Q.outlet < 0 ? null : [X0 + (Q.outlet % w) * cell, Y0 + (((Q.outlet - Q.outlet % w) / w)) * cell]
+      });
+    }
+    var last = raw[raw.length - 1];
+    if (onProgress) onProgress(1);
+    return {
+      result: {
+        pts: pts, n: sp.length,
+        length_ft: len, lengthRaw_ft: rawLen,
+        fall_ft: raw[0][2] - zEnd,
+        reason: reason,
+        end: [last[0], last[1], last[2]],
+        zEnd_ft: zEnd,
+        exit: exitIdx < 0 ? null : [X0 + (exitIdx % w) * cell, Y0 + (((exitIdx - exitIdx % w) / w)) * cell],
+        ponds: out, cell: cell, steps: steps
+      },
+      transfer: [pts.buffer]
+    };
+  }
+
+  function pondRings(pondId, id, w, h, cell, X0, Y0, bb) {
+    var i0 = Math.max(0, bb[0] - 1), j0 = Math.max(0, bb[1] - 1);
+    var i1 = Math.min(w - 1, bb[2] + 1), j1 = Math.min(h - 1, bb[3] + 1);
+    var bw = i1 - i0 + 1, bh = j1 - j0 + 1;
+    if (bw < 2 || bh < 2) return [];
+    var sub = new Uint8Array(bw * bh), i, j;
+    for (j = 0; j < bh; j++) for (i = 0; i < bw; i++)
+      sub[j * bw + i] = pondId[(j0 + j) * w + i0 + i] === id ? 1 : 0;
+    var rings = traceMask(sub, bw, bh, cell, X0 + i0 * cell, Y0 + j0 * cell, 0.5 * cell), out = [];
+    for (i = 0; i < rings.length; i++) out.push(rings[i].pts);
+    return out;
+  }
+
+  /* ---- CATCHMENT -----------------------------------------------------------
+     job: { grid, x, y }  — every cell whose D8 path over the FILLED dem reaches
+     the drop cell (§2 "Catchment"). On F rather than z so a path is never lost in
+     a puddle, which is the same reason the raindrop ponds instead of stopping.  */
+  function catchment(job, onProgress) {
+    var g = job.grid, w = g.sw, h = g.sh, cell = g.cell, z = g.z, n = w * h;
+    var X0 = g.x0 + g.i0 * cell, Y0 = g.y0 + g.j0 * cell;
+    var F = fillDem(z, w, h, onProgress, 0, 0.5);
+    var i, j, t, ni, nj, vi, k;
+
+    var down = new Int32Array(n);
+    for (i = 0; i < n; i++) down[i] = -1;
+    for (j = 0; j < h; j++) for (i = 0; i < w; i++) {
+      k = j * w + i;
+      if (isNaN(z[k])) continue;
+      var best = -1, bd = 1e-9;
+      for (t = 0; t < 8; t++) {
+        ni = i + W_DI[t]; nj = j + W_DJ[t];
+        if (ni < 0 || nj < 0 || ni >= w || nj >= h) continue;
+        vi = nj * w + ni;
+        if (isNaN(z[vi])) continue;
+        var d = (F[k] - F[vi]) / W_DD[t];
+        if (d > bd) { bd = d; best = vi; }
+      }
+      down[k] = best;
+    }
+    if (onProgress) onProgress(0.75);
+
+    var si = Math.round((job.x - X0) / cell), sj = Math.round((job.y - Y0) / cell);
+    if (si < 0 || sj < 0 || si >= w || sj >= h) throw new Error("the point is outside the terrain window");
+    var start = sj * w + si;
+    if (isNaN(z[start])) throw new Error("no surveyed terrain under that point");
+
+    var seen = new Uint8Array(n), stack = new Int32Array(n), sp = 0, cells = 0, edge = false;
+    var bb = [w, h, -1, -1];
+    seen[start] = 1; stack[sp++] = start;
+    while (sp > 0) {
+      var c = stack[--sp]; cells++;
+      i = c % w; j = (c - i) / w;
+      if (i === 0 || j === 0 || i === w - 1 || j === h - 1) edge = true;
+      if (i < bb[0]) bb[0] = i; if (j < bb[1]) bb[1] = j;
+      if (i > bb[2]) bb[2] = i; if (j > bb[3]) bb[3] = j;
+      for (t = 0; t < 8; t++) {
+        ni = i + W_DI[t]; nj = j + W_DJ[t];
+        if (ni < 0 || nj < 0 || ni >= w || nj >= h) continue;
+        vi = nj * w + ni;
+        if (seen[vi] || down[vi] !== c) continue;
+        seen[vi] = 1; stack[sp++] = vi;
+      }
+    }
+    if (onProgress) onProgress(0.9);
+    var rings = maskRings(seen, w, h, cell, X0, Y0, bb, 0.5 * cell);
+    if (onProgress) onProgress(1);
+    return { result: { area_ft2: cells * cell * cell, cells: cells, rings: rings,
+                       touchesEdge: edge, cell: cell }, transfer: [] };
+  }
+
+  /* ---- OVERTOP -------------------------------------------------------------
+     job: { grid, seedRing | seedPoint:[x,y], plateauTol=0.3, rimRange=3,
+            levelStep=0.25, maxClusters=12, outlineTol=null,
+            z0Override=null,   // today's water surface from a survey, when the lidar plateau is stale
+            levels=null }      // extra stage rows at exact elevations (a pipe invert, a crest)
+
+     z0Override (spec §10): the seed set is still found from the lidar plateau
+     (the water's footprint), but every seed cell is then treated as water whose
+     ground is unknown and whose surface is z0Override: its level is z0Override,
+     its storage counts (L - z0Override), and z0 / freeboard / the stage table
+     start there. The lidar plateau is reported as z0_lidar.                    */
+  function overtop(job, onProgress) {
+    var g = job.grid, w = g.sw, h = g.sh, cell = g.cell, z = g.z, n = w * h;
+    var X0 = g.x0 + g.i0 * cell, Y0 = g.y0 + g.j0 * cell;
+    var pTol = job.plateauTol == null ? 0.3 : job.plateauTol;
+    var rimRange = job.rimRange == null ? 3 : job.rimRange;
+    var step = job.levelStep == null ? 0.25 : job.levelStep;
+    var maxCl = job.maxClusters == null ? 12 : job.maxClusters;
+    var i, j, t, ni, nj, vi, k;
+
+    /* ---- the water surface (§2 "Water surface") --------------------------- */
+    var seed = new Uint8Array(n), z0 = NaN, seedCells = 0;
+    if (job.seedRing && job.seedRing.length >= 3) {
+      var inside = ringMask(job.seedRing, w, h, cell, X0, Y0);
+      var vals = new Float64Array(n), m = 0;
+      for (i = 0; i < n; i++) if (inside[i] && !isNaN(z[i])) vals[m++] = z[i];
+      if (m) {
+        z0 = medianOf(vals, m);
+        for (i = 0; i < n; i++)
+          if (inside[i] && !isNaN(z[i]) && Math.abs(z[i] - z0) <= pTol) { seed[i] = 1; seedCells++; }
+      }
+    } else if (job.seedPoint) {
+      var pi = Math.round((job.seedPoint[0] - X0) / cell), pj = Math.round((job.seedPoint[1] - Y0) / cell);
+      if (pi >= 0 && pj >= 0 && pi < w && pj < h && !isNaN(z[pj * w + pi])) {
+        z0 = z[pj * w + pi];
+        var st = new Int32Array(n), sp2 = 0, s0 = pj * w + pi;
+        seed[s0] = 1; seedCells = 1; st[sp2++] = s0;
+        while (sp2 > 0) {
+          var c0 = st[--sp2]; i = c0 % w; j = (c0 - i) / w;
+          for (t = 0; t < 8; t++) {
+            ni = i + W_DI[t]; nj = j + W_DJ[t];
+            if (ni < 0 || nj < 0 || ni >= w || nj >= h) continue;
+            vi = nj * w + ni;
+            if (seed[vi] || isNaN(z[vi]) || Math.abs(z[vi] - z0) > pTol) continue;
+            seed[vi] = 1; seedCells++; st[sp2++] = vi;
+          }
+        }
+      }
+    }
+    if (!seedCells) {
+      if (onProgress) onProgress(1);
+      return { result: { z0: z0, cell: cell, seedCells: 0, seedArea_ft2: 0, primary: null,
+                         freeboard_ft: NaN, storage_ft3: 0, area_ft2: 0, clusters: [], stage: [],
+                         band: null, spillMask: null, reason: "noseed" }, transfer: [] };
+    }
+
+    var F = fillDem(z, w, h, onProgress, 0, 0.45);
+
+    /* ---- the sealed inside-out flood (§2 "Spill (pour point) and rim lows") -
+       Sealed: a neighbour water would escape through is a WALL — it is recorded
+       as a spill and never flooded — so the flood keeps describing the
+       impoundment as its rim is raised, instead of pouring out through the first
+       gap and mapping the next valley.                                         */
+    var flooded = new Uint8Array(n), wall = new Uint8Array(n), inHeap = new Uint8Array(n);
+    var level = new Float32Array(n);
+    for (i = 0; i < n; i++) level[i] = NaN;
+    var H = heapNew(1 << 16);
+    var nFlood = 0;
+    for (j = 0; j < h; j++) for (i = 0; i < w; i++) {
+      k = j * w + i;
+      if (!seed[k]) continue;
+      flooded[k] = 1; level[k] = z0; nFlood++;
+      for (t = 0; t < 8; t++) {
+        ni = i + W_DI[t]; nj = j + W_DJ[t];
+        if (ni < 0 || nj < 0 || ni >= w || nj >= h) continue;
+        vi = nj * w + ni;
+        if (flooded[vi] || inHeap[vi] || isNaN(z[vi])) continue;
+        inHeap[vi] = 1; heapPush(H, z[vi], (h - 1 - nj) * w + ni);
+      }
+    }
+    var z0lidar = z0;
+    if (job.z0Override != null && !isNaN(job.z0Override)) {
+      z0 = +job.z0Override;
+      for (k = 0; k < n; k++) if (seed[k]) level[k] = z0;
+    }
+    var cur = z0, spills = [], primary = -1, primaryLevel = NaN, primaryNext = -1;
+    var reason = "ok", cap = Math.floor(n * 0.6), nm, rr, ci, cj, cidx;
+    while (H.n > 0) {
+      nm = heapPop(H); rr = (nm / w) | 0; ci = nm - rr * w; cj = h - 1 - rr;
+      cidx = cj * w + ci;
+      if (flooded[cidx] || wall[cidx]) continue;
+      if (H.topKey > cur) cur = H.topKey;
+      var esc = false, bestN = -1;
+      for (t = 0; t < 8; t++) {
+        ni = ci + W_DI[t]; nj = cj + W_DJ[t];
+        if (ni < 0 || nj < 0 || ni >= w || nj >= h) continue;
+        vi = nj * w + ni;
+        if (flooded[vi] || isNaN(z[vi])) continue;
+        if (z[vi] < cur - 1e-9 && F[vi] < cur - 1e-6) {
+          esc = true; wall[vi] = 1;
+          if (bestN < 0 || z[vi] < z[bestN]) bestN = vi;
+        }
+      }
+      flooded[cidx] = 1; level[cidx] = cur; nFlood++;
+      if (esc) {
+        spills.push(cidx);
+        if (primary < 0) { primary = cidx; primaryLevel = cur; primaryNext = bestN; }
+      }
+      for (t = 0; t < 8; t++) {
+        ni = ci + W_DI[t]; nj = cj + W_DJ[t];
+        if (ni < 0 || nj < 0 || ni >= w || nj >= h) continue;
+        vi = nj * w + ni;
+        if (flooded[vi] || wall[vi] || inHeap[vi] || isNaN(z[vi])) continue;
+        inHeap[vi] = 1; heapPush(H, z[vi], (h - 1 - nj) * w + ni);
+      }
+      if (primary >= 0 && cur > primaryLevel + rimRange) break;
+      if (nFlood > cap) { reason = "window"; break; }
+      if (onProgress && ((nFlood & 32767) === 0)) onProgress(0.45 + 0.40 * Math.min(1, nFlood / cap));
+    }
+    if (onProgress) onProgress(0.85);
+    if (primary < 0) {
+      return { result: { z0: z0, cell: cell, seedCells: seedCells, seedArea_ft2: seedCells * cell * cell,
+                         primary: null, freeboard_ft: NaN, storage_ft3: 0, area_ft2: 0,
+                         clusters: [], stage: [], band: null, spillMask: null,
+                         reason: reason === "window" ? "window" : "nospill" }, transfer: [] };
+    }
+
+    /* ---- quantities at the primary spill ---------------------------------- */
+    var sp = primaryLevel, area = 0, storage = 0, bb = [w, h, -1, -1], flist = [], fn = 0;
+    for (j = 0; j < h; j++) for (i = 0; i < w; i++) {
+      k = j * w + i;
+      if (!flooded[k]) continue;
+      flist.push(k);
+      if (i < bb[0]) bb[0] = i; if (j < bb[1]) bb[1] = j;
+      if (i > bb[2]) bb[2] = i; if (j > bb[3]) bb[3] = j;
+      if (level[k] <= sp + 1e-9) {
+        area++;
+        var zg = seed[k] ? z0 : z[k];             // a water cell's ground is its surface
+        if (zg < sp) storage += sp - zg;
+      }
+    }
+    fn = flist.length;
+    area *= cell * cell; storage *= cell * cell;
+
+    /* ---- rim-low clusters (8-connected groups of spill cells) -------------- */
+    var isSpill = new Uint8Array(n);
+    for (k = 0; k < spills.length; k++) isSpill[spills[k]] = 1;
+    var lab = new Int32Array(n), clusters = [], stk = new Int32Array(spills.length + 1);
+    for (k = 0; k < spills.length; k++) {
+      var s0i = spills[k];
+      if (lab[s0i]) continue;
+      var id = clusters.length + 1, sp3 = 0, cnt = 0, lo = s0i;
+      lab[s0i] = id; stk[sp3++] = s0i;
+      while (sp3 > 0) {
+        var c1 = stk[--sp3]; cnt++;
+        if (level[c1] < level[lo]) lo = c1;
+        i = c1 % w; j = (c1 - i) / w;
+        for (t = 0; t < 8; t++) {
+          ni = i + W_DI[t]; nj = j + W_DJ[t];
+          if (ni < 0 || nj < 0 || ni >= w || nj >= h) continue;
+          vi = nj * w + ni;
+          if (!isSpill[vi] || lab[vi]) continue;
+          lab[vi] = id; stk[sp3++] = vi;
+        }
+      }
+      clusters.push({ rank: 0, level: level[lo], x: X0 + (lo % w) * cell,
+                      y: Y0 + (((lo - lo % w) / w)) * cell, cells: cnt, above_ft: level[lo] - sp });
+    }
+    clusters.sort(function (a, b) { return a.level - b.level; });
+    clusters = clusters.slice(0, maxCl);
+    for (k = 0; k < clusters.length; k++) clusters[k].rank = k + 1;
+
+    /* ---- stage table (§2 "Stage table") ------------------------------------
+       Area counts flooded cells with level <= L; storage adds max(0, L - z) over
+       them — the max matters only for the seed, where a cell can stand up to
+       plateauTol above today's water surface. Both are bucketed once and prefix
+       summed, so 40-odd rows cost one pass instead of forty.                   */
+    var nSteps = Math.max(1, Math.floor((sp + rimRange - z0) / step + 1e-9) + 1);
+    var cA = new Float64Array(nSteps + 1), cN = new Float64Array(nSteps + 1), cZ = new Float64Array(nSteps + 1);
+    for (k = 0; k < fn; k++) {
+      var fc = flist[k], lv = level[fc], zc = seed[fc] ? z0 : z[fc];
+      var ka = Math.ceil((lv - z0 - 1e-9) / step); if (ka < 0) ka = 0;
+      if (ka <= nSteps) cA[ka]++;
+      var act = lv > zc ? lv : zc;
+      var kb = Math.ceil((act - z0 - 1e-9) / step); if (kb < 0) kb = 0;
+      if (kb <= nSteps) { cN[kb]++; cZ[kb] += zc; }
+    }
+    var stage = [], aAcc = 0, nAcc = 0, zAcc = 0, a2 = cell * cell;
+    var smask = new Uint8Array(n);
+    var oTol = job.outlineTol == null ? 0.5 * cell : job.outlineTol;
+    for (k = 0; k < nSteps; k++) {
+      var L = z0 + k * step;
+      aAcc += cA[k]; nAcc += cN[k]; zAcc += cZ[k];
+      for (var q2 = 0; q2 < fn; q2++) if (level[flist[q2]] <= L + 1e-9) smask[flist[q2]] = 1;
+      stage.push({ level: L, area_ft2: aAcc * a2, storage_ft3: (L * nAcc - zAcc) * a2,
+                   rings: maskRings(smask, w, h, cell, X0, Y0, bb, oTol) });
+      if (onProgress) onProgress(0.85 + 0.13 * (k + 1) / nSteps);
+    }
+    /* exact rows at the caller's own elevations (a pipe invert, a sandbag
+       crest): a direct pass each, no bucketing, inserted in level order and
+       flagged so the UI can tell them from the regular steps */
+    var extra = job.levels || [];
+    for (var e0 = 0; e0 < extra.length; e0++) {
+      var Lx = +extra[e0];
+      if (isNaN(Lx) || Lx < z0 - 1e-9) continue;
+      var aX = 0, sX = 0, emask = new Uint8Array(n);
+      for (k = 0; k < fn; k++) {
+        var xc = flist[k];
+        if (level[xc] > Lx + 1e-9) continue;
+        aX++; emask[xc] = 1;
+        var zgx = seed[xc] ? z0 : z[xc];
+        if (zgx < Lx) sX += Lx - zgx;
+      }
+      var row = { level: Lx, area_ft2: aX * a2, storage_ft3: sX * a2, extra: true,
+                  rings: maskRings(emask, w, h, cell, X0, Y0, bb, oTol) };
+      var at = 0;
+      while (at < stage.length && stage[at].level < Lx - 1e-9) at++;
+      if (at < stage.length && Math.abs(stage[at].level - Lx) < 1e-9) stage[at] = row; else stage.splice(at, 0, row);
+    }
+
+    /* ---- the rim band and the spill cells --------------------------------- */
+    var band = new Float32Array(n), sm = new Uint8Array(n);
+    for (i = 0; i < n; i++) band[i] = NaN;
+    for (k = 0; k < fn; k++) {
+      var bc = flist[k], bl = level[bc];
+      if (bl > sp + 1e-9 && bl <= sp + rimRange + 1e-9) band[bc] = bl - sp;
+    }
+    for (k = 0; k < spills.length; k++) sm[spills[k]] = 1;
+
+    var px = primary % w, py = (primary - px) / w;
+    var nx2 = primaryNext < 0 ? null : primaryNext % w;
+    if (onProgress) onProgress(1);
+    return {
+      result: {
+        z0: z0, z0_lidar: z0lidar, cell: cell, seedCells: seedCells, seedArea_ft2: seedCells * a2,
+        primary: { level: sp, x: X0 + px * cell, y: Y0 + py * cell,
+                   next: primaryNext < 0 ? null
+                       : [X0 + nx2 * cell, Y0 + (((primaryNext - nx2) / w)) * cell] },
+        freeboard_ft: sp - z0, storage_ft3: storage, area_ft2: area,
+        clusters: clusters, stage: stage,
+        /* x0/y0 are the CENTRE of cell (0,0); an image overlay of v spans
+           x0-cell/2 .. x0+(nx-0.5)*cell (bx0..bx1 below), row 0 = south. */
+        band: { nx: w, ny: h, x0: X0, y0: Y0, cell: cell, v: band,
+                bx0: X0 - cell / 2, by0: Y0 - cell / 2,
+                bx1: X0 + (w - 0.5) * cell, by1: Y0 + (h - 0.5) * cell },
+        spillMask: { nx: w, ny: h, x0: X0, y0: Y0, cell: cell, v: sm },
+        reason: reason
+      },
+      transfer: [band.buffer, sm.buffer]
+    };
+  }
+
   function runJob(kind, job, onProgress) {
     if (kind === "volume") return volumeGrid(job, onProgress);
     if (kind === "isopach") return isopachGrid(job, onProgress);
@@ -1614,6 +2314,9 @@ var SBMM_COMPUTE = (function SBMMComputeModule() {
     if (kind === "toecrest") return toeCrest(job, onProgress);
     if (kind === "stands") return canopyStands(job, onProgress);
     if (kind === "trees") return treeDetect(job, onProgress);
+    if (kind === "flowpath") return flowpath(job, onProgress);
+    if (kind === "overtop") return overtop(job, onProgress);
+    if (kind === "catchment") return catchment(job, onProgress);
     throw new Error("unknown compute job: " + kind);
   }
 
@@ -1640,7 +2343,7 @@ var SBMM_COMPUTE = (function SBMMComputeModule() {
   }
 
   var api = {
-    VERSION: 3,
+    VERSION: 4,
     runJob: runJob,
     volumeGrid: volumeGrid,
     isopachGrid: isopachGrid,
@@ -1655,6 +2358,10 @@ var SBMM_COMPUTE = (function SBMMComputeModule() {
     toeCrest: toeCrest,
     canopyStands: canopyStands,
     treeDetect: treeDetect,
+    flowpath: flowpath,
+    overtop: overtop,
+    catchment: catchment,
+    fillDem: fillDem,
     topHatResidual: topHatResidual,
     discExt: discExt,
     dgridAt: dgridAt,

@@ -92,6 +92,10 @@ SBMM.dxf = (function () {
       layers.set("GRADING", toACI("#4FD8E6"));
     if (feats.some(f => f.type === "sections" && f._sec))
       layers.set("SECTION", toACI("#F0A6D0"));
+    /* a raindrop's ponds are computed geometry like a daylight line, and land on
+       their own layer so a drafter can freeze them apart from the run */
+    if (feats.some(f => f.type === "flow" && f.props && (f.props.ponds || []).length))
+      layers.set("WATER-PONDS", toACI("#55C1FF"));
     /* datasets get one layer each, named after the dataset — a Civil 3D user
        expects wells and borings on their own layers, not merged into the
        drawings they were measured against */
@@ -101,6 +105,9 @@ SBMM.dxf = (function () {
        Civil 3D user gets the limits of excavation back as real linework */
     const dgis = SBMM.designGIS ? SBMM.designGIS.dxfEntities() : [];
     for (const d of dgis) layers.set(d.layer, toACI(d.color));
+    /* the August-2026 survey linework on SURVEY-* layers */
+    const dsurv = SBMM.survey ? SBMM.survey.dxfEntities() : [];
+    for (const d of dsurv) layers.set(d.layer, toACI(d.color));
 
     /* extents */
     let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
@@ -112,7 +119,7 @@ SBMM.dxf = (function () {
       if (p.x < x0) x0 = p.x; if (p.x > x1) x1 = p.x;
       if (p.y < y0) y0 = p.y; if (p.y > y1) y1 = p.y;
     }
-    for (const d of dgis) for (const p of (d.pts || [d.point])) {
+    for (const d of [...dgis, ...dsurv]) for (const p of (d.pts || [d.point])) {
       if (p[0] < x0) x0 = p[0]; if (p[0] > x1) x1 = p[0];
       if (p[1] < y0) y0 = p[1]; if (p[1] > y1) y1 = p[1];
     }
@@ -143,7 +150,7 @@ SBMM.dxf = (function () {
       w(0, "POINT"); w(8, d.layer); w(10, N(p.x)); w(20, N(p.y)); w(30, "0.0");
       text(w, d.layer, [p.x + 3, p.y + 3], 6, p.id, 0);
     }
-    for (const d of dgis) {
+    for (const d of [...dgis, ...dsurv]) {
       if (d.point) { w(0, "POINT"); w(8, d.layer); w(10, N(d.point[0])); w(20, N(d.point[1])); w(30, "0.0"); }
       else if (d.pts && d.pts.length > 1) polyline(w, d.layer, d.pts, !!d.closed);
     }
@@ -180,6 +187,11 @@ SBMM.dxf = (function () {
     if (f.type === "surface" && f._daylight) {
       for (const line of f._daylight) if (line.length > 1) polyline(w, "GRADING", line, true);
     }
+    if (f.type === "flow" && f.props && f.props.ponds) {
+      for (const pd of f.props.ponds)
+        for (const ring of (pd.rings || []))
+          if (ring.length > 2) polyline(w, "WATER-PONDS", ring, true);
+    }
     if (f.type === "sections" && f._sec) {
       const R = f._sec;
       for (let s = 0; s < R.ns; s++) {
@@ -196,7 +208,7 @@ SBMM.dxf = (function () {
     const t = f.type;
     if (t === "spot") { w(0, "POINT"); w(8, lay); w(10, N(f.pts[0][0])); w(20, N(f.pts[0][1])); w(30, "0.0"); return; }
     if (t === "area" || t === "volume" || t === "surface") { polyline(w, lay, f.pts, true); return; }
-    if (t === "line" || t === "profile" || t === "sections") { polyline(w, lay, f.pts, false); return; }
+    if (t === "line" || t === "profile" || t === "sections" || t === "flow") { polyline(w, lay, f.pts, false); return; }
     if (t === "text") {
       const h = (f.props && f.props.size_ft) || 20;
       if (f.pts.length > 1) line(w, lay, f.pts[1], f.pts[0]);

@@ -40,6 +40,13 @@ in code, and what comes next. It replaces re-reading the chat history that built
 | Watermark "Mo Sharif - Jacobs 2026" bottom-right, burned into exports | User request |
 | C-202 registered from EA's native North Lobe polygon (v9.1), one affine per plan viewport; the raster and 3D drape are the grading plan | The PDF methods could not place it; the native polygon is the drawn boundary with every vertex surveyed |
 | GitHub repo stays **private**; no CDNs, analytics or network calls | Site imagery + analytical results |
+| **Surveyed levels override the lidar where they exist** (the Aug-2026 water level, pipe inverts and sandbag crest drive the Herman overtopping stages; the lidar still supplies the terrain) | A survey shot is a measurement of the thing; the lidar's flat return over water is a proxy for it, 0.13 ft off after 2.5 years |
+| The Aug-2026 survey plot is georeferenced from its **own tabulated points**, scale locked, rotation zero | It is a CAD plot with three (two) surveyed points drawn as vectors: residuals 0.01–0.02 ft, no imagery needed |
+| The water tools (v10) are **static terrain analyses only** — no rainfall, runoff, infiltration, seepage, wave run-up or time | He asked "use the topo and predict"; the topo is what the app has ground truth for, and a hydraulic answer dressed in the same UI would be believed |
+| A pond is reported at **0.25 ft** depth and deeper | The lidar noise floor: a 0.1-ft "pond" on a 1-ft grid is a rounding artefact drawn as a water body |
+| Raindrop windows are **±700 ft on a 1-ft grid, ±1,400 ft on the 2-ft**, re-centred on the exit for up to 8 hops / 20,000 ft | Big enough that most runs finish in one window; small enough that a click answers in about a second. The chaining is what keeps a long run honest across a grid change, and the card lists the grids it used |
+| The overtopping overflow route runs on the **same grid and window as the analysis** | Retracing it on the finest DEM under the spill would be a second analysis wearing the first one's answer |
+| A password screen in front of the app (v9.3), and it is a **deterrent, not security** | He asked for "something to deter someone from using it", explicitly not full security. Everything ships to the browser, so the check is in the file the browser reads — this stops a colleague, not an attacker |
 
 ## What was tried and dropped
 
@@ -69,9 +76,39 @@ in code, and what comes next. It replaces re-reading the chat history that built
 7. **C-102 and C-203 could be placed the way C-202 was** (`tools/register_sheet_native.py`,
    native polygon fitted to the plan linework + ortho confirmation). C-203's rectangle is
    symmetric, so watch the ambiguity.
-8. Ideas he has floated for later: richer sample-result symbology by analyte/date, more
+8. **The pipes' capacity is not modelled.** The overtopping card says the pipes discharge
+   from 1341.55 ft; how much they can pass, and whether the pond keeps rising with them
+   flowing, is hydraulics (see the next item).
+9. **Hydraulics and rainfall are out of scope** for the water tools, deliberately
+   (see the decisions table). If he asks for runoff volumes, a design storm, culverts,
+   pipes, a dam-break, or "how long would it take to fill" — **ask before adding**. Those
+   need inflow data and a hydraulic model, neither of which is in this repo, and the
+   honest first step is naming what would have to be brought in rather than extending a
+   terrain analysis until it looks like one.
+10. Ideas he has floated for later: richer sample-result symbology by analyte/date, more
    datasets through `datasets.js` (it is the intended path for any new point data), and
    keeping the app the single place the construction team looks.
+
+## The password gate (v9.3)
+
+**The gate password is `Jacobs2026`.** This file is the only place it is written down —
+not the README, not the release notes, not the code, and not a test. It is here because
+this repo is private; if that ever changes, this line goes first.
+
+- **It is a deterrent, not security, and it must never be described as security.** The
+  whole app is in the file the browser opens, so anyone willing to read the source is
+  past it in a minute. What it does is stop the file being *used* by someone it was
+  passed to sideways — which is exactly what he asked for.
+- `js/gate.js` holds a SHA-256 of `SALT + password`, never the password.
+  `python tools/set_password.py "<new password>"` rewrites that hash (and this line),
+  and prints what it did. Nothing else has to change — the tests read the hash out of
+  `js/gate.js` themselves.
+- An unlock is remembered per browser for 30 days (`localStorage["sbmm.gate.v1"]`).
+  Typing `LOCK` (or `LOGOUT`) in the command bar forgets it and puts the screen back up.
+  There is no URL-parameter bypass and no test flag — the harnesses pre-seed the same
+  localStorage record a real unlock writes (`test/gate.mjs`).
+- If he ever forgets it: the hash is in `js/gate.js`, so the password cannot be read back
+  out. Set a new one with `tools/set_password.py` and rebuild the dist.
 
 ## Delivery procedure (what "ship it" means)
 

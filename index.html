@@ -68,6 +68,7 @@ window.SBMM_PERF = (function () {
   <symbol id="i-search" viewBox="0 0 16 16"><circle cx="7" cy="7" r="4.6"/><path d="M10.4 10.4 14 14"/></symbol>
   <symbol id="i-doc" viewBox="0 0 16 16"><path d="M3.4 1.8h6l3.2 3.2v9.2H3.4z"/><path d="M9.4 1.8V5h3.2M5.6 8.4h4.8M5.6 11h4.8"/></symbol>
   <symbol id="i-heat" viewBox="0 0 16 16"><path d="M1.8 12.2c1.8-4 3.6-5.4 5.4-4.2s3.6.4 5.4-3.6"/><path d="M1.8 14.2h12.4M1.8 2.2v12"/></symbol>
+  <symbol id="i-drop" viewBox="0 0 16 16"><path d="M8 1.6C5.4 4.6 3.4 7.3 3.4 9.6a4.6 4.6 0 0 0 9.2 0c0-2.3-2-5-4.6-8z"/><path d="M6 9.9a2 2 0 0 0 2 2"/></symbol>
 </defs></svg>
 
 <div class="loading" id="loading"><div class="spin"></div><div id="loadMsg">Loading terrain…</div></div>
@@ -91,6 +92,7 @@ window.SBMM_PERF = (function () {
   <div class="tgroup" data-grp="draft" aria-label="Draw and design">
     <button class="toolbtn menub" id="drawMenuBtn" aria-haspopup="true" title="Draw — point, line, polygon, dimension, text, smart boundary"><svg class="ic16"><use href="#i-draw"/></svg><span class="tlbl">Draw ▾</span></button>
     <button class="toolbtn menub" id="designMenuBtn" aria-haspopup="true" title="Design — graded pads, surfaces, isopach, volume vs a surface"><svg class="ic16"><use href="#i-pad"/></svg><span class="tlbl">Design ▾</span></button>
+    <button class="toolbtn menub" id="waterMenuBtn" aria-haspopup="true" title="Water — trace where a raindrop flows, and where an impoundment would overtop"><svg class="ic16"><use href="#i-drop"/></svg><span class="tlbl">Water ▾</span></button>
   </div>
 
   <div class="tgroup" data-grp="view" aria-label="View">
@@ -134,6 +136,13 @@ window.SBMM_PERF = (function () {
   <div class="ci sep" data-a="isopach">Isopach — cut/fill vs a design surface…</div>
   <div class="ci" data-a="volsurf">Volume in polygon vs a surface…</div>
   <div class="ci sep" data-a="layerman">Layer manager…</div>
+</div>
+
+<div id="waterMenu" class="menu">
+  <div class="ci" data-m="raindrop">Raindrop — trace where water flows <kbd>R</kbd></div>
+  <div class="ci sep" data-a="overtop">Overtopping — Herman Impoundment…</div>
+  <div class="ci" data-a="overtop-click">Overtopping — a pond under a click…</div>
+  <div class="ci sep" data-a="water-clear">Clear water overlays</div>
 </div>
 
 <div id="exportMenu" class="menu">
@@ -552,6 +561,7 @@ window.SBMM_PERF = (function () {
     <tr><td class="cmdn"><kbd>N</kbd> <kbd>X</kbd></td><td>Dimension, Text</td><td>CAD annotation drawn straight on the map</td></tr>
     <tr><td class="cmdn"><kbd>B</kbd></td><td>Smart boundary</td><td>the pile wand; the Draw menu also has contour-trace and toe/crest</td></tr>
     <tr><td class="cmdn"><kbd>D</kbd></td><td>Graded pad</td><td>flat or sloped pad with daylighting side slopes</td></tr>
+    <tr><td class="cmdn"><kbd>R</kbd></td><td>Raindrop</td><td>trace where water flows downhill from a click, ponding on the way</td></tr>
     <tr><td class="cmdn"><kbd>F</kbd></td><td>Fly (in 3D)</td><td>WASD move, Q/E down/up, drag to look</td></tr>
     <tr><td class="cmdn"><kbd>/</kbd></td><td>Command line</td><td>also <kbd>`</kbd> or <kbd>Ctrl</kbd><kbd>K</kbd></td></tr>
     <tr><td class="cmdn"><kbd>3</kbd> · <kbd>T</kbd></td><td>3D · Samples</td><td>the 3D view and the sample results table</td></tr>
@@ -654,10 +664,36 @@ window.SBMM_PERF = (function () {
   the terrain-analysis rasters, the isopach and computed contours all run in background workers,
   so the interface stays responsive and every job can be cancelled.<br><br>
 
+  <b>Water</b> — two static terrain analyses over the same lidar bare earth.
+  <b>Raindrop</b> (<kbd>R</kbd>, <span class="mono">DROP</span>) drops a marker where you click
+  and runs it downhill by steepest descent, on the finest DEM that covers it. Where the run
+  reaches a low point it <b>ponds</b>: the depression is filled to its pour point and drawn with
+  its level, depth, area and volume, and the drop carries on from there — a pond deeper than
+  0.25 ft is real terrain, anything shallower is lidar noise and is crossed silently. The run
+  ends at the edge of the surveyed ground (Clear Lake or the survey limit), in a depression with
+  no outlet inside the search window, or at the length cap; if it leaves its window it is
+  re-run on whichever grid covers where it left, and the card lists the grids it used. The
+  result is an ordinary feature: drag the raindrop to retrace it, and ask it for an elevation
+  profile or its contributing area.<br>
+  <b>Overtopping</b> (<span class="mono">OVERTOP</span>, the Water menu, or a water polygon’s
+  popup) takes the water surface the lidar actually recorded and raises it until it spills. It
+  reports the <b>spill elevation</b>, <b>where</b> it spills, the <b>freeboard</b>, the storage
+  and area it takes to get there, and the route the overflow then takes downhill. Around the
+  water it paints a <b>ring of rim elevations</b> — hot where the rim is at the spill, fading
+  out as it rises — with the low points ranked ①②③, and a slider walks the level from today’s
+  surface past the spill.<br>
+  Neither tool is hydraulics: there is no rainfall, runoff, infiltration, seepage, wave run-up
+  or time in any of it. They say what the ground shape implies, at planning level.<br><br>
+
   <b>Export</b> — GeoJSON in WGS84 or State Plane (EPSG:6418), DXF R12 in raw State Plane feet
   for AutoCAD and Civil 3D, session files you can reload or share, and CSVs of results, samples
   and datasets. Drag-drop a GeoJSON, DXF or CSV onto the map to import it.
 </div></div>
+
+<!-- The password gate is deliberately the FIRST script: it paints before the
+     vendor bundles and the ~130 MB of datajs payloads are parsed, so the app
+     is never on screen unlocked. It covers and blocks; boot carries on under it. -->
+<script src="js/gate.js"></script>
 
 <script src="vendor/leaflet.js"></script>
 <script src="vendor/d3-delaunay.min.js"></script>
@@ -676,6 +712,7 @@ window.SBMM_PERF = (function () {
 <script src="datajs/d_points.js"></script>
 <script src="datajs/d_design_ea.js"></script>
 <script src="datajs/d_design_gis.js"></script>
+<script src="datajs/d_survey_2026.js"></script>
 <script src="datajs/d_cad_native.js"></script>
 <script src="datajs/d_cad_surfaces.js"></script>
 <script src="datajs/d_ortho_abp.js"></script>
@@ -745,6 +782,7 @@ window.SBMM_PERF = (function () {
 <script src="js/layers.js"></script>
 <script src="js/designea.js"></script>
 <script src="js/designgis.js"></script>
+<script src="js/survey.js"></script>
 <script src="js/cadnative.js"></script>
 <script src="js/sheets.js"></script>
 <script src="js/datasets.js"></script>
@@ -770,6 +808,7 @@ window.SBMM_PERF = (function () {
 <script src="js/mode.js"></script>
 <script src="js/layerman.js"></script>
 <script src="js/isopach.js"></script>
+<script src="js/water.js"></script>
 <script src="js/refsurf.js"></script>
 <script src="js/sheetcards.js"></script>
 <script>SBMM_PERF.mark("app-js")</script>

@@ -105,6 +105,23 @@ SBMM.cmd = (function () {
     { n: "TREES",  a: ["TREE", "INVENTORY"], d: "detect individual trees over the canopy window", arg: "min height ft",
       f: v => SBMM.trees.cmdTrees(v) },
 
+    /* ---- water (v10) ---- */
+    { n: "DROP",    a: ["RAIN", "RAINDROP", "WATERDROP", "FLOW"],
+      d: "raindrop — trace where water flows downhill from a click, ponding on the way",
+      f: () => mode("raindrop") },
+    { n: "OVERTOP", a: ["SPILL", "POUR"],
+      d: "overtopping analysis of the Herman Impoundment — spill level, where, and where it goes",
+      f: () => SBMM.water.overtopHerman() },
+    { n: "CATCH",   a: ["WATERSHED"],
+      d: "contributing area upslope of the selected raindrop",
+      f: () => {
+        const f = selected();
+        if (f && f.type === "flow") { SBMM.water.catchment(f); return; }
+        const all = SBMM.store.features.filter(g => g.type === "flow");
+        if (all.length === 1) { SBMM.water.catchment(all[0]); return; }
+        toast(all.length ? "select the raindrop you want the catchment of" : "trace a raindrop first (DROP), then CATCH");
+      } },
+
     { n: "DXFOUT", a: ["DXFEXPORT"], d: "export drawn features to DXF R12 (State Plane ft)", f: () => SBMM.dxf.exportDXF() },
     { n: "DXFIN",  a: ["DXFIMPORT"], d: "import a DXF file", f: () => SBMM.dxf.importPrompt() },
     { n: "SAVE",   a: ["SAVESESSION"], d: "save the session to a file", f: () => SBMM.io.exportSession() },
@@ -131,7 +148,11 @@ SBMM.cmd = (function () {
     { n: "POLAR", a: ["PO"], d: "toggle polar tracking, 15° (F10)", f: () => { SBMM.draw.setPolar(null); toast("polar tracking " + (SBMM.draw.isPolar() ? "on" : "off")); } },
     { n: "UNDO",  a: ["U"], d: "undo the last action", f: () => SBMM.undo.pop() },
     { n: "CLEAR", a: [], d: "remove every drawn feature", f: () => $("clearBtn").click() },
-    { n: "HELP",  a: ["?", "H"], d: "list every command", f: () => showHelp() }
+    { n: "HELP",  a: ["?", "H"], d: "list every command", f: () => showHelp() },
+    /* the password gate (js/gate.js). Forgetting the remembered unlock and
+       putting the screen back up is one action, so it is one command. */
+    { n: "LOCK",  a: ["LOGOUT", "SIGNOUT"], d: "lock the app — forget this browser's unlock and show the password screen",
+      f: () => { if (SBMM.gate) SBMM.gate.lock(); else toast("no password gate in this build"); } }
   ];
 
   function find(word) {
@@ -299,6 +320,7 @@ SBMM.cmd = (function () {
     "TEXT Stockpile A — annotation with an optional leader",
     "MI · RO · M · CO · J · X — mirror, rotate, move, copy, join, explode",
     "DXFOUT — State Plane DXF for AutoCAD · DXFIN imports one",
+    "DROP — a raindrop that runs downhill · OVERTOP — where an impoundment spills",
     "ZE zoom extents · ZW zoom window · 3D · TABLE",
     "while sketching: 150 · @150,75 · @150<45 · Shift = ortho"
   ];

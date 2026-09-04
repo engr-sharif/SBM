@@ -105,6 +105,14 @@ SBMM.mode = (function () {
       next: "click the pad footprint", more: "double-click to finish",
       enter() { SBMM.tools.setTool(null); SBMM.design.cmdPad("pad"); }
     },
+    /* Water (v10 §4.4). A click tool, not a sketch: every click traces another
+       drop and the mode stays armed, which is what makes "where does water go
+       from here… and from here" a conversation rather than a command. */
+    "raindrop": {
+      label: "Raindrop", tool: "raindrop", cursor: "crosshair", key: "R",
+      next: "click where the drop lands", more: "every click traces another drop",
+      enter() { SBMM.tools.setTool("raindrop"); }
+    },
     "edit": {
       label: "Edit vertices", cursor: "move", transient: true,
       next: "drag a handle to move it", more: "Delete removes a vertex · Enter finishes",
@@ -118,7 +126,8 @@ SBMM.mode = (function () {
      not silently rename what you are doing. */
   const TOOL_HOME = {
     inspect: "inspect", distance: "measure.distance", area: "measure.area",
-    volume: "volume", profile: "measure.profile", point: "draw.point"
+    volume: "volume", profile: "measure.profile", point: "draw.point",
+    raindrop: "raindrop"
   };
 
   let cur = "navigate";
@@ -196,7 +205,8 @@ SBMM.mode = (function () {
      could see what they were in but not where it came from or how to leave it
      (F7). The parent button now lights up and wears the mode's name. */
   function paintMenuButtons() {
-    for (const [btnId, menuId] of [["drawMenuBtn", "drawMenu"], ["designMenuBtn", "designMenu"]]) {
+    for (const [btnId, menuId] of [["drawMenuBtn", "drawMenu"], ["designMenuBtn", "designMenu"],
+                                   ["waterMenuBtn", "waterMenu"]]) {
       const btn = document.getElementById(btnId), menu = document.getElementById(menuId);
       if (!btn || !menu) continue;
       const lbl = btn.querySelector(".tlbl");
@@ -373,7 +383,7 @@ SBMM.mode = (function () {
     btn.onclick = e => {
       e.stopPropagation();
       const open = menu.style.display === "block";
-      document.querySelectorAll("#drawMenu,#designMenu,#exportMenu,#ovfMenu").forEach(m => m.style.display = "none");
+      document.querySelectorAll("#drawMenu,#designMenu,#waterMenu,#exportMenu,#ovfMenu").forEach(m => m.style.display = "none");
       menu.style.display = open ? "none" : "block";
       if (!open) {
         const r = btn.getBoundingClientRect();

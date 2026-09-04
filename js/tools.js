@@ -15,10 +15,11 @@ SBMM.tools = (function () {
     distance: "Distance — click each point; double-click or Enter finishes. Esc cancels.",
     area: "Area — click the boundary; double-click or Enter closes it. Esc cancels.",
     volume: "Volume — click a footprint around the pile or excavation; double-click closes it.",
-    profile: "Profile — click the start and the end of the line; Enter finishes."
+    profile: "Profile — click the start and the end of the line; Enter finishes.",
+    raindrop: "Raindrop — click where the drop lands; every click traces another. Esc returns to Navigate."
   };
   /* Tools that put a card up rather than opening a sketch. */
-  const CLICK_TOOLS = new Set(["inspect", "point"]);
+  const CLICK_TOOLS = new Set(["inspect", "point", "raindrop"]);
   function setTool(t) {
     tool = (tool === t) ? null : t;
     /* The button highlight belongs to SBMM.mode (§2) — it is the one thing that
@@ -59,6 +60,10 @@ SBMM.tools = (function () {
        not read a coordinate without leaving a marker behind. */
     if (tool === "inspect") { inspectAt(x, y); return; }
     if (tool === "point") { const f = dropSpot(x, y); SBMM.store.select(f.id); return; }
+    /* v10 §4.4: a drop per click, the mode stays armed. The trace is async and
+       each drop is its own job chain, so a second click while one is running
+       simply queues a second drop rather than cancelling the first. */
+    if (tool === "raindrop") { SBMM.water.dropAt(x, y); return; }
     /* Belt and braces: a lit tool button must always accept a click. If anything
        tore the sketch down while the tool stayed selected, start a fresh one
        rather than swallowing the click. */
@@ -77,7 +82,9 @@ SBMM.tools = (function () {
     text:    { pane: "drawings", color: "#E8EEF1", weight: 1.4 },
     /* phase 3 — earthworks */
     surface: { pane: "drawings", color: "#4FD8E6", weight: 2, fillOpacity: .07 },
-    sections:{ pane: "drawings", color: "#F0A6D0", weight: 2.5 }
+    sections:{ pane: "drawings", color: "#F0A6D0", weight: 2.5 },
+    /* v10 — water reads as water everywhere it appears (§7) */
+    flow:    { pane: "drawings", color: "#55C1FF", weight: 2.75 }
   };
   const SEL_COLOR = "#FFD34D";
   function baseStyle(t) { return styles[t] || styles.area; }
@@ -87,6 +94,10 @@ SBMM.tools = (function () {
   function applyStyle(f) {
     if (!f || !f.layer) return;
     if (f.type === "dim" || f.type === "text") { buildAnno(f); return; }
+    /* a flow is six sub-layers (glow, line, ponds, drop, end, the animated
+       copy in the water pane), so it is rebuilt rather than re-styled — the
+       same shape dim and text already use */
+    if (f.type === "flow") { SBMM.water.buildFlow(f); return; }
     if (!f.layer.setStyle) return;
     const base = baseStyle(f.type);
     const sel = SBMM.store.selected === f.id;
@@ -104,7 +115,7 @@ SBMM.tools = (function () {
 
   function layerFor(f) {
     const ll = f.pts.map(p => [p[1], p[0]]);
-    if (f.type === "dim" || f.type === "text") return L.featureGroup([]);
+    if (f.type === "dim" || f.type === "text" || f.type === "flow") return L.featureGroup([]);
     if (f.type === "spot") {
       return L.circleMarker(ll[0], { pane: "drawings", radius: 5, color: "#FFD34D", weight: 2, fillColor: "#12181C", fillOpacity: 1 });
     }
@@ -116,6 +127,7 @@ SBMM.tools = (function () {
   const OPEN_TYPES = new Set(["line", "profile", "sections"]);
   function redraw(f) {
     if (f.type === "dim" || f.type === "text") { buildAnno(f); return; }
+    if (f.type === "flow") { SBMM.water.buildFlow(f); return; }
     const ll = f.pts.map(p => [p[1], p[0]]);
     if (f.type === "spot") f.layer.setLatLng(ll[0]);
     else f.layer.setLatLngs(OPEN_TYPES.has(f.type) ? ll : [ll]);
@@ -148,6 +160,9 @@ SBMM.tools = (function () {
   function editFeature(f) {
     if (f.locked) { toast("feature is locked — unlock it in the Features tab"); return; }
     if (f.type === "spot") { toast("spot elevations can't be edited — delete and re-drop"); return; }
+    /* a flow path is computed from the terrain, not drawn: moving a vertex would
+       make it a line that claims to be a trace. Move the DROP instead. */
+    if (f.type === "flow") { toast("a flow path is traced, not drawn — drag the raindrop to retrace"); return; }
     setTool(null);
     SBMM.store.select(f.id);
     SBMM.draw.edit(f,
@@ -160,6 +175,7 @@ SBMM.tools = (function () {
      superseded worker job. */
   const LIVE_MS = 130;
   function recompute(f, live) {
+    if (f.type === "flow") { SBMM.water.buildFlow(f); SBMM.store.autosave(); return; }
     if (f.type === "dim") compDim(f);
     else if (f.type === "text") compText(f);
     else if (f.type === "line") compDistance(f);
@@ -724,6 +740,9 @@ SBMM.tools = (function () {
     /* v5 additions — design surfaces and section sets */
     else if (type === "surface") { f = SBMM.design.mkSurface(pts, name, props, spec); }
     else if (type === "sections") { f = SBMM.sections.mkSections(pts, name, props, spec); }
+    /* v10 additions — a raindrop flow path. Rebuilt from props, never recomputed:
+       loading a session or importing a file must not spawn compute jobs. */
+    else if (type === "flow") { f = SBMM.water.mkFlow(pts, name, props, spec); }
     else return null;
     if (name) {
       f.name = name;
@@ -738,6 +757,10 @@ SBMM.tools = (function () {
        not what its geometry measures, so the recompute above must not drop it
        (the "Imported" row in My work reads it) */
     if (props && props.imported) f.props.imported = true;
+    /* the same reasoning for the overtopping record on a "pond at spill"
+       polygon: it says which analysis produced the ring, which no amount of
+       recomputing the area can recover */
+    if (props && props.overtop) f.props.overtop = props.overtop;
     /* optional session/import metadata — absent in v2 sessions, which is fine */
     if (spec.group) f.group = spec.group;
     if (spec.style) { f.style = spec.style; applyStyle(f); }

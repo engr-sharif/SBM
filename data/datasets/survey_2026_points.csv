@@ -1,0 +1,25 @@
+id,description,measure_on,northing,easting,elevation,area,source
+Gauge,Staff gauge at NW Pit,Center of the 1.0-foot graduation mark,2128869.8,6371830.65,1344.9,NW Pit,tabulated (Appendix 1)
+Lowest Ground,NW Pit ground shot,Lowest ground shot,2128782.35,6371833.75,1339.03,NW Pit,tabulated (Appendix 1)
+Water Level,Water level at the Herman Impoundment,Top of water,2127446.2,6372119.56,1336.45,Herman Impoundment,tabulated (Appendix 1)
+SD PIPE N,"Corrugated HDPE pipe (North), 24 in",Invert,2127486.62,6372041.23,1341.57,Herman Impoundment,tabulated (Appendix 1)
+SD PIPE S,"Corrugated HDPE pipe (South), 24 in",Invert,2127483.07,6372041.8,1341.53,Herman Impoundment,tabulated (Appendix 1)
+SB-144,Sandbag wall — top of sand bags,Top of sand bags,2127497.38,6372044.48,1343.57,Sandbag wall,"plot-derived (georeferenced sheet, ±0.1 ft)"
+SB-217,Sandbag wall — toe,Toe,2127495.97,6372042.28,1343.4,Sandbag wall,"plot-derived (georeferenced sheet, ±0.1 ft)"
+SB-226,Sandbag wall — toe,Toe,2127496.68,6372047.11,1343.0,Sandbag wall,"plot-derived (georeferenced sheet, ±0.1 ft)"
+SB-160,Sandbag wall — top of sand bags,Top of sand bags,2127487.68,6372047.29,1343.54,Sandbag wall,"plot-derived (georeferenced sheet, ±0.1 ft)"
+SB-234,Sandbag wall — toe,Toe,2127482.64,6372051.88,1343.0,Sandbag wall,"plot-derived (georeferenced sheet, ±0.1 ft)"
+SB-208,Sandbag wall — toe,Toe,2127479.29,6372047.11,1342.6,Sandbag wall,"plot-derived (georeferenced sheet, ±0.1 ft)"
+SB-176,Sandbag wall — top of sand bags,Top of sand bags,2127478.77,6372049.39,1343.65,Sandbag wall,"plot-derived (georeferenced sheet, ±0.1 ft)"
+SB-192,Sandbag wall — top of sand bags,Top of sand bags,2127475.78,6372041.15,1344.25,Sandbag wall,"plot-derived (georeferenced sheet, ±0.1 ft)"
+NWP-560,NW Pit spot elevation,Ground,2128798.83,6371831.28,1340.9,NW Pit,"plot-derived (georeferenced sheet, ±0.1 ft)"
+NWP-553,NW Pit spot elevation,Ground,2128795.13,6371837.15,1339.5,NW Pit,"plot-derived (georeferenced sheet, ±0.1 ft)"
+NWP-546,NW Pit spot elevation,Ground,2128775.05,6371834.32,1339.5,NW Pit,"plot-derived (georeferenced sheet, ±0.1 ft)"
+NWP-574,NW Pit spot elevation,Ground,2128773.15,6371859.12,1341.0,NW Pit,"plot-derived (georeferenced sheet, ±0.1 ft)"
+NWP-518,NW Pit spot elevation,Ground,2128783.5,6371859.28,1340.1,NW Pit,"plot-derived (georeferenced sheet, ±0.1 ft)"
+NWP-525,NW Pit spot elevation,Ground,2128784.68,6371869.73,1340.0,NW Pit,"plot-derived (georeferenced sheet, ±0.1 ft)"
+NWP-532,NW Pit spot elevation,Ground,2128785.87,6371877.71,1341.8,NW Pit,"plot-derived (georeferenced sheet, ±0.1 ft)"
+NWP-567,NW Pit spot elevation,Ground,2128795.53,6371878.45,1341.9,NW Pit,"plot-derived (georeferenced sheet, ±0.1 ft)"
+NWP-581,NW Pit spot elevation,Ground,2128775.18,6371879.84,1342.4,NW Pit,"plot-derived (georeferenced sheet, ±0.1 ft)"
+NWP-539,NW Pit spot elevation,Ground,2128785.72,6371884.64,1341.8,NW Pit,"plot-derived (georeferenced sheet, ±0.1 ft)"
+Shore 2,Shore (water ends) at the Herman Impoundment,Top of water,2127427.38,6372143.63,1336.44,Herman Impoundment,"plot-derived (georeferenced sheet, ±0.1 ft)"

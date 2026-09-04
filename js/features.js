@@ -15,7 +15,8 @@ const TYPE_META = {
   dim:     { label: "dim",     full: "aligned dimension", icon: "i-ruler" },
   text:    { label: "text",    full: "annotation",        icon: "i-pencil" },
   surface: { label: "surf",    full: "design surface (grading)", icon: "i-pad" },
-  sections:{ label: "sect",    full: "cross-section set", icon: "i-section" }
+  sections:{ label: "sect",    full: "cross-section set", icon: "i-section" },
+  flow:    { label: "flow",    full: "raindrop flow path", icon: "i-drop" }
 };
 
 /* ===================================================================== */
@@ -219,11 +220,19 @@ SBMM.props = (function () {
     stations: "Stations", station_interval_ft: "Station interval (ft)",
     swath_width_ft: "Swath width (ft)", alignment_length_ft: "Alignment length (ft)",
     endarea_cut_yd3: "End-area cut (yd³)", endarea_fill_yd3: "End-area fill (yd³)",
-    gridcheck_cut_yd3: "Grid-check cut (yd³)", gridcheck_diff_pct: "End-area vs grid (%)"
+    gridcheck_cut_yd3: "Grid-check cut (yd³)", gridcheck_diff_pct: "End-area vs grid (%)",
+    /* water (v10) */
+    drop_z: "Drop elevation (ft)", fall_ft: "Fall (ft)", dem: "Grid",
+    minPondDepth: "Smallest pond reported (ft)", hops: "Windows chained",
+    steps: "Cells stepped", searched_ft: "Search window (ft)",
+    catchment_ft2: "Contributing area (ft²)", catchment_cells: "Contributing cells",
+    catchment_window_ft: "Catchment window (ft)", catchment_partial: "Reaches the window edge"
   };
   const SKIP = new Set(["profile", "showCutFill", "kind", "padZ", "ratio", "side",
     "gradePct", "gradeDirDeg", "contourInterval", "showContours", "drape3d",
-    "interval", "width", "designId", "showCanopy", "baseMode", "fixedZ"]);
+    "interval", "width", "designId", "showCanopy", "baseMode", "fixedZ",
+    /* water: geometry and bookkeeping, not properties anyone reads in a table */
+    "zs", "grids", "blockRing", "blocked", "steps"]);
 
   function svgIcon(id) { return `<svg class="ic16"><use href="#${id}"/></svg>`; }
 
