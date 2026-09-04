@@ -29,42 +29,40 @@
     });
 
     SBMM_PERF.mark("boot-start");
-    lp.textContent = "decoding terrain (site 2-ft DEM)…";
-    SBMM.demSite = await Dem.load("dem_site");
-    SBMM_PERF.mark("dem-site");
-    lp.textContent = "decoding terrain (mine area 1-ft DEM)…";
-    SBMM.demAbp = await Dem.load("dem_abp");
-    SBMM_PERF.mark("dem-abp");
-    /* 1-ft window over the residential lots (v9). Optional in the same sense the
-       CHM is: an older datajs/ without it must still boot, so a missing payload
-       leaves the stack two deep and everything falls back to the 2-ft grid the
-       way it did before. */
-    try {
-      if (SBMM_DATA.dem_res && SBMM_DATA.dem_res_png) {
-        lp.textContent = "decoding terrain (residential 1-ft DEM)…";
-        SBMM.demRes = await Dem.load("dem_res");
+    /* The four terrain payloads decode in FOUR WORKERS, started together (v11).
+       Only the atob stays on the main thread; see the worker-side decode section
+       of js/dem.js for why and for the fallback. The names are canonical, the
+       marks keep the names the perf harnesses have always printed, and the
+       loader names the step it is on rather than going blank.
+
+       dem_res and the CHM are optional in the same sense they always were: an
+       older datajs/ without them must still boot — the stack goes two deep and
+       everything falls back to the 2-ft grid, and the canopy row disappears. */
+    const DEM_MARK = { dem_site: "dem-site", dem_abp: "dem-abp", dem_res: "dem-res", chm: "chm" };
+    const want = ["dem_site", "dem_abp"];
+    if (SBMM_DATA.dem_res && SBMM_DATA.dem_res_png) want.push("dem_res");
+    if (SBMM_DATA.chm && SBMM_DATA.chm_png) want.push("chm");
+    lp.textContent = `decoding terrain · 0 of ${want.length}…`;
+    const terrain = await Dem.loadAll(want, {
+      optional: ["dem_res", "chm"],
+      onOne: (name, p) => {
+        SBMM_PERF.mark(DEM_MARK[name] || name);
+        lp.textContent = p.done < p.total
+          ? `decoding terrain · ${p.done} of ${p.total}…`
+          : "decoding terrain · done";
       }
-    } catch (e) { console.warn("no residential DEM", e); }
+    });
+    SBMM.demSite = terrain.dem_site;
+    SBMM.demAbp = terrain.dem_abp;
+    SBMM.demRes = terrain.dem_res || null;
+    SBMM.chm = terrain.chm || null;
+    /* keep the stage table's shape when an optional payload is absent */
+    for (const n of ["dem_res", "chm"]) if (!terrain[n]) SBMM_PERF.mark(DEM_MARK[n]);
     /* finest first, dem_abp ahead of dem_res where they overlap — see js/dem.js */
     SBMM.setDems([SBMM.demAbp, SBMM.demRes, SBMM.demSite]);
-    SBMM_PERF.mark("dem-res");
-    /* Optional payload — the app must boot fine without it. It decodes here, inside
-       the loader, and deliberately so: moving it off the boot path bought half a
-       second of time-to-interactive and spent it on a ~0.6 s main-thread stall a
-       second or two later, landing on whatever the user had already started doing
-       (see the note in js/dem.js). `SBMM.chmReady` still exists and everything that
-       consumes canopy heights still awaits it, so a future worker-side decode is a
-       one-line change here rather than a hunt through five modules. */
-    try {
-      if (SBMM_DATA.chm && SBMM_DATA.chm_png) {
-        lp.textContent = "decoding canopy heights…";
-        SBMM.chm = await Dem.load("chm");
-      }
-    } catch (e) { console.warn("no CHM", e); }
+    /* unchanged contract: everything that consumes canopy heights awaits this */
     SBMM.chmReady = Promise.resolve(SBMM.chm || null);
     if (!SBMM.chm && $("v3dCanopyLbl")) $("v3dCanopyLbl").style.display = "none";
-
-    SBMM_PERF.mark("chm");
     lp.textContent = "building workbench…";
     SBMM.shell.wire();
     SBMM.compute.wire();
@@ -101,6 +99,12 @@
     SBMM.isopach.wire();
     SBMM.layerMan.wire();
     SBMM.sheetCards.wire();
+    /* Field mode (v11 §4.3). autoDetect() switches it on by itself on a touch
+       device with a narrow viewport, unless a stored preference says otherwise;
+       `body.field` is the one switch, and desktop is untouched without it.
+       Before SBMM.mode.wire() so the Mode HUD paints once, in the right box. */
+    SBMM.field.autoDetect();
+    SBMM.field.wire();
     SBMM.wireSelection();
     /* the tool-mode machine owns the tool buttons, the cursor, the mode HUD and
        every single-key shortcut (§2) */
@@ -118,7 +122,18 @@
       }
     };
     $("undoBtn").onclick = () => SBMM.undo.pop();
-    $("redoBtn").onclick = () => toast("this build keeps an undo stack only — there is nothing to redo");
+    $("redoBtn").onclick = () => SBMM.undo.redo();
+    /* Both buttons are a VIEW onto the two stacks: enabled when there is
+       something on that side, and their tooltip names what it is. onChange
+       fires once on subscribe, so this also sets the opening state. */
+    SBMM.undo.onChange(() => {
+      const l = SBMM.undo.labels();
+      const u = $("undoBtn"), r = $("redoBtn");
+      u.disabled = !SBMM.undo.canUndo();
+      r.disabled = !SBMM.undo.canRedo();
+      u.title = l.undo ? "Undo: " + l.undo + " (Ctrl+Z)" : "Undo the last action (Ctrl+Z)";
+      r.title = l.redo ? "Redo: " + l.redo + " (Ctrl+Y)" : "Redo the last undone action (Ctrl+Y)";
+    });
     $("splitTopBtn").onclick = async () => {
       if (!SBMM.viewer3d.isOpen()) await SBMM.viewer3d.toggle();
       $("v3dSplit").click();

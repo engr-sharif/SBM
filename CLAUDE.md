@@ -22,14 +22,29 @@ replace the chat history that built v1–v9. `RELEASE_NOTES_v9.md` is the user-f
      `Function.prototype.toString()` on the compute module (see `js/compute.js` +
      `js/jobs.js`) because a worker file can't be fetched over file://.
    - No ES modules, no bundler, no framework. Plain scripts listed in `index.html`.
-2. **Two builds from one source, both must pass tests:**
+2. **THREE builds from one source, all of them must pass tests:**
    - Folder build: `index.html` + `js/` + `datajs/` + `vendor/` (this repo, also
      GitHub-Pages hostable).
    - Single-file build: `python tools/build_dist.py` → `dist/SBMM_Site_Explorer.html`
-     (~94 MB, everything inlined — the copy the team double-clicks; the 20 full-sheet
+     (~133 MB, everything inlined — the copy the team double-clicks; the 20 full-sheet
      plan renders are ~27 MB of that).
-     New JS files MUST be added to `index.html`'s script list or the dist silently
-     lacks them. Note: `build_dist.py` stamps the build *before* inlining because
+   - **Field build** (v11 §4.2): `python tools/build_dist.py --field` →
+     `dist/SBMM_Site_Explorer_field.html` (~65 MB — the copy that opens on a phone).
+     Same source, same inlining, ONE exclusion list in `FIELD_EXCLUDE`: the 20
+     `i_sheet_full_*` renders, `i_chm_png` + `d_chm`, `d_cad_surfaces`, `d_cad_native`.
+     Everything else stays, the sheet MANIFEST included.
+     **Payload-tolerance rule: every module that reads an excluded payload must
+     degrade with a row, a note or a toast — never an error, and never silence.**
+     `js/sheets.js` keeps a render-less sheet in the index and refuses `open()` with a
+     toast; `js/sheetcards.js` draws the card without a thumbnail; `js/refsurf.js`,
+     `js/layerman.js`, `js/isopach.js`, `js/trees.js`, `js/smartbound.js` and
+     `js/viewer3d.js` already say so. `test/e2e_field.mjs` asserts zero page errors at
+     boot and that each refusal toasts.
+     Both single-file builds stamp `window.SBMM_BUILD` (`"full"` / `"field"`), which
+     `js/util.js` copies onto `SBMM_DATA.build`; ask it through `SBMM.isField()`.
+
+     New JS files MUST be added to `index.html`'s script list or both dists silently
+     lack them. Note: `build_dist.py` stamps the build *before* inlining because
      `js/report.js` contains a literal `</title>` inside a template string.
 
 ## Running tests (do this after every change)
@@ -40,18 +55,68 @@ node test/e2e.mjs     /abs/path/index.html                folder
 node test/e2e.mjs     /abs/path/dist/SBMM_Site_Explorer.html dist
 node test/split3d.mjs /abs/path/index.html                folder
 node test/split3d.mjs /abs/path/dist/SBMM_Site_Explorer.html dist
+node test/e2e_field.mjs /abs/path/dist/SBMM_Site_Explorer_field.html field
 ```
+`test/e2e_field.mjs` is the third build's harness (v11 §4.5): Playwright's **`Pixel 7`**
+descriptor (touch, 412x839, DPR 2.625) against the FIELD dist. It re-states the six
+sections §4.5 names — boot, the gate (unlocked by TAP), terrain, the golden Pile 1 volume,
+water and the survey — and adds the field-mode and field-capability assertions: the six
+44-px actions, the Layers sheet opening and closing by tap, a popup arriving as a bottom
+card, a raindrop by tap, Position refusing without a permission grant and landing within
+2 ft with one, a photo from `test/fixtures/photo_exif.jpg` placed at its EXIF GPS ±2 ft and
+surviving a session round trip, and a one-finger orbit / two-finger pinch in 3D. It is a
+separate file rather than a build switch inside `test/e2e.mjs` **deliberately**: that file
+is 4,200 lines of flat top-level statements over one shared page and one accumulating
+scene, and it has to keep passing UNCHANGED on the other two builds. Pass the full dist as
+a third argument to get the boot comparison. Optional fixture regeneration:
+`python3 tools/make_photo_fixture.py`.
 The harnesses use Playwright's own chromium unless `CHROME_BIN` points at one (the cloud
 build box's `/opt/pw-browsers/...` path is tried first and skipped if absent); paths are
 resolved through `pathToFileURL`, so Windows paths work. Runs are slow under software GL
 (180 s default timeouts are intentional). All four must pass.
-`test/water_kernels.mjs` is a **node** harness (no browser) over the three water kernels:
-it loads `js/compute.js` through `vm`, reads the planner's two fixtures and prints all 49
-`docs/V10_WATER_SPEC.md` §9 reference numbers beside what the kernels produce
-(`node test/water_kernels.mjs <fixture dir>`). It is the fast loop for anything touching
-`flowpath` / `overtop` / `catchment` — seconds, not minutes.
+**`test/kernels.mjs` is the fast loop — a node harness, no browser, ~11 s cold and ~9 s
+warm, covering EVERY kernel in `js/compute.js`'s `runJob`.** Run it after any change to
+`js/compute.js` or to a call site that builds a job, before you reach for Playwright:
+```
+node test/kernels.mjs                  # every section (136 checks)
+node test/kernels.mjs --only water     # one or more sections, comma-separated
+node test/kernels.mjs --list           # volume isopach raster contours design sections smart trees water
+node test/water_kernels.mjs            # a thin alias for --only water
+```
+It loads `js/compute.js` through `vm.runInThisContext` (the module is context-free, which
+is the whole point of it) plus `vendor/d3-delaunay.min.js` for the volume job's perimeter
+TIN, and prints every check as `PASS/FAIL name got ref tolerance` with a per-kernel wall
+time; any FAIL exits non-zero. Three rules govern it:
+
+- **Each section builds its job the way the app builds it** and names the call site it
+  mirrors (`js/tools.js` buildVolumeJob, `js/isopach.js` show, `js/design.js` jobFor,
+  `js/smartbound.js` runWand/runCbound/runToe/runStands, `js/sections.js` regenerate,
+  `js/analysis.js` demRaster/contoursFromDem, `js/trees.js` detect). A harness that
+  invents its own job proves the kernel runs, not that the app is right.
+- **Every number has a provenance**: a published golden (Pile 1's 278.4 yd³, EA's printed
+  excavation area, `docs/V10_WATER_SPEC.md` §9), an arithmetic identity (2πr for a cone's
+  contour ring, a bilinear port for a section's ground, `cutA − fillA` = the plain
+  trapezoid), or a value **recorded from this commit** — those say so in a comment and are
+  labelled regression guards.
+- **A new kernel gets a section here before it ships.** The harness greps `runJob`'s
+  dispatch and fails on any kind it does not cover.
+
+Terrain comes from `test/lib/terrain.mjs` — `loadDem` in `js/dem.js`'s exact layout,
+`gridSpec`/`gridsFor` ported verbatim from `js/jobs.js`, `loadSurface` reading EA's design
+rasters out of `datajs/d_cad_surfaces.js` — over `test/lib/png.mjs`, a decoder for the only
+PNG this repo ships (8-bit RGB/RGBA, non-interlaced; anything else throws by name).
+Decoded grids are cached under **`test/.cache/`** (gitignored, ~230 MB) keyed by the PNG's
+size and mtime, which is the whole difference between a 2 s cold decode and a 0.2 s warm one — touch
+a PNG and it misses. `test/fixtures/` holds the water references (`drop_ref.json`,
+`herman_ref.json`) and the planner's two independent Python implementations
+(`waterref.py`, `survey_stage_ref.py`), which are the tie-breakers when a definition is
+unclear; the water windows are now cut from the real PNGs with `gridSpec` and the harness
+asserts their shape before it asserts anything measured in them.
 `test/water_shots.mjs` writes the four v10 water shots (raindrop 2D/3D, Herman
 overtopping 2D/3D) into `test/shots/`; not pass-fail — look at them.
+`test/field_shots.mjs` writes the four v11 field shots (field_map, field_layers,
+field_photo, field_3d) into `test/shots/` on the Pixel 7 descriptor; not pass-fail — look
+at them.
 `test/v9_shots.mjs` writes the §11 audit shots (2D, 3D, split, a sheet window with a mark,
 the cultural acknowledgement, the Layer manager, the isopach) into `test/shots/`;
 `test/phaseB_shots.mjs` writes the sheet-viewer / layers / dataset screenshots. Neither is
@@ -115,9 +180,9 @@ terrain source, which needs an explicit decision + README/test update).
 | util.js | formatting, geometry helpers, ramps, toast; `$()` |
 | compute.js | **pure** compute kernels (volume grid, rasters, marching squares, ring-aware simplify) — no DOM, no SBMM; runs in workers |
 | jobs.js | worker pool: progress, cancel, transferables; `SBMM.compute` |
-| dem.js | DEM decode + bilinear `at()`, slope/aspect; the DEM stack `SBMM.dems` / `setDems` / `demAt` / `demForBox`; `SBMM.elev`, `SBMM.slopeAt`, `SBMM.canopy` |
+| dem.js | DEM decode — the Blob-URL **decode worker** and `Dem.loadAll` (one worker per payload, all started together) with the main-thread path as the fallback — plus bilinear `at()`, slope/aspect; the DEM stack `SBMM.dems` / `setDems` / `demAt` / `demForBox`; `SBMM.elev`, `SBMM.slopeAt`, `SBMM.canopy` |
 | proj.js | affine SP↔WGS84, coordinate parsing |
-| state.js | feature store (select/groups/visible/locked), undo, sessions (v7; loads v2+) |
+| state.js | feature store (select/groups/visible/locked), `readd`, **undo AND redo** (both closures required), sessions (v7; loads v2+) |
 | layerstate.js | **`SBMM.layerState` — the one answer to "is this layer on"** — plus the `SBMM.events` bus ('layers', 'mode', 'view') |
 | view.js | `SBMM.view` — remembers the 2D centre/zoom and the 3D orbit camera in localStorage and restores them on boot (guarded, debounced, range-checked) |
 | mode.js | **`SBMM.mode` — the tool-mode state machine (§2)**: modes, cursor, Mode HUD, every single-key shortcut, Esc discipline, Space-to-pan; also `SBMM.status` (the status bar, written by both views) |
@@ -150,6 +215,7 @@ terrain source, which needs an explicit decision + README/test update).
 | survey.js | the **August-2026 Jacobs survey** linework (`data/survey_2026.json`: the two 24-in HDPE discharge pipes, the sandbag wall, the NW Pit low) as read-only rows under Investigations; snap, 3D, export; `SBMM.survey` — the survey's 24 shots are a baked dataset, not this module |
 | layerman.js | the Layer manager dialog: search / toggle / recolour / opacity / source + handle for EA's 110 CAD layer names |
 | sheetcards.js | the Sheets tab — a card per drawing with a thumbnail derived on first open, filtered by lot |
+| field.js | **field mode (`body.field`) and the field capabilities (§4)** — the trigger and `SBMM.field`, the slim top bar / bottom action bar / More sheet, docks as bottom sheets, popups as bottom cards, Position (`watchPosition`, never fabricated), Photo (the `photo` feature type + a small EXIF reader), Note, Samples nearby |
 | popups.js | **the** popup builders — `SBMM.popups.forFeature/forDataset/forGis/forCad/forSample/forTree/forTerrain`. 2D binds them through Leaflet, 3D drops the same string into the pick card |
 | watermark.js | the "Mo Sharif - Jacobs 2026" element AND the burn-in every canvas export goes through (`burn`, `burnWebGL`) |
 | cultural.js | cultural resources (CONFIDENTIAL): off by default, acknowledgement gate, stamp, export gating |
@@ -160,30 +226,57 @@ terrain source, which needs an explicit decision + README/test update).
 ## Boot cost and the payload contract
 
 Boot is dominated by two things and nothing else is worth chasing until they change:
-**decoding the terrain PNGs** and **parsing ~90 MB of base64 string literals** (dist only).
-`test/perf.mjs` prints the stage-by-stage numbers (`SBMM.perf.report()` in the console, or
-append `?perf` to the URL — the marks are always collected, they just stay quiet).
+**parsing the vendor bundles** and **parsing ~90 MB of base64 string literals** (dist only).
+The terrain decode used to be the third, and since v11 it is not — it happens in workers.
+`test/perf.mjs` and `test/boot_time.mjs` print the stage-by-stage numbers
+(`SBMM.perf.report()` in the console, or append `?perf` to the URL — the marks are always
+collected, they just stay quiet).
 
+- **The four terrain payloads decode in four dedicated workers, started together** (v11,
+  `js/dem.js` worker-side decode section + the loader in `js/boot.js`). `Dem.loadAll(names)`
+  runs `atob` on the main thread — the string lives there and that is the only part that
+  must — **transfers** the bytes, and the worker does `createImageBitmap` →
+  `OffscreenCanvas` → `drawImage` → `getImageData` → the terrain-RGB → Float32 loop and
+  transfers the `Float32Array` back. On this 2-core box that took the terrain block from
+  1,246 ms to 683 ms and boot-done from a 2.54 s median to 1.66 s.
+  - **The worker is built the way `js/jobs.js` builds the compute worker**:
+    `demDecodeWorkerMain.toString()` into a Blob URL. That is the only technique that works
+    in both builds — nothing can be fetched over `file://`, and `tools/build_dist.py`
+    inlines `js/dem.js` verbatim so the function's source text is byte-identical. It is NOT
+    the compute pool: no job protocol, no `js/compute.js`, one message each way. Keep
+    `</script` out of that function's source (`js_safe` in the builder would mangle it) and
+    keep it self-contained — no `SBMM`, no DOM.
+  - **The loop was moved, not rewritten.** `Dem.load` is still there and is still the
+    fallback (no `Worker`, no `OffscreenCanvas`/`createImageBitmap` — feature-detected
+    *inside* the worker, which replies `{unsupported:true}` — a construction throw, an
+    error, or a timeout). The e2e decodes a synthetic terrain-RGB PNG both ways and requires
+    the two `Float32Array`s to agree cell for cell, NoData included.
+  - **The release happens only once a `Float32Array` exists**, so a worker that fails still
+    leaves the base64 string in place for the fallback to read.
+  - `SBMM.perf.demWorkers` (payloads that really decoded in a worker; the e2e asserts ≥ 3)
+    and `SBMM.perf.demDecode` (per payload: ms, worker, megapixels) are the diagnostics.
+    The per-payload boot marks keep their old names — `dem-site`, `dem-abp`, `dem-res`,
+    `chm` — but they now land in **completion** order, so the stage table's deltas are gaps
+    between finishes, not per-payload costs. Read `SBMM.perf.demDecode` for those.
 - **Never decode a data-URL through `new Image()` + `img.decode()`.** That path re-parses
   the base64 through the resource loader: 1168 ms for the 4850x4450 site DEM. `atob` →
   `Blob` → `createImageBitmap` does the same work in ~290 ms because the bytes are handed
-  straight to an off-thread decoder. `Dem.pixels()` does this, with the old path kept as a
-  fallback. This one change was ~1.5 s of the boot.
+  straight to an off-thread decoder. Both the worker and `Dem.context()` do this, with the
+  old path kept as a last-resort fallback. This one change was ~1.5 s of the boot.
 - **The CHM stays inside the loader — deferring it was tried and reverted.** Moving it off
   the boot path bought ~0.55 s of time-to-interactive and spent it on a ~0.6 s main-thread
   stall landing one to three seconds later, on whatever the user had already started (it
-  showed up as a phantom "1.3 s layer toggle" in `test/perf.mjs`). Banding both the
-  `getImageData` and the `drawImage` did not fix it: most of the block is inside
-  `createImageBitmap` decoding an 11.1-megapixel PNG, which does not divide. Doing it
-  properly means a worker, and the job protocol in `compute.js` is synchronous — an async
-  kernel is the prerequisite. The seams are all still in place for that: everything that
-  consumes canopy heights awaits `SBMM.chmReady` (now an already-resolved promise), and the
-  canopy Layers row is built by `SBMM.buildCanopyLayer()` rather than inline.
+  showed up as a phantom "1.3 s layer toggle" in `test/perf.mjs`). It is now the third of
+  four payloads to land inside the loader and costs the boot nothing extra, so there is
+  nothing left to defer. The seams stay: everything that consumes canopy heights awaits
+  `SBMM.chmReady` (an already-resolved promise), and the canopy Layers row is built by
+  `SBMM.buildCanopyLayer()` rather than inline.
 - **`SBMM_DATA.dem_site_png / dem_abp_png / dem_res_png / chm_png` are set to `null`
   once decoded** — 31 MB of string nothing reads twice. The *keys* stay (the dual-build
   contract), and the e2e asserts both halves of that. Do not add a second reader of those
-  four. `dem_res` costs ~0.12 s of boot (a 6.7-megapixel PNG); `dem_res` and the CHM are
-  both optional payloads and the app boots without either.
+  four. `dem_res` and the CHM are both optional payloads and the app boots without either;
+  `Dem.loadAll` takes them as `optional` and a missing one is a `console.warn`, not a
+  failed boot.
 - Building the survey-contour polylines, the DUs, the piles and the samples is 40-60 ms
   total. It looks like the expensive part of boot and is not — measure before you move it.
 
@@ -248,6 +341,17 @@ append `?perf` to the URL — the marks are always collected, they just stay qui
   `css/app.css`). Floating sheet windows re-stack inside 4000-4899 rather than incrementing a
   counter, the SHEETS picker sits at 5200, modals at 5600, and the toast at 7000 — a toast
   behind a sheet window is an error report the user never sees. The e2e asserts the ordering.
+- **`scrollIntoView` scrolls the PAGE, not just the pane** — and the page is
+  `overflow:hidden`, which stops a *user* scrolling but not a programmatic one. Selecting a
+  feature whose results card sat in a panel that was off-screen (in field mode the right
+  dock is a bottom sheet, parked at `translateY(105%)`) scrolled the document 453 px, and
+  every absolutely positioned thing in the app — the action bar, the status bar, the open
+  sheet — moved with it. Nothing errored; the layout silently came apart, and
+  `getBoundingClientRect()` disagreed with `getComputedStyle().top` by exactly the scroll.
+  `scrollIntoPane()` in `js/util.js` is the fix: find the nearest scrollable ancestor and
+  move ITS `scrollTop`/`scrollLeft`, or do nothing. Both call sites (`js/features.js`
+  selection, `js/sections.js` station focus) go through it. Do not reintroduce
+  `scrollIntoView` anywhere in this app.
 - **Esc must reach the front-most thing.** `sheets.js` listens in the capture phase, so it
   bails out when a text field has focus or a modal is open; every modal (help, command help,
   the report, the dataset dialog) closes on Esc and stops propagation so it does not also
@@ -752,6 +856,52 @@ is draggable and `dragend` retraces in place. My work gained a sixth class row,
 **Water** — appended, because `SBMM.myWork.classOf` reads `CLASSES[4]` as "imported
 wins" and that index is load-bearing.
 
+## Undo and redo (v9.4) — the both-closures rule and `readd`
+
+`SBMM.undo` is two stacks of `{ desc, undo, redo }`, 100 deep each way:
+
+```
+SBMM.undo.push(desc, undoFn, redoFn)   // BOTH closures are required
+SBMM.undo.pop() / redo() / canUndo() / canRedo() / labels() / clear()
+SBMM.undo.onChange(fn)                 // after every push/pop/redo/clear, and once on subscribe
+SBMM.undo.drop(n, desc)                // forget trailing entries WITHOUT running them
+```
+
+- **A push without a `redoFn` is a bug, not a style.** It reports itself in the console and
+  the entry is DROPPED — an action that can be undone and not redone is worse than one that
+  cannot be undone, because the button lies about it. Every push site in the app passes two
+  closures; adding a new one means writing the inverse, not omitting it.
+- **A push clears the redo stack.** A new action after an undo forks history and the
+  abandoned branch is gone.
+- **Capture the "after" state at the moment the action completes**, never lazily at redo
+  time — otherwise a later edit walks into an older entry's redo. This is why the vertex
+  drag in `js/draw.js` and the 3D handle in `js/pick3d.js` push on drag*end* (with the
+  before captured at drag*start*) rather than on drag start, and why `js/water.js`'s
+  retrace copies the new run beside the old one. And every restore closure hands over a
+  **fresh copy** of the point array: a drag writes through `f.pts` in place, so handing back
+  the stored array would let the next drag quietly rewrite history.
+- **`SBMM.store.readd(f)` is the redo of "a feature appeared", and the undo of a delete.**
+  It re-inserts the SAME object with the SAME id, so selection, provenance, the results card
+  and anything holding a reference survive. It works because `remove()` DETACHES and never
+  destroys: the Leaflet layer, the `extraLayers` (cut/fill overlay, design raster, section
+  band) and the card element are all still on the object. Only a feature whose layer was
+  thrown away needs a new one, and that comes from `SBMM.tools.relayer(f, true)` — the same
+  builder `newFeature` uses — with **nothing recomputed**. Do not make `remove()` null any
+  of that.
+- **The sketch's own per-vertex entries die with the sketch.** `js/draw.js`'s teardown calls
+  `SBMM.undo.drop(work.undos, "add vertex")`; the finished feature gets one "draw Line 3"
+  entry from the tool's `onFinish`. Undo after drawing removes the shape, not its last
+  vertex.
+- Deleting is an action: `SBMM.tools.deleteFeature(f)` removes and pushes the entry, and is
+  what `ERASE` and the 3D Delete key call. The results-card ✕ and the Features-tree delete
+  still call `SBMM.store.remove` directly and are NOT undoable — route them through
+  `deleteFeature` when those two files are next touched.
+- The two buttons are a view onto the two stacks (`js/boot.js`, through `onChange`):
+  disabled when their stack is empty, titled with the entry's description. Keys are
+  `Ctrl+Z` / `Ctrl+Y` / `Ctrl+Shift+Z` in `js/draw.js`, under the same guards (not while
+  typing; the gate stops every key ahead of them in the capture phase). The e2e block
+  **"9u. redo"** is the contract.
+
 ## The password gate (v9.3) — a deterrent, not security
 
 `js/gate.js` puts a password screen in front of the app. **Never describe it as
@@ -811,7 +961,9 @@ was asked to do.
   manager, serialize in sessions (additively versioned), export to GeoJSON (and DXF
   where geometry allows), be undoable, and recompute on vertex edit.
 - Session files (.sbmm.json) must stay backward compatible — old files always load.
-  Now **v7**: adds the layer state (`layers`). v6 added imported datasets. Baked datasets are
+  Now **v8**: adds the `photo` feature type (v11 §4.4 — a session with photos is big, and
+  that is accepted; the GeoJSON export asks before it carries the images). v7 added the
+  layer state (`layers`); v6 added imported datasets. Baked datasets are
   never serialised, and neither are EA's reference design surfaces or the cultural layer
   state — they ship with the app, so a stale copy in a session file must not win, and §7
   wants the cultural acknowledgement asked once per session rather than remembered.
@@ -824,6 +976,49 @@ was asked to do.
   this app must not do. `test/audit.mjs` records the toasts each path raises; if a probe there
   prints an empty toast list for a refusal, that is the bug.
 - Tooltips are sentence case and name the shortcut in brackets where there is one.
+
+## Field mode and the `photo` feature (v11 §4)
+
+`body.field` is the ONE switch, `SBMM.field.on()` reports it, `SBMM.events` emits `field`.
+It turns itself on at boot on a coarse pointer with a viewport <= 900 px (a stored
+preference beats the sniff either way), and `FIELD` / the Help switch / the More sheet
+toggle it anywhere. **Everything field-mode is behind `body.field` in CSS and behind
+`if (active)` in `js/field.js`, which is what makes "desktop is untouched" a property of
+the code rather than a promise** — `test/e2e.mjs` is the proof, unchanged.
+
+Four things here will be walked into again:
+
+- **`photo` was added the way `flow` was, and the same five places carry it.**
+  `js/tools.js` `layerFor` returns an empty `L.featureGroup` for it, `applyStyle` and
+  `redraw` both dispatch to `SBMM.field.buildPhoto`, `relayer(f, true)` rebuilds it, and
+  `rebuildFeature` sends it to `SBMM.field.mkPhoto` — which rebuilds from `props` and
+  **never recomputes**. Adding a fifth FeatureGroup type means touching all five.
+- **The "Field" My-work class row is APPENDED**, like "Water" before it, because
+  `SBMM.myWork.classOf` reads `CLASSES[4]` as "imported wins" and that index is
+  load-bearing.
+- **A Leaflet popup's content can be a FUNCTION.** The photo marker registers one
+  (`bindPopup(() => SBMM.popups.forFeature(f))`) so the picture is built at open time, and
+  `getContent()` hands back the function rather than the HTML. The field card's
+  `popupopen` hook resolves all three shapes — string, node, function — because getting
+  that wrong renders `function () {…}` into the card with no error anywhere.
+- **There is ONE toast element**, so two refusals raised in the same task overwrite each
+  other and only the last is ever seen. A test that drives several refusals has to leave a
+  gap between them (`test/e2e_field.mjs` does); so does any code path that means to tell
+  the user two things.
+
+Position (`SBMM.field.locate`) is `navigator.geolocation.watchPosition`, feature-detected,
+converted through `SBMM.fromLL` (the ±1 ft affine — the marker's card says so).
+**It never fabricates a position**: no API, a refused permission, an error or a silent
+watch all raise a toast, and the marker exists only while a fix does. The EXIF reader in
+`js/field.js` is ~90 lines over the JPEG APP1 / TIFF layout and reads exactly three things
+(orientation, DateTimeOriginal, GPS lat/long); `tools/make_photo_fixture.py` writes the
+fixture it is tested against and documents the byte layout.
+
+The 3D nav rig gained touch: `js/viewer3d.js` tracks live TOUCH pointers in a Map, and
+while there are two the drag becomes a pinch (spread dollies, the moving midpoint pans).
+Mouse and pen never enter that map, so the desktop rig is byte-for-byte the same gesture
+it was. `#v3dCanvas` carries `touch-action:none` or the browser takes a two-finger drag
+for a page scroll before the rig sees it.
 
 ## Sensitivity
 

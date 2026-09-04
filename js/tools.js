@@ -36,15 +36,25 @@ SBMM.tools = (function () {
     else document.querySelectorAll(".toolbtn[data-tool]").forEach(b =>
       b.classList.toggle("active", b.dataset.tool === tool));
   }
+  /* the one shape every "a feature appeared" undo entry has */
+  function pushCreate(f, desc) {
+    if (!f) return null;
+    return SBMM.undo.push(desc, () => SBMM.store.remove(f), () => SBMM.store.readd(f));
+  }
   function sketchOpts(t) {
     const closed = t === "area" || t === "volume";
     return {
       closed, minPts: closed ? 3 : 2, startTip: START_TIP[t],
       onFinish(pts) {
-        if (t === "distance") mkDistance(pts);
-        else if (t === "area") mkArea(pts);
-        else if (t === "volume") mkVolume(pts);
-        else if (t === "profile") mkProfile(pts);
+        let f = null;
+        if (t === "distance") f = mkDistance(pts);
+        else if (t === "area") f = mkArea(pts);
+        else if (t === "volume") f = mkVolume(pts);
+        else if (t === "profile") f = mkProfile(pts);
+        /* drawing something IS an action: one entry for the finished feature,
+           which is what "undo that" means once the shape exists (the sketch's
+           own per-vertex entries went with the sketch — js/draw.js teardown) */
+        if (f) pushCreate(f, "draw " + (f.name || t));
         SBMM.draw.begin(sketchOpts(t));   // ready for the next one
       }
     };
@@ -59,7 +69,7 @@ SBMM.tools = (function () {
        draw.point. Before v9 these were the same click, which meant you could
        not read a coordinate without leaving a marker behind. */
     if (tool === "inspect") { inspectAt(x, y); return; }
-    if (tool === "point") { const f = dropSpot(x, y); SBMM.store.select(f.id); return; }
+    if (tool === "point") { const f = dropSpot(x, y); pushCreate(f, "drop " + (f.name || "spot")); SBMM.store.select(f.id); return; }
     /* v10 §4.4: a drop per click, the mode stays armed. The trace is async and
        each drop is its own job chain, so a second click while one is running
        simply queues a second drop rather than cancelling the first. */
@@ -84,7 +94,9 @@ SBMM.tools = (function () {
     surface: { pane: "drawings", color: "#4FD8E6", weight: 2, fillOpacity: .07 },
     sections:{ pane: "drawings", color: "#F0A6D0", weight: 2.5 },
     /* v10 — water reads as water everywhere it appears (§7) */
-    flow:    { pane: "drawings", color: "#55C1FF", weight: 2.75 }
+    flow:    { pane: "drawings", color: "#55C1FF", weight: 2.75 },
+    /* v11 §4.4 — a field photo: a framed thumbnail marker, not a stroked shape */
+    photo:   { pane: "drawings", color: "#E8B34B", weight: 2 }
   };
   const SEL_COLOR = "#FFD34D";
   function baseStyle(t) { return styles[t] || styles.area; }
@@ -98,6 +110,7 @@ SBMM.tools = (function () {
        copy in the water pane), so it is rebuilt rather than re-styled — the
        same shape dim and text already use */
     if (f.type === "flow") { SBMM.water.buildFlow(f); return; }
+    if (f.type === "photo") { SBMM.field.buildPhoto(f); return; }
     if (!f.layer.setStyle) return;
     const base = baseStyle(f.type);
     const sel = SBMM.store.selected === f.id;
@@ -115,7 +128,7 @@ SBMM.tools = (function () {
 
   function layerFor(f) {
     const ll = f.pts.map(p => [p[1], p[0]]);
-    if (f.type === "dim" || f.type === "text" || f.type === "flow") return L.featureGroup([]);
+    if (f.type === "dim" || f.type === "text" || f.type === "flow" || f.type === "photo") return L.featureGroup([]);
     if (f.type === "spot") {
       return L.circleMarker(ll[0], { pane: "drawings", radius: 5, color: "#FFD34D", weight: 2, fillColor: "#12181C", fillOpacity: 1 });
     }
@@ -128,13 +141,16 @@ SBMM.tools = (function () {
   function redraw(f) {
     if (f.type === "dim" || f.type === "text") { buildAnno(f); return; }
     if (f.type === "flow") { SBMM.water.buildFlow(f); return; }
+    if (f.type === "photo") { SBMM.field.buildPhoto(f); return; }
     const ll = f.pts.map(p => [p[1], p[0]]);
     if (f.type === "spot") f.layer.setLatLng(ll[0]);
     else f.layer.setLatLngs(OPEN_TYPES.has(f.type) ? ll : [ll]);
   }
-  function newFeature(type, pts, name, spec) {
-    const f = { type, pts, name, props: {}, group: (spec && spec.group) || "", style: (spec && spec.style) || null };
-    if (spec && spec.locked) f.locked = true;
+  /* Build (or rebuild) a feature's Leaflet layer and put it on the map. Split
+     out of newFeature so that SBMM.store.readd can give a feature its geometry
+     back after its layer was thrown away, using the same builder and the same
+     click contract rather than a second copy of them. */
+  function relayer(f, rebuild) {
     f.layer = layerFor(f).addTo(SBMM.map);
     /* clicking a drawing selects it — but only when no tool is armed, so that
        drawing over an existing feature still passes the click to the map */
@@ -145,6 +161,21 @@ SBMM.tools = (function () {
       L.DomEvent.stopPropagation(ev);
       SBMM.store.select(f.id);
     });
+    /* On a REBUILD the three FeatureGroup types are empty shells until their
+       own builder fills them again (buildAnno here, js/water.js buildFlow);
+       at creation the caller does that itself a moment later. */
+    if (rebuild && (f.type === "dim" || f.type === "text" || f.type === "flow" || f.type === "photo")) redraw(f);
+    if (rebuild && f.card && f.layer.on) {
+      f.layer.on("mouseover", () => f.card.classList.add("hl"));
+      f.layer.on("mouseout", () => f.card.classList.remove("hl"));
+    }
+    applyStyle(f);
+    return f.layer;
+  }
+  function newFeature(type, pts, name, spec) {
+    const f = { type, pts, name, props: {}, group: (spec && spec.group) || "", style: (spec && spec.style) || null };
+    if (spec && spec.locked) f.locked = true;
+    relayer(f, false);
     SBMM.store.add(f);
     if (spec && spec.visible === false) SBMM.store.setVisible(f, false);
     applyStyle(f);
@@ -157,9 +188,22 @@ SBMM.tools = (function () {
       SBMM.map.fitBounds(L.latLngBounds(ll).pad(0.4));
     }
   }
+  /* Which features can have their vertices dragged, and which can be translated.
+     ONE list, because the popup card has to offer exactly the actions
+     editFeature would accept — a button that only ever raises a toast is worse
+     than no button. `spot` and `photo` are single points (there is nothing to
+     drag but the point itself, which is what MOVE is for); a `flow` is traced
+     from the terrain rather than drawn, and a reference surface is EA's data. */
+  const NO_VERTEX_EDIT = new Set(["spot", "photo", "flow"]);
+  function canEditVertices(f) { return !!f && !f.locked && !NO_VERTEX_EDIT.has(f.type); }
+  function canMove(f) { return !!f && !f.locked && f.type !== "flow" && !(f.props && f.props.ref); }
+
   function editFeature(f) {
     if (f.locked) { toast("feature is locked — unlock it in the Features tab"); return; }
     if (f.type === "spot") { toast("spot elevations can't be edited — delete and re-drop"); return; }
+    /* a photo is one point: where it was taken. MOVE corrects that; there is no
+       second vertex to drag. */
+    if (f.type === "photo") { toast("a photo is a single point — use MOVE to correct where it was taken"); return; }
     /* a flow path is computed from the terrain, not drawn: moving a vertex would
        make it a line that claims to be a trace. Move the DROP instead. */
     if (f.type === "flow") { toast("a flow path is traced, not drawn — drag the raindrop to retrace"); return; }
@@ -743,6 +787,9 @@ SBMM.tools = (function () {
     /* v10 additions — a raindrop flow path. Rebuilt from props, never recomputed:
        loading a session or importing a file must not spawn compute jobs. */
     else if (type === "flow") { f = SBMM.water.mkFlow(pts, name, props, spec); }
+    /* v11 additions — a field photo. Rebuilt from props like `flow`: a session
+       or an import must not go looking for a camera. */
+    else if (type === "photo") { f = SBMM.field.mkPhoto(pts, name, props, spec); }
     else return null;
     if (name) {
       f.name = name;
@@ -1012,15 +1059,23 @@ SBMM.tools = (function () {
       group: f.group || "", style: f.style ? { ...f.style } : null
     };
     const nf = rebuildFeature(spec);
-    if (nf) { SBMM.undo.push(suffix, () => SBMM.store.remove(nf)); SBMM.store.select(nf.id); }
+    if (nf) {
+      SBMM.undo.push(suffix, () => SBMM.store.remove(nf), () => SBMM.store.readd(nf));
+      SBMM.store.select(nf.id);
+    }
     return nf;
   }
   function replaceGeom(f, pts, desc) {
+    /* both states are copied HERE, at the moment the action completes: an edit
+       made later must not be able to walk into this entry's redo */
     const before = f.pts.map(p => p.slice());
-    SBMM.undo.push(desc, () => { f.pts = before; redraw(f); recompute(f, false); SBMM.store.emit(); });
-    f.pts = pts.map(p => p.slice());
-    redraw(f); recompute(f, false);
-    SBMM.store.emit(); SBMM.store.autosave();
+    const after = pts.map(p => p.slice());
+    /* and each restore hands over a fresh copy, because a later vertex drag
+       writes through f.pts in place */
+    const set = v => { f.pts = v.map(p => p.slice()); redraw(f); recompute(f, false); SBMM.store.emit(); };
+    SBMM.undo.push(desc, () => set(before), () => set(after));
+    set(after);
+    SBMM.store.autosave();
   }
   function modifiable(f, what) {
     if (!f) { toast(what + ": no feature selected"); return false; }
@@ -1172,7 +1227,14 @@ SBMM.tools = (function () {
       const nf = rebuildFeature({ type: "line", pts, name: (f.name || "Line") + " + " + (g.name || "Line"), group: f.group || "" });
       const fs = f, gs = g;
       SBMM.store.remove(fs); SBMM.store.remove(gs);
-      if (nf) { SBMM.store.select(nf.id); SBMM.undo.push("join", () => SBMM.store.remove(nf)); }
+      if (nf) {
+        SBMM.store.select(nf.id);
+        /* JOIN consumes both source lines, so the inverse is the joined line out
+           and the two originals back — not merely the joined line out */
+        SBMM.undo.push("join",
+          () => { SBMM.store.remove(nf); SBMM.store.readd(fs); SBMM.store.readd(gs); },
+          () => { SBMM.store.remove(fs); SBMM.store.remove(gs); SBMM.store.readd(nf); });
+      }
       toast(`joined — gap ${fmt(ends.d, 2)} ft, ${pts.length} vertices`);
     }, "JOIN — click the second line");
   }
@@ -1184,7 +1246,13 @@ SBMM.tools = (function () {
     const pts = [...f.pts.map(p => p.slice()), f.pts[0].slice()];
     const nf = rebuildFeature({ type: "line", pts, name: (f.name || "Area") + " (exploded)", group: f.group || "" });
     SBMM.store.remove(f);
-    if (nf) { SBMM.store.select(nf.id); SBMM.undo.push("explode", () => SBMM.store.remove(nf)); }
+    if (nf) {
+      SBMM.store.select(nf.id);
+      /* the polygon is consumed by the explode, so it comes back on undo */
+      SBMM.undo.push("explode",
+        () => { SBMM.store.remove(nf); SBMM.store.readd(f); },
+        () => { SBMM.store.remove(f); SBMM.store.readd(nf); });
+    }
     toast("exploded to a distance line");
   }
 
@@ -1201,7 +1269,7 @@ SBMM.tools = (function () {
       onDone: pts => {
         if (dist2d(pts[0], pts[1]) < 1e-6) { toast("DIM needs two distinct points"); return; }
         const f = mkDim(pts);
-        SBMM.undo.push("dimension", () => SBMM.store.remove(f));
+        SBMM.undo.push("dimension", () => SBMM.store.remove(f), () => SBMM.store.readd(f));
         SBMM.store.select(f.id);
         toast("dimension " + fmt(dist2d(pts[0], pts[1]), 2) + " ft");
       }
@@ -1216,7 +1284,7 @@ SBMM.tools = (function () {
         const place = label => {
           if (!label) { toast("TEXT cancelled"); return; }
           const f = mkText([pts[0]], label);
-          SBMM.undo.push("text", () => SBMM.store.remove(f));
+          SBMM.undo.push("text", () => SBMM.store.remove(f), () => SBMM.store.readd(f));
           SBMM.store.select(f.id);
           /* optional leader — Esc finishes without one */
           SBMM.draw.beginPick({
@@ -1232,6 +1300,19 @@ SBMM.tools = (function () {
     });
   }
 
+  /* Deleting a feature is an ACTION, so it is undoable like every other one:
+     undo puts the same object back (same id, same card), redo takes it away
+     again. Every user-facing delete path routes through here. */
+  function deleteFeature(f) {
+    if (!f) { toast("nothing selected to delete"); return false; }
+    if (f.props && f.props.ref) { SBMM.store.remove(f); return false; }   // EA reference data refuses, with its own toast
+    if (f.locked) { toast("feature is locked — unlock it in the Features tab"); return false; }
+    SBMM.store.remove(f);
+    SBMM.undo.push("delete " + (f.name || f.type),
+      () => SBMM.store.readd(f), () => SBMM.store.remove(f));
+    return true;
+  }
+
   /* zoom-dependent annotation redraw */
   function wire() {
     SBMM.map.on("zoomend", refreshAnnotations);
@@ -1242,7 +1323,8 @@ SBMM.tools = (function () {
   function nextName(base) { seq[base] = (seq[base] || 0) + 1; return `${base} ${seq[base]}`; }
 
   return { setTool, active, rearm, mapClick, dropSpot, inspectAt, mkVolume, volumeOfPile, volumeOfRing, volumeOfRingPts,
-           editFeature, zoomTo, rebuildFeature, recompute, applyStyle, redraw,
+           editFeature, canEditVertices, canMove,
+           zoomTo, rebuildFeature, recompute, applyStyle, redraw, relayer, deleteFeature,
            defaultColor, baseStyle, compVolume, wire,
            /* earthworks (phase 3) */
            buildVolumeJob, baseLabel, volumeRange, refreshBaseSelects, newFeature,

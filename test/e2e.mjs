@@ -664,7 +664,7 @@ const sessionRT = await page.evaluate(() => {
 });
 console.log("session round-trip:", JSON.stringify(sessionRT));
 /* v7 adds the layer state (§4); every bump so far has been purely additive */
-if (sessionRT.version !== 7 || Math.abs(sessionRT.dim - 100) > 0.01 || sessionRT.text !== "Stockpile A" || sessionRT.leader !== 2) {
+if (sessionRT.version !== 8 || Math.abs(sessionRT.dim - 100) > 0.01 || sessionRT.text !== "Stockpile A" || sessionRT.leader !== 2) {
   console.log("FAIL: dim/text did not survive the session round-trip"); process.exit(1);
 }
 const v2ok = await page.evaluate(() => {
@@ -911,7 +911,7 @@ const v5 = await page.evaluate(async () => {
            regen: !!(surf && surf._surf), loops: surf && surf._daylight ? surf._daylight.length : 0 };
 });
 console.log("session round-trip (surfaces + sections):", JSON.stringify(v5));
-if (v5.version !== 7 || v5.back !== v5.saved) { console.log("FAIL: session round-trip lost a surface or a section set"); process.exit(1); }
+if (v5.version !== 8 || v5.back !== v5.saved) { console.log("FAIL: session round-trip lost a surface or a section set"); process.exit(1); }
 if (!v5.regen || !v5.loops) { console.log("FAIL: a restored design surface did not regenerate its raster"); process.exit(1); }
 if (v5.ratio !== 3 || v5.side !== "out" || v5.kind !== "pad") { console.log("FAIL: surface parameters did not survive the session"); process.exit(1); }
 
@@ -3098,6 +3098,293 @@ if (errors.length !== errBeforeSurvey) {
 }
 
 /* ==================================================================== */
+/* 9u. redo (docs/V11_SPEC.md §1)                                       */
+/* ==================================================================== */
+/* Undo grew a second stack. What is asserted here is the contract, not the
+   wiring: every action that can be undone can be redone, redo restores the SAME
+   feature object (same id, same vertices, same card) rather than a look-alike,
+   a new action after an undo drops the branch that was left, and the two
+   buttons are a view onto the two stacks at every step. */
+const errBeforeRedo = errors.length;
+const undoBtns = () => page.evaluate(() => ({
+  undo: document.getElementById("undoBtn").disabled,
+  redo: document.getElementById("redoBtn").disabled,
+  undoT: document.getElementById("undoBtn").title,
+  redoT: document.getElementById("redoBtn").title
+}));
+
+/* --- 1. draw a line -> undo -> redo -> undo --------------------------- */
+const rdraw = await page.evaluate(async () => {
+  const wait = ms => new Promise(r => setTimeout(r, ms));
+  SBMM.mode.navigate();
+  SBMM.undo.clear();
+  const n0 = SBMM.store.features.length;
+  /* the real drawing path: arm the tool, click vertices, finish the sketch */
+  SBMM.tools.setTool("distance");
+  SBMM.tools.mapClick(6371300, 2128500);
+  SBMM.tools.mapClick(6371400, 2128560);
+  const vertexEntries = SBMM.undo.stack.length;
+  SBMM.draw.finishSketch();
+  await wait(150);
+  SBMM.mode.navigate();                       // close the sketch the tool re-armed
+  const f = SBMM.store.features[SBMM.store.features.length - 1];
+  window.__ru = f;
+  const snap = () => ({
+    n: SBMM.store.features.length - n0,
+    here: SBMM.store.features.indexOf(f) >= 0,
+    onMap: !!(f.layer && SBMM.map.hasLayer(f.layer)),
+    card: !!(f.card && document.body.contains(f.card)),
+    pts: JSON.stringify(f.pts),
+    labels: SBMM.undo.labels(), can: [SBMM.undo.canUndo(), SBMM.undo.canRedo()]
+  });
+  const made = snap();
+  const id0 = f.id, len0 = f.props.length_ft;
+  SBMM.undo.pop();  await wait(60);
+  const undone = snap();
+  SBMM.undo.redo(); await wait(60);
+  const redone = snap();
+  SBMM.undo.pop();  await wait(60);
+  const again = snap();
+  return { vertexEntries, made, undone, redone, again, id0, len0,
+           idAfter: f.id, lenAfter: f.props.length_ft };
+});
+console.log("redo/draw a line: after draw", JSON.stringify(rdraw.made),
+            "\n                  after undo", JSON.stringify(rdraw.undone),
+            "\n                  after redo", JSON.stringify(rdraw.redone));
+if (rdraw.made.n !== 1 || !rdraw.made.onMap || !rdraw.made.card || rdraw.made.labels.undo === null)
+  { console.log("FAIL: drawing a line did not create one undoable feature"); process.exit(1); }
+/* the sketch's per-vertex entries die with the sketch — one entry, "draw ..." */
+if (rdraw.vertexEntries !== 2 || !/^draw /.test(rdraw.made.labels.undo))
+  { console.log("FAIL: the finished sketch should leave exactly one 'draw' entry:", rdraw.vertexEntries, rdraw.made.labels); process.exit(1); }
+if (rdraw.undone.n !== 0 || rdraw.undone.onMap || rdraw.undone.card || rdraw.undone.can[1] !== true)
+  { console.log("FAIL: undo did not take the line off the map / off the panel"); process.exit(1); }
+if (rdraw.redone.n !== 1 || !rdraw.redone.onMap || !rdraw.redone.card)
+  { console.log("FAIL: redo did not put the line back on the map with its card"); process.exit(1); }
+if (rdraw.idAfter !== rdraw.id0 || rdraw.redone.pts !== rdraw.made.pts || rdraw.lenAfter !== rdraw.len0)
+  { console.log("FAIL: redo produced a look-alike, not the same feature", rdraw.id0, rdraw.idAfter); process.exit(1); }
+if (rdraw.again.n !== 0) { console.log("FAIL: a second undo did not remove the line again"); process.exit(1); }
+const b1 = await undoBtns();
+console.log("redo/buttons after undo:", JSON.stringify(b1));
+if (b1.undo !== true || b1.redo !== false || !/^Redo: draw /.test(b1.redoT))
+  { console.log("FAIL: the buttons do not mirror the two stacks"); process.exit(1); }
+
+/* --- 2. drag a vertex through the 2D handle -------------------------- */
+/* The handle is a real DOM marker (`.vtx`), so this is the user's own path:
+   Leaflet's Draggable listens for mousedown on the handle and mousemove /
+   mouseup on the document. */
+const rvert = await page.evaluate(async () => {
+  const wait = ms => new Promise(r => setTimeout(r, ms));
+  SBMM.undo.redo(); await wait(80);                 // the line is back
+  const f = window.__ru;
+  SBMM.snap.setEnabled(false);
+  SBMM.store.select(f.id);
+  SBMM.tools.editFeature(f);
+  await wait(120);
+  const before = JSON.stringify(f.pts);
+  const h = document.querySelector("#map .vtx:not(.mid)");
+  if (!h) return { err: "no vertex handle" };
+  const r = h.getBoundingClientRect();
+  const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+  /* dispatched ON the handle (they bubble to the document listeners Leaflet's
+     Draggable installs): a synthetic move whose target is `document` leaves
+     Draggable._lastTarget = document, and its finishDrag then reads
+     document.className.baseVal and throws — an artefact of the synthetic event,
+     not something a real pointer can do */
+  const ev = (t, x, y) => h.dispatchEvent(new MouseEvent(t, { bubbles: true, cancelable: true, clientX: x, clientY: y, button: 0 }));
+  ev("mousedown", cx, cy);
+  ev("mousemove", cx + 30, cy + 18);
+  ev("mousemove", cx + 55, cy + 34);
+  ev("mouseup", cx + 55, cy + 34);
+  await wait(200);
+  SBMM.draw.endEdit();
+  const after = JSON.stringify(f.pts);
+  const label = SBMM.undo.labels().undo;
+  SBMM.undo.pop();  await wait(80);
+  const undone = JSON.stringify(f.pts);
+  SBMM.undo.redo(); await wait(80);
+  const redone = JSON.stringify(f.pts);
+  SBMM.snap.setEnabled(true);
+  return { before, after, undone, redone, label, moved: before !== after };
+});
+console.log("redo/vertex drag:", JSON.stringify({ label: rvert.label, moved: rvert.moved }));
+if (rvert.err || !rvert.moved) { console.log("FAIL: the vertex handle drag did not move a vertex:", JSON.stringify(rvert)); process.exit(1); }
+if (rvert.label !== "move vertex") { console.log("FAIL: a vertex drag should push one 'move vertex' entry, got", rvert.label); process.exit(1); }
+if (rvert.undone !== rvert.before) { console.log("FAIL: undo did not restore the old vertex", rvert.undone); process.exit(1); }
+if (rvert.redone !== rvert.after) { console.log("FAIL: redo did not restore the moved vertex", rvert.redone); process.exit(1); }
+
+/* --- 3. delete a feature (ERASE) ------------------------------------- */
+const rdel = await page.evaluate(async () => {
+  const wait = ms => new Promise(r => setTimeout(r, ms));
+  const f = window.__ru;
+  SBMM.store.select(f.id);
+  SBMM.cmd.run("ERASE"); await wait(120);
+  const gone = { here: SBMM.store.features.indexOf(f) >= 0, label: SBMM.undo.labels().undo };
+  SBMM.undo.pop(); await wait(80);
+  const back = { here: SBMM.store.features.indexOf(f) >= 0, id: f.id,
+                 onMap: !!(f.layer && SBMM.map.hasLayer(f.layer)),
+                 card: !!(f.card && document.body.contains(f.card)),
+                 inTree: !!document.querySelector('#featureTree .ftrow[data-fid="' + f.id + '"]') };
+  SBMM.undo.redo(); await wait(80);
+  const goneAgain = SBMM.store.features.indexOf(f) >= 0;
+  return { gone, back, goneAgain, id0: f.id };
+});
+console.log("redo/delete:", JSON.stringify(rdel));
+if (rdel.gone.here || !/^delete /.test(rdel.gone.label || ""))
+  { console.log("FAIL: ERASE is not an undoable delete"); process.exit(1); }
+if (!rdel.back.here || !rdel.back.onMap || !rdel.back.card || !rdel.back.inTree || rdel.back.id !== rdel.id0)
+  { console.log("FAIL: undo of a delete did not bring the same feature back"); process.exit(1); }
+if (rdel.goneAgain) { console.log("FAIL: redo did not delete the feature again"); process.exit(1); }
+
+/* --- 4. a raindrop, and its animated copy in the water pane ---------- */
+const rflow = await page.evaluate(async (DROP) => {
+  const wait = ms => new Promise(r => setTimeout(r, ms));
+  const anim = () => document.querySelectorAll(".flowanim").length;
+  const a0 = anim(), n0 = SBMM.store.features.length;
+  const f = await SBMM.water.dropAt(DROP[0], DROP[1], { quiet: true });
+  await wait(200);
+  const made = { n: SBMM.store.features.length - n0, anim: anim() - a0, label: SBMM.undo.labels().undo };
+  const pts0 = JSON.stringify(f.pts);
+  SBMM.undo.pop(); await wait(150);
+  const undone = { n: SBMM.store.features.length - n0, anim: anim() - a0, canRedo: SBMM.undo.canRedo() };
+  SBMM.undo.redo(); await wait(150);
+  const redone = { n: SBMM.store.features.length - n0, anim: anim() - a0,
+                   sameId: SBMM.store.features.indexOf(f) >= 0,
+                   drawn: !!(f.layer && SBMM.map.hasLayer(f.layer) && f.layer.getLayers().length > 2),
+                   pts: JSON.stringify(f.pts) === pts0,
+                   card: !!(f.card && document.body.contains(f.card)) };
+  SBMM.undo.pop(); await wait(120);      // leave the map as we found it
+  SBMM.undo.clear();
+  return { made, undone, redone };
+}, WREF.drop);
+console.log("redo/raindrop:", JSON.stringify(rflow));
+if (rflow.made.n !== 1 || rflow.made.anim !== 1 || !/^raindrop /.test(rflow.made.label || ""))
+  { console.log("FAIL: the raindrop did not draw one flow with one animated copy"); process.exit(1); }
+if (rflow.undone.n !== 0 || rflow.undone.anim !== 0 || !rflow.undone.canRedo)
+  { console.log("FAIL: undo left the flow or its animated pane copy behind"); process.exit(1); }
+if (rflow.redone.n !== 1 || rflow.redone.anim !== 1 || !rflow.redone.sameId || !rflow.redone.drawn
+    || !rflow.redone.pts || !rflow.redone.card)
+  { console.log("FAIL: redo did not bring the raindrop back drawn"); process.exit(1); }
+
+/* --- 5. a graded pad ------------------------------------------------- */
+const rpad = await page.evaluate(async () => {
+  const wait = ms => new Promise(r => setTimeout(r, ms));
+  const box = [[6371380, 2128480], [6371520, 2128480], [6371520, 2128600], [6371380, 2128600]];
+  const src = SBMM.tools.rebuildFeature({ type: "area", pts: box, name: "ZZ redo pad box" });
+  SBMM.store.select(src.id);
+  SBMM.undo.clear();
+  const st = SBMM.design.rimStats(box);
+  SBMM.design.cmdPad("pad", (+st.mean.toFixed(2)).toString());
+  await wait(100);
+  const f = SBMM.design.list().find(s => /ZZ redo pad box/.test(s.name || "") && !s.props.ref);
+  if (!f) return { err: "no pad" };
+  for (let i = 0; i < 400 && !f._surf; i++) await wait(100);
+  const made = { label: SBMM.undo.labels().undo, surf: !!f._surf, dl: !!f._dlLayer,
+                 onMap: !!(f.layer && SBMM.map.hasLayer(f.layer)),
+                 row: !!document.querySelector('#surfList .surfrow[data-fid="' + f.id + '"]') };
+  SBMM.undo.pop(); await wait(120);
+  const undone = { here: SBMM.store.features.indexOf(f) >= 0,
+                   onMap: !!(f.layer && SBMM.map.hasLayer(f.layer)),
+                   dlOnMap: !!(f._dlLayer && SBMM.map.hasLayer(f._dlLayer)) };
+  SBMM.undo.redo(); await wait(200);
+  for (let i = 0; i < 400 && !f._surf; i++) await wait(100);
+  const redone = { here: SBMM.store.features.indexOf(f) >= 0, id: f.id,
+                   onMap: !!(f.layer && SBMM.map.hasLayer(f.layer)),
+                   surf: !!f._surf, padZ: f.props.padZ,
+                   dlOnMap: !!(f._dlLayer && SBMM.map.hasLayer(f._dlLayer)),
+                   card: !!(f.card && document.body.contains(f.card)),
+                   inList: SBMM.design.list().some(s => s.id === f.id) };
+  return { made, undone, redone, srcId: src.id, padId: f.id };
+});
+console.log("redo/graded pad:", JSON.stringify(rpad));
+if (rpad.err || !rpad.made.surf || rpad.made.label !== "design surface")
+  { console.log("FAIL: PAD did not create an undoable design surface:", JSON.stringify(rpad)); process.exit(1); }
+if (rpad.undone.here || rpad.undone.onMap || rpad.undone.dlOnMap)
+  { console.log("FAIL: undo left the pad or its daylight line on the map"); process.exit(1); }
+if (!rpad.redone.here || !rpad.redone.onMap || !rpad.redone.surf || !rpad.redone.dlOnMap
+    || !rpad.redone.card || !rpad.redone.inList || rpad.redone.id !== rpad.padId)
+  { console.log("FAIL: redo did not regenerate the design surface"); process.exit(1); }
+
+/* --- 6. a new action forks history: the redo branch is gone ---------- */
+const rfork = await page.evaluate(async () => {
+  const wait = ms => new Promise(r => setTimeout(r, ms));
+  SBMM.undo.pop(); await wait(120);                    // the pad again -> redo available
+  const armed = SBMM.undo.canRedo();
+  SBMM.tools.rebuildFeature({ type: "spot", pts: [[6371460, 2128520]], name: "ZZ fork" });
+  const f = SBMM.store.features[SBMM.store.features.length - 1];
+  SBMM.undo.push("ZZ fork", () => SBMM.store.remove(f), () => SBMM.store.readd(f));
+  await wait(60);
+  const after = { canRedo: SBMM.undo.canRedo(), btn: document.getElementById("redoBtn").disabled };
+  const ok = SBMM.undo.redo();                          // no-op with a toast
+  await wait(60);
+  const t0 = document.getElementById("toast");
+  const toastTxt = (t0 && t0.classList.contains("show")) ? t0.textContent : "";
+  SBMM.undo.pop(); await wait(60);                      // take the fork feature away again
+  return { armed, after, redoReturned: ok, toastTxt };
+});
+console.log("redo/fork:", JSON.stringify(rfork));
+if (!rfork.armed || rfork.after.canRedo || rfork.after.btn !== true)
+  { console.log("FAIL: a new action did not clear the redo stack"); process.exit(1); }
+if (rfork.redoReturned !== false || !/nothing to redo/.test(rfork.toastTxt))
+  { console.log("FAIL: redo on an empty stack must be a no-op WITH a toast:", JSON.stringify(rfork)); process.exit(1); }
+
+/* --- 7. the keys and the command ------------------------------------- */
+const rkeys = await page.evaluate(async () => {
+  const wait = ms => new Promise(r => setTimeout(r, ms));
+  SBMM.mode.navigate();
+  SBMM.undo.clear();
+  const n0 = SBMM.store.features.length;
+  const f = SBMM.tools.rebuildFeature({ type: "spot", pts: [[6371470, 2128530]], name: "ZZ keys" });
+  SBMM.undo.push("ZZ keys", () => SBMM.store.remove(f), () => SBMM.store.readd(f));
+  const key = (k, mods) => document.dispatchEvent(new KeyboardEvent("keydown",
+    Object.assign({ key: k, bubbles: true }, mods)));
+  key("z", { ctrlKey: true }); await wait(80);
+  const afterUndo = SBMM.store.features.length - n0;
+  key("y", { ctrlKey: true }); await wait(80);
+  const afterCtrlY = SBMM.store.features.length - n0;
+  key("z", { ctrlKey: true }); await wait(80);
+  key("z", { ctrlKey: true, shiftKey: true }); await wait(80);
+  const afterCtrlShiftZ = SBMM.store.features.length - n0;
+  const cmd = SBMM.cmd.find("REDO");
+  const aliases = ["RE", "Y"].map(a => (SBMM.cmd.find(a) || {}).n || null);
+  key("z", { ctrlKey: true }); await wait(80);          // clean up
+  SBMM.undo.clear();
+  return { afterUndo, afterCtrlY, afterCtrlShiftZ, cmd: cmd && cmd.n, aliases,
+           left: SBMM.store.features.length - n0 };
+});
+console.log("redo/keys:", JSON.stringify(rkeys));
+if (rkeys.afterUndo !== 0 || rkeys.afterCtrlY !== 1 || rkeys.afterCtrlShiftZ !== 1)
+  { console.log("FAIL: Ctrl+Z / Ctrl+Y / Ctrl+Shift+Z do not drive the two stacks"); process.exit(1); }
+if (rkeys.cmd !== "REDO" || rkeys.aliases.join(",") !== "REDO,REDO")
+  { console.log("FAIL: the REDO command or its aliases are missing:", JSON.stringify(rkeys)); process.exit(1); }
+
+/* --- 8. every push carries both closures, and the block raised nothing */
+const rclean = await page.evaluate(async () => {
+  const wait = ms => new Promise(r => setTimeout(r, ms));
+  /* tidy: the fixtures this block left behind */
+  for (const n of ["ZZ redo pad box", "ZZ fork", "ZZ keys"]) {
+    const f = SBMM.store.features.find(x => x.name === n);
+    if (f) SBMM.store.remove(f);
+  }
+  const pad = SBMM.design.list().find(s => /ZZ redo pad box/.test(s.name || "") && !s.props.ref);
+  if (pad) SBMM.store.remove(pad);
+  const line = window.__ru;
+  if (line && SBMM.store.features.indexOf(line) >= 0) SBMM.store.remove(line);
+  SBMM.undo.clear();
+  await wait(60);
+  const b = document.getElementById("undoBtn"), r = document.getElementById("redoBtn");
+  return { undoDisabled: b.disabled, redoDisabled: r.disabled,
+           undoT: b.title, redoT: r.title,
+           canUndo: SBMM.undo.canUndo(), canRedo: SBMM.undo.canRedo() };
+});
+console.log("redo/cleared:", JSON.stringify(rclean));
+if (!rclean.undoDisabled || !rclean.redoDisabled || rclean.canUndo || rclean.canRedo)
+  { console.log("FAIL: clear() left the stacks or the buttons armed"); process.exit(1); }
+if (errors.length !== errBeforeRedo) {
+  console.log("FAIL: page errors during the redo block:", errors.slice(errBeforeRedo, errBeforeRedo + 6)); process.exit(1);
+}
+console.log("redo: OK — 8 cycles, both closures at every push site");
+
+/* ==================================================================== */
 /* 9j. one layer state (§1/§4) and the tool-mode machine (§2)            */
 /* ==================================================================== */
 const lstate = await page.evaluate(async () => {
@@ -3663,7 +3950,7 @@ const rt = await page.evaluate(async () => {
 console.log(`session v${rt.version}: writes ${JSON.stringify(rt.written)} (baked excluded), `
   + `removed ok ${rt.gone}, restored ${rt.restored} with ${rt.n} points as ${rt.kind}/${rt.style}, `
   + `row ${rt.row}, tab ${rt.tab}`);
-if (rt.version !== 7) { console.log("FAIL: session version did not bump to 7"); process.exit(1); }
+if (rt.version !== 8) { console.log("FAIL: session version did not bump to 8"); process.exit(1); }
 if (rt.written.length !== 1 || rt.written[0] !== "testpits") { console.log("FAIL: session should serialise imported datasets only"); process.exit(1); }
 if (!rt.restored || rt.n !== 3 || !rt.row || !rt.tab) { console.log("FAIL: dataset did not survive the session round-trip"); process.exit(1); }
 if (errors.length !== errBeforeDs) {
@@ -3850,6 +4137,46 @@ console.log("terrain payloads released after decode:", JSON.stringify(released))
 if (!released.keys) { console.log("FAIL: a terrain payload key disappeared"); process.exit(1); }
 if (released.nulled.length !== 3) { console.log("FAIL: decoded terrain base64 is still retained"); process.exit(1); }
 if (isNaN(released.elev) || isNaN(released.canopy)) { console.log("FAIL: releasing the payload broke the terrain"); process.exit(1); }
+
+/* (vi-b) v11: the terrain payloads decode in workers, and the worker path and the
+       main-thread fallback produce the SAME Float32Array. The comparison runs on a
+       small synthetic terrain-RGB PNG built in the page (including NoData pixels),
+       so it needs no real payload and cannot be fooled by one already released. */
+const demWork = await page.evaluate(async () => {
+  const w = 64, h = 48;
+  const meta = { w, h, zmin: 1000, step: 0.05, x0: 0, y0: 0, cell: 1 };
+  const c = document.createElement("canvas"); c.width = w; c.height = h;
+  const g = c.getContext("2d");
+  const im = g.createImageData(w, h);
+  for (let i = 0, n = w * h; i < n; i++) {
+    const v = (i % 37 === 3) ? 0 : (i * 613) % 65536;   /* a scatter of NoData */
+    im.data[i * 4] = v >> 8; im.data[i * 4 + 1] = v & 255;
+    im.data[i * 4 + 2] = 0; im.data[i * 4 + 3] = 255;
+  }
+  g.putImageData(im, 0, 0);
+  const url = c.toDataURL("image/png");
+  SBMM_DATA.__demtest = meta; SBMM_DATA.__demtest_png = url;
+  const main = await Dem.load("__demtest", { release: false });
+  const wk = await Dem.decodeInWorker("__demtest", meta, url);
+  delete SBMM_DATA.__demtest; delete SBMM_DATA.__demtest_png;
+  const out = { workers: SBMM.perf.demWorkers, decode: SBMM.perf.demDecode || null,
+                viaWorker: !!wk, n: main.z.length, diff: -1, nan: 0 };
+  if (!wk) return out;
+  let diff = 0, nan = 0;
+  for (let i = 0; i < main.z.length; i++) {
+    if (isNaN(main.z[i])) nan++;
+    if (!Object.is(main.z[i], wk.z[i])) diff++;
+  }
+  out.diff = diff; out.nan = nan; out.nodata = wk.nodata;
+  return out;
+});
+console.log("terrain decode in workers:", JSON.stringify(demWork));
+if (!(demWork.workers >= 3))
+  { console.log("FAIL: terrain decode did not run in workers (SBMM.perf.demWorkers =", demWork.workers, ")"); process.exit(1); }
+if (!demWork.viaWorker) { console.log("FAIL: the decode worker refused a synthetic payload"); process.exit(1); }
+if (demWork.diff !== 0) { console.log("FAIL: worker and main-thread decodes differ in", demWork.diff, "of", demWork.n, "cells"); process.exit(1); }
+if (demWork.nan === 0 || demWork.nan !== demWork.nodata)
+  { console.log("FAIL: NoData was not carried across identically (", demWork.nan, "vs", demWork.nodata, ")"); process.exit(1); }
 
 /* (vii) Modal overlays all answer Esc, and HELP twice leaves one overlay. */
 const escModals = await page.evaluate(async () => {

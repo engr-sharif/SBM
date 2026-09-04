@@ -218,7 +218,8 @@ SBMM.popups = (function () {
   const TYPE_FULL = {
     spot: "spot elevation", line: "distance", area: "area", volume: "volume",
     profile: "elevation profile", dim: "aligned dimension", text: "annotation",
-    surface: "design surface", sections: "cross-section set", flow: "raindrop flow path"
+    surface: "design surface", sections: "cross-section set", flow: "raindrop flow path",
+    photo: "field photo"
   };
   const PROP_LABEL = {
     length_ft: "Length (ft)", grade_pct: "Grade (%)", area_ft2: "Area (ft²)",
@@ -233,7 +234,9 @@ SBMM.popups = (function () {
   const PROP_SKIP = new Set(["profile", "showCutFill", "kind", "padZ", "ratio", "side",
     "gradePct", "gradeDirDeg", "contourInterval", "showContours", "drape3d",
     "interval", "width", "designId", "showCanopy", "provenance",
-    "zs", "grids", "blockRing", "blocked", "steps", "minPondDepth", "searched_ft", "hops"]);
+    "zs", "grids", "blockRing", "blocked", "steps", "minPondDepth", "searched_ft", "hops",
+    /* a photo's payload is the picture, not a property row */
+    "img", "thumb", "w", "h"]);
 
   function forFeature(f) {
     const p = f.props || {};
@@ -261,6 +264,11 @@ SBMM.popups = (function () {
         ["Ponds crossed", np],
         ["Grid", (p.grids && p.grids.length > 1 ? p.grids.join(" → ") : p.dem) + " lidar"]
       ]);
+    } else if (f.type === "photo" && SBMM.field) {
+      /* §4.4: the image full width, then the note, the time and how it was
+         placed. One builder, so the 2D popup, the 3D pick card and the field
+         bottom card are the same thing rather than three that look alike. */
+      h += SBMM.field.popupBody(f);
     } else if (pairs.length) h += attrTable(pairs);
     const acts = [];
     if (f.type === "flow" && SBMM.water) {
@@ -270,8 +278,16 @@ SBMM.popups = (function () {
       acts.push(btn("3D", () => SBMM.viewer3d.openAt(p.drop[0], p.drop[1])));
     }
     acts.push(btn("select", () => SBMM.store.select(f.id)));
-    if (f.type !== "spot" && !f.locked)
+    /* Only offer what the tools will actually accept: `SBMM.tools` owns the one
+       list (a photo and a spot are single points, a flow is traced not drawn),
+       and where vertex editing is refused a translation is the action that is
+       meaningful instead. A button whose only outcome is a toast is worse than
+       no button. */
+    if (SBMM.tools.canEditVertices(f))
       acts.push(btn("edit vertices", () => SBMM.tools.editFeature(f)));
+    else if (SBMM.tools.canMove(f))
+      acts.push(btn("move", () => SBMM.tools.opMoveCopy(f, false),
+                    "Pick a base point and a destination to move this where it belongs"));
     acts.push(btn("delete", () => SBMM.store.remove(f)));
     if (prov && prov.source === "sheet" && SBMM.sheets)
       acts.push(btn("open " + prov.sheet, () => SBMM.sheets.open(prov.sheet)));

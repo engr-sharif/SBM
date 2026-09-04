@@ -28,3 +28,6 @@ desktop.ini
 *.zip
 _staging/
 _to_delete/
+
+# kernel-harness decoded-terrain cache (test/lib/terrain.mjs)
+test/.cache/

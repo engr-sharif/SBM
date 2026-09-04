@@ -365,7 +365,9 @@ SBMM.water = (function () {
     if (!R) return null;
     const f = mkFlow(R.pts, opts.name || SBMM.tools.nextName("Raindrop"), R.props,
                      { group: opts.group || "Water" });
-    SBMM.undo.push("raindrop " + f.name, () => SBMM.store.remove(f));
+    /* readd puts the whole FeatureGroup back — the line, the ponds, the drop
+       marker and the animated copy in the `water` pane are all children of it */
+    SBMM.undo.push("raindrop " + f.name, () => SBMM.store.remove(f), () => SBMM.store.readd(f));
     if (!opts.quiet) SBMM.store.select(f.id);
     if (SBMM.viewer3d.isOpen()) SBMM.viewer3d.refreshOverlays();
     return f;
@@ -386,11 +388,19 @@ SBMM.water = (function () {
     if (prevProps.blockRing) f.props.blockRing = prevProps.blockRing;
     buildFlow(f);
     fillFlowCard(f);
-    SBMM.undo.push("retrace " + (f.name || "raindrop"), () => {
-      f.pts = prevPts; f.props = prevProps;
+    /* the new run is captured NOW, not read back at redo time, so a later
+       retrace of the same drop cannot walk into this entry */
+    const nextPts = f.pts.map(p => p.slice());
+    const nextProps = JSON.parse(JSON.stringify(f.props || {}));
+    const set = (pts, props) => {
+      f.pts = pts.map(p => p.slice());
+      f.props = JSON.parse(JSON.stringify(props));
       buildFlow(f); fillFlowCard(f);
       SBMM.store.emit(); SBMM.store.autosave();
-    });
+      if (SBMM.viewer3d.isOpen()) SBMM.viewer3d.refreshOverlays();
+    };
+    SBMM.undo.push("retrace " + (f.name || "raindrop"),
+      () => set(prevPts, prevProps), () => set(nextPts, nextProps));
     SBMM.store.emit(); SBMM.store.autosave();
     SBMM.props && SBMM.props.refresh && SBMM.props.refresh(f);
     if (SBMM.viewer3d.isOpen()) SBMM.viewer3d.refreshOverlays();
@@ -429,7 +439,7 @@ SBMM.water = (function () {
     a.props.catchment_cells = R.cells;
     a.props.catchment_window_ft = half * 2;
     a.props.catchment_partial = !!R.touchesEdge;
-    SBMM.undo.push("contributing area", () => SBMM.store.remove(a));
+    SBMM.undo.push("contributing area", () => SBMM.store.remove(a), () => SBMM.store.readd(a));
     SBMM.results.appendNote(a.card,
       "Contributing area (within the " + fmt0(half * 2) + "-ft window): "
       + fmt(acft(R.area_ft2), 3) + " ac · " + fmt0(R.area_ft2) + " ft², D8 on the pit-filled "
@@ -496,7 +506,10 @@ SBMM.water = (function () {
       type: "profile", pts: f.pts.map(q => q.slice()),
       name: (f.name || "Raindrop") + " — profile", group: f.group || "Water"
     });
-    if (g) { SBMM.undo.push("flow profile", () => SBMM.store.remove(g)); SBMM.store.select(g.id); }
+    if (g) {
+      SBMM.undo.push("flow profile", () => SBMM.store.remove(g), () => SBMM.store.readd(g));
+      SBMM.store.select(g.id);
+    }
     return g;
   }
 
