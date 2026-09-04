@@ -31,3 +31,6 @@ _to_delete/
 
 # kernel-harness decoded-terrain cache (test/lib/terrain.mjs)
 test/.cache/
+
+# agent worktrees (Claude Code isolation)
+.claude/worktrees/
