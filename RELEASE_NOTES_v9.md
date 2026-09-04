@@ -40,12 +40,14 @@ the culvert along the top of the grates — and the water uses it.
   the seven road-drain conduits, the branch, and EA's storm main — and ends at the Clear
   Lake outfall. With the drains switched off it does what v11 did: 2,268 ft overland into
   the Herman Impoundment, which fills to 1,343.84 ft and spills over its rim.
-- **Frog Pond and Green Pond are connected**, as you said. A drop at Frog Pond's low fills
-  the pond, takes the 491-ft pipe to Green Pond, fills Green Pond to 1,403.02 ft, leaves
-  through the round inlet's culvert toward Herman, crosses the impoundment and goes out
-  through the surveyed discharge pipe and the storm main to the outfall — **1,887 ft over the
-  ground and 1,366 ft in pipe**, six conduits. With the drains off it never leaves the
-  north-east corner.
+- **Green Pond and Frog Pond are connected the way you described.** Green Pond (the east
+  pond) drains through the culvert under the paved road into Frog Pond; Frog Pond overflows
+  through the flared end on its west shore, piped to the Spot 8 grate and down the road drain
+  to the outfall — never into the impoundment. A drop at Green Pond's low: **630 ft over the
+  ground and 2,969 ft in pipe**, twelve conduits, ending in Clear Lake. The round inlet at
+  Frog Pond's corner is the high-level overflow to Herman, and it only takes water above its
+  rim. (EA's geodatabase labels the two ponds the other way round; the network uses your names
+  and says so.)
 - **The Herman discharge pipes are connected to the storm main.** The *Pipe discharge route*
   row on the overtopping card now reads **"934 ft · 797 ft in pipe · Clear Lake outfall"**
   instead of stopping at a stub of overland flow.

@@ -78,7 +78,7 @@ resolved through `pathToFileURL`, so Windows paths work. Runs are slow under sof
 warm, covering EVERY kernel in `js/compute.js`'s `runJob`.** Run it after any change to
 `js/compute.js` or to a call site that builds a job, before you reach for Playwright:
 ```
-node test/kernels.mjs                  # every section (228 checks)
+node test/kernels.mjs                  # every section (229 checks)
 node test/kernels.mjs --only water     # one or more sections, comma-separated
 node test/kernels.mjs --list           # volume isopach raster contours design sections smart trees water storm
 node test/water_kernels.mjs            # a thin alias for --only water
@@ -126,7 +126,7 @@ unclear; the water windows are now cut from the real PNGs with `gridSpec` and th
 asserts their shape before it asserts anything measured in them.
 `test/water_shots.mjs` writes the four v10 water shots (raindrop 2D/3D, Herman
 overtopping 2D/3D) into `test/shots/` and `test/storm_shots.mjs` the two v12 storm shots
-(the south-road grate chain with a Frog Pond raindrop on it, and the network draped in 3D);
+(the south-road grate chain with a Green Pond raindrop on it, and the network draped in 3D);
 neither is pass-fail — look at them.
 `test/field_shots.mjs` writes the four v11 field shots (field_map, field_layers,
 field_photo, field_3d) into `test/shots/` on the Pixel 7 descriptor; not pass-fail — look
@@ -955,13 +955,28 @@ Four things here are traps:
   would draw water running over the ground along the pipe, which is the one
   thing this must not say.
 
-One finding worth keeping, and it is terrain rather than code:
-**Green Pond's basin drains through the ROUND INLET, not the Spot 8 grate.**
-Green Pond fills to 1,403.02 ft and spills over its own rim — no inlet cell
-inside it is lower — and the water then drops into the small basin at 1,401.62
-that holds the round inlet at 1,400.9. That conduit ends at an FES pointing at
-Herman with nothing downstream in the CAD, so the Frog Pond run crosses the
-impoundment before it reaches a pipe again.
+Two things about the ponds east of the impoundment (ruling, 2026-09-04, the
+engineer's own reading of the site):
+
+- **Naming.** The engineer calls the east pond (E 6,374,450–6,374,726, floor 1,415 ft) *Green Pond* and the west pond (E 6,373,925–6,374,152, floor 1,391.6 ft) *Frog Pond*; EA's geodatabase `water` layer labels them the other way round. The storm network uses the engineer's names and says so on every node it touches; EA's polygons are left as delivered (precedent: EA's CAD swaps `C-SITE-DU-LOT-13/15` too).
+- **Green Pond (east) drains into Frog Pond (west) through a short culvert under
+  the paved road (`pond_culvert`, Spot 5 → Spot 1, 75 ft); Frog Pond overflows
+  through the `STRM FES` on its west shore, piped under the road to the Spot 8
+  grate (`frog_outlet`) and down the road drain to the Clear Lake outfall — it
+  does NOT overflow into the impoundment.** The round inlet at Frog Pond's NW
+  corner (`green_riser`, ground 1,400.9) is the high-level overflow: only water
+  above that rim goes under the road to Herman. Both are inferred conduits (EA
+  drew the structures, not the pipes); `tools/build_storm_network.py` is the
+  record.
+- **An inlet is a SINK in the filled DEM.** `fillDem` takes the capture cells as
+  seeds at their conduit's rim (`F = max(z, rim)`), built before the fill and only
+  when conduits are present (the no-conduit fill is the v10 fill to the bit).
+  Without it Frog Pond's two lobes were one flood: the water arrives in the east
+  lobe, and the escape test — which asks `F` — saw no drain in the west lobe, so
+  the flood took both lobes to the 1,402.44-ft saddle and only then found the FES.
+  With it the east lobe stops at its saddle (a 0.36-ft pond, no via) and the west
+  lobe drains through the FES at its rim, 1,394.50 ft. The §6.6 harness case is
+  the guard.
 
 **The raindrop and the overtopping tool now agree about Herman**, which they did
 not before the sunken-inlet rule: a drop inside the impoundment ponds to 1,341.54
