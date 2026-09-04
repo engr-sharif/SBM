@@ -84,8 +84,21 @@ SBMM.sheets = (function () {
         bounds: r ? [r.x0, r.y0, r.x1, r.y1] : null,
         url: imgUrl(s.sheet)
       };
-    }).filter(s => s.url);
+    });
+    /* A sheet with no render still belongs in the index. The FIELD build
+       (tools/build_dist.py --field) leaves the 20 full-sheet JPEGs out — 27 MB
+       of paper on a phone — but keeps the manifest, so the Sheets tab still
+       lists the drawing set and says which ones cannot be opened here. Dropping
+       them would make the tab claim the set does not exist. `open()` refuses
+       one with a toast; `hasRender()` is the question anything else should ask. */
     return INDEX;
+  }
+  function hasRender(sheet) { const s = get(sheet); return !!(s && s.url); }
+  /* the one sentence every refusal uses, so it reads the same everywhere */
+  function noRenderWhy(sheet) {
+    return SBMM.isField && SBMM.isField()
+      ? sheet + " — the full-sheet renders are not in the field build; its design geometry is"
+      : "no full-sheet render for " + sheet;
   }
   function get(sheet) { return index().find(s => s.sheet === sheet) || null; }
 
@@ -103,6 +116,7 @@ SBMM.sheets = (function () {
   function open(sheet, opts) {
     const s = get(sheet);
     if (!s) { toast("no full-sheet render for " + sheet); return null; }
+    if (!s.url) { toast(noRenderWhy(sheet), 4200); return null; }
     const o = opts || {};
     const have = wins.get(sheet);
     if (have) {                    // already open — surface it instead of stacking
@@ -369,7 +383,7 @@ SBMM.sheets = (function () {
   /* next/prev walks the sheet list in place — same window, same position, so
      flipping through the set feels like flipping through a set */
   function step(st, dir) {
-    const list = index();
+    const list = index().filter(x => x.url);   // never flip onto a sheet with no render
     const i = list.findIndex(x => x.sheet === st.sheet);
     if (i < 0) return;
     const nx = list[(i + dir + list.length) % list.length];
@@ -446,7 +460,8 @@ SBMM.sheets = (function () {
       <div class="ci sheetrow" data-sheet="${esc(s.sheet)}">
         <b class="mono">${esc(s.sheet)}</b>
         <span class="st">${esc(s.title)}</span>
-        ${s.design_set === "90%" ? '<span class="warnpill">90%</span>'
+        ${!s.url ? '<span class="dimpill" title="The full-sheet renders are not in the field build">no render</span>'
+          : s.design_set === "90%" ? '<span class="warnpill">90%</span>'
           : s.registered ? '<span class="okpill" title="Georeferenced — has a footprint on the map">placed</span>'
             : '<span class="dimpill" title="Not georeferenced">—</span>'}
       </div>`).join("");
@@ -504,7 +519,7 @@ SBMM.sheets = (function () {
   }
 
   return {
-    wire, index, get, open, list, locate, close, closePicker, clampAll, stageBox,
+    wire, index, get, open, list, locate, close, closePicker, clampAll, stageBox, hasRender,
     openCount: () => wins.size,
     closeAll: () => { for (const st of [...wins.values()]) close(st); }
   };

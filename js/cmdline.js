@@ -144,6 +144,16 @@ SBMM.cmd = (function () {
     { n: "DATASET", a: ["DATA", "IMPORTCSV", "CSVIN"], d: "import a CSV of coordinates as a dataset (wells, borings, anything)",
       f: () => SBMM.datasets.pickFile() },
 
+    /* ---- field mode (v11 §4.4) ---- */
+    { n: "FIELD", a: ["MOBILE", "PHONE"], d: "field mode — big-target touch layout for a phone in the field",
+      f: () => SBMM.field.toggle() },
+    { n: "GPS", a: ["POSITION", "WHEREAMI"], d: "show the device position on the map (and follow it)",
+      f: () => SBMM.field.locate() },
+    { n: "PHOTO", a: ["PIC", "CAMERA"], d: "take a photo and place it on the map",
+      f: () => SBMM.field.photo() },
+    { n: "NOTE", a: ["MEMO"], d: "type a note and tap where it goes",
+      f: () => SBMM.field.note() },
+
     { n: "OSNAP", a: ["OS", "SNAP"], d: "toggle object snap (F3)", f: () => { SBMM.snap.setEnabled(null); toast("object snap " + (SBMM.snap.enabled() ? "on" : "off")); } },
     { n: "POLAR", a: ["PO"], d: "toggle polar tracking, 15° (F10)", f: () => { SBMM.draw.setPolar(null); toast("polar tracking " + (SBMM.draw.isPolar() ? "on" : "off")); } },
     { n: "UNDO",  a: ["U"], d: "undo the last action", f: () => SBMM.undo.pop() },

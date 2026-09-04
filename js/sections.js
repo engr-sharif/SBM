@@ -246,7 +246,8 @@ SBMM.sections = (function () {
     renderPanel(f);
     if (focusIdx != null) {
       const el = $("secBody").querySelector(`.secplot[data-s="${focusIdx}"]`);
-      if (el && el.scrollIntoView) el.scrollIntoView({ block: "nearest", inline: "center" });
+      /* same reason as js/features.js: scroll the drawer, never the page */
+      if (el) scrollIntoPane(el);
     }
     SBMM.shell.relayout();
   }

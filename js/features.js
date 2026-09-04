@@ -16,7 +16,8 @@ const TYPE_META = {
   text:    { label: "text",    full: "annotation",        icon: "i-pencil" },
   surface: { label: "surf",    full: "design surface (grading)", icon: "i-pad" },
   sections:{ label: "sect",    full: "cross-section set", icon: "i-section" },
-  flow:    { label: "flow",    full: "raindrop flow path", icon: "i-drop" }
+  flow:    { label: "flow",    full: "raindrop flow path", icon: "i-drop" },
+  photo:   { label: "photo",   full: "field photo",        icon: "i-camera" }
 };
 
 /* ===================================================================== */
@@ -507,7 +508,10 @@ SBMM.wireSelection = function () {
       el.classList.toggle("sel", el.dataset.fid === next));
     if (next) {
       const card = document.querySelector(`#resBody .res[data-fid="${next}"]`);
-      if (card && card.scrollIntoView) card.scrollIntoView({ block: "nearest" });
+      /* NOT scrollIntoView — see scrollIntoPane in js/util.js: it would scroll
+         the document when the Results panel is off-screen, which in field mode
+         it is until the sheet is opened */
+      if (card) scrollIntoPane(card);
     }
     /* the 3D view listens to onSelect itself, so nothing to do for it here */
   });

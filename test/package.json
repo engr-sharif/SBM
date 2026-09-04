@@ -13,6 +13,8 @@
     "split:folder": "node split3d.mjs ../index.html folder",
     "split:dist": "node split3d.mjs ../dist/SBMM_Site_Explorer.html dist",
     "shots": "node v9_shots.mjs ../index.html",
-    "boot": "node boot_time.mjs ../index.html 3"
+    "boot": "node boot_time.mjs ../index.html 3",
+    "e2e:field": "node e2e_field.mjs ../dist/SBMM_Site_Explorer_field.html field",
+    "shots:field": "node field_shots.mjs ../dist/SBMM_Site_Explorer_field.html"
   }
 }

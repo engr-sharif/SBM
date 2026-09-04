@@ -22,14 +22,29 @@ replace the chat history that built v1–v9. `RELEASE_NOTES_v9.md` is the user-f
      `Function.prototype.toString()` on the compute module (see `js/compute.js` +
      `js/jobs.js`) because a worker file can't be fetched over file://.
    - No ES modules, no bundler, no framework. Plain scripts listed in `index.html`.
-2. **Two builds from one source, both must pass tests:**
+2. **THREE builds from one source, all of them must pass tests:**
    - Folder build: `index.html` + `js/` + `datajs/` + `vendor/` (this repo, also
      GitHub-Pages hostable).
    - Single-file build: `python tools/build_dist.py` → `dist/SBMM_Site_Explorer.html`
-     (~94 MB, everything inlined — the copy the team double-clicks; the 20 full-sheet
+     (~133 MB, everything inlined — the copy the team double-clicks; the 20 full-sheet
      plan renders are ~27 MB of that).
-     New JS files MUST be added to `index.html`'s script list or the dist silently
-     lacks them. Note: `build_dist.py` stamps the build *before* inlining because
+   - **Field build** (v11 §4.2): `python tools/build_dist.py --field` →
+     `dist/SBMM_Site_Explorer_field.html` (~65 MB — the copy that opens on a phone).
+     Same source, same inlining, ONE exclusion list in `FIELD_EXCLUDE`: the 20
+     `i_sheet_full_*` renders, `i_chm_png` + `d_chm`, `d_cad_surfaces`, `d_cad_native`.
+     Everything else stays, the sheet MANIFEST included.
+     **Payload-tolerance rule: every module that reads an excluded payload must
+     degrade with a row, a note or a toast — never an error, and never silence.**
+     `js/sheets.js` keeps a render-less sheet in the index and refuses `open()` with a
+     toast; `js/sheetcards.js` draws the card without a thumbnail; `js/refsurf.js`,
+     `js/layerman.js`, `js/isopach.js`, `js/trees.js`, `js/smartbound.js` and
+     `js/viewer3d.js` already say so. `test/e2e_field.mjs` asserts zero page errors at
+     boot and that each refusal toasts.
+     Both single-file builds stamp `window.SBMM_BUILD` (`"full"` / `"field"`), which
+     `js/util.js` copies onto `SBMM_DATA.build`; ask it through `SBMM.isField()`.
+
+     New JS files MUST be added to `index.html`'s script list or both dists silently
+     lack them. Note: `build_dist.py` stamps the build *before* inlining because
      `js/report.js` contains a literal `</title>` inside a template string.
 
 ## Running tests (do this after every change)
@@ -40,7 +55,21 @@ node test/e2e.mjs     /abs/path/index.html                folder
 node test/e2e.mjs     /abs/path/dist/SBMM_Site_Explorer.html dist
 node test/split3d.mjs /abs/path/index.html                folder
 node test/split3d.mjs /abs/path/dist/SBMM_Site_Explorer.html dist
+node test/e2e_field.mjs /abs/path/dist/SBMM_Site_Explorer_field.html field
 ```
+`test/e2e_field.mjs` is the third build's harness (v11 §4.5): Playwright's **`Pixel 7`**
+descriptor (touch, 412x839, DPR 2.625) against the FIELD dist. It re-states the six
+sections §4.5 names — boot, the gate (unlocked by TAP), terrain, the golden Pile 1 volume,
+water and the survey — and adds the field-mode and field-capability assertions: the six
+44-px actions, the Layers sheet opening and closing by tap, a popup arriving as a bottom
+card, a raindrop by tap, Position refusing without a permission grant and landing within
+2 ft with one, a photo from `test/fixtures/photo_exif.jpg` placed at its EXIF GPS ±2 ft and
+surviving a session round trip, and a one-finger orbit / two-finger pinch in 3D. It is a
+separate file rather than a build switch inside `test/e2e.mjs` **deliberately**: that file
+is 4,200 lines of flat top-level statements over one shared page and one accumulating
+scene, and it has to keep passing UNCHANGED on the other two builds. Pass the full dist as
+a third argument to get the boot comparison. Optional fixture regeneration:
+`python3 tools/make_photo_fixture.py`.
 The harnesses use Playwright's own chromium unless `CHROME_BIN` points at one (the cloud
 build box's `/opt/pw-browsers/...` path is tried first and skipped if absent); paths are
 resolved through `pathToFileURL`, so Windows paths work. Runs are slow under software GL
@@ -85,6 +114,9 @@ unclear; the water windows are now cut from the real PNGs with `gridSpec` and th
 asserts their shape before it asserts anything measured in them.
 `test/water_shots.mjs` writes the four v10 water shots (raindrop 2D/3D, Herman
 overtopping 2D/3D) into `test/shots/`; not pass-fail — look at them.
+`test/field_shots.mjs` writes the four v11 field shots (field_map, field_layers,
+field_photo, field_3d) into `test/shots/` on the Pixel 7 descriptor; not pass-fail — look
+at them.
 `test/v9_shots.mjs` writes the §11 audit shots (2D, 3D, split, a sheet window with a mark,
 the cultural acknowledgement, the Layer manager, the isopach) into `test/shots/`;
 `test/phaseB_shots.mjs` writes the sheet-viewer / layers / dataset screenshots. Neither is
@@ -183,6 +215,7 @@ terrain source, which needs an explicit decision + README/test update).
 | survey.js | the **August-2026 Jacobs survey** linework (`data/survey_2026.json`: the two 24-in HDPE discharge pipes, the sandbag wall, the NW Pit low) as read-only rows under Investigations; snap, 3D, export; `SBMM.survey` — the survey's 24 shots are a baked dataset, not this module |
 | layerman.js | the Layer manager dialog: search / toggle / recolour / opacity / source + handle for EA's 110 CAD layer names |
 | sheetcards.js | the Sheets tab — a card per drawing with a thumbnail derived on first open, filtered by lot |
+| field.js | **field mode (`body.field`) and the field capabilities (§4)** — the trigger and `SBMM.field`, the slim top bar / bottom action bar / More sheet, docks as bottom sheets, popups as bottom cards, Position (`watchPosition`, never fabricated), Photo (the `photo` feature type + a small EXIF reader), Note, Samples nearby |
 | popups.js | **the** popup builders — `SBMM.popups.forFeature/forDataset/forGis/forCad/forSample/forTree/forTerrain`. 2D binds them through Leaflet, 3D drops the same string into the pick card |
 | watermark.js | the "Mo Sharif - Jacobs 2026" element AND the burn-in every canvas export goes through (`burn`, `burnWebGL`) |
 | cultural.js | cultural resources (CONFIDENTIAL): off by default, acknowledgement gate, stamp, export gating |
@@ -308,6 +341,17 @@ collected, they just stay quiet).
   `css/app.css`). Floating sheet windows re-stack inside 4000-4899 rather than incrementing a
   counter, the SHEETS picker sits at 5200, modals at 5600, and the toast at 7000 — a toast
   behind a sheet window is an error report the user never sees. The e2e asserts the ordering.
+- **`scrollIntoView` scrolls the PAGE, not just the pane** — and the page is
+  `overflow:hidden`, which stops a *user* scrolling but not a programmatic one. Selecting a
+  feature whose results card sat in a panel that was off-screen (in field mode the right
+  dock is a bottom sheet, parked at `translateY(105%)`) scrolled the document 453 px, and
+  every absolutely positioned thing in the app — the action bar, the status bar, the open
+  sheet — moved with it. Nothing errored; the layout silently came apart, and
+  `getBoundingClientRect()` disagreed with `getComputedStyle().top` by exactly the scroll.
+  `scrollIntoPane()` in `js/util.js` is the fix: find the nearest scrollable ancestor and
+  move ITS `scrollTop`/`scrollLeft`, or do nothing. Both call sites (`js/features.js`
+  selection, `js/sections.js` station focus) go through it. Do not reintroduce
+  `scrollIntoView` anywhere in this app.
 - **Esc must reach the front-most thing.** `sheets.js` listens in the capture phase, so it
   bails out when a text field has focus or a modal is open; every modal (help, command help,
   the report, the dataset dialog) closes on Esc and stops propagation so it does not also
@@ -917,7 +961,9 @@ was asked to do.
   manager, serialize in sessions (additively versioned), export to GeoJSON (and DXF
   where geometry allows), be undoable, and recompute on vertex edit.
 - Session files (.sbmm.json) must stay backward compatible — old files always load.
-  Now **v7**: adds the layer state (`layers`). v6 added imported datasets. Baked datasets are
+  Now **v8**: adds the `photo` feature type (v11 §4.4 — a session with photos is big, and
+  that is accepted; the GeoJSON export asks before it carries the images). v7 added the
+  layer state (`layers`); v6 added imported datasets. Baked datasets are
   never serialised, and neither are EA's reference design surfaces or the cultural layer
   state — they ship with the app, so a stale copy in a session file must not win, and §7
   wants the cultural acknowledgement asked once per session rather than remembered.
@@ -930,6 +976,49 @@ was asked to do.
   this app must not do. `test/audit.mjs` records the toasts each path raises; if a probe there
   prints an empty toast list for a refusal, that is the bug.
 - Tooltips are sentence case and name the shortcut in brackets where there is one.
+
+## Field mode and the `photo` feature (v11 §4)
+
+`body.field` is the ONE switch, `SBMM.field.on()` reports it, `SBMM.events` emits `field`.
+It turns itself on at boot on a coarse pointer with a viewport <= 900 px (a stored
+preference beats the sniff either way), and `FIELD` / the Help switch / the More sheet
+toggle it anywhere. **Everything field-mode is behind `body.field` in CSS and behind
+`if (active)` in `js/field.js`, which is what makes "desktop is untouched" a property of
+the code rather than a promise** — `test/e2e.mjs` is the proof, unchanged.
+
+Four things here will be walked into again:
+
+- **`photo` was added the way `flow` was, and the same five places carry it.**
+  `js/tools.js` `layerFor` returns an empty `L.featureGroup` for it, `applyStyle` and
+  `redraw` both dispatch to `SBMM.field.buildPhoto`, `relayer(f, true)` rebuilds it, and
+  `rebuildFeature` sends it to `SBMM.field.mkPhoto` — which rebuilds from `props` and
+  **never recomputes**. Adding a fifth FeatureGroup type means touching all five.
+- **The "Field" My-work class row is APPENDED**, like "Water" before it, because
+  `SBMM.myWork.classOf` reads `CLASSES[4]` as "imported wins" and that index is
+  load-bearing.
+- **A Leaflet popup's content can be a FUNCTION.** The photo marker registers one
+  (`bindPopup(() => SBMM.popups.forFeature(f))`) so the picture is built at open time, and
+  `getContent()` hands back the function rather than the HTML. The field card's
+  `popupopen` hook resolves all three shapes — string, node, function — because getting
+  that wrong renders `function () {…}` into the card with no error anywhere.
+- **There is ONE toast element**, so two refusals raised in the same task overwrite each
+  other and only the last is ever seen. A test that drives several refusals has to leave a
+  gap between them (`test/e2e_field.mjs` does); so does any code path that means to tell
+  the user two things.
+
+Position (`SBMM.field.locate`) is `navigator.geolocation.watchPosition`, feature-detected,
+converted through `SBMM.fromLL` (the ±1 ft affine — the marker's card says so).
+**It never fabricates a position**: no API, a refused permission, an error or a silent
+watch all raise a toast, and the marker exists only while a fix does. The EXIF reader in
+`js/field.js` is ~90 lines over the JPEG APP1 / TIFF layout and reads exactly three things
+(orientation, DateTimeOriginal, GPS lat/long); `tools/make_photo_fixture.py` writes the
+fixture it is tested against and documents the byte layout.
+
+The 3D nav rig gained touch: `js/viewer3d.js` tracks live TOUCH pointers in a Map, and
+while there are two the drag becomes a pinch (spread dollies, the moving midpoint pans).
+Mouse and pen never enter that map, so the desktop rig is byte-for-byte the same gesture
+it was. `#v3dCanvas` carries `touch-action:none` or the browser takes a two-finger drag
+for a page scroll before the rig sees it.
 
 ## Sensitivity
 

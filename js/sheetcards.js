@@ -77,14 +77,22 @@ SBMM.sheetCards = (function () {
       host.innerHTML = `<div class="pnone">No sheet for that lot.</div>`;
       return;
     }
+    /* A card with no render still earns its place: the FIELD build ships the
+       manifest without the 20 page JPEGs, so the tab lists the whole drawing
+       set, shows an empty frame instead of a thumbnail, and says why. Clicking
+       it raises the toast js/sheets.js `open()` already writes. */
     host.innerHTML = list.map(s => `
-      <div class="shcard" data-sheet="${esc(s.sheet)}" tabindex="0"
-           title="Open ${esc(s.sheet)} — ${esc(s.title || "")}">
-        <div class="shthumb"><img alt="${esc(s.sheet)} thumbnail" src="${thumbs.get(s.sheet) || ""}"></div>
+      <div class="shcard${s.url ? "" : " norender"}" data-sheet="${esc(s.sheet)}" tabindex="0"
+           title="${s.url ? "Open " + esc(s.sheet) + " — " + esc(s.title || "")
+                          : esc(s.sheet) + " — no full-sheet render in this build"}">
+        <div class="shthumb">${s.url
+          ? `<img alt="${esc(s.sheet)} thumbnail" src="${thumbs.get(s.sheet) || ""}">`
+          : `<span class="shnone">no render<br>in this build</span>`}</div>
         <div class="shmeta">
           <div class="shhead"><b>${esc(s.sheet)}</b>
             ${s.design_set === "90%" ? '<span class="warnpill">90%</span>' : ""}
-            ${s.registered ? '<span class="okpill" title="Georeferenced — this sheet is placed on the map">placed</span>'
+            ${!s.url ? '<span class="dimpill" title="The full-sheet plan renders are left out of the field build; the design geometry is not">no render</span>'
+              : s.registered ? '<span class="okpill" title="Georeferenced — this sheet is placed on the map">placed</span>'
                            : '<span class="dimpill" title="Not georeferenced: readable here, not placed on the map">viewer only</span>'}
           </div>
           <i>${esc(s.subject || s.title || "")}</i>
@@ -127,6 +135,7 @@ SBMM.sheetCards = (function () {
     }
     render();                      // frames first, pictures as they arrive
     for (const s of list) {
+      if (!s.url) continue;              // nothing to derive a thumbnail from
       await thumbOf(s);
       const img = document.querySelector(`.shcard[data-sheet="${CSS.escape(s.sheet)}"] img`);
       if (img && thumbs.get(s.sheet)) img.src = thumbs.get(s.sheet);
