@@ -1815,7 +1815,26 @@ var SBMM_COMPUTE = (function SBMMComputeModule() {
 
   /* ---- FLOWPATH ------------------------------------------------------------
      job: { grid, x, y, minPondDepth=0.25, maxSteps=4e6, simplifyFt=null,
-            blockRing=null, plateauTol=0.3, blockLevel=null }                   */
+            blockRing=null, plateauTol=0.3, blockLevel=null,
+            conduits=null, captureFt=3 }
+
+     v12 (docs/V12_STORM_SPEC.md §2/§4) — the storm network. A conduit is a
+     TOPOLOGICAL SHORTCUT WITH AN ELEVATION AT EACH END, nothing more: no
+     capacity, no hydraulic grade, no time. `job.conduits` is a flat list
+
+         { id, ix, iy, rim, ox, oy, next, len }
+
+     — the inlet's x/y, the rim the water has to reach to enter it, the outlet's
+     x/y, the id of the conduit that starts AT that outlet node (or null), and
+     the conduit's own drawn length. The host flattens the node graph into
+     `next` so the kernel never needs the node table, and passes only conduits
+     whose inlet lies inside this window; a chain that leaves the window ends it
+     with reason "conduit" and the host re-centres on the outlet exactly as it
+     does for "window".
+
+     With `conduits` absent or empty NOT ONE LINE of this runs and the kernel is
+     the v10 kernel to the bit — test/kernels.mjs's `storm` section proves that
+     on the §9.1 raindrop.                                                      */
   function flowpath(job, onProgress) {
     var g = job.grid, w = g.sw, h = g.sh, cell = g.cell, z = g.z, n = w * h;
     var X0 = g.x0 + g.i0 * cell, Y0 = g.y0 + g.j0 * cell;
@@ -1850,21 +1869,119 @@ var SBMM_COMPUTE = (function SBMMComputeModule() {
       }
     }
 
+    /* ---- v12: the inlet index -------------------------------------------
+       `inletAt` is the conduit index whose capture disc (captureFt, default 3 ft
+       — a grate is a few feet across and the descent walks cell centres, so a
+       disc rather than one cell is what makes the network reachable on a 2-ft
+       grid at all) covers each cell, or -1. Where two discs overlap the NEAREST
+       inlet wins, which is deterministic and independent of the order the host
+       listed the conduits in. */
+    var CD = (job.conduits && job.conduits.length) ? job.conduits : null;
+    var inletAt = null, inletD = null, cdUsed = null, cdIx = null, capFt = 0;
+    var cdSeen = null, cdCell = null;
+    var legs = [], pipeFt = 0, ck, cii, cjj, crc;
+    if (CD) {
+      capFt = job.captureFt == null ? 3 : job.captureFt;
+      inletAt = new Int32Array(n); inletD = new Float32Array(n);
+      for (i = 0; i < n; i++) { inletAt[i] = -1; inletD[i] = Infinity; }
+      cdUsed = new Uint8Array(CD.length);
+      cdSeen = new Uint8Array(CD.length);
+      cdCell = new Int32Array(CD.length);
+      cdIx = {};
+      for (ck = 0; ck < CD.length; ck++) cdIx[CD[ck].id] = ck;
+      crc = Math.max(0, Math.ceil(capFt / cell));
+      for (ck = 0; ck < CD.length; ck++) {
+        var Ck = CD[ck];
+        var ki = Math.round((Ck.ix - X0) / cell), kj = Math.round((Ck.iy - Y0) / cell);
+        for (cjj = kj - crc; cjj <= kj + crc; cjj++) {
+          if (cjj < 0 || cjj >= h) continue;
+          for (cii = ki - crc; cii <= ki + crc; cii++) {
+            if (cii < 0 || cii >= w) continue;
+            var kdx = X0 + cii * cell - Ck.ix, kdy = Y0 + cjj * cell - Ck.iy;
+            var kd = Math.sqrt(kdx * kdx + kdy * kdy);
+            if (kd > capFt) continue;
+            var kidx = cjj * w + cii;
+            if (isNaN(z[kidx])) continue;
+            if (kd < inletD[kidx]) { inletD[kidx] = kd; inletAt[kidx] = ck; }
+          }
+        }
+      }
+    }
+
     var si = Math.round((job.x - X0) / cell), sj = Math.round((job.y - Y0) / cell);
     if (si < 0 || sj < 0 || si >= w || sj >= h) throw new Error("the drop is outside the terrain window");
     var cur = sj * w + si;
     if (isNaN(z[cur])) throw new Error("no surveyed terrain under that point");
 
-    var path = [cur], reason = null, steps = 0, exitIdx = -1;
+    /* The run is a list of OVERLAND STRETCHES: each conduit chain ends one and
+       starts the next, so each stretch is simplified on its own and the inlet and
+       outlet vertices survive Douglas-Peucker. With no conduits there is exactly
+       one stretch and the arithmetic below is the v10 arithmetic. */
+    var path = [cur], segs = [path], reason = null, steps = 0, exitIdx = -1, exitXY = null;
     var H = heapNew(1 << 14), stamp = new Int32Array(n), pushed;
 
     function effOf(idx) { var k = pondId[idx]; return k ? ponds[k].level : z[idx]; }
+
+    /* the flood has flooded this cell: if it belongs to an unused conduit's
+       capture disc, that conduit joins the pond's candidate list once, with the
+       cell that reached it (which is therefore always a cell under water) */
+    function reach(idx) {
+      var kk = inletAt[idx];
+      if (kk < 0 || cdUsed[kk]) return;
+      if (!cdSeen[kk]) { cdSeen[kk] = 1; cdCell[kk] = idx; pend.push(kk); }
+      /* the pour point is the flooded capture cell CLOSEST to the structure, so
+         the leg leaves from the grate rather than from whichever corner of its
+         capture disc the flood happened to reach first */
+      else if (inletD[idx] < inletD[cdCell[kk]]) cdCell[kk] = idx;
+    }
+
+    /* Follow the conduit chain from `k0`, departing the ground at cell `fromIdx`.
+       Appends one leg per conduit, marks each used (a conduit is used at most
+       once per run) and returns the cell the water reappears in, or -1 when the
+       last outlet is outside the window / on NoData — in which case `exitXY`
+       carries the outlet and the caller ends the window with reason "conduit". */
+    function followChain(k0, fromIdx) {
+      var kk = k0, segIx = segs.length - 1;
+      var fi = fromIdx % w, fj = (fromIdx - fromIdx % w) / w;
+      var fx = X0 + fi * cell, fy = Y0 + fj * cell, fz = z[fromIdx];
+      var oi = -1, oj = -1, ox = fx, oy = fy, inside = false, oz = NaN;
+      while (kk >= 0 && !cdUsed[kk]) {
+        var C1 = CD[kk];
+        cdUsed[kk] = 1;
+        ox = C1.ox; oy = C1.oy;
+        oi = Math.round((ox - X0) / cell); oj = Math.round((oy - Y0) / cell);
+        inside = oi >= 0 && oj >= 0 && oi < w && oj < h;
+        oz = inside ? z[oj * w + oi] : NaN;
+        var L = (C1.len != null && isFinite(C1.len)) ? C1.len : Math.hypot(ox - fx, oy - fy);
+        legs.push({ id: C1.id, seg: segIx, at: -1, length_ft: L,
+                    from: [fx, fy, isNaN(fz) ? null : fz],
+                    to: [ox, oy, isNaN(oz) ? null : oz] });
+        pipeFt += L;
+        fx = ox; fy = oy; fz = oz;
+        var nx = (C1.next != null && cdIx[C1.next] != null) ? cdIx[C1.next] : -1;
+        kk = (nx >= 0 && !cdUsed[nx]) ? nx : -1;
+      }
+      if (inside && !isNaN(oz)) return oj * w + oi;
+      exitXY = [ox, oy];
+      return -1;
+    }
 
     while (steps < maxSteps) {
       steps++;
       if (onProgress && (steps & 4095) === 0) onProgress(0.55 + 0.35 * Math.min(1, steps / 200000));
       i = cur % w; j = (cur - i) / w;
       if (i === 0 || j === 0 || i === w - 1 || j === h - 1) { reason = "window"; exitIdx = cur; break; }
+
+      /* v12 §2 "the shortcut rule": descent standing on an inlet's capture cells
+         leaves the ground. Tested at the TOP of the step, so a drop placed on an
+         inlet (the Herman pipe discharge route starts on one) enters it rather
+         than walking a cell away first. */
+      if (CD && inletAt[cur] >= 0 && !cdUsed[inletAt[cur]]) {
+        var oc = followChain(inletAt[cur], cur);
+        if (oc < 0) { reason = "conduit"; break; }
+        path = [oc]; segs.push(path); cur = oc;
+        continue;
+      }
 
       /* steepest descent on EFFECTIVE elevation: a pond cell reads as its pond's
          level, never its floor, so from an outlet (which lies below the level) the
@@ -1898,6 +2015,13 @@ var SBMM_COMPUTE = (function SBMMComputeModule() {
       heapClear(H);
       heapPush(H, z[cur], (h - 1 - j) * w + i); stamp[cur] = pid;
       var level = z[cur], outlet = -1, ui, uj, uidx, nm, rr;
+      /* v12 §2 "the pond rule": an inlet inside a filling depression is a pour
+         point at its rim. `pend` holds the CONDUIT indices the flood has reached
+         but whose rim the level has not; they are re-tested on every rise, and
+         each conduit enters the list once (with the first cell that reached it)
+         so the list stays a handful of entries however big the flood is. */
+      var pend = CD ? [] : null, viaInlet = -1, pi, prim;
+      if (CD) for (pi = 0; pi < CD.length; pi++) cdSeen[pi] = 0;
       while (H.n > 0) {
         nm = heapPop(H); rr = (nm / w) | 0; ui = nm - rr * w; uj = h - 1 - rr;
         uidx = uj * w + ui;
@@ -1909,6 +2033,37 @@ var SBMM_COMPUTE = (function SBMMComputeModule() {
         if (ui < P.bb[0]) P.bb[0] = ui; if (uj < P.bb[1]) P.bb[1] = uj;
         if (ui > P.bb[2]) P.bb[2] = ui; if (uj > P.bb[3]) P.bb[3] = uj;
         if (ui === 0 || uj === 0 || ui === w - 1 || uj === h - 1) { reason = "window"; exitIdx = uidx; break; }
+
+        /* The rim is the conduit's own (a surveyed invert where one exists),
+           else the inlet cell's own ground — §2. The inlet is tested before the
+           natural escape: on a tie the water the user told us about wins, and
+           where the natural pour point is genuinely lower the flood stops there
+           first anyway, at a lower level.
+
+           An inlet counts as REACHED when the flood FLOODS ITS CELL — §4's
+           ruling, and the only version in which the cell that triggers is by
+           construction a cell the water is standing in. The consequence is worth
+           knowing: a SURVEYED INVERT lower than the lidar ground around it can
+           still be missed, because its cell is never popped. The Herman
+           discharge pipes are exactly that — mouths at 1341.55 ft in ground the
+           2-ft lidar reads at 1344.4-1344.9, above the 1343.84 rim spill — so
+           the raindrop takes the impoundment over its rim while the overtopping
+           tool, which is handed the surveyed levels explicitly
+           (docs/V10_WATER_SPEC.md §10), discharges through the pipes first. That
+           is a difference in what each tool was told, not a disagreement about
+           the terrain, and it closes when the pipe mouths are surveyed. */
+        if (CD) {
+          reach(uidx);
+          var bestRim = Infinity;
+          for (pi = 0; pi < pend.length; pi++) {
+            var pk = pend[pi];
+            if (cdUsed[pk]) continue;
+            prim = CD[pk].rim;
+            if (prim == null || !isFinite(prim)) prim = z[cdCell[pk]];
+            if (prim <= level + 1e-9 && prim < bestRim) { bestRim = prim; viaInlet = cdCell[pk]; }
+          }
+          if (viaInlet >= 0) { outlet = viaInlet; break; }
+        }
 
         var eNod = -1, eIdx = -1, eDrop = -1;
         for (t = 0; t < 8; t++) {
@@ -1964,25 +2119,53 @@ var SBMM_COMPUTE = (function SBMMComputeModule() {
       if (reason) break;
       if (outlet < 0) { reason = "pond"; break; }
       cur = outlet; path.push(cur);
+      /* the pond drained through a grate, not over its rim: the run leaves the
+         ground at the inlet cell it just stopped on and reappears at the outlet */
+      if (viaInlet >= 0) {
+        P.viaConduit = CD[inletAt[viaInlet]].id;
+        var oc2 = followChain(inletAt[viaInlet], viaInlet);
+        if (oc2 < 0) { reason = "conduit"; break; }
+        path = [oc2]; segs.push(path); cur = oc2;
+      }
     }
     if (!reason) reason = "steps";
     if (onProgress) onProgress(0.92);
 
-    /* the run, as [x,y,z] triples; simplifyPath carries the third element through */
-    var raw = [], rawLen = 0, zEnd = NaN, k;
-    for (k = 0; k < path.length; k++) {
-      i = path[k] % w; j = (path[k] - i) / w;
-      var pz = z[path[k]];
-      raw.push([X0 + i * cell, Y0 + j * cell, pz]);
-      if (!isNaN(pz)) zEnd = pz;
-      if (k) rawLen += Math.hypot(raw[k][0] - raw[k - 1][0], raw[k][1] - raw[k - 1][1]);
-    }
+    /* the run, as [x,y,z] triples; simplifyPath carries the third element
+       through. `length_ft` and `lengthRaw_ft` are the OVERLAND length: the pipe
+       is measured separately in `pipe_ft`, because the two are different
+       quantities and adding them would hide the one the user is going to survey. */
     var tol = job.simplifyFt == null ? 0.6 * cell : job.simplifyFt;
-    var sp = tol > 0 ? simplifyPath(raw, tol) : raw;
+    var raw = [], rawLen = 0, zEnd = NaN, k, sIx, sK;
+    var sp = [], segLen = [];
+    for (sIx = 0; sIx < segs.length; sIx++) {
+      var segCells = segs[sIx], rawSeg = [];
+      for (k = 0; k < segCells.length; k++) {
+        i = segCells[k] % w; j = (segCells[k] - i) / w;
+        var pz = z[segCells[k]];
+        rawSeg.push([X0 + i * cell, Y0 + j * cell, pz]);
+        if (!isNaN(pz)) zEnd = pz;
+        if (k) rawLen += Math.hypot(rawSeg[k][0] - rawSeg[k - 1][0], rawSeg[k][1] - rawSeg[k - 1][1]);
+      }
+      for (k = 0; k < rawSeg.length; k++) raw.push(rawSeg[k]);
+      var spSeg = tol > 0 ? simplifyPath(rawSeg, tol) : rawSeg;
+      segLen.push(spSeg.length);
+      for (k = 0; k < spSeg.length; k++) sp.push(spSeg[k]);
+    }
+    /* every leg departs from the LAST vertex of the stretch it ended, so the app
+       can draw the pipe between pts[at] and the leg's own `to` and the vertex
+       after it (in the next stretch) is the outlet */
+    for (k = 0, sK = 0; k < legs.length; k++) {
+      var end = 0;
+      for (sIx = 0; sIx <= legs[k].seg && sIx < segLen.length; sIx++) end += segLen[sIx];
+      legs[k].at = end - 1;
+    }
     var pts = new Float64Array(sp.length * 3), len = 0;
-    for (k = 0; k < sp.length; k++) {
-      pts[k * 3] = sp[k][0]; pts[k * 3 + 1] = sp[k][1]; pts[k * 3 + 2] = sp[k][2];
-      if (k) len += Math.hypot(sp[k][0] - sp[k - 1][0], sp[k][1] - sp[k - 1][1]);
+    for (sIx = 0, k = 0; sIx < segLen.length; sIx++) {
+      for (sK = 0; sK < segLen[sIx]; sK++, k++) {
+        pts[k * 3] = sp[k][0]; pts[k * 3 + 1] = sp[k][1]; pts[k * 3 + 2] = sp[k][2];
+        if (sK) len += Math.hypot(sp[k][0] - sp[k - 1][0], sp[k][1] - sp[k - 1][1]);
+      }
     }
 
     var out = [];
@@ -1998,7 +2181,8 @@ var SBMM_COMPUTE = (function SBMMComputeModule() {
         volume_ft3: (Q.level * Q.count - Q.sumZ) * cell * cell,
         rings: pondRings(pondId, k, w, h, cell, X0, Y0, Q.bb),
         entry: [X0 + ei * cell, Y0 + ej * cell],
-        outlet: Q.outlet < 0 ? null : [X0 + (Q.outlet % w) * cell, Y0 + (((Q.outlet - Q.outlet % w) / w)) * cell]
+        outlet: Q.outlet < 0 ? null : [X0 + (Q.outlet % w) * cell, Y0 + (((Q.outlet - Q.outlet % w) / w)) * cell],
+        via: Q.viaConduit || null
       });
     }
     var last = raw[raw.length - 1];
@@ -2011,8 +2195,10 @@ var SBMM_COMPUTE = (function SBMMComputeModule() {
         reason: reason,
         end: [last[0], last[1], last[2]],
         zEnd_ft: zEnd,
-        exit: exitIdx < 0 ? null : [X0 + (exitIdx % w) * cell, Y0 + (((exitIdx - exitIdx % w) / w)) * cell],
-        ponds: out, cell: cell, steps: steps
+        exit: exitXY ? exitXY
+          : (exitIdx < 0 ? null : [X0 + (exitIdx % w) * cell, Y0 + (((exitIdx - exitIdx % w) / w)) * cell]),
+        ponds: out, cell: cell, steps: steps,
+        legs: legs, pipe_ft: pipeFt
       },
       transfer: [pts.buffer]
     };
@@ -2382,7 +2568,7 @@ var SBMM_COMPUTE = (function SBMMComputeModule() {
   }
 
   var api = {
-    VERSION: 5,
+    VERSION: 6,
     runJob: runJob,
     volumeGrid: volumeGrid,
     isopachGrid: isopachGrid,

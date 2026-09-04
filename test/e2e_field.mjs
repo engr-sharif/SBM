@@ -217,6 +217,29 @@ console.log("survey (Aug 2026):", surv.rows, "line features in", surv.layers, "l
 if (!surv.rows || surv.rows < 20) fail("the August-2026 survey linework is missing", surv);
 if (surv.shots !== 24) fail("the survey's 24 shots are not in the field build", surv);
 
+/* the storm-drainage network (v12 §5.1): ~27 kB, so it stays in the field build
+   — the rows, the master switch and the kernel list all work out on site */
+const storm = await page.evaluate(() => {
+  const D = SBMM_DATA.storm_network;
+  if (!D) return { err: "no payload" };
+  const before = SBMM.storm.enabled();
+  SBMM.storm.setEnabled(false, true);
+  const off = SBMM.storm.conduitsFor([6372400, 2127300, 6374000, 2128000]).length;
+  SBMM.storm.setEnabled(true, true);
+  const on = SBMM.storm.conduitsFor([6372400, 2127300, 6374000, 2128000]).length;
+  SBMM.storm.setEnabled(before, true);
+  return { nodes: D.nodes.length, conduits: D.conduits.length,
+           rowsOn: D.layers.filter(l => SBMM.layerState.isOn("framework", l.key)).length,
+           glyphs: document.querySelectorAll(".stormnode").length,
+           chip: !!document.getElementById("stormChip"), off, on };
+});
+console.log("storm network:", JSON.stringify(storm));
+if (storm.err) fail("the storm network is missing from the field build", storm);
+if (storm.nodes !== 43 || storm.conduits !== 25 || storm.rowsOn !== 3 || storm.glyphs !== 43)
+  fail("the storm rows did not build in field mode", storm);
+if (!storm.chip || storm.off !== 0 || storm.on < 1)
+  fail("the storm master switch does not work in field mode", storm);
+
 /* ===================================================================== */
 /* 5. the four excluded payloads — tolerated, never an error             */
 /* ===================================================================== */

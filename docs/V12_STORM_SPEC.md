@@ -103,6 +103,24 @@ the difference between them is exactly the inverts he is going to survey.
   FES).
 - **Rim for the kernel**: `invert_ft` if surveyed else `rim_ft` (ground).
   Never invent a depth.
+- **A sunken inlet** (ruling, 2026-09-04). The lidar is the January-2024
+  flight. The sandbag wall and the two 24-in discharge pipes were surveyed in
+  August 2026 and were built into a regraded channel the lidar never saw,
+  which is why the 1-ft cells at the surveyed invert points read 1344.66 /
+  1344.80 ft — that is the top of the sandbags. **An inlet whose surveyed
+  `invert_ft` lies below the lidar ground at its own cell is a pipe mouth the
+  lidar did not see, and it is connected to the water it was built to drain.**
+  For such an inlet the point handed to the kernel (`ix, iy`) is the **nearest
+  DEM cell at or below the invert within 30 ft** of the surveyed point; `rim`
+  stays the surveyed invert; and the conduit record carries `mouth_moved_ft`
+  so the popup and the card can say "inlet cell moved 25.6 ft to the channel
+  floor the lidar sees". If no such cell is found within 30 ft the inlet stays
+  where it was surveyed and the popup says that instead. This is a HOST rule —
+  `SBMM.storm.conduitsFor`, mirrored in the harness's flattening — and needs
+  no kernel change: the pond rule below then stops the Herman pond at the
+  invert. `kind: "pipe_end"` with a non-null `invert_ft` is the only case
+  today (it fires twice), but the rule is general: any inlet whose invert is
+  below its ground.
 - **The shortcut rule** (kernel): descent arriving on an inlet's capture
   cells leaves the ground: the run gains a **conduit leg** from the inlet to
   the conduit's `to` node (and on through any conduit that starts at that

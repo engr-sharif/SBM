@@ -258,10 +258,14 @@ SBMM.popups = (function () {
       const np = (p.ponds || []).length;
       h += attrTable([
         ["Length (ft)", p.length_ft],
+        /* v12: the pipe never hides inside the overland length */
+        ["In pipes (ft)", p.pipe_ft > 0 ? p.pipe_ft : null],
+        ["Total (ft)", p.pipe_ft > 0 ? p.total_ft : null],
         ["Fall (ft)", p.fall_ft],
         ["Grade (%)", p.grade_pct == null ? null : Math.abs(p.grade_pct)],
         ["Ends", SBMM.water ? SBMM.water.endSentence(p) : (p.end && p.end.reason)],
         ["Ponds crossed", np],
+        ["Storm drains", p.storm === false ? "off — ground only" : (p.storm ? "assumed working" : null)],
         ["Grid", (p.grids && p.grids.length > 1 ? p.grids.join(" → ") : p.dem) + " lidar"]
       ]);
     } else if (f.type === "photo" && SBMM.field) {
@@ -294,6 +298,83 @@ SBMM.popups = (function () {
     h += actions(acts.join(""));
     const [x, y] = f.pts[0];
     return h + coordLine(x, y, f.pts.length > 1 ? f.pts.length + " vertices" : null);
+  }
+
+  /* ---------------------------------------------------------------- */
+  /* the storm network (js/storm.js, v12 §5.1)                         */
+  /* ---------------------------------------------------------------- */
+  /* One builder for both halves of the network, because a click on a grate and
+     a click on the pipe leaving it are the same question asked twice. The rim
+     is labelled "ground (lidar)" and the invert says "not surveyed" where there
+     is none: this app never invents an elevation, and a blank row would read as
+     one. */
+  /* A SUNKEN INLET (v12 ruling): the lidar is Jan 2024 and the pipe was built
+     into a channel it never saw, so the analysis enters the pipe at the nearest
+     cell the lidar DOES see at or below the surveyed invert. Saying so is the
+     whole point — a number that moved 25 ft and does not admit it is worse than
+     no number. */
+  function mouthNote(mo) {
+    if (!mo) return "";
+    if (mo.moved == null)
+      return `<span class="warntxt">Surveyed invert ${fmt(mo.ground, 2)} ft below the lidar ground here, `
+        + `and no cell at or under it within ${fmt0(SBMM.storm.MOUTH_SEARCH_FT)} ft — the analysis enters `
+        + `the pipe at the surveyed point.</span><br>`;
+    return `<span style="opacity:.75">Sunken mouth: the lidar (Jan 2024) reads `
+      + `${fmt(mo.ground, 2)} ft here — the sandbag wall, built after the flight. Inlet cell moved `
+      + `${fmt(mo.moved, 1)} ft to the channel floor the lidar sees (${fmt(mo.z, 2)} ft); the rim `
+      + `stays the surveyed invert.</span><br>`;
+  }
+
+  function forStorm(n, c) {
+    const S = SBMM.storm;
+    if (!S || !S.data()) return "<b>Storm network</b><br><span style=\"opacity:.7\">not in this build</span>";
+    if (n) {
+      const rim = S.rims()[n.id];
+      const h = `<b>${esc(n.name || n.id)}</b> <span style="opacity:.7">${esc(n.kind.replace(/_/g, " "))}</span><br>`
+        + attrTable([
+          ["Ground (lidar)", rim == null ? "outside the survey" : fmt(rim, 2) + " ft"],
+          ["Invert", n.invert_ft == null ? "not surveyed" : fmt(n.invert_ft, 2) + " ft"],
+          ["Size (in)", n.size_in],
+          ["CAD block", n.cad_block],
+          ["CAD handle", n.cad_handle]
+        ])
+        + mouthNote(S.mouthOf(n.id))
+        + (n.note ? `<span style="opacity:.75">${esc(n.note)}</span><br>` : "")
+        + `<span style="opacity:.55;font-size:11px">${esc(n.provenance || "")}</span>`;
+      return h + actions(btn("trace a raindrop", () => SBMM.water.dropAt(n.x, n.y),
+                             "Follow the water from this structure — through the pipes if the drains are on"))
+        + coordLine(n.x, n.y);
+    }
+    const st = S.statusOf(c.id);
+    const a = S.node(c.from), b = S.node(c.to);
+    const fall = S.fallOf(c);
+    const inv = (S.rimFor(c.from) != null && a && a.invert_ft != null) ? " (surveyed invert)" : " (lidar ground)";
+    let h = `<b>${esc(S.labelOf(c.id))}</b><br>`
+      + `<span style="opacity:.7">storm conduit · ${esc(c.source.replace(/_/g, " "))}</span><br>`
+      + attrTable([
+        ["Length (ft)", c.length_ft],
+        ["Fall (ft)", fall == null ? "unknown — no invert" : fall + inv],
+        ["Size (in)", c.size_in],
+        ["Material", c.material],
+        ["From", a ? a.name : c.from],
+        ["To", b ? b.name : c.to],
+        ["CAD handles", (c.cad_handles || []).join(" ")],
+        ["Status", st === "broken" ? "broken" : "assumed working"]
+      ])
+      + mouthNote(S.mouthOf(c.from))
+      + (c.note ? `<span style="opacity:.75">${esc(c.note)}</span><br>` : "")
+      + `<span style="opacity:.55;font-size:11px">${esc(c.provenance || "")}</span>`
+      + `<br><span style="opacity:.6;font-size:11px">A topological shortcut with an elevation at each `
+      + `end — no capacity, no hydraulic grade, no time.</span>`;
+    const acts = [];
+    acts.push(btn(st === "broken" ? "mark working" : "mark broken",
+      () => S.setStatus(c.id, st === "broken" ? "assumed_working" : "broken"),
+      st === "broken" ? "Let water through this conduit again"
+                      : "Water reaching this inlet stays on the ground"));
+    if (a) acts.push(btn("trace from the inlet", () => SBMM.water.dropAt(a.x, a.y),
+                         "A raindrop at this conduit's upstream structure"));
+    h += actions(acts.join(""));
+    return h + coordLine(c.pts[0][0], c.pts[0][1], c.pts.length + " vertices");
   }
 
   /* ---------------------------------------------------------------- */
@@ -348,6 +429,6 @@ SBMM.popups = (function () {
     }
   }
 
-  return { forDataset, forGis, forCad, forSample, forTree, forFeature, forTerrain,
+  return { forDataset, forGis, forCad, forSample, forTree, forFeature, forTerrain, forStorm,
            attrTable, coordLine, action, run, btn, actions, copyText };
 })();

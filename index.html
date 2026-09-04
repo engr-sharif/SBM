@@ -146,6 +146,7 @@ window.SBMM_BUILD="full";
   <div class="ci" data-m="raindrop">Raindrop — trace where water flows <kbd>R</kbd></div>
   <div class="ci sep" data-a="overtop">Overtopping — Herman Impoundment…</div>
   <div class="ci" data-a="overtop-click">Overtopping — a pond under a click…</div>
+  <div class="ci sep" data-a="storm-toggle">Storm drains work — assume the network carries water <kbd>STORM</kbd></div>
   <div class="ci sep" data-a="water-clear">Clear water overlays</div>
 </div>
 
@@ -510,6 +511,9 @@ window.SBMM_BUILD="full";
 <div id="modeHud" aria-live="polite">
   <span class="mhname">Navigate</span>
   <span class="mhnext"></span>
+  <!-- v12 §5.1: whether the storm drains are assumed to work, where a raindrop
+       is about to be traced. Click it, or type STORM. -->
+  <span class="mhchip" id="stormChip" hidden>storm drains: ON</span>
   <span class="mhesc"></span>
 </div>
 
@@ -840,6 +844,10 @@ window.SBMM_BUILD="full";
 <script src="js/mode.js"></script>
 <script src="js/layerman.js"></script>
 <script src="js/isopach.js"></script>
+<!-- the storm-drainage network (docs/V12_STORM_SPEC.md): read-only project
+     data like js/survey.js, and the thing js/water.js asks which conduits
+     are in play — so it loads before it. -->
+<script src="js/storm.js"></script>
 <script src="js/water.js"></script>
 <script src="js/refsurf.js"></script>
 <script src="js/sheetcards.js"></script>

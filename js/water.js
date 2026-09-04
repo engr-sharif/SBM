@@ -48,6 +48,10 @@ SBMM.water = (function () {
     pond: "rgba(85,193,255,.28)", drop: "#9FDCFF", spill: "#FF4D3D",
     sel: "#FFD34D"
   };
+  /* the storm network's own colour (v12 §5.1): a pipe is infrastructure
+     somebody drew, a flow is the terrain's answer, and they must not read as
+     the same thing on a map showing both */
+  const STORM_COL = "#7FA7C9";
   const MIN_POND = 0.25;        // ft — the lidar noise floor
   const PLATEAU_TOL = 0.3;      // ft — how flat "the water surface" is
   const RIM_RANGE = 3;          // ft above the spill the rim band covers
@@ -148,11 +152,28 @@ SBMM.water = (function () {
     if (!f.pts || f.pts.length < 2) return;
     const sel = SBMM.store.selected === f.id;
     const col = (f.style && f.style.color) || C.line;
-    const ll = f.pts.map(q => [q[1], q[0]]);
+    /* v12: a run that went through a pipe is not one polyline. Each conduit leg
+       ends an overland stretch and the next one starts at the outlet, so the
+       ground line is drawn per stretch and the pipe is drawn as itself — a
+       single polyline through both would draw the pipe as if water ran over
+       the ground along it, which is the one thing this must not say. */
+    const legs = (p.legs || []).filter(lg => lg.at != null && lg.at >= 0);
+    const cuts = [...new Set(legs.map(lg => lg.at))].sort((a, b) => a - b);
+    const stretches = [];
+    {
+      let st = 0;
+      for (const cut of cuts) {
+        if (cut >= st) stretches.push(f.pts.slice(st, cut + 1));
+        st = cut + 1;
+      }
+      if (st < f.pts.length) stretches.push(f.pts.slice(st));
+    }
+    const lls = stretches.filter(sq => sq.length > 1).map(sq => sq.map(q => [q[1], q[0]]));
 
     /* (a) the soft glow — non-interactive, purely so the line reads over the ortho */
-    L.polyline(ll, { pane: "drawings", color: C.glow, weight: 9, opacity: 1,
-                     lineCap: "round", lineJoin: "round", interactive: false }).addTo(g);
+    for (const line of lls)
+      L.polyline(line, { pane: "drawings", color: C.glow, weight: 9, opacity: 1,
+                         lineCap: "round", lineJoin: "round", interactive: false }).addTo(g);
 
     /* (c) ponds, under the line */
     for (const pd of (p.ponds || [])) {
@@ -177,15 +198,38 @@ SBMM.water = (function () {
     }
 
     /* (b) the core line — this is what a click selects */
-    L.polyline(ll, { pane: "drawings", color: sel ? C.sel : col,
-                     weight: sel ? 4.75 : 2.75, lineCap: "round", lineJoin: "round" }).addTo(g);
+    for (const line of lls)
+      L.polyline(line, { pane: "drawings", color: sel ? C.sel : col,
+                         weight: sel ? 4.75 : 2.75, lineCap: "round", lineJoin: "round" }).addTo(g);
 
     /* the flow animation: a second, non-interactive copy in the SVG `water`
        pane. Zero JS per frame — CSS walks the dash offset, and
        prefers-reduced-motion turns the movement off in the stylesheet. */
-    L.polyline(ll, { renderer: waterRenderer(), pane: "water", interactive: false,
-                     color: C.anim, weight: 1.6, dashArray: "5 11", opacity: .95,
-                     className: "flowanim" }).addTo(g);
+    for (const line of lls)
+      L.polyline(line, { renderer: waterRenderer(), pane: "water", interactive: false,
+                         color: C.anim, weight: 1.6, dashArray: "5 11", opacity: .95,
+                         className: "flowanim" }).addTo(g);
+
+    /* (c2) the conduit legs — the pipe, drawn as a pipe: straight, dashed, in the
+       storm colour, with a hollow ring where the water left the ground and an
+       "in pipe" label at the midpoint once there is room for it. */
+    f._pipeLabels = [];
+    for (const lg of legs) {
+      const a = lg.from, b = lg.to;
+      if (!a || !b) continue;
+      L.polyline([[a[1], a[0]], [b[1], b[0]]], {
+        pane: "drawings", color: STORM_COL, weight: 2.4, opacity: .95,
+        dashArray: "8 5", lineCap: "butt", interactive: false
+      }).addTo(g);
+      const lab = L.marker([(a[1] + b[1]) / 2, (a[0] + b[0]) / 2], {
+        pane: "drawings", interactive: false, opacity: 0,
+        icon: L.divIcon({ className: "", iconSize: [0, 0],
+          html: `<span class="flowpipe">in pipe · ${fmt0(lg.length_ft)} ft</span>` })
+      }).addTo(g);
+      f._pipeLabels.push(lab);
+      L.circleMarker([a[1], a[0]], { pane: "drawings", radius: 4.5, color: STORM_COL,
+        weight: 2, fillColor: "#0E1418", fillOpacity: 1, interactive: false }).addTo(g);
+    }
 
     /* (d) the drop marker — drag it to retrace from somewhere else */
     const d = p.drop || f.pts[0];
@@ -218,9 +262,14 @@ SBMM.water = (function () {
     if (!SBMM.map) return;
     const k = Math.pow(2, SBMM.map.getZoom());       // screen px per ground ft
     for (const f of SBMM.store.features) {
-      if (f.type !== "flow" || !f._pondLabels) continue;
-      for (const l of f._pondLabels) {
+      if (f.type !== "flow") continue;
+      for (const l of (f._pondLabels || [])) {
         try { l.mk.setOpacity(l.wft * k >= 36 ? 1 : 0); } catch (err) {}
+      }
+      /* the "in pipe" labels appear at zoom >= 2, where a 150-ft conduit is
+         600 px long and the words fit inside it (§5.2) */
+      for (const l of (f._pipeLabels || [])) {
+        try { l.setOpacity(SBMM.map.getZoom() >= 2 ? 1 : 0); } catch (err) {}
       }
     }
   }
@@ -236,6 +285,11 @@ SBMM.water = (function () {
     if (p.length_ft == null && pts) p.length_ft = +lineLength(pts).toFixed(1);
     if (!Array.isArray(p.ponds)) p.ponds = [];
     if (!Array.isArray(p.zs)) p.zs = [];
+    /* v12, and the reason a v8 session still loads: a run traced before the
+       storm network existed simply has no legs */
+    if (!Array.isArray(p.legs)) p.legs = [];
+    if (p.pipe_ft == null) p.pipe_ft = 0;
+    if (p.total_ft == null) p.total_ft = p.length_ft;
     if (p.minPondDepth == null) p.minPondDepth = MIN_POND;
     return p;
   }
@@ -278,7 +332,14 @@ SBMM.water = (function () {
     const label = opts.label || "Raindrop";
     let cx = x, cy = y, hops = 0, half = HALF_COARSE;
     const pts = [], zraw = [], ponds = [], grids = [];
-    let reason = "steps", end = null, steps = 0, zLast = NaN;
+    let reason = "steps", end = null, steps = 0, zLast = NaN, lengthSum = 0;
+    /* v12 §5.2: the storm network, if this build has one and the switch is on.
+       `used` is carried ACROSS windows — the kernel can only see the window it
+       was given, and "a conduit is used at most once per run" is a statement
+       about the run. */
+    const stormOn = !!(SBMM.storm && SBMM.storm.data() && SBMM.storm.enabled() && opts.storm !== false);
+    const legs = [], used = new Set();
+    let pipeFt = 0, prevReason = null;
 
     let first = true;
     for (;;) {
@@ -293,11 +354,18 @@ SBMM.water = (function () {
       if (!grid) { reason = "nodata"; break; }
       const gl = gridLabel(dem);
       if (grids[grids.length - 1] !== gl) grids.push(gl);
+      /* conduits whose INLET is in this window and that this run has not already
+         been through; the kernel resolves each one's `next` among the list it is
+         given, so a chain that runs out of the window ends it with reason
+         "conduit" and we re-centre on the outlet below. */
+      const cds = stormOn ? SBMM.storm.conduitsFor(win).filter(c => !used.has(c.id)) : [];
       let R;
       try {
         R = await SBMM.compute.run("flowpath",
           { grid, x: cx, y: cy, minPondDepth, blockRing: opts.blockRing || null,
-            plateauTol: opts.plateauTol == null ? PLATEAU_TOL : opts.plateauTol },
+            plateauTol: opts.plateauTol == null ? PLATEAU_TOL : opts.plateauTol,
+            conduits: cds.length ? cds : null,
+            captureFt: SBMM.storm ? SBMM.storm.captureFt() : 3 },
           { transfer: [grid.z.buffer], label }).promise;
       } catch (e) {
         if (e && e.cancelled) return null;
@@ -305,24 +373,46 @@ SBMM.water = (function () {
         return null;
       }
       const n = R.n | 0;
-      const skip = pts.length ? 1 : 0;          // the first vertex repeats the exit
+      /* the first vertex of a window repeats the exit cell of the last one — but
+         a CONDUIT hop reappears at the outlet, which was never a vertex, so
+         nothing is dropped there */
+      const skip = (pts.length && prevReason !== "conduit") ? 1 : 0;
+      const base = pts.length;
       for (let i = skip; i < n; i++) {
         pts.push([R.pts[i * 3], R.pts[i * 3 + 1]]);
         zraw.push(R.pts[i * 3 + 2]);
       }
+      for (const lg of (R.legs || [])) {
+        used.add(lg.id);
+        legs.push({ id: lg.id, at: base + lg.at - skip, length_ft: +lg.length_ft.toFixed(1),
+                    from: [+lg.from[0].toFixed(2), +lg.from[1].toFixed(2)],
+                    from_z: lg.from[2] == null ? null : +lg.from[2].toFixed(2),
+                    to: [+lg.to[0].toFixed(2), +lg.to[1].toFixed(2)],
+                    to_z: lg.to[2] == null ? null : +lg.to[2].toFixed(2),
+                    name: SBMM.storm ? SBMM.storm.labelOf(lg.id) : lg.id });
+      }
+      pipeFt += R.pipe_ft || 0;
+      lengthSum += R.length_ft || 0;
       for (const pd of (R.ponds || [])) ponds.push(pd);
       steps += R.steps || 0;
+      prevReason = R.reason;
       reason = R.reason; end = R.end;
       /* the kernel's own last SURVEYED z: end[2] is NaN when the run stops on a
          NoData cell, and "fall = NaN" is a worse answer than "fall to the last
          ground we had" */
       if (R.zEnd_ft != null && !isNaN(R.zEnd_ft)) zLast = R.zEnd_ft;
-      if (R.reason !== "window") break;
-      if (hops >= MAX_HOPS - 1 || lineLength(pts) >= MAX_LEN) { reason = "steps"; break; }
+      if (R.reason !== "window" && R.reason !== "conduit") break;
+      if (hops >= MAX_HOPS - 1 || lengthSum >= MAX_LEN) { reason = "steps"; break; }
       const ex = R.exit;
       if (!ex) break;
       const nd = SBMM.demAt(ex[0], ex[1]);
-      if (!nd) { reason = "nodata"; break; }      // ran off the surveyed ground
+      if (!nd) {
+        reason = "nodata";                        // ran off the surveyed ground
+        /* a pipe that discharges outside the lidar — the Clear Lake outfall is
+           exactly this — still gets there: the outlet is where the run ends */
+        if (R.reason === "conduit") { pts.push([ex[0], ex[1]]); zraw.push(NaN); end = [ex[0], ex[1], NaN]; }
+        break;
+      }
       dem = nd; cx = ex[0]; cy = ex[1]; hops++;
     }
 
@@ -330,7 +420,10 @@ SBMM.water = (function () {
       toast("nowhere to run from there — the drop is already at a low point of a flat");
       return null;
     }
-    const length = lineLength(pts);
+    /* the OVERLAND length: the kernel's per-window `length_ft` already excludes
+       the conduit jumps, and consecutive windows share their join vertex, so the
+       sum is exactly lineLength(pts) when nothing went through a pipe */
+    const length = lengthSum;
     const zA = zraw.find(v => !isNaN(v));
     let zB = zLast;
     if (isNaN(zB)) for (let i = zraw.length - 1; i >= 0; i--) if (!isNaN(zraw[i])) { zB = zraw[i]; break; }
@@ -348,11 +441,20 @@ SBMM.water = (function () {
       ponds: ponds.map(pd => ({
         level: +pd.level.toFixed(2), depth_ft: +pd.depth_ft.toFixed(2),
         area_ft2: +pd.area_ft2.toFixed(0), volume_ft3: +pd.volume_ft3.toFixed(1),
-        cells: pd.cells, rings: (pd.rings || []).map(r => r.map(q => [+q[0].toFixed(2), +q[1].toFixed(2)]))
+        cells: pd.cells, via: pd.via || null,
+        rings: (pd.rings || []).map(r => r.map(q => [+q[0].toFixed(2), +q[1].toFixed(2)]))
       })),
       zs: decimate(zraw, 600).map(v => isNaN(v) ? null : +v.toFixed(2)),
       dem: grids[0] || gridLabel(dem),
-      grids, minPondDepth, hops, steps, searched_ft: half * 2
+      grids, minPondDepth, hops, steps, searched_ft: half * 2,
+      /* v12: `length_ft` stays overland and `pipe_ft` is separate, because they
+         are different quantities — one is measured off the lidar and the other
+         off somebody's drawing. `storm` records whether the network was on when
+         this run was traced, so a card years later still says what it assumed. */
+      storm: stormOn, legs, pipe_ft: +pipeFt.toFixed(1),
+      total_ft: +(length + pipeFt).toFixed(1),
+      outfall: legs.some(l => SBMM.storm && SBMM.storm.conduit(l.id)
+                              && SBMM.storm.conduit(l.id).to === "outfall")
     };
     if (opts.blockRing) props.blocked = true;
     return { pts, props };
@@ -470,8 +572,19 @@ SBMM.water = (function () {
     (p.ponds || []).slice(0, 6).forEach((pd, i) => rows.push([
       "pond " + (i + 1),
       `${fmt(pd.level, 1)} ft · ${fmt(pd.depth_ft, 1)} ft deep · ${areaTxt(pd.area_ft2)} · ${volTxt(pd.volume_ft3)}`
+        + (pd.via ? ` · ${esc(drainsTo(pd.via))}` : "")
     ]));
     if ((p.ponds || []).length > 6) rows.push(["", `+${p.ponds.length - 6} more`]);
+    /* v12 §5.2: the pipe is reported beside the ground, never inside it */
+    if (p.pipe_ft > 0) {
+      rows.push(["In pipes", fmt0(p.pipe_ft) + " ft"]);
+      rows.push(["", legNames(p)]);
+      const mv = movedMouths(p);
+      if (mv) rows.push(["", mv]);
+      rows.push(["Total", fmt0((p.total_ft != null ? p.total_ft : p.length_ft + p.pipe_ft)) + " ft"]);
+    }
+    rows.push(["Storm drains", p.storm === false ? "off — ground only"
+      : (SBMM.storm && SBMM.storm.data() ? "assumed working (STORM to toggle)" : "no network in this build")]);
     rows.push(["Grid", (p.grids && p.grids.length > 1 ? p.grids.join(" → ") : (p.dem || "—"))
       + " lidar grid" + (p.hops ? ` · ${p.hops} window${p.hops === 1 ? "" : "s"} chained` : "")]);
     SBMM.results.setRows(f.card, rows);
@@ -499,6 +612,41 @@ SBMM.water = (function () {
       SBMM.results.appendNote(f.card, NOTE_FLOW(p.dem || "lidar"));
     }
     holder.innerHTML = svgFlowProfile(f);
+  }
+
+  /* "drains to grate Spot 8 at 1,397.4 ft" — a pond whose outlet is a grate is
+     a different fact from a pond that spills over its rim, and the card has to
+     say which (§5.2). */
+  function drainsTo(cid) {
+    if (!SBMM.storm) return "drains into a pipe";
+    const c = SBMM.storm.conduit(cid);
+    const n = c ? SBMM.storm.node(c.from) : null;
+    if (!n) return "drains into a pipe";
+    const r = SBMM.storm.rimFor(n.id);
+    return "drains to " + (n.name || n.id) + (r == null ? "" : " at " + fmt(r, 1) + " ft");
+  }
+  /* v12 ruling: a leg whose inlet is a sunken pipe mouth entered the pipe at a
+     cell up to 30 ft from the surveyed point, and the card says so rather than
+     leaving the reader to wonder why the run left the ground where it did */
+  function movedMouths(p) {
+    if (!SBMM.storm || !SBMM.storm.mouthOfConduit) return "";
+    const out = [];
+    for (const lg of (p.legs || [])) {
+      const mo = SBMM.storm.mouthOfConduit(lg.id);
+      if (mo && mo.moved) out.push(lg.id.replace(/_/g, " ") + ": inlet cell moved "
+        + fmt(mo.moved, 1) + " ft to the channel floor the lidar sees");
+    }
+    return out.join(" · ");
+  }
+  function legNames(p) {
+    const seen = [];
+    for (const lg of (p.legs || [])) {
+      const c = SBMM.storm && SBMM.storm.conduit(lg.id);
+      const nm = c ? c.id.replace(/_/g, " ") : lg.id;
+      if (!seen.includes(nm)) seen.push(nm);
+    }
+    if (!seen.length) return "—";
+    return seen.length > 4 ? seen.slice(0, 4).join(" → ") + ` → +${seen.length - 4} more` : seen.join(" → ");
   }
 
   function makeProfile(f) {
@@ -775,7 +923,17 @@ SBMM.water = (function () {
         name: `${name} pipe discharge route`, group: "Water", quiet: true,
         blockRing: ring, plateauTol: PLATEAU_TOL
       });
-      if (pr) { ov.pipeRoute = pr; pr.props.blockRing = null; }
+      if (pr) {
+        ov.pipeRoute = pr; pr.props.blockRing = null;
+        /* the route is no longer "where does this water go" but "it goes down
+           EA's storm main", and the feature says so in the tree and the card */
+        if (pr.props.outfall) {
+          pr.name = `${name} pipe discharge route (storm main)`;
+          const rn = pr.card && pr.card.querySelector(".rname");
+          if (rn) rn.textContent = pr.name;
+          SBMM.store.emit();
+        }
+      }
     }
     const nx = R.primary.next;
     if (nx) {
@@ -904,7 +1062,15 @@ SBMM.water = (function () {
       rows.push(["First discharge", `24-in HDPE pipes · invert ${fmt(F.pipeInvert, 2)} ft · +${fmt(F.pipeInvert - R.z0, 2)} ft`]);
       if (st) rows.push(["Storage to the pipes", `${fmt(acft(st.storage_ft3), 1)} ac-ft · ${fmt(acft(st.area_ft2), 2)} ac`]);
       const pt = ov.pipeRoute ? ov.pipeRoute.props : null;
-      rows.push(["Pipe discharge route", pt ? `${fmt0(pt.length_ft)} ft · ${endShort(pt)}` : "—"]);
+      /* v12 §5.2: with the storm network on, what leaves the pipes is not a
+         raindrop running over the ground — it is 797 ft of EA's storm main and
+         then the lake, and the row says how much of it is in pipe. */
+      rows.push(["Pipe discharge route", !pt ? "—"
+        : (pt.outfall
+            ? `${fmt0(pt.total_ft != null ? pt.total_ft : pt.length_ft)} ft · ${fmt0(pt.pipe_ft)} ft in pipe · Clear Lake outfall`
+            : (pt.pipe_ft > 0
+                ? `${fmt0(pt.total_ft)} ft · ${fmt0(pt.pipe_ft)} ft in pipe · ${endShort(pt)}`
+                : `${fmt0(pt.length_ft)} ft · ${endShort(pt)}`))]);
     }
     if (F && F.wallCrest != null) {
       const st = stageAt(R, F.wallCrest);
@@ -1125,6 +1291,10 @@ SBMM.water = (function () {
       const a = ci.dataset.a;
       if (a === "overtop") { SBMM.mode.navigate(); overtopHerman(); }
       else if (a === "overtop-click") pickPond();
+      else if (a === "storm-toggle") {
+        if (!SBMM.storm || !SBMM.storm.data()) toast("this build has no storm-drainage network");
+        else SBMM.storm.toggle();
+      }
       else if (a === "water-clear") {
         const had = !!ov;
         clearOvertop();

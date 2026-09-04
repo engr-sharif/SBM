@@ -174,6 +174,13 @@ SBMM.buildLayers = function () {
   SBMM.tracedPiles = SBMM_DATA.piles.filter(p => (p.name || "").includes("Fig 2"));
   SBMM.addLayerRow("proj", "Waste piles (topo / Fig-2)", pileGrp, { id: "piles", checked: true, swatch: "#8BE04B" });
 
+  /* ---------- the storm-drainage network (v12 §5.1) ----------
+     Site framework, not Investigations: a culvert is part of the ground the
+     remedy is designed on, the same way a decision unit is. Its rims come from
+     SBMM.elev, so it is built after the DEMs exist — which is where every
+     layer here is built anyway. */
+  if (SBMM.storm) SBMM.storm.build();
+
   /* ---------- sample points ----------
      Investigations (§4 group 4), not Site framework: a sample result is a
      measurement of the ground, not part of the ground. */

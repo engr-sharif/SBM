@@ -227,7 +227,10 @@ SBMM.props = (function () {
     minPondDepth: "Smallest pond reported (ft)", hops: "Windows chained",
     steps: "Cells stepped", searched_ft: "Search window (ft)",
     catchment_ft2: "Contributing area (ft²)", catchment_cells: "Contributing cells",
-    catchment_window_ft: "Catchment window (ft)", catchment_partial: "Reaches the window edge"
+    catchment_window_ft: "Catchment window (ft)", catchment_partial: "Reaches the window edge",
+    /* storm drainage (v12) — the pipe is reported beside the ground, never inside it */
+    pipe_ft: "In pipes (ft)", total_ft: "Total, ground + pipe (ft)",
+    storm: "Storm drains assumed working", outfall: "Reaches the Clear Lake outfall"
   };
   const SKIP = new Set(["profile", "showCutFill", "kind", "padZ", "ratio", "side",
     "gradePct", "gradeDirDeg", "contourInterval", "showContours", "drape3d",
