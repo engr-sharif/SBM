@@ -486,7 +486,9 @@ SBMM.sections = (function () {
       const surfs = SBMM.design.list();
       if (surfs.length === 1) props.designId = surfs[0].id;
       const s = mkSections(pts, null, props);
-      SBMM.undo.push("sections", () => SBMM.store.remove(s));
+      SBMM.undo.push("sections",
+        () => SBMM.store.remove(s),
+        () => { SBMM.store.readd(s); if (!s._sec) regenerate(s); });
       SBMM.store.select(s.id);
       openPanel(s);
       return s;

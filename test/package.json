@@ -1,11 +1,13 @@
 {
   "name": "sbmm-site-explorer-tests",
   "private": true,
-  "description": "Playwright harnesses for the SBMM Site Explorer. Run from the repo root; one browser at a time.",
+  "description": "Test harnesses for the SBMM Site Explorer: kernels.mjs is node-only (no browser); the rest are Playwright and run from the repo root, one browser at a time.",
   "devDependencies": {
     "playwright": "^1.62.1"
   },
   "scripts": {
+    "kernels": "node kernels.mjs",
+    "water": "node water_kernels.mjs",
     "e2e:folder": "node e2e.mjs ../index.html folder",
     "e2e:dist": "node e2e.mjs ../dist/SBMM_Site_Explorer.html dist",
     "split:folder": "node split3d.mjs ../index.html folder",

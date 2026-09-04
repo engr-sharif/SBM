@@ -15,6 +15,32 @@ Both are offline-only by design. Nothing in this app calls out to the internet.
 
 ---
 
+## v9.5 — the app opens faster
+
+The terrain now decodes in the background. The three elevation grids and the canopy model
+used to be unpacked one after another on the same thread that draws the screen, which is
+what the "building workbench" pause was; they are now unpacked side by side, off that
+thread, and the loader counts them off as they land. On the slow two-core machine the tests
+run on, the app is ready in **1.7 seconds instead of 2.5**, and the terrain step itself
+went from 1.25 s to 0.68 s. Nothing about the terrain changed — the elevations are
+bit-for-bit the ones the app has always read, and the tests prove it by unpacking a grid
+both ways and comparing every cell.
+
+---
+
+## v9.4 — redo
+
+The Redo button works. Everything you do — drawing, dragging a vertex, the modify
+commands, a graded pad, a set of sections, a smart boundary, a raindrop, a delete — can now
+be stepped back with **Ctrl+Z** (or `UNDO`) and stepped forward again with **Ctrl+Y**,
+**Ctrl+Shift+Z** or the new `REDO` command, a hundred steps each way. Both buttons say what
+they will do: "Redo: retrace Raindrop 3". A redo brings back the *same* drawing — its name,
+its results card, its folder and its id — not a copy of it, so anything that referred to it
+still does. Starting something new after an undo drops the branch you left, the way every
+editor does. Deleting a feature with `ERASE` is now undoable too.
+
+---
+
 ## v9.3 — the password screen
 
 The app now opens on a password screen: the site's own topography, drawn live and drifting,

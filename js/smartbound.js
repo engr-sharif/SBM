@@ -173,7 +173,7 @@ SBMM.smartbound = (function () {
     f.card = SBMM.results.card(f, f.name, []);
     SBMM.tools.recompute(f, false);
     if (note) SBMM.results.appendNote(f.card, note);
-    SBMM.undo.push("smart boundary “" + name + "”", () => SBMM.store.remove(f));
+    SBMM.undo.push("smart boundary “" + name + "”", () => SBMM.store.remove(f), () => SBMM.store.readd(f));
     return f;
   }
   function makeLine(pts, name, group, note) {
@@ -181,7 +181,7 @@ SBMM.smartbound = (function () {
     f.card = SBMM.results.card(f, f.name, []);
     SBMM.tools.recompute(f, false);
     if (note) SBMM.results.appendNote(f.card, note);
-    SBMM.undo.push("smart boundary “" + name + "”", () => SBMM.store.remove(f));
+    SBMM.undo.push("smart boundary “" + name + "”", () => SBMM.store.remove(f), () => SBMM.store.readd(f));
     return f;
   }
 
@@ -440,7 +440,9 @@ SBMM.smartbound = (function () {
       "polygon rings are outer boundaries and enclose internal clearings, so a ring's own area reads " +
       "larger. Stands are ordinary area features in the “Canopy stands” folder: edit, measure " +
       "and export them like any other drawing.");
-    SBMM.undo.push(made.length + " canopy stands", () => made.forEach(f => SBMM.store.remove(f)));
+    SBMM.undo.push(made.length + " canopy stands",
+      () => made.forEach(f => SBMM.store.remove(f)),
+      () => made.forEach(f => SBMM.store.readd(f)));
     toast(made.length + (made.length === 1 ? " stand — " : " stands — ") + fmt(totAc, 2) +
           " ac of canopy ≥ " + P.stands.thresh + " ft");
     disarm(true);
