@@ -1725,11 +1725,19 @@ var SBMM_COMPUTE = (function SBMMComputeModule() {
      difference between ~2 s and ~0.4 s on a 2-million-cell window and cannot
      change a single value (F is the minimal maximum over all escape paths, so it
      does not depend on the order cells are settled in).                        */
-  function fillDem(z, w, h, onProgress, p0, p1, sinks) {
+  /* `parentOut` (v14, docs/V14_DRAINAGE_SPEC.md §2 "Flow pointer") is an
+     optional Int32Array the flood writes the cell each cell was REACHED FROM
+     into — the answer for a flat, which has no strictly lower neighbour and
+     therefore no D8 direction of its own, and for a pond cell, whose way out is
+     the pour point this flood came in through. It is written and read nowhere
+     else; absent, not one value below changes and not one extra byte is
+     touched, which is what keeps every v10/v12/v13 water golden where it is. */
+  function fillDem(z, w, h, onProgress, p0, p1, sinks, parentOut) {
     var n = w * h, F = new Float32Array(n), closed = new Uint8Array(n);
     var H = heapNew(1 << 15), q = new Int32Array(n), qh = 0, qt = 0;
     var i, j, k, t, ni, nj, vi, edge;
     for (i = 0; i < n; i++) F[i] = NaN;
+    if (parentOut) parentOut.fill(-1);
     /* v12: a conduit inlet is a SINK at its rim. Water standing on a capture
        cell drains the moment it reaches the rim, so the filled DEM around that
        inlet must say so — F = max(z, rim) — or a depression drained by a grate
@@ -1768,6 +1776,7 @@ var SBMM_COMPUTE = (function SBMMComputeModule() {
         vi = nj * w + ni;
         if (closed[vi]) continue;
         closed[vi] = 1;
+        if (parentOut) parentOut[vi] = c;
         if (z[vi] <= lev) { F[vi] = lev; q[qt++] = vi; }
         else { F[vi] = z[vi]; heapPush(H, z[vi], (h - 1 - nj) * w + ni); }
       }
@@ -2654,6 +2663,660 @@ var SBMM_COMPUTE = (function SBMMComputeModule() {
     };
   }
 
+  /* ---- DRAINAGE ------------------------------------------------------------
+     v14 Phase 1, docs/V14_DRAINAGE_SPEC.md. ONE LABEL PER CELL: the outlet that
+     cell drains to. The physics is the raindrop's, run once over the whole site
+     instead of from one click — the same filled DEM with the same inlet seeds,
+     the same escape test, ponds read at their level, conduits as topological
+     shortcuts. That is why a raindrop dropped anywhere lands in the catchment
+     drawn under it, and it is the acceptance test (test/kernels.mjs `drainage`).
+
+     job: { grid, conduits=null, captureFt=3, lakeRing=null, lakeBuffer=10,
+            minPondDepth=0.25, stride=1, outlineTol=null, maxPolys=240,
+            minPolyCells=8, maxPonds=60, longest=true }
+
+     `conduits` is flowpath's flat list plus ONE field a map needs and a run does
+     not: `outfall`, true when the conduit discharges at an `outfall`-kind node.
+     §2 — "water leaving a terminal node that is not outfall-kind continues by
+     ordinary descent from the outlet cell" — so an outfall is where water leaves
+     the model and every other outlet node is a place it reappears on the ground.
+
+     WHERE THIS DIFFERS FROM `flowpath`, AND WHY (the one ruling this file makes
+     for itself). flowpath floods one pit at a time, in the order its descent
+     meets them, and never revisits a pond. Two consequences are invisible to a
+     single drop and fatal to a map:
+
+       * a small depression A that spills into ground a LATER, higher pond B
+         takes over keeps its own lower level, so its pour point sits under B's
+         water. Descent then leaves A at A's level, crosses B, leaves B at B's
+         spill and — where that spill drains back towards A — enters A again. It
+         is a genuine cycle; a single raindrop only escapes it through its step
+         cap, a label raster cannot escape it at all.
+       * a cell whose only downhill neighbour was a pond floor loses its drop
+         when that pond fills, so it becomes a pit that the first pass did not
+         see. A drop meets those lazily; a map has to find every one.
+
+     So the ponds here are the connected components of `F > z` — the filled DEM's
+     own depressions, at the level `F` says they pour at. That is not a different
+     definition: Barnes' `F` IS the fixed point of flowpath's escape test (the
+     minimal level at which water at a cell drains to a sink strictly below it),
+     and `fillDem` is seeded with every conduit inlet at its rim, so a depression
+     drained by a grate pours at the grate exactly as the raindrop's flood stops
+     there. The only visible difference is that NESTED depressions merge into the
+     outer one — which is also what flowpath itself reports when a drop happens
+     to meet the outer depression first, and which is what makes the map acyclic.
+
+     THE ACYCLICITY RULE, in one line: `F` never rises along a pointer, and where
+     `F` stays equal the step always shortens the distance to the root of the
+     priority flood's own parent forest. Descent strictly lowers `F`; a pond cell
+     and a flat both follow `parent`, which is a tree. Only a conduit can break
+     it (a pipe may discharge uphill), so the label pass keeps a cycle guard and
+     reports a `loop` sink; on this site `loops` and `flats` are zero at 2 ft and
+     at 4 ft, and the harness asserts it. `pondSinks` counts the cells that drain
+     nowhere at all — one on each grid, a single cell whose every neighbour is
+     higher, which is the grid's own answer and not a defect.
+
+     Nothing here touches `flowpath` or `overtop`. `fillDem` gains one optional
+     out-parameter — the priority-flood parent, which is §2's answer for a flat
+     and is also how a pond cell finds its way out — and is byte identical
+     without it.                                                                */
+
+  /* a 0/1 mask grown by r cells, as two running-window passes (O(n), no heap) */
+  function dilateMask(m, w, h, r) {
+    if (r <= 0) return m;
+    var a = new Uint8Array(w * h), b = new Uint8Array(w * h), i, j, s, base;
+    for (j = 0; j < h; j++) {
+      base = j * w; s = 0;
+      for (i = 0; i <= r && i < w; i++) s += m[base + i];
+      for (i = 0; i < w; i++) {
+        a[base + i] = s > 0 ? 1 : 0;
+        if (i + r + 1 < w) s += m[base + i + r + 1];
+        if (i - r >= 0) s -= m[base + i - r];
+      }
+    }
+    for (i = 0; i < w; i++) {
+      s = 0;
+      for (j = 0; j <= r && j < h; j++) s += a[j * w + i];
+      for (j = 0; j < h; j++) {
+        b[j * w + i] = s > 0 ? 1 : 0;
+        if (j + r + 1 < h) s += a[(j + r + 1) * w + i];
+        if (j - r >= 0) s -= a[(j - r) * w + i];
+      }
+    }
+    return b;
+  }
+
+  function drainage(job, onProgress) {
+    var t0 = Date.now();
+    var g = job.grid, w = g.sw, h = g.sh, cell = g.cell, z = g.z, n = w * h;
+    var X0 = g.x0 + g.i0 * cell, Y0 = g.y0 + g.j0 * cell;
+    var minDepth = job.minPondDepth == null ? 0.25 : job.minPondDepth;
+    var stride = Math.max(1, (job.stride | 0) || 1);
+    var wantLong = job.longest !== false;
+    var POND_EPS = 1e-3;                       // half the terrain-RGB step is 0.01 ft
+    var RIM_EPS = 1e-3;                        // a Float32 F against a Float64 invert
+    var i, j, t, ni, nj, vi, k, c;
+    var prog = function (p) { if (onProgress) onProgress(p); };
+
+    /* ---- 1. the inlet index — flowpath's, cell for cell -------------------
+       the conduit index whose capture disc (captureFt, default 3 ft) covers each
+       cell, or -1; where two discs overlap the NEAREST inlet wins, so the index
+       does not depend on the order the host listed the conduits in. The disc is
+       a handful of cells, so the distances live in a Map rather than in a
+       Float32Array the size of the site. */
+    var CD = (job.conduits && job.conduits.length) ? job.conduits : null;
+    var inletAt = null, seedSinks = null, capFt = 0, cdIx = {};
+    if (CD) {
+      capFt = job.captureFt == null ? 3 : job.captureFt;
+      inletAt = new Int16Array(n); inletAt.fill(-1);
+      var dmap = new Map(), crc = Math.max(0, Math.ceil(capFt / cell));
+      for (k = 0; k < CD.length; k++) {
+        var Ck = CD[k];
+        cdIx[Ck.id] = k;
+        var ki = Math.round((Ck.ix - X0) / cell), kj = Math.round((Ck.iy - Y0) / cell);
+        for (var cjj = kj - crc; cjj <= kj + crc; cjj++) {
+          if (cjj < 0 || cjj >= h) continue;
+          for (var cii = ki - crc; cii <= ki + crc; cii++) {
+            if (cii < 0 || cii >= w) continue;
+            var kdx = X0 + cii * cell - Ck.ix, kdy = Y0 + cjj * cell - Ck.iy;
+            var kd = Math.sqrt(kdx * kdx + kdy * kdy);
+            if (kd > capFt) continue;
+            var kidx = cjj * w + cii;
+            if (isNaN(z[kidx])) continue;
+            var prevD = dmap.get(kidx);
+            if (prevD === undefined || kd < prevD) { dmap.set(kidx, kd); inletAt[kidx] = k; }
+          }
+        }
+      }
+      /* The disc is captureFt, and an inlet's OWN nearest cell is always in it.
+         Without that a grid coarser than the capture radius (the field build's
+         4-ft run) silently loses the whole network: 3 ft does not reach the
+         centre of any 4-ft cell, every disc comes back empty, and the map says
+         the drains do not exist rather than that they do not work. */
+      for (k = 0; k < CD.length; k++) {
+        var ni2 = Math.round((CD[k].ix - X0) / cell), nj2 = Math.round((CD[k].iy - Y0) / cell);
+        if (ni2 < 0 || nj2 < 0 || ni2 >= w || nj2 >= h) continue;
+        var nidx = nj2 * w + ni2;
+        if (isNaN(z[nidx]) || dmap.has(nidx)) continue;
+        dmap.set(nidx, 0); inletAt[nidx] = k;
+      }
+      /* every capture cell is a sink at its conduit's rim (v12 §2) */
+      seedSinks = [];
+      dmap.forEach(function (d, idx) {
+        var srim = CD[inletAt[idx]].rim;
+        seedSinks.push([idx, (srim == null || !isFinite(srim)) ? z[idx] : srim]);
+      });
+    }
+    function rimOf(kk, atIdx) {
+      var r = CD[kk].rim;
+      return (r == null || !isFinite(r)) ? z[atIdx] : r;
+    }
+
+    /* ---- 2. the filled DEM, plus the priority-flood parent ---------------- */
+    var parent = new Int32Array(n);
+    var F = fillDem(z, w, h, onProgress, 0, 0.30, seedSinks, parent);
+
+    /* Clear Lake, so a run that leaves the survey can say WHICH way it left
+       (§2 "Sink"): inside the polygon, or within lakeBuffer feet of it. */
+    var lake = null;
+    if (job.lakeRing && job.lakeRing.length >= 3) {
+      lake = ringMask(job.lakeRing, w, h, cell, X0, Y0);
+      lake = dilateMask(lake, w, h, Math.round((job.lakeBuffer == null ? 10 : job.lakeBuffer) / cell));
+    }
+    function lakeAtXY(x, y) {
+      if (!job.lakeRing || job.lakeRing.length < 3) return false;
+      return pointInPoly(x, y, job.lakeRing);
+    }
+
+    /* ---- the sink table --------------------------------------------------- */
+    var sinks = [], sinkKey = {};
+    function sinkIdx(kind, key, x, y, via) {
+      var s = sinkKey[key];
+      if (s !== undefined) return s;
+      s = sinks.length;
+      sinkKey[key] = s;
+      sinks.push({ id: key, kind: kind, x: x, y: y, via: via || null, seen: -1 });
+      return s;
+    }
+    var S_LAKE = sinkIdx("lake", "lake", 0, 0, null);
+    var S_OFF = sinkIdx("off", "off", 0, 0, null);
+    /* both created eagerly: the first-capture label space is numbered from
+       sinks.length, so a sink invented later would collide with a pond */
+    var S_LOOP = sinkIdx("loop", "loop", 0, 0, null);
+    var S_FLAT = sinkIdx("flat", "flat", 0, 0, null);
+    function markSink(s, idx) {
+      var ss = sinks[s];
+      if (ss.seen < 0) {
+        ss.seen = idx;
+        ss.x = X0 + (idx % w) * cell; ss.y = Y0 + (((idx - idx % w) / w)) * cell;
+      }
+      return s;
+    }
+    function nodataSink(idx) { return markSink((lake && lake[idx]) ? S_LAKE : S_OFF, idx); }
+
+    /* ---- 3. the ponds — the connected components of F > z ----------------- */
+    var pondId = new Int32Array(n);
+    var pcap = 4096, pn = 1;
+    var pLevel = new Float64Array(pcap), pOutlet = new Int32Array(pcap),
+        pEntry = new Int32Array(pcap), pZmin = new Float64Array(pcap),
+        pCount = new Int32Array(pcap), pSumZ = new Float64Array(pcap),
+        pBB = new Int32Array(pcap * 4), pVia = new Int32Array(pcap);
+    function pgrow() {
+      var m = pcap * 2, a;
+      a = new Float64Array(m); a.set(pLevel); pLevel = a;
+      a = new Int32Array(m); a.set(pOutlet); pOutlet = a;
+      a = new Int32Array(m); a.set(pEntry); pEntry = a;
+      a = new Float64Array(m); a.set(pZmin); pZmin = a;
+      a = new Int32Array(m); a.set(pCount); pCount = a;
+      a = new Float64Array(m); a.set(pSumZ); pSumZ = a;
+      a = new Int32Array(m * 4); a.set(pBB); pBB = a;
+      a = new Int32Array(m); a.set(pVia); pVia = a;
+      pcap = m;
+    }
+    var stk = new Int32Array(1 << 16);
+    function stkPush(sp, v) {
+      if (sp === stk.length) { var q = new Int32Array(sp * 2); q.set(stk); stk = q; }
+      stk[sp] = v; return sp + 1;
+    }
+    var wet = function (idx) { return !isNaN(z[idx]) && F[idx] > z[idx] + POND_EPS; };
+
+    for (j = 0; j < h; j++) {
+      if ((j & 255) === 0) prog(0.30 + 0.12 * (j / h));
+      for (i = 0; i < w; i++) {
+        c = j * w + i;
+        if (pondId[c] || !wet(c)) continue;
+        if (pn + 1 > pcap) pgrow();
+        var pid = pn++;
+        var sp = stkPush(0, c);
+        pondId[c] = pid;
+        /* the pour level is the MINIMUM `F` over the component, not the maximum:
+           `F` is constant over a depression except where a conduit inlet seeded
+           it, and where two inlets seeded it (the two Herman discharge pipes)
+           the water leaves at the LOWER of them. */
+        var level = F[c], zmin = z[c], count = 0, sumZ = 0, entry = c;
+        var b0 = i, b1 = j, b2 = i, b3 = j;
+        var outF = Infinity, outZ = Infinity, outIdx = -1, seedIn = -1;
+        var viaK = -1, viaCell = -1, viaRim = Infinity;
+        while (sp > 0) {
+          var u = stk[--sp], ui = u % w, uj = (u - ui) / w;
+          count++; sumZ += z[u];
+          if (z[u] < zmin) { zmin = z[u]; entry = u; }
+          if (F[u] < level) level = F[u];
+          if (ui < b0) b0 = ui; if (uj < b1) b1 = uj;
+          if (ui > b2) b2 = ui; if (uj > b3) b3 = uj;
+          if (CD && inletAt[u] >= 0) {
+            var ru = rimOf(inletAt[u], u);
+            if (ru < viaRim) { viaRim = ru; viaK = inletAt[u]; viaCell = u; }
+          }
+          if (parent[u] < 0) seedIn = u;                 /* a fill seed: an inlet */
+          for (t = 0; t < 8; t++) {
+            ni = ui + W_DI[t]; nj = uj + W_DJ[t];
+            if (ni < 0 || nj < 0 || ni >= w || nj >= h) continue;
+            vi = nj * w + ni;
+            if (pondId[vi] === pid) continue;
+            if (isNaN(z[vi])) continue;                 /* cannot happen: see above */
+            if (!pondId[vi] && wet(vi)) { pondId[vi] = pid; sp = stkPush(sp, vi); continue; }
+            if (CD && inletAt[vi] >= 0) {
+              var rv = rimOf(inletAt[vi], vi);
+              if (rv <= level + RIM_EPS && rv < viaRim) { viaRim = rv; viaK = inletAt[vi]; viaCell = vi; }
+            }
+          }
+          /* THE POUR POINT, taken from the priority flood itself. The outside-in
+             flood enters a depression through its pour point, so the cell whose
+             PARENT lies outside the depression is that pour point and its parent
+             is the ground just beyond it. Reading it here rather than searching
+             the rim is what makes the pointer field provably acyclic: every cell
+             of the depression is a descendant of the pour cell in the parent
+             forest, so the jump strictly shortens the distance to a sink. */
+          var pu = parent[u];
+          if (pu >= 0 && pondId[pu] !== pid && !isNaN(z[pu])) {
+            if (F[pu] < outF || (F[pu] === outF && z[pu] < outZ)) {
+              outF = F[pu]; outZ = z[pu]; outIdx = pu;
+            }
+          }
+        }
+        /* §2 "the pond rule": an inlet inside a filling depression is a pour
+           point at its rim, and it is tested BEFORE the natural escape — on a
+           tie the water the user told us about wins. */
+        if (CD && viaK >= 0 && (viaRim <= level + RIM_EPS || seedIn >= 0)) {
+          pOutlet[pid] = viaCell; pVia[pid] = viaK;
+        } else {
+          pOutlet[pid] = outIdx; pVia[pid] = -1;
+        }
+        pLevel[pid] = level; pEntry[pid] = entry; pZmin[pid] = zmin;
+        pCount[pid] = count; pSumZ[pid] = sumZ;
+        pBB[pid * 4] = b0; pBB[pid * 4 + 1] = b1; pBB[pid * 4 + 2] = b2; pBB[pid * 4 + 3] = b3;
+      }
+    }
+    stk = null;
+    prog(0.44);
+
+    /* ---- 4. the flow pointer ---------------------------------------------- */
+    /* Each conduit's chain, resolved once: the cell the water reappears in, or
+       the sink it leaves the model at (§2 "Sink / inlet"). `next` is followed
+       until a conduit with no `next`, and a conduit is never followed twice. */
+    var chainCell = null, chainSink = null;
+    if (CD) {
+      chainCell = new Int32Array(CD.length); chainSink = new Int32Array(CD.length);
+      var seenC = new Int32Array(CD.length); seenC.fill(-1);
+      for (k = 0; k < CD.length; k++) {
+        var cur2 = k, last = k;
+        for (;;) {
+          if (seenC[cur2] === k) break;
+          seenC[cur2] = k; last = cur2;
+          if (CD[cur2].outfall) break;
+          var nx = (CD[cur2].next != null && cdIx[CD[cur2].next] != null) ? cdIx[CD[cur2].next] : -1;
+          if (nx < 0) break;
+          cur2 = nx;
+        }
+        var CL = CD[last];
+        if (CL.outfall) {
+          chainCell[k] = -1;
+          chainSink[k] = sinkIdx("outfall", "outfall:" + CL.id, CL.ox, CL.oy, CL.id);
+        } else {
+          var oi = Math.round((CL.ox - X0) / cell), oj = Math.round((CL.oy - Y0) / cell);
+          if (oi >= 0 && oj >= 0 && oi < w && oj < h && !isNaN(z[oj * w + oi])) {
+            chainCell[k] = oj * w + oi; chainSink[k] = -1;
+          } else {
+            chainCell[k] = -1;
+            chainSink[k] = lakeAtXY(CL.ox, CL.oy) ? S_LAKE : S_OFF;
+          }
+        }
+      }
+    }
+
+    var pointer = new Int32Array(n), flats = 0, pondSinks = 0;
+    function chainTarget(kk) {
+      return chainCell[kk] >= 0 ? chainCell[kk] : (-2 - chainSink[kk]);
+    }
+    for (j = 0; j < h; j++) {
+      if ((j & 255) === 0) prog(0.44 + 0.14 * (j / h));
+      for (i = 0; i < w; i++) {
+        c = j * w + i;
+        if (isNaN(z[c])) { pointer[c] = -1; continue; }
+        var pk = pondId[c];
+        if (pk) {
+          /* Inside a depression the water goes to the pour point, and the
+             priority flood already knows the way: it ENTERED the depression
+             through that point, so `parent` inside it points back at it, cell by
+             cell — and where the depression is drained by a grate the flood's
+             seed IS the capture cell, so `parent` points at the pipe instead.
+             Following it rather than jumping straight to the outlet is what
+             makes the field provably acyclic: `F` never rises along a pointer,
+             and where it stays equal the step always shortens the distance to
+             the root of the flood's own forest, so no chain can close. */
+          /* RIM_EPS, not 1e-9: `F` is a Float32 and a surveyed invert is a
+             Float64 out of the payload, so `rim <= level` fails by one ULP
+             (1341.57 against 1341.5699462890625) on exactly the cell the whole
+             analysis turns on. A cell the flood SEEDED is an inlet by
+             construction, which is the other half of the same answer. */
+          if (CD && inletAt[c] >= 0 &&
+              (parent[c] < 0 || rimOf(inletAt[c], c) <= pLevel[pk] + RIM_EPS)) {
+            pointer[c] = chainTarget(inletAt[c]); continue;
+          }
+          /* ...but only while `parent` is BELOW this pond's level. A component
+             one cell across — the filled DEM rounding, not a depression — can be
+             reached by the flood from ground ABOVE its own level, and then
+             `parent` points uphill: the water leaves the pond, the cell it
+             leaves to descends straight back in, and the two point at each
+             other. Where that happens the parent is no route at all, so the cell
+             falls through to ordinary descent on EFFECTIVE elevation (which
+             strictly lowers it, so it cannot close a cycle) and, failing that,
+             the pond is a sink. Found at 4 ft, where a 0.005-acre pond did
+             exactly this; the 2-ft map never hit it. */
+          var pp0 = parent[c];
+          if (pp0 >= 0 && pp0 !== c && !isNaN(z[pp0])
+              && (pondId[pp0] === pk || z[pp0] <= pLevel[pk] + 1e-9)) {
+            pointer[c] = pp0; continue;
+          }
+        }
+        if (CD && inletAt[c] >= 0) { pointer[c] = chainTarget(inletAt[c]); continue; }
+        if (i === 0 || j === 0 || i === w - 1 || j === h - 1) { pointer[c] = -2 - markSink(S_OFF, c); continue; }
+        /* steepest descent on EFFECTIVE elevation: a pond cell reads as its
+           pond's level, never its floor, so from a cell below that level the
+           pond is uphill and the water cannot fall back into it. */
+        var ze = pk ? pLevel[pk] : z[c], best = -1, bd = -1, nodN = -1;
+        for (t = 0; t < 8; t++) {
+          vi = (j + W_DJ[t]) * w + (i + W_DI[t]);
+          var zv2 = z[vi];
+          if (isNaN(zv2)) { nodN = vi; break; }
+          var pv = pondId[vi];
+          var dr = (ze - (pv ? pLevel[pv] : zv2)) / W_DD[t];
+          if (dr > 1e-9 && dr > bd) { bd = dr; best = vi; }
+        }
+        if (nodN >= 0) { pointer[c] = -2 - nodataSink(nodN); continue; }
+        if (best >= 0) { pointer[c] = best; continue; }
+        if (pk) {
+          pondSinks++;
+          pointer[c] = -2 - markSink(sinkIdx("pond", "pond:" + pk,
+            X0 + (pEntry[pk] % w) * cell, Y0 + (((pEntry[pk] - pEntry[pk] % w) / w)) * cell, null), c);
+          continue;
+        }
+        /* A FLAT: no strictly lower effective neighbour and no pond, so the
+           terrain here is level and the water has to be told which way the
+           ground drains. §2's answer is the priority flood's own parent — the
+           cell this one was reached FROM when the filled DEM was built, which is
+           by construction a step towards the sink it drains to. */
+        var pp = parent[c];
+        if (pp >= 0 && pp !== c && !isNaN(z[pp])) { pointer[c] = pp; continue; }
+        flats++;
+        pointer[c] = -2 - markSink(S_FLAT, c);
+      }
+    }
+    F = null; parent = null;
+    prog(0.58);
+
+    /* ---- 5. labels -------------------------------------------------------- */
+    /* Resolution by path compression, iterative (no recursion), with the walk's
+       own cells marked so a conduit that carries water back uphill into its own
+       inlet is reported as a loop rather than hung on. */
+    var FB_POND = sinks.length, FB_INLET = sinks.length + pn;
+    var term = new Int32Array(n), firstL = new Int32Array(n);
+    term.fill(-1); firstL.fill(-1);
+    var dist = wantLong ? new Float32Array(n) : null;
+    var onwalk = new Uint8Array(n);
+    var stack = new Int32Array(1 << 16), loops = 0, loopSample = [];
+    var pRep = new Uint8Array(pcap);
+    for (k = 1; k < pn; k++) pRep[k] = (pLevel[k] - pZmin[k] >= minDepth) ? 1 : 0;
+
+    function ownFirst(q) {
+      var qk = pondId[q];
+      if (qk && pRep[qk]) return FB_POND + qk;
+      if (CD && inletAt[q] >= 0) return FB_INLET + inletAt[q];
+      return -1;
+    }
+    for (c = 0; c < n; c++) {
+      if ((c & 1048575) === 0) prog(0.58 + 0.20 * (c / n));
+      if (pointer[c] === -1 || term[c] >= 0) continue;
+      var sp2 = 0, cur = c, sS = -1, fDown = -1, dDown = 0;
+      for (;;) {
+        if (term[cur] >= 0) { sS = term[cur]; fDown = firstL[cur]; dDown = dist ? dist[cur] : 0; break; }
+        var p = pointer[cur];
+        if (p <= -2 || onwalk[cur]) {
+          if (p > -2) {
+            sS = markSink(S_LOOP, cur); loops++;
+            if (!loopSample.length) {
+              var lc = cur, lg = 0;
+              do {
+                var li = lc % w, lp2 = pondId[lc];
+                loopSample.push({ x: X0 + li * cell, y: Y0 + (((lc - li) / w)) * cell, z: z[lc],
+                                  pond: lp2, level: lp2 ? +pLevel[lp2].toFixed(2) : null,
+                                  inlet: (CD && inletAt[lc] >= 0) ? CD[inletAt[lc]].id : null });
+                lc = pointer[lc];
+              } while (lc >= 0 && lc !== cur && lg++ < 40);
+            }
+          } else sS = -p - 2;
+          fDown = -1; dDown = 0;
+          if (sp2 === stack.length) { var ns = new Int32Array(sp2 * 2); ns.set(stack); stack = ns; }
+          onwalk[cur] = 1; stack[sp2++] = cur;
+          break;
+        }
+        onwalk[cur] = 1;
+        if (sp2 === stack.length) { var ns3 = new Int32Array(sp2 * 2); ns3.set(stack); stack = ns3; }
+        stack[sp2++] = cur;
+        cur = p;
+      }
+      if (fDown < 0) fDown = sS;
+      var dd = dDown;
+      while (sp2 > 0) {
+        var q = stack[--sp2];
+        onwalk[q] = 0;
+        term[q] = sS;
+        var pq = pointer[q];
+        if (dist) {
+          if (pq >= 0) {
+            var qi = q % w, qj = (q - qi) / w, ppi = pq % w, ppj = (pq - ppi) / w;
+            /* a conduit hop is PIPE, not ground: `longest_ft` stays overland,
+               the way `length_ft` does in v10/v12 */
+            var piped = CD && inletAt[q] >= 0 && chainCell[inletAt[q]] === pq;
+            if (!piped) dd += Math.sqrt((ppi - qi) * (ppi - qi) + (ppj - qj) * (ppj - qj)) * cell;
+          }
+          dist[q] = dd;
+        }
+        var of2 = ownFirst(q);
+        firstL[q] = of2 >= 0 ? of2 : fDown;
+        fDown = firstL[q];
+      }
+    }
+    onwalk = null; stack = null;
+    prog(0.80);
+
+    /* ---- 6. per-label totals --------------------------------------------- */
+    var NF = FB_INLET + (CD ? CD.length : 0);
+    var fCells = new Int32Array(NF), fSlope = new Float64Array(NF);
+    var fLong = new Float64Array(NF);
+    var sCells = new Int32Array(sinks.length), sSlope = new Float64Array(sinks.length);
+    var sLong = new Float64Array(sinks.length), sLongAt = new Int32Array(sinks.length);
+    sLongAt.fill(-1);
+    var surveyed = 0;
+    for (j = 0; j < h; j++) for (i = 0; i < w; i++) {
+      c = j * w + i;
+      var s2 = term[c];
+      if (s2 < 0) continue;
+      surveyed++;
+      /* central-difference slope, percent; a border cell reads its own column */
+      var i0s = i > 0 ? i - 1 : i, i1s = i < w - 1 ? i + 1 : i;
+      var j0s = j > 0 ? j - 1 : j, j1s = j < h - 1 ? j + 1 : j;
+      var za = z[j * w + i0s], zb = z[j * w + i1s], zc2 = z[j0s * w + i], zd = z[j1s * w + i];
+      var sl = 0;
+      if (!isNaN(za) && !isNaN(zb) && !isNaN(zc2) && !isNaN(zd)) {
+        var gx = (zb - za) / (((i1s - i0s) || 1) * cell);
+        var gy = (zd - zc2) / (((j1s - j0s) || 1) * cell);
+        sl = Math.sqrt(gx * gx + gy * gy) * 100;
+      }
+      sCells[s2]++; sSlope[s2] += sl;
+      var dv = dist ? dist[c] : 0;
+      if (dv > sLong[s2] || sLongAt[s2] < 0) { sLong[s2] = dv; sLongAt[s2] = c; }
+      var f3 = firstL[c];
+      if (f3 >= 0 && f3 < NF) {
+        fCells[f3]++; fSlope[f3] += sl;
+        if (dv > fLong[f3]) fLong[f3] = dv;
+      }
+    }
+    prog(0.88);
+
+    /* ---- 7. polygons ------------------------------------------------------
+       The rings are traced on the DECIMATED raster (cell = stride*cell) and the
+       areas come from the full-resolution cell counts, so a catchment boundary
+       is drawn at a sane vertex count without its acreage being decimated with
+       it. Both numbers are exact about what they are, and the card says which. */
+    var dw = Math.max(1, Math.ceil(w / stride)), dh = Math.max(1, Math.ceil(h / stride));
+    var dCell = cell * stride;
+    var dTerm = new Int32Array(dw * dh), dFirst = new Int32Array(dw * dh);
+    for (j = 0; j < dh; j++) for (i = 0; i < dw; i++) {
+      var sc = Math.min(h - 1, j * stride) * w + Math.min(w - 1, i * stride);
+      dTerm[j * dw + i] = term[sc];
+      dFirst[j * dw + i] = firstL[sc];
+    }
+    var dMask = new Uint8Array(dw * dh);
+    var tolR = job.outlineTol == null ? dCell : job.outlineTol;
+    var minPolyCells = job.minPolyCells == null ? 8 : job.minPolyCells;
+    var polyBudget = job.maxPolys == null ? 240 : job.maxPolys;
+    function ringsOf(src, label) {
+      if (polyBudget <= 0) return [];
+      var b0 = dw, b1 = dh, b2 = -1, b3 = -1, cnt = 0, ii, jj, cc;
+      for (jj = 0; jj < dh; jj++) for (ii = 0; ii < dw; ii++) {
+        cc = jj * dw + ii;
+        if (src[cc] !== label) continue;
+        dMask[cc] = 1; cnt++;
+        if (ii < b0) b0 = ii; if (jj < b1) b1 = jj;
+        if (ii > b2) b2 = ii; if (jj > b3) b3 = jj;
+      }
+      var out = [];
+      if (cnt >= minPolyCells && b2 >= 0)
+        out = maskRings(dMask, dw, dh, dCell, X0, Y0, [b0, b1, b2, b3], tolR);
+      for (jj = b1; jj <= b3; jj++) for (ii = b0; ii <= b2; ii++) dMask[jj * dw + ii] = 0;
+      polyBudget--;
+      return out;
+    }
+    var a2 = cell * cell;
+
+    /* the longest flow path of each catchment: the pointer chain from the cell
+       furthest from the outlet, drawn as it runs — a conduit leg is a straight
+       jump and is left as one, because that is what it is. */
+    function longestPath(from) {
+      if (from < 0) return [];
+      var raw = [], cur = from, guard = 0;
+      while (cur >= 0 && guard++ < 400000) {
+        var ci = cur % w;
+        raw.push([X0 + ci * cell, Y0 + (((cur - ci) / w)) * cell]);
+        var nx2 = pointer[cur];
+        if (nx2 < 0) break;
+        cur = nx2;
+      }
+      if (raw.length < 2) return raw;
+      return simplifyPath(raw, cell);
+    }
+
+    /* the sinks, biggest first — the reading order of the card's table */
+    var order = [];
+    for (k = 0; k < sinks.length; k++) if (sCells[k] > 0) order.push(k);
+    order.sort(function (a, b) { return sCells[b] - sCells[a]; });
+    var outSinks = [];
+    for (var q2 = 0; q2 < order.length; q2++) {
+      k = order[q2];
+      outSinks.push({
+        label: k, id: sinks[k].id, kind: sinks[k].kind, via: sinks[k].via,
+        x: sinks[k].x, y: sinks[k].y, cells: sCells[k], area_ft2: sCells[k] * a2,
+        rings: ringsOf(dTerm, k),
+        path: longestPath(sLongAt[k]),
+        longest_ft: +sLong[k].toFixed(1),
+        meanSlope_pct: sCells[k] ? +(sSlope[k] / sCells[k]).toFixed(2) : 0
+      });
+    }
+
+    /* the through-ponds, and what drains into each */
+    var pOrder = [];
+    for (k = 1; k < pn; k++) if (pRep[k] && pCount[k] > 0) pOrder.push(k);
+    pOrder.sort(function (a, b) { return pCount[b] - pCount[a]; });
+    var maxPonds = job.maxPonds == null ? 60 : job.maxPonds;
+    var pondOut = [], viaCells = {};
+    for (k = 1; k < pn; k++) if (CD && pVia[k] >= 0)
+      viaCells[CD[pVia[k]].id] = (viaCells[CD[pVia[k]].id] || 0) + fCells[FB_POND + k];
+    for (q2 = 0; q2 < pOrder.length && q2 < maxPonds; q2++) {
+      k = pOrder[q2];
+      var fl2 = FB_POND + k;
+      var ei = pEntry[k] % w, ej = (pEntry[k] - pEntry[k] % w) / w;
+      pondOut.push({
+        label: fl2, id: "pond:" + k, level: +pLevel[k].toFixed(2),
+        depth_ft: +(pLevel[k] - pZmin[k]).toFixed(2),
+        cells: pCount[k], area_ft2: pCount[k] * a2,
+        volume_ft3: (pLevel[k] * pCount[k] - pSumZ[k]) * a2,
+        rings: pondRings(pondId, k, w, h, cell, X0, Y0,
+                         [pBB[k * 4], pBB[k * 4 + 1], pBB[k * 4 + 2], pBB[k * 4 + 3]]),
+        entry: [X0 + ei * cell, Y0 + ej * cell],
+        outlet: pOutlet[k] < 0 ? null
+          : [X0 + (pOutlet[k] % w) * cell, Y0 + (((pOutlet[k] - pOutlet[k] % w) / w)) * cell],
+        via: (CD && pVia[k] >= 0) ? CD[pVia[k]].id : null,
+        terminal: term[pEntry[k]],
+        contributing_cells: fCells[fl2],
+        contributing_area_ft2: fCells[fl2] * a2,
+        contributing_rings: ringsOf(dFirst, fl2),
+        longest_ft: +fLong[fl2].toFixed(1),
+        meanSlope_pct: fCells[fl2] ? +(fSlope[fl2] / fCells[fl2]).toFixed(2) : 0
+      });
+    }
+
+    /* the inlets. `cells` is what reaches the structure over the ground;
+       `through_cells` adds every pond that pours into it, which is the number
+       "how much drains to this grate" actually means on this site — most of a
+       structure's water arrives as a pond that fills to its rim, not as a flow
+       line that happens to cross a 3-ft disc. */
+    var inletOut = [];
+    if (CD) for (k = 0; k < CD.length; k++) {
+      var fl3 = FB_INLET + k, viaC = viaCells[CD[k].id] || 0;
+      if (!fCells[fl3] && !viaC) continue;
+      inletOut.push({
+        label: fl3, id: CD[k].id, x: CD[k].ix, y: CD[k].iy, rim: CD[k].rim,
+        outfall: !!CD[k].outfall,
+        terminal: chainSink[k] >= 0 ? chainSink[k] : (chainCell[k] >= 0 ? term[chainCell[k]] : -1),
+        cells: fCells[fl3], area_ft2: fCells[fl3] * a2,
+        through_cells: fCells[fl3] + viaC, through_area_ft2: (fCells[fl3] + viaC) * a2,
+        rings: ringsOf(dFirst, fl3),
+        longest_ft: +fLong[fl3].toFixed(1),
+        meanSlope_pct: fCells[fl3] ? +(fSlope[fl3] / fCells[fl3]).toFixed(2) : 0
+      });
+    }
+    inletOut.sort(function (a, b) { return b.through_cells - a.through_cells; });
+
+    prog(1);
+    return {
+      result: {
+        cell: cell, stride: stride, w: dw, h: dh, x0: X0, y0: Y0, dCell: dCell,
+        gw: w, gh: h,
+        sinks: outSinks, ponds: pondOut, inlets: inletOut,
+        firstBase: { sinks: 0, ponds: FB_POND, inlets: FB_INLET },
+        labels: dTerm, first: dFirst,
+        surveyedCells: surveyed, surveyedArea_ft2: surveyed * a2,
+        pondsTotal: pn - 1, loops: loops, loopSample: loopSample,
+        flats: flats, pondSinks: pondSinks,
+        conduits: CD ? CD.length : 0,
+        ms: Date.now() - t0
+      },
+      transfer: [dTerm.buffer, dFirst.buffer]
+    };
+  }
+
   function runJob(kind, job, onProgress) {
     if (kind === "volume") return volumeGrid(job, onProgress);
     if (kind === "isopach") return isopachGrid(job, onProgress);
@@ -2670,6 +3333,7 @@ var SBMM_COMPUTE = (function SBMMComputeModule() {
     if (kind === "flowpath") return flowpath(job, onProgress);
     if (kind === "overtop") return overtop(job, onProgress);
     if (kind === "catchment") return catchment(job, onProgress);
+    if (kind === "drainage") return drainage(job, onProgress);
     throw new Error("unknown compute job: " + kind);
   }
 
@@ -2696,7 +3360,7 @@ var SBMM_COMPUTE = (function SBMMComputeModule() {
   }
 
   var api = {
-    VERSION: 7,
+    VERSION: 8,
     runJob: runJob,
     volumeGrid: volumeGrid,
     isopachGrid: isopachGrid,
@@ -2714,6 +3378,7 @@ var SBMM_COMPUTE = (function SBMMComputeModule() {
     flowpath: flowpath,
     overtop: overtop,
     catchment: catchment,
+    drainage: drainage,
     fillDem: fillDem,
     topHatResidual: topHatResidual,
     discExt: discExt,

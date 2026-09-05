@@ -88,6 +88,10 @@ SBMM.io = (function () {
     /* and the storm network (v12) — the pipes a flow path disappears into have
        to be in the same file as the flow path */
     if (SBMM.storm) for (const d of SBMM.storm.geoFeatures(P)) feats.push(d);
+    /* and the drainage catchments, but only once they have been computed —
+       nothing here runs an analysis on the way out of an export (v14 §4) */
+    if (SBMM.drainage && SBMM.drainage.hasResult())
+      for (const d of SBMM.drainage.geoFeatures(P)) feats.push(d);
     /* EA's reference design surfaces (§5) are store features so the volume
        engine can use them, but their geometry here is only a footprint bbox and
        the design itself already goes out through js/designgis.js — exporting

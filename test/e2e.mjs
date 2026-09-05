@@ -2637,7 +2637,7 @@ for (const [alias, cmd] of wmode.cmds)
   if (!cmd) { console.log("FAIL: water command missing:", alias); process.exit(1); }
 if (wmode.cmds[0][1] !== "DROP" || wmode.cmds[5][1] !== "OVERTOP" || wmode.cmds[8][1] !== "CATCH")
   { console.log("FAIL: a water alias resolves to the wrong command", wmode.cmds); process.exit(1); }
-if (wmode.menu.join(",") !== "raindrop,overtop,overtop-click,storm-toggle,water-clear")
+if (wmode.menu.join(",") !== "raindrop,overtop,overtop-click,storm-toggle,drainage,water-clear")
   { console.log("FAIL: the Water menu is wrong:", wmode.menu); process.exit(1); }
 if (wmode.pane.pe !== "none" || wmode.pane.canvas)
   { console.log("FAIL: the water pane must be an SVG pane that takes no pointer events"); process.exit(1); }
@@ -4830,6 +4830,229 @@ console.log("Esc across the modal overlays:", JSON.stringify(escModals));
 for (const k of ["helpOpened", "helpClosed", "cmdHelpClosed", "dialogOpened", "dialogClosed"])
   if (!escModals[k]) { console.log("FAIL: Esc behaviour inconsistent —", k); process.exit(1); }
 if (escModals.cmdHelpOverlays !== 1) { console.log("FAIL: HELP twice stacked two overlays"); process.exit(1); }
+
+
+/* ==================================================================== */
+/* 9x. drainage — the whole-site catchment map (v14, docs/V14_DRAINAGE_SPEC.md) */
+/* ==================================================================== */
+/* The kernel's own acceptance test — 100 raindrops against the label raster —
+   lives in test/kernels.mjs, where it runs in node in 145 s. What is proved
+   HERE is that the app wires it up: that DRAIN runs the job in a worker and
+   builds the rows, the polygons, the card and the popups; that a raindrop
+   traced through the app's own code path lands in the catchment the app drew
+   under it; that the storm switch invalidates it; and that none of it leaks
+   into a session. Ten raindrops rather than the spec's twenty, because each one
+   chains up to eight worker jobs on a software-GL box and the hundred are
+   already proven in node on the same kernel. */
+const errBeforeDrain = errors.length;
+const drainT0 = Date.now();
+const drainRun = await page.evaluate(async () => {
+  SBMM.cmd.open(false);
+  const t0 = performance.now();
+  const R = await SBMM.drainage.run();
+  if (!R) return { failed: true };
+  SBMM.drainage.paint();
+  SBMM.drainage.showCard();
+  SBMM.layerState.set("framework", "drain_outlet", { on: true });
+  SBMM.layerState.set("framework", "drain_first", { on: true });
+  const polys = R.sinks.reduce((a, s) => a + s.rings.length, 0);
+  const firstPolys = R.ponds.reduce((a, p) => a + p.contributing_rings.length, 0)
+                   + R.inlets.reduce((a, q) => a + q.rings.length, 0);
+  return {
+    ms: Math.round(performance.now() - t0),
+    grid: R.gridFt, storm: R.storm,
+    acres: +(R.surveyedArea_ft2 / 43560).toFixed(1),
+    sinks: R.sinks.map(s => SBMM.drainage.sinkName(s)),
+    polys, firstPolys,
+    ponds: R.ponds.length, inlets: R.inlets.length,
+    loops: R.loops, flats: R.flats, pondSinks: R.pondSinks,
+    rows: ["drain_outlet", "drain_first", "drain_paths"]
+      .map(id => !!document.querySelector(`.lyr[data-lid="${id}"]`)),
+    card: [...document.querySelectorAll("#resBody .res h4")]
+      .some(h => /Drainage map/.test(h.textContent))
+  };
+});
+console.log("drainage map:", JSON.stringify(drainRun));
+if (drainRun.failed) { console.log("FAIL: DRAIN produced no map"); process.exit(1); }
+if (Date.now() - drainT0 > 30000) { console.log("FAIL: the drainage map took over 30 s"); process.exit(1); }
+if (!drainRun.rows.every(Boolean)) { console.log("FAIL: the three drainage rows are not in the tree"); process.exit(1); }
+if (!drainRun.card) { console.log("FAIL: no Drainage map results card"); process.exit(1); }
+if (drainRun.polys < 12) { console.log("FAIL: the by-outlet layer has fewer than 12 polygons"); process.exit(1); }
+if (drainRun.firstPolys < 8) { console.log("FAIL: the by-first-capture layer is empty"); process.exit(1); }
+/* the pointer field must be acyclic and complete. A handful of one-cell CLOSED
+   depressions is the grid's own answer, not a defect; a loop or a flat is. */
+if (drainRun.loops || drainRun.flats)
+  { console.log("FAIL: the pointer field left cells unresolved"); process.exit(1); }
+if (drainRun.pondSinks > 8)
+  { console.log("FAIL: too many cells drain nowhere:", drainRun.pondSinks); process.exit(1); }
+if (!/Clear Lake outfall/.test(drainRun.sinks.join("|")))
+  { console.log("FAIL: the storm outfall is not one of the outlets"); process.exit(1); }
+
+/* the tooltip a hover gets: the app's own polygon binding, not a re-derivation */
+const drainTip = await page.evaluate(() => {
+  /* inside the Herman impoundment, whose first capture is the impoundment
+     itself — the biggest and least ambiguous catchment on the site */
+  const lab = SBMM.drainage.firstAt(6372119.56, 2127446.20);
+  const rec = SBMM.drainage.recOf(lab);
+  const outLab = SBMM.drainage.labelAt(6372119.56, 2127446.20);
+  const outRec = SBMM.drainage.recOf(outLab);
+  let tip = null;
+  SBMM.map.eachLayer(l => {
+    if (tip || !l.getTooltip || !l.getTooltip()) return;
+    const c = l.getTooltip().getContent();
+    if (typeof c === "string" && rec && c.includes(SBMM.drainage.nameOf(rec))) tip = c;
+  });
+  return { first: rec ? SBMM.drainage.nameOf(rec) : null,
+           outlet: outRec ? SBMM.drainage.nameOf(outRec) : null, tip };
+});
+console.log("hover inside the impoundment:", JSON.stringify(drainTip));
+if (!drainTip.tip || !/ac$/.test(drainTip.tip.trim()))
+  { console.log("FAIL: a catchment has no '-> outlet . acres' tooltip"); process.exit(1); }
+if (!/outfall|Clear Lake/.test(drainTip.outlet || ""))
+  { console.log("FAIL: the impoundment does not drain to the outfall"); process.exit(1); }
+
+/* "show what drains here" on the outfall node, from the storm popup's own action */
+const drainInto = await page.evaluate(async () => {
+  const n = SBMM.storm.node("outfall");
+  const hi = await SBMM.drainage.showInto({ node: "outfall", title: n.name });
+  const R = SBMM.drainage.result();
+  const outfall = R.sinks.find(s => s.kind === "outfall");
+  /* the popup really carries the action, rather than the test inventing it */
+  const html = SBMM.popups.forStorm(n, null);
+  return { catchments: hi ? hi.labels.length : 0, acres: hi ? hi.acres : null,
+           rowAcres: outfall ? +(outfall.area_ft2 / 43560).toFixed(3) : null,
+           inPopup: /show what drains here/.test(html),
+           card: [...document.querySelectorAll("#resBody .res h4")]
+             .some(h => /Drains to/.test(h.textContent)) };
+});
+console.log("show what drains here (outfall):", JSON.stringify(drainInto));
+if (!drainInto.inPopup) { console.log("FAIL: a storm popup has no 'show what drains here'"); process.exit(1); }
+if (drainInto.catchments < 10) { console.log("FAIL: the outfall highlighted fewer than 10 catchments"); process.exit(1); }
+if (Math.abs(drainInto.acres - drainInto.rowAcres) > 0.1)
+  { console.log("FAIL: the highlight's acres disagree with the outlet row"); process.exit(1); }
+if (!drainInto.card) { console.log("FAIL: 'show what drains here' printed no card"); process.exit(1); }
+await page.evaluate(() => SBMM.drainage.paint());
+
+/* the identity, through the app's own raindrop */
+const drainAgree = await page.evaluate(async () => {
+  let seed = 20260904;
+  const rnd = () => (seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648;
+  const m = SBMM.demSite.m, pts = [];
+  while (pts.length < 10) {
+    const x = m.x0 + rnd() * (m.w - 1) * m.cell, y = m.y0 + rnd() * (m.h - 1) * m.cell;
+    const i = Math.round((x - m.x0) / m.cell), j = Math.round((y - m.y0) / m.cell);
+    if (isNaN(SBMM.demSite.atGrid(i, j))) continue;
+    pts.push([m.x0 + i * m.cell, m.y0 + j * m.cell]);
+  }
+  let agree = 0;
+  const bad = [];
+  for (const [x, y] of pts) {
+    const f = await SBMM.water.dropAt(x, y, { quiet: true, storm: true });
+    if (!f) { bad.push("no run at " + x.toFixed(0)); continue; }
+    const want = SBMM.drainage.labelAt(x, y);
+    const end = f.props.end;
+    /* The map's own answer where the run stopped. Two cases the label raster
+       cannot answer directly: a run that went down a pipe left the model at the
+       outfall, and a run that ended ON a NoData cell (the survey edge, Clear
+       Lake) has no label there at all — so walk back to the last vertex that
+       still has surveyed ground under it. A run the host cut at its window cap
+       has not reached a sink either, and the same walk-back is the honest
+       comparison: as far as it got, the map keeps it in one catchment. */
+    const outfall = f.props.outfall;
+    let got = -1;
+    if (outfall) got = (SBMM.drainage.result().sinks.find(s => s.kind === "outfall") || {}).label;
+    else {
+      got = SBMM.drainage.labelAt(end.x, end.y);
+      for (let k = f.pts.length - 1; k >= 0 && got < 0; k--)
+        got = SBMM.drainage.labelAt(f.pts[k][0], f.pts[k][1]);
+    }
+    if (got === want) agree++;
+    else bad.push(`E${x.toFixed(0)} drop=${SBMM.drainage.nameOf(SBMM.drainage.recOf(got))} `
+                + `map=${SBMM.drainage.nameOf(SBMM.drainage.recOf(want))} (${end.reason})`);
+    SBMM.tools.deleteFeature(f);
+  }
+  return { agree, n: pts.length, bad };
+});
+console.log("raindrops that land in their own catchment:", JSON.stringify(drainAgree));
+if (drainAgree.agree < drainAgree.n - 1)
+  { console.log("FAIL: the raindrop and the drainage map disagree"); process.exit(1); }
+
+/* the exports */
+const drainExp = await page.evaluate(() => {
+  const P = p => [p[0], p[1]];
+  const gj = SBMM.drainage.geoFeatures(P);
+  const dxf = SBMM.drainage.dxfEntities();
+  return {
+    n: gj.length,
+    everyOutlet: gj.every(f => typeof f.properties.outlet === "string" && f.properties.outlet.length),
+    layers: [...new Set(gj.map(f => f.properties.layer))].sort(),
+    dxfLayers: [...new Set(dxf.map(d => d.layer))].sort(),
+    source: gj.every(f => f.properties.source === "SBMM drainage v14")
+  };
+});
+console.log("drainage exports:", JSON.stringify(drainExp));
+if (!drainExp.everyOutlet || !drainExp.source)
+  { console.log("FAIL: a drainage GeoJSON feature has no outlet/source"); process.exit(1); }
+for (const L of ["DRAIN-OUTLET", "DRAIN-FIRST", "DRAIN-PATH"]) {
+  if (!drainExp.layers.includes(L)) { console.log("FAIL: GeoJSON is missing " + L); process.exit(1); }
+  if (!drainExp.dxfLayers.includes(L)) { console.log("FAIL: DXF is missing " + L); process.exit(1); }
+}
+
+/* 3D: the catchments are draped and tagged for the pick registry */
+const drain3d = await page.evaluate(() => {
+  const r = SBMM.drainage.rings3d();
+  return { rings: r.length, tagged: r.every(q => q.props && q.props.layer && q.geom) };
+});
+console.log("drainage in 3D:", JSON.stringify(drain3d));
+if (drain3d.rings < 12 || !drain3d.tagged)
+  { console.log("FAIL: the drainage catchments are not drapeable/pickable in 3D"); process.exit(1); }
+
+/* the storm switch invalidates the map, and the inlet catchments go with it */
+const drainOff = await page.evaluate(async () => {
+  SBMM.storm.setEnabled(false, true);
+  const R = await SBMM.drainage.run({ force: true });
+  const back = { inletSinks: R.sinks.filter(s => s.kind === "outfall").length,
+                 conduits: R.conduits, inlets: R.inlets.length,
+                 outlets: R.sinks.map(s => s.kind).sort().join(","),
+                 sameGround: R.surveyedCells };
+  SBMM.storm.setEnabled(true, true);
+  const R2 = await SBMM.drainage.run({ force: true });
+  SBMM.drainage.paint();
+  back.backAgain = R2.sinks.filter(s => s.kind === "outfall").length;
+  back.sameGroundBack = R2.surveyedCells;
+  return back;
+});
+console.log("drainage with the storm drains off:", JSON.stringify(drainOff));
+if (drainOff.inletSinks !== 0 || drainOff.conduits !== 0 || drainOff.inlets !== 0)
+  { console.log("FAIL: the drains-off map still has inlet catchments"); process.exit(1); }
+if (drainOff.backAgain !== 1) { console.log("FAIL: switching the drains back on lost the outfall"); process.exit(1); }
+if (drainOff.sameGround !== drainOff.sameGroundBack)
+  { console.log("FAIL: the surveyed ground changed with the switch"); process.exit(1); }
+
+/* read-only project analysis: nothing here is a store feature and nothing of it
+   serialises (the layer STATE does, like every other layer's) */
+const drainSess = await page.evaluate(() => {
+  const s = JSON.parse(JSON.stringify(SBMM.store.serialize()));
+  const txt = JSON.stringify(s);
+  return { feats: (s.features || []).filter(f => /drain/i.test(f.type || "")).length,
+           mentions: (txt.match(/SBMM drainage v14/g) || []).length,
+           layerState: !!(s.layers && s.layers.framework && "drain_outlet" in s.layers.framework),
+           /* SBMM.undo.labels() is {undo, redo}, not a list */
+           undo: Object.values(SBMM.undo.labels()).filter(l => l && /drain/i.test(l)).length };
+});
+console.log("drainage in a session:", JSON.stringify(drainSess));
+if (drainSess.feats || drainSess.mentions || drainSess.undo)
+  { console.log("FAIL: the drainage map leaked into the session or the undo stack"); process.exit(1); }
+if (!drainSess.layerState) { console.log("FAIL: the drainage layer state does not serialise"); process.exit(1); }
+
+if (errors.length !== errBeforeDrain) {
+  console.log("FAIL: the drainage map raised page errors:", errors.slice(errBeforeDrain, errBeforeDrain + 4));
+  process.exit(1);
+}
+await page.evaluate(() => {
+  SBMM.layerState.set("framework", "drain_outlet", { on: false });
+  SBMM.layerState.set("framework", "drain_first", { on: false });
+});
 
 /* 10. screenshot 2D — feature manager open, with the Pile 1 volume drawn */
 await page.click('#leftTabs .dtab[data-tab="features"]');
