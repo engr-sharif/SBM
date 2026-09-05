@@ -24,6 +24,7 @@
 
 use std::alloc::{alloc as ralloc, dealloc as rdealloc, Layout};
 
+mod geom;
 mod heap;
 mod fill;
 mod volume;
