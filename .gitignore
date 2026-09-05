@@ -31,6 +31,11 @@ _to_delete/
 
 # kernel-harness decoded-terrain cache (test/lib/terrain.mjs)
 test/.cache/
+# ...and the path itself, because an agent worktree makes test/.cache a SYMLINK
+# into the main checkout and a trailing-slash pattern does not match a symlink.
+# One got committed that way (an absolute path to one machine's disk, useless
+# anywhere else); this is what stops the next one.
+test/.cache
 
 # agent worktrees (Claude Code isolation)
 .claude/worktrees/

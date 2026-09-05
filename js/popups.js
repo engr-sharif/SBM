@@ -432,6 +432,54 @@ SBMM.popups = (function () {
   }
 
   /* ---------------------------------------------------------------- */
+  /* the design storm (v14 Phase 2)                                    */
+  /* ---------------------------------------------------------------- */
+  /* Every number here carries the assumption it rests on, in the row beside
+     it: the storm and its depth, the composite CN with the soil group, and the
+     two peaks labelled with the method that produced each. */
+  function forRunoff(label) {
+    const RU = SBMM.runoff;
+    if (!RU || !RU.hasResult())
+      return "<b>Design storm</b><br><span style=\"opacity:.7\">no storm has been run — type RAIN</span>";
+    const R = RU.result(), c = RU.catchment(label);
+    if (!c) return "<b>Design storm</b><br><span style=\"opacity:.7\">that catchment is not in this run</span>";
+    const top = (c.classes || []).slice(0, 3)
+      .map(k => `${esc(k.key)} ${fmt(100 * k.frac, 0)} %`).join(", ");
+    const pairs = [
+      ["Storm", R.storm.name + " · " + fmt(R.storm.P, 2) + " in"
+        + (R.provisional ? " (provisional depths)" : "")],
+      ["Area", fmt(c.area_ac, c.area_ac < 1 ? 3 : 2) + " ac"],
+      ["Cover", top || null],
+      ["Curve number", fmt(c.cn, 0) + " (composite, HSG per class)"],
+      ["Runoff depth", fmt(c.Q_in, 2) + " in"],
+      ["Runoff volume", fmt(c.volume_acft, 2) + " ac-ft"],
+      ["Time of concentration", fmt(c.tc_min, 0) + " min over " + fmt0(c.pathLen_ft) + " ft"],
+      ["Peak — Rational", c.qRational_cfs == null
+        ? "not reported above " + c.rationalLimit_ac + " ac"
+        : fmt(c.qRational_cfs, 0) + " cfs (C " + fmt(c.rationalC, 2) + ", i "
+          + fmt(c.i_inhr, 2) + " in/h" + (c.i_extrapolated ? ", extrapolated" : "") + ")"],
+      ["Peak — SCS", fmt(c.qPeak_cfs, 0) + " cfs at " + fmt(c.tPeak_h, 1) + " h (Tp "
+        + fmt(c.tp_h, 2) + " h)"]
+    ];
+    let h = `<b>${esc(c.name)}</b><br><span style="opacity:.7">design storm — runoff</span><br>`
+      + attrTable(pairs);
+    const acts = [];
+    acts.push(btn("assumptions…", () => SBMM.runoff.dialog(),
+                  "Change the storm, the soil group or the TR-55 segments"));
+    acts.push(btn("report", () => SBMM.runoff.report(), "The printable design-storm sheet"));
+    /* the catchment's own outlet point comes from the Phase 1 record, not from
+       the runoff row — a runoff catchment carries quantities, not a position */
+    const D = SBMM.drainage && SBMM.drainage.hasResult() ? SBMM.drainage.result() : null;
+    const sink = D ? D.sinks.find(q => q.label === label) : null;
+    if (sink)
+      acts.push(btn("what drains here", () => SBMM.drainage.showInto({ xy: [sink.x, sink.y] }),
+                    "Highlight the contributing catchments"));
+    h += actions(acts.join(""));
+    h += `<br><span style="opacity:.6;font-size:11px">${esc(SBMM.runoff.NOTE)}</span>`;
+    return h;
+  }
+
+  /* ---------------------------------------------------------------- */
   /* terrain — the coordinate card §2/§8 call for                      */
   /* ---------------------------------------------------------------- */
   function forTerrain(x, y, z) {
@@ -484,6 +532,6 @@ SBMM.popups = (function () {
   }
 
   return { forDataset, forGis, forCad, forSample, forTree, forFeature, forTerrain, forStorm,
-           forDrainage,
+           forDrainage, forRunoff,
            attrTable, coordLine, action, run, btn, actions, copyText };
 })();

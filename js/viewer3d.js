@@ -1061,7 +1061,12 @@ SBMM.viewer3d = (function () {
      an alias: it is what js/isopach.js and the e2e both call. */
   const DRAPES = [
     ["isopach", () => SBMM.isopach && SBMM.isopach.drapeSpec && SBMM.isopach.drapeSpec()],
-    ["water", () => SBMM.water && SBMM.water.drapeSpec && SBMM.water.drapeSpec()]
+    ["water", () => SBMM.water && SBMM.water.drapeSpec && SBMM.water.drapeSpec()],
+    /* v14 Phase 2: the land-cover class raster. It IS a raster over the ground,
+       so in 3D it is a drape rather than an overlay — and it carries a `layer`
+       tag, because a drape is added to the scene rather than to overlayGroup
+       and an untagged one reads as "that row draws nothing in 3D" (§3.1). */
+    ["cover", () => SBMM.runoff && SBMM.runoff.drapeSpec && SBMM.runoff.drapeSpec()]
   ];
   const drapeMesh = {}, drapeKey = {};
   function refreshDrapes() { return Promise.all(DRAPES.map(d => syncDrape(d[0], d[1]))); }
@@ -1120,6 +1125,7 @@ SBMM.viewer3d = (function () {
       }));
       mesh.renderOrder = 4;
       mesh.scale.z = exag();
+      if (spec.layer) mesh.userData.layer = spec.layer;      // §3.1 parity
       scene.add(mesh);
       drapeMesh[name] = mesh;
     } catch (e) { console.error(name + " drape", e); }
@@ -1379,6 +1385,17 @@ SBMM.viewer3d = (function () {
         const o = drapedLine(r.ring, new THREE.Color(r.color).getHex(), false, r.width || 2);
         o.userData.pick = { kind: "gis", props: r.props, geom: r.geom };
         tag(addShadow(SHW, o), "framework", "drain_paths");
+        overlayGroup.add(o);
+      }
+    }
+    /* the design storm (v14 Phase 2): the same catchment boundaries, coloured by
+       this storm's runoff depth instead of by outlet, and picked with the same
+       card the 2D choropleth opens. */
+    if (SBMM.runoff && SBMM.runoff.rings3d) {
+      for (const r of SBMM.runoff.rings3d()) {
+        const o = drapedLine(r.ring, new THREE.Color(r.color).getHex(), false, r.width || 3);
+        o.userData.pick = { kind: "gis", props: r.props, geom: r.geom };
+        tag(addShadow(SHW, o), "framework", "runoff_depth");
         overlayGroup.add(o);
       }
     }

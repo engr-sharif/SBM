@@ -187,6 +187,12 @@ SBMM.buildLayers = function () {
      go". The rows exist from boot; the first tick runs the job. */
   if (SBMM.drainage) SBMM.drainage.build();
 
+  /* ---------- the design storm (v14 Phase 2 §2) ----------
+     Site framework, under the drainage map whose catchments it puts a storm
+     on. The cover raster row is present from boot; the runoff-depth row runs
+     the storm on its first tick. */
+  if (SBMM.runoff) SBMM.runoff.build();
+
   /* ---------- sample points ----------
      Investigations (§4 group 4), not Site framework: a sample result is a
      measurement of the ground, not part of the ground. */

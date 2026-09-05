@@ -106,7 +106,7 @@ SBMM.cmd = (function () {
       f: v => SBMM.trees.cmdTrees(v) },
 
     /* ---- water (v10) ---- */
-    { n: "DROP",    a: ["RAIN", "RAINDROP", "WATERDROP", "FLOW"],
+    { n: "DROP",    a: ["RAINDROP", "WATERDROP", "FLOW"],
       d: "raindrop — trace where water flows downhill from a click, ponding on the way",
       f: () => mode("raindrop") },
     { n: "OVERTOP", a: ["SPILL", "POUR"],
@@ -132,6 +132,15 @@ SBMM.cmd = (function () {
       f: () => {
         if (!SBMM.drainage) { toast("this build has no drainage map"); return; }
         SBMM.drainage.cmd();
+      } },
+    /* v14 Phase 2. RAIN was an alias of DROP until v9.13; the raindrop keeps
+       RAINDROP, and an alias can only belong to one command (a duplicate
+       silently kills the later one, which the e2e fails on). */
+    { n: "RAIN",    a: ["RUNOFF", "DESIGNSTORM"],
+      d: "design storm — rainfall, curve numbers, runoff volume and peak per catchment (v14)",
+      f: () => {
+        if (!SBMM.runoff) { toast("this build has no design storm"); return; }
+        SBMM.runoff.cmd();
       } },
     { n: "CATCH",   a: ["WATERSHED"],
       d: "contributing area upslope of the selected raindrop",

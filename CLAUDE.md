@@ -252,6 +252,7 @@ terrain source, which needs an explicit decision + README/test update).
 | survey.js | the **August-2026 Jacobs survey** linework (`data/survey_2026.json`: the two 24-in HDPE discharge pipes, the sandbag wall, the NW Pit low) as read-only rows under Investigations; snap, 3D, export; `SBMM.survey` — the survey's 24 shots are a baked dataset, not this module |
 | storm.js | **v12 storm drainage** — EA's storm structures and storm line, the six CAD culvert marks, Jacobs' two surveyed 24-in pipes and the south-road grate chain, as read-only project data (`data/storm_network.json`): three layer rows under Site framework, rims from `SBMM.elev` on boot, the "storm drains work" switch, per-conduit broken/working, snap, 3D, exports, and `conduitsFor(bbox)` — the list `js/water.js` hands the kernel; `SBMM.storm` |
 | drainage.js | **v14 Phase 1 — the drainage map**: the `drainage` kernel run once over the whole site, three read-only layer rows under a *Drainage* sub-header in Site framework, the outlet table and its CSV/GeoJSON/DXF, "show what drains here" on any storm popup, the catchments draped in 3D; `SBMM.drainage` |
+| runoff.js | **v14 Phase 2 — the design storm**: the `runoff` kernel over the Phase 1 catchments, the rainfall and land-cover payloads, the `RAIN` dialog, the results card with its hydrograph, level-pool routing of the three ponds through the `overtop` kernel's stage table, the report sheet, the CSV, and two layer rows (the cover raster with a CN legend, the runoff depth as a choropleth); `SBMM.runoff` |
 | layerman.js | the Layer manager dialog: search / toggle / recolour / opacity / source + handle for EA's 110 CAD layer names |
 | sheetcards.js | the Sheets tab — a card per drawing with a thumbnail derived on first open, filtered by lot |
 | field.js | **field mode (`body.field`) and the field capabilities (§4)** — the trigger and `SBMM.field`, the slim top bar / bottom action bar / More sheet, docks as bottom sheets, popups as bottom cards, Position (`watchPosition`, never fabricated), Photo (the `photo` feature type + a small EXIF reader), Note, Samples nearby |
@@ -1817,3 +1818,143 @@ for a page scroll before the rig sees it.
 The repo contains site imagery, terrain, and analytical sample results for an active
 Superfund project. Keep the GitHub repo **private**. Don't add analytics, external
 CDNs, or any network calls.
+
+## v14 Phase 2 — the design storm
+
+Contract: `docs/V14_PHASE2_RUNOFF_SPEC.md` (Phase 2 of
+`docs/V14_CATCHMENT_PROPOSAL.md`). Kernel `runoff` in `js/compute.js`
+(**api VERSION 9**); host `js/runoff.js` (`SBMM.runoff`); builders
+`tools/build_rainfall.py` and `tools/build_cover.py`; harness section `runoff`
+in `test/kernels.mjs`; e2e block **"9aa. design storm"**.
+
+Phase 1 said where the water goes. This says **how much, in a design storm**,
+over Phase 1's own catchments — so the two can never disagree about which
+ground drains where. **Every number rests on an assumption, and every
+assumption is a ruling of the spec's §1 table**: it is printed on the card,
+printed first on the report sheet, and changeable in one dialog (`RAIN`).
+
+### The chain, and where each link lives
+
+| link | method | where |
+|---|---|---|
+| rainfall | NOAA Atlas 14 vol. 6 point estimates at 39.003 N, 122.663 W | `tools/build_rainfall.py` → `SBMM_DATA.rainfall` |
+| land cover | 2-ft class raster, EA's layers + the CHM + the ortho | `tools/build_cover.py` → `SBMM_DATA.cover` / `cover_png` |
+| runoff volume | NRCS curve number, `Q = (P − 0.2S)²/(P + 0.8S)`, AMC II | `runoff` kernel |
+| time of concentration | TR-55 ch. 3 segments along Phase 1's longest flow path | `runoff` kernel |
+| peak flow | Rational to 200 ac **and** an SCS unit hydrograph everywhere | `runoff` kernel |
+| pond routing | level-pool (Modified Puls) on the `overtop` kernel's stage table | `js/runoff.js` `routeOne` |
+
+**`RAIN` is the design storm now, not the raindrop.** It was an alias of `DROP`
+until v9.13; an alias belongs to exactly one command (a duplicate silently kills
+the later one and the e2e fails on it), and the raindrop keeps `RAINDROP`,
+`WATERDROP` and `FLOW`. `RUNOFF` and `DESIGNSTORM` are the new aliases.
+
+### Six things here are traps
+
+- **A step of the order of Tp misses the unit hydrograph's peak.** At Tc = 6 min
+  (Tp = 0.116 h) a 6-minute step reads the peak 4 % low, which would put the
+  kernel outside its own acceptance test. The kernel therefore picks **one time
+  base for the whole site**, no coarser than a **tenth of the shortest Tp** it
+  was given, and reports it on every hydrograph (`hydro.dt_min`). One base is
+  also what lets the site total be the plain sum of the catchment hydrographs —
+  and it is why `routeOne` must take the INFLOW's own `dt_min`, not the outlet
+  run's: the two jobs are given different catchments and pick different steps.
+- **The unit hydrograph's shape is not a taste.** Peak rate factor 484 is
+  exactly the statement that the dimensionless curve integrates to 4/3, and
+  `UH_SHAPE = 3.6969` is the root of that (solve `∫u^m e^{m(1−u)}du = 4/3`).
+  The ordinates are then normalised to one inch over the catchment, so
+  "volume = Q·A" is true by construction and "peak = 484·A·Q/Tp" follows from
+  the shape. Both are asserted in `test/kernels.mjs` §12.3; change `m` and both
+  break, which is the point.
+- **The spec's own worked example is wrong in one cell, and the equation wins.**
+  §3(a) prints Q = 2.17 in for P = 4.0 / CN = 85. That does not satisfy
+  `Q = (P − 0.2S)²/(P + 0.8S)` — the equation gives **2.458**, and 2.17 is the
+  answer for CN ≈ 81.4. The harness restates the equation and says so in place;
+  the spec's other number (CN 70 → 1.33) agrees exactly.
+- **Areas come from Phase 1, class shares from the label raster.** The
+  drainage map's areas are full-resolution cell counts and its label raster is
+  decimated for display, so the kernel takes `area_ft2` from the record and only
+  the class FRACTIONS from the raster. Mixing them would quietly move an
+  acreage someone digs from.
+- **There is no flow-accumulation raster in this app**, so TR-55's "channel flow
+  where the accumulation exceeds 5 acres" is applied with the upstream area
+  approximated as `catchment area × (path length above the point / total path
+  length)` — linear in path length, monotone, stated on the card and in the
+  report. It puts a 280-acre catchment into channel flow almost at once and
+  never puts a half-acre one there, which is the behaviour the rule is for. A
+  real accumulation raster is a Phase 3 item, not a bug fix.
+- **A pond is routed off its EA water polygon, not off a point.** `stageTable`
+  applies the August-2026 survey only when the seed is a RING containing the
+  surveyed water-level shot (`js/water.js` `surveyFacts`), so a point seed would
+  route the impoundment off the lidar's January-2024 water surface and lose the
+  1,341.55-ft pipe row the card is checked against. `waterRingAt()` in
+  `js/runoff.js` finds the polygon; failing that it falls back to the point.
+
+### The cover raster
+
+`tools/build_cover.py` paints one class per 2-ft site cell in the spec's
+priority order — grass by default, then the ortho's green-excess split, canopy
+(CHM ≥ 6 ft), mine waste (the DUs, the traced piles, EA's repository and staging
+polygons), gravel roads, paved roads, buildings, open water — and writes
+`data/cover.png` **as an 8-bit RGB image whose colours ARE the class palette**.
+Not indexed: the map draws that PNG directly as its own legend, and
+`test/lib/png.mjs` decodes 8-bit RGB/RGBA and nothing else, so an indexed PNG
+would be unreadable in the node harness. Two consequences to keep in mind:
+
+- **EA draws roads as LINES**, so a paved surface has to be given a width;
+  `ROAD_HALF_FT` (8 ft) is that assumption and `data/cover.json` records it
+  beside an independent analytic estimate of the paved footprint, which is what
+  the harness checks the rasteriser against.
+- **The hydrologic soil group is a property of the CLASS** (D for the mine-waste
+  class, C for everything else — the spec's ruling), which is why "bare /
+  disturbed" and "mine waste" are two classes with the same curve numbers: they
+  differ only in the letter, and the letter is the biggest assumption in the
+  chain.
+
+### Payload tolerance
+
+`d_rainfall.js`, `d_cover.js` and `i_cover_png.js` are all in the **field
+build** (they are small, and without the cover raster every curve number would
+be a guess). If either is absent the module still builds a row and refuses with
+a toast — `SBMM.runoff.build()` returns early when both are missing, the cover
+row becomes "Land cover (not in this build)", and `run()` toasts and returns
+null rather than throwing.
+
+### What it found, recorded from this commit
+
+On the **provisional** 25-year 24-hour depth (6.4 in, NRCS Type IA) over the
+Phase 1 catchments sampled at 8 ft — `node test/kernels.mjs --only runoff`,
+69 checks in 12.7 s:
+
+| catchment | acres | CN | Q | volume | Tc | SCS peak |
+|---|---|---|---|---|---|---|
+| Clear Lake — direct overland | 403.05 | 82.0 | 4.36 in | 146.49 ac-ft | 21.2 min | 565 cfs |
+| Off the surveyed ground | 293.45 | 81.0 | 4.25 in | 103.87 ac-ft | 6.0 min | 429 cfs |
+| Clear Lake outfall (storm network) | 281.99 | 83.6 | 4.53 in | 106.34 ac-ft | 17.1 min | 425 cfs |
+| **site** | **978.49** | **82.2** | — | **356.69 ac-ft** | — | **1,396 cfs** |
+
+**No catchment gets a Rational peak, and that is the rule working**: all three
+are over the 200-acre limit, so the card reports "not reported above 200 ac"
+rather than a number the method does not support.
+
+**None of the three ponds overtops.** The impoundment rises 0.82 ft
+(1,336.45 → 1,337.27) and never reaches its surveyed 1,341.55-ft discharge
+invert; Frog Pond leaves through the pond culvert at 1,415.75, 0.29 ft under
+its 1,416.04-ft rim; Green Pond is contained 1.4 ft below its FES. Those are
+the answers for THIS storm on THESE depths — the whole table moves when the
+Atlas 14 export replaces the provisional one, and the harness numbers have to
+be re-recorded with it.
+
+### The one acceptance check that could not be run as written
+
+Spec §3(g) asks that "the paved class area agrees with EA's paved polygons
+within 5 %". **EA has no paved polygons** — it draws roads as LINES, two of
+them per road — so a length × width reference double counts every road while
+the raster merges the overlap, clips to the surveyed ground and is overpainted
+by buildings and water. The comparison is one-sided by construction and is
+−16.7 % here, all of it explainable and none of it about placement. So the
+harness tests placement directly — **a point every 10 ft along every EA paved
+road line must read `paved`, and 4,206 of 4,206 eligible points do** — and
+keeps the area comparison beside it as the one-sided identity it is, with the
+reasons printed. Do not "fix" this by widening the tolerance; the area number
+is not the question.

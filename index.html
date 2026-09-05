@@ -888,6 +888,11 @@ window.SBMM_BUILD="full";
 <!-- the storm-drainage network (docs/V12_STORM_SPEC.md): EA's structures and
      storm line, the surveyed pipes, the south-road drain. ~27 kB; in the field build too. -->
 <script src="datajs/d_storm_network.js"></script>
+<!-- v14 Phase 2: the design storm. The rainfall table and the land-cover class
+     raster; both are small and both stay in the field build. -->
+<script src="datajs/d_rainfall.js"></script>
+<script src="datajs/d_cover.js"></script>
+<script src="datajs/i_cover_png.js"></script>
 <script src="datajs/d_cad_native.js"></script>
 <script src="datajs/d_cad_surfaces.js"></script>
 <script src="datajs/d_ortho_abp.js"></script>
@@ -1004,6 +1009,10 @@ window.SBMM_BUILD="full";
 <!-- v14 Phase 1: the drainage map. After storm.js (it asks which conduits are in
      play) and after water.js (it borrows the raindrop's pond floor). -->
 <script src="js/drainage.js"></script>
+<!-- v14 Phase 2: the design storm. After drainage.js (its catchments are the
+     Phase 1 label raster) and after water.js (it borrows the overtopping
+     kernel's stage table to route a pond). -->
+<script src="js/runoff.js"></script>
 <script src="js/refsurf.js"></script>
 <script src="js/sheetcards.js"></script>
 <!-- field mode + the field capabilities (docs/V11_SPEC.md §4). After every

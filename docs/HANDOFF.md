@@ -45,6 +45,12 @@ in code, and what comes next. It replaces re-reading the chat history that built
 | A redline stroke is a real feature in State Plane feet, never a painted bitmap | It has to export to CAD, stay put when the map zooms, drape in 3D and print in the report — a raster does none of that |
 | The offline copy is the ONE `fetch()` exemption, and it is `sw.js`, not the app | http(s) only, own origin only, opt-in, never over `file://`. The file:// constraint is unbroken: over a file URL nothing registers and nothing fetches |
 | **The session integer stayed 8 and the redline has no My-work row of its own** | Both would have failed assertions in `test/e2e.mjs`, which the delivery procedure requires to pass UNCHANGED. Both are additive, both are one line plus one harness edit, and both are marked in the code — see the v17 section of CLAUDE.md |
+| **Phase 2 of the catchment work was built on "go with your best assumptions" (Sep 5 2026)** | The engineer's own words. Every assumption is therefore a printed ruling: rainfall depths, temporal distribution, HSG, curve numbers, cover priority, TR-55 segments, outlet ratings — on the card, first on the report sheet, and changeable in the `RAIN` dialog |
+| Rainfall is **baked, not fetched**, and provisional until the PFDS export lands | The app cannot fetch (file://). `tools/build_rainfall.py` writes the planner's approximate depths flagged `provisional: true`, and the card carries a red warning until `data/atlas14_sbmm.csv` replaces them |
+| HSG **D** for mine waste, tailings, waste piles, decision units and compacted fill; **C** for everything else | No SSURGO and no infiltration test on hand. It is the biggest assumption in the chain and it is printed on every card and sheet |
+| Both peaks are reported, labelled | Rational (`Q = C·i·A`, to 200 ac) is the culvert answer; the SCS unit hydrograph is the routed answer. They are two methods, not two attempts at one number |
+| A conduit with no surveyed size or invert **passes its inflow**, and says "capacity unknown — survey pending" | Inventing a rating would be the one thing this app must not do. The weir half of the routing is real now; the pipe half waits on the invert survey |
+| `RAIN` is the design storm; the raindrop keeps `RAINDROP` | An alias belongs to one command — a duplicate silently kills the later one, and the e2e fails on it |
 | Esc always returns to Navigate | Dead-button bug history |
 | Watermark "Mo Sharif - Jacobs 2026" bottom-right, burned into exports | User request |
 | C-202 registered from EA's native North Lobe polygon (v9.1), one affine per plan viewport; the raster and 3D drape are the grading plan | The PDF methods could not place it; the native polygon is the drawn boundary with every vertex surveyed |
@@ -101,18 +107,27 @@ in code, and what comes next. It replaces re-reading the chat history that built
 
 ## Open items, in priority order
 
-0. **Phase 2 of the catchment work — rainfall and runoff — waits on the engineer.**
-   Phase 1 (the drainage map: which outlet every acre drains to, terrain only) shipped in
-   v14 and is in the app now. Phase 2 is questions B and C of
-   `docs/V14_CATCHMENT_PROPOSAL.md` — runoff volume by NRCS Curve Number, peak flow, and
-   whether a pond fills and overtops in a design storm — and §7 of that file lists what
-   has to be decided before any of it is built: which design storms, whose rainfall
-   depths, the curve numbers and hydrologic soil group for this ground, and whether he
-   wants a number at all before the pipe inverts are surveyed. **Do not start it from the
-   proposal alone**; the assumptions are the whole exercise and they are his to make.
-   The one thing Phase 1 has already answered for him: the eight road-drain grates take
-   0.019 acres between them overland, and 282 of the site's 978 acres reach the outfall
-   through the impoundment and its two surveyed pipes.
+0. **Replace the provisional rainfall with the NOAA Atlas 14 export.** Phase 2 (the
+   design storm) shipped in v9.13 and runs today on the planner's approximate depths for
+   this location — 2-yr 3.3 in, 10-yr 5.3, 25-yr 6.4, 100-yr 8.3 over 24 hours — flagged
+   `provisional: true` in the payload, with a red warning on the card and on the report
+   sheet. **The fix is five minutes and no code:** open
+   `https://hdsc.nws.noaa.gov/pfds/pfds_map_cont.html?lat=39.0030&lon=-122.6630`, take the
+   PDS-based precipitation-frequency estimates in English units, save the CSV as
+   `data/atlas14_sbmm.csv`, run `python tools/build_rainfall.py`, then `tools/build_data.py`
+   (or just the one payload) and rebuild the dists. The warning disappears by itself, every
+   number moves with the new depths, and the harness's recorded values in
+   `test/kernels.mjs` §12.5 need re-recording — say so in the commit. The 24-hour temporal
+   distributions in the same payload are provisional for the same reason; replace them with
+   the published TR-55 / NEH-630 table before anything is issued.
+
+0a. **The pipe ratings wait on the invert survey.** Level-pool routing is in and the weir
+   half of it is real, but a conduit with no surveyed size or invert passes its inflow and
+   the card says "capacity unknown — survey pending". When the inverts land (the same CSV
+   `tools/build_storm_network.py` reads), the orifice/pipe rating is a function in
+   `js/runoff.js` `routeOne` and nothing else changes. Two more Phase 3 items, both named
+   in the code: a real flow-accumulation raster in place of the linear approximation the
+   TR-55 channel rule uses, and SSURGO or an infiltration test in place of the C/D guess.
 
 0a. **GitHub Pages on a private repo needs a paid plan — the engineer decides.**
    The iPad work assumes he opens the app from a web address: that is what makes it an
