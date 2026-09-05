@@ -192,6 +192,27 @@ window.SBMM_BUILD="full";
         <button class="areabtn site" data-area="site" title="Fly out to the whole surveyed site">Full site</button>
       </div>
 
+      <!-- v16: search, presets and the recently-changed chips. The tree itself
+           is js/layertree.js; this is the furniture above it. -->
+      <div id="ltbar">
+        <div class="ltsearchrow">
+          <svg class="ic14"><use href="#i-search"/></svg>
+          <input id="ltSearch" type="search" placeholder="Search layers  ( / )" spellcheck="false" autocomplete="off"
+                 title="Search every layer by name, sub-group, group or id. Enter toggles the first match, Esc clears.">
+          <span class="mono mut" id="ltHits" hidden></span>
+          <button class="minib" id="ltClear" title="Clear the search (Esc)" hidden>&#10005;</button>
+        </div>
+        <div class="ltprerow">
+          <select id="ltPreset" title="Layer presets — a named set of layers. Presets never switch on the protected cultural group."></select>
+          <input id="ltPreName" placeholder="preset name" spellcheck="false" autocomplete="off" hidden>
+          <button class="minib" id="ltPreSave" title="Save the layers that are on now as a preset">save…</button>
+          <button class="minib" id="ltPreRen" title="Rename the selected preset" hidden>rename</button>
+          <button class="minib" id="ltPreDel" title="Delete the selected preset" hidden>del</button>
+          <button class="minib" id="ltLegendBtn" title="Show or hide the legend card on the map">legend</button>
+        </div>
+        <div id="ltRecent" class="ltrecent" hidden></div>
+      </div>
+
       <!-- ============================================================
            The layer tree is organised by what the layer IS to the job
            (docs/V9_SPEC.md §4), not by which file it came from. Every row
@@ -205,8 +226,13 @@ window.SBMM_BUILD="full";
         <h3 class="lsech"><span class="caret"></span><input type="checkbox" class="lsecall" title="Show or hide every layer in this group"><span class="lsectitle">Base</span><span class="lcount mono"></span></h3>
         <div class="lsecb">
           <div id="baseLayers"></div>
-          <div class="subh">Contours — lidar survey</div>
-          <div id="terrainLayers"></div>
+          <div class="lgsub" data-sub="contours">
+            <div class="subh subtoggle lsub" role="button" tabindex="0" aria-expanded="true"
+                 title="The surveyor's own contours, 10 ft over the site and 2 ft over the mine area">
+              <span class="caret"></span>Contours — lidar survey<span class="lcount mono subcount"></span>
+            </div>
+            <div class="lgsubb"><div id="terrainLayers"></div></div>
+          </div>
           <!-- Terrain analysis is a sub-section, and closed to start with (F3).
                Slope, aspect, elevation tint, canopy, the contour generator and
                the tree detector are six rows plus five legends plus three
@@ -236,15 +262,29 @@ window.SBMM_BUILD="full";
         <div class="lsecb">
           <div id="designLayers"></div>
           <!-- EA's own recovered surfaces (§5): read-only reference data -->
-          <div class="subh">Design surfaces — EA
-            <button class="minib" id="isoBtn" title="Isopach — cut/fill heat map of a design surface against the lidar ground">isopach…</button>
+          <div class="lgsub" data-sub="surfea">
+            <div class="subh subtoggle lsub" role="button" tabindex="0" aria-expanded="true"
+                 title="EA's four recovered design surfaces — read-only reference data">
+              <span class="caret"></span>Design surfaces — EA<span class="lcount mono subcount"></span>
+              <button class="minib" id="isoBtn" title="Isopach — cut/fill heat map of a design surface against the lidar ground">isopach…</button>
+            </div>
+            <div class="lgsubb"><div id="refSurfList"></div></div>
           </div>
-          <div id="refSurfList"></div>
           <!-- surfaces the user grades themselves -->
-          <div class="subh">Design surfaces — mine</div>
-          <div id="surfList"></div>
-          <div class="subh">Drawing set
-            <button class="minib" id="sheetsBtn" title="Open any sheet in the drawing set, registered or not (SHEETS)">all 20 sheets…</button>
+          <div class="lgsub" data-sub="surfmine">
+            <div class="subh subtoggle lsub" role="button" tabindex="0" aria-expanded="true"
+                 title="Pads and graded surfaces you have made yourself">
+              <span class="caret"></span>Design surfaces — mine<span class="lcount mono subcount"></span>
+            </div>
+            <div class="lgsubb"><div id="surfList"></div></div>
+          </div>
+          <div class="lgsub" data-sub="drawingset">
+            <div class="subh subtoggle lsub" role="button" tabindex="0" aria-expanded="true"
+                 title="The 20-drawing EA design set">
+              <span class="caret"></span>Drawing set<span class="lcount mono subcount"></span>
+              <button class="minib" id="sheetsBtn" title="Open any sheet in the drawing set, registered or not (SHEETS)">all 20 sheets…</button>
+            </div>
+            <div class="lgsubb"></div>
           </div>
         </div>
       </section>
@@ -254,10 +294,14 @@ window.SBMM_BUILD="full";
         <div class="lsecb">
           <div id="investLayers"></div>
           <div class="legend" id="ptLegend"></div>
-          <div class="subh">Datasets
-            <button class="minib" id="dsAddBtn" title="Import a CSV of coordinates as a styled, filterable dataset (DATASET, or drag a .csv onto the map)">add dataset…</button>
+          <div class="lgsub" data-sub="datasets">
+            <div class="subh subtoggle lsub" role="button" tabindex="0" aria-expanded="true"
+                 title="Point datasets — the baked ones and anything you import">
+              <span class="caret"></span>Datasets<span class="lcount mono subcount"></span>
+              <button class="minib" id="dsAddBtn" title="Import a CSV of coordinates as a styled, filterable dataset (DATASET, or drag a .csv onto the map)">add dataset…</button>
+            </div>
+            <div class="lgsubb"><div id="dataLayers"></div></div>
           </div>
-          <div id="dataLayers"></div>
         </div>
       </section>
 
@@ -840,6 +884,10 @@ window.SBMM_BUILD="full";
 <script src="js/shell.js"></script>
 <script src="js/map.js"></script>
 <script src="js/labels.js"></script>
+
+<!-- v16: the layer tree is the VIEW over SBMM.layerState. After js/map.js
+     (it extends addLayerRow) and before every module that registers a row. -->
+<script src="js/layertree.js"></script>
 <script src="js/layers.js"></script>
 <script src="js/designea.js"></script>
 <script src="js/designgis.js"></script>

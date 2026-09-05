@@ -340,19 +340,14 @@ SBMM.drainage = (function () {
   }
 
   function build() {
-    const host = document.getElementById("projLayers");
-    if (host) {
-      const hh = document.createElement("div");
-      hh.className = "lsub";
-      hh.textContent = "Drainage (lidar + storm drains)";
-      host.appendChild(hh);
-    }
     groups.outlet = L.layerGroup();
     groups.first = L.layerGroup();
     groups.paths = L.layerGroup();
     const mk = (id, label, layer, title) => {
+      /* v16: `sub:` declares the sub-group the tree draws the header for. */
       const row = SBMM.addLayerRow("proj", label, layer,
         { id, checked: false, swatch: COL.lake,
+          sub: "Drainage (lidar + storm drains)",
           onChange: st => { if (st.on) ensure(id); } });
       row.row.title = title;
       rows[id] = row;

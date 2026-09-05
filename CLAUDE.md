@@ -211,6 +211,7 @@ terrain source, which needs an explicit decision + README/test update).
 | mode.js | **`SBMM.mode` — the tool-mode state machine (§2)**: modes, cursor, Mode HUD, every single-key shortcut, Esc discipline, Space-to-pan; also `SBMM.status` (the status bar, written by both views) |
 | shell.js | dock layout, left tabs (Layers/My work/Sheets), right tabs (Inspector/Results) + their auto-switch, four-stage topbar narrowing, job bar |
 | map.js | Leaflet init, layer-row API `SBMM.addLayerRow` (a row is a VIEW onto `SBMM.layerState`), zoom-gated annotation, context menu |
+| layertree.js | **`SBMM.layerTree` — the VIEW over `SBMM.layerState` (v16)**: sub-groups declared with `addLayerRow(..., {sub})`, legend swatches drawn from the layer's own symbology, the per-row hover toolbar (opacity / zoom to extent / solo / info), drag-to-reorder = draw order, fuzzy search, keyboard, presets, recently-changed chips, the legend card on the map |
 | layers.js | basemaps, survey contours, DUs, piles, samples (+symbology); `SBMM.layersUI` — the six §4 groups, master checkboxes, count badges, Areas quick-nav; `SBMM.myWork` — the class mask over the user's own features |
 | analysis.js | slope/aspect/hypso/canopy raster layers, custom contours |
 | draw.js | sketch engine: vertex edit, ortho/polar, typed input (`@150<45`), 3D hooks |
@@ -340,7 +341,8 @@ collected, they just stay quiet).
   layer-section count badges only write when the value actually changed, and disconnect around
   the write. The symptom was the app appearing to hang on the next background job.
 - `page.evaluate(() => SBMM.sheets.open(...))` fails in Playwright — the returned state object
-  holds DOM nodes. Wrap it in a block that returns nothing.
+  holds DOM nodes. Wrap it in a block that returns nothing. `SBMM.layerTree.search(...)` is the
+  same trap: it hands back the first matching row, which is a row ref holding DOM nodes.
 - **`preferCanvas` also means a Leaflet vector has no DOM element**, so `className` on a path
   reaches nothing: `.sheetpulse` (the "locate" flash) and `.sheethit` (the footprint's
   `cursor: zoom-in`) were both dead CSS. Animate with `setStyle()` and set the cursor on the
@@ -1362,6 +1364,90 @@ nav help table and in the buttons' tooltips, and silently re-binding a
 documented key is a user-facing regression the spec did not ask for. So: 1, 2,
 4, 5, 6 are top/north/east/west/iso, **Shift+3** is south, **Shift+F** fits,
 arrows orbit and Shift+arrows pan. The help table says so.
+
+## v16 — the layer tree
+
+Contract: `docs/V16_LAYERS_SPEC.md`. New file `js/layertree.js` (`SBMM.layerTree`),
+loaded after `js/map.js` and before every module that registers a row. The
+Layers tab markup in `index.html`, the `v16 layer tree` block at the end of
+`css/app.css`, and one e2e block, **"9z. layer tree"**, which runs LAST because
+it ends with a real `page.reload()`.
+
+**`SBMM.layerState` did not change and is still the one answer to "is this layer
+on".** The tree is the view: it decides which container a row lands in, decorates
+the row, and offers new ways to move the state — it never becomes the state. Two
+additive APIs were needed and are the only edits to `js/layerstate.js`:
+`batch(list)` (many sets, one `layers` event per group that moved — the same
+`{group, layer: null}` shape a master checkbox already emits) and `setExtra({save,
+load})`, which is how the tree's own record travels in the session file.
+
+**`SBMM.addLayerRow`'s signature is extended, never changed.** `opts.sub` names
+the sub-group the row belongs to and `opts.subTitle` its tooltip; everything else
+is what it always was. The five modules that used to append an ad-hoc `.lsub`
+header into a host div and let their rows fall in underneath it — `js/storm.js`,
+`js/drainage.js`, `js/survey.js`, `js/designea.js` (the sheet rows) and
+`js/designgis.js` — now pass `sub:` instead, and that one option is the whole of
+their diff. The sub-group container is `.lgsub` > `.subh.subtoggle.lsub` +
+`.lgsubb`: the exact markup the Terrain-analysis sub-section has always used, so
+`SBMM.layersUI.refreshCounts` and every selector that ever asked "is there a
+sub-heading called Storm drainage in this group" keep working untouched.
+
+Five things here will be walked into again:
+
+- **The cultural gate must keep winning.** `js/cultural.js` intercepts the
+  checkbox's `click` in the capture phase, so every switch the tree offers that
+  could turn a row ON goes through `row.cb.click()` — the keyboard, the
+  recently-changed chips, search-Enter — and never `layerState.set`. The bulk
+  paths (solo, presets, the group all-on button) skip the `cultural` group
+  outright, `snapshot()` excludes it, and solo refuses it with a toast. The
+  recently-changed list never records a cultural row, because a chip is a
+  one-click way back on. Block 9g still asserts the acknowledgement; block 9z
+  asserts the other half.
+- **Draw order is applied only to a container the user has actually reordered.**
+  The app's existing z-order is deliberate — the three orthophotos carry explicit
+  `zIndex` options, the sheet click rectangles call `bringToBack()` on add so only
+  empty ground opens a drawing, each pane has its own band — and a blanket
+  `bringToFront` pass at boot would silently undo all of it for nothing. So
+  `applyDrawOrder(group)` returns 0 until `S.order` has an entry for one of that
+  group's containers. Within one, the rows are walked bottom-up so the TOP row is
+  brought forward last and ends up on top; a layer that must stay at the back says
+  so with `options.sbmmBack` (the sheet hit rectangles do) and is put back rather
+  than brought forward. The e2e probe is `SBMM.layerTree.drawIndex(group, id)` —
+  a row's position in its canvas renderer's own `_drawFirst` chain, so the
+  assertion is about the map, not about the DOM.
+- **A swatch must not add a text node, and must not repaint on every event.** A
+  row's `textContent` is read by several harnesses and by the legend, so the
+  toolbar's four glyphs come from CSS `content` and the trailing "(140)" is moved
+  into its own span *including its leading space* — the string is byte-identical.
+  And the raster swatch's gradient id is derived from `(group, id)`, not a
+  counter: a new id every repaint would make every `layers` event a real DOM
+  write inside the pane the count-badge `MutationObserver` is watching.
+- **The tree owns the open/closed record now.** `sbmm.layertree.v1` holds the
+  open state of every group AND sub-group, the per-container row order, the user
+  presets and the legend's own state; `js/layers.js` migrates the old
+  `sbmm_layer_sections` key into it once and then reads and writes through
+  `SBMM.layerTree.openState`. Terrain analysis is the one sub-group that starts
+  closed (ruling F3) and that is `SUB_CLOSED_BY_DEFAULT` in `js/layertree.js`.
+- **The session key is `layers._tree` and it is additive both ways.**
+  `js/state.js` is untouched: `layerState.serialize()` folds the tree's record in
+  under `_tree`, and `restore()` skips that key in its group loop and hands it to
+  the extra. An old session has no `_tree` and restores exactly as before; a new
+  session opened by an older build finds no layer called `_tree` and skips it.
+
+Presets are `BUILTIN` in `js/layertree.js` — a rule per preset answering true /
+false / null (leave alone) per row — plus whatever the user saves. Applying one is
+ONE `SBMM.undo` entry with both closures (the before snapshot and the after
+snapshot, captured at the moment the action completes). Search is fuzzy over
+label + sub-group + group + id, which is why searching "storm" also shows the
+drainage rows: their sub-group is *Drainage (lidar + storm drains)*. That is the
+rule working, and block 9z asserts "every row shown really matches" rather than a
+bare count.
+
+**Shots:** `node test/layers_shots.mjs /abs/path/index.html` writes
+`layers_tree.png`, `layers_search.png` and `layers_legend.png` into `test/shots/`;
+not pass-fail — look at them. The baseline the acceptance test compares against is
+`test/fixtures/layer_rows_pre_v16.json`, dumped from the pre-v16 build: every
+`(group, id)` that existed before must exist after, and no row may be invented.
 
 ## Undo and redo (v9.4) — the both-closures rule and `readd`
 
