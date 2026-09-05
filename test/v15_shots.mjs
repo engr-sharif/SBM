@@ -9,16 +9,15 @@
    two-core box crash the compositor.
 
      node test/v15_shots.mjs /abs/path/index.html                            */
-import { chromium } from "playwright";
+import { launch } from "./lib/browser.mjs";
 import { pathToFileURL as furl } from "node:url";
 import { resolve as pres } from "node:path";
 import { existsSync as ex } from "node:fs";
 import { unlock } from "./gate.mjs";
-const CHROME = process.env.CHROME_BIN || (ex("/opt/pw-browsers/chromium-1194/chrome-linux/chrome") ? "/opt/pw-browsers/chromium-1194/chrome-linux/chrome" : undefined);
 
 const target = process.argv[2] || "/home/user/SBM/index.html";
 const out = process.argv[3] || "/home/user/SBM/test/shots";
-const browser = await chromium.launch({ executablePath: CHROME });
+const browser = await launch();
 const page = await browser.newPage({ viewport: { width: 1600, height: 1000 } });
 page.setDefaultTimeout(240000);
 page.on("pageerror", e => console.log("PAGEERROR", e.message));

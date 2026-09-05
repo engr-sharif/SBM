@@ -26,19 +26,18 @@
    sections dispatch real `PointerEvent`s with `pointerType:"pen"` — which IS
    the stream the app sees from a Pencil, since Safari delivers exactly that.
 */
-import { chromium, devices } from "playwright";
+import { devices } from "playwright";
+import { launch, TIMEOUT } from "./lib/browser.mjs";
 import { pathToFileURL as __furl } from "node:url";
 import { resolve as __res, dirname, join, extname } from "node:path";
 import { existsSync, readFileSync, statSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { createServer } from "node:http";
 import { unlock, gatePassword } from "./gate.mjs";
+import { block, S } from "./lib/blocks.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = __res(HERE, "..");
-const CHROME = process.env.CHROME_BIN
-  || (existsSync("/opt/pw-browsers/chromium-1194/chrome-linux/chrome")
-      ? "/opt/pw-browsers/chromium-1194/chrome-linux/chrome" : undefined);
 
 const target = process.argv[2] || __res(ROOT, "index.html");
 const label = process.argv[3] || "tablet";
@@ -96,10 +95,10 @@ const HTTP = `http://127.0.0.1:${PORT}/index.html`;
 console.log(`static server on ${HTTP}`);
 
 /* ===================================================================== */
-const browser = await chromium.launch({ executablePath: CHROME });
+const browser = await launch();
 const ctx = await browser.newContext({ ...DEV });
 const page = await ctx.newPage();
-page.setDefaultTimeout(180000);
+page.setDefaultTimeout(TIMEOUT);
 const errors = [];
 page.on("pageerror", e => errors.push("pageerror: " + e.message));
 page.on("console", m => { if (m.type() === "error") errors.push("console: " + m.text()); });
@@ -162,9 +161,11 @@ async function pen(kind, x, y, opts) {
 }
 
 /* ===================================================================== */
+let boot, cssSrc, css, applied;   /* hoisted — v18 §3 */
+await block("1. boot", async () => {
 /* 1. boot                                                               */
 /* ===================================================================== */
-const boot = await page.evaluate(() => {
+boot = await page.evaluate(() => {
   const bar = document.getElementById("topbar");
   const btns = [...document.querySelectorAll("#topbar .toolbtn")]
     .filter(b => !b.hidden && b.offsetParent !== null)
@@ -219,11 +220,11 @@ if (errors.length) fail("page errors at boot", errors.slice(0, 6));
    stylesheet. (It reported "100dvh false · 0 safe-area rules" against a file
    that plainly has both.) The page-side half of the same question — did the
    rules actually parse and apply — is the computed style below. */
-const cssSrc = readFileSync(__res(SITE, "css/app.css"), "utf8");
-const css = { dvh: /height:\s*100dvh/.test(cssSrc),
+cssSrc = readFileSync(__res(SITE, "css/app.css"), "utf8");
+css = { dvh: /height:\s*100dvh/.test(cssSrc),
               safe: (cssSrc.match(/env\(safe-area-inset/g) || []).length,
               overscroll: /overscroll-behavior:\s*none/.test(cssSrc) };
-const applied = await page.evaluate(() => {
+applied = await page.evaluate(() => {
   const bar = getComputedStyle(document.getElementById("topbar"));
   const root = getComputedStyle(document.documentElement);
   return { topbarH: parseFloat(bar.height), htmlH: parseFloat(root.height),
@@ -247,7 +248,7 @@ if (applied.mapTouch !== "none" || applied.canvasTouch !== "none")
 {
   const gctx = await browser.newContext({ ...DEV });
   const gp = await gctx.newPage();
-  gp.setDefaultTimeout(180000);
+  gp.setDefaultTimeout(TIMEOUT);
   const gerr = [];
   gp.on("pageerror", e => gerr.push("pageerror: " + e.message));
   await gp.goto(__furl(__res(target)).href);
@@ -264,17 +265,20 @@ if (applied.mapTouch !== "none" || applied.canvasTouch !== "none")
   if (gerr.length) fail("errors on the gate page", gerr.slice(0, 4));
   await gctx.close();
 }
+}, { always: true });
 
 /* ===================================================================== */
+let small, back, port, ov;   /* hoisted — v18 §3 */
+await block("2. profiles", async () => {
 /* 2. profiles                                                           */
 /* ===================================================================== */
 await page.setViewportSize({ width: 507, height: 834 });
 await wait(500);
-const small = await page.evaluate(() => ({ profile: SBMM.touch.profile(),
+small = await page.evaluate(() => ({ profile: SBMM.touch.profile(),
   field: document.body.classList.contains("field"), touch: document.body.classList.contains("touch") }));
 await page.setViewportSize({ width: 1194, height: 834 });
 await wait(500);
-const back = await page.evaluate(() => ({ profile: SBMM.touch.profile(),
+back = await page.evaluate(() => ({ profile: SBMM.touch.profile(),
   field: document.body.classList.contains("field"), touch: document.body.classList.contains("touch") }));
 console.log(`profiles: 507 px -> ${small.profile} (field ${small.field}) · 1194 px -> ${back.profile} (field ${back.field})`);
 if (small.profile !== "phone" || !small.field) fail("Split View at 507 px did not become the phone", small);
@@ -283,7 +287,7 @@ if (back.profile !== "tablet" || back.field) fail("coming back to 1194 px did no
 /* portrait */
 await page.setViewportSize({ width: 834, height: 1194 });
 await wait(500);
-const port = await page.evaluate(() => ({ profile: SBMM.touch.profile(),
+port = await page.evaluate(() => ({ profile: SBMM.touch.profile(),
   stage: Math.round(document.getElementById("stage").getBoundingClientRect().height),
   mapH: Math.round(document.getElementById("map").getBoundingClientRect().height) }));
 console.log(`portrait 834x1194: ${port.profile}, stage ${port.stage} px, map ${port.mapH} px`);
@@ -293,7 +297,7 @@ await page.setViewportSize({ width: 1194, height: 834 });
 await wait(500);
 
 /* the override */
-const ov = await page.evaluate(() => {
+ov = await page.evaluate(() => {
   SBMM.touch.override("off");
   const off = { profile: SBMM.touch.profile(), touch: document.body.classList.contains("touch") };
   SBMM.touch.override("auto");
@@ -304,21 +308,24 @@ console.log(`override: off -> ${ov.off.profile} (body.touch ${ov.off.touch}) · 
 if (ov.off.profile !== "desktop" || ov.off.touch) fail("the override did not force desktop", ov);
 if (ov.on.profile !== "tablet" || !ov.on.touch) fail("the override did not release", ov);
 if (errors.length) fail("page errors after the profile switches", errors.slice(0, 6));
+});
 
 /* ===================================================================== */
+let box, orbit;   /* hoisted — v18 §3 */
+await block("3. the 3D view", async () => {
 /* 3. the 3D view                                                        */
 /* ===================================================================== */
 await page.evaluate(() => { SBMM.viewer3d.toggle(); });
 await page.waitForFunction(() => SBMM.viewer3d.isOpen(), null, { timeout: 180000 });
 await wait(4000);
 
-const box = await page.evaluate(() => {
+box = await page.evaluate(() => {
   const r = document.getElementById("v3dCanvas").getBoundingClientRect();
   return { cx: Math.round(r.left + r.width / 2), cy: Math.round(r.top + r.height / 2),
            w: Math.round(r.width), h: Math.round(r.height),
            left: Math.round(r.left), top: Math.round(r.top) };
 });
-const orbit = () => page.evaluate(() => SBMM.viewer3d.stats().orbit);
+orbit = () => page.evaluate(() => SBMM.viewer3d.stats().orbit);
 
 /* --- one-finger orbit --- */
 {
@@ -544,8 +551,10 @@ const orbit = () => page.evaluate(() => SBMM.viewer3d.stats().orbit);
 await page.evaluate(() => { SBMM.viewer3d.toggle(); });
 await wait(800);
 if (errors.length) fail("page errors after the 3D block", errors.slice(0, 6));
+});
 
 /* ===================================================================== */
+await block("4. the sheet viewer", async () => {
 /* 4. the sheet viewer                                                   */
 /* ===================================================================== */
 {
@@ -699,11 +708,14 @@ if (errors.length) fail("page errors after the 3D block", errors.slice(0, 6));
   }
 }
 if (errors.length) fail("page errors after the sheet block", errors.slice(0, 6));
+});
 
 /* ===================================================================== */
+let mapBox;   /* hoisted — v18 §3 */
+await block("5. the map", async () => {
 /* 5. the map, the pen, and the chrome                                   */
 /* ===================================================================== */
-const mapBox = await page.evaluate(() => {
+mapBox = await page.evaluate(() => {
   const r = document.getElementById("map").getBoundingClientRect();
   return { cx: Math.round(r.left + r.width / 2), cy: Math.round(r.top + r.height / 2),
            left: Math.round(r.left), top: Math.round(r.top),
@@ -1179,8 +1191,10 @@ const mapBox = await page.evaluate(() => {
   await wait(600);
 }
 if (errors.length) fail("page errors after the map / pen block", errors.slice(0, 8));
+});
 
 /* ===================================================================== */
+await block("6. the offline copy", async () => {
 /* 6. the offline copy — http only                                       */
 /* ===================================================================== */
 {
@@ -1307,6 +1321,7 @@ if (errors.length) fail("page errors after the map / pen block", errors.slice(0,
     fail("page errors over http", herr.slice(0, 6));
   await hctx.close();
 }
+});
 
 /* ===================================================================== */
 console.log("\npage errors:", errors.length ? errors.slice(0, 8) : "none");

@@ -1,17 +1,14 @@
 /* A low, close 3D view of one draped sheet, to judge that the drape follows the
    ground and that its transparent regions composite correctly against the
    terrain (no black paper, no sorting halo at the edges). */
-import { chromium } from "playwright";
+import { launch, TIMEOUT } from "./lib/browser.mjs";
 import { unlock } from "./gate.mjs";
 
 const target = process.argv[2];
 const out = process.argv[3] || "/tmp";
-const browser = await chromium.launch({
-  executablePath: process.env.CHROME_BIN
-    || "/opt/pw-browsers/chromium-1194/chrome-linux/chrome"
-});
+const browser = await launch();
 const page = await browser.newPage({ viewport: { width: 1500, height: 950 } });
-page.setDefaultTimeout(180000);
+page.setDefaultTimeout(TIMEOUT);
 page.on("pageerror", e => console.log("pageerror:", e.message));
 await unlock(page);  /* the password gate — see test/gate.mjs */
 await page.goto("file://" + target);

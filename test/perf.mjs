@@ -1,17 +1,14 @@
 /* Boot + interaction performance probe. Not pass/fail — prints numbers.
    node test/perf.mjs /abs/path/index.html folder                  */
-import { chromium } from "playwright";
+import { launch, TIMEOUT } from "./lib/browser.mjs";
 import { existsSync as __ex } from "node:fs";
 import { unlock } from "./gate.mjs";
-const CHROME = process.env.CHROME_BIN || (__ex("/opt/pw-browsers/chromium-1194/chrome-linux/chrome") ? "/opt/pw-browsers/chromium-1194/chrome-linux/chrome" : undefined); // undefined = Playwright's own chromium (npx playwright install chromium)
 
 const target = process.argv[2];
 const label = process.argv[3] || target;
-const browser = await chromium.launch({
-  executablePath: CHROME
-});
+const browser = await launch();
 const page = await browser.newPage({ viewport: { width: 1500, height: 950 } });
-page.setDefaultTimeout(180000);
+page.setDefaultTimeout(TIMEOUT);
 const errs = [];
 page.on("pageerror", e => errs.push(e.message));
 

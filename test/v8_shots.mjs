@@ -7,16 +7,15 @@
    3. the north lobe (sheet C-202) — likewise
    4. the whole residential design, all native layers on
    5. 3D with the native design layers draped                                */
-import { chromium } from "playwright";
+import { launch, TIMEOUT } from "./lib/browser.mjs";
 import { existsSync as __ex } from "node:fs";
 import { unlock } from "./gate.mjs";
-const CHROME = process.env.CHROME_BIN || (__ex("/opt/pw-browsers/chromium-1194/chrome-linux/chrome") ? "/opt/pw-browsers/chromium-1194/chrome-linux/chrome" : undefined); // undefined = Playwright's own chromium (npx playwright install chromium)
 
 const target = process.argv[2];
 const out = process.argv[3] || "/tmp";
-const browser = await chromium.launch({ executablePath: CHROME });
+const browser = await launch();
 const page = await browser.newPage({ viewport: { width: 1500, height: 950 } });
-page.setDefaultTimeout(180000);
+page.setDefaultTimeout(TIMEOUT);
 page.on("pageerror", e => console.log("pageerror:", e.message));
 await unlock(page);  /* the password gate — see test/gate.mjs */
 await page.goto("file://" + target);

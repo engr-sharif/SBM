@@ -5,14 +5,13 @@
    set (docs/V15_3D_POLISH_SPEC.md §4 lists what is).
 
      node test/v15_smoke.mjs /abs/path/index.html                            */
-import { chromium } from "playwright";
+import { launch } from "./lib/browser.mjs";
 import { pathToFileURL as furl } from "node:url";
 import { resolve as pres } from "node:path";
 import { existsSync as ex } from "node:fs";
 import { unlock } from "./gate.mjs";
-const CHROME = process.env.CHROME_BIN || (ex("/opt/pw-browsers/chromium-1194/chrome-linux/chrome") ? "/opt/pw-browsers/chromium-1194/chrome-linux/chrome" : undefined);
 const target = process.argv[2] || "/home/user/SBM/index.html";
-const browser = await chromium.launch({ executablePath: CHROME });
+const browser = await launch();
 const page = await browser.newPage({ viewport: { width: 1500, height: 950 } });
 page.setDefaultTimeout(240000);
 const errors = [];
