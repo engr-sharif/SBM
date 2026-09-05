@@ -1535,13 +1535,37 @@ body.field .modal .mbox{width:min(96vw,560px);max-height:88vh}
 
 /* the 3D elevation legend (§3.2) — the site's own range in the hypsometric
    ramp the 2D elevation tint uses */
+/* pointer-events:none, because it is a LEGEND: #v3dNav itself passes pointer
+   events through and only its controls take them, and a strip of colour that
+   swallowed a touch meant for the model would be a control that does nothing. */
 #v3dElevLeg{display:flex;flex-direction:column;align-items:center;gap:3px;
-  margin-top:6px;padding:5px 4px;border-radius:var(--r2);
+  margin-top:6px;padding:5px 4px;border-radius:var(--r2);pointer-events:none;
   background:rgba(14,20,24,.62);border:1px solid var(--line);
   font-size:9.5px;color:var(--mut)}
 #v3dElevLeg .elbar{width:9px;height:74px;border-radius:2px;border:1px solid rgba(0,0,0,.5)}
 #v3dNav .navbtn.active{background:var(--accdim);border-color:var(--acc);color:var(--acc2)}
-=======
+
+/* FIELD MODE STRIPS THE TWO NEW 3D CONTROLS, and this is not a cosmetic
+   preference — it is a bug fix with a number on it. The 3D canvas on a phone is
+   412 x 653; #v3dNav is anchored bottom-right, so every row added to it grows
+   the column UPWARDS. The "Look at…" row (44 px) and the elevation legend
+   (~120 px) together took its top edge from y 542 to y 378 — past the middle of
+   the canvas — and the second finger of a two-finger pinch, which lands at the
+   canvas centre, came down on a nav button instead of the model. Its
+   `pointerdown` went to that button, the rig never saw a second touch pointer,
+   `touches.size` stayed 1 and the pinch could not dolly (test/e2e_field.mjs).
+   On a phone neither control earns its space anyway: double-tap already
+   re-targets the camera, and a 120-px legend is exactly what field mode exists
+   to remove. Keep any FUTURE #v3dNav row behind this same rule. */
+body.field #v3dLookRow,
+body.field #v3dElevLeg,
+/* v17: the on-screen nav pad obeys exactly the same rule, and for exactly the
+   same reason. It is a TABLET affordance — on a phone the two-finger pinch and
+   the double-tap already do zoom and tilt, the action bar is where the thumbs
+   are, and a fourth 44-px row would put #v3dNav's top edge back through the
+   middle of a 412 x 653 canvas, which is the bug this rule exists to prevent. */
+body.field #v3dNav .navpad{display:none !important}
+
 /* ====================================================================== */
 /* v16 layer tree                                                          */
 /* ---------------------------------------------------------------------- */
@@ -1831,7 +1855,10 @@ body.touch:not(.field) .vtx.mid{width:20px !important;height:20px !important;
 /* only under body.touch — the command-bar button and the 3D nav pad */
 .touchonly{display:none !important}
 body.touch .touchonly{display:flex !important}
-body.touch .navpad{display:flex !important}
+/* the nav pad is a TABLET control, so it is shown by body.touch and taken away
+   again by the `body.field #v3dNav .navpad` rule above — see the note there.
+   `:not(.field)` here as well, so the two rules cannot fight over specificity. */
+body.touch:not(.field) .navpad{display:flex !important}
 
 /* --- the layer tree's hover toolbar gets a tap path (§5) ---------------- */
 /* On the desktop `.ltacts` appears on :hover. A finger has no hover, so under

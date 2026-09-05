@@ -736,6 +736,7 @@ SBMM.viewer3d = (function () {
         rec.lift = spec.liftPx == null ? LBL_LIFT_PX : spec.liftPx;
         rec.priority = spec.priority == null ? 50 : spec.priority;
         rec.sprite.userData.pick = spec.pick || undefined;
+        rec.sprite.userData.layer = spec.layer || undefined;
         continue;
       }
       if (rec) { disposeLabel(rec); labels3d.delete(k); }
@@ -745,6 +746,10 @@ SBMM.viewer3d = (function () {
       sp.renderOrder = 22;
       sp.frustumCulled = false;
       if (spec.pick) sp.userData.pick = spec.pick;
+      /* §3.1: a single-point text annotation's ONLY object in 3D is its chip,
+         so the chip has to carry the layer tag or the parity table finds the
+         row empty and is right to say so */
+      if (spec.layer) sp.userData.layer = spec.layer;
       const lpos = new Float32Array(6);
       const lg = new THREE.BufferGeometry();
       const attr = new THREE.BufferAttribute(lpos, 3);
@@ -1460,15 +1465,25 @@ SBMM.viewer3d = (function () {
              deduped and collision-managed like every other label */
           OVL.push({ key: "dim:" + f.id, text: fmt(dist2d(f.pts[0], f.pts[1]), 1) + " ft",
                      color: colCss, x: mx, y: my, z: drapeZ(mx, my, 6) + ZMID,
-                     priority: sel ? 70 : 55, pick: { kind: "feature", fid: f.id } });
+                     priority: sel ? 70 : 55, pick: { kind: "feature", fid: f.id },
+                     layer: { g: "mywork", l: SBMM.myWork.classOf(f) } });
           continue;
         }
         if (f.type === "text") {
           if (f.pts.length > 1) overlayGroup.add(own(addShadow(SHW, drapedLine(f.pts, col, false, 3)), f));
           const [tx, ty] = f.pts[0];
+          /* the anchor itself, not just the chip. A single-point annotation's
+             label can lose the 60-chip collision budget, and a feature that is
+             ON and draws NOTHING is exactly what §3.1's parity table exists to
+             catch — it is also what makes a text note clickable in 3D. */
+          const anc = new THREE.Mesh(new THREE.SphereGeometry(sel ? 5 : 3.5, 8, 8),
+            new THREE.MeshLambertMaterial({ color: col, emissive: sel ? 0x554400 : 0x000000 }));
+          anc.position.set(tx - CX, ty - CY, drapeZ(tx, ty, 4));
+          overlayGroup.add(own(anc, f));
           OVL.push({ key: "text:" + f.id, text: (f.props && f.props.text) || f.name || "text",
                      color: colCss, x: tx, y: ty, z: drapeZ(tx, ty, 6) + ZMID,
-                     priority: sel ? 72 : 58, pick: { kind: "feature", fid: f.id } });
+                     priority: sel ? 72 : 58, pick: { kind: "feature", fid: f.id },
+                     layer: { g: "mywork", l: SBMM.myWork.classOf(f) } });
           continue;
         }
         /* v15 §3.1: a cross-section set is a baseline in 2D AND a cut line at
@@ -1486,7 +1501,8 @@ SBMM.viewer3d = (function () {
                          text: SBMM.sections.staLabel ? SBMM.sections.staLabel(R2.sta[st])
                                                       : String(Math.round(R2.sta[st])),
                          color: colCss, x: b[0], y: b[1], z: drapeZ(b[0], b[1], 6) + ZMID,
-                         priority: 35, pick: { kind: "feature", fid: f.id } });
+                         priority: 35, pick: { kind: "feature", fid: f.id },
+                         layer: { g: "mywork", l: SBMM.myWork.classOf(f) } });
           }
           continue;
         }
@@ -1521,7 +1537,8 @@ SBMM.viewer3d = (function () {
                 OVL.push({ key: `pond:${pd.level.toFixed(2)}:${Math.round(c[0] / 10)}:${Math.round(c[1] / 10)}`,
                            text: fmt(pd.level, 1) + " ft · " + fmt(pd.depth_ft, 1) + " ft deep",
                            color: "#9FDCFF", x: c[0], y: c[1], z: pd.level, priority: 60,
-                           pick: { kind: "feature", fid: f.id } });
+                           pick: { kind: "feature", fid: f.id },
+                           layer: { g: "mywork", l: SBMM.myWork.classOf(f) } });
               }
           /* v12: a conduit leg is a STRAIGHT line between its two ends at their
              own elevations — not draped, because the water is under the ground
@@ -1604,7 +1621,8 @@ SBMM.viewer3d = (function () {
         const c = centroid(f.pts);
         OVL.push({ key: "surf:" + f.id, text: f.name || "design surface", color: "#7CD0E6",
                    x: c[0], y: c[1], z: drapeZ(c[0], c[1], 10) + ZMID, priority: 42,
-                   pick: { kind: "feature", fid: f.id } });
+                   pick: { kind: "feature", fid: f.id },
+                   layer: { g: "mywork", l: SBMM.myWork.classOf(f) } });
         continue;
       }
       const m = designMesh(f);
@@ -1801,14 +1819,25 @@ SBMM.viewer3d = (function () {
   function layersDrawn() {
     const out = {};
     if (!scene) return out;
-    scene.traverse(o => {
-      const t = o.userData && o.userData.layer;
-      if (!t) return;
-      let vis = o.visible;
-      for (let p = o.parent; p && vis; p = p.parent) vis = p.visible;
-      if (!vis) return;
-      out[t.g + "/" + t.l] = (out[t.g + "/" + t.l] || 0) + 1;
-    });
+    const add = t => { if (t) out[t.g + "/" + t.l] = (out[t.g + "/" + t.l] || 0) + 1; };
+    for (const root of scene.children) {
+      if (root === labelGroup) continue;          // counted by record, below
+      root.traverse(o => {
+        const t = o.userData && o.userData.layer;
+        if (!t) return;
+        /* a switched-off group is not drawn, and neither is anything under it */
+        let vis = o.visible;
+        for (let p = o.parent; p && vis; p = p.parent) vis = p.visible;
+        if (vis) add(t);
+      });
+    }
+    /* A label's `visible` is a per-FRAME decision — the collision pass, or the
+       chip being off the side of the screen — not a statement about its layer.
+       A text annotation the camera is not pointing at is still drawn by the 3D
+       view, and for a single-point annotation the chip is the ONLY object it
+       has, so the records are what the parity table must count. */
+    for (const rec of labels3d.values())
+      add(rec.sprite.userData && rec.sprite.userData.layer);
     return out;
   }
 
@@ -2061,6 +2090,7 @@ SBMM.viewer3d = (function () {
     function groundAt(x, y) { return pivotAt({ clientX: x, clientY: y }); }
 
     let glide = null;                   // the momentum handle, if one is running
+    let navRec = null;                  // the gesture recogniser, for stats()
     const stopGlide = () => { if (glide) { glide.cancel(); glide = null; } };
 
     dom.addEventListener("pointerdown", e => {
@@ -2119,7 +2149,7 @@ SBMM.viewer3d = (function () {
       const ev = (x, y) => ({ clientX: x, clientY: y, button: 0, pointerId: 1,
                               stopPropagation() {}, preventDefault() {} });
 
-      SBMM.touch.gestures(dom, {
+      navRec = SBMM.touch.gestures(dom, {
         panstart() { stopGlide(); vtxDrag = false; },
 
         pan(g) {
@@ -2284,6 +2314,16 @@ SBMM.viewer3d = (function () {
         requestRender();
       },
       mode() { return st.mode; },
+      /* v15: what the rig thinks the current gesture is, and how many TOUCH
+         pointers it is tracking. A pinch that does not dolly is either "the
+         second pointer never arrived" or "the arithmetic is wrong", and without
+         these two numbers the harness cannot tell those apart.
+
+         v17 kept both and re-pointed them: the `touches` Map they read is gone,
+         because the rig's touch state IS js/touch.js's recogniser now. `st.drag`
+         still answers for the mouse; the recogniser answers for a finger. */
+      dragMode() { return (navRec && navRec.mode()) || st.drag; },
+      touchCount() { return navRec ? navRec.count() : 0; },
       /* place the camera: target point + spherical offset */
       place(tgt, r, theta, phi, instant) {
         st.targetDst.copy(tgt);
@@ -3186,6 +3226,8 @@ SBMM.viewer3d = (function () {
         (n, m) => n + m.geometry.getAttribute("position").count, 0),
       sheetDrapesVisible: !!(sheetGroup && sheetGroup.visible),
       navMode: nav ? nav.mode() : null,
+      navDrag: nav && nav.dragMode ? nav.dragMode() : null,
+      navTouches: nav && nav.touchCount ? nav.touchCount() : 0,
       /* the orbit rig's target state — what a drag or a pinch actually moves.
          Reading the camera position instead would be reading the eased
          FOLLOWER, which lags a gesture by a few frames. */

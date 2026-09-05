@@ -445,9 +445,10 @@ window.SBMM_BUILD="full";
         <button class="navbtn" id="v3dViewSet" title="View settings"><svg class="ic16"><use href="#i-sliders"/></svg></button>
         <button class="navbtn" id="v3dNavHelp" title="Navigation controls"><svg class="ic16"><use href="#i-help"/></svg></button>
       </div>
-      <div class="navrow">
+      <div class="navrow" id="v3dLookRow">
         <!-- v15 §3.2: centre the view on a point you pick, rather than on
-             whatever the last double-click happened to hit -->
+             whatever the last double-click happened to hit. Hidden in field
+             mode with the elevation legend: see the note in css/app.css. -->
         <button class="navbtn wide" id="v3dLookAt" title="Look at — click a point on the terrain to centre the view there">Look at…</button>
       </div>
       <!-- v15 §3.2: the site's own elevation range, in the hypsometric ramp the
