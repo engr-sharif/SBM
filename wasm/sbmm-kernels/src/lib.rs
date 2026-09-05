@@ -92,6 +92,10 @@ pub(crate) unsafe fn su8<'a>(p: *const u8, n: usize) -> &'a [u8] {
     if n == 0 { &[] } else { core::slice::from_raw_parts(p, n) }
 }
 #[inline]
+pub(crate) unsafe fn su32<'a>(p: *const u32, n: usize) -> &'a [u32] {
+    if n == 0 { &[] } else { core::slice::from_raw_parts(p, n) }
+}
+#[inline]
 pub(crate) unsafe fn si32<'a>(p: *const i32, n: usize) -> &'a [i32] {
     if n == 0 { &[] } else { core::slice::from_raw_parts(p, n) }
 }

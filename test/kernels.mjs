@@ -2868,6 +2868,33 @@ function secWasm() {
         "> 0 rings", a.sinks.reduce((n, s) => n + s.rings.length, 0) > 0, "identity");
     exact("no unresolved loops on either core", a.loops + "/" + b.loops, "0/0");
   }
+
+  /* ---- volumeGrid ---------------------------------------------------------
+     THE golden number goes through this one, so it is checked on the ring the
+     golden is measured on and on two of the other bases: the perimeter TIN
+     (the memo method), and a fixed base at the ring's lowest perimeter point,
+     which takes the `fixed` branch and the plane-free path. */
+  {
+    const piles = T.readJSON("data/piles.json");
+    const p1 = piles.find(p => (p.name || "") === "Pile 1 (Fig 2)");
+    const jt = buildVolumeJob(p1.ring.map(p => p.slice()), { baseMode: "tin" });
+    const [a, b, jms, wms] = ab("volume", () => C.runJob("volume", jt.job).result);
+    speed("volume, Pile 1 TIN " + jt.job.nx + "x" + jt.job.ny, jms, wms);
+    identicalResult("volume (perimeter TIN)", a, b,
+      "fill " + (a.fill / 27).toFixed(1) + " yd3 over " + a.n + " cells");
+    /* and it really is the golden, on the core that just computed it */
+    near("the golden through the core", +(b.fill / 27).toFixed(1), 278.4, 10, " yd3");
+
+    const jl = buildVolumeJob(p1.ring.map(p => p.slice()), { baseMode: "lowest" });
+    const [a2, b2, jms2, wms2] = ab("volume+fixed", () => C.runJob("volume", jl.job).result);
+    speed("volume, fixed base", jms2, wms2);
+    identicalResult("volume (fixed base)", a2, b2, "fill " + (a2.fill / 27).toFixed(1) + " yd3");
+
+    const jp = buildVolumeJob(p1.ring.map(p => p.slice()), { baseMode: "plane" });
+    const [a3, b3, jms3, wms3] = ab("volume+plane", () => C.runJob("volume", jp.job).result);
+    speed("volume, least-squares plane", jms3, wms3);
+    identicalResult("volume (plane base)", a3, b3, "fill " + (a3.fill / 27).toFixed(1) + " yd3");
+  }
 }
 
 /* the Herman ring's bbox +/- 800 ft, the window js/water.js cuts for the
