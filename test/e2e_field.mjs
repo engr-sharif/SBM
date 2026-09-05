@@ -364,6 +364,71 @@ if (shutSheet.which !== null || shutSheet.scrim) fail("the Layers sheet did not 
 /* parked: its top edge is at or below the action bar, so none of it is on the stage */
 if (shutSheet.top < shutSheet.barTop) fail("the closed sheet is still on the stage", shutSheet);
 
+/* ===================================================================== */
+/* 4b. the layer TREE inside that sheet (v16, docs/V16_LAYERS_SPEC.md §3) */
+/* ===================================================================== */
+/* 44-px rows, a search box you can tap and type into, and the legend card —
+   which is hidden on a phone screen by design — reachable from the More sheet. */
+await page.tap('#fieldBar .fbtn[data-fa="layers"]');
+await wait(900);
+const treeF = await page.evaluate(() => {
+  const row = document.querySelector("#layers .lyr");
+  const r = row.getBoundingClientRect();
+  const b = row.querySelector(".ltacts .ltb").getBoundingClientRect();
+  const inp = document.getElementById("ltSearch");
+  return {
+    rowH: Math.round(r.height), btn: [Math.round(b.width), Math.round(b.height)],
+    searchFont: parseFloat(getComputedStyle(inp).fontSize),
+    subs: document.querySelectorAll("#layers .lgsub").length,
+    swatch: !!row.querySelector(".ltsw svg"),
+    grip: Math.round(row.querySelector(".ltgrip").getBoundingClientRect().height),
+    legendHidden: getComputedStyle(document.getElementById("mapLegend")).display === "none"
+  };
+});
+console.log(`layer tree (field): rows ${treeF.rowH} px · row buttons ${treeF.btn.join("x")} · `
+  + `search font ${treeF.searchFont} px · ${treeF.subs} sub-groups · swatch ${treeF.swatch} · `
+  + `legend hidden on the map ${treeF.legendHidden}`);
+if (treeF.rowH < 44) fail("layer rows are under 44 px in field mode", treeF);
+if (treeF.btn[0] < 32 || treeF.btn[1] < 32) fail("the row toolbar buttons are too small to tap", treeF);
+if (treeF.searchFont < 15) fail("the layer search box font would make iOS zoom the page", treeF);
+if (!treeF.swatch || !treeF.subs) fail("the tree did not build in the field sheet", treeF);
+if (!treeF.legendHidden) fail("the legend card must be off the map in field mode", treeF);
+
+/* search by tap and type */
+await page.tap("#ltSearch");
+await page.keyboard.type("storm");
+await wait(500);
+const treeFs = await page.evaluate(() => {
+  const shown = [...document.querySelectorAll("#layers .lyr")].filter(r => !r.classList.contains("lthide"));
+  return { shown: shown.length, storm: shown.filter(r => /^storm_/.test(r.dataset.lid)).length,
+           hits: (document.getElementById("ltHits") || {}).textContent };
+});
+console.log(`layer search by tap: ${treeFs.shown} rows shown (${treeFs.storm} storm) · ${treeFs.hits}`);
+if (!treeFs.storm) fail("typing in the layer search found no storm rows", treeFs);
+if (treeFs.shown > 12) fail("the layer search did not filter", treeFs);
+await page.evaluate(() => SBMM.layerTree.search(""));
+await page.touchscreen.tap(206, 120);
+await wait(700);
+
+/* the legend lives in the More sheet on a phone */
+await page.tap('#fieldBar .fbtn[data-fa="more"]');
+await wait(600);
+const moreHasLegend = await page.evaluate(() =>
+  [...document.querySelectorAll("#fieldMore .fmbtn")].map(b => b.dataset.fa).indexOf("legend") >= 0);
+if (!moreHasLegend) fail("the More sheet has no Legend entry");
+await page.tap('#fieldMore .fmbtn[data-fa="legend"]');
+await wait(700);
+const legendF = await page.evaluate(() => {
+  const el = document.getElementById("mapLegend");
+  const r = el.getBoundingClientRect();
+  return { shown: getComputedStyle(el).display !== "none", rows: el.querySelectorAll(".mlr").length,
+           w: Math.round(r.width), vw: innerWidth, body: document.body.className };
+});
+console.log(`legend from More: shown ${legendF.shown} · ${legendF.rows} rows · ${legendF.w} of ${legendF.vw} px wide`);
+if (!legendF.shown || !legendF.rows) fail("the legend did not come up from the More sheet", legendF);
+await page.evaluate(() => SBMM.layerTree.legend.toggle(false));
+await wait(300);
+
 /* a popup becomes a bottom card carrying the SAME js/popups.js html */
 await page.evaluate(() => {
   SBMM.field.closeCard();
@@ -750,8 +815,74 @@ const pinched = await page.evaluate(() => SBMM.viewer3d.stats().orbit.r);
 console.log(`two-finger pinch: orbit radius ${Math.round(r0)} → ${Math.round(pinched)} ft`);
 if (Math.abs(pinched - r0) < r0 * 0.05) fail("a two-finger pinch did not zoom", { r0, pinched });
 
+/* ---- v15 §3.1/§3.3: the parity table on the FIELD rows --------------- */
+/* Same rule as the desktop e2e's block 9y, on the rows this build actually
+   has: a row that is ON must have at least one 3D object tagged with its
+   (group, id). The field build excludes the CAD payloads and the CHM, so those
+   rows are simply not there — which is the payload-tolerance rule working, not
+   a parity gap. */
+const fieldParity = await page.evaluate(async () => {
+  const w = ms => new Promise(r => setTimeout(r, ms));
+  const LS = SBMM.layerState;
+  for (const g of ["framework", "design", "invest", "mywork"]) LS.setGroup(g, true);
+  /* the drainage rows run their job on the first tick (4 ft in this build) */
+  for (let i = 0; i < 120 && SBMM.drainage && !SBMM.drainage.hasResult(); i++) await w(500);
+  await w(2000);
+  SBMM.viewer3d.refreshOverlays();
+  await w(3500);
+  const drawn = SBMM.viewer3d.stats().layersDrawn;
+  const rows = [];
+  for (const g of ["base", "framework", "design", "invest", "cultural", "mywork"])
+    for (const r of LS.list(g))
+      if (r.on) rows.push({ group: g, id: r.id, label: String(r.label || r.id).slice(0, 60),
+                            n: drawn[g + "/" + r.id] || 0 });
+  const live = {};
+  for (const f of SBMM.store.features)
+    if (f.visible !== false) live[SBMM.myWork.classOf(f)] = 1;
+  return { rows, live, labels3d: SBMM.viewer3d.stats().labels3d,
+           labelsVisible: SBMM.viewer3d.stats().labelsVisible,
+           sky: SBMM.viewer3d.stats().sky, sun: SBMM.viewer3d.stats().sun };
+});
+const CAD_BASEMAP_F = /^cad_(contour|parcel|road|bldg|fence|tree|util|env|symbol|misc|topo|du|storm|esc|algn|anno)$/;
+const fieldMissing = fieldParity.rows.filter(r => {
+  if (r.n) return false;
+  if (r.group === "base" && /^(Hillshade|Ortho|Slope|Aspect|Elevation tint)/.test(r.label)) return false;
+  if (r.group === "design" && (r.id === "sheets3d" || r.id === "sheet_footprints")) return false;
+  if (r.group === "design" && /^C-\d|^G-\d/.test(r.label)) return false;
+  if (CAD_BASEMAP_F.test(r.id)) return false;
+  if (r.group === "mywork" && !fieldParity.live[r.id]) return false;
+  return true;
+});
+console.log(`3D parity (field): ${fieldParity.rows.length} rows on, `
+  + `${fieldParity.rows.filter(r => r.n).length} with 3D objects, `
+  + `${fieldMissing.length} missing | 3D labels ${fieldParity.labelsVisible}/${fieldParity.labels3d} `
+  + `| sky ${fieldParity.sky} sun ${JSON.stringify(fieldParity.sun)}`);
+if (fieldMissing.length)
+  fail("3D parity gaps in the field build", fieldMissing.map(r => r.group + "/" + r.id));
+if (!fieldParity.sky) fail("the field build has no 3D sky");
+
 await page.evaluate(() => SBMM.viewer3d.toggle());
 await wait(600);
+
+/* ---- v15 §2.2: the 2D label engine on the phone ---------------------- */
+const fieldLabels = await page.evaluate(async () => {
+  const w = ms => new Promise(r => setTimeout(r, ms));
+  SBMM.map.setView([2128400, 6372600], 0, { animate: false });
+  await w(700);
+  SBMM.labels.place();
+  const b = SBMM.labels.boxes();
+  const over = [];
+  for (let i = 0; i < b.length; i++) for (let j = i + 1; j < b.length; j++) {
+    const x = b[i], y = b[j];
+    if (!(x.right < y.left || y.right < x.left || x.bottom < y.top || y.bottom < x.top))
+      over.push([x.key, y.key]);
+  }
+  return { stats: SBMM.labels.stats(), overlaps: over };
+});
+console.log("2D labels (field):", JSON.stringify(fieldLabels.stats),
+            "| overlaps:", fieldLabels.overlaps.length);
+if (fieldLabels.overlaps.length)
+  fail("two visible labels overlap on the phone", fieldLabels.overlaps.slice(0, 4));
 
 /* ===================================================================== */
 /* 14. boot comparison, full vs field, same box, same descriptor         */

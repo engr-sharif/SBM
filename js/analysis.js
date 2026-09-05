@@ -66,9 +66,14 @@ SBMM.analysis = (function () {
   }
 
   let customGrp = null, customRow = null;
+  /* v15 §3.1: the computed contours in 3D. A contour's level IS its elevation,
+     so nothing is draped — the same trick the survey contour sets use. */
+  let customLines = [];
+  function customContours3d() { return customLines; }
   async function makeCustomContours(interval) {
     if (!(interval > 0.24)) { toast("interval must be ≥ 0.25 ft"); return; }
     if (customGrp) { SBMM.map.removeLayer(customGrp); if (customRow) customRow.remove(); customGrp = null; }
+    customLines = [];
     toast(`generating ${interval}-ft contours…`);
     await new Promise(r => setTimeout(r, 30));
     const grp = L.layerGroup();
@@ -76,6 +81,7 @@ SBMM.analysis = (function () {
     const addSet = (res, color) => {
       for (const [lv, pts] of res.lines) {
         const heavy = Math.abs(lv / heavyEvery - Math.round(lv / heavyEvery)) < 1e-6;
+        customLines.push({ lv, pts, color, heavy });
         L.polyline(pts.map(p => [p[1], p[0]]), { pane: "vectors", color, weight: heavy ? 1.6 : .8, opacity: heavy ? .9 : .55 })
           .bindTooltip(`${lv} ft`, { sticky: true, className: "ctip" }).addTo(grp);
       }
@@ -90,13 +96,15 @@ SBMM.analysis = (function () {
       ? addSet(await contoursFromDem(SBMM.demSite, interval, strideS, `Contours ${interval} ft — site`), "#B08A45")
       : false;
     customGrp = grp;
-    const rowRef = SBMM.addLayerRow("ana", `Contours — ${interval} ft (computed)`, grp, { checked: true, swatch: "#D9A44F" });
+    const rowRef = SBMM.addLayerRow("ana", `Contours — ${interval} ft (computed)`, grp,
+      { id: "contours_custom", checked: true, swatch: "#D9A44F" });
     customRow = rowRef.row;
     if (trA || trS) toast("dense output — some contours truncated; try a larger interval");
     if (interval < 2) toast("interval < 2 ft: drawn for the mine-area window only (site DEM is 2-ft)");
   }
 
-  return { buildComposite, makeCustomContours, demRaster, specFor, contoursFromDem, KIND_NAME };
+  return { buildComposite, makeCustomContours, demRaster, specFor, contoursFromDem,
+           customContours3d, KIND_NAME };
 })();
 
 SBMM.buildAnalysisLayers = function () {

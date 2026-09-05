@@ -1,0 +1,537 @@
+{
+ "note": "Every (group, id) the pre-v16 build registered, dumped from commit 475e302 with the same probe test/e2e.mjs block 9z uses. v16 is a VIEW change: every one of these must still exist afterwards and none may be invented. Folder build and full dist register the same set; the field build does not (no CAD payload), which is why only test/e2e.mjs compares against this.",
+ "commit": "475e302",
+ "count": 88,
+ "keys": [
+  "base/hillshade_site",
+  "base/hillshade_mine_area_1_ft",
+  "base/ortho_abp_3_in",
+  "base/ortho_mine_area_6_in",
+  "base/ortho_site_1_5_ft",
+  "base/contours_site",
+  "base/contours_abp",
+  "base/slope_0_45",
+  "base/aspect_grid_north",
+  "base/elevation_tint",
+  "base/canopy",
+  "base/trees_detected",
+  "framework/dus",
+  "framework/piles",
+  "framework/storm_nodes",
+  "framework/storm_cad",
+  "framework/storm_inferred",
+  "framework/drain_outlet",
+  "framework/drain_first",
+  "framework/drain_paths",
+  "framework/cad_storm",
+  "framework/cad_du",
+  "framework/cad_topo",
+  "framework/cad_bldg",
+  "framework/cad_road",
+  "framework/cad_parcel",
+  "framework/cad_fence",
+  "framework/cad_tree",
+  "framework/cad_util",
+  "framework/cad_env",
+  "framework/cad_symbol",
+  "framework/cad_misc",
+  "design/gis_exc",
+  "design/gis_repo",
+  "design/gis_staging",
+  "design/gis_haul",
+  "design/gis_daylight",
+  "design/gis_grade",
+  "design/gis_lots",
+  "design/gis_ou",
+  "design/gis_parcels",
+  "design/gis_water",
+  "design/gis_bldg",
+  "design/gis_road",
+  "design/gis_fence",
+  "design/gis_util",
+  "design/cad_exc",
+  "design/cad_daylight",
+  "design/cad_grade",
+  "design/cad_staging",
+  "design/cad_haul",
+  "design/cad_esc",
+  "design/cad_algn",
+  "design/cad_anno",
+  "design/cad_contour",
+  "design/pdf_boundaries",
+  "design/sheet_footprints",
+  "design/c_103_lot_13",
+  "design/c_104_lot_15",
+  "design/c_105_lot_19",
+  "design/c_106_lot_25",
+  "design/c_107_southern_residence",
+  "design/c_108_sw_lot",
+  "design/c_109_nw_lot",
+  "design/c_110_lot_31_90",
+  "design/c_111_lots_1_5_and_7_and_eic_repository",
+  "design/c_112_lot_17",
+  "design/c_201_east_temporary_stockpile",
+  "design/c_202_north_lobe",
+  "design/sheets3d",
+  "invest/samples",
+  "invest/soil_borings_2025_geotech_44",
+  "invest/survey_aug_2026_jacobs_24",
+  "invest/monitoring_wells_95",
+  "invest/survey_survey_pipe",
+  "invest/survey_survey_wall",
+  "invest/survey_survey_wall_contour",
+  "invest/survey_survey_pit",
+  "invest/survey_survey_pit_contour",
+  "cultural/iso",
+  "cultural/res",
+  "mywork/drawings",
+  "mywork/measurements",
+  "mywork/sections",
+  "mywork/pads",
+  "mywork/imported",
+  "mywork/water",
+  "mywork/field"
+ ],
+ "rows": [
+  {
+   "group": "base",
+   "id": "hillshade_site",
+   "label": "Hillshade \u2014 site"
+  },
+  {
+   "group": "base",
+   "id": "hillshade_mine_area_1_ft",
+   "label": "Hillshade \u2014 mine area (1 ft)"
+  },
+  {
+   "group": "base",
+   "id": "ortho_abp_3_in",
+   "label": "Ortho \u2014 ABP (3 in)"
+  },
+  {
+   "group": "base",
+   "id": "ortho_mine_area_6_in",
+   "label": "Ortho \u2014 mine area (6 in)"
+  },
+  {
+   "group": "base",
+   "id": "ortho_site_1_5_ft",
+   "label": "Ortho \u2014 site (1.5 ft)"
+  },
+  {
+   "group": "base",
+   "id": "contours_site",
+   "label": "Contours \u2014 10 ft (site)"
+  },
+  {
+   "group": "base",
+   "id": "contours_abp",
+   "label": "Contours \u2014 2 ft (ABP)"
+  },
+  {
+   "group": "base",
+   "id": "slope_0_45",
+   "label": "Slope (0\u201345\u00b0+)"
+  },
+  {
+   "group": "base",
+   "id": "aspect_grid_north",
+   "label": "Aspect (grid north)"
+  },
+  {
+   "group": "base",
+   "id": "elevation_tint",
+   "label": "Elevation tint"
+  },
+  {
+   "group": "base",
+   "id": "canopy",
+   "label": "Canopy height (lidar)"
+  },
+  {
+   "group": "base",
+   "id": "trees_detected",
+   "label": "Trees (detected)"
+  },
+  {
+   "group": "framework",
+   "id": "dus",
+   "label": "Decision units (rev7)"
+  },
+  {
+   "group": "framework",
+   "id": "piles",
+   "label": "Waste piles (topo / Fig-2)"
+  },
+  {
+   "group": "framework",
+   "id": "storm_nodes",
+   "label": "Storm structures (44)"
+  },
+  {
+   "group": "framework",
+   "id": "storm_cad",
+   "label": "Storm conduits \u2014 drawn in CAD / surveyed (15)"
+  },
+  {
+   "group": "framework",
+   "id": "storm_inferred",
+   "label": "Storm conduits \u2014 inferred (11)"
+  },
+  {
+   "group": "framework",
+   "id": "drain_outlet",
+   "label": "Catchments \u2014 by outlet"
+  },
+  {
+   "group": "framework",
+   "id": "drain_first",
+   "label": "Catchments \u2014 by first capture"
+  },
+  {
+   "group": "framework",
+   "id": "drain_paths",
+   "label": "Flow paths (longest per catchment)"
+  },
+  {
+   "group": "framework",
+   "id": "cad_storm",
+   "label": "Drainage and waterways (28)"
+  },
+  {
+   "group": "framework",
+   "id": "cad_du",
+   "label": "Decision units \u2014 CAD linework (19)"
+  },
+  {
+   "group": "framework",
+   "id": "cad_topo",
+   "label": "Existing topography (5)"
+  },
+  {
+   "group": "framework",
+   "id": "cad_bldg",
+   "label": "Buildings and structures (127)"
+  },
+  {
+   "group": "framework",
+   "id": "cad_road",
+   "label": "Roads and paving (228)"
+  },
+  {
+   "group": "framework",
+   "id": "cad_parcel",
+   "label": "Parcels and property (2788)"
+  },
+  {
+   "group": "framework",
+   "id": "cad_fence",
+   "label": "Fences (90)"
+  },
+  {
+   "group": "framework",
+   "id": "cad_tree",
+   "label": "Trees and vegetation \u2014 CAD linework (69)"
+  },
+  {
+   "group": "framework",
+   "id": "cad_util",
+   "label": "Utilities (34)"
+  },
+  {
+   "group": "framework",
+   "id": "cad_env",
+   "label": "Environmental features (15)"
+  },
+  {
+   "group": "framework",
+   "id": "cad_symbol",
+   "label": "Block symbols (survey points, furniture) (15045)"
+  },
+  {
+   "group": "framework",
+   "id": "cad_misc",
+   "label": "Other / uncategorised (145)"
+  },
+  {
+   "group": "design",
+   "id": "gis_exc",
+   "label": "Limits of excavation (15)"
+  },
+  {
+   "group": "design",
+   "id": "gis_repo",
+   "label": "Repository and stockpiles (3)"
+  },
+  {
+   "group": "design",
+   "id": "gis_staging",
+   "label": "Staging, borrow and access (6)"
+  },
+  {
+   "group": "design",
+   "id": "gis_haul",
+   "label": "Haul routes (6)"
+  },
+  {
+   "group": "design",
+   "id": "gis_daylight",
+   "label": "Daylight lines (CAD) (24)"
+  },
+  {
+   "group": "design",
+   "id": "gis_grade",
+   "label": "Grading breaklines (CAD) (47)"
+  },
+  {
+   "group": "design",
+   "id": "gis_lots",
+   "label": "Elem Colony lots (32)"
+  },
+  {
+   "group": "design",
+   "id": "gis_ou",
+   "label": "Operable units (3)"
+  },
+  {
+   "group": "design",
+   "id": "gis_parcels",
+   "label": "Assessor parcels (85)"
+  },
+  {
+   "group": "design",
+   "id": "gis_water",
+   "label": "Water features (19)"
+  },
+  {
+   "group": "design",
+   "id": "gis_bldg",
+   "label": "Buildings and structures (136)"
+  },
+  {
+   "group": "design",
+   "id": "gis_road",
+   "label": "Roads and drives (138)"
+  },
+  {
+   "group": "design",
+   "id": "gis_fence",
+   "label": "Fences and gates (90)"
+  },
+  {
+   "group": "design",
+   "id": "gis_util",
+   "label": "Utilities and poles (198)"
+  },
+  {
+   "group": "design",
+   "id": "cad_exc",
+   "label": "Limits of excavation \u2014 CAD linework (113)"
+  },
+  {
+   "group": "design",
+   "id": "cad_daylight",
+   "label": "Daylight / transition (24)"
+  },
+  {
+   "group": "design",
+   "id": "cad_grade",
+   "label": "Grading breaklines (47)"
+  },
+  {
+   "group": "design",
+   "id": "cad_staging",
+   "label": "Stockpile and staging \u2014 CAD linework (7)"
+  },
+  {
+   "group": "design",
+   "id": "cad_haul",
+   "label": "Haul and access routes \u2014 CAD linework (1)"
+  },
+  {
+   "group": "design",
+   "id": "cad_esc",
+   "label": "Erosion and sediment control (26)"
+  },
+  {
+   "group": "design",
+   "id": "cad_algn",
+   "label": "Alignments (3)"
+  },
+  {
+   "group": "design",
+   "id": "cad_anno",
+   "label": "Annotation and labels (185)"
+  },
+  {
+   "group": "design",
+   "id": "cad_contour",
+   "label": "Contours \u2014 CAD (EA drafting) (3159)"
+  },
+  {
+   "group": "design",
+   "id": "pdf_boundaries",
+   "label": "PDF-extracted boundaries (62 areas, 55 nodes)"
+  },
+  {
+   "group": "design",
+   "id": "sheet_footprints",
+   "label": "Sheet footprints (12)"
+  },
+  {
+   "group": "design",
+   "id": "c_103_lot_13",
+   "label": "C-103 \u00b7 Lot 13"
+  },
+  {
+   "group": "design",
+   "id": "c_104_lot_15",
+   "label": "C-104 \u00b7 Lot 15"
+  },
+  {
+   "group": "design",
+   "id": "c_105_lot_19",
+   "label": "C-105 \u00b7 Lot 19"
+  },
+  {
+   "group": "design",
+   "id": "c_106_lot_25",
+   "label": "C-106 \u00b7 Lot 25"
+  },
+  {
+   "group": "design",
+   "id": "c_107_southern_residence",
+   "label": "C-107 \u00b7 Southern Residence"
+  },
+  {
+   "group": "design",
+   "id": "c_108_sw_lot",
+   "label": "C-108 \u00b7 SW Lot"
+  },
+  {
+   "group": "design",
+   "id": "c_109_nw_lot",
+   "label": "C-109 \u00b7 NW Lot"
+  },
+  {
+   "group": "design",
+   "id": "c_110_lot_31_90",
+   "label": "C-110 \u00b7 Lot 31 90%"
+  },
+  {
+   "group": "design",
+   "id": "c_111_lots_1_5_and_7_and_eic_repository",
+   "label": "C-111 \u00b7 Lots 1, 5 and 7 and EIC Repository"
+  },
+  {
+   "group": "design",
+   "id": "c_112_lot_17",
+   "label": "C-112 \u00b7 Lot 17"
+  },
+  {
+   "group": "design",
+   "id": "c_201_east_temporary_stockpile",
+   "label": "C-201 \u00b7 East Temporary Stockpile"
+  },
+  {
+   "group": "design",
+   "id": "c_202_north_lobe",
+   "label": "C-202 \u00b7 North Lobe"
+  },
+  {
+   "group": "design",
+   "id": "sheets3d",
+   "label": "Sheets draped in 3D"
+  },
+  {
+   "group": "invest",
+   "id": "samples",
+   "label": "Sample results (140)"
+  },
+  {
+   "group": "invest",
+   "id": "soil_borings_2025_geotech_44",
+   "label": "Soil borings (2025 geotech) (44)"
+  },
+  {
+   "group": "invest",
+   "id": "survey_aug_2026_jacobs_24",
+   "label": "Survey \u2014 Aug 2026 (Jacobs) (24)"
+  },
+  {
+   "group": "invest",
+   "id": "monitoring_wells_95",
+   "label": "Monitoring wells (95)"
+  },
+  {
+   "group": "invest",
+   "id": "survey_survey_pipe",
+   "label": "Discharge pipes \u2014 24 in HDPE (surveyed) (2)"
+  },
+  {
+   "group": "invest",
+   "id": "survey_survey_wall",
+   "label": "Sandbag wall \u2014 surveyed outline (5)"
+  },
+  {
+   "group": "invest",
+   "id": "survey_survey_wall_contour",
+   "label": "Sandbag wall \u2014 surveyed contours (8)"
+  },
+  {
+   "group": "invest",
+   "id": "survey_survey_pit",
+   "label": "NW Pit low \u2014 surveyed outline (3)"
+  },
+  {
+   "group": "invest",
+   "id": "survey_survey_pit_contour",
+   "label": "NW Pit low \u2014 surveyed contours (12)"
+  },
+  {
+   "group": "cultural",
+   "id": "iso",
+   "label": "Archaeological isolates (19)"
+  },
+  {
+   "group": "cultural",
+   "id": "res",
+   "label": "Recorded resource areas (44)"
+  },
+  {
+   "group": "mywork",
+   "id": "drawings",
+   "label": "Drawings"
+  },
+  {
+   "group": "mywork",
+   "id": "measurements",
+   "label": "Measurements"
+  },
+  {
+   "group": "mywork",
+   "id": "sections",
+   "label": "Sections"
+  },
+  {
+   "group": "mywork",
+   "id": "pads",
+   "label": "Design pads"
+  },
+  {
+   "group": "mywork",
+   "id": "imported",
+   "label": "Imported"
+  },
+  {
+   "group": "mywork",
+   "id": "water",
+   "label": "Water"
+  },
+  {
+   "group": "mywork",
+   "id": "field",
+   "label": "Field"
+  }
+ ]
+}

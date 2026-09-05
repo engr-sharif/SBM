@@ -451,6 +451,9 @@ SBMM.CadNative = (function () {
         if (f.kind !== "line" && f.kind !== "hatch") continue;
         if (f.coords.length < 2) continue;
         out.push({ ring: f.coords, color: f.color || (spec && spec.color),
+                   /* v15 §3.1: which layer row this ring belongs to, so a 3D
+                      object can be matched against the row that is on */
+                   key, group: SECTION[key] === "design" ? "design" : "framework",
                    z: f.z_min != null });
       }
     }
