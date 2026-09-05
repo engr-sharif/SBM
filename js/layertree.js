@@ -297,6 +297,27 @@ SBMM.layerTree = (function () {
     });
     row.appendChild(acts);
 
+    /* v17 §5: hover has no touch equivalent, so under `body.touch` the toolbar
+       hides behind a visible "..." at the end of the row and this button opens
+       it. The button carries no text — a row's `textContent` is read by several
+       harnesses and by the legend, and the four toolbar glyphs are CSS
+       `content` for exactly that reason. It is in the DOM in every profile
+       (`display:none` off touch) so the tree does not have to be rebuilt when
+       an iPad is put into Split View and back. */
+    const more = document.createElement("button");
+    more.type = "button";
+    more.className = "ltmore";
+    more.setAttribute("aria-label", "Row actions");
+    more.title = "Row actions — opacity, zoom to this layer, solo, what is this?";
+    more.addEventListener("click", e => {
+      e.preventDefault(); e.stopPropagation();
+      const wasOpen = row.classList.contains("ltopen");
+      /* one row at a time: two open toolbars on a narrow dock overlap */
+      for (const r of document.querySelectorAll(".lyr.ltopen")) r.classList.remove("ltopen");
+      row.classList.toggle("ltopen", !wasOpen);
+    });
+    row.appendChild(more);
+
     /* alt-click on the tick box = solo. Registered here, which is BEFORE
        js/cultural.js registers its capture-phase gate on the same element, so
        a plain click still reaches the gate untouched. */

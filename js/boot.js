@@ -64,6 +64,11 @@
     SBMM.chmReady = Promise.resolve(SBMM.chm || null);
     if (!SBMM.chm && $("v3dCanopyLbl")) $("v3dCanopyLbl").style.display = "none";
     lp.textContent = "building workbench…";
+    /* v17 §1: the touch profile FIRST, because `body.touch` changes what every
+       button measures and the top bar's four-stage narrowing is measured, not
+       assumed. It sets a class and nothing else here; SBMM.touch.wire() below
+       does the rest, once the map exists. */
+    SBMM.touch.autoDetect();
     SBMM.shell.wire();
     SBMM.compute.wire();
     SBMM_PERF.mark("wire-shell");
@@ -106,8 +111,15 @@
        device with a narrow viewport, unless a stored preference says otherwise;
        `body.field` is the one switch, and desktop is untouched without it.
        Before SBMM.mode.wire() so the Mode HUD paints once, in the right box. */
+    /* v17 §5a: freehand ink. Before the mode machine, which owns its mode row. */
+    SBMM.redline.wire();
     SBMM.field.autoDetect();
     SBMM.field.wire();
+    /* v17: the gesture surfaces, the loupe, the Done bar, the Help controls and
+       — over http(s) only, never over file:// — the offline copy's service
+       worker. After field.wire() so the profile knows whether the phone half is
+       on, and after initMap() because it wires the map's own long-press. */
+    SBMM.touch.wire();
     SBMM.wireSelection();
     /* the tool-mode machine owns the tool buttons, the cursor, the mode HUD and
        every single-key shortcut (§2) */
