@@ -317,19 +317,27 @@ console.log("\n-- the profile detector --");
   ok("iPad PORTRAIT 834x1194 is still a tablet", T.sniff(), "tablet");
   view(1024, 768); glass(1024, 768);
   ok("an older iPad 1024x768 is a tablet", T.sniff(), "tablet");
+  view(744, 1133); glass(744, 1133);
+  ok("an iPad Mini 744x1133 is a tablet", T.sniff(), "tablet");
   view(507, 834); glass(507, 834);
   ok("Split View 507x834 is a phone", T.sniff(), "phone");
+  /* the numbers PROBED from the descriptors this repo tests against, not
+     invented: a Pixel 7's screen is 412 x 915, and its LONG edge is over the
+     900 threshold — which is why the short edge has to decide */
   view(412, 839); glass(412, 915);
-  ok("a Pixel 7 412x839 is a phone", T.sniff(), "phone");
-  view(839, 412); glass(915, 412);
+  ok("a Pixel 7 (screen 412x915) is a phone", T.sniff(), "phone");
+  view(915, 412); glass(915, 412);
   ok("the same phone in landscape is still a phone", T.sniff(), "phone");
+  ok("its short edge is what says so", T.shortEdge(), 412);
 
   /* the two corrections, each on its own */
+  view(827, 1685); glass(412, 915);
+  ok("a phone whose layout viewport was forced to 827x1685 is a phone", T.sniff(), "phone");
   view(828, 1361); glass(507, 834);
   ok("a layout viewport forced wider than the glass is still a phone", T.sniff(), "phone");
   view(507, 834); glass(1194, 834);
   ok("iPadOS reporting the whole screen to a Split View pane is a phone", T.sniff(), "phone");
-  ok("edge() takes the smaller of the two on each axis", T.edge(), 834);
+  ok("glass() takes the smaller of the two on each axis", T.glass(), [507, 834]);
 
   view(1194, 834); glass(1194, 834);
   T.override("off");

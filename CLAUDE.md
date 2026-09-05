@@ -1523,10 +1523,29 @@ min-content width is ~828, and the browser widens the layout viewport and scales
 the page rather than clip it. So the app measured its own top bar and concluded
 it was on a tablet, which is a self-fulfilling loop: stay a tablet, keep the wide
 bar. `screen` alone is not the answer either — iPadOS reports the whole 1194-px
-screen to a 507-px Split View pane. `edge()` takes the **smaller of the two on
-each axis** and then the longer of those: a page can be laid out wider than the
-glass, and the glass is never wider than the screen. `test/touch_unit.mjs` has
-both cases in isolation. A stored `SBMM.field` preference
+screen to a 507-px Split View pane. `glass()` takes the **smaller of the two on
+each axis**: a page can be laid out wider than the glass, and the glass is never
+wider than the screen.
+
+**And it is the SHORT edge that decides.** Neither edge alone works:
+
+```
+  Pixel 7          412 x 915    short 412   long  915
+  Split View       507 x 834    short 507   long  834
+  iPad portrait    834 x 1194   short 834   long 1194
+  iPad (gen 7)     810 x 1080   short 810   long 1080
+```
+
+v11's "width <= 900" makes an iPad in portrait a phone. The LONG edge alone
+makes a Pixel 7 a tablet, because its screen is 915 tall — `test/e2e_field.mjs`
+caught that one within minutes of the previous fix. What separates the two
+families is the short side: every phone is 400-500, every iPad 770 or more, and
+an iPad pane narrowed to 507 in Split View is genuinely phone-shaped and §1
+wants it treated as one. So **a phone is a screen whose SHORT side is <= 600, or
+whose LONG side is <= 900** — the second clause keeps v11's threshold for
+anything genuinely small in both directions, and 600 sits in the wide gap
+between 507 and 768. `test/touch_unit.mjs` carries every one of those rows with
+the numbers PROBED from the descriptors rather than assumed. A stored `SBMM.field` preference
 beats the viewport in both directions, so the resize handler only follows the
 phone/tablet line when the user has expressed none.
 
