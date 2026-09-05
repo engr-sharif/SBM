@@ -383,9 +383,12 @@ SBMM.layersUI = (function () {
       }
     });
     /* a closed sub-section must still say how many rows it is hiding, or it
-       reads as empty rather than collapsed (F3) */
+       reads as empty rather than collapsed (F3). Since v16 the sub-sections are
+       real sub-groups drawn by js/layertree.js, and two of them hold surface
+       rows rather than layer rows — so the count is the same three-class count
+       the group badge uses. */
     document.querySelectorAll("#layers .lgsub").forEach(sub => {
-      const n = sub.querySelectorAll(".lyr").length;
+      const n = sub.querySelectorAll(".lyr, .surfrow, .refrow[data-sid]").length;
       const badge = sub.querySelector(".subcount");
       const txt = n ? String(n) : "";
       if (badge && badge.textContent !== txt) badge.textContent = txt;
@@ -413,27 +416,25 @@ SBMM.layersUI = (function () {
   function wire() {
     const pane = $("layers");
     if (!pane) return;
+    /* Open/closed used to live in `sbmm_layer_sections` and, since v16, lives in
+       the tree's own record (`sbmm.layertree.v1`) together with the sub-groups,
+       the row order and the presets — one record for "how the tree is arranged"
+       rather than two. The old one is read once and migrated so a user who had
+       groups closed yesterday still has them closed today. */
     let saved = {};
     try { saved = JSON.parse(localStorage.getItem(STORE) || "{}"); } catch (e) { saved = {}; }
-    const save = () => { try { localStorage.setItem(STORE, JSON.stringify(saved)); } catch (e) { /* file:// */ } };
-    const wanted = k => (saved[k] != null ? saved[k] : (OPEN_DEFAULT[k] !== false));
+    const tree = SBMM.layerTree;
+    if (tree) {
+      for (const k in saved) if (tree.openState(k) === undefined) tree.openState(k, saved[k]);
+      try { localStorage.removeItem(STORE); } catch (e) { /* file:// */ }
+      saved = {};
+    }
+    const stored = k => (tree ? tree.openState(k) : saved[k]);
+    const remember = (k, v) => { if (tree) tree.openState(k, v); else { saved[k] = v; try { localStorage.setItem(STORE, JSON.stringify(saved)); } catch (e) {} } };
+    const wanted = k => { const v = stored(k); return v == null ? (OPEN_DEFAULT[k] !== false) : !!v; };
 
-    /* nested sub-sections inside a group (Terrain analysis) */
-    pane.querySelectorAll(".lgsub").forEach(sub => {
-      const key = "sub:" + sub.dataset.sub;
-      const h = sub.querySelector(".subtoggle");
-      const setSubOpen = open => {
-        sub.classList.toggle("closed", !open);
-        h.setAttribute("aria-expanded", open ? "true" : "false");
-      };
-      setSubOpen(wanted(key));
-      const toggle = () => {
-        const open = sub.classList.contains("closed");
-        setSubOpen(open); saved[key] = open; save();
-      };
-      h.onclick = toggle;
-      h.onkeydown = e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(); } };
-    });
+    /* the sub-groups are js/layertree.js's now — it wires every one of them,
+       static or module-declared, with the same collapse and the same record */
 
     pane.querySelectorAll(".lsec").forEach(sec => {
       const key = sec.dataset.sec;
@@ -444,8 +445,7 @@ SBMM.layersUI = (function () {
       const toggle = () => {
         const open = sec.classList.contains("closed");
         setOpen(sec, open);
-        saved[key] = open;
-        save();
+        remember(key, open);
       };
       /* the header collapses the section; the master checkbox and the "manage…"
          button inside it are their own controls and must not also collapse it */
@@ -469,6 +469,10 @@ SBMM.layersUI = (function () {
        trees after detection, datasets on import — so watch rather than count once. */
     obs = new MutationObserver(refreshCounts);
     refreshCounts();
+
+    /* v16: the tree. Last, because it decorates rows that every module above has
+       already registered, restores the user's row order and paints the legend. */
+    if (SBMM.layerTree) SBMM.layerTree.wire();
   }
 
   return { wire, refreshCounts, flyTo, extents };
