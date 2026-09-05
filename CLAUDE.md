@@ -216,6 +216,13 @@ into `test/shots/`; not pass-fail — look at them.
 `test/field_shots.mjs` writes the four v11 field shots (field_map, field_layers,
 field_photo, field_3d) into `test/shots/` on the Pixel 7 descriptor; not pass-fail — look
 at them.
+`test/sheets_shots.mjs` writes the four v9.16 registration shots — each newly placed
+sheet's raster on the orthophoto (`sheet_C102_map`, `sheet_C203_map`) and draped in 3D
+(`sheet_C102_3d`, `sheet_C203_3d`) — into `test/shots/`; not pass-fail, and the point of
+them is that **a sheet whose linework does not sit on the ortho's own features there is
+not registered whatever its residuals say**. It turns the 1.5 ft site ortho on first,
+because both of those sheets are south of the 6-inch mine-area ortho and that row is off
+by default.
 `test/v9_shots.mjs` writes the §11 audit shots (2D, 3D, split, a sheet window with a mark,
 the cultural acknowledgement, the Layer manager, the isopach) into `test/shots/`;
 `test/phaseB_shots.mjs` writes the sheet-viewer / layers / dataset screenshots. Neither is
@@ -498,8 +505,10 @@ layer defaults **off** and each boundary with a native counterpart carries
 - **The four unregisterable sheets are solved by native geometry, not by registration.**
   C-102 (staging area), C-202 (North Lobe) and C-203 (borrow area) all have exact native
   polygons; C-101 is a site *index* sheet with no unique geometry of its own. The geometry
-  is what mattered. Since v9.1 the native polygon has also *placed* C-202's raster (see
-  "Registering from native geometry" below); C-101, C-102 and C-203 remain unplaced.
+  is what mattered. The native polygons have since *placed* three of those rasters too —
+  C-202 in v9.1, C-102 and C-203 in v9.16 (see "Registering from native geometry" below).
+  **C-101 is the one plan sheet still unplaced**, and it has no native geometry to place it
+  with.
 - **Geometry beats EA's layer names.** `C-SITE-DU-LOT-13` and `C-SITE-DU-LOT-15` are
   swapped in EA's CAD with respect to both the lot polygons and the sheet subjects. The
   builder labels from lot containment + the delivered sheet list and flags the conflict on
@@ -566,10 +575,11 @@ layer defaults **off** and each boundary with a native counterpart carries
 sends GIS/CAD, use it — it is exact, and it is how the four unregisterable sheets got
 covered. The notes below stay because the next set may again be PDFs only.
 
-12 sheets are registered; C-101, C-102 and C-203 are not, and README records exactly why
-for each. If you attempt one of those, the traps below are the whole problem — unless the
-sheet draws a polygon that exists in EA's geodatabase, in which case use the native method
-at the end of this section instead.
+**14 sheets are registered; C-101 is not**, and README records exactly why. If you attempt
+it, the traps below are the whole problem — unless the sheet draws a polygon that exists in
+EA's geodatabase, in which case use the native method at the end of this section instead.
+C-101 has no such polygon: it is a site *index* sheet, mostly sheet-boundary rectangles and
+text.
 
 - **`/VP` is an AutoCAD `/RL` *scale* measure, not GeoPDF `/GEO`.** It looks like
   georeferencing and is not. It does give the exact plan scale — use it, and *lock* it.
@@ -615,9 +625,56 @@ Numbers for C-202 are in README and in the sheet's `design_ea.json` record.
   raster and the 3D drape are the *grading* plan only — two plans of one footprint cannot
   both be draped. `affine_source: "native"` on the record tells `build_sheet_affine.py`
   to leave it alone (its crop-vs-page correlation would keep only the primary viewport).
-- C-102 and C-203 are the next candidates: both have exact native polygons. C-203's is a
-  symmetric 90 × 120 ft rectangle, so the ortho check has to break a four-fold ambiguity
-  there rather than merely confirm.
+### C-102 and C-203 (v9.16) — many features, a null, and an ambiguity table
+
+`tools/register_sheet_native.py C-102` / `C-203`. Same tool, same rules, three additions.
+Numbers, per-feature residuals and the ambiguity table are in README and in each sheet's
+`design_ea.json` record. **Five things here will be walked into again:**
+
+- **A fit takes as many native features as the plan draws.** C-102's control is FIVE
+  polygons of five different shapes — staging area, two borrow-soil staging areas, gravel
+  area, construction entrance — fitted together as ONE rigid transform: 127 vertices against
+  four unknowns. The record carries a per-feature residual breakdown, and it is the useful
+  diagnostic: the solid boundaries land at 0.00 ft, the silt-fence and hatch boundaries at
+  ~1 ft, and that is what a correct fit on this sheet looks like. C-102 prints **no
+  coordinate table at all**, so the native geometry is the only ground control it has ever
+  had.
+- **These sheets are drawn OVER an aerial photograph, so absolute "ink darkness" means
+  nothing.** A random placement inside the plan already scores 0.26–0.34. The tool therefore
+  measures 400 random placements of the same control inside the same plan viewport and gates
+  on the **z-score** (`MIN_DARK_Z = 5`) as well as an absolute floor: C-102 is z 7.4, C-203
+  z 11.9. Do not re-introduce a single global `MIN_DARKNESS`; C-202's solid black limit of
+  excavation scores 0.99 and C-102's silt fence 0.62, and both are right.
+- **A bare rectangle peaks nowhere; the sheet's own printed detail is control.** C-203's
+  borrow area is a 90 × 120 ft axis-aligned rectangle and the 360° sweep answers ±90° (the
+  sheet's own borders). Its work sequence prints "MEASURING 15 FEET X 15 FEET WITHIN 90-FT X
+  120-FT BORROW AREA" and the plan draws that 6 × 8 grid: with the grid in the control the
+  sweep answers −30.000° and its 180° twin, and 28 vertices of heavy ink decide the
+  translation instead of four. **And it needs `coarse_ds: 2`** — at the default 4 the 15 ft
+  grid lines (8.7 px) blur into the sheet's orthogonal borders and the sweep answers +90.
+- **An ambiguity is scored, not argued away.** `ambiguity:` lists the rival rotations; each
+  is refined the same way and scored on the fit darkness, on CONFIRMATION features that took
+  no part in the fit (`confirm:` — for C-203 the access haul route and the staging area), and
+  on the orthophoto. The accepted rotation must win **every** column, and the ortho must
+  separate it by 1.5×. Note which columns actually do the work: fit darkness barely separates
+  the 90° rivals (0.876 vs 0.770), because a 15 ft grid matches itself under a quarter turn.
+  Two traps inside this: `affine_of()` must take the rival's rotation (reading `rot` from the
+  closure gave every rival the accepted sheet's rotation, and the ortho column then said
+  0.63 for all four), and the confirmation features are compared BETWEEN candidates only —
+  the C-102 haul route sits on a drawn WHITE road band with hatch only at its edges, so its
+  absolute darkness says nothing.
+- **Both sheets are south of `ortho_mine`** (which starts at N 2,127,238), so the independent
+  check runs against the 1.5 ft site ortho. The tool picks the finest ortho that covers the
+  sheet, and `--calibrate` reruns the same check over the twelve already-registered sheets:
+  they agree to **0.00–3.16 ft** (median 2.0) and both new sheets land at 2.24 ft, which is
+  why `MAX_AGREE_FT` is 3.5 and why the number is scored in GROUND feet at the ortho's own
+  resolution rather than in sheet pixels.
+- **The crop mask must be hole-FILLED.** For a single-viewport sheet whose plan touches the
+  border, the viewport is found from the aerial's own colour component (`viewport_detect:
+  "colour"`) and `crop_mask: "plan"` uses that component as the raster's alpha. Used raw it
+  punches holes through the overlay wherever the photograph is not colourful — dark tree
+  crowns, shadows, the white label boxes. `binary_fill_holes` then dilate; what is wanted is
+  the plan's outline.
 
 ## v9 additions (agent B: cultural resources, 3D picking, sheet marking, watermark)
 

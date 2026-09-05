@@ -17,6 +17,52 @@ All three are offline-only by design. Nothing in this app calls out to the inter
 
 ---
 
+## v9.16 — the staging area and the borrow area go on the map
+
+The two plan sheets you asked for are now placed. **Fourteen of the twenty drawings are on
+the map**, up from twelve:
+
+- **C-102 — Staging Area.** The contractor's yard, the two borrow-soil staging areas, the
+  gravel area, the construction entrance and the silt-fence limits, laid over the
+  orthophoto and drapeable on the 3D terrain, with a footprint you can click on the map to
+  open the drawing — and marks you make inside the sheet window now come out on the map,
+  which they could not before.
+- **C-203 — Borrow Source Demonstration Area.** The 90 × 120 ft borrow area with its 15 ft
+  demonstration cells, and the whole haul route from the borrow area to the stockpile,
+  placed the same way.
+
+**How, and why you can rely on it.** This sheet set carries no georeferencing, and both of
+these sheets defeated every earlier attempt: C-102 prints no coordinate table at all, and
+C-203's four printed corners are a plain rectangle so symmetric that a fit to them is
+ambiguous under a half turn. EA's June-2026 geodatabase is what changed that — a native
+polygon is a node table with every vertex surveyed. C-102 is fitted from **five** of them at
+once (the staging area, both borrow-soil staging areas, the gravel area and the construction
+entrance — 127 vertices deciding four unknowns); C-203 from the borrow rectangle plus the
+15 ft cell grid its own work sequence specifies inside it.
+
+The rule this repository has always used for a sheet still holds: **two independent lines of
+evidence, or it does not get placed.** Rotation is swept with the scale locked to the
+sheet's own plan scale; the free scale then came back **0.02 %** from that nominal on both
+sheets, which is a check rather than a knob. The independent confirmation is the app's own
+orthophoto, which knows nothing about the drawings: it moves each sheet **2.24 ft**, against
+**0.00–3.16 ft** for the twelve sheets whose answer was already known and 60–130 ft for a
+wrong placement. Per-vertex agreement with the drawn linework is a median of **0.52 ft** on
+C-102 (its solid boundaries land at 0.00 ft; the silt fence and the gravel hatch are the
+loose ones) and **0.00 ft** on all four of C-203's printed corners.
+
+For C-203 the half-turn ambiguity is not argued away, it is scored: the accepted rotation
+has to win a table against every rival, and it does — decisively on the two features that
+took **no** part in the fit (the access haul route and the staging area) and, separately, on
+the orthophoto, where the runner-up scores 0.009 against 0.650. The table is printed in the
+README and stored in the drawing's own record.
+
+**C-101, the site index sheet, is still not placed** and probably never will be: it is
+mostly sheet-boundary rectangles and text, it has no unique geometry of its own in EA's
+files, and there is nothing on it that imagery can lock onto. It is still fully readable in
+the sheet viewer, like every other drawing in the set.
+
+---
+
 ## v9.15 — the tests, made quick
 
 You asked why a round takes "hours and hours". Measured on the cloud box: a desktop
