@@ -20,10 +20,18 @@ What it reads
                                 the report printed at the end. NOT baked into the
                                 payload: the app computes rims from SBMM.elev on
                                 boot so they follow the DEM stack.
-  data/storm_survey.csv         OPTIONAL — the manhole/invert survey when it comes:
-                                id, invert_ft, rim_ft, size_in, material, status
-                                (any column may be blank). Overrides by node or
-                                conduit id. Re-run this tool, then build_dist.
+  data/storm_survey.csv         OPTIONAL — the manhole/invert survey when it comes.
+                                The v19 intake format (docs/V19_HYDRO3_SPEC.md §3):
+                                  node_id, invert_ft, rim_ft, diameter_in,
+                                  material, date, source
+                                and the original v12 spelling is still accepted
+                                (id / size_in / status / provenance). Any column
+                                may be blank; a row overrides the node OR the
+                                conduit of that id. data/storm_survey.csv.example
+                                is a template with one row per thing the pipe
+                                hydraulics currently cannot answer. Re-run this
+                                tool, then build_dist — js/pipes.js then rates
+                                every conduit whose two ends both have an invert.
 
 What is inferred, and says so on the feature (`source`):
   pond_culvert    the culvert between the two ponds (Spot 5 -> Spot 1); no CAD structure
@@ -284,14 +292,23 @@ def main():
     if os.path.exists(csvp):
         with open(csvp, newline="") as f:
             for row in csv.DictReader(f):
-                tid = (row.get("id") or "").strip()
+                # v19 §3 names the columns node_id / diameter_in / date / source;
+                # v12 named them id / size_in / provenance. Both are read, so a
+                # sheet written to either spelling lands.
+                g = lambda *names: next(((row.get(n) or "").strip() for n in names
+                                         if (row.get(n) or "").strip()), "")
+                tid = g("node_id", "id", "conduit_id")
                 tgt = next((n for n in nodes if n["id"] == tid), None) or next((c for c in conduits if c["id"] == tid), None)
                 if not tgt: print(f"  storm_survey.csv: no node or conduit named {tid!r}"); continue
-                for k in ("invert_ft", "rim_ft", "size_in"):
-                    if (row.get(k) or "").strip(): tgt[k] = float(row[k])
-                for k in ("material", "status"):
-                    if (row.get(k) or "").strip(): tgt[k] = row[k].strip()
-                tgt["provenance"] = row.get("provenance") or "Jacobs storm-structure survey"
+                for k, names in (("invert_ft", ("invert_ft",)), ("rim_ft", ("rim_ft",)),
+                                 ("size_in", ("diameter_in", "size_in"))):
+                    v = g(*names)
+                    if v: tgt[k] = float(v)
+                for k, names in (("material", ("material",)), ("status", ("status",))):
+                    v = g(*names)
+                    if v: tgt[k] = v
+                src, when = g("source", "provenance"), g("date")
+                tgt["provenance"] = (src or "Jacobs storm-structure survey") + (f" ({when})" if when else "")
                 overrides += 1
 
     ids = [n["id"] for n in nodes]

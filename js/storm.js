@@ -117,6 +117,12 @@ SBMM.storm = (function () {
     const n = byId[id];
     if (!n) return null;
     if (n.invert_ft != null) return n.invert_ft;
+    /* v19: a SURVEYED rim baked into the payload beats the lidar. The only way
+       one gets there is data/storm_survey.csv through
+       tools/build_storm_network.py, and a measured elevation is better than a
+       computed one. No node has one today, so this is inert and every v12/v14
+       golden stands exactly where it was. */
+    if (n.rim_ft != null) return n.rim_ft;
     return rims[id] == null ? null : rims[id];
   }
   /* ---- the SUNKEN INLET (ruling, Sep 2026) ---------------------------------
