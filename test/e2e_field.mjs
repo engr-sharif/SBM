@@ -837,7 +837,10 @@ if (Math.abs(pinched - r0) < r0 * 0.05) fail("a two-finger pinch did not zoom", 
              cover: !!(window.SBMM_DATA && SBMM_DATA.cover_png),
              rows: ["runoff_cover", "runoff_depth"]
                .map(id => !!document.querySelector(`.lyr[data-lid="${id}"]`)),
-             cardSays: card ? card.textContent.replace(/\s+/g, " ").slice(0, 1400) : null };
+             /* the assumptions table sits well past any sane slice, so the
+                grid is read from the WHOLE card and only the head is printed */
+             cardGrid: card ? /4-ft lidar grid/.test(card.textContent) : false,
+             cardSays: card ? card.textContent.replace(/\s+/g, " ").slice(0, 240) : null };
   });
   const wall = Date.now() - t0;
   console.log(`\ndesign storm (field): ${JSON.stringify(S)} in ${(wall / 1000).toFixed(1)} s`);
@@ -848,7 +851,7 @@ if (Math.abs(pinched - r0) < r0 * 0.05) fail("a two-finger pinch did not zoom", 
   if (S.outlets < 3) fail("the field design storm found no catchments", S);
   if (!(S.volume > 0)) fail("the field design storm produced no runoff volume", S);
   if (S.grid !== 4) fail("the field storm did not run over the 4-ft map", S);
-  if (!/4-ft lidar grid/.test(S.cardSays || "")) fail("the field storm card does not name the grid", S.cardSays);
+  if (!S.cardGrid) fail("the field storm card does not name the 4-ft grid", S.cardSays);
   if (wall > 60000) fail("the field design storm took over 60 s", wall);
 }
 
