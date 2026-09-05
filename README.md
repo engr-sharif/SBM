@@ -1435,8 +1435,8 @@ map, the CSV and the GeoJSON.
 
 **D8 is what runs by default and D-infinity is one button away.** D8's values ARE
 the contributing area TR-55's 5-acre rule names, it is the method the identity is
-exact for, and it draws 109 stream links where D-infinity's dispersion draws
-1,563; D-infinity (Tarboton 1997) is the better picture of how water spreads on a
+exact for, and it draws 108 stream links where D-infinity's dispersion draws
+more than 1,500; D-infinity (Tarboton 1997) is the better picture of how water spreads on a
 hillslope and agrees with the map to 2.1 %. Every card, popup and export says
 which one produced the number.
 
@@ -1446,7 +1446,7 @@ area into a flow, and since v19 it reads this raster instead of approximating it
 Recorded, 2-ft grid, storm drains assumed working: 978.49 surveyed acres, all of
 which leave the model exactly once; 197.82 ac through the largest cell (the last
 cell before the impoundment leaves through the surveyed south pipe); 109 stream
-links, 12.10 mi, orders 1/2/3/4 = 17,840 / 6,504 / 2,091 / 187 cells; no loops
+links, 12.10 mi, orders 1/2/3/4 = 17,840 / 6,504 / 2,089 / 187 cells; no loops
 and no flats at 2 ft or at 4 ft. About 12 s at 2 ft, 3 s at 4 ft; the field build
 runs it at 4 ft and says so.
 
