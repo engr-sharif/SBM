@@ -146,6 +146,124 @@ var SBMM_COMPUTE = (function SBMMComputeModule() {
     return [slope, aspect];
   }
 
+  /* ======================= the WASM core (v21) ============================
+     docs/V21_WASM_SPEC.md. The kernels below stay exactly as they are — they
+     are the reference and the fallback, and every golden is measured on them.
+     What this section adds is a second implementation of the hot loops, built
+     from wasm/sbmm-kernels/ and shipped as base64 in datajs/w_kernels.js, and
+     a thin guard at the top of each ported kernel that uses it when it is
+     there.
+
+     THREE RULES, and each of them is why something below looks the way it does.
+
+     * NOTHING IS FETCHED. The module arrives as BYTES — the host decodes the
+       payload once and hands a copy to each worker at creation (js/jobs.js), so
+       this works over file:// exactly as it works over http, and in the folder
+       build exactly as in the single-file dist. There is no URL anywhere here.
+     * A FAILURE IS THE JAVASCRIPT PATH, NEVER AN ERROR. Instantiation is
+       feature-detected and wrapped; a refusal warns once on the console and
+       leaves `W` null, and every guard below then falls through to the JS.
+     * VIEWS ARE MADE AFTER THE ALLOCATION, NEVER BEFORE. Growing linear memory
+       detaches every existing typed-array view onto it with no error at all —
+       the array simply reads as length 0. So `w32()` and friends are called
+       after the last `wAlloc` of a call, and re-called after any later one. */
+
+  var W = null;              /* the instantiated exports, or null */
+  var wForce = false;        /* the Help switch / SBMM_WASM=0 */
+  var wWarned = false;
+  var wMeta = null;
+
+  function wasmAvailable() { return !!W && !wForce; }
+  function wasmBackend() { return wasmAvailable() ? "wasm" : "js"; }
+  function wasmForce(v) { wForce = !!v; return wasmBackend(); }
+  function wasmInfo() {
+    return { backend: wasmBackend(), loaded: !!W, forcedJs: wForce,
+             version: wMeta && wMeta.version || null,
+             bytes: wMeta && wMeta.wasm_bytes || 0 };
+  }
+
+  function wasmAccept(inst, meta) {
+    var e = inst && inst.exports;
+    if (!e || !e.memory || typeof e.alloc !== "function" || typeof e.api_version !== "function") return false;
+    if (e.api_version() !== 9) {                       /* must equal VERSION */
+      if (typeof console !== "undefined") console.warn("SBMM wasm kernels: api " + e.api_version() + " != 9 — using the JavaScript kernels");
+      return false;
+    }
+    W = e; wMeta = meta || null;
+    return true;
+  }
+  function wasmFail(err) {
+    W = null;
+    if (!wWarned && typeof console !== "undefined") {
+      wWarned = true;
+      console.warn("SBMM wasm kernels unavailable — using the JavaScript kernels:", (err && err.message) || err);
+    }
+    return false;
+  }
+  /* Synchronous compile: legal in a Worker and in node at any size, and the 4 kB
+     main-thread limit is exactly why the async form below exists beside it. */
+  function wasmInitSync(bytes, meta) {
+    try {
+      if (typeof WebAssembly === "undefined" || !WebAssembly.Module) return wasmFail("no WebAssembly");
+      return wasmAccept(new WebAssembly.Instance(new WebAssembly.Module(bytes), {}), meta) || wasmFail("rejected");
+    } catch (e) { return wasmFail(e); }
+  }
+  function wasmInit(bytes, meta) {
+    try {
+      if (typeof WebAssembly === "undefined" || !WebAssembly.instantiate) return Promise.resolve(wasmFail("no WebAssembly"));
+      return WebAssembly.instantiate(bytes, {}).then(function (r) {
+        return wasmAccept(r.instance, meta) || wasmFail("rejected");
+      }, function (e) { return wasmFail(e); });
+    } catch (e) { return Promise.resolve(wasmFail(e)); }
+  }
+
+  /* ---- linear-memory helpers -------------------------------------------- */
+  var wHeld = [];            /* [ptr, bytes] to give back at the end of a call */
+  function wAlloc(bytes) {
+    var p = W.alloc(bytes >>> 0);
+    if (!p) throw new Error("wasm alloc failed");
+    wHeld.push([p, bytes >>> 0]);
+    return p;
+  }
+  function wRelease() {
+    for (var i = wHeld.length - 1; i >= 0; i--) W.free(wHeld[i][0], wHeld[i][1]);
+    wHeld.length = 0;
+  }
+  function w8(p, n) { return new Uint8Array(W.memory.buffer, p, n); }
+  function w32(p, n) { return new Int32Array(W.memory.buffer, p, n); }
+  function wf32(p, n) { return new Float32Array(W.memory.buffer, p, n); }
+  function wf64(p, n) { return new Float64Array(W.memory.buffer, p, n); }
+  /* copy a typed array in and answer its pointer */
+  function wPutF32(a) { var p = wAlloc(a.length * 4 || 4); if (a.length) wf32(p, a.length).set(a); return p; }
+  function wPutF64(a) { var p = wAlloc(a.length * 8 || 8); if (a.length) wf64(p, a.length).set(a); return p; }
+  function wPutI32(a) { var p = wAlloc(a.length * 4 || 4); if (a.length) w32(p, a.length).set(a); return p; }
+  function wPutU8(a)  { var p = wAlloc(a.length || 1);     if (a.length) w8(p, a.length).set(a); return p; }
+  /* the variable-length output arena, as a DataView-free byte copy */
+  function wOut() {
+    var n = W.out_len();
+    return new Uint8Array(W.memory.buffer, W.out_ptr(), n).slice();
+  }
+
+  /* ---- fillDem ------------------------------------------------------------
+     The one ported piece three kernels share (flowpath, overtop, drainage), and
+     the only value it writes is a copy of a z, a copy of a level or an f32 of a
+     caller's f64 sink key — no arithmetic — so the port is bit-identical to the
+     JavaScript by construction, NaN cells included. */
+  function wasmFillDem(z, w, h, sinks, parentOut) {
+    try {
+      var n = w * h, ns = sinks ? sinks.length : 0, k;
+      var si = new Int32Array(ns), sk = new Float64Array(ns);
+      for (k = 0; k < ns; k++) { si[k] = sinks[k][0]; sk[k] = sinks[k][1]; }
+      var pz = wPutF32(z), pi = wPutI32(si), pk = wPutF64(sk);
+      var pf = wAlloc(n * 4), pp = parentOut ? wAlloc(n * 4) : 0;
+      W.fill_dem(pz, w, h, pi, pk, ns, pf, pp);
+      var F = new Float32Array(wf32(pf, n));            /* copy out */
+      if (parentOut) parentOut.set(w32(pp, n));
+      wRelease();
+      return F;
+    } catch (e) { wRelease(); return wasmFail(e), null; }
+  }
+
   /* ============================ base surfaces ============================= */
   /* Perimeter TIN with a uniform grid index — the ABP memo Attachment E method.
      The Delaunay triangulation itself is done by the host (d3-delaunay lives in
@@ -1733,6 +1851,12 @@ var SBMM_COMPUTE = (function SBMMComputeModule() {
      else; absent, not one value below changes and not one extra byte is
      touched, which is what keeps every v10/v12/v13 water golden where it is. */
   function fillDem(z, w, h, onProgress, p0, p1, sinks, parentOut) {
+    /* v21 dispatch — the WASM port of everything below (docs/V21_WASM_SPEC.md).
+       A null answer means the module refused and the JavaScript runs. */
+    if (wasmAvailable()) {
+      var Fw = wasmFillDem(z, w, h, sinks, parentOut);
+      if (Fw) { if (onProgress) onProgress(p1); return Fw; }
+    }
     var n = w * h, F = new Float32Array(n), closed = new Uint8Array(n);
     var H = heapNew(1 << 15), q = new Int32Array(n), qh = 0, qt = 0;
     var i, j, k, t, ni, nj, vi, edge;
@@ -3758,7 +3882,16 @@ var SBMM_COMPUTE = (function SBMMComputeModule() {
     scope.onmessage = function (ev) {
       var msg = ev.data || {};
       var id = msg.id;
-      if (msg.type === "ping") { scope.postMessage({ id: id, type: "pong" }); return; }
+      if (msg.type === "ping") { scope.postMessage({ id: id, type: "pong", backend: wasmBackend() }); return; }
+      /* v21: the module BYTES, handed over at worker creation. Compiling here
+         is synchronous, which a Worker allows at any size, so every job that
+         arrives after this message sees the core already installed. */
+      if (msg.type === "wasm") {
+        var ok = msg.bytes ? wasmInitSync(msg.bytes, msg.meta) : false;
+        if (msg.forceJs) wasmForce(true);
+        scope.postMessage({ id: id, type: "wasmok", ok: !!ok, backend: wasmBackend() });
+        return;
+      }
       var last = -1;
       var onProgress = function (p) {
         var q = Math.round(p * 20);
@@ -3778,6 +3911,15 @@ var SBMM_COMPUTE = (function SBMMComputeModule() {
   var api = {
     VERSION: 9,
     runJob: runJob,
+    /* v21: the WASM core. `wasmInit` is the main thread's (async compile),
+       `wasmInitSync` the worker's and node's; `wasmForce(true)` is the Help
+       switch and SBMM_WASM=0, and it is the ONE way to get the JavaScript
+       path on a build that has the module. */
+    wasmInit: wasmInit,
+    wasmInitSync: wasmInitSync,
+    wasmForce: wasmForce,
+    wasmBackend: wasmBackend,
+    wasmInfo: wasmInfo,
     volumeGrid: volumeGrid,
     isopachGrid: isopachGrid,
     demRasterRGBA: demRasterRGBA,
