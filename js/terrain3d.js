@@ -54,9 +54,20 @@
 SBMM.terrain3d = (function () {
 
   const N = 256;                    // tile pixels
-  const V = N + 1;                  // mesh vertices per side (trap 1)
   const MAX_TILES = 40;
   const MAX_VERTS = 3.2e6;
+
+  /* QUALITY DRIVES TWO THINGS, AND IT HAS TO DRIVE BOTH.
+     The level a tile is selected at is a function of the CAMERA, so at some
+     views 4 px and 2 px legitimately pick the same set — and "standard is
+     coarser than high" then stops being true, which e2e block 9a-2 asserts and
+     which a user changing the setting is entitled to see. So the per-tile
+     vertex stride is quality's too: standard samples every 2nd pixel of the
+     tile (129 x 129), high and ultra every pixel (257 x 257). Since a coarser
+     target can never select MORE tiles, standard is now strictly fewer
+     vertices than high at every camera, by construction rather than by luck. */
+  function meshStep(targetPx) { return targetPx >= 4 ? 2 : 1; }
+  function vertsPerSide(step) { return N / step + 1; }
 
   let ctx = null;                   // set by attach()
   let style = "ortho";
@@ -232,11 +243,14 @@ SBMM.terrain3d = (function () {
   /* 257 x 257 (trap 1) plus a skirt: a copy of the border ring dropped below
      the surface, so the seam between two levels is covered by geometry rather
      than by luck. */
-  function buildGeometry(z32, z, x, y) {
+  function buildGeometry(z32, z, x, y, step) {
     const cell = SBMM.tiles.cellOf(z);
     const r = SBMM.tiles.rect(z, x, y);
     const { CX, CY, ZMID } = ctx.center();
-    const zAt = (i, j) => z32[Math.min(N - 1, j) * N + Math.min(N - 1, i)];
+    const V = vertsPerSide(step);
+    /* the extra row and column sit ON the tile edge and repeat the last
+       sample, so two tiles at the same level abut exactly (trap 1) */
+    const zAt = (i, j) => z32[Math.min(N - 1, j * step) * N + Math.min(N - 1, i * step)];
     const nv = V * V;
     const pos = new Float32Array((nv + 4 * V) * 3);
     const uv = new Float32Array((nv + 4 * V) * 2);
@@ -245,10 +259,10 @@ SBMM.terrain3d = (function () {
       for (let i = 0; i < V; i++) {
         const k = j * V + i;
         const zz = zAt(i, j);
-        const px = r[0] + i * cell, py = r[1] + j * cell;
+        const px = r[0] + i * step * cell, py = r[1] + j * step * cell;
         pos[k * 3] = px - CX; pos[k * 3 + 1] = py - CY;
         pos[k * 3 + 2] = (isNaN(zz) ? ZMID : zz) - ZMID;
-        uv[k * 2] = i / N; uv[k * 2 + 1] = j / N;
+        uv[k * 2] = i / (V - 1); uv[k * 2 + 1] = j / (V - 1);
         if (!isNaN(zz)) { good++; if (zz < lo) lo = zz; if (zz > hi) hi = zz; }
       }
     }
@@ -267,7 +281,7 @@ SBMM.terrain3d = (function () {
     if (!idx.length) return null;
     /* the skirt: four strips, each vertex a copy of its border neighbour
        dropped by a few cells */
-    const drop = Math.max(8, cell * 3);
+    const drop = Math.max(8, cell * step * 3);
     let s = nv;
     const edge = [
       { get: i => i, step: 1 },                    // south, j = 0
@@ -300,7 +314,7 @@ SBMM.terrain3d = (function () {
     g.setIndex(idx);
     g.computeVertexNormals();
     g.computeBoundingSphere();
-    return { geom: g, verts: nv, tris: idx.length / 3, zlo: lo, zhi: hi };
+    return { geom: g, verts: nv, side: V, tris: idx.length / 3, zlo: lo, zhi: hi };
   }
 
   /* ----------------------------------------------------------- selection -- */
@@ -380,7 +394,8 @@ SBMM.terrain3d = (function () {
     /* A frustum that misses every root tile (the camera inside the terrain, or
        parked outside it) must not blank the view: fall back to the roots. */
     if (!out.length) for (const [x, y] of root.tiles) out.push([zMax, x, y]);
-    if (out.length * V * V > MAX_VERTS) overflow = true;
+    const vs = vertsPerSide(meshStep(targetPx));
+    if (out.length * vs * vs > MAX_VERTS) overflow = true;
     return { list: out, overflow };
   }
 
@@ -425,7 +440,9 @@ SBMM.terrain3d = (function () {
       let sel = select(targetPx), guard = 0;
       while (sel.overflow && guard++ < 6) { targetPx *= 1.5; stat.raisedFor++; sel = select(targetPx); }
       stat.selects++;
-      const sig = style + "|" + targetPx + "|" + sel.list.map(t => t.join("/")).sort().join(",");
+      const step = meshStep(targetPx);
+      const sig = style + "|" + targetPx + "|" + step + "|"
+        + sel.list.map(t => t.join("/")).sort().join(",");
       if (!force && sig === lastSig) return false;
 
       const t0 = performance.now();
@@ -443,10 +460,10 @@ SBMM.terrain3d = (function () {
       const L = SBMM.tiles.layerInfo("dem") || {};
       for (const [k, t, rec] of loaded) {
         if (!rec || !rec.z32) continue;
-        const g = buildGeometry(rec.z32, t[0], t[1], t[2]);
+        const g = buildGeometry(rec.z32, t[0], t[1], t[2], step);
         if (!g) continue;
         const r = { key: k, z: t[0], x: t[1], y: t[2], geom: g.geom, verts: g.verts,
-                    tris: g.tris, zlo: g.zlo, zhi: g.zhi,
+                    side: g.side, step, tris: g.tris, zlo: g.zlo, zhi: g.zhi,
                     bytes: g.geom.getAttribute("position").array.byteLength };
         if (style === "ortho" || !gpuRaster) {
           r.mat = new THREE.MeshLambertMaterial({ color: 0xffffff });
@@ -549,8 +566,9 @@ SBMM.terrain3d = (function () {
     /* the records viewer3d keeps in `terrainMeshes`, in its own shape, so
        raycasting, the relief slider and stats() go on working unchanged */
     records() {
-      return [...drawn.values()].map(r => ({ mesh: r.mesh, nx: V, ny: V, stride: 1,
-                                             dem: SBMM.demSite, tile: [r.z, r.x, r.y] }));
+      return [...drawn.values()].map(r => ({ mesh: r.mesh, nx: r.side, ny: r.side,
+                                             stride: r.step, dem: SBMM.demSite,
+                                             tile: [r.z, r.x, r.y] }));
     },
     meshes() { return [...drawn.values()].map(r => r.mesh); },
     gpuRaster: () => gpuRaster,
@@ -568,6 +586,7 @@ SBMM.terrain3d = (function () {
         finestLevel: drawn.size ? finest : null, finestCellFt: drawn.size ? Math.pow(2, finest) : null,
         coarsestLevel: drawn.size ? coarsest : null, byLevel,
         style, targetPx: ctx ? ctx.quality() : null,
+        meshStep: ctx ? meshStep(ctx.quality()) : null,
         gpuRaster, webgl2, maxTiles: MAX_TILES, ...stat
       };
     },
