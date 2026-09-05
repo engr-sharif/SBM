@@ -88,6 +88,11 @@ await page.evaluate(() => {
     if (svg) { svg.style.transform = "scale(1.6)"; svg.style.transformOrigin = "left top"; }
   }
   SBMM.shell.setRightTab("results");
+  /* the card is taller than the panel and the chart is its last element, so the
+     PANE is scrolled to it — never scrollIntoView, which scrolls the page and
+     takes every absolutely positioned thing in the app with it (CLAUDE.md) */
+  const body = document.getElementById("resBody");
+  if (body) body.scrollTop = body.scrollHeight;
 });
 await wait(1200);
 await shot("runoff_hydrograph");
