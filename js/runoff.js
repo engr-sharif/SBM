@@ -473,8 +473,19 @@ SBMM.runoff = (function () {
      from. The chain is read off the network rather than named here: a pond
      whose conduit discharges INSIDE another routed pond is upstream of it. */
   async function routeAll(D) {
-    const wanted = R.first.filter(c => c.kindSrc === "pond" && c.pondRef
-                                    && c.pondRef.area_ft2 > 20000);
+    /* WHICH ponds get routed: the ones EA's own water layer NAMES. Every
+       depression on the lidar is a "pond" to the drainage map — there are 60 of
+       them and a dozen are over half an acre — and routing each one costs an
+       `overtop` run and puts a row reading "Depression · E 6,371,956, N
+       2,129,970" on the card. The named water bodies are the ones a drainage
+       report is about (Herman, Frog, Green, the Northwest Pit), they are the
+       ones with a stage table worth the arithmetic, and the card says that is
+       what it routed. */
+    const wanted = R.first
+      .filter(c => c.kindSrc === "pond" && c.pondRef && c.pondRef.area_ft2 > 20000
+                && waterRingAt(c.pondRef.entry[0], c.pondRef.entry[1]))
+      .sort((a, b) => b.area_ft2 - a.area_ft2)
+      .slice(0, 6);
     if (!wanted.length) return [];
     const out = [];
     const tables = new Map();
@@ -490,6 +501,7 @@ SBMM.runoff = (function () {
       const T = await SBMM.water.stageTable(wr
         ? { ring: wr.ring, name: wr.name }
         : { point: p.entry, name: c.name });
+      if (wr) c.name = wr.name;
       if (!T || !T.stage || !T.stage.length) continue;
       tables.set(c.label, T);
     }
@@ -620,8 +632,10 @@ SBMM.runoff = (function () {
       <tr><td class="k"><b>pond (level-pool)</b></td><td class="v"><b>peak ft</b></td>
           <td class="v"><b>freeboard</b></td><td class="v"><b>t peak h</b></td><td class="v"><b>outcome</b></td></tr>
       ${rowsH}</table>
-      <div class="note">Outlet ratings: a broad-crested weir over the rim (Q = 3.0·L·H^1.5). A conduit with
-      no surveyed size or invert passes its inflow — capacity unknown, survey pending.</div></div>`;
+      <div class="note">The named water bodies only — every lidar depression is a pond, and the
+      ones worth routing are the ones EA's water layer names. Outlet ratings: a broad-crested weir
+      over the rim (Q = 3.0·L·H^1.5). A conduit with no surveyed size or invert passes its inflow —
+      capacity unknown, survey pending.</div></div>`;
   }
   function assumptionRows() {
     const st = R.settings, a = R.assumptions;

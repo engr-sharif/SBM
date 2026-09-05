@@ -5244,6 +5244,10 @@ if (Date.now() - rainT0 > 60000) { console.log("FAIL: the design storm took over
 if (!rainRun.card) { console.log("FAIL: no Design storm results card"); process.exit(1); }
 if (rainRun.catchmentRows < 4) { console.log("FAIL: fewer than four catchment rows"); process.exit(1); }
 if (rainRun.pondRows < 3) { console.log("FAIL: fewer than three pond routing rows"); process.exit(1); }
+/* the routed ponds are the NAMED water bodies, not all 60 lidar depressions */
+if (!rainRun.routing.every(r => !/^Depression · /.test(r.name)))
+  { console.log("FAIL: an unnamed lidar depression was routed:",
+                rainRun.routing.filter(r => /^Depression · /.test(r.name)).map(r => r.name)); process.exit(1); }
 if (!rainRun.everyCN) { console.log("FAIL: a catchment has no curve number"); process.exit(1); }
 if (!rainRun.hasHydro) { console.log("FAIL: a catchment has no hydrograph"); process.exit(1); }
 if (!rainRun.chart) { console.log("FAIL: the card has no hydrograph chart"); process.exit(1); }
