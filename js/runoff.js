@@ -181,6 +181,22 @@ SBMM.runoff = (function () {
           }
         }
         cover = { data: out, w, h, cell: meta.grid.cell, x0: meta.grid.x0, y0: meta.grid.y0 };
+        /* the 3D drape texture. The payload is 4,850 x 4,450 — 21.6 M pixels,
+           86 MB of RGBA on the GPU for a picture nobody reads at that scale —
+           so the drape gets a nearest-neighbour reduction to 2,048 px with
+           smoothing OFF, which keeps the class colours flat and therefore
+           readable against the legend. */
+        try {
+          const MAXPX = 2048;
+          const k = Math.min(1, MAXPX / Math.max(w, h));
+          const tw = Math.max(1, Math.round(w * k)), th = Math.max(1, Math.round(h * k));
+          const cv = document.createElement("canvas");
+          cv.width = tw; cv.height = th;
+          const g2 = cv.getContext("2d");
+          g2.imageSmoothingEnabled = false;
+          g2.drawImage(g.canvas, 0, 0, w, h, 0, 0, tw, th);
+          cover.thumbUrl = cv.toDataURL("image/png");
+        } catch (e) { cover.thumbUrl = null; }
         return cover;
       } catch (e) {
         console.warn("cover raster decode failed", e);
@@ -840,6 +856,52 @@ SBMM.runoff = (function () {
   }
 
   /* ------------------------------------------------------------------ */
+  /* 3D (v15 §3.1 parity)                                                */
+  /* ------------------------------------------------------------------ */
+  /* The cover raster IS a raster over the ground, so in 3D it is a drape —
+     the same mechanism the isopach heat map and the rim band use, registered
+     in js/viewer3d.js DRAPES. `layer` is what tags the mesh with this row, so
+     the parity table can see it: a drape is added to the scene rather than to
+     the overlay group, and an untagged one would read as "this row draws
+     nothing in 3D". */
+  function drapeSpec() {
+    if (!on("runoff_cover")) return null;
+    const meta = COVER();
+    const url = (cover && cover.thumbUrl) || DATA().cover_png;
+    if (!meta || !url) return null;
+    const b = meta.bounds;
+    return { url, bounds: [b.x0, b.y0, b.x1, b.y1],
+             layer: { g: "framework", l: "runoff_cover" } };
+  }
+
+  /* The runoff-depth choropleth in 3D: the same catchment boundaries the
+     drainage map drapes, coloured by this storm's runoff instead of by outlet.
+     js/drainage.js `groundRuns` is reused rather than copied — a boundary that
+     reaches the survey limit has no ground under the rest of it, and a closed
+     drape there stands up as a 70-ft curtain over Clear Lake. */
+  function rings3d() {
+    if (!R || !on("runoff_depth") || !SBMM.drainage || !SBMM.drainage.hasResult()) return [];
+    const D = SBMM.drainage.result(), runsOf = SBMM.drainage.groundRuns;
+    const out = [];
+    for (const s of D.sinks) {
+      const c = R.outlets.find(q => q.label === s.label);
+      if (!c || !s.rings) continue;
+      const props = { layer: "RUNOFF-DEPTH", catchment: c.name,
+                      storm: R.storm.name, rainfall_in: R.storm.P,
+                      curve_number: +fmt(c.cn, 1), runoff_in: +c.Q_in.toFixed(2),
+                      volume_acft: +c.volume_acft.toFixed(2),
+                      peak_scs_cfs: c.qPeak_cfs, tc_min: c.tc_min,
+                      source: "SBMM design storm v14 Phase 2" };
+      for (const ring of s.rings)
+        for (const run of (runsOf ? runsOf(ring) : [ring]))
+          out.push({ ring: run, color: depthColor(c.Q_in), width: 3, closed: false,
+                     label: c.label, props,
+                     geom: { type: "LineString", coordinates: run } });
+    }
+    return out;
+  }
+
+  /* ------------------------------------------------------------------ */
   /* cover overrides — "draw a cover area"                               */
   /* ------------------------------------------------------------------ */
   function assignCover(key, f) {
@@ -981,14 +1043,20 @@ SBMM.runoff = (function () {
     }
     if (SBMM.events) {
       SBMM.events.on("layers", ({ group, layer }) => {
-        if (group === "framework" && layer === "runoff_cover" && overlay)
+        if (group !== "framework") return;
+        if (layer === "runoff_cover" && overlay)
           overlay.setOpacity(SBMM.layerState.opacity("framework", "runoff_cover"));
+        if ((layer === "runoff_cover" || layer === "runoff_depth") && SBMM.viewer3d
+            && SBMM.viewer3d.isOpen && SBMM.viewer3d.isOpen()) {
+          if (SBMM.viewer3d.refreshDrapes) SBMM.viewer3d.refreshDrapes();
+          if (SBMM.viewer3d.refreshOverlays) SBMM.viewer3d.refreshOverlays();
+        }
       });
     }
   }
 
   return {
-    build, wire, cmd, dialog, run, report, csv,
+    build, wire, cmd, dialog, run, report, csv, drapeSpec, rings3d,
     assignCover, drawCoverArea, overrides, classes, classByKey, coverRaster,
     storms, stormOf, depthFor, idfFor, provisional, settings,
     result: () => R, hasResult: () => !!R, isBuilt: () => built,
