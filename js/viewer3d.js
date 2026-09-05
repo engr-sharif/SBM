@@ -108,6 +108,10 @@ SBMM.viewer3d = (function () {
                           Math.max(0.08, Math.sin(el)) * d);
     const lab = $("v3dSunVal");
     if (lab) lab.textContent = Math.round(sunAz) + "° / " + Math.round(sunEl) + "°";
+    /* v20 §4: the shader rasters carry the sun as a uniform, so moving it
+       relights the whole terrain without recomputing a single raster — which
+       is what v15 asked for and what a CPU raster could never do */
+    if (SBMM.terrain3d) SBMM.terrain3d.setSun(sunAz, sunEl);
     requestRender();
   }
   function setSun(az, el, remember) {
@@ -121,6 +125,40 @@ SBMM.viewer3d = (function () {
   const exag = () => parseFloat($("v3dExag").value);
 
   function strideFor(dem, maxDim) { return Math.max(1, Math.ceil(Math.max(dem.m.w, dem.m.h) / maxDim)); }
+
+  /* v20 §3 — the quadtree terrain. `lodOn` says which of the two terrain
+     builders owns the meshes: the tile quadtree in js/terrain3d.js, or the
+     whole-DEM meshes below (still the fallback, and still what a build with no
+     tile index gets). `terrainMeshes` holds the same {mesh, nx, ny, dem} shape
+     either way, so the raycast, the relief slider and stats() do not branch. */
+  let lodOn = false, lodDirty = false, lodMoveAt = 0;
+  const LOD_SETTLE_MS = 140;
+  /* the detail picker is a screen-space error budget now: 4 px / 2 px / 1 px.
+     The two old values keep their names and their meaning (std is coarser than
+     high) because they are a remembered preference and three harnesses read
+     them. */
+  function qualityPx() {
+    const d = $("v3dDetail"), v = d ? d.value : "high";
+    return v === "std" ? 4 : v === "ultra" ? 1 : 2;
+  }
+  function lodAvailable() {
+    if (!SBMM.terrain3d || !SBMM.terrain3d.available()) return false;
+    if (SBMM.view && SBMM.view.pref && SBMM.view.pref("terrainTiles") === false) return false;
+    return true;
+  }
+  function lodContext() {
+    return {
+      scene, camera, renderer,
+      center: () => ({ CX, CY, ZMID }),
+      exag, requestRender, maxAniso,
+      quality: qualityPx,
+      zRange: () => SBMM._zrSite || SBMM.demSite.zRange(),
+      onSwap: () => {
+        terrainMeshes = SBMM.terrain3d.records();
+        SBMM._v3dVerts = terrainMeshes.reduce((n, t) => n + t.nx * t.ny, 0);
+      }
+    };
+  }
 
   /* The rectangle a finer DEM occupies, in State Plane feet — a coarser mesh
      punches a hole here so the two do not z-fight. */
@@ -292,6 +330,13 @@ SBMM.viewer3d = (function () {
   }
 
   async function setStyle(kind) {
+    if (lodOn) {
+      await SBMM.terrain3d.setStyle(kind);
+      terrainMeshes = SBMM.terrain3d.records();
+      SBMM._v3dVerts = terrainMeshes.reduce((n, t) => n + t.nx * t.ny, 0);
+      requestRender();
+      return;
+    }
     for (const t of terrainMeshes) {
       const which = whichFor(t.dem);
       const { tex, bounds } = await texture(kind, which);
@@ -1866,12 +1911,27 @@ SBMM.viewer3d = (function () {
   }
 
   async function rebuildTerrain(style) {
-    for (const t of terrainMeshes) {
+    /* the quadtree owns its own geometry — disposing it from here would pull
+       the meshes out from under it */
+    if (lodOn) { SBMM.terrain3d.detach(); lodOn = false; }
+    else for (const t of terrainMeshes) {
       scene.remove(t.mesh);
       t.mesh.geometry.dispose();
       t.mesh.material.dispose();
     }
     terrainMeshes = [];
+    if (lodAvailable()) {
+      lodOn = true;
+      SBMM.terrain3d.attach(lodContext());
+      SBMM.terrain3d.setSun(sunAz, sunEl);
+      await SBMM.terrain3d.setStyle(style || $("v3dStyle").value);
+      await SBMM.terrain3d.update(true);
+      terrainMeshes = SBMM.terrain3d.records();
+      SBMM._v3dVerts = terrainMeshes.reduce((n, t) => n + t.nx * t.ny, 0);
+      lodDirty = false;
+      requestRender();
+      return;
+    }
     const maxDim = detailMaxDim();
     /* One mesh per DEM, coarsest first, each one holed by every finer window
        ahead of it in SBMM.dems. Built in reverse stack order so the loop below
@@ -2553,6 +2613,11 @@ SBMM.viewer3d = (function () {
     camera = new THREE.PerspectiveCamera(55, 1, 5, 90000);
     camera.up.set(0, 0, 1);
     camera.position.set(0, -4000, 3200);
+    /* the quadtree selects against the frustum, and the frustum is nonsense
+       until the camera has been aimed once. nav overrides this on its first
+       update; without it the opening selection sees an identity view matrix. */
+    camera.lookAt(0, 0, 0);
+    camera.updateMatrixWorld();
 
     hemiLight = new THREE.HemisphereLight(0xC9E2F0, 0x2B3238, 0.85);
     scene.add(hemiLight);
@@ -2571,11 +2636,13 @@ SBMM.viewer3d = (function () {
     envGroup.scale.z = exag();
     scene.add(envGroup);
 
-    await rebuildTerrain("ortho");
-
     raycaster = new THREE.Raycaster();
     nav = makeNav(renderer.domElement);
     nav.setFromCamera();
+    /* the terrain is built AFTER the rig (v20 §3): the quadtree picks its
+       levels from the frustum, so it needs the camera the user will actually
+       be looking through, not the one three.js constructed */
+    await rebuildTerrain("ortho");
     /* Hand the scene to the pick registry BEFORE the first rebuildOverlays, so
        the objects that rebuild makes are registered as it makes them (§8). */
     if (SBMM.pick3d) SBMM.pick3d.attach({
@@ -2697,6 +2764,16 @@ SBMM.viewer3d = (function () {
         }
       }
       const moved = nav.update();
+      /* v20 §3, trap 4: the quadtree re-selects on a SETTLED camera, never per
+         frame. update() returns without asking for a frame when the drawn set
+         has not changed, which is what keeps an idle view at zero renders. */
+      if (lodOn) {
+        if (moved) { lodMoveAt = performance.now(); lodDirty = true; }
+        else if (lodDirty && performance.now() - lodMoveAt > LOD_SETTLE_MS) {
+          lodDirty = false;
+          SBMM.terrain3d.update();
+        }
+      }
       if (moved || needsRender) {
         needsRender = false;
         renderCount++;
@@ -2718,6 +2795,7 @@ SBMM.viewer3d = (function () {
     $("v3dExag").oninput = () => {
       const zx = exag();
       terrainMeshes.forEach(t => t.mesh.scale.z = zx);
+      if (lodOn) SBMM.terrain3d.setExag(zx);
       if (canopyMesh) canopyMesh.scale.z = zx;
       if (overlayGroup) overlayGroup.scale.z = zx;
       if (contourGroup) contourGroup.scale.z = zx;
@@ -3199,6 +3277,12 @@ SBMM.viewer3d = (function () {
     return {
       detail: $("v3dDetail") ? $("v3dDetail").value : null,
       terrainVerts: terrainMeshes.reduce((n, t) => n + t.nx * t.ny, 0),
+      /* v20 §3: which terrain builder owns the meshes, and what the quadtree
+         is drawing — tiles, the finest level reached, triangles and bytes */
+      terrainLod: lodOn,
+      terrainQualityPx: qualityPx(),
+      tiles: lodOn ? SBMM.terrain3d.stats() : null,
+      tileCache: SBMM.tiles && SBMM.tiles.ready() ? SBMM.tiles.stats() : null,
       sceneObjects: scene ? scene.children.length : 0,
       contourDrawCalls: (() => {
         let n = 0;
