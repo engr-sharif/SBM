@@ -6267,15 +6267,23 @@ treeMissing = treeBase.keys.filter(k => !treeKeys.has(k));
 /* Rows this HARNESS created after boot are the only legitimate additions: the
    CSV datasets block 9f imports (invest) and the contour set the analysis block
    generates (base). Anything new anywhere else would be a row v16 invented.
-   ONE exemption beyond those, and it is a dated one: the two design-storm rows
-   (v14 Phase 2, v9.13) were added to the app AFTER this baseline was dumped
-   from commit 475e302, so they are absent from the fixture by construction
-   rather than by accident. The fixture is not edited — a baseline that gets
-   rewritten every release stops being a baseline. */
+   Two DATED exemptions beyond those, and dated is what makes them exemptions
+   rather than a hole: both are rows the app grew AFTER this baseline was
+   dumped from commit 475e302, so they are absent from the fixture by
+   construction rather than by accident. The fixture is not edited — a baseline
+   that gets rewritten every release stops being a baseline.
+     · the two design-storm rows (v14 Phase 2, v9.13);
+     · the C-102 and C-203 sheet-raster rows (v9.16). Every registered plan
+       sheet gets one per-sheet raster row under "Sheets (draped)", and those
+       two sheets were placed from EA's native geometry after the baseline was
+       taken — so this is the twelve rows the fixture already carries becoming
+       fourteen, not an invented row. */
 treeNew = tree.keys.filter(k => treeBase.keys.indexOf(k) < 0);
 treeUnexplained = treeNew.filter(k => !/^invest\//.test(k) && !/^base\/contours_/.test(k)
                                          && k !== "framework/runoff_cover"
-                                         && k !== "framework/runoff_depth");
+                                         && k !== "framework/runoff_depth"
+                                         && k !== "design/c_102_staging_area"
+                                         && k !== "design/c_203_borrow_source_demonstration_area");
 console.log("layer tree:", tree.rows.length, "rows in the state,", tree.domRows, "in the DOM,",
             tree.subs.length, "sub-groups |", tree.swatches, "symbology swatches |",
             "baseline", treeBase.keys.length, "rows — missing", treeMissing.length,
