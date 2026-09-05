@@ -1,8 +1,7 @@
-import { chromium } from "playwright";
+import { launch } from "./lib/browser.mjs";
 import { existsSync as __ex } from "node:fs";
 import { unlock } from "./gate.mjs";
-const CHROME = process.env.CHROME_BIN || (__ex("/opt/pw-browsers/chromium-1194/chrome-linux/chrome") ? "/opt/pw-browsers/chromium-1194/chrome-linux/chrome" : undefined); // undefined = Playwright's own chromium
-const b = await chromium.launch({ executablePath: CHROME });
+const b = await launch();
 const p = await b.newPage({ viewport: { width: 1500, height: 950 } });
 await unlock(p);  /* the password gate — see test/gate.mjs */
 await p.goto("file:///home/claude/repo/index.html");

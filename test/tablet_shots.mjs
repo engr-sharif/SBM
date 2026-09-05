@@ -16,7 +16,8 @@
 
    Run it ALONE — one software-GL renderer at a time on this box.
 */
-import { chromium, devices } from "playwright";
+import { devices } from "playwright";
+import { launch, TIMEOUT } from "./lib/browser.mjs";
 import { pathToFileURL as __furl } from "node:url";
 import { resolve as __res, dirname } from "node:path";
 import { existsSync, mkdirSync } from "node:fs";
@@ -27,18 +28,15 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = __res(HERE, "..");
 const OUT = __res(HERE, "shots");
 mkdirSync(OUT, { recursive: true });
-const CHROME = process.env.CHROME_BIN
-  || (existsSync("/opt/pw-browsers/chromium-1194/chrome-linux/chrome")
-      ? "/opt/pw-browsers/chromium-1194/chrome-linux/chrome" : undefined);
 
 const target = process.argv[2] || __res(ROOT, "index.html");
 const IPAD = { ...devices["iPad Pro 11 landscape"], isMobile: true, hasTouch: true };
 delete IPAD.defaultBrowserType;
 
-const browser = await chromium.launch({ executablePath: CHROME });
+const browser = await launch();
 const ctx = await browser.newContext({ ...IPAD });
 const page = await ctx.newPage();
-page.setDefaultTimeout(180000);
+page.setDefaultTimeout(TIMEOUT);
 await unlock(page);
 await page.goto(__furl(__res(target)).href);
 await page.waitForSelector("#loading", { state: "hidden", timeout: 300000 });
