@@ -323,6 +323,25 @@ table at the end. Read the table, not the scrollback.
    deleted by the tool.
 6. Bump `RELEASE_NOTES_v<N>.md`, update CLAUDE.md / this file where behaviour changed.
 
+## v20 — the terrain tiles, and what regenerating them costs
+
+`datajs/tiles/` (2,311 files, 52 MB) is a generated payload like `datajs/` itself, and
+`python tools/build_tiles.py` is the generator. It reads `data/*.png|jpg` — the repo's
+own rasters — and takes about 35 minutes; the tile index records that the masters were
+not available on the build box, and re-running it against the masters changes that
+string with it. **`python tools/build_tiles.py --reindex` rewrites only
+`datajs/tiles/index.js`, from the tiles already on disk, in seconds** — that is the one
+to run when the RENDERER learns something new about the pyramid rather than the data
+changing.
+
+The single-file builds do NOT carry the tiles (they already hold the whole rasters and
+cut tiles out of them in memory), so `tools/build_dist.py` is unchanged and both dists
+are the size they were.
+
+Two harnesses came with it: `node test/tiles.mjs` (node, 30 s — it is in `--quick`) and
+`node test/terrain3d.mjs <abs path> folder` (browser, ~90 s). Shots:
+`node test/terrain_shots.mjs <abs path to index.html>`.
+
 ## Source data that is NOT in this repo (on the user's machine)
 
 - `SBMM\LiDAR and Aerial Survey Data\_staging\master_1ft.f32` (+ CHM) — the master rasters

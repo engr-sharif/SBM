@@ -769,9 +769,9 @@ SBMM.touch = (function () {
       try { const s = await ask({ type: "status" }); return Object.assign({ supported: true }, s); }
       catch (e) { return { supported: true, ready: false, error: e.message }; }
     }
-    async function precache(onProgress) {
+    async function precache(onProgress, withTiles) {
       if (!possible()) { toast(why(), 5200); return null; }
-      try { return await ask({ type: "precache" }, onProgress); }
+      try { return await ask({ type: "precache", tiles: !!withTiles }, onProgress); }
       catch (e) { toast("the offline copy failed: " + e.message, 5200); return null; }
     }
     async function remove() {
@@ -922,9 +922,13 @@ SBMM.touch = (function () {
       btn.onclick = async () => {
         const line = document.getElementById("offlineStatus");
         btn.disabled = true;
+        /* v20: the terrain tiles are injected on demand, so index.html names
+           only the 30 kB tile index and the offline copy would otherwise have
+           no pyramid at all. Opting in adds the whole 52 MB of it. */
+        const tk = document.getElementById("offlineTiles");
         const r = await offline.precache(p => {
           if (line) line.textContent = `offline copy: ${p.done} of ${p.total} files · ${(p.bytes / 1e6).toFixed(0)} MB…`;
-        });
+        }, !!(tk && tk.checked));
         btn.disabled = false;
         if (r) toast(`offline copy ready — ${r.count} files, ${(r.bytes / 1e6).toFixed(0)} MB`, 4200);
         refreshOfflineUI();

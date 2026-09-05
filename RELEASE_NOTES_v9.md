@@ -17,6 +17,46 @@ All three are offline-only by design. Nothing in this app calls out to the inter
 
 ---
 
+## v20 — the 3D view draws the survey at full resolution
+
+**The mine area is drawn at 1 ft.** Until now the 3D view built one mesh per survey
+grid and thinned it so the whole site fitted on screen at once — the 1-ft data was
+sampled every 4th foot, and getting closer did not help. The terrain is now a quadtree
+of 256 x 256 tiles and the view chooses a level per tile from how large a terrain cell
+would appear on screen. A tile under the camera is drawn at 1 ft; the far shore costs a
+few hundred triangles.
+
+The **detail** picker on the 3D toolbar is that budget: **standard** 4 px per terrain
+cell, **high** 2 px, and a new **ultra** at 1 px. Over the mine window on a normal
+window, standard draws 9 tiles and 0.84 million triangles; high draws 24 tiles and 2.69
+million, with 1-ft tiles under the camera; ultra draws 30 and 3.49 million. The old
+build drew 1.98 million vertices and never reached 1 ft at all. Phones and the field
+build stay on standard, as before.
+
+**Hillshade, slope and aspect now run on the graphics card**, computed from the terrain
+tile itself. The sun control in *View settings* relights the whole model as you drag it
+instead of recomputing a raster. The contours you export are still computed the old way,
+on the survey grid — nothing you can put in a DXF changed.
+
+**Nothing about the numbers changed, and that is checked rather than promised.** Volumes,
+isopachs, raindrops, cross-sections and exported contours all read the same survey grids
+they always did; the tiles are for drawing. The test suite samples a thousand random
+surveyed points through both and requires them to be identical — the worst difference is
+zero.
+
+**Offline.** Beside *Make available offline* there is now a **terrain tiles (52 MB)**
+tick. Leave it off and the offline copy fetches tiles as you look around; tick it and
+the whole pyramid comes down, so the 3D view is complete with no signal.
+
+**The single-file builds are unchanged in size.** They already carry the whole rasters,
+so a tile is cut out of them in memory; inlining the pyramid would have taken the single
+file from 133 MB to about 206 MB for information it already had.
+
+**WebGPU** was investigated and not adopted — see the note at the end of the section in
+CLAUDE.md. WebGL2 remains the renderer everywhere.
+
+---
+
 ## v9.15 — the tests, made quick
 
 You asked why a round takes "hours and hours". Measured on the cloud box: a desktop
