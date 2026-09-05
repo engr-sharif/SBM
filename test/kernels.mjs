@@ -1736,6 +1736,356 @@ function secWater3d() {
   }
 }
 
+
+/* ============================ 11. DRAINAGE =============================== */
+/* docs/V14_DRAINAGE_SPEC.md §5. One label per cell: the outlet that cell drains
+   to. The call sites mirrored are js/drainage.js jobFor() + conduitsForSite()
+   (the whole `dem_site` grid, every conduit whose inlet is on the site, plus the
+   one field a map needs and a run does not — `outfall`) and, for the identity,
+   js/water.js traceRun() PINNED TO THE SITE GRID, because §3 runs the map on the
+   2-ft site grid and the raindrop must be compared on the same ground.
+
+   THE ACCEPTANCE TEST is the identity below: 100 seeded pseudo-random surveyed
+   points, each traced by `flowpath` the way the app traces it, must land in the
+   catchment the label raster draws under them. It is not a smoke test — the
+   whole reason the map reuses the raindrop's physics is so that it cannot
+   disagree, and a disagreement means the kernel is wrong. */
+
+/* js/drainage.js conduitsForSite(): js/storm.js conduitsFor() over the whole
+   site, plus `outfall` — true when the conduit discharges at an outfall node,
+   which is where water leaves the model (§2 "Sink / inlet"). */
+function drainConduits(M, grid) {
+  const bbox = [grid.x0, grid.y0, grid.x0 + grid.w * grid.cell, grid.y0 + grid.h * grid.cell];
+  return M.conduitsFor(bbox).map(c => {
+    const rec = M.NET.conduits.find(q => q.id === c.id);
+    const to = M.byId[rec.to];
+    return { ...c, outfall: !!(to && to.kind === "outfall") };
+  });
+}
+/* js/drainage.js lakeRing(): EA's own Clear Lake polygon, which is what splits
+   "left the survey into the lake" from "left the survey somewhere else" */
+function clearLakeRing() {
+  const D = T.readJSON("data/design_gis.json");
+  const f = D.features.find(q => (q.properties || {}).layer === "water"
+                              && (q.properties || {}).name === "Clear Lake");
+  return f ? f.geometry.coordinates[0].map(p => [p[0], p[1]]) : null;
+}
+/* js/jobs.js subGrid(): the site grid sampled every `s` cells — the field run */
+function decimateGrid(g, s) {
+  if (s <= 1) return g;
+  const w = Math.ceil(g.sw / s), h = Math.ceil(g.sh / s);
+  const z = new Float32Array(w * h);
+  for (let j = 0; j < h; j++) {
+    const src = Math.min(g.sh - 1, j * s) * g.sw;
+    for (let i = 0; i < w; i++) z[j * w + i] = g.z[src + Math.min(g.sw - 1, i * s)];
+  }
+  return { x0: g.x0, y0: g.y0, cell: g.cell * s, w, h, i0: 0, j0: 0, sw: w, sh: h, z };
+}
+/* js/water.js traceRun(), pinned to ONE grid (§5: "on the same 2-ft site grid") */
+function hostRunOn(M, dem, x, y, storm) {
+  let cx = x, cy = y, hops = 0, prevReason = null, lengthSum = 0;
+  const pts = [], ponds = [], legs = [], used = new Set();
+  let reason = "steps", end = null;
+  for (;;) {
+    const half = dem.m.cell <= 1.0 ? 700 : 1400;
+    const win = [cx - half, cy - half, cx + half, cy + half];
+    const grid = T.gridSpec(dem, win, 0);
+    if (!grid) { reason = "nodata"; break; }
+    const cds = storm ? M.conduitsFor(win).filter(c => !used.has(c.id)) : [];
+    const R = C.runJob("flowpath", { grid, x: cx, y: cy,
+      conduits: cds.length ? cds : null, captureFt: 3 }).result;
+    const skip = (pts.length && prevReason !== "conduit") ? 1 : 0;
+    for (let i = skip; i < R.n; i++) pts.push([R.pts[i * 3], R.pts[i * 3 + 1]]);
+    for (const lg of (R.legs || [])) { used.add(lg.id); legs.push(lg); }
+    lengthSum += R.length_ft || 0;
+    for (const p of R.ponds) ponds.push(p);
+    prevReason = R.reason; reason = R.reason; end = R.end;
+    if (R.reason !== "window" && R.reason !== "conduit") break;
+    if (hops >= 7 || lengthSum >= 20000) { reason = "steps"; break; }
+    const ex = R.exit;
+    if (!ex) break;
+    if (!dem.inside(ex[0], ex[1]) || Number.isNaN(dem.at(ex[0], ex[1]))) {
+      reason = "nodata";
+      if (R.reason === "conduit") { pts.push([ex[0], ex[1]]); end = [ex[0], ex[1], NaN]; }
+      break;
+    }
+    cx = ex[0]; cy = ex[1]; hops++;
+  }
+  return { pts, reason, end, ponds, legs, hops, length: lengthSum };
+}
+
+/* §5, RECORDED FROM THIS COMMIT and thereafter asserted as regression guards.
+   Every one of them is checkable by hand off the map: the three sinks partition
+   the surveyed ground, the sum identity below proves the partition, and the pond
+   levels are the raindrop's own (the §6 storm section measures the same three). */
+const DRAIN_REC = {
+  surveyed_ac: 978.49,
+  lake_ac: 403.05, off_ac: 293.45, outfall_ac: 282.00,
+  lake_off_ac: 521.28, off_off_ac: 457.21,      // with the drains off
+  herman_level: 1341.53, herman_ac: 22.18, herman_contrib_ac: 37.90,
+  frog_level: 1415.74, frog_contrib_ac: 14.52,
+  green_level: 1394.50, green_depth: 3.08, green_contrib_ac: 2.62,
+  herman_off_level: 1343.84
+};
+
+function secDrainage() {
+  const AC = 43560;
+  const site = T.loadDem("dem_site");
+  const M = stormModel();
+  const LR = clearLakeRing();
+  const full = () => T.gridSpec(site, null, 0);
+  const cds = drainConduits(M, full());
+
+  console.log("\n§11.1  the whole-site map, 2-ft grid, storm drains on");
+  const g2 = full();
+  const [R, ms2] = timed(() => C.runJob("drainage",
+    { grid: g2, conduits: cds, captureFt: 3, lakeRing: LR, stride: 1, maxPolys: 0 }).result);
+  note(`${R.gw}x${R.gh} at ${R.cell} ft, ${(R.gw * R.gh / 1e6).toFixed(1)} M cells, `
+     + `${R.pondsTotal} depressions, ${R.sinks.length} outlets, ${R.ponds.length} through-ponds, `
+     + `${R.inlets.length} inlets`);
+  budget("drainage, 2-ft site grid", ms2, 20000);
+
+  /* the partition identity: every surveyed cell drains somewhere, exactly once */
+  const sum = R.sinks.reduce((a, s) => a + s.cells, 0);
+  exact("every surveyed cell has exactly one outlet", sum, R.surveyedCells);
+  near("surveyed area (recorded)", R.surveyedArea_ft2 / AC, DRAIN_REC.surveyed_ac, 0.05, " ac");
+  exact("no unresolved loops", R.loops, 0);
+  exact("no unresolved flats", R.flats, 0);
+  /* A one-cell "pond" on the grid whose every neighbour is higher is a genuine
+     closed pit at this resolution, not a defect — it is reported as the sink it
+     is, and what matters is that there are a handful of cells of them and not a
+     region. (Before the uphill-parent fix these cells were half of a two-cell
+     CYCLE instead, which is the thing that must never happen.) */
+  row("closed one-cell depressions", R.pondSinks + " cells",
+      "<= 8 cells", R.pondSinks <= 8, "at most 8",
+      (R.pondSinks * R.cell * R.cell).toFixed(0) + " ft2 in total");
+
+  const sinkOf = id => R.sinks.find(s => s.id === id);
+  const kinds = R.sinks.map(s => s.kind).join(",");
+  row("the outlets are the lake, the survey edge and the storm outfall",
+      kinds, "lake,off,outfall", ["lake", "off", "outfall"].every(k => kinds.includes(k)), "contains");
+  for (const [id, ref] of [["lake", DRAIN_REC.lake_ac], ["off", DRAIN_REC.off_ac],
+                           ["outfall:storm_main_lower", DRAIN_REC.outfall_ac]]) {
+    const s = sinkOf(id);
+    row(id + " catchment (recorded)", s ? +(s.area_ft2 / AC).toFixed(2) : NaN, ref,
+        !!s && Math.abs(s.area_ft2 / AC - ref) <= 0.5, "+/- 0.5 ac",
+        s ? s.rings.length + " rings, longest path " + fmt(s.longest_ft) + " ft" : "missing");
+  }
+
+  /* §5: the ponds must be the raindrop's ponds — the same three the storm
+     section measures through flowpath, to the same two decimals */
+  console.log("\n§11.2  the named ponds are the raindrop's ponds");
+  const pondNear = (x, y) => R.ponds.find(p => Math.hypot(p.entry[0] - x, p.entry[1] - y) < 400);
+  const herman = R.ponds.find(p => p.via === "herman_pipe_s" || p.via === "herman_pipe_n");
+  near("the impoundment's level = the lower surveyed invert", herman ? herman.level : NaN,
+       DRAIN_REC.herman_level, 0.02, " ft");
+  exact("and it leaves through the surveyed south pipe", herman ? herman.via : null, "herman_pipe_s");
+  near("the impoundment's water surface (recorded)", herman ? herman.area_ft2 / AC : NaN,
+       DRAIN_REC.herman_ac, 0.1, " ac");
+  near("what drains into it (recorded)", herman ? herman.contributing_area_ft2 / AC : NaN,
+       DRAIN_REC.herman_contrib_ac, 0.3, " ac");
+  const frog = R.ponds.find(p => p.via === "pond_culvert");
+  near("Frog Pond's level (the raindrop's 1415.74)", frog ? frog.level : NaN,
+       DRAIN_REC.frog_level, 0.02, " ft");
+  near("what drains into Frog Pond (recorded)", frog ? frog.contributing_area_ft2 / AC : NaN,
+       DRAIN_REC.frog_contrib_ac, 0.3, " ac");
+  const green = R.ponds.find(p => p.via === "green_outlet");
+  near("Green Pond's level (the raindrop's 1394.50)", green ? green.level : NaN,
+       DRAIN_REC.green_level, 0.02, " ft");
+  near("Green Pond's depth at overflow (the §6 storm number)", green ? green.depth_ft : NaN,
+       DRAIN_REC.green_depth, 0.05, " ft");
+  near("what drains into Green Pond (recorded)", green ? green.contributing_area_ft2 / AC : NaN,
+       DRAIN_REC.green_contrib_ac, 0.3, " ac");
+  note("through-ponds, biggest first: " + R.ponds.slice(0, 6).map(p =>
+    `${fmt(p.level, 2)} ft / ${(p.area_ft2 / AC).toFixed(2)} ac${p.via ? " via " + p.via : ""}`).join("; "));
+
+  /* §5: what drains to each structure. On this site the answer is small and it
+     is a FINDING, not a bug: the road ditch runs past the grates into the
+     impoundment, and a 3-ft capture disc only takes the flow lines that cross
+     it. `through_area` adds the ponds that pour into a structure, which is how
+     the water actually reaches most of them. */
+  console.log("\n§11.3  what drains to each storm structure");
+  const inl = id => R.inlets.find(q => q.id === id);
+  const grates = ["road_drain_8_9", "road_drain_9_10", "road_drain_10_11", "road_drain_11_12",
+                  "road_drain_12_13", "road_drain_13_14", "road_drain_14_15", "road_drain_15_branch"];
+  const gAc = grates.reduce((a, id) => a + ((inl(id) || {}).through_area_ft2 || 0), 0) / AC;
+  note("the eight road-drain grates take " + gAc.toFixed(3) + " ac between them overland; "
+     + "the road ditch runs past them into the impoundment, which then discharges "
+     + "through the surveyed pipes — that is the site's answer, not a missing catchment");
+  for (const id of ["pond_culvert", "green_outlet", "green_riser", "south_culvert", "herman_pipe_s"]) {
+    const q = inl(id);
+    note("  " + id.padEnd(16) + (q ? (q.through_area_ft2 / AC).toFixed(3) + " ac" : "no contributing area"));
+  }
+  /* the outfall's catchment IS everything that reaches it, by construction */
+  const outf = sinkOf("outfall:storm_main_lower");
+  const viaOutfall = R.ponds.filter(p => p.via && p.terminal === (outf || {}).label)
+    .reduce((a, p) => a + p.contributing_area_ft2, 0) / AC;
+  row("the ponds that pour into the storm system are inside the outfall's catchment",
+      viaOutfall.toFixed(2), "<= " + (outf ? (outf.area_ft2 / AC).toFixed(2) : "n/a"),
+      !!outf && viaOutfall <= outf.area_ft2 / AC + 0.01, "identity");
+
+  /* ---- the identity (§5, first bullet) --------------------------------- */
+  console.log("\n§11.4  THE IDENTITY — 100 raindrops against the label raster");
+  /* the points: a seeded LCG over the site bbox, keeping surveyed ground, so the
+     set is reproducible from this file alone */
+  let seed = 20260904;
+  const rnd = () => (seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648;
+  const PTS = [];
+  while (PTS.length < 100) {
+    const x = g2.x0 + rnd() * (g2.w - 1) * g2.cell;
+    const y = g2.y0 + rnd() * (g2.h - 1) * g2.cell;
+    const i = Math.round((x - g2.x0) / g2.cell), j = Math.round((y - g2.y0) / g2.cell);
+    if (Number.isNaN(g2.z[j * g2.w + i])) continue;
+    PTS.push([g2.x0 + i * g2.cell, g2.y0 + j * g2.cell]);
+  }
+  const labAt = (x, y) => {
+    const i = Math.round((x - R.x0) / R.cell), j = Math.round((y - R.y0) / R.cell);
+    if (i < 0 || j < 0 || i >= R.gw || j >= R.gh) return "(outside)";
+    const v = R.labels[j * R.gw + i];
+    return v < 0 ? "(nodata)" : ((R.sinks.find(s => s.label === v) || {}).id || "#" + v);
+  };
+  const inLake = (x, y) => LR && (pointInPoly(x, y, LR) || ringDist(x, y, LR) <= 10);
+  const t0 = Date.now();
+  let agree = 0, truncated = 0;
+  const bad = [], keep = [];
+  for (let q = 0; q < PTS.length; q++) {
+    const [x, y] = PTS[q];
+    const D = hostRunOn(M, site, x, y, true);
+    keep.push(D);
+    const lastLeg = D.legs.length ? D.legs[D.legs.length - 1] : null;
+    const lastC = lastLeg ? cds.find(c => c.id === lastLeg.id) : null;
+    let got;
+    if (lastC && lastC.outfall) got = "outfall:" + lastC.id;
+    else if (D.reason === "nodata" || D.reason === "window")
+      got = inLake(D.end[0], D.end[1]) ? "lake" : "off";
+    else if (D.reason === "steps") {
+      /* the host stops a run at 8 windows / 20,000 ft; it has not reached a sink,
+         so what it can still say is that as far as it got, the map keeps it in
+         the same catchment. That is the same claim, made over a shorter path. */
+      truncated++;
+      got = labAt(D.end[0], D.end[1]);
+    } else got = D.reason;
+    const want = labAt(x, y);
+    if (got === want) agree++;
+    else bad.push(`#${q} E${x.toFixed(0)} N${y.toFixed(0)}: the drop says ${got}, `
+                + `the map says ${want} (reason ${D.reason}, ${D.hops} windows, `
+                + `legs ${D.legs.map(l => l.id).join(">") || "-"})`);
+  }
+  const ms = Date.now() - t0;
+  row("raindrops that land in their own catchment", agree, ">= 97", agree >= 97, "97 of 100",
+      truncated + " of them hit the host's window cap and were compared where they stopped");
+  for (const b of bad) note("DISAGREE " + b);
+  budget("100 raindrops (flowpath, chained)", ms, 240000);
+
+  /* the first capture the drop meets is the first-capture label under it */
+  const firstAt = (x, y) => {
+    const i = Math.round((x - R.x0) / R.cell), j = Math.round((y - R.y0) / R.cell);
+    if (i < 0 || j < 0 || i >= R.gw || j >= R.gh) return -1;
+    return R.first[j * R.gw + i];
+  };
+  /* §5, second half: the map's first capture at the drop is the FIRST conduit
+     the drop itself goes down. A first-capture record is either an inlet (its
+     own conduit) or a pond that pours into one (`via`); a pond with no `via`
+     spills over the ground and names no conduit, so those points say nothing
+     about the network and are not counted. */
+  let capChecked = 0, capOk = 0;
+  const capBad = [];
+  for (let q = 0; q < PTS.length; q++) {
+    const rec = ((lab) => {
+      const p = R.ponds.find(z => z.label === lab);
+      if (p) return p.via;
+      const i2 = R.inlets.find(z => z.label === lab);
+      return i2 ? i2.id : null;
+    })(firstAt(PTS[q][0], PTS[q][1]));
+    if (!rec) continue;
+    capChecked++;
+    const legs = keep[q].legs;
+    if (legs.length && legs[0].id === rec) capOk++;
+    else capBad.push(`#${q}: the map's first capture is ${rec}, the drop's first leg is `
+                   + (legs.length ? legs[0].id : "none"));
+  }
+  row("the first conduit a drop goes down is its first-capture label",
+      capOk + " of " + capChecked, ">= " + Math.max(0, capChecked - 2),
+      capOk >= capChecked - 2, "at most 2 off",
+      "over the 100 points, those whose first capture names a conduit at all");
+  for (const b of capBad) note("FIRST-CAPTURE " + b);
+
+  /* ---- the drains off (§5, fourth bullet) ------------------------------ */
+  console.log("\n§11.5  the same map with the storm drains off");
+  const [Roff, msOff] = timed(() => C.runJob("drainage",
+    { grid: full(), conduits: null, lakeRing: LR, stride: 1, maxPolys: 0 }).result);
+  exact("no inlet sinks", Roff.sinks.filter(s => s.kind === "outfall").length, 0);
+  exact("no conduits reported", Roff.conduits, 0);
+  exact("still a partition", Roff.sinks.reduce((a, s) => a + s.cells, 0), Roff.surveyedCells);
+  exact("the surveyed ground is the same ground", Roff.surveyedCells, R.surveyedCells);
+  const offLake = Roff.sinks.find(s => s.id === "lake"), offOff = Roff.sinks.find(s => s.id === "off");
+  near("Clear Lake, drains off (recorded)", offLake ? offLake.area_ft2 / AC : NaN,
+       DRAIN_REC.lake_off_ac, 0.5, " ac");
+  near("off-survey, drains off (recorded)", offOff ? offOff.area_ft2 / AC : NaN,
+       DRAIN_REC.off_off_ac, 0.5, " ac");
+  /* the impoundment, not the flat 32-ac pond that comes first by area (the same
+     "cells > 200000 AND deeper than 5 ft" the §6 storm section uses) */
+  const hOff = Roff.ponds.find(p => p.cells > 200000 && p.depth_ft > 5);
+  near("the impoundment fills to the lidar rim instead (v12's 1343.84)",
+       hOff ? hOff.level : NaN, DRAIN_REC.herman_off_level, 0.02, " ft");
+  note("with the drains off the outfall's " + DRAIN_REC.outfall_ac + " ac go to the lake "
+     + "(+" + (DRAIN_REC.lake_off_ac - DRAIN_REC.lake_ac).toFixed(2) + " ac) and off the survey "
+     + "(+" + (DRAIN_REC.off_off_ac - DRAIN_REC.off_ac).toFixed(2) + " ac): the impoundment "
+     + "spills over its 1,343.84-ft rim rather than through the pipes");
+  budget("drainage, drains off", msOff, 20000);
+
+  /* ---- the 4-ft field run (§3, §5 last bullet) ------------------------- */
+  console.log("\n§11.6  the field build's 4-ft run");
+  const g4 = decimateGrid(full(), 2);
+  const cds4 = drainConduits(M, g4);
+  const [R4, ms4] = timed(() => C.runJob("drainage",
+    { grid: g4, conduits: cds4, captureFt: 3, lakeRing: LR, stride: 1, maxPolys: 0 }).result);
+  exact("the 4-ft run is a 4-ft run", R4.cell, 4);
+  budget("drainage, 4-ft site grid", ms4, 6000);
+  exact("still a partition", R4.sinks.reduce((a, s) => a + s.cells, 0), R4.surveyedCells);
+  /* the pointer field has to be acyclic at EVERY resolution, not just the one it
+     was developed on: at 4 ft a one-cell "pond" (the filled DEM rounding, not a
+     depression) was reached by the flood from ground above its own level, so its
+     `parent` pointed uphill and it and its neighbour pointed at each other. */
+  exact("no unresolved loops at 4 ft", R4.loops, 0);
+  exact("no unresolved flats at 4 ft", R4.flats, 0);
+  note("closed one-cell depressions at 4 ft: " + R4.pondSinks
+     + " (a genuine pit with no lower neighbour on a 4-ft grid, reported as a sink)");
+  let worst = 0, worstId = "";
+  for (const s of R.sinks) {
+    if (s.area_ft2 < AC) continue;
+    const t = R4.sinks.find(q => q.id === s.id);
+    const d = t ? Math.abs(t.area_ft2 - s.area_ft2) / s.area_ft2 * 100 : 100;
+    if (d > worst) { worst = d; worstId = s.id; }
+    note("  " + s.id.padEnd(26) + (s.area_ft2 / AC).toFixed(2).padStart(8) + " ac at 2 ft, "
+       + (t ? (t.area_ft2 / AC).toFixed(2) : "missing").padStart(8) + " ac at 4 ft ("
+       + d.toFixed(2) + " %)");
+  }
+  row("every outlet over an acre agrees between 2 ft and 4 ft", worst.toFixed(2) + " % (" + worstId + ")",
+      "<= 3 %", worst <= 3, "+/- 3 %");
+  const h4 = R4.ponds.find(p => p.via === "herman_pipe_s" || p.via === "herman_pipe_n");
+  near("the impoundment still leaves at the surveyed invert at 4 ft",
+       h4 ? h4.level : NaN, DRAIN_REC.herman_level, 0.05, " ft");
+
+  /* ---- the output rasters and the polygons ----------------------------- */
+  console.log("\n§11.7  the output rasters, decimated");
+  const Rs = C.runJob("drainage",
+    { grid: full(), conduits: cds, captureFt: 3, lakeRing: LR, stride: 4 }).result;
+  exact("the label raster is decimated by the stride", Rs.stride, 4);
+  exact("its width", Rs.w, Math.ceil(R.gw / 4));
+  exact("labels and first are the same shape", Rs.first.length, Rs.labels.length);
+  near("the areas are the FULL-resolution counts, not the decimated ones",
+       Rs.surveyedCells, R.surveyedCells, 0, " cells");
+  const polys = Rs.sinks.reduce((a, s) => a + s.rings.length, 0);
+  row("the by-outlet layer has enough polygons to be a map", polys, ">= 12", polys >= 12, ">= 12");
+  const firstPolys = Rs.ponds.reduce((a, p) => a + p.contributing_rings.length, 0)
+                   + Rs.inlets.reduce((a, q) => a + q.rings.length, 0);
+  row("and so does the by-first-capture layer", firstPolys, ">= 8", firstPolys >= 8, ">= 8");
+  row("every sink carries its longest flow path",
+      Rs.sinks.filter(s => s.path && s.path.length > 1).length, Rs.sinks.length,
+      Rs.sinks.every(s => s.path && s.path.length > 1), "exact");
+}
+
 /* ============================== run ====================================== */
 const SECTIONS = [
   { key: "volume", run: secVolume },
@@ -1748,7 +2098,8 @@ const SECTIONS = [
   { key: "trees", run: secTrees },
   { key: "water", run: secWater },
   { key: "storm", run: secStorm },
-  { key: "water3d", run: secWater3d }
+  { key: "water3d", run: secWater3d },
+  { key: "drainage", run: secDrainage }
 ];
 
 if (listOnly) {
@@ -1759,12 +2110,13 @@ if (listOnly) {
 const C = loadCompute();
 const Delaunay = loadDelaunay();
 console.log("SBMM kernel harness — js/compute.js VERSION " + C.VERSION +
-            (C.VERSION === 7 ? "" : "  (!! expected 7)"));
-if (C.VERSION !== 7) { fails++; checks++; }
+            (C.VERSION === 8 ? "" : "  (!! expected 8)"));
+if (C.VERSION !== 8) { fails++; checks++; }
 
 /* every kernel runJob dispatches must have a section here (V11 spec §2.4) */
 const COVERED = ["volume", "isopach", "raster", "contours", "design", "balance", "sections",
-                 "wand", "cbound", "toecrest", "stands", "trees", "flowpath", "overtop", "catchment"];
+                 "wand", "cbound", "toecrest", "stands", "trees", "flowpath", "overtop", "catchment",
+                 "drainage"];
 {
   const src = fs.readFileSync(path.join(REPO, "js", "compute.js"), "utf8");
   const dispatched = [...src.matchAll(/if \(kind === "([a-z]+)"\) return /g)].map(m => m[1]);

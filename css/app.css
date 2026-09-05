@@ -1510,3 +1510,9 @@ body.field .modal .mbox{width:min(96vw,560px);max-height:88vh}
   body.field #rightdock{transition:none}
   .fixmk .fixdot::after{animation:none;opacity:.35}
 }
+
+/* ---- v14 drainage map -------------------------------------------------- */
+/* The acreage label at a catchment's centroid. pointer-events:none, so the
+   polygon under it still takes the hover and the click. */
+.drainlbl{pointer-events:none;white-space:nowrap;font:11px/1.25 var(--mono);
+  color:#DFF0FF;text-shadow:0 0 3px #000,0 0 6px #000;letter-spacing:.02em}

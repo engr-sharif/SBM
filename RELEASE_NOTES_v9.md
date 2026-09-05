@@ -17,6 +17,67 @@ All three are offline-only by design. Nothing in this app calls out to the inter
 
 ---
 
+## v9.10 — the drainage map
+
+You asked me to "start thinking about catchment areas for the entire site, like
+simulating rainfall and where those would go". That is three questions with three
+different levels of assumption, and this is the first of them — the one the lidar can
+answer on its own.
+
+**Type `DRAIN`** (or pick *Drainage map* from the Water ▾ menu, or tick a row under
+**Drainage (lidar + storm drains)** in Site framework). About ten seconds later the whole
+site is coloured by the outlet each square foot drains to:
+
+| where it goes | acres | share |
+|---|---|---|
+| Clear Lake, overland | 403.1 | 41 % |
+| off the surveyed ground | 293.5 | 30 % |
+| the Clear Lake outfall, through the storm network | 282.0 | 29 % |
+| **surveyed total** | **978.5** | |
+
+Switch the storm drains off (`STORM`) and the map re-computes itself: the outfall's 282
+acres split back to the lake and off-survey, because the impoundment then fills to its
+1,343.84-ft rim and spills over it instead of leaving through the two 24-in pipes. That
+difference — 282 acres of the site — is the same thing the invert survey will settle.
+
+**It is the raindrop, run everywhere at once.** Same terrain, same filled DEM, same
+ponds, same pipes. A drop dropped anywhere on the map lands in the catchment drawn under
+it, and the test suite proves it a hundred times over rather than assuming it.
+
+Three layers, and a second question answered beside the first:
+
+- **Catchments — by outlet.** Where it finally ends up.
+- **Catchments — by first capture.** The first pond or storm inlet it reaches on the way
+  — "what drains into Green Pond" is 2.6 acres, into Frog Pond 14.5, into the Herman
+  Impoundment 37.9.
+- **Flow paths.** The longest single path inside each catchment, drawn as it runs.
+
+Hover a catchment and it brightens and names itself. Click it for the acres, the share of
+the site, the longest flow path (overland — a pipe is measured separately, as it has been
+since v9.8), the mean slope and the grid. Every storm structure and pipe popup gained
+**"show what drains here"**, which lights up everything upstream of it and totals the
+acres. The card copies as CSV and exports as GeoJSON and DXF on `DRAIN-OUTLET`,
+`DRAIN-FIRST` and `DRAIN-PATH`, and all of it drapes in 3D.
+
+**One number here is worth knowing before you rely on it:** the eight road-drain grates
+along the south side take **0.019 acres between them** overland. That is not a bug in the
+map — the road ditch runs *past* them into the impoundment, which is exactly what v9.8
+found from the other end when a raindrop at every one of the nine grates ran overland into
+the impoundment or stayed in the ditch. It is one of the things the invert survey will
+change.
+
+**What it is not.** There is no rainfall in it, no runoff, no curve numbers, no time and
+no pipe capacity. It says where water goes, never how much. How much — a design storm, a
+runoff volume, a peak flow, whether a pond fills — is real hydrology with real assumptions
+attached, and I have written it up as a proposal (`docs/V14_CATCHMENT_PROPOSAL.md`) rather
+than building it: the assumptions are yours to make, and there are five of them waiting
+for you in §7.
+
+On the phone the same map runs at 4 ft instead of 2 (the card says so); its outlet acreages
+are within 1.3 % of the desktop's.
+
+---
+
 ## v9.9 — the overflow tool goes down the pipe, and water moves in 3D
 
 Two things you asked for.

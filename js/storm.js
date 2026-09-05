@@ -70,6 +70,8 @@ SBMM.storm = (function () {
     prefs.enabled = !!on;
     savePrefs();
     paintChip();
+    /* v14: the drainage map is an answer about this network, so it goes stale */
+    if (SBMM.drainage) SBMM.drainage.markStale();
     if (!quiet)
       toast(on ? "storm drains assumed working — a raindrop reaching a grate goes down the pipe"
                : "storm drains off — every analysis is ground only");
@@ -89,6 +91,7 @@ SBMM.storm = (function () {
     prefs.status[id] = st;
     savePrefs();
     rebuildConduits();
+    if (SBMM.drainage) SBMM.drainage.markStale();
     toast(conduitById[id].id + " marked " + (st === "broken" ? "broken — water stays on the ground here"
                                                             : "working"));
     if (SBMM.viewer3d.isOpen()) SBMM.viewer3d.refreshOverlays();

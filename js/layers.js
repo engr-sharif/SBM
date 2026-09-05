@@ -181,6 +181,12 @@ SBMM.buildLayers = function () {
      layer here is built anyway. */
   if (SBMM.storm) SBMM.storm.build();
 
+  /* ---------- the drainage map (v14 §4) ----------
+     Site framework, under the storm network it depends on: a catchment is a
+     property of the ground, and this is the ground's answer to "where does it
+     go". The rows exist from boot; the first tick runs the job. */
+  if (SBMM.drainage) SBMM.drainage.build();
+
   /* ---------- sample points ----------
      Investigations (§4 group 4), not Site framework: a sample result is a
      measurement of the ground, not part of the ground. */

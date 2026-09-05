@@ -118,6 +118,12 @@ SBMM.cmd = (function () {
         if (!SBMM.storm || !SBMM.storm.data()) { toast("this build has no storm-drainage network"); return; }
         SBMM.storm.toggle();
       } },
+    { n: "DRAIN",   a: ["DRAINAGE", "WATERSHEDS", "CATCHMENTS"],
+      d: "drainage map — every square foot of the site coloured by the outlet it drains to (v14)",
+      f: () => {
+        if (!SBMM.drainage) { toast("this build has no drainage map"); return; }
+        SBMM.drainage.cmd();
+      } },
     { n: "CATCH",   a: ["WATERSHED"],
       d: "contributing area upslope of the selected raindrop",
       f: () => {

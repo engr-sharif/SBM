@@ -1407,6 +1407,10 @@ SBMM.water = (function () {
       const a = ci.dataset.a;
       if (a === "overtop") { SBMM.mode.navigate(); overtopHerman(); }
       else if (a === "overtop-click") pickPond();
+      else if (a === "drainage") {
+        if (!SBMM.drainage) toast("this build has no drainage map");
+        else SBMM.drainage.cmd();
+      }
       else if (a === "storm-toggle") {
         if (!SBMM.storm || !SBMM.storm.data()) toast("this build has no storm-drainage network");
         else SBMM.storm.toggle();

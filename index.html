@@ -147,6 +147,7 @@ window.SBMM_BUILD="full";
   <div class="ci sep" data-a="overtop">Overtopping — Herman Impoundment…</div>
   <div class="ci" data-a="overtop-click">Overtopping — a pond under a click…</div>
   <div class="ci sep" data-a="storm-toggle">Storm drains work — assume the network carries water <kbd>STORM</kbd></div>
+  <div class="ci" data-a="drainage">Drainage map — every acre by the outlet it drains to <kbd>DRAIN</kbd></div>
   <div class="ci sep" data-a="water-clear">Clear water overlays</div>
 </div>
 
@@ -517,6 +518,9 @@ window.SBMM_BUILD="full";
   <!-- v12 §5.1: whether the storm drains are assumed to work, where a raindrop
        is about to be traced. Click it, or type STORM. -->
   <span class="mhchip" id="stormChip" hidden>storm drains: ON</span>
+  <!-- v14 §4: the whole-site catchment map this raindrop has to agree with.
+       Click it, or type DRAIN. -->
+  <span class="mhchip" id="drainChip" hidden>drainage map</span>
   <span class="mhesc"></span>
 </div>
 
@@ -852,6 +856,9 @@ window.SBMM_BUILD="full";
      are in play — so it loads before it. -->
 <script src="js/storm.js"></script>
 <script src="js/water.js"></script>
+<!-- v14 Phase 1: the drainage map. After storm.js (it asks which conduits are in
+     play) and after water.js (it borrows the raindrop's pond floor). -->
+<script src="js/drainage.js"></script>
 <script src="js/refsurf.js"></script>
 <script src="js/sheetcards.js"></script>
 <!-- field mode + the field capabilities (docs/V11_SPEC.md §4). After every
