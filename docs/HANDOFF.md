@@ -96,6 +96,10 @@ in code, and what comes next. It replaces re-reading the chat history that built
 | **A preset never switches on the cultural resources group** | A named layer state that quietly put protected geometry on the map is the worst bug this app could have. Solo, the group all-on button, the recently-changed chips and every preset skip the group; the keyboard and the chips go through the row's own checkbox so the acknowledgement still fires |
 | **The legend card is collapsed by default, and off the map entirely on a phone** | A legend that covers the corner of the map before anyone asked for it is worse than no legend; on a 412-px screen there is no corner to spare, so it lives in the More sheet |
 | **Sub-groups are declared by the registering module (`addLayerRow(..., {sub})`), not listed in the tree** | The module knows which rows belong together and how many of them there are; a list in the tree would go stale the first time a payload changed. It also made the migration one option per call site |
+| **A slope needs two elevations of the same kind** (v19) | At the sandbag wall the surveyed pipe invert against the lidar ground is the pipe against the top of the sandbags: it comes out adverse and would report a 24-in pipe as running uphill. Both ends surveyed is a slope, both ends off the lidar is a provisional slope, one of each is not a slope at all — so there is no capacity and the popup says why. It is why all 26 conduits read "survey pending" rather than most of them reading a plausible number |
+| **The app's flow accumulation defaults to D8, with D-infinity one button away** (v19) | The spec asks for both. D8's values ARE the contributing area TR-55's 5-acre rule names, it is the method whose agreement with the drainage map is exact (0.000 %), and it draws 109 stream links where D-infinity's dispersion draws 1,563. D-infinity is the better picture of a hillslope and is there on the card |
+| **A scenario can never produce a number the dialogs could not** (v19) | Every field of a scenario is a switch the user can set by hand, and running one sets those switches and calls the same kernels. There is no scenario-only arithmetic anywhere in `js/scenarios.js`, which is what makes a comparison table defensible rather than a second opinion |
+| **A scenario's switches ride in the session; its results do not** (v19) | A stored result loaded beside newer terrain or a newer storm network is a number nobody can trace back to anything. A restored scenario is a set of switches waiting to be run, which is what it is |
 | A password screen in front of the app (v9.3), and it is a **deterrent, not security** | He asked for "something to deter someone from using it", explicitly not full security. Everything ships to the browser, so the check is in the file the browser reads — this stops a colleague, not an attacker |
 | **A known flake was found and left alone**: `test/e2e.mjs`'s last block waits 1.5 s after a page reload and then measures the layer tree; under load the app has not settled and the draw-order assertion fails (about one run in three, passes on a re-run and alone in 14 s) | v18's rule is that this round changes how the harnesses run and never what they assert. Waiting on the condition instead of the clock is the fix, and it is the planner's call, not the executor's |
 | **The test round runs through one runner** (`test/run.mjs`, v18) | He asked why a round takes "hours and hours". The steps, their builds and their dependencies are declared once; independent steps run in parallel up to the browser slots, each writes its own log, and a failure names the step instead of scrolling past |
@@ -128,13 +132,24 @@ in code, and what comes next. It replaces re-reading the chat history that built
    distributions in the same payload are provisional for the same reason; replace them with
    the published TR-55 / NEH-630 table before anything is issued.
 
-0a. **The pipe ratings wait on the invert survey.** Level-pool routing is in and the weir
-   half of it is real, but a conduit with no surveyed size or invert passes its inflow and
-   the card says "capacity unknown — survey pending". When the inverts land (the same CSV
-   `tools/build_storm_network.py` reads), the orifice/pipe rating is a function in
-   `js/runoff.js` `routeOne` and nothing else changes. Two more Phase 3 items, both named
-   in the code: a real flow-accumulation raster in place of the linear approximation the
-   TR-55 channel rule uses, and SSURGO or an infiltration test in place of the C/D guess.
+0a. **THE INVERT SURVEY IS NOW THE ONE THING BLOCKING PIPE CAPACITY, and the sheet to
+   fill in is written.** v19 shipped the hydraulics — Manning full-flow capacity, HEC-22
+   grate inlets, a steady-state hydraulic and energy grade line, the capacity ratio and
+   the surcharge flag — and on this network it can rate **none of the 26 conduits**, because
+   two nodes have a surveyed invert and five conduits have a size in EA's CAD. The app says
+   "unknown — survey pending" on each one WITH the missing item named, and never guesses.
+   **The fix is a survey and no code:** copy `data/storm_survey.csv.example` to
+   `data/storm_survey.csv`, fill in `node_id, invert_ft, rim_ft, diameter_in, material,
+   date, source` for the structures somebody measures, run
+   `python tools/build_storm_network.py`, then `tools/build_data.py` and rebuild the dists.
+   Every conduit whose two ends both have an invert then gets a capacity, a ratio and a
+   hydraulic grade, and `js/pipes.js` needs no edit. A rim in that sheet is used too —
+   `js/storm.js` `rimFor` prefers a surveyed rim over the lidar since v19.
+   One Phase 3 item was DELIVERED in v19 and is no longer open: the real
+   flow-accumulation raster now replaces the linear approximation TR-55's channel rule
+   used, which moved every time of concentration and every peak (README "Phase 3"). The
+   remaining one is unchanged: **SSURGO or an infiltration test in place of the C/D
+   guess**, which is the biggest single assumption in the runoff chain.
 
 0a. **GitHub Pages on a private repo needs a paid plan — the engineer decides.**
    The iPad work assumes he opens the app from a web address: that is what makes it an
