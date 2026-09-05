@@ -1371,6 +1371,32 @@ what the 3,000-ring drape budget is for. The **design** CAD groups are drawn.
   The ground plane lives in `envGroup`, whose `scale.z` follows the
   exaggeration slider like every other group.
 
+**Two traps the field build found, both worth the words.**
+
+- **Every row added to `#v3dNav` grows it UPWARDS into the canvas.** The 3D
+  canvas on a phone is 412 x 653; the nav column is anchored bottom-right. The
+  v15 "Look at…" row (44 px) and the elevation legend (~120 px) took its top
+  edge from y 542 to y 378 — past the middle — and the second finger of a
+  two-finger pinch, which lands at the canvas centre, came down on a nav button
+  instead of the model. Its `pointerdown` went to that button, the rig never saw
+  a second touch pointer, `touches.size` stayed 1 and the pinch could not dolly.
+  Nothing errored; `test/e2e_field.mjs`'s pinch assertion is what caught it.
+  Both controls are now `display:none` under `body.field`, the legend is
+  `pointer-events:none` because it is a legend, and `stats()` reports `navDrag`
+  and `navTouches` so the next such failure can be read rather than guessed.
+  **A new `#v3dNav` row goes behind the same rule** — v17's on-screen nav pad
+  is the first one to, and it is a `body.touch:not(.field)` control for exactly
+  this reason: on a phone the pinch and the double-tap already do zoom and tilt.
+  v17 also re-pointed `navDrag`/`navTouches`, because the `touches` Map they
+  read was replaced by js/touch.js's recogniser; they answer from
+  `navRec.mode()` / `navRec.count()` now, and `st.drag` still answers for the
+  mouse.
+- **A feature whose only 3D object is a LABEL can lose the 60-chip budget.** A
+  single-point `text` annotation drew nothing at all once its chip was capped or
+  collided away — invisible in 3D and unpickable. It now also draws its anchor,
+  and `layersDrawn()` counts label RECORDS rather than their per-frame `visible`
+  flag (which is a collision/culling decision, not a statement about the layer).
+
 **Keys (a deviation, decided here).** The spec asked for 1–6 and `F` to fit.
 `3` has toggled the whole 3D view since v1 and `F` is fly mode — both are in the
 nav help table and in the buttons' tooltips, and silently re-binding a
