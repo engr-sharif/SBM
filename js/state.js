@@ -172,6 +172,19 @@ SBMM.store = {
          file loads here unchanged, and a v8 file opened in an older build
          simply skips the photos rather than failing. A session with photos is
          large — accepted, and the export dialog says so. */
+      /* v17 §5a adds the `ink` feature type (Pencil redlines). It is ADDITIVE
+         by exactly the mechanism every bump before it used — restore()
+         dispatches on the feature's own type, so an older build meets an `ink`
+         feature, gets null back from rebuildFeature, and skips it — which is
+         why the NUMBER is still 8 and not 9.
+
+         The spec calls this "session v9". Bumping the integer is a one-line
+         change here, but `test/e2e.mjs` asserts `version === 8` in three
+         places, and the delivery procedure requires that file to pass
+         UNCHANGED as the proof the desktop is untouched. The number is
+         informational — nothing reads it to decide anything — so the version
+         moves in the same commit that updates those three lines, and not
+         before. See the v17 section of CLAUDE.md. */
       app: "SBMM Site Explorer", version: 8, saved: new Date().toISOString(),
       crs: "EPSG:6418 (NAD83(2011) CA SP Zone 2, ftUS)",
       groups: this.allGroups(),

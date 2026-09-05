@@ -112,6 +112,15 @@ SBMM.cmd = (function () {
     { n: "OVERTOP", a: ["SPILL", "POUR"],
       d: "overtopping analysis of the Herman Impoundment — spill level, where, and where it goes",
       f: () => SBMM.water.overtopHerman() },
+    /* v17 §5a — freehand ink. MARKUP and INK are the two words a Civil 3D user
+       reaches for; neither is taken (aliases resolve first-match over one flat
+       table, so a duplicate would silently kill the later command's). */
+    { n: "REDLINE", a: ["MARKUP", "INK"],
+      d: "redline — freehand ink on the map or a drawing, with the Pencil or a finger (v17)",
+      f: () => {
+        if (SBMM.mode.current() === "redline") { SBMM.mode.navigate(); toast("redline off"); return; }
+        SBMM.mode.set("redline");
+      } },
     { n: "STORM",   a: ["DRAINS", "STORMDRAIN"],
       d: "storm drains work — assume the CAD/surveyed network carries water (v12)",
       f: () => {

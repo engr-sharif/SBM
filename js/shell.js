@@ -143,6 +143,11 @@ SBMM.shell = (function () {
 
     const help = $("helpBtn");
     const fits = () => help.getBoundingClientRect().right <= bar.getBoundingClientRect().right - 6;
+    /* v17 §5: under body.touch every button is 44 px and there is one more of
+       them (the command-bar button), so the bar starts one stage in. The
+       narrowing is still MEASURED after that — a taller, wrapped bar is fine,
+       a clipped one is not. */
+    if (document.body.classList.contains("touch")) document.body.classList.add(STAGES[0]);
     for (const c of STAGES) {
       if (fits()) return;
       document.body.classList.add(c);

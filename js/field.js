@@ -69,9 +69,19 @@ SBMM.field = (function () {
     catch (e) { return null; }
   }
   function remember(v) { try { localStorage.setItem(STORE, v ? "1" : "0"); } catch (e) {} }
+  /* v17: ONE rule, in one place. js/touch.js owns the phone/tablet line now —
+     an iPad in portrait is 834 px WIDE and must not be a phone, so the test is
+     on the longer edge (see the comment there) — and field mode has to agree
+     with it or boot would put a portrait iPad into the phone layout while
+     `SBMM.touch.profile()` called it a tablet. The v11 rule stays here as the
+     fallback for a build where js/touch.js is somehow absent; it is the same
+     rule with the same 900-px threshold, read on one axis. */
   function sniff() {
+    if (SBMM.touch && SBMM.touch.sniff) return SBMM.touch.sniff() === "phone";
     const coarse = !!(window.matchMedia && window.matchMedia("(pointer: coarse)").matches);
-    return coarse && window.innerWidth <= 900;
+    const w = Math.min(window.innerWidth, (screen && screen.width) || Infinity);
+    const h = Math.min(window.innerHeight, (screen && screen.height) || Infinity);
+    return coarse && (Math.min(w, h) <= 600 || Math.max(w, h) <= 900);
   }
   function autoDetect() {
     const s = stored();
@@ -308,8 +318,21 @@ SBMM.field = (function () {
       popupHook = null;
     }
   }
+  /* v17 §5b: Position, Photo, Note and Samples-nearby are reachable in the
+     TABLET profile too, through the top bar's Field menu — an iPad with
+     cellular has GPS and a camera, and none of that is a phone-only idea. The
+     card they answer with has no bottom sheet to live in outside field mode, so
+     it goes where every other "what is this" answer goes: the Inspector. Same
+     HTML, same builders, one more home. */
   function card(html) {
-    if (!active || !built || !html) return null;
+    if (!html) return null;
+    if (!active || !built) {
+      const body = document.getElementById("propsBody");
+      if (!body) return null;
+      body.innerHTML = html;
+      if (SBMM.shell) SBMM.shell.setRightTab("inspector");
+      return body;
+    }
     const c = document.getElementById("fieldCard");
     c.querySelector(".fcbody").innerHTML = html;
     c.hidden = false;
@@ -375,6 +398,9 @@ SBMM.field = (function () {
           : "no position fix" + (err && err.message ? " — " + err.message : ""), 5200);
       }, { enableHighAccuracy: true, maximumAge: 4000, timeout: 20000 });
     } catch (e) { toast(NO_GEO, 6000); return false; }
+    /* v17 §5b: the screen must not sleep while someone is walking a site with
+       Position on. Feature-detected in js/touch.js and released by stopLocate. */
+    if (SBMM.touch && SBMM.touch.keepAwake) SBMM.touch.keepAwake("position", true);
     toast("waiting for a position fix…");
     /* a watch that never calls back is the commonest real failure, and silence
        is the one answer this app must not give */
@@ -383,6 +409,7 @@ SBMM.field = (function () {
   }
 
   function stopLocate() {
+    if (SBMM.touch && SBMM.touch.keepAwake) SBMM.touch.keepAwake("position", false);
     if (watchId != null) { try { navigator.geolocation.clearWatch(watchId); } catch (e) {} }
     watchId = null;
     lastFix = null;
@@ -912,6 +939,10 @@ SBMM.field = (function () {
 
   return {
     wire, autoDetect, on, set, toggle, sniff,
+    /* v17: js/touch.js follows the viewport across the phone/tablet line, but
+       only where the user has expressed no preference — a stored choice is a
+       decision and an orientation change must not overrule it */
+    stored,
     /* position */
     locate, stopLocate, setFollow, following: () => follow, fix, watching: () => watchId != null,
     showFixCard,

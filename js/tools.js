@@ -111,6 +111,9 @@ SBMM.tools = (function () {
        same shape dim and text already use */
     if (f.type === "flow") { SBMM.water.buildFlow(f); return; }
     if (f.type === "photo") { SBMM.field.buildPhoto(f); return; }
+    /* v17 §5a: an ink stroke is many polylines of varying width, so like a
+       flow it is REBUILT rather than re-styled */
+    if (f.type === "ink") { SBMM.redline.build(f); return; }
     if (!f.layer.setStyle) return;
     const base = baseStyle(f.type);
     const sel = SBMM.store.selected === f.id;
@@ -128,7 +131,8 @@ SBMM.tools = (function () {
 
   function layerFor(f) {
     const ll = f.pts.map(p => [p[1], p[0]]);
-    if (f.type === "dim" || f.type === "text" || f.type === "flow" || f.type === "photo") return L.featureGroup([]);
+    if (f.type === "dim" || f.type === "text" || f.type === "flow"
+        || f.type === "photo" || f.type === "ink") return L.featureGroup([]);
     if (f.type === "spot") {
       return L.circleMarker(ll[0], { pane: "drawings", radius: 5, color: "#FFD34D", weight: 2, fillColor: "#12181C", fillOpacity: 1 });
     }
@@ -142,6 +146,7 @@ SBMM.tools = (function () {
     if (f.type === "dim" || f.type === "text") { buildAnno(f); return; }
     if (f.type === "flow") { SBMM.water.buildFlow(f); return; }
     if (f.type === "photo") { SBMM.field.buildPhoto(f); return; }
+    if (f.type === "ink") { SBMM.redline.build(f); return; }
     const ll = f.pts.map(p => [p[1], p[0]]);
     if (f.type === "spot") f.layer.setLatLng(ll[0]);
     else f.layer.setLatLngs(OPEN_TYPES.has(f.type) ? ll : [ll]);
@@ -164,7 +169,8 @@ SBMM.tools = (function () {
     /* On a REBUILD the three FeatureGroup types are empty shells until their
        own builder fills them again (buildAnno here, js/water.js buildFlow);
        at creation the caller does that itself a moment later. */
-    if (rebuild && (f.type === "dim" || f.type === "text" || f.type === "flow" || f.type === "photo")) redraw(f);
+    if (rebuild && (f.type === "dim" || f.type === "text" || f.type === "flow"
+                    || f.type === "photo" || f.type === "ink")) redraw(f);
     if (rebuild && f.card && f.layer.on) {
       f.layer.on("mouseover", () => f.card.classList.add("hl"));
       f.layer.on("mouseout", () => f.card.classList.remove("hl"));
@@ -194,7 +200,7 @@ SBMM.tools = (function () {
      than no button. `spot` and `photo` are single points (there is nothing to
      drag but the point itself, which is what MOVE is for); a `flow` is traced
      from the terrain rather than drawn, and a reference surface is EA's data. */
-  const NO_VERTEX_EDIT = new Set(["spot", "photo", "flow"]);
+  const NO_VERTEX_EDIT = new Set(["spot", "photo", "flow", "ink"]);
   function canEditVertices(f) { return !!f && !f.locked && !NO_VERTEX_EDIT.has(f.type); }
   function canMove(f) { return !!f && !f.locked && f.type !== "flow" && !(f.props && f.props.ref); }
 
@@ -207,6 +213,7 @@ SBMM.tools = (function () {
     /* a flow path is computed from the terrain, not drawn: moving a vertex would
        make it a line that claims to be a trace. Move the DROP instead. */
     if (f.type === "flow") { toast("a flow path is traced, not drawn — drag the raindrop to retrace"); return; }
+    if (f.type === "ink") { toast("a redline stroke is freehand — draw another, or erase this one"); return; }
     setTool(null);
     SBMM.store.select(f.id);
     SBMM.draw.edit(f,
@@ -220,6 +227,7 @@ SBMM.tools = (function () {
   const LIVE_MS = 130;
   function recompute(f, live) {
     if (f.type === "flow") { SBMM.water.buildFlow(f); SBMM.store.autosave(); return; }
+    if (f.type === "ink") { SBMM.redline.build(f); SBMM.store.autosave(); return; }
     if (f.type === "dim") compDim(f);
     else if (f.type === "text") compText(f);
     else if (f.type === "line") compDistance(f);
@@ -790,6 +798,9 @@ SBMM.tools = (function () {
     /* v11 additions — a field photo. Rebuilt from props like `flow`: a session
        or an import must not go looking for a camera. */
     else if (type === "photo") { f = SBMM.field.mkPhoto(pts, name, props, spec); }
+    /* v17 §5a — a Pencil redline. Rebuilt from props like `flow` and `photo`:
+       a session load must not go looking for a pointer. */
+    else if (type === "ink") { f = SBMM.redline.mkInk(pts, name, props, spec); }
     else return null;
     if (name) {
       f.name = name;

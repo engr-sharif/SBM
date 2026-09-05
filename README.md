@@ -85,6 +85,88 @@ reads one of the four says plainly that it is not in this build rather than fail
 Sheets tab still lists all twenty drawings, greyed, and the design-surfaces list says where
 they went.
 
+## On an iPad
+
+The iPad gets the **desktop layout** — the docks, the top bar, the sheet windows — because
+that is what fits on a 1194-px screen and what you already liked. What it also gets, from
+v17, is everything the desktop layout assumed a mouse for. The app decides for itself: a
+touch-capable screen wider than 900 px is a *tablet*, narrower is a *phone* (field mode),
+and anything else is a desktop. **Help → Touch controls** overrides it in either direction
+if the guess is ever wrong, and an iPad in Split View crosses the line and comes back on
+its own.
+
+**Add it to the home screen.** In Safari, tap the Share button, scroll to *Add to Home
+Screen*, then Add. It opens full screen with no browser chrome, its own settings and its
+own icon. Two things follow from that: it has no address bar, so **Help → Reload app** is
+its refresh; and its storage is its own, so the password screen asks once more the first
+time.
+
+**Take it offline.** Over a web address (GitHub Pages, or an internal server) the Help
+panel has **Make available offline** — one tap, a progress count, and the whole 130 MB
+lives on the device. After that the app opens with no signal at all. When a new version is
+deployed it says *stale — an update is available, refresh to load it*, and the button
+becomes *Update offline copy*; *Remove offline copy* deletes it. This is the one place in
+the app that touches the network, it only ever reads its own site, and it does nothing at
+all when you open the app as a file.
+
+**Gestures — the 3D view**
+
+| gesture | does |
+|---|---|
+| one finger, drag | orbit, and it keeps going when you let go |
+| two fingers, pinch | zoom **towards the point between your fingers** — that ground stays under them |
+| two fingers, drag | pan |
+| two fingers, twist | swing the view round by the angle you turned |
+| three fingers, drag up / down | tilt |
+| double-tap | centre there and zoom in · two-finger tap zooms out |
+| tap | identify what you tapped |
+| press and hold | the identify card — and on a vertex handle, start dragging it |
+| the nav pad, bottom right | zoom in/out, tilt up/down · the compass resets north |
+
+**Gestures — the sheet viewer.** A drawing opens **maximised** (there is a restore button
+in its title bar, in every profile now). Pinch zooms about the point between your fingers,
+two fingers pan, one finger pans, double-tap zooms in, two-finger tap zooms out. The
+toolbar wraps rather than overlapping the drawing, and every button on the window is a
+44-px target.
+
+**Gestures — the map.** Press and hold is the right-click: the coordinate menu, a
+feature's menu, a vertex's menu. Every layer row carries a visible **⋯** for the toolbar
+that appears on hover on a desktop. Press and hold a button to read its tooltip (which is
+where the keyboard shortcut is written) without firing it. The command line opens from its
+own button in the top bar, and **Field ▾** puts Position, Photo, Note and Samples nearby
+where you can reach them without switching to the phone layout.
+
+**Placing a point precisely.** A fingertip covers the thing it is placing, so on touch a
+vertex is *press, hold, slide, lift*: a magnifying **loupe** appears above and to the left
+with a crosshair on the exact spot, you slide until it is right, and the point lands where
+you lift your finger. A tap without a slide places straight away; two fingers cancel it and
+become a pinch. While a sketch is open you get a **Done / Undo vertex / Cancel** bar,
+because there is no Enter, Backspace or Esc key under a thumb. All of it works the same on
+the map and inside a drawing.
+
+**The Apple Pencil.** The Pencil is a precise pointer and is treated as one: a pen tap
+places a vertex exactly where the tip is, with no loupe and mouse-sized snapping; hovering
+the tip moves the object-snap glyphs and the 3D highlight, the way a mouse does; and your
+palm is ignored while the tip is down. In 3D a pen drag orbits, a pen tap picks, and a pen
+drag **with a finger held down** pans.
+
+**Redlining.** `REDLINE` (also `MARKUP`, `INK`) is freehand ink, on the map and inside a
+sheet window. Pressure drives the line width; six colours and an eraser sit in a palette at
+the bottom; every stroke is one undo. A stroke is not a picture — it is a real feature in
+State Plane feet, so it appears in My work, travels in the session file, exports to GeoJSON
+and to DXF on a **REDLINE** layer, drapes over the terrain in 3D and prints in the report,
+in its own colour. Scribble works in every text box in the app.
+
+**Under the hood**, on an iPad: the 3D view runs WebGL2 with anisotropic filtering on the
+terrain imagery (which is what a hillside seen edge-on needs), the mesh detail defaults to
+*standard* on an older iPad and *high* on an M-series one and remembers whichever you
+choose, the compute workers scale with the number of cores, a lost graphics context is
+rebuilt instead of going black, the screen stays awake while Position or a long
+calculation is running, exports go to the iPad **share sheet** (Files, AirDrop, Mail), and
+a CSV, GeoJSON, DXF or session file dragged in from the Files app in Split View imports.
+**Help** shows the build, the profile, the pixel ratio, the GPU and the worker count in one
+line — read that back if anything is slow.
+
 ## What it does
 
 **One workbench, organised by what you are doing.** The top bar carries the tools as

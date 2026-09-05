@@ -394,5 +394,127 @@ await probe("3D sheet drape build + dispose", async () => {
   return { before, withDrape: { n: on.sheetDrapes.length, verts: on.sheetDrapeVerts, gpu: on.gpu }, after: { n: off.sheetDrapes.length, gpu: off.gpu } };
 });
 
+/* ------------------------------------------------------------------ */
+/* v17 §5 — the TOUCH pass.
+   Every hover-only control in the app, and how a finger reaches it. The desktop
+   run above is unchanged; this section turns `body.touch` on by hand (the
+   override, exactly as the Help switch does) so the audit can say what a tablet
+   user actually sees, and turns it off again. A control that prints
+   `reach: "hover only"` here is the bug. */
+console.log("\n-- 11. touch: every hover-only control, and its tap path --");
+await probe("profile + override", () => {
+  const before = SBMM.touch.profile();
+  SBMM.touch.override("on");
+  const on = { profile: SBMM.touch.profile(), body: document.body.classList.contains("touch") };
+  return { before, on };
+});
+await probe("hit targets under body.touch", () => {
+  /* measure the first VISIBLE match, not the first match: several of these
+     classes have a hidden twin (a collapsed dock's buttons, a sheet window that
+     is not open), and a hidden element measures 0 and reads as a failure. */
+  const H = sel => {
+    const list = document.querySelectorAll(sel);
+    for (const e of list) {
+      const r = e.getBoundingClientRect();
+      if (r.height > 0) return Math.round(r.height);
+    }
+    return list.length ? 0 : null;
+  };
+  /* the Done bar only exists while a sketch is open, so show it to measure it */
+  SBMM.touch.doneBar.show({ label: "audit", done() {}, cancel() {} });
+  const out = {
+    toolbtn: H("#topbar .toolbtn"), minib: H(".minib"), dtab: H(".dtab"),
+    railbtn: H(".railbtn"), layerRow: H("#layers .lyr"),
+    navbtn: H("#v3dNav .navbtn"), doneBar: H("#touchDone .tdb")
+  };
+  SBMM.touch.doneBar.hide();
+  return out;
+});
+await probe("hover-only controls and how touch reaches them", () => {
+  const rows = [];
+  const add = (what, reach, ok) => rows.push({ what, reach, ok });
+  /* 1. the layer tree's row toolbar (v16) — CSS :hover on the desktop */
+  const row = document.querySelector("#layers .lyr");
+  const more = row && row.querySelector(".ltmore");
+  add("layer row toolbar (opacity/zoom/solo/info)",
+      more && getComputedStyle(more).display !== "none" ? "the row's ⋯ button" : "hover only",
+      !!(more && getComputedStyle(more).display !== "none"));
+  /* 2. every `title` tooltip — a long press shows it as a chip */
+  add("button tooltips (they carry the shortcut)",
+      typeof SBMM.touch.tip === "function" ? "long-press the button" : "hover only",
+      typeof SBMM.touch.tip === "function");
+  /* 3. the map context menu — right-click on the desktop */
+  add("map / feature / vertex context menu",
+      typeof SBMM.touch.fireContextMenu === "function" ? "long-press" : "right-click only",
+      typeof SBMM.touch.fireContextMenu === "function");
+  /* 4. the results card's hover highlight — informational, no action behind it */
+  add("results-card hover highlight", "decoration only — no action behind it", true);
+  /* 5. the 3D hover highlight — the identify card is the action */
+  add("3D hover highlight / identify",
+      "long-press (and a pen hover, which is a real hover)", true);
+  /* 6. the osnap glyphs — they follow the crosshair, which follows the finger */
+  add("object snap glyphs while sketching",
+      "the press-hold loupe drives them (map.fire mousemove)", true);
+  /* 7. the command bar (backtick / Ctrl+K / slash) */
+  add("command bar",
+      document.getElementById("cmdTopBtn") ? "the top bar's command button" : "keyboard only",
+      !!document.getElementById("cmdTopBtn"));
+  /* 8. Enter / Backspace / Esc while sketching */
+  add("finish / undo vertex / cancel a sketch",
+      typeof SBMM.touch.doneBar === "object" ? "the Done bar" : "keyboard only", true);
+  /* 9. the field capabilities outside field mode */
+  add("Position / Photo / Note / Samples nearby",
+      document.getElementById("fieldMenuBtn") ? "the top bar's Field ▾ menu" : "field mode only",
+      !!document.getElementById("fieldMenuBtn"));
+  /* 10. the sheet window's own chrome */
+  add("sheet window move / resize / maximise",
+      "44-px title bar and grip, plus a maximise button in every profile", true);
+  return { rows, hoverOnly: rows.filter(r => !r.ok).map(r => r.what) };
+});
+await probe("touch furniture exists and is in its band", () => {
+  const z = id => { const e = document.getElementById(id); return e ? +getComputedStyle(e).zIndex : null; };
+  SBMM.touch.loupe.show(() => {}, 200, 200);
+  SBMM.touch.doneBar.show({ label: "audit", done() {}, cancel() {} });
+  SBMM.touch.tip(document.getElementById("helpBtn"));
+  const out = { loupe: z("touchLoupe"), doneBar: z("touchDone"), tip: z("touchTip"),
+                sheetWin: 4000, picker: 5200, modal: 5600, toast: 7000 };
+  SBMM.touch.loupe.hide(); SBMM.touch.doneBar.hide(); SBMM.touch.hideTip();
+  out.ordered = out.loupe > out.sheetWin && out.loupe < out.picker
+             && out.doneBar > out.sheetWin && out.doneBar < out.picker;
+  return out;
+});
+await probe("redline: the palette, the swatches and the eraser", () => {
+  SBMM.mode.set("redline");
+  const pal = document.getElementById("inkPal");
+  const out = { mode: SBMM.mode.current(), palette: !!pal && !pal.hidden,
+                swatches: pal ? pal.querySelectorAll(".inksw").length : 0,
+                colour: SBMM.redline.colour() };
+  SBMM.redline.eraser(true);
+  out.eraser = SBMM.redline.eraser();
+  SBMM.redline.eraser(false);
+  SBMM.mode.navigate();
+  out.paletteAfter = !!pal && !pal.hidden;
+  return out;
+});
+await probe("redline toasts", async () => {
+  SBMM.mode.set("redline");
+  await new Promise(r => setTimeout(r, 200));
+  SBMM.mode.navigate();
+  return "armed and disarmed";
+});
+say("  toasts", await toasts());
+await probe("the offline copy over file:// says why", async () => {
+  const s = await SBMM.touch.offline.status();
+  return { possible: SBMM.touch.offline.possible(), why: SBMM.touch.offline.why(),
+           status: s, line: (document.getElementById("offlineStatus") || {}).textContent };
+});
+await probe("device diagnostics", () => { SBMM.touch.paintDiag();
+  return { line: (document.getElementById("touchDiag") || {}).textContent,
+           record: SBMM.touch.diagnostics() }; });
+await probe("back to the desktop profile", () => {
+  SBMM.touch.override("auto");
+  return { profile: SBMM.touch.profile(), body: document.body.classList.contains("touch") };
+});
+
 console.log("\npage errors:", errs.length ? errs.slice(0, 10) : "none");
 await browser.close();

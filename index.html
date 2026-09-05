@@ -2,7 +2,23 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<!-- v17 §2: viewport-fit=cover puts the page under the notch and the home
+     indicator (the CSS then pads by env(safe-area-inset-*));
+     interactive-widget=resizes-content keeps the layout above the on-screen
+     keyboard rather than scrolling the whole page out from under it. -->
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
+<meta name="theme-color" content="#0E1418">
+<!-- added to the home screen on an iPad this opens with no browser chrome, its
+     own localStorage and the app's own dark status bar (v17 §2). The manifest
+     and icon links are DROPPED by tools/build_dist.py: beside a lone HTML file
+     they would 404. The meta tags below cost nothing and stay. -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="SBMM">
+<meta name="mobile-web-app-capable" content="yes">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
 <title>SBMM Site Explorer — Sulphur Bank Mercury Mine OU1</title>
 <link rel="stylesheet" href="vendor/leaflet.css">
 <link rel="stylesheet" href="css/app.css">
@@ -116,6 +132,12 @@ window.SBMM_BUILD="full";
   </div>
 
   <div class="spacer"></div>
+  <!-- v17 §5b: Position, Photo, Note and Samples-nearby in the TABLET profile.
+       Same js/field.js code as the phone's action bar, one more entry point. -->
+  <button class="toolbtn ghost touchonly" id="fieldMenuBtn" aria-haspopup="true" title="Field — position, photo, note, samples nearby"><svg class="ic16"><use href="#i-target"/></svg><span class="tlbl">Field ▾</span></button>
+  <!-- v17 §5: the command bar opens from the backtick, Ctrl+K or "/" — none of
+       which a thumb has. Shown only under body.touch. -->
+  <button class="toolbtn ghost iconly touchonly" id="cmdTopBtn" title="Command line (`)"><svg class="ic16"><use href="#i-cmd"/></svg></button>
   <button class="toolbtn ghost iconly" id="ovfBtn" title="More commands" hidden><svg class="ic16"><use href="#i-dots"/></svg></button>
   <button class="toolbtn ghost iconly" id="helpBtn" title="Help — what the app does, and every keyboard shortcut (Esc closes)"><svg class="ic16"><use href="#i-help"/></svg></button>
 </div>
@@ -432,6 +454,16 @@ window.SBMM_BUILD="full";
       <!-- v15 §3.2: the site's own elevation range, in the hypsometric ramp the
            2D elevation tint uses -->
       <div id="v3dElevLeg"></div>
+      <!-- v17 §3: the on-screen nav pad. Under body.touch only — a keyboard has
+           the arrow keys and the wheel, a thumb has neither. 44 px each, and
+           it sits above the compass so the safe-area padding on #v3dNav keeps
+           the whole column clear of the home indicator. -->
+      <div class="navrow navpad touchonly">
+        <button class="navbtn" data-nav="in" title="Zoom in">+</button>
+        <button class="navbtn" data-nav="out" title="Zoom out">&minus;</button>
+        <button class="navbtn" data-nav="tiltup" title="Tilt up (towards the horizon)">&#9650;</button>
+        <button class="navbtn" data-nav="tiltdn" title="Tilt down (towards straight down)">&#9660;</button>
+      </div>
       <div id="v3dCompass" title="Click to reset north-up">
         <svg viewBox="0 0 100 100">
           <circle class="cring" cx="50" cy="50" r="43"/>
@@ -486,6 +518,12 @@ window.SBMM_BUILD="full";
         <tr><td>Arrows</td><td>orbit · <kbd>Shift</kbd>+arrows pan</td></tr>
         <tr><td>Compass</td><td>click to reset north-up</td></tr>
         <tr><td>Drawing</td><td>click = vertex, double-click finishes, right-click undoes</td></tr>
+        <tr><th colspan="2">Touch</th></tr>
+        <tr><td>One finger</td><td>orbit, with momentum</td></tr>
+        <tr><td>Two fingers</td><td>pinch to zoom towards the point between them · drag to pan · twist to rotate</td></tr>
+        <tr><td>Three fingers</td><td>drag up / down to tilt</td></tr>
+        <tr><td>Double-tap</td><td>centre there and zoom in · two-finger tap zooms out</td></tr>
+        <tr><td>Long-press</td><td>identify what is under the finger · on a vertex handle, drag it</td></tr>
       </table>
     </div>
   </div>
@@ -493,6 +531,14 @@ window.SBMM_BUILD="full";
 
 <div id="sketchTip"></div>
 <div id="ctxmenu" class="menu"></div>
+<div id="fieldMenu" class="menu">
+  <div class="ci hd">Field</div>
+  <div class="ci" data-fm="position">Position — where I am</div>
+  <div class="ci" data-fm="photo">Photo — take one and place it</div>
+  <div class="ci" data-fm="note">Note — tap the map and type</div>
+  <div class="ci" data-fm="samples">Samples nearby</div>
+  <div class="ci" data-fm="field">Field mode (phone layout)</div>
+</div>
 
 <!-- ==================== right dock ==================== -->
 <div id="rightdock">
@@ -785,6 +831,30 @@ window.SBMM_BUILD="full";
   drapes in 3D and travels in the session file (the GeoJSON export asks before it carries the
   images). <b>Note</b> is a text feature through a big-button flow, and
   <b>Samples nearby</b> lists the twenty nearest sample locations to where you are standing.<br>
+  <b>On a tablet</b> — the app detects a touch device and turns on 44-px targets, a
+  visible <span class="mono">&#8943;</span> button on every layer row, long-press for what a
+  right-click does, an on-screen nav pad in 3D, and pinch / twist / three-finger gestures in
+  the 3D view and the sheet viewer; a sketch gets a magnifying <b>loupe</b> and a
+  <b>Done / Undo vertex / Cancel</b> bar, because a finger covers the point it is placing
+  and there is no Enter key.
+  <label class="chk" style="display:inline-flex;gap:6px;align-items:center;margin-left:4px">Touch controls
+  <select id="touchSwitch"><option value="auto">automatic</option><option value="on">always on</option><option value="off">off</option></select></label><br>
+  <span id="homeHint" hidden><b>Add to Home Screen</b> — in Safari, tap the Share button, scroll to
+  “Add to Home Screen”, then Add. It then opens full screen with its own settings, like an app.<br></span>
+  <b>Offline</b> — <span class="mono" id="offlineStatus">offline copy: none</span>
+  <button class="minib" id="offlineBtn">Make available offline</button>
+  <button class="minib" id="offlineRm" hidden>Remove offline copy</button>
+  <button class="minib" id="reloadApp" title="A home-screen app has no address bar — this is its refresh">Reload app</button><br>
+  <b>Apple Pencil</b> — a pen tap places a vertex exactly where the tip is (no loupe, mouse-size
+  snapping), a pen hover moves the osnap glyph and the 3D highlight, and your palm is ignored while
+  the tip is down. <span class="mono">REDLINE</span> (also <span class="mono">MARKUP</span>,
+  <span class="mono">INK</span>) is freehand ink on the map and inside a sheet window: pressure
+  drives the width, six colours and an eraser, one undo per stroke, and every stroke is a normal
+  feature — it exports to GeoJSON and to DXF on a <span class="mono">REDLINE</span> layer, drapes
+  in 3D and prints in the report. In 3D, a pen drag orbits and a pen drag with a finger held down
+  pans.<br>
+  <b>This device</b> — <span class="mono" id="touchDiag" title="Click to copy the whole diagnostic record"></span><br>
+  <br>
   There is also a <b>field build</b> — <span class="mono">SBMM_Site_Explorer_field.html</span> —
   about half the size, for opening on a phone. It leaves out the 20 full-sheet plan renders, the
   canopy height model, EA's recovered design surfaces and EA's native CAD; everything that reads
@@ -884,6 +954,11 @@ window.SBMM_BUILD="full";
 <script src="js/proj.js"></script>
 <script src="js/state.js"></script>
 <script src="js/layerstate.js"></script>
+<!-- v17: the three touch profiles, the ONE gesture recogniser, the loupe, the
+     Done bar and the (opt-in, http-only) offline copy. After js/layerstate.js
+     because it emits on SBMM.events; before everything that asks it what the
+     profile is. -->
+<script src="js/touch.js"></script>
 <script src="js/view.js"></script>
 <script src="js/popups.js"></script>
 <script src="js/watermark.js"></script>
@@ -920,6 +995,9 @@ window.SBMM_BUILD="full";
 <script src="js/viewer3d.js"></script>
 <script src="js/pick3d.js"></script>
 <script src="js/sheetmarks.js"></script>
+<!-- v17 §5a: freehand ink (REDLINE). After js/tools.js, whose newFeature it
+     calls, and after js/sheetmarks.js, which hands it the sheet-window host. -->
+<script src="js/redline.js"></script>
 <script src="js/mode.js"></script>
 <script src="js/layerman.js"></script>
 <script src="js/isopach.js"></script>

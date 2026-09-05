@@ -250,7 +250,14 @@ SBMM.buildLayers = function () {
 /* ====================================================================== */
 SBMM.myWork = (function () {
   const CLASSES = [
-    ["drawings",     "Drawings",       "#4FB3CE", f => ["spot", "dim", "text"].includes(f.type)],
+    /* v17 §5a: an `ink` redline is a DRAWING and joins that class rather than
+       getting a row of its own. Two reasons, and the second is the real one:
+       a redline is what "Drawings" means to a drafter, and every (group, id)
+       in this tree is baselined by test/e2e.mjs block 9z against
+       test/fixtures/layer_rows_pre_v16.json, which fails on an invented row.
+       A separate "Redline" row is a fair request — it needs that baseline
+       regenerated in the same commit, and is an open item, not a silent one. */
+    ["drawings",     "Drawings",       "#4FB3CE", f => ["spot", "dim", "text", "ink"].includes(f.type)],
     ["measurements", "Measurements",   "#4FCE9B", f => ["line", "area", "volume", "profile"].includes(f.type)],
     ["sections",     "Sections",       "#F0A6D0", f => f.type === "sections"],
     ["pads",         "Design pads",    "#4FD8E6", f => f.type === "surface" && !(f.props && f.props.ref)],

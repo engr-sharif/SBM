@@ -253,7 +253,7 @@ SBMM.viewer3d = (function () {
     const tex = await new Promise((res, rej) => new THREE.TextureLoader().load(url, res, undefined, rej));
     tex.colorSpace = THREE.SRGBColorSpace;
     tex.flipY = true;             // image row 0 = north = max Y; uv v=0 at min Y
-    tex.anisotropy = 4;
+    tex.anisotropy = maxAniso();
     const out = { tex, bounds };
     texCache[key] = out;
     return out;
@@ -287,7 +287,7 @@ SBMM.viewer3d = (function () {
     put(await load(SBMM_DATA.ortho_abp_jpg), [o.x0, o.y0, o.x1, o.y1]);
     const tex = new THREE.CanvasTexture(c);
     tex.colorSpace = THREE.SRGBColorSpace;
-    tex.flipY = true; tex.anisotropy = 4;
+    tex.flipY = true; tex.anisotropy = maxAniso();
     return { tex, bounds: [x0, y0, x1, y1] };
   }
 
@@ -1523,6 +1523,17 @@ SBMM.viewer3d = (function () {
           }
           continue;
         }
+        /* v17 §5a: a redline is a draped line in its own ink colour, at the
+           stroke's own mean width. It is deliberately NOT shadowed — a
+           mark-up sits ON the drawing, and an outline under it would read as
+           a second stroke. */
+        if (f.type === "ink") {
+          const ic = parseInt(String((f.props && f.props.color) || "#E4433A").slice(1), 16);
+          const wmean = (f.props && f.props.widths && f.props.widths.length)
+            ? f.props.widths.reduce((a, b) => a + b, 0) / f.props.widths.length : 0.55;
+          overlayGroup.add(own(drapedLine(f.pts, ic, false, 1.5 + 3.5 * wmean + (sel ? 2 : 0)), f));
+          continue;
+        }
         /* v10: the run drapes like any line, and the two things that make it a
            WATER feature ride with it — each pond as a closed draped ring at its
            own level, and the drop itself as a small sphere you can pick. */
@@ -2053,24 +2064,22 @@ SBMM.viewer3d = (function () {
       return camera.position.clone().addScaledVector(dir, st.sph.r);
     }
 
-    /* ---- touch (v11 §4.3) ------------------------------------------
-       The rig is pointer-based, so ONE finger already orbits. What it did not
-       have is the second finger: a two-finger gesture arrived as two competing
-       one-finger drags and the camera lurched. `touches` tracks the live touch
-       pointers, and while there are two of them the drag becomes a PINCH —
-       spread/pinch dollies, moving the midpoint pans — which is the gesture
-       every map on a phone has taught the user to expect. Mouse and pen are
-       untouched: they never enter this map. */
-    const touches = new Map();          // pointerId -> {x, y}
-    let pinch = null;                   // {d, cx, cy}
-    const pinchOf = () => {
-      const a = [...touches.values()];
-      if (a.length < 2) return null;
-      return { d: Math.hypot(a[0].x - a[1].x, a[0].y - a[1].y),
-               cx: (a[0].x + a[1].x) / 2, cy: (a[0].y + a[1].y) / 2 };
-    };
+    /* ---- touch (v11 §4.3, rebuilt for v17 §3) ----------------------
+       v11 tracked live touch pointers here and turned two of them into a
+       pinch. v17 replaces that with the ONE recogniser in js/touch.js — the
+       same implementation the sheet viewer and the map sketch use, so a pinch
+       means the same thing everywhere in the app — and adds the rest of the
+       gesture set a native map has: momentum, twist, three-finger tilt,
+       double-tap, two-finger tap, long-press.
+
+       THE MOUSE PATH BELOW IS BYTE-FOR-BYTE WHAT IT WAS. Every handler in this
+       rig now returns immediately for anything that is not a mouse, and the
+       recogniser (which itself ignores `pointerType === "mouse"`) owns the
+       rest. That is what makes "the desktop is untouched" a property of the
+       code rather than a promise. */
+
     /* pan the camera plane by a screen delta — the same maths the right-drag
-       pan uses, factored out so the pinch can borrow it */
+       pan uses, factored out so the pinch and the momentum can borrow it */
     function panBy(dx, dy) {
       const el = dom.clientHeight || 1;
       const k = 2 * st.sph.r * Math.tan((camera.fov * Math.PI / 180) / 2) / el;
@@ -2078,36 +2087,42 @@ SBMM.viewer3d = (function () {
       camera.matrixWorld.extractBasis(right, up, new THREE.Vector3());
       st.targetDst.add(right.multiplyScalar(-dx * k).add(up.multiplyScalar(dy * k)));
     }
+    /* dolly by `k` about a FIXED scene point, keeping that point where it is on
+       screen. Exactly the wheel's own maths (see the wheel handler); the pinch
+       hands it the ground point under the two fingers' midpoint. */
+    function dollyAbout(P, k) {
+      const camDst = st.targetDst.clone().add(offsetOf(st.dst));
+      const newCam = P.clone().add(camDst.sub(P).multiplyScalar(k));
+      const newTgt = P.clone().add(st.targetDst.clone().sub(P).multiplyScalar(k));
+      const off = newCam.clone().sub(newTgt);
+      const r = clamp(off.length(), MINR, MAXR);
+      st.targetDst.copy(newTgt);
+      st.dst.r = r;
+      st.dst.phi = clamp(Math.acos(clamp(off.z / (off.length() || 1), -1, 1)), PHI_MIN, PHI_MAX);
+      st.dst.theta = Math.atan2(off.x, off.y);
+    }
+    /* the point the pinch dollies towards: the terrain under the midpoint, or
+       — off the mesh — a point at the current orbit distance along that ray,
+       which is what `pivotAt` already does for the wheel */
+    function groundAt(x, y) { return pivotAt({ clientX: x, clientY: y }); }
+
+    let glide = null;                   // the momentum handle, if one is running
+    let navRec = null;                  // the gesture recogniser, for stats()
+    const stopGlide = () => { if (glide) { glide.cancel(); glide = null; } };
 
     dom.addEventListener("pointerdown", e => {
-      if (e.pointerType === "mouse" && e.button === 2) e.preventDefault();
+      if (e.pointerType !== "mouse") { stopGlide(); return; }
+      if (e.button === 2) e.preventDefault();
       /* capture is a convenience, not a requirement: it throws for a pointer id
          the browser has no active pointer for (a synthetic event, a pointer
          already released), and a throw here would leave the rig un-armed with
          no error the user could see */
       try { dom.setPointerCapture(e.pointerId); } catch (err) {}
-      if (e.pointerType === "touch") {
-        touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
-        if (touches.size >= 2) { pinch = pinchOf(); st.drag = "pinch"; return; }
-      }
       st.lastX = e.clientX; st.lastY = e.clientY;
       st.drag = e.button === 0 ? (st.mode === "fly" ? "look" : "orbit") : "pan";
     });
     dom.addEventListener("pointermove", e => {
-      if (e.pointerType === "touch" && touches.has(e.pointerId))
-        touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
-      if (st.drag === "pinch") {
-        const now = pinchOf();
-        if (!now || !pinch) return;
-        if (now.d > 4 && pinch.d > 4) {
-          const r = clamp(st.dst.r * (pinch.d / now.d), MINR, MAXR);
-          st.dst.r = r;
-        }
-        panBy(now.cx - pinch.cx, now.cy - pinch.cy);
-        pinch = now;
-        requestRender();
-        return;
-      }
+      if (e.pointerType !== "mouse") return;
       if (!st.drag) return;
       const dx = e.clientX - st.lastX, dy = e.clientY - st.lastY;
       st.lastX = e.clientX; st.lastY = e.clientY;
@@ -2132,25 +2147,124 @@ SBMM.viewer3d = (function () {
       requestRender();
     });
     const endDrag = e => {
-      if (e.pointerType === "touch") {
-        touches.delete(e.pointerId);
-        if (touches.size === 1) {
-          /* one finger lifted out of a pinch: carry on orbiting from where the
-             other one is, rather than jumping by the gap between them */
-          const a = [...touches.values()][0];
-          st.lastX = a.x; st.lastY = a.y;
-          st.drag = st.mode === "fly" ? "look" : "orbit";
-          pinch = null;
-          try { dom.releasePointerCapture(e.pointerId); } catch (err) {}
-          return;
-        }
-        pinch = null;
-      }
+      if (e.pointerType !== "mouse") return;
       st.drag = null;
       try { dom.releasePointerCapture(e.pointerId); } catch (err) {}
     };
     dom.addEventListener("pointerup", endDrag);
     dom.addEventListener("pointercancel", endDrag);
+
+    /* ---- the gesture set (v17 §3) ----------------------------------
+       Everything below is fed by js/touch.js's recogniser, which never sees a
+       mouse. The handlers move the rig's DESTINATION state (`st.dst`,
+       `st.targetDst`) and let the existing damping follow it, so a gesture and
+       a preset button settle the same way. */
+    if (SBMM.touch) {
+      let pinchPivot = null;            // the ground point under the midpoint
+      let mvx = 0, mvy = 0, mvt = 0;    // midpoint velocity, for the pan momentum
+      let vtxDrag = false;              // a long-press landed on a 3D vertex handle
+      const ev = (x, y) => ({ clientX: x, clientY: y, button: 0, pointerId: 1,
+                              stopPropagation() {}, preventDefault() {} });
+
+      navRec = SBMM.touch.gestures(dom, {
+        panstart() { stopGlide(); vtxDrag = false; },
+
+        pan(g) {
+          if (vtxDrag) { SBMM.pick3d.touchDrag.move(g.x, g.y); requestRender(); return; }
+          /* §5a: a Pencil drag with a finger held down PANS — the Pencil's
+             "modifier". The recogniser flags it; the two-finger gestures stay
+             finger gestures. */
+          if (g.modifier) { panBy(g.dx, g.dy); requestRender(); return; }
+          if (st.mode === "fly") {
+            st.yaw -= g.dx * 0.0028 * st.sens;
+            st.pitch = clamp(st.pitch - g.dy * 0.0028 * st.sens, -1.45, 1.45);
+            st.lookDirty = true;
+          } else {
+            st.dst.theta -= g.dx * 0.0055 * st.sens;
+            st.dst.phi = clamp(st.dst.phi - g.dy * 0.0048 * st.sens, PHI_MIN, PHI_MAX);
+          }
+          requestRender();
+        },
+
+        panend(g) {
+          if (vtxDrag) { SBMM.pick3d.touchDrag.end(); vtxDrag = false; return; }
+          if (!g.flick || st.mode === "fly") return;
+          /* momentum, and it MUST settle: js/touch.js decays v by 0.92 a frame
+             and stops under 0.02 px/ms, so the render loop goes idle again and
+             test/perf.mjs still counts 0 idle renders. */
+          glide = SBMM.touch.momentum(g.vx, g.vy, (dx, dy) => {
+            st.dst.theta -= dx * 0.0055 * st.sens;
+            st.dst.phi = clamp(st.dst.phi - dy * 0.0048 * st.sens, PHI_MIN, PHI_MAX);
+            requestRender();
+          }, () => { glide = null; });
+        },
+
+        pinchstart(g) {
+          stopGlide();
+          vtxDrag = false;
+          /* ONE raycast for the whole gesture (§3): re-picking the 1.5 M-vertex
+             terrain on every pointermove is the difference between a pinch that
+             tracks and a pinch that stutters */
+          pinchPivot = groundAt(g.cx, g.cy);
+          mvx = mvy = 0; mvt = performance.now();
+        },
+
+        pinch(g) {
+          if (st.mode === "fly") return;
+          if (pinchPivot && g.scale > 0.2 && g.scale < 5)
+            dollyAbout(pinchPivot, 1 / g.scale);       // spread (scale > 1) = zoom in
+          panBy(g.dcx, g.dcy);
+          /* twist: the azimuth turns with the fingers, about the same target */
+          if (Math.abs(g.twist) > 1e-4) st.dst.theta += g.twist;
+          const t = performance.now(), dt = Math.max(1, t - mvt);
+          mvx = mvx * 0.7 + (g.dcx / dt) * 0.3;
+          mvy = mvy * 0.7 + (g.dcy / dt) * 0.3;
+          mvt = t;
+          requestRender();
+        },
+
+        pinchend() {
+          pinchPivot = null;
+          if (Math.hypot(mvx, mvy) < 0.15) return;
+          glide = SBMM.touch.momentum(mvx, mvy, (dx, dy) => { panBy(dx, dy); requestRender(); },
+            () => { glide = null; });
+        },
+
+        threestart() { stopGlide(); },
+        three(g) {
+          if (st.mode === "fly") return;
+          st.dst.phi = clamp(st.dst.phi - g.dy * 0.0048 * st.sens, PHI_MIN, PHI_MAX);
+          requestRender();
+        },
+
+        tap(g) { if (canvasClick) canvasClick(ev(g.x, g.y)); },
+
+        doubletap(g) {
+          const p = pickScene(ev(g.x, g.y));
+          if (p) st.targetDst.copy(p);
+          st.dst.r = clamp(st.dst.r * 0.6, MINR, MAXR);
+          requestRender();
+        },
+
+        twofingertap() {
+          st.dst.r = clamp(st.dst.r * 1.6, MINR, MAXR);
+          requestRender();
+        },
+
+        longpress(g) {
+          /* a vertex handle first — dragging one is what the mouse gets from a
+             plain press, and a finger has to ask for it */
+          if (SBMM.pick3d && SBMM.pick3d.touchDrag.start(g.x, g.y)) {
+            vtxDrag = true;
+            toast("drag the vertex — lift to finish");
+            return;
+          }
+          /* otherwise identify what is under the finger: hover has no touch
+             equivalent, and this is where it went */
+          if (SBMM.pick3d) SBMM.pick3d.click(ev(g.x, g.y));
+        }
+      });
+    }
 
     dom.addEventListener("wheel", e => {
       e.preventDefault();
@@ -2220,9 +2334,13 @@ SBMM.viewer3d = (function () {
       /* v15: what the rig thinks the current gesture is, and how many TOUCH
          pointers it is tracking. A pinch that does not dolly is either "the
          second pointer never arrived" or "the arithmetic is wrong", and without
-         these two numbers the harness cannot tell those apart. */
-      dragMode() { return st.drag; },
-      touchCount() { return touches.size; },
+         these two numbers the harness cannot tell those apart.
+
+         v17 kept both and re-pointed them: the `touches` Map they read is gone,
+         because the rig's touch state IS js/touch.js's recogniser now. `st.drag`
+         still answers for the mouse; the recogniser answers for a finger. */
+      dragMode() { return (navRec && navRec.mode()) || st.drag; },
+      touchCount() { return navRec ? navRec.count() : 0; },
       /* place the camera: target point + spherical offset */
       place(tgt, r, theta, phi, instant) {
         st.targetDst.copy(tgt);
@@ -2255,6 +2373,26 @@ SBMM.viewer3d = (function () {
       setFromCamera
     };
   }
+
+  /* v17 §5b — the drape texture at a grazing angle is where this view looks
+     cheap, and anisotropic filtering is the one line that fixes it. Ask the
+     DEVICE for its maximum (an M-series iPad offers 16) rather than hard-coding
+     4; capped at 16 because nothing above it is visible and every level costs
+     texture bandwidth. Safe before the renderer exists — it returns the old
+     constant, and every texture is built after init(). */
+  let ctxLost = false;
+  function maxAniso() {
+    try {
+      const m = renderer && renderer.capabilities && renderer.capabilities.getMaxAnisotropy
+        ? renderer.capabilities.getMaxAnisotropy() : 4;
+      return Math.max(1, Math.min(16, m || 4));
+    } catch (e) { return 4; }
+  }
+
+  /* The canvas click handler, assigned by init() below. It lives here rather
+     than inside init()'s closure because the nav rig (makeNav) is a closure of
+     its own and a TAP has to reach exactly the same code a click does. */
+  let canvasClick = null;
 
   /* raycast the terrain under a mouse/pointer event; returns a scene-space Vector3 */
   function pickScene(e) {
@@ -2378,8 +2516,35 @@ SBMM.viewer3d = (function () {
     SBMM._zrAbp = SBMM._zrAbp || SBMM.demAbp.zRange();
     ZMID = (SBMM._zrSite[0] + SBMM._zrSite[1]) / 2;
 
+    /* WebGL2 where the device has it (three picks it by default), MSAA on, and
+       the pixel ratio capped at 2 — an iPad reports 2, and 3 on a Pro would
+       quadruple the fill rate for nothing anyone can see (v17 §5b). */
     renderer = new THREE.WebGLRenderer({ canvas: $("v3dCanvas"), antialias: true, preserveDrawingBuffer: true });
     renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
+    /* iPad Safari drops the WebGL context under memory pressure, and the
+       default behaviour is a dead black canvas with no error anywhere. Prevent
+       the default on loss (which is what allows a restore at all), rebuild from
+       the store on restore, and SAY SO both times — a silent black rectangle is
+       the one answer this app must not give. */
+    {
+      const cv = $("v3dCanvas");
+      cv.addEventListener("webglcontextlost", e => {
+        e.preventDefault();
+        ctxLost = true;
+        toast("the 3D view lost its graphics context — rebuilding…", 5000);
+      }, false);
+      cv.addEventListener("webglcontextrestored", async () => {
+        ctxLost = false;
+        try {
+          texCache = {};
+          await rebuildTerrain();
+          await setStyle($("v3dStyle").value);
+          rebuildOverlays();
+          requestRender();
+          toast("the 3D view is back");
+        } catch (err) { console.error(err); toast("the 3D view could not be rebuilt — reopen it", 6000); }
+      }, false);
+    }
     scene = new THREE.Scene();
     /* the dome is what is actually seen; this is only what shows through it */
     scene.background = new THREE.Color(SKY_HORIZON);
@@ -2450,8 +2615,14 @@ SBMM.viewer3d = (function () {
       /* live rubber preview while sketching in 3D */
       if (p && SBMM.tools.active() && SBMM.draw.isDrawing()) SBMM.draw.previewAt(p[0], p[1]);
     });
-    canvas.addEventListener("click", e => {
-      if (!wasClick(e)) return;                 // that was an orbit / look drag
+    /* v17 §3: a tap and a click do the same thing, so they call the same
+       function. `SBMM.touch` routes a finger's tap here through the recogniser
+       (the rig has already decided it was not an orbit), and the DOM `click`
+       below is left to the mouse — a tap ALSO produces a synthetic click, and
+       running both would pick twice and toggle "look at" straight off again.
+       It is published on the module-level `canvasClick` because the nav rig is
+       built in its own closure (`makeNav`) and cannot see into this one. */
+    canvasClick = function (e) {
       if (lookArmed) {
         lookArmed = false;
         const lb = $("v3dLookAt"); if (lb) lb.classList.remove("active");
@@ -2474,6 +2645,11 @@ SBMM.viewer3d = (function () {
       }
       const p = pickWorld(e);
       if (p) SBMM.tools.mapClick(p[0], p[1]);   // same pipeline as 2D — draw in either view
+    };
+    canvas.addEventListener("click", e => {
+      if (SBMM.touch && SBMM.touch.touchRecent()) return;   // the tap already did it
+      if (!wasClick(e)) return;                 // that was an orbit / look drag
+      canvasClick(e);
     });
     canvas.addEventListener("dblclick", e => {
       if (SBMM.tools.active() && SBMM.draw.isDrawing()) { SBMM.draw.finishSketch(); return; }
@@ -2679,6 +2855,10 @@ SBMM.viewer3d = (function () {
 
     const detSel = $("v3dDetail");
     if (detSel) detSel.onchange = async () => {
+      /* v17 §3: remembered, in the same store the camera and the sun use. A
+         remembered choice beats a guess — an M-series iPad handles the 1.5 M
+         vertex mesh and an A10 does not, and only the owner knows which. */
+      if (SBMM.view && SBMM.view.pref) SBMM.view.pref("detail", detSel.value);
       $("v3dStatus").textContent = "rebuilding terrain…";
       await new Promise(r => setTimeout(r, 30));
       await rebuildTerrain();
@@ -2721,6 +2901,17 @@ SBMM.viewer3d = (function () {
 
     /* navigation chrome */
     document.querySelectorAll("#v3dNav [data-view]").forEach(b => b.onclick = () => preset(b.dataset.view));
+    /* v17 §3: the on-screen nav pad. A hardware keyboard still has the arrow
+       keys and a trackpad still has the wheel — this is the thumb's copy of
+       them, and it is shown only under body.touch (css/app.css `.touchonly`). */
+    document.querySelectorAll("#v3dNav [data-nav]").forEach(b => b.onclick = () => {
+      const k = b.dataset.nav;
+      if (k === "in") nav.st.dst.r = clamp(nav.st.dst.r * 0.72, 40, 60000);
+      else if (k === "out") nav.st.dst.r = clamp(nav.st.dst.r * 1.4, 40, 60000);
+      else if (k === "tiltup") nav.st.dst.phi = clamp(nav.st.dst.phi + 0.14, 0.02, 1.52);
+      else if (k === "tiltdn") nav.st.dst.phi = clamp(nav.st.dst.phi - 0.14, 0.02, 1.52);
+      requestRender();
+    });
     $("v3dFrame").onclick = frameSelectionOrSite;
     if ($("v3dLookAt")) $("v3dLookAt").onclick = startLookAt;
     paintElevLegend();
@@ -3063,6 +3254,18 @@ SBMM.viewer3d = (function () {
       cameraZ: camera ? +camera.position.z.toFixed(1) : null,
       renderOnDemand: true,
       renderCount, frameCount,
+      /* v17 §5b — what the engineer reads back when something is slow */
+      contextLost: ctxLost,
+      webgl2: !!(renderer && renderer.capabilities && renderer.capabilities.isWebGL2),
+      pixelRatio: renderer ? renderer.getPixelRatio() : null,
+      anisotropy: renderer ? maxAniso() : null,
+      gpuName: (function () {
+        try {
+          const gl = renderer && renderer.getContext();
+          const ext = gl && gl.getExtension("WEBGL_debug_renderer_info");
+          return ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : null;
+        } catch (e) { return null; }
+      })(),
       /* GPU resource counters — used by the leak check in test/perf.mjs */
       gpu: renderer ? {
         geometries: renderer.info.memory.geometries,
@@ -3091,6 +3294,30 @@ SBMM.viewer3d = (function () {
     sun: (az, el) => { if (az === undefined && el === undefined) return { az: sunAz, el: sunEl };
                        setSun(az, el); return { az: sunAz, el: sunEl }; },
     lookAt: startLookAt,
+    /* v17 §6 — three introspection hooks the tablet harness needs, and which
+       are useful in the console for the same reason: there is otherwise no way
+       to ask "what ground is under this screen point" or "where on screen is
+       that ground now", which is exactly the question a pinch-toward-a-point
+       has to be judged by. */
+    worldAt(cx, cy) { return open ? pickWorld({ clientX: cx, clientY: cy }) : null; },
+    screenAt(x, y, z) {
+      if (!open || !camera || !renderer) return null;
+      const v = new THREE.Vector3(x - CX, y - CY, (z - ZMID) * exag());
+      v.project(camera);
+      const r = renderer.domElement.getBoundingClientRect();
+      return [r.left + (v.x * 0.5 + 0.5) * r.width, r.top + (-v.y * 0.5 + 0.5) * r.height];
+    },
+    /* the orbit target in State Plane feet — what a pan actually moves */
+    targetXY() { return nav ? [nav.st.targetDst.x + CX, nav.st.targetDst.y + CY] : null; },
+    handleScreen(i) {
+      if (!open || !SBMM.pick3d || !SBMM.pick3d.handlePos) return null;
+      const p = SBMM.pick3d.handlePos(i);
+      if (!p || !camera || !renderer) return null;
+      const v = new THREE.Vector3(p[0], p[1], p[2]);
+      v.project(camera);
+      const r = renderer.domElement.getBoundingClientRect();
+      return [r.left + (v.x * 0.5 + 0.5) * r.width, r.top + (-v.y * 0.5 + 0.5) * r.height];
+    },
     requestRender, reflowBar
   };
 })();

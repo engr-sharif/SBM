@@ -171,7 +171,18 @@ SBMM.snap = (function () {
   /* the query                                                           */
   /* ------------------------------------------------------------------ */
   function pxPerFt() { return SBMM.map ? Math.pow(2, SBMM.map.getZoom()) : 1; }
-  function tolFt(px) { return (px || 10) / Math.max(1e-6, pxPerFt()); }
+  /* v17 §5: the snap radius is a SCREEN distance, so on a touch device it
+     scales with the target — a fingertip aims about 1.5x less precisely than a
+     mouse cursor, and the glyphs grow by the same factor so what is drawn is
+     still what is caught. */
+  function touchK() {
+    /* per EVENT, not per profile (§5a): the same iPad is a coarse pointer under
+       a thumb and a precise one under a Pencil, and the tolerance follows what
+       is actually in the user's hand */
+    if (!SBMM.touch || !SBMM.touch.on()) return 1;
+    return SBMM.touch.lastPointer() === "touch" ? 1.5 : 1;
+  }
+  function tolFt(px) { return ((px || 10) * touchK()) / Math.max(1e-6, pxPerFt()); }
 
   /* opts: { from:[x,y]|null  previous vertex, for the perpendicular foot
              tolPx:10, skip:[[x,y],...] points to ignore (the live sketch) }      */
@@ -303,7 +314,7 @@ SBMM.snap = (function () {
   function drawGlyph(s) {
     const [px, py] = toPx(s.x, s.y);
     if (!isFinite(px) || !isFinite(py)) return;
-    const r = 6.5;
+    const r = 6.5 * touchK();
     ctx.save();
     ctx.lineWidth = 3; ctx.strokeStyle = "rgba(10,14,17,.85)";   // halo first, same paths
     for (let pass = 0; pass < 2; pass++) {
