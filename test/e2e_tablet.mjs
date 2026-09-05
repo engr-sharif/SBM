@@ -726,16 +726,38 @@ const mapBox = await page.evaluate(() => {
 
 /* --- a polygon by TAPS + Done vs the same polygon by MOUSE clicks --- */
 {
+  /* Pin the view first, and size the polygon in SCREEN pixels.
+     The map restores wherever it was left (js/view.js), and at zoom -2.75 a
+     140-ft square is 42 px across — four clicks inside 42 px, a quarter of a
+     second apart, are read by the browser as DOUBLE-clicks, and a double-click
+     finishes a sketch. The polygon has to be big enough on the glass that two
+     consecutive vertices are unambiguously two clicks. */
+  await page.evaluate(() => {
+    SBMM.map.setView([2128900, 6371600], 1, { animate: false });
+  });
+  await wait(600);
   const P = await page.evaluate(() => {
-    const c = SBMM.map.getCenter();
-    const d = 140;
-    const pts = [[c.lng - d, c.lat - d], [c.lng + d, c.lat - d], [c.lng + d, c.lat + d], [c.lng - d, c.lat + d]];
     const r = document.getElementById("map").getBoundingClientRect();
-    return pts.map(p => {
-      const q = SBMM.map.latLngToContainerPoint([p[1], p[0]]);
-      return { sp: p, x: Math.round(r.left + q.x), y: Math.round(r.top + q.y) };
+    const cx = r.left + r.width / 2, cy = r.top + r.height / 2, d = 110;   // 220 px a side
+    /* A TRIANGLE, not a square, and that is deliberate. With four corners
+       Leaflet delivers only three map `click` events for four mouse clicks —
+       the closing one is dropped, identically with `body.touch` on and OFF, so
+       it is not v17's and not a touch question at all (reported to the planner
+       as a pre-existing oddity). Comparing a shape the mouse path mis-draws
+       against one the tap path draws correctly would fail on that, not on the
+       thing this block is for: the same three points, two input methods, the
+       same area. */
+    const scr = [[cx - d, cy - d], [cx + d, cy - d], [cx + d, cy + d]];
+    return scr.map(q => {
+      const ll = SBMM.map.containerPointToLatLng([q[0] - r.left, q[1] - r.top]);
+      return { sp: [ll.lng, ll.lat], x: Math.round(q[0]), y: Math.round(q[1]) };
     });
   });
+  {
+    const gap = Math.hypot(P[1].x - P[0].x, P[1].y - P[0].y);
+    console.log(`  test polygon: ${P.length} corners, ${gap.toFixed(0)} px apart at zoom 1`);
+    if (gap < 80) fail("the test polygon is too small on screen — clicks would read as double-clicks", gap);
+  }
   /* by mouse */
   await page.evaluate(() => SBMM.mode.set("measure.area"));
   await wait(300);
@@ -747,21 +769,41 @@ const mapBox = await page.evaluate(() => {
     const fs = SBMM.store.features.filter(f => f.type === "area" && f.props && f.props.area_ft2);
     return fs[fs.length - 1].props.area_ft2;
   });
-  /* by taps + Done */
+  /* by taps + Done.
+     Navigate FIRST: `SBMM.mode.set(x)` when the mode is already x emits no
+     `mode` event (it diffs), and the Done bar hangs off that event — so
+     re-arming a tool the harness is already holding proves nothing about the
+     bar. Coming from Navigate is also what a user does. */
+  await page.evaluate(() => SBMM.mode.navigate());
+  await wait(200);
+  const before = await page.evaluate(() => SBMM.store.features.filter(f => f.type === "area").length);
   await page.evaluate(() => SBMM.mode.set("measure.area"));
   await wait(400);
+  const armedNow = await page.evaluate(() => ({
+    mode: SBMM.mode.current(), tool: SBMM.tools.active(),
+    drawing: SBMM.draw.isDrawing(), armed: SBMM.draw.armed(),
+    touch: SBMM.touch.on(), bar: SBMM.touch.doneBar.visible()
+  }));
+  console.log(`  armed for touch: ${JSON.stringify(armedNow)}`);
+  if (!armedNow.armed) fail("arming the area tool did not open a sketch", armedNow);
+  if (!armedNow.bar) fail("the Done bar did not appear when the tool was armed", armedNow);
   for (const p of P) { await tap(p.x, p.y, 70); await wait(320); }
   const doneUp = await page.evaluate(() => {
     const el = document.getElementById("touchDone");
-    return !!el && !el.hidden;
+    return { up: !!el && !el.hidden, label: el ? el.querySelector(".tdlbl").textContent : null,
+             verts: SBMM.draw.isDrawing() ? SBMM.tools.sketchPts ? SBMM.tools.sketchPts().length : -1 : -2,
+             armed: SBMM.draw.armed(), mode: SBMM.mode.current() };
   });
-  if (!doneUp) fail("the Done bar did not appear while sketching on the map by touch");
+  console.log(`  after four taps: ${JSON.stringify(doneUp)}`);
+  if (!doneUp.up) fail("the Done bar did not appear while sketching on the map by touch", doneUp);
   await page.evaluate(() => document.querySelector('#touchDone [data-td="done"]').click());
   await wait(1500);
-  const byTouch = await page.evaluate(() => {
+  const byTouch = await page.evaluate(n => {
     const fs = SBMM.store.features.filter(f => f.type === "area" && f.props && f.props.area_ft2);
+    if (fs.length <= n) return null;              // nothing new: Done did not commit
     return fs[fs.length - 1].props.area_ft2;
-  });
+  }, before);
+  if (byTouch == null) fail("Done did not commit the polygon drawn by taps");
   const err = Math.abs(byTouch - byMouse) / byMouse * 100;
   console.log(`map polygon: mouse ${byMouse.toFixed(1)} ft² vs taps+Done ${byTouch.toFixed(1)} ft² (${err.toFixed(3)} %)`);
   if (err > 0.1) fail("the same polygon drawn by taps differs from the one drawn by clicks", { byMouse, byTouch, err });
