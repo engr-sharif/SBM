@@ -37,6 +37,7 @@ in code, and what comes next. It replaces re-reading the chat history that built
 | No proposed-grade surface is synthesised from breaklines | It would invent the pad; ask EA for LandXML instead |
 | Residential excavation surfaces are derived from EA's written depths | EA's design is depth-based (1 ft default, 6-in call-outs), so this *is* the design |
 | Geodatabase polygons own "Limits of excavation"; CAD exc linework off by default (R1) | Avoids duplicate answers to one click |
+| A sheet is registered only where **two independent lines of evidence agree**, and a symmetric control gets an **ambiguity table** rather than an argument (v9.16, C-102 / C-203) | A wrong affine is far worse than none. The accepted rotation must win every column — fit, the features that took no part in the fit, and the orthophoto — and the ortho check is calibrated on the twelve sheets whose answer is already known (`register_sheet_native.py --calibrate`) |
 | One layer state for 2D/3D/sheets/exports; no 3D checkboxes | §1 of the spec |
 | **The iPad keeps the DESKTOP layout** (`body.touch`), not the phone one | He said the app already "looks good" on his iPad and he likes it. v17 adds touch affordances to that layout rather than replacing it; field mode (`body.field`) is untouched and still the phone's |
 | Touch capability is detected, never sniffed from the user agent | iPadOS reports a desktop UA. `(any-pointer: coarse)` OR `maxTouchPoints > 1`, re-evaluated on resize and rotation |
@@ -181,9 +182,19 @@ in code, and what comes next. It replaces re-reading the chat history that built
    Consolidating them into the payload is a good small refactor.
 6. ~~`index.html` help prose still says "Residential remedy design"; `test/perf.mjs` still
    references the removed 3D checkboxes.~~ **Done (v9.7).**
-7. **C-102 and C-203 could be placed the way C-202 was** (`tools/register_sheet_native.py`,
+7. ~~**C-102 and C-203 could be placed the way C-202 was** (`tools/register_sheet_native.py`,
    native polygon fitted to the plan linework + ortho confirmation). C-203's rectangle is
-   symmetric, so watch the ambiguity.
+   symmetric, so watch the ambiguity.~~ **Done (v9.16).** Both are placed, so **14 of the 20
+   sheets are now on the map** and C-101 — a site index sheet with no unique geometry — is
+   the one plan sheet still unplaced. C-102 came from FIVE native polygons fitted together as
+   one rigid transform (127 vertices; the sheet prints no coordinate table at all), at
+   +40.000°, residual median 0.52 / max 1.45 ft, ortho agreement 2.24 ft. C-203 came from
+   the borrow rectangle plus the 15 ft cell grid its own work sequence specifies inside it,
+   at −30.000°, printed nodes 83–86 to 0.00 ft, ortho 2.24 ft — and the symmetry was broken
+   by an ambiguity table in which the accepted rotation wins every column, decisively on the
+   two features that took no part in the fit and on the orthophoto. The `--calibrate` switch
+   reruns the ortho check over the twelve sheets whose answer is already known (0.00–3.16 ft),
+   which is what makes "2.24 ft" mean something. Shots: `node test/sheets_shots.mjs`.
 8. **The pipes' capacity is not modelled.** The overtopping card says the pipes discharge
    from 1341.55 ft; how much they can pass, and whether the pond keeps rising with them
    flowing, is hydraulics (see the next item).

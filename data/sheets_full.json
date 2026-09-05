@@ -23,8 +23,47 @@
    "h": 2800,
    "bytes": 1202899,
    "quality": 56,
-   "affine": null,
-   "affine_note": "sheet is not georeferenced"
+   "affine": {
+    "a": 0.131350576,
+    "b": 0.11021622,
+    "c": 6370788.8863,
+    "d": 0.11021622,
+    "e": -0.131350576,
+    "f": 2126504.3707,
+    "ft_per_px": 0.171466,
+    "rot_deg": -40.0,
+    "ncc": 0.657,
+    "signal": "native polygon",
+    "roundtrip_ft": 0.0,
+    "gis_check": {
+     "n": 127,
+     "inside_pct": 100
+    },
+    "method": "native-geometry fit of EA's 'Staging Area', 'Borrow Soil Staging Area', 'Gravel Area', 'Construction Entrance' to the plan linework, rotation locked to the drafting angle and scale to the sheet's 1 in = 20 ft, confirmed by independent ortho correlation against ortho_site (agree 2.24 ft); see tools/register_sheet_native.py"
+   },
+   "viewports": [
+    {
+     "name": "Staging Area Plan",
+     "primary": true,
+     "px": [
+      144,
+      56,
+      3760,
+      2744
+     ],
+     "affine": {
+      "a": 0.131350576,
+      "b": 0.11021622,
+      "c": 6370788.8863,
+      "d": 0.11021622,
+      "e": -0.131350576,
+      "f": 2126504.3707,
+      "ft_per_px": 0.171466,
+      "rot_deg": -40.0
+     }
+    }
+   ],
+   "affine_source": "native"
   },
   {
    "sheet": "C-103",
@@ -425,8 +464,47 @@
    "h": 2800,
    "bytes": 1240621,
    "quality": 56,
-   "affine": null,
-   "affine_note": "sheet is not georeferenced"
+   "affine": {
+    "a": 0.37123478,
+    "b": -0.2143325,
+    "c": 6371414.2404,
+    "d": -0.2143325,
+    "e": -0.37123478,
+    "f": 2127472.8483,
+    "ft_per_px": 0.428665,
+    "rot_deg": 30.0,
+    "ncc": 0.65,
+    "signal": "native polygon",
+    "roundtrip_ft": 0.0,
+    "gis_check": {
+     "n": 28,
+     "inside_pct": 100
+    },
+    "method": "native-geometry fit of EA's 'Borrow Area' to the plan linework, rotation locked to the drafting angle and scale to the sheet's 1 in = 50 ft, confirmed by independent ortho correlation against ortho_site (agree 2.24 ft); see tools/register_sheet_native.py"
+   },
+   "viewports": [
+    {
+     "name": "Borrow Source Demonstration Area Plan",
+     "primary": true,
+     "px": [
+      144,
+      56,
+      2904,
+      2744
+     ],
+     "affine": {
+      "a": 0.37123478,
+      "b": -0.2143325,
+      "c": 6371414.2404,
+      "d": -0.2143325,
+      "e": -0.37123478,
+      "f": 2127472.8483,
+      "ft_per_px": 0.428665,
+      "rot_deg": 30.0
+     }
+    }
+   ],
+   "affine_source": "native"
   },
   {
    "sheet": "C-501",
