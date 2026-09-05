@@ -228,6 +228,18 @@ node test/perf.mjs   /abs/path/index.html folder   # 3D / memory numbers (its la
 node test/audit.mjs  /abs/path/index.html folder   # every tool, command, dialog + its toasts
 node test/audit2.mjs /abs/path/index.html folder   # sheet viewer, properties, split, report
 ```
+**One known flake, and it is older than the runner.** `test/e2e.mjs`'s last block,
+*9z. the layer tree*, reloads the page and measures the tree **1.5 s later** — a fixed
+wait, not a condition. On a loaded box (two browser steps in parallel) the app has not
+finished re-registering its rows by then and the draw-order assertion fails with a
+draw index far below the settled one (`{dus: 456, piles: 467}` against a settled
+`{dus: 1237, piles: 1231}`). It passed on the baseline, on a second full run and on the
+dist, and it fails in about one run in three under load. **Re-run the block alone before
+believing it** — `node test/e2e.mjs <index.html> folder --only "9z. the layer tree"`,
+14 seconds — and if it passes there, the matrix result is the flake, not a regression.
+Fixing it means waiting on the condition rather than on the clock, which is a change to
+a harness and belongs to the planner.
+
 **One browser at a time** — the lock above enforces it now rather than asking; raise
 `--parallel` only on a box with the cores for it. `docs/AGENT_RULES.md` is the ten-line
 version of all of this, for an agent starting a round.
