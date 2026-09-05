@@ -79,7 +79,8 @@ SBMM.field = (function () {
   function sniff() {
     if (SBMM.touch && SBMM.touch.sniff) return SBMM.touch.sniff() === "phone";
     const coarse = !!(window.matchMedia && window.matchMedia("(pointer: coarse)").matches);
-    return coarse && Math.max(window.innerWidth, window.innerHeight) <= 900;
+    return coarse && Math.max(Math.min(window.innerWidth, (screen && screen.width) || Infinity),
+                              Math.min(window.innerHeight, (screen && screen.height) || Infinity)) <= 900;
   }
   function autoDetect() {
     const s = stored();
