@@ -308,7 +308,7 @@ if (errors.length) fail("page errors after the profile switches", errors.slice(0
 /* ===================================================================== */
 /* 3. the 3D view                                                        */
 /* ===================================================================== */
-await page.evaluate(() => SBMM.viewer3d.toggle());
+await page.evaluate(() => { SBMM.viewer3d.toggle(); });
 await page.waitForFunction(() => SBMM.viewer3d.isOpen(), null, { timeout: 180000 });
 await wait(4000);
 
@@ -453,7 +453,7 @@ const orbit = () => page.evaluate(() => SBMM.viewer3d.stats().orbit);
 
 /* --- long-press identifies, and drags a vertex handle --- */
 {
-  await page.evaluate(() => SBMM.viewer3d.frame());
+  await page.evaluate(() => { SBMM.viewer3d.frame(); });
   await wait(2000);
   await clearToasts();
   await longPress(box.cx, box.cy);
@@ -462,7 +462,7 @@ const orbit = () => page.evaluate(() => SBMM.viewer3d.stats().orbit);
                                             html: (SBMM.pick3d.cardHtml() || "").slice(0, 90) }));
   console.log(`3D long-press: identify card open ${card.open} — ${JSON.stringify(card.html)}`);
   if (!card.open) fail("a long press on the terrain opened no identify card");
-  await page.evaluate(() => SBMM.pick3d.closeCard());
+  await page.evaluate(() => { SBMM.pick3d.closeCard(); });
 }
 {
   /* a vertex handle: draw a small area, select it, long-press a handle and drag */
@@ -535,13 +535,13 @@ const orbit = () => page.evaluate(() => SBMM.viewer3d.stats().orbit);
   } else warn("no targetXY hook — the pen+finger pan was not measured");
 
   /* pen hover highlights (no buttons) */
-  await page.evaluate(() => SBMM.pick3d.closeCard());
+  await page.evaluate(() => { SBMM.pick3d.closeCard(); });
   await pen("move", box.cx, box.cy, { hover: true });
   await wait(400);
   const hov = await page.evaluate(() => SBMM.pick3d.stats().hoverActive);
   console.log(`3D pen hover: pick3d hover active ${hov}`);
 }
-await page.evaluate(() => SBMM.viewer3d.toggle());
+await page.evaluate(() => { SBMM.viewer3d.toggle(); });
 await wait(800);
 if (errors.length) fail("page errors after the 3D block", errors.slice(0, 6));
 
@@ -653,7 +653,7 @@ if (errors.length) fail("page errors after the 3D block", errors.slice(0, 6));
     });
     console.log(`sheet mark: loupe shown ${loupeUp} · Done bar ${barUp.up} ${JSON.stringify(barUp.label)}`);
     if (!barUp.up) fail("the Done bar did not appear while a sheet mark was open");
-    await page.evaluate(() => document.querySelector('#touchDone [data-td="done"]').click());
+    await page.evaluate(() => { document.querySelector('#touchDone [data-td="done"]').click(); });
     await wait(900);
     const made = await page.evaluate(n => {
       const f = SBMM.store.features[SBMM.store.features.length - 1];
@@ -666,13 +666,13 @@ if (errors.length) fail("page errors after the 3D block", errors.slice(0, 6));
     if (!(made.len > 0.5 && made.len < 4000)) fail("the georeferenced mark is not a plausible length", made);
 
     /* restore / maximise, and the toolbar by tap */
-    await page.evaluate(() => document.querySelector(".shwin .shmax").click());
+    await page.evaluate(() => { document.querySelector(".shwin .shmax").click(); });
     await wait(500);
     const rest = await page.evaluate(() => {
       const el = document.querySelector(".shwin");
       return { maxed: el.classList.contains("maxed"), w: Math.round(el.getBoundingClientRect().width) };
     });
-    await page.evaluate(() => document.querySelector(".shwin .shmax").click());
+    await page.evaluate(() => { document.querySelector(".shwin .shmax").click(); });
     await wait(400);
     const remax = await page.evaluate(() => document.querySelector(".shwin").classList.contains("maxed"));
     console.log(`sheet restore/maximise: restored ${!rest.maxed} (${rest.w} px) · re-maximised ${remax}`);
@@ -759,7 +759,7 @@ const mapBox = await page.evaluate(() => {
     if (gap < 80) fail("the test polygon is too small on screen — clicks would read as double-clicks", gap);
   }
   /* by mouse */
-  await page.evaluate(() => SBMM.mode.set("measure.area"));
+  await page.evaluate(() => { SBMM.mode.set("measure.area"); });
   await wait(300);
   for (const p of P) { await page.mouse.click(p.x, p.y); await wait(220); }
   await page.keyboard.press("Enter");
@@ -774,10 +774,10 @@ const mapBox = await page.evaluate(() => {
      `mode` event (it diffs), and the Done bar hangs off that event — so
      re-arming a tool the harness is already holding proves nothing about the
      bar. Coming from Navigate is also what a user does. */
-  await page.evaluate(() => SBMM.mode.navigate());
+  await page.evaluate(() => { SBMM.mode.navigate(); });
   await wait(200);
   const before = await page.evaluate(() => SBMM.store.features.filter(f => f.type === "area").length);
-  await page.evaluate(() => SBMM.mode.set("measure.area"));
+  await page.evaluate(() => { SBMM.mode.set("measure.area"); });
   await wait(400);
   const armedNow = await page.evaluate(() => ({
     mode: SBMM.mode.current(), tool: SBMM.tools.active(),
@@ -796,7 +796,7 @@ const mapBox = await page.evaluate(() => {
   });
   console.log(`  after four taps: ${JSON.stringify(doneUp)}`);
   if (!doneUp.up) fail("the Done bar did not appear while sketching on the map by touch", doneUp);
-  await page.evaluate(() => document.querySelector('#touchDone [data-td="done"]').click());
+  await page.evaluate(() => { document.querySelector('#touchDone [data-td="done"]').click(); });
   await wait(1500);
   const byTouch = await page.evaluate(n => {
     const fs = SBMM.store.features.filter(f => f.type === "area" && f.props && f.props.area_ft2);
@@ -807,7 +807,7 @@ const mapBox = await page.evaluate(() => {
   const err = Math.abs(byTouch - byMouse) / byMouse * 100;
   console.log(`map polygon: mouse ${byMouse.toFixed(1)} ft² vs taps+Done ${byTouch.toFixed(1)} ft² (${err.toFixed(3)} %)`);
   if (err > 0.1) fail("the same polygon drawn by taps differs from the one drawn by clicks", { byMouse, byTouch, err });
-  await page.evaluate(() => SBMM.mode.navigate());
+  await page.evaluate(() => { SBMM.mode.navigate(); });
 }
 
 /* --- a vertex drag by touch --- */
@@ -831,13 +831,13 @@ const mapBox = await page.evaluate(() => {
   const moved = Math.hypot(after[0][0] - info.pts[0][0], after[0][1] - info.pts[0][1]);
   console.log(`map vertex drag by touch: vertex 0 moved ${moved.toFixed(1)} ft`);
   if (moved < 1) fail("a touch drag did not move a 2D vertex handle", { before: info.pts[0], after: after[0] });
-  await page.evaluate(() => SBMM.draw.endEdit());
+  await page.evaluate(() => { SBMM.draw.endEdit(); });
 }
 
 /* --- §5a: the pen on the map --- */
 {
   /* a pen tap places a vertex with NO loupe */
-  await page.evaluate(() => SBMM.mode.set("measure.distance"));
+  await page.evaluate(() => { SBMM.mode.set("measure.distance"); });
   await wait(300);
   await pen("down", mapBox.cx - 100, mapBox.cy - 60);
   await wait(120);
@@ -852,13 +852,13 @@ const mapBox = await page.evaluate(() => {
   const snapK = await page.evaluate(() => SBMM.touch.lastPointer());
   console.log(`  lastPointer() after the pen = ${snapK}`);
   if (snapK !== "pen") fail("lastPointer() did not report the pen", snapK);
-  await page.evaluate(() => SBMM.mode.navigate());
+  await page.evaluate(() => { SBMM.mode.navigate(); });
 }
 
 /* --- §5a: a redline stroke --- */
 {
   await clearToasts();
-  await page.evaluate(() => SBMM.mode.set("redline"));
+  await page.evaluate(() => { SBMM.mode.set("redline"); });
   await wait(500);
   const pal = await page.evaluate(() => {
     const el = document.getElementById("inkPal");
@@ -909,7 +909,7 @@ const mapBox = await page.evaluate(() => {
   console.log(`palm rejection: ${n2 - n1} stroke(s) from one pen stroke with a palm down (must be 1)`);
   if (n2 - n1 !== 1) fail("the palm made a stroke of its own", { n1, n2 });
 
-  await page.evaluate(() => SBMM.mode.navigate());
+  await page.evaluate(() => { SBMM.mode.navigate(); });
   await wait(300);
   const palGone = await page.evaluate(() => document.getElementById("inkPal").hidden);
   if (!palGone) fail("the palette did not go away with the mode");
@@ -946,7 +946,7 @@ const mapBox = await page.evaluate(() => {
   if (trip.dxfHasLayer === false) fail("the DXF export has no REDLINE layer", trip);
 
   /* and it draws in 3D */
-  await page.evaluate(() => SBMM.viewer3d.toggle());
+  await page.evaluate(() => { SBMM.viewer3d.toggle(); });
   await page.waitForFunction(() => SBMM.viewer3d.isOpen(), null, { timeout: 180000 });
   await wait(3500);
   const drawn3d = await page.evaluate(() => {
@@ -956,7 +956,7 @@ const mapBox = await page.evaluate(() => {
   });
   console.log(`redline in 3D: ${drawn3d} object(s) tagged mywork/drawings`);
   if (!drawn3d) fail("an ink stroke drew nothing in 3D");
-  await page.evaluate(() => SBMM.viewer3d.toggle());
+  await page.evaluate(() => { SBMM.viewer3d.toggle(); });
   await wait(700);
 }
 
@@ -1005,7 +1005,7 @@ const mapBox = await page.evaluate(() => {
     navigator.share = files => { window.__shared.push((files.files || []).map(f => f.name)); return Promise.resolve(); };
     navigator.canShare = () => true;
   });
-  await page.evaluate(() => SBMM.dxf.exportDXF());
+  await page.evaluate(() => { SBMM.dxf.exportDXF(); });
   await wait(900);
   const sh = await page.evaluate(() => ({ shared: window.__shared, noted: SBMM.touch.shared().length }));
   console.log(`share sheet: navigator.share called with ${JSON.stringify(sh.shared)} · noted ${sh.noted}`);
@@ -1077,7 +1077,7 @@ const mapBox = await page.evaluate(() => {
   console.log(`  the row toolbar opened: ${opened.open} (${opened.acts}), buttons ${opened.btns.join("/")} px`);
   if (!opened.open || opened.acts === "none") fail("tapping ⋯ did not open the row toolbar", opened);
   if (opened.btns.some(h => h < 32)) fail("the row toolbar buttons are too small to tap", opened);
-  await page.evaluate(() => document.querySelector("#layers .lyr").classList.remove("ltopen"));
+  await page.evaluate(() => { document.querySelector("#layers .lyr").classList.remove("ltopen"); });
 }
 {
   /* a popup action by tap: a feature popup carries 44-px buttons */
@@ -1100,7 +1100,7 @@ const mapBox = await page.evaluate(() => {
     await tap(pop.x, pop.y);
     await wait(700);
   }
-  await page.evaluate(() => SBMM.map.closePopup());
+  await page.evaluate(() => { SBMM.map.closePopup(); });
 }
 {
   const cb = await page.evaluate(() => {
@@ -1147,7 +1147,7 @@ const mapBox = await page.evaluate(() => {
 }
 {
   /* §5b: a WebGL context loss is recovered, not a dead black canvas */
-  await page.evaluate(() => SBMM.viewer3d.toggle());
+  await page.evaluate(() => { SBMM.viewer3d.toggle(); });
   await page.waitForFunction(() => SBMM.viewer3d.isOpen(), null, { timeout: 180000 });
   await wait(3000);
   await clearToasts();
@@ -1175,7 +1175,7 @@ const mapBox = await page.evaluate(() => {
     if (!ctxToasts.some(t => /graphics context|3D view is back/i.test(t)))
       fail("the context loss was silent — every failure the user can see must toast", ctxToasts);
   }
-  await page.evaluate(() => SBMM.viewer3d.toggle());
+  await page.evaluate(() => { SBMM.viewer3d.toggle(); });
   await wait(600);
 }
 if (errors.length) fail("page errors after the map / pen block", errors.slice(0, 8));
