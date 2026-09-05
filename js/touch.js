@@ -117,18 +117,43 @@ SBMM.touch = (function () {
      pane. The smaller of the two on each axis is right in both directions: a
      page can be laid out wider than the glass, and the glass is never wider
      than the screen. */
-  function edge() {
+  /* the glass, per axis: the smaller of what the window says and what the
+     screen says (see above for why neither alone is right) */
+  function glass() {
     const sw = (window.screen && window.screen.width) || Infinity;
     const sh = (window.screen && window.screen.height) || Infinity;
     const w = Math.min(window.innerWidth || Infinity, sw);
     const h = Math.min(window.innerHeight || Infinity, sh);
-    return Math.max(isFinite(w) ? w : 0, isFinite(h) ? h : 0);
+    return [isFinite(w) ? w : 0, isFinite(h) ? h : 0];
   }
+  function edge() { const g = glass(); return Math.max(g[0], g[1]); }
+  function shortEdge() { const g = glass(); return Math.min(g[0], g[1]); }
+
+  /* WHICH EDGE DECIDES. Neither one on its own does:
+
+       Pixel 7           412 x 915    short 412   long  915
+       Split View        507 x 834    short 507   long  834
+       iPad portrait     834 x 1194   short 834   long 1194
+       iPad landscape   1194 x 834    short 834   long 1194
+       iPad (gen 5)     1024 x 768    short 768   long 1024
+
+     v11 asked "is the WIDTH <= 900", which makes an iPad in portrait a phone
+     (834). The longer edge alone makes a Pixel 7 a tablet, because its screen
+     is 915 tall — this harness caught that too. What actually separates the two
+     families is the SHORT side: every phone here is ~400-500, every iPad ~770
+     or more, and an iPad pane narrowed to 507 in Split View is genuinely
+     phone-shaped and §1 wants it treated as one.
+
+     So: a phone is a screen whose SHORT side is under 600, or whose LONG side
+     is under 900 — the second clause keeping v11's threshold for anything
+     genuinely small in both directions. 600 sits in the wide gap between 507
+     and 768 and is the usual tablet breakpoint. */
+  const PHONE_SHORT = 600, PHONE_LONG = 900;
   function sniff() {
     const ov = override();
     if (ov === "off") return "desktop";
     if (ov !== "on" && !touchCapable()) return "desktop";
-    return edge() <= 900 ? "phone" : "tablet";
+    return (shortEdge() <= PHONE_SHORT || edge() <= PHONE_LONG) ? "phone" : "tablet";
   }
 
   /* What the APP is running as. Field mode wins the phone half, because a
@@ -1168,7 +1193,7 @@ SBMM.touch = (function () {
     wire, autoDetect, apply, profile, sniff, on, override, touchCapable, standalone,
     /* §5a — the per-EVENT hook the chrome sizes from, and the palm clock */
     lastPointer, precise, penDown, penRecent,
-    gestures, recognizer, momentum, angDelta, sketchBar, edge,
+    gestures, recognizer, momentum, angDelta, sketchBar, edge, shortEdge, glass,
     loupe, snapshot, snapPainter, doneBar, fireContextMenu, tip, hideTip,
     offline, refreshOfflineUI, syncViewport,
     /* §5b */
