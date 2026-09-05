@@ -513,7 +513,10 @@ SBMM.runoff = (function () {
         name: c.name, stage: T.stage, rimLevel: T.primary.level,
         weirLen: cluster ? Math.max(T.cell, cluster.cells * T.cell) : T.cell,
         conduitLevel: cl, conduitId: T.conduitSpill ? T.conduitSpill.id : null,
-        inflow: base, dtMin: R.dt_min
+        /* the INFLOW's own step, not the outlet run's: each job picks a step no
+           coarser than a tenth of the shortest Tp it was given, and the two
+           jobs were given different catchments */
+        inflow: base, dtMin: c.hydro.dt_min
       });
       rr.label = c.label;
       rr.area_ac = c.area_ac;

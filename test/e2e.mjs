@@ -5197,12 +5197,16 @@ if (!rainOut.csvCat || !rainOut.csvRoute || !rainOut.csvAssume || !rainOut.csvCo
 
 /* the two layer rows draw */
 const rainRows = await page.evaluate(async () => {
+  /* the cover raster is an image overlay and the site already has several, so
+     the honest test is that ticking the row ADDS one */
+  const countImgs = () => { let n = 0; SBMM.map.eachLayer(l => { if (l instanceof L.ImageOverlay) n++; }); return n; };
+  const imgs0 = countImgs();
   SBMM.layerState.set("framework", "runoff_cover", { on: true });
   SBMM.layerState.set("framework", "runoff_depth", { on: true });
   await new Promise(r => setTimeout(r, 500));
-  let imgs = 0, polys = 0;
+  let polys = 0;
+  const imgs = countImgs() - imgs0;
   SBMM.map.eachLayer(l => {
-    if (l instanceof L.ImageOverlay && /cover/.test(l._url.slice(0, 40) + "x")) imgs++;
     if (l instanceof L.Polygon && l.options.fillOpacity === 0.34) polys++;
   });
   const legend = document.querySelectorAll(".rnLegend .rnLeg").length;
@@ -5217,6 +5221,7 @@ const rainRows = await page.evaluate(async () => {
 console.log("design storm layers:", JSON.stringify(rainRows));
 if (!rainRows.rows.every(Boolean)) { console.log("FAIL: the design-storm rows are not in the tree"); process.exit(1); }
 if (rainRows.polys < 4) { console.log("FAIL: the runoff-depth choropleth drew nothing"); process.exit(1); }
+if (rainRows.imgs < 1) { console.log("FAIL: the cover raster did not reach the map"); process.exit(1); }
 if (!rainRows.legend) { console.log("FAIL: the cover row has no CN legend"); process.exit(1); }
 if (!rainRows.popup) { console.log("FAIL: the runoff popup does not name its numbers"); process.exit(1); }
 
