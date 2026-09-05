@@ -624,5 +624,162 @@ SBMM.report = (function () {
     return html;
   }
 
-  return { open, buildHTML, composeFigure, sectionSheet, lastHTML: () => lastHTML, AUTHOR };
+  /* ------------------------------------------------------------------ */
+  /* the design-storm sheet (v14 Phase 2 §2)                             */
+  /* ------------------------------------------------------------------ */
+  /* THE ASSUMPTIONS TABLE COMES FIRST, before a single quantity. Everything on
+     this sheet rests on the rainfall depths, the soil group and the curve
+     numbers above it, and a reader who takes a peak flow off page 2 without
+     reading page 1 has been misled by the layout rather than by the number. */
+  function runoffHTML(R) {
+    const today = new Date().toISOString().slice(0, 10);
+    const cat = R.outlets.slice().sort((a, b) => b.area_ft2 - a.area_ft2);
+    const rowsC = cat.map(c => `<tr><td>${esc2(c.name)}</td><td class="n">${fmt(c.area_ac, 2)}</td>
+      <td class="n">${fmt(c.cn, 0)}</td><td class="n">${fmt(c.Q_in, 2)}</td>
+      <td class="n">${fmt(c.volume_acft, 2)}</td><td class="n">${fmt(c.tc_min, 0)}</td>
+      <td class="n">${c.qRational_cfs == null ? "—" : fmt(c.qRational_cfs, 0)}</td>
+      <td class="n">${fmt(c.qPeak_cfs, 0)}</td></tr>`).join("");
+    const rowsR = (R.routing || []).map(r => `<tr><td>${esc2(r.name)}</td>
+      <td class="n">${fmt(r.stage0, 2)}</td><td class="n">${fmt(r.peakLevel, 2)}</td>
+      <td class="n">${r.rimLevel == null ? "—" : fmt(r.rimLevel, 2)}</td>
+      <td class="n">${r.freeboard_ft == null ? "—" : fmt(r.freeboard_ft, 2)}</td>
+      <td class="n">${fmt(r.peakT_h, 1)}</td>
+      <td>${r.overtops ? "overtops the rim" : r.throughConduit
+            ? "discharges through " + esc2(r.conduitId || "the conduit") + " (capacity unknown — survey pending)"
+            : "contained"}</td></tr>`).join("");
+    const cov = {};
+    for (const c of R.outlets) for (const k of (c.classes || []))
+      cov[k.key] = (cov[k.key] || 0) + k.area_ac;
+    const covSum = Object.values(cov).reduce((a, b) => a + b, 0) || 1;
+    const rowsV = Object.keys(cov).sort((a, b) => cov[b] - cov[a]).map(k => {
+      const cl = SBMM.runoff.classByKey(k);
+      return `<tr><td>${esc2(cl ? cl.name : k)}</td><td class="n">${fmt(cov[k], 2)}</td>
+        <td class="n">${fmt(100 * cov[k] / covSum, 1)}</td>
+        <td class="n">${cl ? cl.cn.C : "—"}</td><td class="n">${cl ? cl.cn.D : "—"}</td>
+        <td class="n">${cl ? cl.hsg : "—"}</td></tr>`;
+    }).join("");
+    const a = R.assumptions || {};
+    const prov = R.provisional
+      ? `<p class="warn"><b>Provisional rainfall depths.</b> This sheet was produced before the
+         NOAA Atlas 14 point precipitation frequency export for 39.003&nbsp;N, 122.663&nbsp;W was
+         baked in. Replace <b>data/atlas14_sbmm.csv</b> and re-run the storm before issuing it.</p>`
+      : "";
+    return `<!doctype html><html><head><meta charset="utf-8">
+<title>Design storm ${esc2(R.storm.name)} — SBMM OU1</title><style>${SHEET_CSS}
+.warn{border:1.5pt solid #b00;padding:6pt 8pt;color:#900;font-weight:600}
+table.qt td.n{text-align:right;font-family:ui-monospace,Consolas,monospace;white-space:nowrap}
+table.qt tfoot td{border:1px solid #999;background:#f0f0f0}
+</style></head><body>
+<div class="sheet">
+  <div class="tblock">
+    <div class="row1">
+      <div class="who">
+        <h1>Design storm — ${esc2(R.storm.name)}</h1>
+        <div class="sub">Runoff volume and peak flow by catchment · ${esc2(PROJECT)}</div>
+      </div>
+      <div class="stamp">
+        <div><span>Prepared by</span><b>${esc2(AUTHOR)}</b></div>
+        <div><span>Date</span><b>${today}</b></div>
+        <div><span>Task</span><b>2.1.5</b></div>
+        <div><span>Sheet</span><b>1 of 1</b></div>
+      </div>
+    </div>
+    <div class="row2">
+      <div><b>Coordinate system</b><br>EPSG:6418 · CA SP Zone 2 · ftUS</div>
+      <div><b>Catchments</b><br>Drainage map, ${esc2(String(R.gridFt))}-ft lidar grid</div>
+      <div><b>Source</b><br>30 Jan 2024 lidar survey · storm network ${R.drains ? "assumed working" : "off"}</div>
+    </div>
+  </div>
+  ${prov}
+  <h2>Assumptions</h2>
+  ${table(["item", "assumption"], [
+    ["Rainfall", (R.rain ? R.rain.source : "—")],
+    ["Depth", fmt(R.storm.P, 2) + " in over " + fmt(R.storm.hours, 0) + " hours"
+      + (R.storm.ari ? " (" + R.storm.ari + "-year ARI)" : "")],
+    ["Temporal distribution", (R.rain && R.rain.distributions && R.rain.distributions[R.settings.dist]
+      ? R.rain.distributions[R.settings.dist].name : R.settings.dist)],
+    ["Runoff", "NRCS curve number (TR-55 / NEH-630 ch. 10), Q = (P − 0.2S)² / (P + 0.8S), S = 1000/CN − 10, AMC II"],
+    ["Hydrologic soil group", "D for mine waste, tailings, waste piles, decision units and compacted fill; C elsewhere. No SSURGO or infiltration data on hand."],
+    ["Land cover", "2-ft class raster from EA's water, building and road layers, the decision units and waste piles, the canopy height model and the orthophoto"],
+    ["Time of concentration", "TR-55 ch. 3 along the catchment's longest flow path: sheet flow ≤ "
+      + a.sheetMax_ft + " ft, shallow concentrated, channel above " + a.channelStart_ac
+      + " ac (Manning n " + a.channelN + ", R " + a.channelR_ft + " ft)"],
+    ["Peak flow", "Rational Q = C·i·A up to " + a.rationalMaxAc
+      + " ac with i at Tc; SCS dimensionless unit hydrograph (peak rate factor 484) for every catchment"],
+    ["Pond routing", "Level-pool (Modified Puls) on the overtopping analysis's stage–storage, broad-crested weir Q = 3.0·L·H^1.5 over the rim. A conduit with no surveyed size or invert passes its inflow — capacity unknown."],
+    ["Clear Lake", "free outfall"],
+    ["Not modelled", "infiltration beyond the curve number, seepage, evaporation, pipe capacity, continuous simulation, 2-D rain-on-grid"]
+  ])}
+
+  <h2>Runoff by catchment</h2>
+  <table class="qt"><thead><tr><th>catchment (outlet)</th><th>area, ac</th><th>CN</th><th>Q, in</th>
+    <th>volume, ac-ft</th><th>Tc, min</th><th>Rational peak, cfs</th><th>SCS peak, cfs</th></tr></thead>
+    <tbody>${rowsC}</tbody>
+    <tfoot><tr><td><b>site</b></td><td class="n"><b>${fmt(R.totals.area_ac, 1)}</b></td>
+      <td class="n"><b>${fmt(R.totals.cn, 0)}</b></td><td class="n">—</td>
+      <td class="n"><b>${fmt(R.totals.volume_acft, 1)}</b></td><td class="n">—</td><td class="n">—</td>
+      <td class="n"><b>${fmt(R.totals.qPeak_cfs, 0)}</b></td></tr></tfoot></table>
+  <p>The Rational peak is the pipe-and-culvert answer for a catchment under ${a.rationalMaxAc} acres;
+  the SCS peak is the routed-hydrograph answer and is the one the pond rows below use. They are two
+  methods, not two attempts at one number.</p>
+
+  ${rowsR ? `<h2>Pond routing (level-pool)</h2>
+  <table class="qt"><thead><tr><th>pond</th><th>start, ft</th><th>peak stage, ft</th><th>rim, ft</th>
+    <th>freeboard, ft</th><th>time to peak, h</th><th>outcome</th></tr></thead>
+    <tbody>${rowsR}</tbody></table>` : ""}
+
+  <h2>Land cover</h2>
+  <table class="qt"><thead><tr><th>class</th><th>area, ac</th><th>share, %</th>
+    <th>CN (C)</th><th>CN (D)</th><th>group used</th></tr></thead><tbody>${rowsV}</tbody></table>
+
+  <div class="foot"><span>Jacobs · SBMM OU1 · Task 2.1.5</span>
+    <span>Generated by SBMM Site Explorer · ${today}</span></div>
+</div></body></html>`;
+  }
+
+  /* the same modal `open` uses, with no feature behind it */
+  function present(title, html, fname) {
+    lastHTML = html;
+    let box = $("reportModal");
+    if (box) box.remove();
+    box = document.createElement("div");
+    box.id = "reportModal";
+    box.innerHTML = `<div class="rmbox">
+      <div class="rmbar"><b>Report — ${esc(title)}</b><span class="spacer"></span>
+        <button class="minib" id="rmPrint">Print / Save as PDF</button>
+        <button class="minib" id="rmWin">open in a window</button>
+        <button class="minib" id="rmHtml">save .html</button>
+        <span class="ic x" id="rmClose" title="Close (Esc)">✕</span></div>
+      <iframe id="rmFrame" title="Report preview"></iframe></div>`;
+    document.body.appendChild(box);
+    const frame = $("rmFrame");
+    frame.srcdoc = html;
+    const shut = () => { box.remove(); document.removeEventListener("keydown", onKey, true); };
+    const onKey = e => { if (e.key === "Escape") { e.stopPropagation(); e.preventDefault(); shut(); } };
+    document.addEventListener("keydown", onKey, true);
+    $("rmClose").onclick = shut;
+    box.addEventListener("click", e => { if (e.target === box) shut(); });
+    $("rmPrint").onclick = () => {
+      try { frame.contentWindow.focus(); frame.contentWindow.print(); }
+      catch (e) { toast("printing blocked — use 'open in a window'"); }
+    };
+    $("rmWin").onclick = () => {
+      const w = window.open("", "_blank");
+      if (!w) { toast("the browser blocked the window — use Print here instead"); return; }
+      w.document.write(html); w.document.close();
+    };
+    $("rmHtml").onclick = () => download(fname, new Blob([html], { type: "text/html" }));
+    return html;
+  }
+
+  function openRunoff(R) {
+    if (!R) { toast("run a design storm first (RAIN)"); return null; }
+    let html;
+    try { html = runoffHTML(R); }
+    catch (e) { console.error(e); toast("the design-storm sheet failed: " + e.message); return null; }
+    return present("Design storm — " + R.storm.name, html,
+      "sbmm_design_storm_" + String(R.storm.name).replace(/\W+/g, "_") + ".html");
+  }
+
+  return { open, openRunoff, runoffHTML, present, buildHTML, composeFigure, sectionSheet, lastHTML: () => lastHTML, AUTHOR };
 })();

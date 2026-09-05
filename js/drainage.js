@@ -724,7 +724,7 @@ SBMM.drainage = (function () {
 
   return {
     build, wire, cmd, run, paint, showCard, showInto, markStale,
-    geoFeatures, dxfEntities, rings3d, lines3d, exportGeoJSON, exportDXF,
+    geoFeatures, dxfEntities, rings3d, lines3d, groundRuns, exportGeoJSON, exportDXF,
     result: () => R, hasResult: () => !!R, isStale: () => stale,
     labelAt, firstAt, outletAt, recOf, nameOf, areaOf, sinkName, pondName, inletName,
     paintChip, COLORS: COL, NOTE

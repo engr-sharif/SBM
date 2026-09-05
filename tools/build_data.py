@@ -27,7 +27,8 @@ OUT  = os.path.join(ROOT, "datajs")
 
 JSON_FILES = ["affine", "dem_site", "dem_abp", "dem_res", "chm", "contours_site", "contours_abp",
               "dus", "piles", "points", "ortho_abp", "ortho_mine", "ortho_site",
-              "design_ea", "design_gis", "sheets_full", "survey_2026", "storm_network"]
+              "design_ea", "design_gis", "sheets_full", "survey_2026", "storm_network",
+              "rainfall", "cover"]
 # cad_native / cad_surfaces are NOT in JSON_FILES: tools/build_cad_native.py and
 # tools/build_cad_surfaces.py write datajs/d_cad_native.js and
 # datajs/d_cad_surfaces.js themselves, because both need a shape this generic
@@ -41,7 +42,8 @@ IMG_FILES  = [("dem_site.png",  "image/png"),
               ("hs_abp.jpg",    "image/jpeg"),
               ("ortho_abp.jpg", "image/jpeg"),
               ("ortho_mine.jpg","image/jpeg"),
-              ("ortho_site.jpg","image/jpeg")]
+              ("ortho_site.jpg","image/jpeg"),
+              ("cover.png",     "image/png")]
 # EA residential design sheet overlays (north-up State Plane rasters).
 # Globbed rather than listed: a sheet added to data/design/ must reach the
 # payload, and a hand-maintained list silently drops one (which is exactly how

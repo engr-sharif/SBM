@@ -819,6 +819,10 @@ SBMM.tools = (function () {
        polygon: it says which analysis produced the ring, which no amount of
        recomputing the area can recover */
     if (props && props.overtop) f.props.overtop = props.overtop;
+    /* and for the cover class a user assigned to an area (v14 Phase 2): it is a
+       statement about the ground, not a measurement of the polygon, so
+       recomputing the area must not drop it */
+    if (props && props.cover) f.props.cover = props.cover;
     /* optional session/import metadata — absent in v2 sessions, which is fine */
     if (spec.group) f.group = spec.group;
     if (spec.style) { f.style = spec.style; applyStyle(f); }
