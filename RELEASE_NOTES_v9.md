@@ -17,6 +17,55 @@ All three are offline-only by design. Nothing in this app calls out to the inter
 
 ---
 
+## v9.12 — the layers system
+
+You asked for the layers to be managed and presented properly, now that there are about
+120 of them. The Layers tab is a real tree.
+
+**Sub-groups.** Related rows sit together in a named sub-group that collapses on its own —
+*Storm drainage*, *Drainage (lidar + storm drains)*, *Survey — Aug 2026*, *Design areas*,
+*Boundaries*, *Existing conditions*, *Sheets (draped)*, *Design surfaces — EA* and
+*— mine*, *Drawing set*, *Datasets*, *Contours — lidar survey*, *Terrain analysis*. Each
+one carries its own count, and the tree remembers what you left open.
+
+**A row now looks like what it draws.** The colour square is gone: a line layer shows a
+line in its own colour, weight and dash pattern; a polygon layer shows a filled polygon; a
+point layer a point at its own size; imagery a band. It is the same symbology Leaflet was
+given, read off the layer itself, so it cannot drift out of step with the map.
+
+**Hover a row** for four buttons: opacity, **zoom to this layer**, **solo** (everything else
+in that group off — click solo again and the group comes back exactly as it was; alt-click
+the tick box does the same), and **info** — what the layer is, where it came from, how many
+features, the CRS, and for a CAD row a link straight into the Layer manager on that group.
+
+**Drag a row by its grip and the drawing order follows.** The row at the top of a list is
+drawn on top of the ones under it. Your order is remembered, and it travels in the session
+file, so a session you send someone opens looking the way you left it.
+
+**Search** — the box at the top, or press `/` anywhere in the tab. It filters the whole
+tree as you type, over the layer name, its sub-group, its group and its internal id; the
+groups holding a match open themselves and everything else gets out of the way. Esc clears
+it, Enter toggles the first match. The arrow keys walk the tree, Space toggles a row, and
+Left/Right collapse and expand.
+
+**Presets** — named layer states, applied in one click: *Terrain*, *Design review*,
+*Water & drainage*, *Investigations*, *Field*, *Everything on*, and any you save yourself.
+Applying one is a single undo, so you can always get back. **A preset never switches on the
+cultural resources group** — that group is still something you tick yourself, and it still
+asks you first. The last five rows you changed sit as chips under the search box.
+
+**A legend on the map.** Bottom-left, collapsible: every layer that is currently showing,
+with its symbol, grouped, and an "only" button beside each to isolate it. On the phone it is
+off the map by default and lives in the More sheet, so it never eats the screen.
+
+Each group header gained "n of m on" and, on hover, all on / all off / expand all / collapse
+all. Rows are 44 px in field mode, so all of it works with a thumb.
+
+Nothing about what a layer IS changed: the same rows, the same names, the same ids, the same
+one answer to "is this layer on" in 2D, in 3D, in the sheet windows and in the exports.
+
+---
+
 ## v9.10 — the drainage map
 
 You asked me to "start thinking about catchment areas for the entire site, like

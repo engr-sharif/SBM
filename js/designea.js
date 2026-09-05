@@ -103,14 +103,8 @@ SBMM.designEA = (function () {
 
   /* One raster overlay row per registered sheet, under a "Sheets (draped)"
      sub-header, followed by the master switch for the 3D drapes. */
+  const SHEET_SUB = "Sheets (draped)";
   function buildSheetRows(D, sheets) {
-    const host = document.getElementById("designLayers");
-    if (host) {
-      const h = document.createElement("div");
-      h.className = "lsub";
-      h.textContent = "Sheets (draped)";
-      host.appendChild(h);
-    }
     /* ----- raster sheet overlays ----- */
     for (const nm of sheets) {
       const s = D.sheets[nm], r = s.raster;
@@ -136,7 +130,12 @@ SBMM.designEA = (function () {
       const hit = L.rectangle([[r.y0, r.x0], [r.y1, r.x1]], {
         pane: "vectors",
         color: "#FFD34D", weight: 0, opacity: 0,
-        fill: true, fillOpacity: 0.001, fillColor: "#FFD34D"
+        fill: true, fillOpacity: 0.001, fillColor: "#FFD34D",
+        /* v16: this rectangle belongs at the BACK of the vectors canvas, and it
+           says so, because the layer tree's drag-to-reorder brings a row's
+           geometry to the front and would otherwise hand this invisible
+           rectangle every click inside the footprint. */
+        sbmmBack: true
       });
       hit.on("add", () => hit.bringToBack());
       hit.bindTooltip(`${nm} — open the full sheet`, { sticky: true, className: "ctip" });
@@ -166,8 +165,9 @@ SBMM.designEA = (function () {
          button and a 3D drape toggle, so the label has to earn its width: the
          sheet number and what it shows, and nothing else. The raster resolution
          moved into the tooltip, where it was always the more useful place. */
+      /* v16: `sub:` declares the sub-group; the tree draws the header. */
       const row = SBMM.addLayerRow("design", `${nm}${subj}${pre}`, ov,
-        { checked: false, opacity: .85 });
+        { checked: false, opacity: .85, sub: SHEET_SUB });
       row.row.title = (s.design_set === "90%"
         ? `${nm} — ${s.subject || ""}. From the 90% Pre-Final Design set (May 2025); absent from the Final set.`
         : `${nm} — ${s.subject || ""}. EA Final Residential Design, September 2025.`)
@@ -182,7 +182,7 @@ SBMM.designEA = (function () {
        rows it governs, rather than in js/layers.js where it used to sit above
        them. */
     SBMM.addLayerRow("design", "Sheets draped in 3D", null,
-      { id: "sheets3d", checked: true, swatch: "#9FB6C2" }).row.title =
+      { id: "sheets3d", checked: true, swatch: "#9FB6C2", sub: SHEET_SUB }).row.title =
       "Show the design sheets you have draped (the \u26f0 button on each sheet row) on the 3D terrain.";
   }
 

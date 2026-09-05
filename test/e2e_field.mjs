@@ -364,6 +364,71 @@ if (shutSheet.which !== null || shutSheet.scrim) fail("the Layers sheet did not 
 /* parked: its top edge is at or below the action bar, so none of it is on the stage */
 if (shutSheet.top < shutSheet.barTop) fail("the closed sheet is still on the stage", shutSheet);
 
+/* ===================================================================== */
+/* 4b. the layer TREE inside that sheet (v16, docs/V16_LAYERS_SPEC.md §3) */
+/* ===================================================================== */
+/* 44-px rows, a search box you can tap and type into, and the legend card —
+   which is hidden on a phone screen by design — reachable from the More sheet. */
+await page.tap('#fieldBar .fbtn[data-fa="layers"]');
+await wait(900);
+const treeF = await page.evaluate(() => {
+  const row = document.querySelector("#layers .lyr");
+  const r = row.getBoundingClientRect();
+  const b = row.querySelector(".ltacts .ltb").getBoundingClientRect();
+  const inp = document.getElementById("ltSearch");
+  return {
+    rowH: Math.round(r.height), btn: [Math.round(b.width), Math.round(b.height)],
+    searchFont: parseFloat(getComputedStyle(inp).fontSize),
+    subs: document.querySelectorAll("#layers .lgsub").length,
+    swatch: !!row.querySelector(".ltsw svg"),
+    grip: Math.round(row.querySelector(".ltgrip").getBoundingClientRect().height),
+    legendHidden: getComputedStyle(document.getElementById("mapLegend")).display === "none"
+  };
+});
+console.log(`layer tree (field): rows ${treeF.rowH} px · row buttons ${treeF.btn.join("x")} · `
+  + `search font ${treeF.searchFont} px · ${treeF.subs} sub-groups · swatch ${treeF.swatch} · `
+  + `legend hidden on the map ${treeF.legendHidden}`);
+if (treeF.rowH < 44) fail("layer rows are under 44 px in field mode", treeF);
+if (treeF.btn[0] < 32 || treeF.btn[1] < 32) fail("the row toolbar buttons are too small to tap", treeF);
+if (treeF.searchFont < 15) fail("the layer search box font would make iOS zoom the page", treeF);
+if (!treeF.swatch || !treeF.subs) fail("the tree did not build in the field sheet", treeF);
+if (!treeF.legendHidden) fail("the legend card must be off the map in field mode", treeF);
+
+/* search by tap and type */
+await page.tap("#ltSearch");
+await page.keyboard.type("storm");
+await wait(500);
+const treeFs = await page.evaluate(() => {
+  const shown = [...document.querySelectorAll("#layers .lyr")].filter(r => !r.classList.contains("lthide"));
+  return { shown: shown.length, storm: shown.filter(r => /^storm_/.test(r.dataset.lid)).length,
+           hits: (document.getElementById("ltHits") || {}).textContent };
+});
+console.log(`layer search by tap: ${treeFs.shown} rows shown (${treeFs.storm} storm) · ${treeFs.hits}`);
+if (!treeFs.storm) fail("typing in the layer search found no storm rows", treeFs);
+if (treeFs.shown > 12) fail("the layer search did not filter", treeFs);
+await page.evaluate(() => SBMM.layerTree.search(""));
+await page.touchscreen.tap(206, 120);
+await wait(700);
+
+/* the legend lives in the More sheet on a phone */
+await page.tap('#fieldBar .fbtn[data-fa="more"]');
+await wait(600);
+const moreHasLegend = await page.evaluate(() =>
+  [...document.querySelectorAll("#fieldMore .fmbtn")].map(b => b.dataset.fa).indexOf("legend") >= 0);
+if (!moreHasLegend) fail("the More sheet has no Legend entry");
+await page.tap('#fieldMore .fmbtn[data-fa="legend"]');
+await wait(700);
+const legendF = await page.evaluate(() => {
+  const el = document.getElementById("mapLegend");
+  const r = el.getBoundingClientRect();
+  return { shown: getComputedStyle(el).display !== "none", rows: el.querySelectorAll(".mlr").length,
+           w: Math.round(r.width), vw: innerWidth, body: document.body.className };
+});
+console.log(`legend from More: shown ${legendF.shown} · ${legendF.rows} rows · ${legendF.w} of ${legendF.vw} px wide`);
+if (!legendF.shown || !legendF.rows) fail("the legend did not come up from the More sheet", legendF);
+await page.evaluate(() => SBMM.layerTree.legend.toggle(false));
+await wait(300);
+
 /* a popup becomes a bottom card carrying the SAME js/popups.js html */
 await page.evaluate(() => {
   SBMM.field.closeCard();

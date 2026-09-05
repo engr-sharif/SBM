@@ -106,19 +106,49 @@ exports. The 3D view has no visibility checkboxes of its own — what it draws i
 Layers tree says is showing. Layer choices are remembered between sessions and travel in the
 session file, except the cultural group, which is off at every start by design.
 
-**Layers, in six groups** — Base (imagery, hillshade, lidar contours, canopy, slope, aspect),
-Site framework (decision units, waste piles, parcels, buildings, roads, fences, utilities,
-drainage, trees and survey blocks from EA's CAD), Residential design (EA 2025) — curated
-design layers first, the per-sheet drawing drapes last under a "Sheets (draped)"
-sub-header — Investigations
-(samples, wells, borings, imported datasets), Cultural resources, and My work. Each group has
-a master checkbox and a count; each row has an opacity slider where it makes sense, and rows
-that come from EA's own CAD carry a **CAD** tag. The heavier analysis rows (slope, aspect,
-elevation tint, canopy, generated contours, tree detection) fold into a collapsed
-**Terrain analysis** sub-section, and the groups remember which of them you left open.
+**Layers — a real tree, in six groups** (v16). Base (imagery, hillshade, lidar contours,
+canopy, slope, aspect), Site framework (decision units, waste piles, the storm network, the
+drainage map, and the parcels, buildings, roads, fences, utilities, trees and survey blocks
+from EA's CAD), Residential design (EA 2025) — curated design layers first, the per-sheet
+drawing drapes last under a "Sheets (draped)" sub-header — Investigations (samples, wells,
+borings, the 2026 survey, imported datasets), Cultural resources, and My work.
+
+Inside a group, related rows sit in **named sub-groups** that collapse on their own —
+*Storm drainage*, *Drainage (lidar + storm drains)*, *Survey — Aug 2026*, *Design areas*,
+*Sheets (draped)*, *Design surfaces*, *Datasets*, *Contours*, *Terrain analysis* — and the
+tree remembers which of them you left open. Each group header carries a master checkbox, a
+count, "n of m on" and, on hover, all-on / all-off / expand-all / collapse-all.
+
+Each **row** shows the layer's real symbology rather than a colour square: a line in its own
+colour, weight and dash, a filled polygon, a point at its own size, a band for a raster. Hover
+a row for its toolbar — **opacity**, **zoom to this layer**, **solo** (everything else in the
+group off; click again to put it back — alt-click on the tick box does the same) and **info**
+(what it is, where it came from, how many features, the CRS, and a link straight into the
+Layer manager for a CAD row). Rows from EA's own CAD carry a **CAD** tag; counts are
+monospace.
+
+**Drag a row by its grip to reorder it, and that order is the draw order** — the row at the
+top of a container draws on top of the ones below it. The order is remembered and travels in
+the session file.
+
+**Search** (the box at the top, or `/` anywhere in the tab) filters the whole tree as you
+type, over the layer name, its sub-group, its group and its id; ancestors open themselves,
+Esc clears, Enter toggles the first match. Arrow keys walk the tree, Space toggles a row,
+Left/Right collapse and expand.
+
+**Presets** are named layer states: *Terrain*, *Design review*, *Water & drainage*,
+*Investigations*, *Field* and *Everything on*, plus any you save yourself (save, rename,
+delete). Applying one is a single undoable action. **No preset ever switches on the cultural
+group** — that stays something you tick yourself, with its acknowledgement. The last five
+rows you changed sit as chips under the search box, one click to put one back.
+
+A collapsible **legend card** in the map's bottom-left lists every layer that is currently
+showing, grouped, with "only" beside each row to isolate it. On a phone it is off the map and
+lives in the More sheet.
+
 Layers that would drown the default view are off until you ask for them — sample results,
-the 2-ft contour set (which also waits for you to zoom in far enough to read it), and the
-sheet footprints. The
+the 2-ft contour set (which also waits for you to zoom in far enough to read it), the drainage
+map (its first tick runs the analysis) and the sheet footprints. The
 **Layer manager** on the design group searches EA's 110 CAD layer names, toggles, recolours
 and sets opacity per layer, and shows each one's source file, feature count and a real DWG
 entity handle you can type into AutoCAD.
