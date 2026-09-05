@@ -811,6 +811,43 @@ if (compareTo) {
 }
 
 /* ===================================================================== */
+/* the design storm on a phone (v14 Phase 2 §2 "Field build"): the dialog and
+   the card work, and the cover raster IS in the field build — it is a few
+   hundred kB, and without it every curve number would be a guess. The storm
+   runs over the 4-ft drainage map above, and the card says which grid it is. */
+{
+  const t0 = Date.now();
+  const S = await page.evaluate(async () => {
+    SBMM.runoff.dialog();
+    const box = document.getElementById("rainDlg");
+    const dlg = { open: !!box, storms: box ? box.querySelectorAll("#rnStorm option").length : 0 };
+    if (box) box.remove();
+    const R = await SBMM.runoff.run({ storm: "25:24" });
+    if (!R) return { dlg, failed: true };
+    const card = [...document.querySelectorAll("#resBody .res")]
+      .find(el => /Design storm/.test(el.querySelector("h4").textContent));
+    return { dlg, grid: R.gridFt, storm: R.storm.name, provisional: R.provisional,
+             outlets: R.outlets.length, ponds: R.routing.length,
+             volume: +R.totals.volume_acft.toFixed(1), peak: R.totals.qPeak_cfs,
+             cover: !!(window.SBMM_DATA && SBMM_DATA.cover_png),
+             rows: ["runoff_cover", "runoff_depth"]
+               .map(id => !!document.querySelector(`.lyr[data-lid="${id}"]`)),
+             cardSays: card ? card.textContent.replace(/\s+/g, " ").slice(0, 1400) : null };
+  });
+  const wall = Date.now() - t0;
+  console.log(`\ndesign storm (field): ${JSON.stringify(S)} in ${(wall / 1000).toFixed(1)} s`);
+  if (S.failed) fail("the field build could not run the design storm", S);
+  if (!S.dlg.open || S.dlg.storms < 5) fail("the Design storm dialog is not usable in field mode", S.dlg);
+  if (!S.cover) fail("the cover raster is not in the field build", S);
+  if (!S.rows.every(Boolean)) fail("the design-storm rows are missing in field mode", S.rows);
+  if (S.outlets < 3) fail("the field design storm found no catchments", S);
+  if (!(S.volume > 0)) fail("the field design storm produced no runoff volume", S);
+  if (S.grid !== 4) fail("the field storm did not run over the 4-ft map", S);
+  if (!/4-ft lidar grid/.test(S.cardSays || "")) fail("the field storm card does not name the grid", S.cardSays);
+  if (wall > 60000) fail("the field design storm took over 60 s", wall);
+}
+
+/* ===================================================================== */
 console.log("\npage errors:", errors.length ? errors.slice(0, 8) : "none");
 await browser.close();
 if (errors.some(e => !e.includes("favicon"))) { console.log("RESULT: errors present"); process.exit(2); }
