@@ -1,21 +1,20 @@
 /* E2E: open the app over file:// (the failure mode on the work computer),
    verify boot, tools, and reproduce the memo's Pile 1 volume validation. */
-import { chromium } from "playwright";
+import { launch, TIMEOUT } from "./lib/browser.mjs";
 import { pathToFileURL as __furl } from "node:url";
 import { resolve as __res } from "node:path";
 import { existsSync as __ex, readFileSync as __read } from "node:fs";
 import { unlock, gatePassword } from "./gate.mjs";
-const CHROME = process.env.CHROME_BIN || (__ex("/opt/pw-browsers/chromium-1194/chrome-linux/chrome") ? "/opt/pw-browsers/chromium-1194/chrome-linux/chrome" : undefined); // undefined = Playwright's own chromium (npx playwright install chromium)
 
 const target = process.argv[2]; // path to index.html or dist html
 const label = process.argv[3] || target;
 
-const browser = await chromium.launch({ executablePath: CHROME });
+const browser = await launch();
 const page = await browser.newPage({ viewport: { width: 1500, height: 950 } });
 /* headless chromium here runs software GL: with the high-detail mesh (~1.56M verts) plus the
    canopy surface and contours in the scene, the render loop can keep the main thread busy
    longer than Playwright's 30 s default actionability window, which made clicks flaky. */
-page.setDefaultTimeout(180000);
+page.setDefaultTimeout(TIMEOUT);
 const errors = [];
 const f2s = v => v == null || isNaN(v) ? "—" : Math.round(v).toLocaleString("en-US");
 page.on("pageerror", e => errors.push("pageerror: " + e.message));
@@ -43,7 +42,7 @@ console.log("boot: OK (loader cleared)");
    one place the repo documents it and checks it against js/gate.js's hash. */
 {
   const gp = await browser.newPage({ viewport: { width: 1280, height: 860 } });
-  gp.setDefaultTimeout(180000);
+  gp.setDefaultTimeout(TIMEOUT);
   const gerr = [];
   gp.on("pageerror", e => gerr.push("pageerror: " + e.message));
   gp.on("console", m => { if (m.type() === "error") gerr.push("console: " + m.text()); });

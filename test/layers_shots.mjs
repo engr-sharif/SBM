@@ -9,7 +9,7 @@
    two of those on a two-core box crash the compositor.
 
      node test/layers_shots.mjs /abs/path/index.html [/abs/out/dir]            */
-import { chromium } from "playwright";
+import { launch, TIMEOUT } from "./lib/browser.mjs";
 import { pathToFileURL as __furl } from "node:url";
 import { resolve as __res, dirname } from "node:path";
 import { existsSync as __ex } from "node:fs";
@@ -17,14 +17,13 @@ import { fileURLToPath } from "node:url";
 import { unlock } from "./gate.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const CHROME = process.env.CHROME_BIN || (__ex("/opt/pw-browsers/chromium-1194/chrome-linux/chrome") ? "/opt/pw-browsers/chromium-1194/chrome-linux/chrome" : undefined);
 
 const target = process.argv[2] || __res(HERE, "../index.html");
 const out = process.argv[3] || __res(HERE, "shots");
 
-const browser = await chromium.launch({ executablePath: CHROME });
+const browser = await launch();
 const page = await browser.newPage({ viewport: { width: 1600, height: 1000 } });
-page.setDefaultTimeout(180000);
+page.setDefaultTimeout(TIMEOUT);
 page.on("pageerror", e => console.log("PAGEERROR", e.message));
 await unlock(page);
 await page.goto(__furl(__res(target)).href);

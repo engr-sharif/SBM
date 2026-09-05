@@ -1,16 +1,15 @@
 /* Focused earthworks test: design surfaces, balance, uncertainty range,
    cross-sections and the report sheet. Faster to iterate on than the full e2e —
    the same assertions are folded into test/e2e.mjs. */
-import { chromium } from "playwright";
+import { launch, TIMEOUT } from "./lib/browser.mjs";
 import { existsSync as __ex } from "node:fs";
 import { unlock } from "./gate.mjs";
-const CHROME = process.env.CHROME_BIN || (__ex("/opt/pw-browsers/chromium-1194/chrome-linux/chrome") ? "/opt/pw-browsers/chromium-1194/chrome-linux/chrome" : undefined); // undefined = Playwright's own chromium (npx playwright install chromium)
 
 const target = process.argv[2] || "/home/claude/repo/index.html";
 const label = process.argv[3] || "folder";
-const browser = await chromium.launch({ executablePath: CHROME });
+const browser = await launch();
 const page = await browser.newPage({ viewport: { width: 1500, height: 950 } });
-page.setDefaultTimeout(180000);
+page.setDefaultTimeout(TIMEOUT);
 const errors = [];
 page.on("pageerror", e => errors.push("pageerror: " + e.message));
 page.on("console", m => { if (m.type() === "error") errors.push("console: " + m.text()); });

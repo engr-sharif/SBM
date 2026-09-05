@@ -23,7 +23,8 @@
      node test/e2e_field.mjs dist/SBMM_Site_Explorer_field.html field \
                              dist/SBMM_Site_Explorer.html      # + boot comparison
 */
-import { chromium, devices } from "playwright";
+import { devices } from "playwright";
+import { launch, TIMEOUT } from "./lib/browser.mjs";
 import { pathToFileURL as __furl } from "node:url";
 import { resolve as __res, dirname } from "node:path";
 import { existsSync as __ex } from "node:fs";
@@ -33,7 +34,6 @@ import { unlock, gatePassword } from "./gate.mjs";
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = __res(HERE, "..");
 const FIXTURE = __res(HERE, "fixtures/photo_exif.jpg");
-const CHROME = process.env.CHROME_BIN || (__ex("/opt/pw-browsers/chromium-1194/chrome-linux/chrome") ? "/opt/pw-browsers/chromium-1194/chrome-linux/chrome" : undefined);
 
 const target = process.argv[2] || "dist/SBMM_Site_Explorer_field.html";
 const label = process.argv[3] || "field";
@@ -53,10 +53,10 @@ const fail = (msg, extra) => {
 
 console.log(`\n=== ${label} — ${PIXEL7.viewport.width}x${PIXEL7.viewport.height} @${PIXEL7.deviceScaleFactor}, touch ===`);
 
-const browser = await chromium.launch({ executablePath: CHROME });
+const browser = await launch();
 const ctx = await browser.newContext({ ...PIXEL7 });
 const page = await ctx.newPage();
-page.setDefaultTimeout(180000);
+page.setDefaultTimeout(TIMEOUT);
 const errors = [];
 page.on("pageerror", e => errors.push("pageerror: " + e.message));
 page.on("console", m => { if (m.type() === "error") errors.push("console: " + m.text()); });
@@ -101,7 +101,7 @@ if (build.build !== "field" || !build.isField) fail("this is not the field build
 {
   const gctx = await browser.newContext({ ...PIXEL7 });
   const gp = await gctx.newPage();
-  gp.setDefaultTimeout(180000);
+  gp.setDefaultTimeout(TIMEOUT);
   const gerr = [];
   gp.on("pageerror", e => gerr.push("pageerror: " + e.message));
   gp.on("console", m => { if (m.type() === "error") gerr.push("console: " + m.text()); });

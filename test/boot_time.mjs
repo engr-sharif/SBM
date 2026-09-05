@@ -13,18 +13,15 @@
 
      node test/boot_time.mjs /abs/path/index.html [runs]
      node test/boot_time.mjs /abs/path/dist/SBMM_Site_Explorer.html 3        */
-import { chromium } from "playwright";
+import { launch } from "./lib/browser.mjs";
 import { pathToFileURL as __furl } from "node:url";
 import { resolve as __res } from "node:path";
 import { existsSync as __ex } from "node:fs";
 import { unlock } from "./gate.mjs";
-const CHROME = process.env.CHROME_BIN || (__ex("/opt/pw-browsers/chromium-1194/chrome-linux/chrome") ? "/opt/pw-browsers/chromium-1194/chrome-linux/chrome" : undefined); // undefined = Playwright's own chromium (npx playwright install chromium)
 
 const target = process.argv[2] || "/home/claude/repo/index.html";
 const runs = +(process.argv[3] || 3);
-const browser = await chromium.launch({
-  executablePath: CHROME
-});
+const browser = await launch();
 
 const wall = [], done = [];
 let stages = null;

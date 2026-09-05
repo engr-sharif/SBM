@@ -12,18 +12,17 @@
    on a two-core box crash the compositor.
 
      node test/gate_shots.mjs /abs/path/index.html [outdir]                     */
-import { chromium } from "playwright";
+import { launch, TIMEOUT } from "./lib/browser.mjs";
 import { pathToFileURL as __furl } from "node:url";
 import { resolve as __res } from "node:path";
 import { existsSync as __ex } from "node:fs";
 import { gatePassword } from "./gate.mjs";
-const CHROME = process.env.CHROME_BIN || (__ex("/opt/pw-browsers/chromium-1194/chrome-linux/chrome") ? "/opt/pw-browsers/chromium-1194/chrome-linux/chrome" : undefined);
 
 const target = process.argv[2] || "/home/user/SBM/index.html";
 const out = process.argv[3] || "/home/user/SBM/test/shots";
-const browser = await chromium.launch({ executablePath: CHROME });
+const browser = await launch();
 const page = await browser.newPage({ viewport: { width: 1500, height: 950 } });
-page.setDefaultTimeout(180000);
+page.setDefaultTimeout(TIMEOUT);
 page.on("pageerror", e => console.log("PAGEERROR", e.message));
 
 /* no unlock token on purpose — this harness is the one that meets the gate */

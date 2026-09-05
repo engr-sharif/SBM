@@ -1,10 +1,9 @@
 /* Close-up screenshots of the CAD drafting chrome, for design review. */
-import { chromium } from "playwright";
+import { launch } from "./lib/browser.mjs";
 import { existsSync as __ex } from "node:fs";
 import { unlock } from "./gate.mjs";
-const CHROME = process.env.CHROME_BIN || (__ex("/opt/pw-browsers/chromium-1194/chrome-linux/chrome") ? "/opt/pw-browsers/chromium-1194/chrome-linux/chrome" : undefined); // undefined = Playwright's own chromium
 const target = process.argv[2] || "/home/claude/repo/index.html";
-const browser = await chromium.launch({ executablePath: CHROME });
+const browser = await launch();
 const page = await browser.newPage({ viewport: { width: 1500, height: 950 } });
 page.setDefaultTimeout(60000);
 page.on("pageerror", e => console.log("pageerror:", e.message));

@@ -1,15 +1,14 @@
 /* Second walkthrough: the paths audit.mjs does not reach — sheet-viewer entry
    points, Properties edits, 3D split / draw-in-3D, the report page, drag-drop
    import, and the tooltip/label consistency sweep. Prints, does not assert.   */
-import { chromium } from "playwright";
+import { launch, TIMEOUT } from "./lib/browser.mjs";
 import { existsSync as __ex } from "node:fs";
 import { unlock } from "./gate.mjs";
-const CHROME = process.env.CHROME_BIN || (__ex("/opt/pw-browsers/chromium-1194/chrome-linux/chrome") ? "/opt/pw-browsers/chromium-1194/chrome-linux/chrome" : undefined); // undefined = Playwright's own chromium (npx playwright install chromium)
 
 const target = process.argv[2];
-const browser = await chromium.launch({ executablePath: CHROME });
+const browser = await launch();
 const page = await browser.newPage({ viewport: { width: 1500, height: 950 } });
-page.setDefaultTimeout(180000);
+page.setDefaultTimeout(TIMEOUT);
 const errs = [];
 page.on("pageerror", e => errs.push("pageerror: " + e.message));
 page.on("console", m => { if (m.type() === "error") errs.push("console: " + m.text()); });

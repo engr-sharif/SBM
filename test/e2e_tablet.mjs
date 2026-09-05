@@ -26,7 +26,8 @@
    sections dispatch real `PointerEvent`s with `pointerType:"pen"` — which IS
    the stream the app sees from a Pencil, since Safari delivers exactly that.
 */
-import { chromium, devices } from "playwright";
+import { devices } from "playwright";
+import { launch, TIMEOUT } from "./lib/browser.mjs";
 import { pathToFileURL as __furl } from "node:url";
 import { resolve as __res, dirname, join, extname } from "node:path";
 import { existsSync, readFileSync, statSync } from "node:fs";
@@ -36,9 +37,6 @@ import { unlock, gatePassword } from "./gate.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = __res(HERE, "..");
-const CHROME = process.env.CHROME_BIN
-  || (existsSync("/opt/pw-browsers/chromium-1194/chrome-linux/chrome")
-      ? "/opt/pw-browsers/chromium-1194/chrome-linux/chrome" : undefined);
 
 const target = process.argv[2] || __res(ROOT, "index.html");
 const label = process.argv[3] || "tablet";
@@ -96,10 +94,10 @@ const HTTP = `http://127.0.0.1:${PORT}/index.html`;
 console.log(`static server on ${HTTP}`);
 
 /* ===================================================================== */
-const browser = await chromium.launch({ executablePath: CHROME });
+const browser = await launch();
 const ctx = await browser.newContext({ ...DEV });
 const page = await ctx.newPage();
-page.setDefaultTimeout(180000);
+page.setDefaultTimeout(TIMEOUT);
 const errors = [];
 page.on("pageerror", e => errors.push("pageerror: " + e.message));
 page.on("console", m => { if (m.type() === "error") errors.push("console: " + m.text()); });
@@ -247,7 +245,7 @@ if (applied.mapTouch !== "none" || applied.canvasTouch !== "none")
 {
   const gctx = await browser.newContext({ ...DEV });
   const gp = await gctx.newPage();
-  gp.setDefaultTimeout(180000);
+  gp.setDefaultTimeout(TIMEOUT);
   const gerr = [];
   gp.on("pageerror", e => gerr.push("pageerror: " + e.message));
   await gp.goto(__furl(__res(target)).href);
