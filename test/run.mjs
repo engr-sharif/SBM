@@ -62,6 +62,8 @@ const STEPS = [
     cmd: [NODE, [R("test/kernels.mjs")]], desc: "every compute kernel, node only (~3.7 min)" },
   { name: "touch_unit",     build: "none",   browser: false, matrix: true,  needs: ["check"],
     cmd: [NODE, [R("test/touch_unit.mjs")]], desc: "the v17 gesture recogniser, node only" },
+  { name: "tiles",          build: "none",   browser: false, matrix: true,  needs: ["check"],
+    cmd: [NODE, [R("test/tiles.mjs")]], desc: "the v20 tile pyramid against the analysis grids, node only" },
 
   { name: "build:dist",     build: "dist",   browser: false, matrix: true,  needs: ["check"],
     cmd: [PY, [R("tools/build_dist.py")], { cwd: ROOT }], desc: "python tools/build_dist.py" },
@@ -133,7 +135,7 @@ if (flag("--list")) {
     console.log(`  ${s.matrix ? "*" : " "} ${s.name.padEnd(16)} build=${s.build.padEnd(6)}`
       + ` ${(s.browser ? "browser" : "node   ")}`
       + ` needs=${(s.needs.join(",") || "-").padEnd(12)} ${s.desc}`);
-  console.log("\n  --quick = check + touch_unit + kernels (every section but drainage)");
+  console.log("\n  --quick = check + touch_unit + tiles + kernels (every section but drainage)");
   process.exit(0);
 }
 
@@ -188,6 +190,7 @@ if (QUICK) {
   const quick = [
     { name: "check", build: "none", browser: false, needs: [], cmd: [NODE, [R("test/check.mjs")]] },
     { name: "touch_unit", build: "none", browser: false, needs: [], cmd: [NODE, [R("test/touch_unit.mjs")]] },
+    { name: "tiles", build: "none", browser: false, needs: [], cmd: [NODE, [R("test/tiles.mjs")]] },
     { name: "kernels:quick", build: "none", browser: false, needs: [],
       cmd: [NODE, [R("test/kernels.mjs"), ...(sections.length ? ["--only", sections.join(",")] : [])]] }
   ];
