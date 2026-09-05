@@ -1,7 +1,7 @@
 {
  "source": "EA Final Design CAD (V-STRM-STRC / V-STRM-MRKG / C-STRM-MAIN-PIPE) + the geodatabase storm structures + Jacobs Aug-2026 survey + the project engineer's identification of the south-road drain",
  "crs": "EPSG:6418 (NAD83(2011) CA zone 2, US survey ft)",
- "built": "2026-09-04",
+ "built": "2026-09-05",
  "spec": "docs/V12_STORM_SPEC.md",
  "nodes": [
   {
@@ -929,7 +929,30 @@
    "source": "inferred",
    "cad_handles": [],
    "provenance": "Identified by the project engineer (Sep 2026) from EA's CAD structures; alignment not drawn in the CAD",
-   "note": "The connection between the surveyed pipes and EA's drawn storm line (user, Sep 2026): the drawn line starts 13 ft west of the plotted pipe end.",
+   "note": "The connection between the North barrel and EA's drawn storm line (user, Sep 2026): the drawn line starts 13 ft west of the plotted pipe end.",
+   "status": "assumed_working"
+  },
+  {
+   "id": "pipe_to_main_s",
+   "from": "herman_pipe_s_end",
+   "to": "storm_main_east",
+   "pts": [
+    [
+     6372025.85,
+     2127478.79
+    ],
+    [
+     6372013.4,
+     2127476.07
+    ]
+   ],
+   "length_ft": 12.7,
+   "size_in": 24,
+   "material": null,
+   "source": "inferred",
+   "cad_handles": [],
+   "provenance": "Identified by the project engineer (Sep 2026) from EA's CAD structures; alignment not drawn in the CAD",
+   "note": "The same connection for the South barrel (engineer, 2026-09-05: the impoundment discharges through BOTH 24-in pipes). Not drawn in the CAD; inverts unknown. Before this the South barrel ended 13 ft short of the storm line and its water left the pipe on to the ground.",
    "status": "assumed_working"
   },
   {
@@ -1332,7 +1355,7 @@
    "group": "storm",
    "color": "#7FA7C9",
    "kind": "line",
-   "count": 11,
+   "count": 12,
    "provenance": "Identified by the project engineer (Sep 2026) from EA's CAD structures; alignment not drawn in the CAD"
   }
  ]

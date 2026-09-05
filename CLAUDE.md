@@ -1117,6 +1117,24 @@ Four things here are traps:
   would draw water running over the ground along the pipe, which is the one
   thing this must not say.
 
+**BOTH 24-in barrels are the impoundment's discharge (ruling, 2026-09-05, the
+engineer: "there are 2 pipes and you only used one ... make sure the system
+knows that the water flows through the pipes and out to Clear Lake; right now I
+think it shows that it goes directly and makes its own path").** EA's drawn
+storm line starts 13 ft west of where the survey plots the pipes' west ends, and
+until this ruling ONE inferred conduit crossed that gap — `pipe_to_main`, from
+the **North** barrel. So `herman_pipe_s` — the LOWER invert, and therefore the
+one the water actually leaves through — ended 13 ft short of anything, and its
+water left the pipe on to the ground for the three feet to the North link's
+capture disc. The payload now carries `pipe_to_main` AND `pipe_to_main_s`, one
+per barrel, both `source: "inferred"`, and the counts are **44 nodes / 27
+conduits** (`storm_inferred` 12). One conduit per barrel rather than a shared
+manifold node **because a manifold would have to move `pipe_to_main`'s inlet and
+re-cut its geometry**, and every golden that names that conduit, its 13.2 ft and
+the drainage map's per-inlet areas is measured on it as it stands. The only
+number that moved is the raindrop's pipe length out of the impoundment, 813.3 →
+**812.8 ft** (16.5 + 12.7 + 194.7 + 588.9).
+
 Two things about the ponds east of the impoundment (ruling, 2026-09-04, the
 engineer's own reading of the site):
 
@@ -1143,7 +1161,7 @@ engineer's own reading of the site):
 **The raindrop and the overtopping tool now agree about Herman**, which they did
 not before the sunken-inlet rule: a drop inside the impoundment ponds to 1,341.54
 (the lower surveyed invert is 1,341.53) and leaves through `herman_pipe_s` →
-`pipe_to_main` → `storm_main_upper` → `storm_main_lower` → the outfall, 813.3 ft
+`pipe_to_main_s` → `storm_main_upper` → `storm_main_lower` → the outfall, 812.8 ft
 in pipe, against the overtopping card's first discharge at 1,341.55. With the
 drains off the same drop fills to the lidar rim at 1,343.84 and spills over it —
 2.30 ft higher — which is exactly what the rule buys and what the e2e prints.
@@ -1178,9 +1196,38 @@ Four things here are traps:
   inserts a row.
 - **One route, not two.** The host traces a first-discharge route by dropping a raindrop ON
   the conduit spill's kernel cell with the network on and `blockRing` = the water body — but
-  when the conduit spill IS the surveyed pipe (`facts.pipeInvert` within 0.1 ft) the v10
-  pipe discharge route stands and nothing is traced again. `js/water.js` `ov.csIsPipe` is
+  when the conduit spill IS the surveyed pipe (`facts.pipeInvert` within 0.1 ft) the pipe
+  discharge route stands and nothing is traced again. `js/water.js` `ov.csIsPipe` is
   that test, and it also suppresses the second "C" marker and the second card row.
+- **And that pipe discharge route is the CONDUIT CHAIN, not a raindrop** (ruling,
+  2026-09-05). Until then it was `dropAt(SBMM.survey.pipeOutlet())` — a raindrop dropped at
+  the plotted west end of the NORTH pipe — which is a terrain analysis that happens to meet
+  a pipe: it could only ever show one barrel, and it is what the engineer reported as
+  "it goes directly and makes its own path". `js/water.js` `pipeChainRoute()` now walks the
+  network instead: `dischargeConduits(facts)` picks the working conduits whose inlet carries
+  a surveyed invert within 1 ft of `facts.pipeInvert` and 120 ft of `facts.pipeXY` (the two
+  barrels, LOWEST INVERT FIRST — its chain is the spine), `conduitChain()` follows `next`
+  from each, the parallel branches are added as legs carrying `parallel: true` and the `at`
+  of the stretch they parallel, and ordinary descent resumes with ONE `traceRun` from the
+  outfall, seeded with `opts.used` so a conduit is still used at most once per run. The
+  result is an ordinary `flow` feature (`props.chain`, `chain_ids`, `chain_parallel`), so
+  `buildFlow`, the 3D tubes and the particle stream take it unchanged. **`props.length_ft`
+  is what happens AFTER the outfall and nothing else** — the e2e walks the stretches and
+  requires zero ground before it — and `pipe_ft` is the SPINE only, because the water
+  travels 812.8 ft down this system, not 843. The old raindrop is kept as the fallback for
+  a build with no network, the drains switched off, or a water body whose discharge
+  conduits are not in the payload.
+- **A card that names one barrel is the bug.** `firstDischargeWords()` counts the legs of
+  the first family leaving the same vertex ("through the two 24-in pipes"), `chainSentence`
+  skips that whole leading family rather than one leg, and its family key is the label's
+  first two words **or three when the second is a preposition** — otherwise
+  `pipe_to_main`/`pipe_to_main_s` collapse to the dangling "pipe to". A RAINDROP still takes
+  the lower invert first (the kernel's rule, and right for one drop) and `parallelNote()`
+  puts the other barrel on its card. `parallelBarrels(id)` is that fact read off the
+  network — same size, inlets within 30 ft, chains that converge — and **both must be HEADS
+  of the crossing** (a head is a conduit whose inlet is nobody's outlet): without that test
+  the pipes' own links and the storm main's first run all qualify and the card announces
+  five 24-in pipes where the site has two.
 - **Block 9w of the e2e passes `storm:false`** as well as `survey:false`: it is the
   pure-lidar §9.2 reference, and it doubles as v13's "with the network off the analysis is
   bit-identical to today's".
