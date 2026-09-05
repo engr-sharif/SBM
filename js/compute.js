@@ -264,6 +264,180 @@ var SBMM_COMPUTE = (function SBMMComputeModule() {
     } catch (e) { wRelease(); return wasmFail(e), null; }
   }
 
+  /* ---- flowpath -----------------------------------------------------------
+     The WALK is in the crate (the inlet index, the fill, the descent, the
+     fill-spill flood, the escape test, the conduit chain); everything that is
+     not a loop over the grid stayed in js/compute.js and is called from here —
+     ringMask/medianOf for the blocked ring, traceMask for the pond outlines,
+     simplifyPath, and the assembly below.
+
+     The assembly IS a second copy of the JavaScript tail, and it is allowed to
+     be one for exactly one reason: test/kernels.mjs compares the two paths'
+     WHOLE result objects field by field on every run, so a copy that drifts
+     fails the harness rather than shipping. Do not "simplify" one of them
+     without the other. */
+  var W_REASON = ["", "window", "nodata", "pond", "conduit", "steps"];
+
+  function wasmFlowpath(job, onProgress) {
+    var g = job.grid, w = g.sw, h = g.sh, cell = g.cell, z = g.z, n = w * h;
+    var X0 = g.x0 + g.i0 * cell, Y0 = g.y0 + g.j0 * cell;
+    var minDepth = job.minPondDepth == null ? 0.25 : job.minPondDepth;
+    var maxSteps = job.maxSteps == null ? 4e6 : job.maxSteps;
+    var CD = (job.conduits && job.conduits.length) ? job.conduits : null;
+    var i, j, k, t;
+
+    /* the blocked ring, exactly as the JS does it: the water SURFACE (inside
+       the ring AND on the plateau), never merely inside the ring */
+    var bmaskFlat = null, bz0 = 0;
+    if (job.blockRing && job.blockRing.length >= 3) {
+      var bmask = ringMask(job.blockRing, w, h, cell, X0, Y0);
+      var vals = new Float64Array(n), m = 0;
+      for (i = 0; i < n; i++) if (bmask[i] && !isNaN(z[i])) vals[m++] = z[i];
+      if (m) {
+        bz0 = job.blockLevel == null ? medianOf(vals, m) : job.blockLevel;
+        var btol = job.plateauTol == null ? 0.3 : job.plateauTol;
+        for (i = 0; i < n; i++)
+          if (bmask[i] && !(isNaN(z[i]) || Math.abs(z[i] - bz0) > btol)) bmask[i] = 1; else bmask[i] = 0;
+        bmaskFlat = bmask;
+      }
+    }
+
+    var nc = CD ? CD.length : 0;
+    var cix = new Float64Array(nc), ciy = new Float64Array(nc), crim = new Float64Array(nc);
+    var cox = new Float64Array(nc), coy = new Float64Array(nc), clen = new Float64Array(nc),
+        cnext = new Int32Array(nc), cdIx = {};
+    for (k = 0; k < nc; k++) cdIx[CD[k].id] = k;
+    for (k = 0; k < nc; k++) {
+      var C1 = CD[k];
+      cix[k] = C1.ix; ciy[k] = C1.iy;
+      crim[k] = (C1.rim == null || !isFinite(C1.rim)) ? NaN : C1.rim;
+      cox[k] = C1.ox; coy[k] = C1.oy;
+      clen[k] = (C1.len != null && isFinite(C1.len)) ? C1.len : NaN;
+      cnext[k] = (C1.next != null && cdIx[C1.next] != null) ? cdIx[C1.next] : -1;
+    }
+
+    var si = Math.round((job.x - X0) / cell), sj = Math.round((job.y - Y0) / cell);
+    if (si < 0 || sj < 0 || si >= w || sj >= h) throw new Error("the drop is outside the terrain window");
+    if (isNaN(z[sj * w + si])) throw new Error("no surveyed terrain under that point");
+
+    var pondId, segs = [], legs = [], ponds = [null], reason, steps, exitIdx = -1, exitXY = null;
+    try {
+      var pz = wPutF32(z);
+      var pix = wPutF64(cix), piy = wPutF64(ciy), prim = wPutF64(crim);
+      var pox = wPutF64(cox), poy = wPutF64(coy), plen = wPutF64(clen), pnx = wPutI32(cnext);
+      var pbm = bmaskFlat ? wPutU8(bmaskFlat) : 0;
+      var ppid = wAlloc(n * 4);
+      var rc = W.flowpath(pz, w, h, cell, X0, Y0, si, sj, maxSteps,
+                          pix, piy, prim, pox, poy, plen, pnx, nc,
+                          job.captureFt == null ? 3 : job.captureFt,
+                          pbm, bz0, ppid);
+      if (rc !== 0) throw new Error("flowpath refused (" + rc + ")");
+      pondId = new Int32Array(w32(ppid, n));
+      var buf = wOut();
+      wRelease();
+      var dv = new DataView(buf.buffer), o = 0;
+      var gi = function () { var v = dv.getInt32(o, true); o += 4; return v; };
+      var gf = function () { var v = dv.getFloat64(o, true); o += 8; return v; };
+      reason = W_REASON[gi()];
+      steps = gi();
+      exitIdx = gi();
+      var hasXY = gi(), ex = gf(), ey = gf();
+      if (hasXY) exitXY = [ex, ey];
+      var nSeg = gi();
+      for (k = 0; k < nSeg; k++) {
+        var cnt = gi(), s = new Array(cnt);
+        for (i = 0; i < cnt; i++) s[i] = gi();
+        segs.push(s);
+      }
+      var nLeg = gi();
+      for (k = 0; k < nLeg; k++) {
+        var cd = gi(), sg = gi(), L = gf();
+        var fx = gf(), fy = gf(), fz = gf(), oxx = gf(), oyy = gf(), ozz = gf();
+        legs.push({ id: CD[cd].id, seg: sg, at: -1, length_ft: L,
+                    from: [fx, fy, isNaN(fz) ? null : fz],
+                    to: [oxx, oyy, isNaN(ozz) ? null : ozz] });
+      }
+      var nP = gi();
+      for (k = 0; k < nP; k++) {
+        var P = { level: gf(), outlet: gi(), entry: gi(), zmin: gf(),
+                  count: gi(), sumZ: gf(), bb: [gi(), gi(), gi(), gi()],
+                  blocked: !!gi(), viaConduit: null };
+        var vk = gi();
+        if (vk >= 0) P.viaConduit = CD[vk].id;
+        if (k) ponds.push(P);
+      }
+    } catch (e) { wRelease(); wasmFail(e); return null; }
+
+    if (onProgress) onProgress(0.92);
+
+    /* ---- the tail: identical to the JavaScript body's, and asserted so ---- */
+    var pipeFt = 0;
+    for (k = 0; k < legs.length; k++) pipeFt += legs[k].length_ft;
+    var tol = job.simplifyFt == null ? 0.6 * cell : job.simplifyFt;
+    var raw = [], rawLen = 0, zEnd = NaN, sIx, sK;
+    var sp = [], segLen = [];
+    for (sIx = 0; sIx < segs.length; sIx++) {
+      var segCells = segs[sIx], rawSeg = [];
+      for (k = 0; k < segCells.length; k++) {
+        i = segCells[k] % w; j = (segCells[k] - i) / w;
+        var pzv = z[segCells[k]];
+        rawSeg.push([X0 + i * cell, Y0 + j * cell, pzv]);
+        if (!isNaN(pzv)) zEnd = pzv;
+        if (k) rawLen += Math.hypot(rawSeg[k][0] - rawSeg[k - 1][0], rawSeg[k][1] - rawSeg[k - 1][1]);
+      }
+      for (k = 0; k < rawSeg.length; k++) raw.push(rawSeg[k]);
+      var spSeg = tol > 0 ? simplifyPath(rawSeg, tol) : rawSeg;
+      segLen.push(spSeg.length);
+      for (k = 0; k < spSeg.length; k++) sp.push(spSeg[k]);
+    }
+    for (k = 0; k < legs.length; k++) {
+      var end = 0;
+      for (sIx = 0; sIx <= legs[k].seg && sIx < segLen.length; sIx++) end += segLen[sIx];
+      legs[k].at = end - 1;
+    }
+    var pts = new Float64Array(sp.length * 3), len = 0;
+    for (sIx = 0, k = 0; sIx < segLen.length; sIx++) {
+      for (sK = 0; sK < segLen[sIx]; sK++, k++) {
+        pts[k * 3] = sp[k][0]; pts[k * 3 + 1] = sp[k][1]; pts[k * 3 + 2] = sp[k][2];
+        if (sK) len += Math.hypot(sp[k][0] - sp[k - 1][0], sp[k][1] - sp[k - 1][1]);
+      }
+    }
+    var out = [];
+    for (k = 1; k < ponds.length; k++) {
+      var Q = ponds[k];
+      if (Q.blocked || !Q.count) continue;
+      var depth = Q.level - Q.zmin;
+      if (depth < minDepth) continue;
+      var ei = Q.entry % w, ej = (Q.entry - ei) / w;
+      out.push({
+        level: Q.level, depth_ft: depth, cells: Q.count,
+        area_ft2: Q.count * cell * cell,
+        volume_ft3: (Q.level * Q.count - Q.sumZ) * cell * cell,
+        rings: pondRings(pondId, k, w, h, cell, X0, Y0, Q.bb),
+        entry: [X0 + ei * cell, Y0 + ej * cell],
+        outlet: Q.outlet < 0 ? null : [X0 + (Q.outlet % w) * cell, Y0 + (((Q.outlet - Q.outlet % w) / w)) * cell],
+        via: Q.viaConduit || null
+      });
+    }
+    var last = raw[raw.length - 1];
+    if (onProgress) onProgress(1);
+    return {
+      result: {
+        pts: pts, n: sp.length,
+        length_ft: len, lengthRaw_ft: rawLen,
+        fall_ft: raw[0][2] - zEnd,
+        reason: reason,
+        end: [last[0], last[1], last[2]],
+        zEnd_ft: zEnd,
+        exit: exitXY ? exitXY
+          : (exitIdx < 0 ? null : [X0 + (exitIdx % w) * cell, Y0 + (((exitIdx - exitIdx % w) / w)) * cell]),
+        ponds: out, cell: cell, steps: steps,
+        legs: legs, pipe_ft: pipeFt
+      },
+      transfer: [pts.buffer]
+    };
+  }
+
   /* ============================ base surfaces ============================= */
   /* Perimeter TIN with a uniform grid index — the ABP memo Attachment E method.
      The Delaunay triangulation itself is done by the host (d3-delaunay lives in
@@ -1983,6 +2157,8 @@ var SBMM_COMPUTE = (function SBMMComputeModule() {
      the v10 kernel to the bit — test/kernels.mjs's `storm` section proves that
      on the §9.1 raindrop.                                                      */
   function flowpath(job, onProgress) {
+    /* v21 dispatch (docs/V21_WASM_SPEC.md) — the port of the walk below. */
+    if (wasmAvailable()) { var Rw = wasmFlowpath(job, onProgress); if (Rw) return Rw; }
     var g = job.grid, w = g.sw, h = g.sh, cell = g.cell, z = g.z, n = w * h;
     var X0 = g.x0 + g.i0 * cell, Y0 = g.y0 + g.j0 * cell;
     var minDepth = job.minPondDepth == null ? 0.25 : job.minPondDepth;

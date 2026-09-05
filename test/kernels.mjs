@@ -2751,9 +2751,48 @@ function secWasm() {
     row("the seeding changes F", sameArray(a.F, a2.F).n + " cells", "> 0",
         sameArray(a.F, a2.F).n > 0, "identity", "so the seeded case is really exercised");
   }
+
+  /* ---- flowpath: the descent, the fill-spill flood and the conduit chain --
+     Three jobs, because three different halves of the kernel run in each: the
+     section-9.1 raindrop is pure v10 descent, the Herman drop with the network
+     on takes the pond rule and a conduit chain, and the overflow route adds
+     the blocked ring (whose mask and plateau level stay in JavaScript). */
+  {
+    const D = T.readJSON(path.join(FIX, "drop_ref.json")).swale.drop;
+    const abp = T.loadDem("dem_abp");
+    const swale = T.gridSpec(abp, [D[0] - 700, D[1] - 700, D[0] + 700, D[1] + 700], 0);
+    const sc = swale.cell;
+    const [a, b, jms, wms] = ab("flowpath", () =>
+      C.runJob("flowpath", { grid: swale, x: D[0] - sc / 2, y: D[1] - sc / 2 }).result);
+    speed("flowpath, section 9.1 drop", jms, wms);
+    identicalResult("flowpath (no conduits)", a, b, a.n + " vertices, " + a.ponds.length + " ponds");
+
+    /* The section-6.8 run whole: the surveyed Herman water-level shot with the
+       network on, chained window by window the way js/water.js traceRun chains
+       it. That is the run that takes the pond rule AND a conduit chain, and
+       comparing the WHOLE chained result is the only way to see the legs. */
+    const M = stormModel();
+    const WL = [6372119.56, 2127446.20];
+    const ring = hermanRing().map(q => [q[0], q[1]]);
+    const [a2, b2, jms2, wms2] = ab("flowpath+storm", () => hostRun(M, WL[0], WL[1], true));
+    speed("flowpath, chained + storm", jms2, wms2);
+    identicalResult("flowpath (conduits, chained)", a2, b2,
+      a2.legs.length + " legs, " + a2.ponds.length + " ponds, " + a2.hops + " hops, reason " + a2.reason);
+    row("the chained run really used the network", a2.legs.map(l => l.id).join(","),
+        "a conduit chain", a2.legs.length > 0, "identity");
+
+    /* and the blocked ring, whose mask and plateau level stay in JavaScript */
+    const hg = hermanWindow();
+    const seed = ringCentroid(ring);
+    const [a3, b3, jms3, wms3] = ab("flowpath+block", () =>
+      C.runJob("flowpath", { grid: hg, x: seed[0], y: seed[1], blockRing: ring }).result);
+    speed("flowpath, blocked ring", jms3, wms3);
+    identicalResult("flowpath (blocked ring)", a3, b3, "reason " + a3.reason);
+  }
 }
 
-/* the Herman window the water section cuts, as a standalone grid spec */
+/* the Herman ring's bbox +/- 800 ft, the window js/water.js cuts for the
+   overtopping analysis -- a standalone grid spec */
 let _hw = null;
 function hermanWindow() {
   if (_hw) return _hw;
@@ -2764,34 +2803,76 @@ function hermanWindow() {
   return _hw;
 }
 /* every capture cell of the storm network inside that window, at its rim --
-   js/water.js conduitsFor + the kernel's own inlet index (v12 §2) */
+   js/water.js conduitsFor + the kernel's own inlet index (v12 section 2) */
 function fillSinks(g) {
-  const net = T.readJSON("data/storm_network.json");
+  const M = stormModel();
   const X0 = g.x0 + g.i0 * g.cell, Y0 = g.y0 + g.j0 * g.cell;
-  const nodeOf = {};
-  for (const nd of net.nodes) nodeOf[nd.id] = nd;
+  const win = [X0, Y0, X0 + (g.sw - 1) * g.cell, Y0 + (g.sh - 1) * g.cell];
   const out = [], seen = new Set();
-  for (const cd of net.conduits) {
-    const a = nodeOf[cd.from];
-    if (!a) continue;
-    const rim = a.invert_ft != null ? a.invert_ft : null;
-    const ki = Math.round((a.x - X0) / g.cell), kj = Math.round((a.y - Y0) / g.cell);
+  for (const cd of M.conduitsFor(win)) {
+    const ki = Math.round((cd.ix - X0) / g.cell), kj = Math.round((cd.iy - Y0) / g.cell);
     const rc = Math.max(0, Math.ceil(3 / g.cell));
     for (let j = kj - rc; j <= kj + rc; j++) {
       if (j < 0 || j >= g.sh) continue;
       for (let i = ki - rc; i <= ki + rc; i++) {
         if (i < 0 || i >= g.sw) continue;
-        if (Math.hypot(X0 + i * g.cell - a.x, Y0 + j * g.cell - a.y) > 3) continue;
+        if (Math.hypot(X0 + i * g.cell - cd.ix, Y0 + j * g.cell - cd.iy) > 3) continue;
         const k = j * g.sw + i;
         if (Number.isNaN(g.z[k]) || seen.has(k)) continue;
         seen.add(k);
-        out.push([k, rim == null ? g.z[k] : rim]);
+        out.push([k, (cd.rim == null || !isFinite(cd.rim)) ? g.z[k] : cd.rim]);
       }
     }
   }
   return out;
 }
 
+/* a deep structural comparison of two kernel results -- what "identity" means
+   for a kernel whose output is an object graph rather than one raster */
+function deepDiff(a, b, path, out) {
+  path = path || "";
+  out = out || [];
+  if (a === b) return out;
+  if (a == null || b == null) { out.push(path + ": " + a + " vs " + b); return out; }
+  if (ArrayBuffer.isView(a) || ArrayBuffer.isView(b)) {
+    const r = sameArray(a, b);
+    if (!r.ok) out.push(path + ": " + (r.n < 0 ? "length " + a.length + " vs " + b.length
+                                               : r.n + " of " + a.length + " differ, first at " + r.at));
+    return out;
+  }
+  if (Array.isArray(a) || Array.isArray(b)) {
+    if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) {
+      out.push(path + ": array " + (a && a.length) + " vs " + (b && b.length));
+      return out;
+    }
+    for (let i = 0; i < a.length && out.length < 8; i++) deepDiff(a[i], b[i], path + "[" + i + "]", out);
+    return out;
+  }
+  const ta = typeof a, tb = typeof b;
+  if (ta === "number" && tb === "number") {
+    if (Number.isNaN(a) && Number.isNaN(b)) return out;
+    out.push(path + ": " + a + " vs " + b);
+    return out;
+  }
+  if (ta === "object" && tb === "object") {
+    const ks = [...new Set([...Object.keys(a), ...Object.keys(b)])];
+    for (const k of ks) { if (out.length >= 8) break; deepDiff(a[k], b[k], path ? path + "." + k : k, out); }
+    return out;
+  }
+  out.push(path + ": " + String(a) + " vs " + String(b));
+  return out;
+}
+function identicalResult(name, a, b, what) {
+  const d = deepDiff(a, b, "");
+  row(name, d.length ? d.length + " field(s) differ" : "identical", "bit-identical", d.length === 0, "exact",
+      d.length ? d.slice(0, 3).join(" | ") : (what || ""));
+}
+
+function ringCentroid(r) {
+  let x = 0, y = 0;
+  for (const p of r) { x += p[0]; y += p[1]; }
+  return [x / r.length, y / r.length];
+}
 /* ============================== run ====================================== */
 const SECTIONS = [
   { key: "volume", run: secVolume },
