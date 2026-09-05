@@ -197,8 +197,13 @@ if (QUICK) {
 }
 
 /* ---- the matrix -------------------------------------------------------- */
-let picked = STEPS.filter(s => (WITH_SHOTS ? true : s.matrix) || ONLY.length);
-if (ONLY.length) picked = STEPS.filter(s => ONLY.includes(s.name));
+let picked = ONLY.length
+  ? STEPS.filter(s => ONLY.includes(s.name))
+  : STEPS.filter(s => WITH_SHOTS || s.matrix);
+if (ONLY.length !== picked.length && ONLY.length) {
+  const bad = ONLY.filter(n => !STEPS.some(s => s.name === n));
+  if (bad.length) { console.log(`run.mjs: no such step: ${bad.join(", ")} — try --list`); process.exit(2); }
+}
 if (BUILDS.length) picked = picked.filter(s => s.build === "none" || BUILDS.includes(s.build));
 
 if (!picked.length) { console.log("run.mjs: no steps selected — try --list"); process.exit(2); }
