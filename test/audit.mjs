@@ -409,15 +409,26 @@ await probe("profile + override", () => {
   return { before, on };
 });
 await probe("hit targets under body.touch", () => {
+  /* measure the first VISIBLE match, not the first match: several of these
+     classes have a hidden twin (a collapsed dock's buttons, a sheet window that
+     is not open), and a hidden element measures 0 and reads as a failure. */
   const H = sel => {
-    const e = document.querySelector(sel);
-    return e ? Math.round(e.getBoundingClientRect().height) : null;
+    const list = document.querySelectorAll(sel);
+    for (const e of list) {
+      const r = e.getBoundingClientRect();
+      if (r.height > 0) return Math.round(r.height);
+    }
+    return list.length ? 0 : null;
   };
-  return {
+  /* the Done bar only exists while a sketch is open, so show it to measure it */
+  SBMM.touch.doneBar.show({ label: "audit", done() {}, cancel() {} });
+  const out = {
     toolbtn: H("#topbar .toolbtn"), minib: H(".minib"), dtab: H(".dtab"),
     railbtn: H(".railbtn"), layerRow: H("#layers .lyr"),
     navbtn: H("#v3dNav .navbtn"), doneBar: H("#touchDone .tdb")
   };
+  SBMM.touch.doneBar.hide();
+  return out;
 });
 await probe("hover-only controls and how touch reaches them", () => {
   const rows = [];
