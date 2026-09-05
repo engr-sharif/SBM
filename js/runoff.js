@@ -453,9 +453,34 @@ SBMM.runoff = (function () {
     };
   }
 
-  /* EA's own water polygon around a point, if there is one — the seed a stage
-     table wants (see routeAll). Named polygons only: an unnamed sliver is not
-     the pond anyone is routing. */
+  /* Which named water body a drainage `pond` IS — the seed a stage table wants
+     (see routeAll).
+
+     NOT by the pond's lowest cell: EA drew those polygons a year before the
+     lidar flight and they sit a hundred feet off the depression's floor, so
+     `waterRingAt(entry)` finds Herman and misses both Frog Pond (109 ft) and
+     Green Pond (130 ft). The test that works on all three is the other way
+     round — the POLYGON's centroid inside the POND's own water rings — with
+     the point test kept as a fallback. */
+  function waterRingFor(pond) {
+    const D = DATA().design_gis;
+    const rings = (pond && pond.rings) || [];
+    if (D && D.features && rings.length) {
+      for (const f of D.features) {
+        const p = f.properties || {};
+        if (p.layer !== "water" || !p.name || p.name === "Unnamed Water Feature") continue;
+        if (!f.geometry || f.geometry.type !== "Polygon") continue;
+        const ring = f.geometry.coordinates[0];
+        const c = centroid(ring);
+        if (rings.some(r => pointInPoly(c[0], c[1], r)))
+          return { name: p.name, ring: ring.map(q => [q[0], q[1]]) };
+      }
+    }
+    return pond && pond.entry ? waterRingAt(pond.entry[0], pond.entry[1]) : null;
+  }
+
+  /* EA's own water polygon around a point, if there is one. Named polygons
+     only: an unnamed sliver is not the pond anyone is routing. */
   function waterRingAt(x, y) {
     const D = DATA().design_gis;
     if (!D || !D.features) return null;
@@ -483,7 +508,7 @@ SBMM.runoff = (function () {
        what it routed. */
     const wanted = R.first
       .filter(c => c.kindSrc === "pond" && c.pondRef && c.pondRef.area_ft2 > 20000
-                && waterRingAt(c.pondRef.entry[0], c.pondRef.entry[1]))
+                && waterRingFor(c.pondRef))
       .sort((a, b) => b.area_ft2 - a.area_ft2)
       .slice(0, 6);
     if (!wanted.length) return [];
@@ -497,7 +522,7 @@ SBMM.runoff = (function () {
          the two 24-in pipe inverts and the sandbag crest). A point seed would
          route the impoundment off the lidar's January-2024 water surface and
          lose the 1341.55 row the card is checked against. */
-      const wr = waterRingAt(p.entry[0], p.entry[1]);
+      const wr = waterRingFor(p);
       const T = await SBMM.water.stageTable(wr
         ? { ring: wr.ring, name: wr.name }
         : { point: p.entry, name: c.name });
@@ -1075,7 +1100,7 @@ SBMM.runoff = (function () {
     storms, stormOf, depthFor, idfFor, provisional, settings,
     result: () => R, hasResult: () => !!R, isBuilt: () => built,
     routing: () => (R ? R.routing : []),
-    waterRingAt,
+    waterRingAt, waterRingFor,
     catchment: label => R ? (R.outlets.find(c => c.label === label)
       || R.first.find(c => c.label === label) || null) : null,
     paintDepth, showCard, NOTE
