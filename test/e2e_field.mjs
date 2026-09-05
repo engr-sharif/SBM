@@ -815,12 +815,54 @@ const pinched = await page.evaluate(() => SBMM.viewer3d.stats().orbit.r);
 console.log(`two-finger pinch: orbit radius ${Math.round(r0)} → ${Math.round(pinched)} ft`);
 if (Math.abs(pinched - r0) < r0 * 0.05) fail("a two-finger pinch did not zoom", { r0, pinched });
 
+/* ===================================================================== */
+/* the design storm on a phone (v14 Phase 2 §2 "Field build"): the dialog and
+   the card work, and the cover raster IS in the field build — it is a few
+   hundred kB, and without it every curve number would be a guess. The storm
+   runs over the 4-ft drainage map above, and the card says which grid it is. */
+{
+  const t0 = Date.now();
+  const S = await page.evaluate(async () => {
+    SBMM.runoff.dialog();
+    const box = document.getElementById("rainDlg");
+    const dlg = { open: !!box, storms: box ? box.querySelectorAll("#rnStorm option").length : 0 };
+    if (box) box.remove();
+    const R = await SBMM.runoff.run({ storm: "25:24" });
+    if (!R) return { dlg, failed: true };
+    const card = [...document.querySelectorAll("#resBody .res")]
+      .find(el => /Design storm/.test(el.querySelector("h4").textContent));
+    return { dlg, grid: R.gridFt, storm: R.storm.name, provisional: R.provisional,
+             outlets: R.outlets.length, ponds: R.routing.length,
+             volume: +R.totals.volume_acft.toFixed(1), peak: R.totals.qPeak_cfs,
+             cover: !!(window.SBMM_DATA && SBMM_DATA.cover_png),
+             rows: ["runoff_cover", "runoff_depth"]
+               .map(id => !!document.querySelector(`.lyr[data-lid="${id}"]`)),
+             cardSays: card ? card.textContent.replace(/\s+/g, " ").slice(0, 1400) : null };
+  });
+  const wall = Date.now() - t0;
+  console.log(`\ndesign storm (field): ${JSON.stringify(S)} in ${(wall / 1000).toFixed(1)} s`);
+  if (S.failed) fail("the field build could not run the design storm", S);
+  if (!S.dlg.open || S.dlg.storms < 5) fail("the Design storm dialog is not usable in field mode", S.dlg);
+  if (!S.cover) fail("the cover raster is not in the field build", S);
+  if (!S.rows.every(Boolean)) fail("the design-storm rows are missing in field mode", S.rows);
+  if (S.outlets < 3) fail("the field design storm found no catchments", S);
+  if (!(S.volume > 0)) fail("the field design storm produced no runoff volume", S);
+  if (S.grid !== 4) fail("the field storm did not run over the 4-ft map", S);
+  if (!/4-ft lidar grid/.test(S.cardSays || "")) fail("the field storm card does not name the grid", S.cardSays);
+  if (wall > 60000) fail("the field design storm took over 60 s", wall);
+}
+
 /* ---- v15 §3.1/§3.3: the parity table on the FIELD rows --------------- */
 /* Same rule as the desktop e2e's block 9y, on the rows this build actually
    has: a row that is ON must have at least one 3D object tagged with its
    (group, id). The field build excludes the CAD payloads and the CHM, so those
    rows are simply not there — which is the payload-tolerance rule working, not
-   a parity gap. */
+   a parity gap.
+
+   It runs AFTER the design storm above for the same reason block 9aa runs
+   before block 9y on the desktop: the runoff-depth row can only draw a
+   catchment once a storm has been run, and the cover drape uses the reduced
+   texture the storm's decode builds. */
 const fieldParity = await page.evaluate(async () => {
   const w = ms => new Promise(r => setTimeout(r, ms));
   const LS = SBMM.layerState;
@@ -939,43 +981,6 @@ if (compareTo) {
      defect at this resolution and is reported as the sink it is. */
   if (D.loops || D.flats) fail("the 4-ft pointer field left cells unresolved", D);
   if (D.outlets < 2) fail("the 4-ft map found no outlets", D);
-}
-
-/* ===================================================================== */
-/* the design storm on a phone (v14 Phase 2 §2 "Field build"): the dialog and
-   the card work, and the cover raster IS in the field build — it is a few
-   hundred kB, and without it every curve number would be a guess. The storm
-   runs over the 4-ft drainage map above, and the card says which grid it is. */
-{
-  const t0 = Date.now();
-  const S = await page.evaluate(async () => {
-    SBMM.runoff.dialog();
-    const box = document.getElementById("rainDlg");
-    const dlg = { open: !!box, storms: box ? box.querySelectorAll("#rnStorm option").length : 0 };
-    if (box) box.remove();
-    const R = await SBMM.runoff.run({ storm: "25:24" });
-    if (!R) return { dlg, failed: true };
-    const card = [...document.querySelectorAll("#resBody .res")]
-      .find(el => /Design storm/.test(el.querySelector("h4").textContent));
-    return { dlg, grid: R.gridFt, storm: R.storm.name, provisional: R.provisional,
-             outlets: R.outlets.length, ponds: R.routing.length,
-             volume: +R.totals.volume_acft.toFixed(1), peak: R.totals.qPeak_cfs,
-             cover: !!(window.SBMM_DATA && SBMM_DATA.cover_png),
-             rows: ["runoff_cover", "runoff_depth"]
-               .map(id => !!document.querySelector(`.lyr[data-lid="${id}"]`)),
-             cardSays: card ? card.textContent.replace(/\s+/g, " ").slice(0, 1400) : null };
-  });
-  const wall = Date.now() - t0;
-  console.log(`\ndesign storm (field): ${JSON.stringify(S)} in ${(wall / 1000).toFixed(1)} s`);
-  if (S.failed) fail("the field build could not run the design storm", S);
-  if (!S.dlg.open || S.dlg.storms < 5) fail("the Design storm dialog is not usable in field mode", S.dlg);
-  if (!S.cover) fail("the cover raster is not in the field build", S);
-  if (!S.rows.every(Boolean)) fail("the design-storm rows are missing in field mode", S.rows);
-  if (S.outlets < 3) fail("the field design storm found no catchments", S);
-  if (!(S.volume > 0)) fail("the field design storm produced no runoff volume", S);
-  if (S.grid !== 4) fail("the field storm did not run over the 4-ft map", S);
-  if (!/4-ft lidar grid/.test(S.cardSays || "")) fail("the field storm card does not name the grid", S.cardSays);
-  if (wall > 60000) fail("the field design storm took over 60 s", wall);
 }
 
 /* ===================================================================== */

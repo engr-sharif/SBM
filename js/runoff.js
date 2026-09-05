@@ -908,8 +908,19 @@ SBMM.runoff = (function () {
   function drapeSpec() {
     if (!on("runoff_cover")) return null;
     const meta = COVER();
-    const url = (cover && cover.thumbUrl) || DATA().cover_png;
-    if (!meta || !url) return null;
+    if (!meta) return null;
+    /* the REDUCED texture only. The payload is 21.6 M pixels — 86 MB of RGBA on
+       a phone's GPU — so if the raster has not been decoded yet the decode is
+       started and the drape appears on the next refresh rather than uploading
+       the full-size PNG once. */
+    if (!cover || !cover.thumbUrl) {
+      coverRaster().then(c => {
+        if (c && c.thumbUrl && SBMM.viewer3d && SBMM.viewer3d.refreshDrapes)
+          SBMM.viewer3d.refreshDrapes();
+      });
+      return null;
+    }
+    const url = cover.thumbUrl;
     const b = meta.bounds;
     return { url, bounds: [b.x0, b.y0, b.x1, b.y1],
              layer: { g: "framework", l: "runoff_cover" } };
