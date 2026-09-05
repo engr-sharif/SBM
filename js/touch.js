@@ -94,22 +94,41 @@ SBMM.touch = (function () {
     return v;
   }
 
-  /* What the DEVICE is, before field mode has its say.
+  /* HOW BIG IS THE GLASS — and it is not `innerWidth`.
 
-     The phone test is on the LONGER edge of the viewport, not on its width,
-     and that is the whole difference between an iPad and a phone. An iPad in
-     PORTRAIT is 834 x 1194: 834 px wide, which a width-only rule reads as a
-     phone and lays out as one — the exact thing v17 exists to avoid, and the
-     first thing test/e2e_tablet.mjs caught. Its longer edge is 1194, and a
-     viewport with 1194 px on any side holds the desktop layout in the other
-     orientation, so it is a tablet in both. Split View at 507 x 834 has 834 as
-     its longer edge and IS a phone, which is what §1 asks for; a Pixel 7 at
-     412 x 839 is 839 and stays one. The 900-px threshold is v11's, unmoved. */
+     Two corrections to the obvious answer, both of them found by
+     test/e2e_tablet.mjs and both of them real on hardware, not test artefacts:
+
+     (i) THE LONGER EDGE, not the width. An iPad in PORTRAIT is 834 x 1194:
+     834 px wide, which a width-only rule reads as a phone and lays out as one
+     — the exact thing v17 exists to avoid. A viewport with 1194 px on some
+     axis holds the desktop layout in the other orientation, so it is a tablet
+     in both. Split View at 507 x 834 has 834 as its longer edge and IS a
+     phone, which is what §1 asks for; a Pixel 7 at 412 x 839 is 839 and stays
+     one. The 900-px threshold is v11's, unmoved.
+
+     (ii) `innerWidth` IS THE LAYOUT VIEWPORT, AND A PAGE CAN FORCE IT WIDER
+     THAN THE SCREEN. Ask this app at 507 x 834 and it answers 828 x 1361: the
+     top bar under `body.touch` carries 22 buttons at 44 px, its min-content
+     width is ~828 px, and the browser widens the layout viewport (and scales
+     the page down) rather than clip it. So the app measured its own top bar
+     and concluded it was on a tablet. `screen` is not the answer on its own
+     either — iPadOS reports the whole 1194-px screen to a 507-px Split View
+     pane. The smaller of the two on each axis is right in both directions: a
+     page can be laid out wider than the glass, and the glass is never wider
+     than the screen. */
+  function edge() {
+    const sw = (window.screen && window.screen.width) || Infinity;
+    const sh = (window.screen && window.screen.height) || Infinity;
+    const w = Math.min(window.innerWidth || Infinity, sw);
+    const h = Math.min(window.innerHeight || Infinity, sh);
+    return Math.max(isFinite(w) ? w : 0, isFinite(h) ? h : 0);
+  }
   function sniff() {
     const ov = override();
     if (ov === "off") return "desktop";
     if (ov !== "on" && !touchCapable()) return "desktop";
-    return Math.max(window.innerWidth, window.innerHeight) <= 900 ? "phone" : "tablet";
+    return edge() <= 900 ? "phone" : "tablet";
   }
 
   /* What the APP is running as. Field mode wins the phone half, because a
@@ -1123,7 +1142,7 @@ SBMM.touch = (function () {
     wire, autoDetect, apply, profile, sniff, on, override, touchCapable, standalone,
     /* §5a — the per-EVENT hook the chrome sizes from, and the palm clock */
     lastPointer, precise, penDown, penRecent,
-    gestures, recognizer, momentum, angDelta, sketchBar,
+    gestures, recognizer, momentum, angDelta, sketchBar, edge,
     loupe, snapshot, snapPainter, doneBar, fireContextMenu, tip, hideTip,
     offline, refreshOfflineUI, syncViewport,
     /* §5b */

@@ -50,6 +50,8 @@ const G = {
     visibilityState: "visible"
   },
   navigator: { maxTouchPoints: 5, hardwareConcurrency: 8 },
+  /* the GLASS, as distinct from the layout viewport — see edge() in js/touch.js */
+  screen: { width: 1194, height: 834 },
   location: { protocol: "file:", href: "file:///x/index.html" },
   localStorage: {
     getItem: k => (store.has(k) ? store.get(k) : null),
@@ -300,22 +302,36 @@ console.log("\n-- the profile detector --");
    iPad in portrait is 834 px WIDE — a width-only rule reads that as a phone and
    lays it out as one, which is the regression test/e2e_tablet.mjs caught. */
 {
+  /* `view` is the LAYOUT viewport (what innerWidth reports) and `glass` is the
+     screen. They differ in two real ways, and both are tested here:
+       - Split View: the pane is 507 px but iPadOS reports the whole screen;
+       - this app at 507 px: the top bar's min-content width forces the layout
+         viewport out to 828 x 1361 while the glass is still 507 x 834. */
   const view = (w, h) => { G.window.innerWidth = w; G.window.innerHeight = h; };
+  const glass = (w, h) => { G.screen.width = w; G.screen.height = h; };
   G.navigator.maxTouchPoints = 5;
-  view(1194, 834);
+
+  view(1194, 834); glass(1194, 834);
   ok("iPad landscape 1194x834 is a tablet", T.sniff(), "tablet");
-  view(834, 1194);
+  view(834, 1194); glass(834, 1194);
   ok("iPad PORTRAIT 834x1194 is still a tablet", T.sniff(), "tablet");
-  view(1024, 768);
+  view(1024, 768); glass(1024, 768);
   ok("an older iPad 1024x768 is a tablet", T.sniff(), "tablet");
-  view(507, 834);
+  view(507, 834); glass(507, 834);
   ok("Split View 507x834 is a phone", T.sniff(), "phone");
-  view(412, 839);
+  view(412, 839); glass(412, 915);
   ok("a Pixel 7 412x839 is a phone", T.sniff(), "phone");
-  view(839, 412);
+  view(839, 412); glass(915, 412);
   ok("the same phone in landscape is still a phone", T.sniff(), "phone");
 
-  view(1194, 834);
+  /* the two corrections, each on its own */
+  view(828, 1361); glass(507, 834);
+  ok("a layout viewport forced wider than the glass is still a phone", T.sniff(), "phone");
+  view(507, 834); glass(1194, 834);
+  ok("iPadOS reporting the whole screen to a Split View pane is a phone", T.sniff(), "phone");
+  ok("edge() takes the smaller of the two on each axis", T.edge(), 834);
+
+  view(1194, 834); glass(1194, 834);
   T.override("off");
   ok("the override forces desktop", T.sniff(), "desktop");
   T.override("auto");

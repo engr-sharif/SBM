@@ -1514,7 +1514,19 @@ first thing `test/e2e_tablet.mjs` caught. Split View at 507 x 834 has 834 as its
 longer edge and IS a phone, which is what §1 asks for, and a Pixel 7 at 412 x 839
 stays one. `js/field.js`'s own `sniff()` delegates to `SBMM.touch.sniff()` for
 exactly this reason — the two must agree or boot puts a portrait iPad into the
-phone layout while `profile()` calls it a tablet. A stored `SBMM.field` preference
+phone layout while `profile()` calls it a tablet.
+
+**And the size is `edge()`, not `innerWidth`: a page can force the layout
+viewport WIDER THAN THE GLASS.** Ask this app at 507 x 834 and `innerWidth`
+answers **828** — the top bar under `body.touch` carries 22 buttons at 44 px, its
+min-content width is ~828, and the browser widens the layout viewport and scales
+the page rather than clip it. So the app measured its own top bar and concluded
+it was on a tablet, which is a self-fulfilling loop: stay a tablet, keep the wide
+bar. `screen` alone is not the answer either — iPadOS reports the whole 1194-px
+screen to a 507-px Split View pane. `edge()` takes the **smaller of the two on
+each axis** and then the longer of those: a page can be laid out wider than the
+glass, and the glass is never wider than the screen. `test/touch_unit.mjs` has
+both cases in isolation. A stored `SBMM.field` preference
 beats the viewport in both directions, so the resize handler only follows the
 phone/tablet line when the user has expressed none.
 
