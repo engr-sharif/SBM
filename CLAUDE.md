@@ -1506,7 +1506,15 @@ AND wider than 900 — the desktop layout with touch affordances — and is
 `body.field` is to v11: the ONE switch every style keys off, so
 `test/e2e.mjs` passing unchanged IS the proof the desktop is untouched.
 Touch-capable means `(any-pointer: coarse)` OR `maxTouchPoints > 1` — **never a
-UA sniff**, because iPadOS reports a desktop UA. A stored `SBMM.field` preference
+UA sniff**, because iPadOS reports a desktop UA. **The phone test is on the
+LONGER edge of the viewport, not on its width**, and there is one file with the
+rule in it: an iPad in PORTRAIT is 834 x 1194, so a width-only test reads it as
+a phone and lays it out as one — the exact thing v17 exists to avoid, and the
+first thing `test/e2e_tablet.mjs` caught. Split View at 507 x 834 has 834 as its
+longer edge and IS a phone, which is what §1 asks for, and a Pixel 7 at 412 x 839
+stays one. `js/field.js`'s own `sniff()` delegates to `SBMM.touch.sniff()` for
+exactly this reason — the two must agree or boot puts a portrait iPad into the
+phone layout while `profile()` calls it a tablet. A stored `SBMM.field` preference
 beats the viewport in both directions, so the resize handler only follows the
 phone/tablet line when the user has expressed none.
 

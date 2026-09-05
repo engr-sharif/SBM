@@ -296,21 +296,36 @@ console.log("\n-- momentum settles (it must, or the 3D view renders for ever) --
 }
 
 console.log("\n-- the profile detector --");
+/* Real viewports, both axes. The phone test is on the LONGER edge, because an
+   iPad in portrait is 834 px WIDE — a width-only rule reads that as a phone and
+   lays it out as one, which is the regression test/e2e_tablet.mjs caught. */
 {
-  ok("a coarse pointer at 1194 px is a tablet",
-     (G.window.innerWidth = 1194, T.sniff()), "tablet");
-  ok("a coarse pointer at 507 px is a phone",
-     (G.window.innerWidth = 507, T.sniff()), "phone");
+  const view = (w, h) => { G.window.innerWidth = w; G.window.innerHeight = h; };
+  G.navigator.maxTouchPoints = 5;
+  view(1194, 834);
+  ok("iPad landscape 1194x834 is a tablet", T.sniff(), "tablet");
+  view(834, 1194);
+  ok("iPad PORTRAIT 834x1194 is still a tablet", T.sniff(), "tablet");
+  view(1024, 768);
+  ok("an older iPad 1024x768 is a tablet", T.sniff(), "tablet");
+  view(507, 834);
+  ok("Split View 507x834 is a phone", T.sniff(), "phone");
+  view(412, 839);
+  ok("a Pixel 7 412x839 is a phone", T.sniff(), "phone");
+  view(839, 412);
+  ok("the same phone in landscape is still a phone", T.sniff(), "phone");
+
+  view(1194, 834);
   T.override("off");
   ok("the override forces desktop", T.sniff(), "desktop");
   T.override("auto");
-  ok("and releases it", T.sniff(), "phone");
-  G.window.innerWidth = 1400;
+  ok("and releases it", T.sniff(), "tablet");
   G.navigator.maxTouchPoints = 0;
   ok("no touch capability at all is desktop", T.sniff(), "desktop");
   T.override("on");
   ok("the override forces touch on regardless", T.sniff(), "tablet");
   T.override("auto");
+  G.navigator.maxTouchPoints = 5;
 }
 
 console.log("\n-- angDelta wraps the short way --");

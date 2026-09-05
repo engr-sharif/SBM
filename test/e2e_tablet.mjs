@@ -212,17 +212,36 @@ if (boot.navPad !== 4) fail("the 3D nav pad is not four buttons", boot.navPad);
 if (!/none/.test(boot.overscroll || "")) warn("overscroll-behavior is not none", boot.overscroll);
 if (errors.length) fail("page errors at boot", errors.slice(0, 6));
 
-/* the CSS carries 100dvh and the safe-area padding */
-const css = await page.evaluate(() => {
-  let txt = "";
-  for (const s of document.styleSheets) {
-    try { for (const r of s.cssRules) txt += r.cssText; } catch (e) {}
-  }
-  return { dvh: /100dvh/.test(txt), safe: (txt.match(/safe-area-inset/g) || []).length };
+/* The CSS carries 100dvh and the safe-area padding.
+   Read from the SOURCE, not from `document.styleSheets`: a stylesheet loaded
+   by <link> over file:// is cross-origin to the page, so touching its
+   `cssRules` throws SecurityError and the probe silently sees an empty
+   stylesheet. (It reported "100dvh false · 0 safe-area rules" against a file
+   that plainly has both.) The page-side half of the same question — did the
+   rules actually parse and apply — is the computed style below. */
+const cssSrc = readFileSync(__res(SITE, "css/app.css"), "utf8");
+const css = { dvh: /height:\s*100dvh/.test(cssSrc),
+              safe: (cssSrc.match(/env\(safe-area-inset/g) || []).length,
+              overscroll: /overscroll-behavior:\s*none/.test(cssSrc) };
+const applied = await page.evaluate(() => {
+  const bar = getComputedStyle(document.getElementById("topbar"));
+  const root = getComputedStyle(document.documentElement);
+  return { topbarH: parseFloat(bar.height), htmlH: parseFloat(root.height),
+           inner: window.innerHeight,
+           mapTouch: getComputedStyle(document.getElementById("map")).touchAction,
+           canvasTouch: getComputedStyle(document.getElementById("v3dCanvas")).touchAction };
 });
-console.log(`  css: 100dvh ${css.dvh} · ${css.safe} safe-area rules`);
+console.log(`  css source: 100dvh ${css.dvh} · ${css.safe} safe-area rules · overscroll ${css.overscroll}`);
+console.log(`  applied: html ${applied.htmlH}px of ${applied.inner} · top bar ${applied.topbarH}px `
+  + `· touch-action map ${applied.mapTouch} / 3D ${applied.canvasTouch}`);
 if (!css.dvh) fail("the layout does not use 100dvh");
 if (css.safe < 6) fail("too few safe-area rules to be covering the chrome", css.safe);
+if (!css.overscroll) fail("overscroll-behavior:none is not set — the page will rubber-band");
+/* env() resolves to 0 in a headless browser, so the numbers cannot prove the
+   INSET; what they can prove is that the rules parsed and are in effect */
+if (Math.abs(applied.htmlH - applied.inner) > 1) fail("100dvh did not resolve to the viewport", applied);
+if (applied.mapTouch !== "none" || applied.canvasTouch !== "none")
+  fail("the gesture surfaces do not claim their own touches", applied);
 
 /* the unlock, by TAP */
 {
