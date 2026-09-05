@@ -76,13 +76,21 @@ pub extern "C" fn drainage(
 
     /* ---- 1. the inlet index -------------------------------------------- */
     let has_cd = nc > 0;
-    let mut inlet_at = vec![-1i32; if has_cd { n } else { 0 }];
+    /* i16, not i32: js/compute.js uses an Int16Array here and at 2 ft the
+       difference is 43 MB of linear memory on a kernel that already wants
+       ~700 MB of it. The conduit count is a couple of dozen. */
+    let mut inlet_at = vec![-1i16; if has_cd { n } else { 0 }];
     let mut sink_i: Vec<i32> = Vec::new();
     let mut sink_k: Vec<f64> = Vec::new();
     if has_cd {
-        let mut dmap: Vec<(usize, f64)> = Vec::new();
-        let mut have = vec![0u8; n];
-        let mut dval = vec![0f64; n];
+        /* The capture discs are a few hundred cells between them, so the
+           distances live in a SPARSE map exactly as the JavaScript's own `Map`
+           does. A full-grid f64 shadow here was 172 MB of allocation and
+           zeroing at 2 ft, and it made the whole kernel slower than the
+           JavaScript it replaces -- which is how it was found. */
+        let mut dkey = crate::geom::U64Map::new(1024);
+        let mut dcell: Vec<usize> = Vec::new();   /* insertion order, the Map's own */
+        let mut dval: Vec<f64> = Vec::new();
         let crc = if capture_ft / cell > 0.0 { (capture_ft / cell).ceil() as i32 } else { 0 };
         for k in 0..nc {
             let ki = ((cix[k] - x0) / cell).round() as i32;
@@ -97,8 +105,12 @@ pub extern "C" fn drainage(
                     if kd > capture_ft { continue; }
                     let kidx = idx(cii, cjj);
                     if z[kidx].is_nan() { continue; }
-                    if have[kidx] == 0 { have[kidx] = 1; dval[kidx] = kd; dmap.push((kidx, kd)); inlet_at[kidx] = k as i32; }
-                    else if kd < dval[kidx] { dval[kidx] = kd; inlet_at[kidx] = k as i32; }
+                    let slot = dkey.entry(kidx as u64, dval.len() as u32);
+                    if slot as usize == dval.len() {
+                        dval.push(kd); dcell.push(kidx); inlet_at[kidx] = k as i16;
+                    } else if kd < dval[slot as usize] {
+                        dval[slot as usize] = kd; inlet_at[kidx] = k as i16;
+                    }
                 }
             }
         }
@@ -109,11 +121,12 @@ pub extern "C" fn drainage(
             let nj2 = ((ciy[k] - y0) / cell).round() as i32;
             if ni2 < 0 || nj2 < 0 || ni2 >= wi || nj2 >= hi { continue; }
             let nidx = idx(ni2, nj2);
-            if z[nidx].is_nan() || have[nidx] != 0 { continue; }
-            have[nidx] = 1; dval[nidx] = 0.0; dmap.push((nidx, 0.0));
-            inlet_at[nidx] = k as i32;
+            if z[nidx].is_nan() || dkey.has(nidx as u64) { continue; }
+            dkey.entry(nidx as u64, dval.len() as u32);
+            dval.push(0.0); dcell.push(nidx);
+            inlet_at[nidx] = k as i16;
         }
-        for (ix, _d) in &dmap {
+        for ix in &dcell {
             let r = crim[inlet_at[*ix] as usize];
             sink_i.push(*ix as i32);
             sink_k.push(if r.is_finite() { r } else { z[*ix] as f64 });
@@ -202,8 +215,8 @@ pub extern "C" fn drainage(
                 if ui > bb[2] { bb[2] = ui; }
                 if uj > bb[3] { bb[3] = uj; }
                 if has_cd && inlet_at[u] >= 0 {
-                    let ru = rim_of(inlet_at[u], u);
-                    if ru < via_rim { via_rim = ru; via_k = inlet_at[u]; via_cell = u as i32; }
+                    let ru = rim_of(inlet_at[u] as i32, u);
+                    if ru < via_rim { via_rim = ru; via_k = inlet_at[u] as i32; via_cell = u as i32; }
                 }
                 if parent[u] < 0 { seed_in = u as i32; }
                 for t in 0..8 {
@@ -215,8 +228,8 @@ pub extern "C" fn drainage(
                     if z[vi].is_nan() { continue; }
                     if pond_id[vi] == 0 && wet(vi, &f) { pond_id[vi] = pid; stk.push(vi as i32); continue; }
                     if has_cd && inlet_at[vi] >= 0 {
-                        let rv = rim_of(inlet_at[vi], vi);
-                        if rv <= level + RIM_EPS && rv < via_rim { via_rim = rv; via_k = inlet_at[vi]; via_cell = vi as i32; }
+                        let rv = rim_of(inlet_at[vi] as i32, vi);
+                        if rv <= level + RIM_EPS && rv < via_rim { via_rim = rv; via_k = inlet_at[vi] as i32; via_cell = vi as i32; }
                     }
                 }
                 /* THE POUR POINT, taken from the priority flood itself */
@@ -297,8 +310,8 @@ pub extern "C" fn drainage(
             let pk = pond_id[c];
             if pk != 0 {
                 if has_cd && inlet_at[c] >= 0
-                    && (parent[c] < 0 || rim_of(inlet_at[c], c) <= p_level[pk as usize] + RIM_EPS) {
-                    pointer[c] = chain_target(inlet_at[c], &chain_cell, &chain_sink);
+                    && (parent[c] < 0 || rim_of(inlet_at[c] as i32, c) <= p_level[pk as usize] + RIM_EPS) {
+                    pointer[c] = chain_target(inlet_at[c] as i32, &chain_cell, &chain_sink);
                     continue;
                 }
                 let pp0 = parent[c];
@@ -309,7 +322,7 @@ pub extern "C" fn drainage(
                 }
             }
             if has_cd && inlet_at[c] >= 0 {
-                pointer[c] = chain_target(inlet_at[c], &chain_cell, &chain_sink);
+                pointer[c] = chain_target(inlet_at[c] as i32, &chain_cell, &chain_sink);
                 continue;
             }
             if i == 0 || j == 0 || i == wu - 1 || j == hu - 1 {
@@ -400,7 +413,7 @@ pub extern "C" fn drainage(
                                 z[lc as usize] as f64,
                                 lp2,
                                 if lp2 != 0 { p_level[lp2 as usize] } else { f64::NAN },
-                                if has_cd { inlet_at[lc as usize] } else { -1 },
+                                if has_cd { inlet_at[lc as usize] as i32 } else { -1 },
                             ));
                             lc = pointer[lc as usize];
                             let g = lg; lg += 1;
@@ -444,7 +457,7 @@ pub extern "C" fn drainage(
             }
             let qk = pond_id[q];
             let of2 = if qk != 0 && p_rep[qk as usize] != 0 { fb_pond + qk }
-                      else if has_cd && inlet_at[q] >= 0 { fb_inlet + inlet_at[q] }
+                      else if has_cd && inlet_at[q] >= 0 { fb_inlet + inlet_at[q] as i32 }
                       else { -1 };
             first_l[q] = if of2 >= 0 { of2 } else { f_down };
             f_down = first_l[q];

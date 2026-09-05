@@ -238,6 +238,7 @@ var SBMM_COMPUTE = (function SBMMComputeModule() {
   function wPutF64(a) { var p = wAlloc(a.length * 8 || 8); if (a.length) wf64(p, a.length).set(a); return p; }
   function wPutI32(a) { var p = wAlloc(a.length * 4 || 4); if (a.length) w32(p, a.length).set(a); return p; }
   function wPutU8(a)  { var p = wAlloc(a.length || 1);     if (a.length) w8(p, a.length).set(a); return p; }
+  function wPutU32(a) { var p = wAlloc(a.length * 4 || 4); if (a.length) new Uint32Array(W.memory.buffer, p, a.length).set(a); return p; }
   /* the variable-length output arena, as a DataView-free byte copy */
   function wOut() {
     var n = W.out_len();
@@ -288,6 +289,66 @@ var SBMM_COMPUTE = (function SBMMComputeModule() {
         lines.push(line);
       }
       return lines;
+    } catch (e) { wRelease(); wasmFail(e); return null; }
+  }
+
+  /* ---- volumeGrid ---------------------------------------------------------
+     THE GOLDEN NUMBER runs through here (Pile 1 = 278.4 yd3 fill / -48.1 net),
+     so the port keeps the JavaScript's own order of operations: the row-major
+     sweep, the 32 x 32 triangle index built in the same insertion order, and
+     pointInPoly's half-open crossing rule. The Delaunay triangulation is still
+     the host's — js/tools.js buildVolumeJob does it and hands the index in. */
+  var W_BASE = { tin: 0, plane: 1, design: 3 };
+
+  function wasmVolume(job) {
+    /* a design base whose raster is not Float32 would have to be converted, and
+       converting f64 nodes to f32 is a change to the surface — refuse, and the
+       JavaScript below runs instead */
+    if (job.baseMode === "design" &&
+        !(job.dgrid && job.dgrid.z && job.dgrid.z.BYTES_PER_ELEMENT === 4)) return null;
+    var mode = W_BASE[job.baseMode];
+    if (mode === undefined) mode = 2;                     /* fixed, and "lowest" */
+    var grids = job.grids || [], ng = grids.length, k, tot = 0;
+    var gx0 = new Float64Array(ng), gy0 = new Float64Array(ng), gce = new Float64Array(ng);
+    var gw = new Int32Array(ng), gh = new Int32Array(ng), gi0 = new Int32Array(ng),
+        gj0 = new Int32Array(ng), gsw = new Int32Array(ng), gsh = new Int32Array(ng),
+        gof = new Int32Array(ng);
+    for (k = 0; k < ng; k++) {
+      var g = grids[k];
+      gx0[k] = g.x0; gy0[k] = g.y0; gce[k] = g.cell;
+      gw[k] = g.w; gh[k] = g.h; gi0[k] = g.i0; gj0[k] = g.j0;
+      gsw[k] = g.sw; gsh[k] = g.sh; gof[k] = tot;
+      tot += g.sw * g.sh;
+    }
+    var gz = new Float32Array(tot);
+    for (k = 0; k < ng; k++) gz.set(grids[k].z, gof[k]);
+
+    var nx = job.nx, ny = job.ny;
+    try {
+      var pp = wPutF64(job.poly), pm = wPutF64(job.perim);
+      var pt = wPutU32(job.tri || new Uint32Array(0));
+      var dg = job.dgrid || null;
+      var pd = dg ? wPutF32(dg.z) : 0;
+      var a1 = wPutF64(gx0), a2 = wPutF64(gy0), a3 = wPutF64(gce);
+      var b1 = wPutI32(gw), b2 = wPutI32(gh), b3 = wPutI32(gi0), b4 = wPutI32(gj0),
+          b5 = wPutI32(gsw), b6 = wPutI32(gsh), b7 = wPutI32(gof);
+      var pgz = wPutF32(gz);
+      var ph = wAlloc(nx * ny * 4), po = wAlloc(64);
+      W.volume_grid(pp, job.poly.length / 2, pm, job.perim.length / 3,
+                    pt, job.tri ? job.tri.length : 0,
+                    mode, job.fixedZ == null ? NaN : job.fixedZ,
+                    pd, dg ? dg.x0 : 0, dg ? dg.y0 : 0, dg ? dg.cell : 1,
+                    dg ? dg.nx : 0, dg ? dg.ny : 0,
+                    a1, a2, a3, b1, b2, b3, b4, b5, b6, b7, pgz, ng, tot,
+                    job.step, job.bx0, job.by0, nx, ny, ph, po);
+      var hGrid = new Float32Array(wf32(ph, nx * ny));
+      var o = new Float64Array(wf64(po, 8));
+      wRelease();
+      return {
+        result: { fill: o[0], cut: o[1], n: o[2], hmax: o[3], hmin: o[4], hsum: o[5],
+                  zmin: o[6], zmax: o[7], hGrid: hGrid, nx: nx, ny: ny },
+        transfer: [hGrid.buffer]
+      };
     } catch (e) { wRelease(); wasmFail(e); return null; }
   }
 
@@ -770,6 +831,11 @@ var SBMM_COMPUTE = (function SBMMComputeModule() {
             dgrid: {x0,y0,cell,nx,ny,z} (baseMode "design" only),
             step, bx0, by0, nx, ny, grids: [gspec, ...] }                      */
   function volumeGrid(job, onProgress) {
+    /* v21 dispatch (docs/V21_WASM_SPEC.md) — the port of everything below. */
+    if (wasmAvailable()) {
+      var Vw = wasmVolume(job);
+      if (Vw) { if (onProgress) onProgress(1); return Vw; }
+    }
     var pts = [], i;
     for (i = 0; i < job.poly.length; i += 2) pts.push([job.poly[i], job.poly[i + 1]]);
     var perim = [];

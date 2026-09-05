@@ -2079,6 +2079,43 @@ Where the remaining time goes, and what moved:
 **GitHub Pages:** Settings → Pages → deploy from branch, root. Keep the repo **private**
 — it contains site imagery, terrain, and analytical results.
 
+## The compute core (v21)
+
+The heavy analyses — the drainage map, the overtopping flood, the raindrop, volumes,
+contours — now run in a small compiled **WebAssembly** core when the browser has one.
+The JavaScript kernels stay in the app as the reference and the fallback: they are what
+every golden number was measured on, they are what runs if the module will not load, and
+every results card says which of the two computed it and in how many milliseconds.
+Help has a **Force JavaScript kernels** switch if you ever want to see for yourself.
+
+Nothing is fetched. The module is ~100 kB of WebAssembly shipped as base64 in
+`datajs/w_kernels.js`, exactly like the terrain and the imagery, so it works over
+`file://`, in the folder build, in the full dist and in the field build alike. Rust is a
+build dependency of that one payload; the app never needs it.
+
+**Identity is the acceptance, and it is bit-identity, not a tolerance.** Every ported
+kernel is run twice on the same job — once with the core forced off — and the two results
+are compared field by field, typed arrays included, with NoData counted equal to NoData.
+`node test/kernels.mjs` runs every section on **both** cores by default.
+
+Before and after, node on the build box, measured as an A/B inside one run (the machine
+was shared with two browser test matrices at the time, so read these as the shape of the
+answer rather than as bench figures):
+
+| kernel | job | JavaScript | WebAssembly | |
+|---|---|---|---|---|
+| `contours` | 1,001 × 1,001 site window, 10 ft | 199 ms | **12 ms** | 16.6× |
+| `contours` | 400 × 400 analytic cone, 5 ft | 131 ms | **15 ms** | 8.7× |
+| `fillDem` | Herman window, 1,757 × 1,208 | 1,357 ms | **634 ms** | 2.1× |
+| `overtop` | Herman + 19 conduits | 4,382 ms | **2,127 ms** | 2.1× |
+| `flowpath` | the §6.8 drop, chained, storm on | 4,431 ms | **2,345 ms** | 1.9× |
+| `drainage` | the whole site, 4 ft (2,425 × 2,225) | 2,438 ms | **1,557 ms** | 1.6× |
+
+The two contour figures are the honest headline: the JavaScript chains marching-squares
+segments through a `Map` keyed by a formatted string, and that is what a compiled core is
+for. The water and drainage kernels are memory-bound priority floods over millions of
+cells, and roughly halving them is what that shape of problem gives.
+
 ## Data
 
 | File | Contents |
