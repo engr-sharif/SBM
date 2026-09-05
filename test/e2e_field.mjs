@@ -200,6 +200,20 @@ console.log(`golden Pile 1: fill ${vol.fill.toFixed(1)} yd³, cut ${vol.cut.toFi
   + `net ${vol.net.toFixed(1)} — base ${vol.base}`);
 if (Math.abs(vol.fill - 278.4) > 10 || Math.abs(vol.net + 48.1) > 10)
   fail("the golden Pile 1 volume moved in the field build", vol);
+
+/* v21 §5: the WASM core is IN the field build — a phone is exactly where the
+   kernels are slowest, and datajs/w_kernels.js is deliberately not in
+   FIELD_EXCLUDE. The golden above was computed by it. */
+const core = await page.evaluate(() => {
+  const i = SBMM.compute.wasmInfo();
+  return { backend: SBMM.compute.backend(), loaded: i.loaded, bytes: i.bytes,
+           version: i.version, ranOn: SBMM.compute.stats.lastBackend };
+});
+console.log(`compute core: ${core.backend} (v${core.version}, ${core.bytes} bytes) `
+  + `— the golden ran on ${core.ranOn}`);
+if (!core.loaded) fail("the field build has no WASM compute core", core);
+if (core.backend !== "wasm") fail("the field build did not select the WASM core", core);
+if (core.ranOn !== "wasm") fail("the golden volume did not run on the core", core);
 });
 
 /* ===================================================================== */

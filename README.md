@@ -2104,17 +2104,32 @@ answer rather than as bench figures):
 
 | kernel | job | JavaScript | WebAssembly | |
 |---|---|---|---|---|
-| `contours` | 1,001 × 1,001 site window, 10 ft | 199 ms | **12 ms** | 16.6× |
-| `contours` | 400 × 400 analytic cone, 5 ft | 131 ms | **15 ms** | 8.7× |
-| `fillDem` | Herman window, 1,757 × 1,208 | 1,357 ms | **634 ms** | 2.1× |
+| `contours` | 400 × 400 analytic cone, 5 ft | 292 ms | **12 ms** | 24× |
+| `contours` | 1,001 × 1,001 site window, 10 ft | 199 ms | **12 ms** | 17× |
+| `volume` | Pile 1, perimeter TIN | 10 ms | **2 ms** | 5× |
 | `overtop` | Herman + 19 conduits | 4,382 ms | **2,127 ms** | 2.1× |
+| `fillDem` | Herman window, 1,757 × 1,208 | 1,357 ms | **634 ms** | 2.1× |
 | `flowpath` | the §6.8 drop, chained, storm on | 4,431 ms | **2,345 ms** | 1.9× |
-| `drainage` | the whole site, 4 ft (2,425 × 2,225) | 2,438 ms | **1,557 ms** | 1.6× |
+| `drainage` | the whole site, 4 ft (2,425 × 2,225) | 1,265 ms | **713 ms** | 1.8× |
+| `drainage` | the whole site, 2 ft (4,850 × 4,450) | 5,490 ms | **3,749 ms** | 1.5× |
+| 100 raindrops | the drainage identity, chained | 83.5 s | **58.7 s** | 1.4× |
 
-The two contour figures are the honest headline: the JavaScript chains marching-squares
-segments through a `Map` keyed by a formatted string, and that is what a compiled core is
-for. The water and drainage kernels are memory-bound priority floods over millions of
-cells, and roughly halving them is what that shape of problem gives.
+The contour figures are the honest headline: the JavaScript chains marching-squares
+segments through a `Map` keyed by a formatted string, and replacing that is exactly what
+a compiled core is for. The water and drainage kernels are a different shape — priority
+floods over millions of cells, bound by memory bandwidth rather than by arithmetic — and
+halving them is what that shape gives. **The v21 spec asked for 2 s on the 2-ft drainage
+map and it is not there**: at 21.6 million cells the kernel touches half a dozen
+86-MB arrays several times each, and compiling the loops does not make the memory faster.
+
+Two related notes, both measured. The FIRST 2-ft drainage run in a fresh worker is
+~5.7 s rather than 3.7 s, because it pays for growing WebAssembly's linear memory to
+about 600 MB; every run after it in the same worker is the faster number, and the app
+re-runs this job whenever a storm switch moves. And an early version of the port was
+*slower* than the JavaScript — it shadowed the storm-inlet capture distances in a
+full-grid array where the JavaScript uses a sparse map, which cost 190 MB of allocation
+and zeroing per run. A compiled core is not automatically faster; the memory it asks for
+is part of the kernel.
 
 ## Data
 

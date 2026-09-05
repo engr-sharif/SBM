@@ -40,8 +40,15 @@ build box, measured side by side in one run:
 | contours over the site window | 199 ms | **12 ms** | 16× |
 | the Herman overtopping flood, drains on | 4.4 s | **2.1 s** | 2.1× |
 | the raindrop, chained through the storm network | 4.4 s | **2.3 s** | 1.9× |
-| the drainage map, whole site | 1.5 s | **0.9 s** | 1.6× |
+| the drainage map, whole site at 2 ft | 5.5 s | **3.7 s** | 1.5× |
+| the drainage map, whole site at 4 ft (the phone) | 1.3 s | **0.7 s** | 1.8× |
 | a volume over a traced pile | 10 ms | **2 ms** | 5× |
+
+The drainage map is the one that gained least, and it is worth saying why rather than
+leaving it looking like a disappointment: at 2 ft that map is 21.6 million cells and the
+work is moving half a dozen 86-megabyte arrays around, not arithmetic. Compiling the
+loops does not make the memory faster. It is a real 1.5×, and the first run after you
+open the app is a little slower again while the core claims the memory it needs.
 
 Every results card now says which of the two computed it and in how many milliseconds, so
 you can see it for yourself; Help has a **Force JavaScript kernels** switch if you ever
