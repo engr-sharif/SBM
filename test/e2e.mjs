@@ -4,7 +4,7 @@ import { launch, TIMEOUT } from "./lib/browser.mjs";
 import { pathToFileURL as __furl } from "node:url";
 import { resolve as __res } from "node:path";
 import { existsSync as __ex, readFileSync as __read } from "node:fs";
-import { unlock, gatePassword } from "./gate.mjs";
+import { unlock, gatePassword, FORCE_JS } from "./gate.mjs";
 import { block, S } from "./lib/blocks.mjs";
 
 const target = process.argv[2]; // path to index.html or dist html
@@ -6045,12 +6045,18 @@ const core = await page.evaluate(() => {
 });
 console.log("compute core:", core.loaded
   ? `wasm v${core.version}, ${core.bytes} bytes, backend ${core.backend}`
-  : `not loaded — backend ${core.backend}`);
-if (core.forced) { console.log("FAIL: the core starts forced to JavaScript"); process.exit(1); }
-if (core.loaded && core.backend !== "wasm") {
+  : `not loaded — backend ${core.backend}`,
+  FORCE_JS ? "(SBMM_WASM=0)" : "");
+/* SBMM_WASM=0 seeds the switch through test/gate.mjs, so under it the app is
+   SUPPOSED to start forced — and the whole matrix has to be green that way
+   (v21 §5). Everything below then asserts the JavaScript path instead. */
+if (core.forced !== FORCE_JS) {
+  console.log("FAIL: forcedJs is", core.forced, "with SBMM_WASM=0 =", FORCE_JS); process.exit(1); }
+const wantWasm = core.loaded && !FORCE_JS;
+if (wantWasm && core.backend !== "wasm") {
   console.log("FAIL: the core loaded but backend() says", core.backend); process.exit(1); }
-if (!core.loaded && core.backend !== "js") {
-  console.log("FAIL: no core, but backend() says", core.backend); process.exit(1); }
+if (!wantWasm && core.backend !== "js") {
+  console.log("FAIL: expected the JavaScript path, backend() says", core.backend); process.exit(1); }
 
 /* the golden, on whichever core this build has */
 const goldWasm = await page.evaluate(async () => {
@@ -6080,7 +6086,7 @@ await page.evaluate(() => SBMM.compute.forceJs(false));
 console.log(`Pile 1 on ${goldWasm.backend}: ${goldWasm.fill} yd³ | on ${goldJs.backend}: ${goldJs.fill} yd³`);
 if (goldJs.backend !== "js") {
   console.log("FAIL: the forced run still reported backend", goldJs.backend); process.exit(1); }
-if (core.loaded && goldWasm.backend !== "wasm") {
+if (wantWasm && goldWasm.backend !== "wasm") {
   console.log("FAIL: the first run did not use the core:", goldWasm.backend); process.exit(1); }
 /* the two cores must AGREE — this is the contract, and it is exact here
    because `volume` is one of the bit-identical ports */
@@ -6103,6 +6109,9 @@ const sw = await page.evaluate(() => {
 if (sw.missing) { console.log("FAIL: Help has no compute-core switch"); process.exit(1); }
 if (sw.stored !== "js" || sw.cleared !== null) {
   console.log("FAIL: the switch is not remembered", sw); process.exit(1); }
+/* the block just cleared the seeded preference — put it back so the rest of
+   the run is on the core the runner asked for */
+if (FORCE_JS) await page.evaluate(() => SBMM.compute.forceJs(true));
 if (!sw.text) { console.log("FAIL: the Help line says nothing about the core"); process.exit(1); }
 console.log("core switch:", sw.text);
 if (errors.length !== coreBefore) {

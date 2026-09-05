@@ -29,7 +29,7 @@ import { pathToFileURL as __furl } from "node:url";
 import { resolve as __res, dirname } from "node:path";
 import { existsSync as __ex } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { unlock, gatePassword } from "./gate.mjs";
+import { unlock, gatePassword, FORCE_JS } from "./gate.mjs";
 import { block, S } from "./lib/blocks.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -210,10 +210,14 @@ const core = await page.evaluate(() => {
            version: i.version, ranOn: SBMM.compute.stats.lastBackend };
 });
 console.log(`compute core: ${core.backend} (v${core.version}, ${core.bytes} bytes) `
-  + `— the golden ran on ${core.ranOn}`);
-if (!core.loaded) fail("the field build has no WASM compute core", core);
-if (core.backend !== "wasm") fail("the field build did not select the WASM core", core);
-if (core.ranOn !== "wasm") fail("the golden volume did not run on the core", core);
+  + `— the golden ran on ${core.ranOn}` + (FORCE_JS ? " (SBMM_WASM=0)" : ""));
+/* the payload must BE in the field build either way — that is the half of this
+   that SBMM_WASM=0 does not change */
+if (!core.loaded && !FORCE_JS) fail("the field build has no WASM compute core", core);
+if (!core.bytes) fail("the field build carries no wasm payload at all", core);
+const want = FORCE_JS ? "js" : "wasm";
+if (core.backend !== want) fail(`the field build selected ${core.backend}, not ${want}`, core);
+if (core.ranOn !== want) fail(`the golden volume ran on ${core.ranOn}, not ${want}`, core);
 });
 
 /* ===================================================================== */
