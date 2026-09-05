@@ -43,12 +43,21 @@ const AC = 43560;
 
 /* ------------------------------------------------------------------ argv -- */
 const argv = process.argv.slice(2);
-let only = null, listOnly = false;
+let only = null, listOnly = false, backendArg = "both";
 for (let i = 0; i < argv.length; i++) {
   const a = argv[i];
   if (a === "--only") only = (only || []).concat(String(argv[++i]).split(","));
   else if (a === "--list") listOnly = true;
+  /* v21 (docs/V21_WASM_SPEC.md §5): every section runs on BOTH backends by
+     default, so a golden is a golden whichever core computed it. SBMM_WASM=0
+     is the environment's way of saying the same thing the Help switch says. */
+  else if (a === "--backend") backendArg = String(argv[++i]);
   else if (a.startsWith("--")) argv[++i];        // tolerate (and ignore) legacy flags
+}
+if (process.env.SBMM_WASM === "0") backendArg = "js";
+if (!["js", "wasm", "both"].includes(backendArg)) {
+  console.error("--backend takes js | wasm | both");
+  process.exit(2);
 }
 
 /* --------------------------------------------------- load js/compute.js ---- */
@@ -71,6 +80,50 @@ function loadCompute() {
   if (!ctx2.SBMM_COMPUTE || ctx2.SBMM_COMPUTE.VERSION !== api.VERSION)
     throw new Error("moduleSource round-trip does not rebuild the module");
   return api;
+}
+
+/* --------------------------------------------- the WASM core (v21) -------- */
+/* The payload the app ships, read the way the app reads it: bytes, never a
+   file path, because over file:// nothing can be fetched (CLAUDE.md). Node has
+   no 4 kB synchronous-compile limit, so this is the worker's own path. */
+function loadWasm(api) {
+  const f = path.join(REPO, "datajs", "w_kernels.js");
+  if (!fs.existsSync(f)) return { ok: false, why: "datajs/w_kernels.js is not in this checkout" };
+  const txt = fs.readFileSync(f, "utf8");
+  const mb = txt.match(/SBMM_DATA\["wasm_kernels_meta"\]=(\{.*?\});/);
+  const bb = txt.match(/SBMM_DATA\["wasm_kernels"\]="([A-Za-z0-9+/=]*)"/);
+  if (!bb) return { ok: false, why: "datajs/w_kernels.js carries no wasm_kernels payload" };
+  const meta = mb ? JSON.parse(mb[1]) : null;
+  const bytes = Buffer.from(bb[1], "base64");
+  const ok = api.wasmInitSync ? api.wasmInitSync(bytes, meta) : false;
+  return { ok, meta, bytes: bytes.length, why: ok ? null : "the module did not instantiate" };
+}
+
+/* bitwise identity between two typed arrays, NaN counted as equal to NaN --
+   which is what "the same raster" means for a grid whose NoData IS NaN */
+function sameArray(a, b) {
+  if (!a || !b || a.length !== b.length) return { ok: false, n: -1, at: -1 };
+  let bad = 0, at = -1;
+  for (let i = 0; i < a.length; i++) {
+    const x = a[i], y = b[i];
+    if (x === y) continue;
+    if (Number.isNaN(x) && Number.isNaN(y)) continue;
+    if (bad === 0) at = i;
+    bad++;
+  }
+  return { ok: bad === 0, n: bad, at };
+}
+/* the largest relative difference, for the kernels whose summation order moves */
+function maxRel(a, b) {
+  if (!a || !b || a.length !== b.length) return Infinity;
+  let m = 0;
+  for (let i = 0; i < a.length; i++) {
+    const x = a[i], y = b[i];
+    if (x === y || (Number.isNaN(x) && Number.isNaN(y))) continue;
+    const d = Math.abs(x - y) / Math.max(1e-12, Math.abs(y));
+    if (d > m) m = d;
+  }
+  return m;
 }
 /* vendor/d3-delaunay.min.js — the volume job's perimeter TIN is triangulated by
    the HOST, not the kernel (js/tools.js buildVolumeJob), so the harness has to
@@ -2621,6 +2674,124 @@ function secRunoff() {
   }
 }
 
+/* ====================== 14. THE WASM CORE (v21) =========================== */
+/* docs/V21_WASM_SPEC.md §2: identity is the acceptance. Every ported kernel is
+   run TWICE on one job -- once with the module forced off, once with it on --
+   and the two outputs are compared field by field. Where the arithmetic is a
+   copy, an integer or an order-independent comparison the requirement is
+   BIT-IDENTICAL and this section says so; where a floating summation order
+   moves it is <= 1e-6 relative, and the row names which and why.
+
+   The speed-up printed beside each is this box, node, warm cache. */
+const WASM_REC = {};   /* filled as the section runs, printed as a table */
+
+function ab(name, fn, warm) {
+  /* Run `fn()` on each backend and return [jsOut, wasmOut, jsMs, wasmMs].
+     Both get a warm-up run first unless the caller says otherwise: V8 needs
+     one to JIT the kernel and wasm needs one to grow linear memory, so a
+     first-run comparison flatters whichever went second. */
+  const one = (js) => { C.wasmForce(js); if (warm !== false) fn(); const t = Date.now(); const r = fn(); return [r, Date.now() - t]; };
+  const [j, jms] = one(true);
+  const [wo, wms] = one(false);
+  C.wasmForce(false);
+  WASM_REC[name] = { jms, wms };
+  return [j, wo, jms, wms];
+}
+function speed(name, jms, wms) {
+  const x = wms > 0 ? jms / wms : Infinity;
+  console.log("        " + name.padEnd(28) + ("js " + jms + " ms").padStart(14) +
+              ("   wasm " + wms + " ms").padStart(18) + "   " +
+              (x >= 1 ? x.toFixed(2) + "x faster" : (1 / x).toFixed(2) + "x SLOWER"));
+  return x;
+}
+function identical(name, a, b, what) {
+  const r = sameArray(a, b);
+  row(name, r.ok ? "identical (" + (a ? a.length : 0) + ")" : r.n + " cells differ (first at " + r.at + ")",
+      "bit-identical", r.ok, "exact", what || "");
+}
+
+function secWasm() {
+  console.log("\nwasm — the v21 compute core, identity against the JavaScript kernels");
+  if (!WASM.ok) {
+    row("the module instantiates", WASM.why || "no", "instantiated", false, "exact",
+        "build it with `python tools/build_wasm.py`");
+    return;
+  }
+  const info = C.wasmInfo();
+  row("the module instantiates", "v" + (info.version || "?") + ", " + WASM.bytes + " b64 bytes",
+      "instantiated", true, "exact", "api " + C.VERSION);
+  atMost("payload size", WASM.bytes, 400 * 1024, " bytes (field build)");
+  row("wasmForce(true) is the JavaScript path", C.wasmForce(true), "js", C.wasmBackend() === "js", "exact");
+  row("wasmForce(false) is the wasm path", C.wasmForce(false), "wasm", C.wasmBackend() === "wasm", "exact");
+
+  /* ---- fillDem: shared by flowpath, overtop and drainage ------------------
+     Driven exactly as js/water.js drives it, through the Herman window the
+     water section cuts, and again with the storm network's capture cells as
+     sinks and the parent forest asked for -- the two things v12 and v14 added. */
+  {
+    const g = hermanWindow();
+    const [a, b, jms, wms] = ab("fillDem", () => {
+      const par = new Int32Array(g.sw * g.sh);
+      const F = C.fillDem(g.z, g.sw, g.sh, null, 0, 1, null, par);
+      return { F, par };
+    });
+    speed("fillDem " + g.sw + "x" + g.sh, jms, wms);
+    identical("fillDem F", a.F, b.F, "no arithmetic: F is a copy of z or of a level");
+    identical("fillDem parent forest", a.par, b.par, "the heap tie-break fixes the order");
+
+    const sk = fillSinks(g);
+    const [a2, b2, jms2, wms2] = ab("fillDem+sinks", () => {
+      const par = new Int32Array(g.sw * g.sh);
+      const F = C.fillDem(g.z, g.sw, g.sh, null, 0, 1, sk, par);
+      return { F, par };
+    });
+    speed("fillDem, " + sk.length + " conduit sinks", jms2, wms2);
+    identical("fillDem F (seeded)", a2.F, b2.F, "the v12 conduit seeding");
+    identical("fillDem parent (seeded)", a2.par, b2.par, "");
+    row("the seeding changes F", sameArray(a.F, a2.F).n + " cells", "> 0",
+        sameArray(a.F, a2.F).n > 0, "identity", "so the seeded case is really exercised");
+  }
+}
+
+/* the Herman window the water section cuts, as a standalone grid spec */
+let _hw = null;
+function hermanWindow() {
+  if (_hw) return _hw;
+  const ring = hermanRing();
+  const xs = ring.map(p => p[0]), ys = ring.map(p => p[1]);
+  const bb = [Math.min(...xs) - 800, Math.min(...ys) - 800, Math.max(...xs) + 800, Math.max(...ys) + 800];
+  _hw = T.gridSpec(T.demForBox(bb) || T.loadDem("dem_site"), bb);
+  return _hw;
+}
+/* every capture cell of the storm network inside that window, at its rim --
+   js/water.js conduitsFor + the kernel's own inlet index (v12 §2) */
+function fillSinks(g) {
+  const net = T.readJSON("data/storm_network.json");
+  const X0 = g.x0 + g.i0 * g.cell, Y0 = g.y0 + g.j0 * g.cell;
+  const nodeOf = {};
+  for (const nd of net.nodes) nodeOf[nd.id] = nd;
+  const out = [], seen = new Set();
+  for (const cd of net.conduits) {
+    const a = nodeOf[cd.from];
+    if (!a) continue;
+    const rim = a.invert_ft != null ? a.invert_ft : null;
+    const ki = Math.round((a.x - X0) / g.cell), kj = Math.round((a.y - Y0) / g.cell);
+    const rc = Math.max(0, Math.ceil(3 / g.cell));
+    for (let j = kj - rc; j <= kj + rc; j++) {
+      if (j < 0 || j >= g.sh) continue;
+      for (let i = ki - rc; i <= ki + rc; i++) {
+        if (i < 0 || i >= g.sw) continue;
+        if (Math.hypot(X0 + i * g.cell - a.x, Y0 + j * g.cell - a.y) > 3) continue;
+        const k = j * g.sw + i;
+        if (Number.isNaN(g.z[k]) || seen.has(k)) continue;
+        seen.add(k);
+        out.push([k, rim == null ? g.z[k] : rim]);
+      }
+    }
+  }
+  return out;
+}
+
 /* ============================== run ====================================== */
 const SECTIONS = [
   { key: "volume", run: secVolume },
@@ -2635,7 +2806,8 @@ const SECTIONS = [
   { key: "storm", run: secStorm },
   { key: "water3d", run: secWater3d },
   { key: "drainage", run: secDrainage },
-  { key: "runoff", run: secRunoff }
+  { key: "runoff", run: secRunoff },
+  { key: "wasm", run: secWasm }
 ];
 
 if (listOnly) {
@@ -2645,9 +2817,17 @@ if (listOnly) {
 
 const C = loadCompute();
 const Delaunay = loadDelaunay();
+const WASM = loadWasm(C);
 console.log("SBMM kernel harness — js/compute.js VERSION " + C.VERSION +
             (C.VERSION === 9 ? "" : "  (!! expected 9)"));
 if (C.VERSION !== 9) { fails++; checks++; }
+console.log("wasm core: " + (WASM.ok
+  ? "v" + (WASM.meta && WASM.meta.version) + ", " + WASM.bytes + " bytes"
+  : "NOT LOADED (" + WASM.why + ")"));
+if (!WASM.ok && backendArg !== "js") {
+  console.error("--backend " + backendArg + " needs the module; run `python tools/build_wasm.py`");
+  process.exit(2);
+}
 
 /* every kernel runJob dispatches must have a section here (V11 spec §2.4) */
 const COVERED = ["volume", "isopach", "raster", "contours", "design", "balance", "sections",
@@ -2665,12 +2845,24 @@ const COVERED = ["volume", "isopach", "raster", "contours", "design", "balance",
 const wanted = SECTIONS.filter(s => !only || only.includes(s.key));
 if (!wanted.length) { console.log("no section matches --only " + only.join(",")); process.exit(2); }
 
+/* v21 §5: every section on both backends -- a golden is a golden whichever
+   core computed it. The `wasm` section drives both itself and is run once. */
+const backends = backendArg === "both" ? ["js", "wasm"] : [backendArg];
 const t0 = Date.now();
-for (const s of wanted) {
-  const st = Date.now();
-  s.run();
-  console.log("  ---- " + s.key + " section: " + ((Date.now() - st) / 1000).toFixed(1) + " s");
+for (const be of backends) {
+  C.wasmForce(be === "js");
+  if (backends.length > 1 || backendArg !== "js")
+    console.log("\n================== backend: " + C.wasmBackend().toUpperCase() +
+                " ==================");
+  const first = be === backends[0];
+  for (const s of wanted) {
+    if (s.key === "wasm" && !first) continue;      // it is the A/B itself
+    const st = Date.now();
+    s.run();
+    console.log("  ---- " + s.key + " section: " + ((Date.now() - st) / 1000).toFixed(1) + " s");
+  }
 }
+C.wasmForce(false);
 console.log("\nterrain: decoded [" + T.loadStats.decoded.join(" ") + "] cached [" +
             T.loadStats.cached.join(" ") + "] in " + (T.loadStats.ms / 1000).toFixed(1) + " s");
 console.log((fails ? "FAILED " + fails + " of " + checks : "PASSED all " + checks) +
