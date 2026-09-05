@@ -2258,6 +2258,11 @@ function runoffJobFor(labels, cats, o) {
   const hours = o.hours == null ? 24 : o.hours;
   return {
     labels, cover: o.cover === null ? null : cover,
+    /* v19 §2 "Phase 2 uses it": the flow-accumulation raster the TR-55 channel
+       test reads. js/runoff.js asks js/accum.js for the D8 raster — the one
+       whose values are exactly the contributing area the 5-acre rule names, and
+       the one that reproduces Phase 1's own outlet areas to 0.000 %. */
+    accum: o.accum === null ? null : (o.accum || null),
     classes: meta.classes.map(c => ({ id: c.id, key: c.key, hsg: c.hsg, c: c.c,
                                       n_sheet: c.n_sheet, paved: c.paved, cn: c.cn })),
     hsgOf: o.hsgOf || {}, overrides: o.overrides || [],
@@ -2355,14 +2360,31 @@ const RUNOFF_REC = {
   /* the storm: the PROVISIONAL 25-year 24-hour depth, NRCS Type IA, over the
      Phase 1 catchments sampled at 8 ft. Replace data/atlas14_sbmm.csv and every
      one of these moves — re-record them and say so in the commit. */
-  P_in: 6.4, area_ac: 978.49, cn: 82.2, volume_acft: 356.69, qPeak_cfs: 1396.3,
+  P_in: 6.4, area_ac: 978.49, cn: 82.2, volume_acft: 356.69, qPeak_cfs: 1034.8,
   outlets: {
-    /* id: volume (ac-ft) and the SCS peak (cfs). All three are over 200 ac, so
-       the Rational method is not reported for any of them — the rule doing its
-       job rather than a missing number. */
-    "lake": { vol: 146.49, peak: 565.4 },
-    "off": { vol: 103.87, peak: 428.6 },
-    "outfall:storm_main_lower": { vol: 106.34, peak: 425.0 }
+    /* id: volume (ac-ft), Tc (min) and the SCS peak (cfs). All three are over
+       200 ac, so the Rational method is not reported for any of them — the rule
+       doing its job rather than a missing number.
+
+       RE-RECORDED AT v19 (spec §2, "Phase 2 uses it"). The volumes and the
+       curve numbers did not move and could not: they do not depend on the time
+       of concentration. The Tc's and the peaks did, because the TR-55 channel
+       test now reads the REAL flow accumulation along the path instead of v14
+       Phase 2's linear-in-path-length proxy, and the accumulation says the top
+       of a long path carries a few acres rather than a proportional share of a
+       400-acre catchment — so those stretches are shallow concentrated, not
+       channel, the water takes longer to arrive and the peak is lower:
+
+         Clear Lake — direct overland   Tc 21.2 -> 54.6 min, peak 565.4 -> 438.9
+         Off the surveyed ground        Tc  6.0 ->  6.5 min, peak 428.6 -> 427.7
+         Clear Lake outfall             Tc 17.1 -> 27.8 min, peak 425.0 -> 392.7
+         site total                             peak 1,396.3 -> 1,034.8 cfs
+
+       None of the three ponds' outcomes changed: the impoundment still peaks at
+       1,337.27 ft and still never reaches its 1,341.55-ft discharge invert. */
+    "lake": { vol: 146.49, tc: 54.6, peak: 438.9 },
+    "off": { vol: 103.87, tc: 6.5, peak: 427.7 },
+    "outfall:storm_main_lower": { vol: 106.34, tc: 27.8, peak: 392.7 }
   },
   ponds: {
     /* rim and conduit are the v13 goldens (they are the `overtop` kernel's, not
@@ -2555,7 +2577,16 @@ function secRunoff() {
   const cats = D.sinks.map(s => ({ label: s.label, kind: s.kind, name: s.id,
                                    area_ft2: s.area_ft2, path: lift(s.path) }));
   const labels = { data: D.labels, w: D.w, h: D.h, cell: D.dCell, x0: D.x0, y0: D.y0 };
-  const [RO, rms] = timed(() => C.runJob("runoff", runoffJobFor(labels, cats, { ari: 25, hours: 24 })).result);
+  /* v19: the accumulation raster the channel-flow test reads, built the way
+     js/accum.js builds it (the same site grid, the same display stride) */
+  const [AC8, ams] = timed(() => C.runJob("accum",
+    { grid: T.gridSpec(site, null, 0), conduits: cds, captureFt: 3, method: "d8",
+      stride: 4, streamThreshold_ft2: 5 * AC }).result);
+  note(`flow accumulation: ${(AC8.maxAcc_ac).toFixed(1)} ac at the largest cell, `
+     + `${AC8.streamLinks} stream links above 5 ac (${(ams / 1000).toFixed(1)} s)`);
+  const accR = { data: AC8.acc, w: AC8.w, h: AC8.h, cell: AC8.dCell, x0: AC8.x0, y0: AC8.y0 };
+  const [RO, rms] = timed(() => C.runJob("runoff",
+    runoffJobFor(labels, cats, { ari: 25, hours: 24, accum: accR })).result);
   budget("runoff, the whole site", rms, 20000);
   const by = id => RO.catchments.find(c => c.label === (D.sinks.find(s => s.id === id) || {}).label);
 
@@ -2575,6 +2606,12 @@ function secRunoff() {
         !!c && Math.abs(c.volume_acft - ref.vol) <= 0.5, "+/- 0.5 ac-ft",
         c ? `CN ${fmt(c.cn, 0)}, Q ${fmt(c.Q_in, 2)} in, Tc ${c.tc_min} min, SCS ${fmt(c.qPeak_cfs, 0)} cfs` : "missing");
     if (c) near("  " + id + " peak, SCS (recorded)", c.qPeak_cfs, ref.peak, Math.max(1, ref.peak * 0.03), " cfs");
+    if (c && ref.tc != null) {
+      near("  " + id + " Tc, from the real accumulation (recorded)", c.tc_min, ref.tc, 0.5, " min");
+      row("    and it says which upstream area it used", c.tcAccum ? "accumulation" : "path-length proxy",
+          "accumulation", c.tcAccum === true, "exact",
+          "assumptions.upstreamArea: " + RO.assumptions.upstreamArea);
+    }
   }
   /* the identity every catchment table has to satisfy: the volumes are a
      partition of the site's, because the catchments are */
@@ -2592,7 +2629,7 @@ function secRunoff() {
     path: [[p.entry[0], p.entry[1], T.elev(p.entry[0], p.entry[1])]]
   }));
   const first = { data: D.first, w: D.w, h: D.h, cell: D.dCell, x0: D.x0, y0: D.y0 };
-  const RF = C.runJob("runoff", runoffJobFor(first, firstCats, { ari: 25, hours: 24 })).result;
+  const RF = C.runJob("runoff", runoffJobFor(first, firstCats, { ari: 25, hours: 24, accum: accR })).result;
   const inflowOf = via => {
     const p = D.ponds.find(q => q.via === via);
     if (!p) return null;
