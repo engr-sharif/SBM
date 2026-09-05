@@ -131,7 +131,7 @@ SBMM.viewer3d = (function () {
      whole-DEM meshes below (still the fallback, and still what a build with no
      tile index gets). `terrainMeshes` holds the same {mesh, nx, ny, dem} shape
      either way, so the raycast, the relief slider and stats() do not branch. */
-  let lodOn = false, lodDirty = false, lodMoveAt = 0;
+  let lodOn = false, lodDirty = false, lodMoveAt = 0, lodLast = 0;
   const LOD_SETTLE_MS = 140;
   /* the detail picker is a screen-space error budget now: 4 px / 2 px / 1 px.
      The two old values keep their names and their meaning (std is coarser than
@@ -2768,9 +2768,16 @@ SBMM.viewer3d = (function () {
          frame. update() returns without asking for a frame when the drawn set
          has not changed, which is what keeps an idle view at zero renders. */
       if (lodOn) {
-        if (moved) { lodMoveAt = performance.now(); lodDirty = true; }
-        else if (lodDirty && performance.now() - lodMoveAt > LOD_SETTLE_MS) {
-          lodDirty = false;
+        const nowL = performance.now();
+        if (moved) {
+          lodMoveAt = nowL; lodDirty = true;
+          /* a long flight refines as it goes rather than only on arrival — the
+             view is already redrawing, so this costs a selection and nothing
+             else, and openAt() over the mine window otherwise sat at 64 ft for
+             the whole descent */
+          if (nowL - lodLast > 700) { lodLast = nowL; SBMM.terrain3d.update(); }
+        } else if (lodDirty && nowL - lodMoveAt > LOD_SETTLE_MS) {
+          lodDirty = false; lodLast = nowL;
           SBMM.terrain3d.update();
         }
       }
