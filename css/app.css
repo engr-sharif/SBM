@@ -1516,3 +1516,25 @@ body.field .modal .mbox{width:min(96vw,560px);max-height:88vh}
    polygon under it still takes the hover and the click. */
 .drainlbl{pointer-events:none;white-space:nowrap;font:11px/1.25 var(--mono);
   color:#DFF0FF;text-shadow:0 0 3px #000,0 0 6px #000;letter-spacing:.02em}
+
+/* ======================= v15 — labels and the 3D view =======================
+   Two engines and one piece of chrome:
+     * js/labels.js hides a colliding 2D label with `visibility:hidden` rather
+       than removing it, so nothing here may set `display` on a label class —
+       a display:none element has no box and the engine reads that as "gone".
+     * js/viewer3d.js draws its own chips on the canvas; nothing in CSS.
+   ------------------------------------------------------------------------- */
+
+/* the what-if button on the overtopping card (§1): the rim overflow is a
+   hypothesis, and the control that traces it says so */
+.minib.whatif{border-color:rgba(147,166,179,.55);color:#B8C6D0}
+.minib.whatif.active{background:rgba(147,166,179,.18);color:#E8EEF1}
+
+/* the 3D elevation legend (§3.2) — the site's own range in the hypsometric
+   ramp the 2D elevation tint uses */
+#v3dElevLeg{display:flex;flex-direction:column;align-items:center;gap:3px;
+  margin-top:6px;padding:5px 4px;border-radius:var(--r2);
+  background:rgba(14,20,24,.62);border:1px solid var(--line);
+  font-size:9.5px;color:var(--mut)}
+#v3dElevLeg .elbar{width:9px;height:74px;border-radius:2px;border:1px solid rgba(0,0,0,.5)}
+#v3dNav .navbtn.active{background:var(--accdim);border-color:var(--acc);color:var(--acc2)}

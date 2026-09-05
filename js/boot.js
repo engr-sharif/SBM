@@ -72,6 +72,7 @@
     SBMM.buildLayers();
     SBMM_PERF.mark("build-layers");
     SBMM.buildAnalysisLayers();
+    SBMM.labels.wire();
     SBMM.snap.wire();
     SBMM.draw.wire();
     SBMM.tools.wire();

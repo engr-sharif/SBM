@@ -375,10 +375,18 @@ window.SBMM_BUILD="full";
         <button class="navbtn" data-view="iso" title="Isometric view">Iso</button>
       </div>
       <div class="navrow">
-        <button class="navbtn wide" id="v3dFrame" title="Fit the selected feature, or the whole mine area"><svg class="ic16"><use href="#i-frame"/></svg><span class="tlbl">Frame</span> </button>
+        <button class="navbtn wide" id="v3dFrame" title="Fit the selected feature, or the whole mine area [Shift+F]"><svg class="ic16"><use href="#i-frame"/></svg><span class="tlbl">Frame</span> </button>
         <button class="navbtn" id="v3dViewSet" title="View settings"><svg class="ic16"><use href="#i-sliders"/></svg></button>
         <button class="navbtn" id="v3dNavHelp" title="Navigation controls"><svg class="ic16"><use href="#i-help"/></svg></button>
       </div>
+      <div class="navrow">
+        <!-- v15 §3.2: centre the view on a point you pick, rather than on
+             whatever the last double-click happened to hit -->
+        <button class="navbtn wide" id="v3dLookAt" title="Look at — click a point on the terrain to centre the view there">Look at…</button>
+      </div>
+      <!-- v15 §3.2: the site's own elevation range, in the hypsometric ramp the
+           2D elevation tint uses -->
+      <div id="v3dElevLeg"></div>
       <div id="v3dCompass" title="Click to reset north-up">
         <svg viewBox="0 0 100 100">
           <circle class="cring" cx="50" cy="50" r="43"/>
@@ -403,6 +411,11 @@ window.SBMM_BUILD="full";
       <label>Fly speed <span class="mono" id="v3dSpeedVal">1.0×</span>
         <input type="range" id="v3dSpeed" min="0.2" max="4" step="0.1" value="1"></label>
       <label class="chk"><input type="checkbox" id="v3dClampTerrain" checked> Keep camera above the ground</label>
+      <!-- v15 §3.2: the key light. The 2D hillshade is lit from somewhere; this
+           is where the 3D view is lit from, and it is remembered. -->
+      <label>Sun azimuth / elevation <span class="mono" id="v3dSunVal">315° / 35°</span>
+        <input type="range" id="v3dSunAz" min="0" max="360" step="5" value="315">
+        <input type="range" id="v3dSunEl" min="5" max="85" step="1" value="35"></label>
       <!-- v13 §3.1: the flow-path particles. Default on, remembered in the same
            localStorage record js/view.js keeps the camera in. -->
       <label class="chk"><input type="checkbox" id="v3dAnimWater" checked> Animate water</label>
@@ -422,6 +435,10 @@ window.SBMM_BUILD="full";
         <tr><td><kbd>Q</kbd><kbd>E</kbd></td><td>down / up</td></tr>
         <tr><td><kbd>Shift</kbd></td><td>4× speed</td></tr>
         <tr><th colspan="2">Anywhere</th></tr>
+        <tr><td><kbd>1</kbd><kbd>2</kbd><kbd>4</kbd><kbd>5</kbd><kbd>6</kbd></td><td>top / north / east / west / iso</td></tr>
+        <tr><td><kbd>Shift</kbd>+<kbd>3</kbd></td><td>look from the south (a bare <kbd>3</kbd> opens and closes 3D)</td></tr>
+        <tr><td><kbd>Shift</kbd>+<kbd>F</kbd></td><td>fit to the selection</td></tr>
+        <tr><td>Arrows</td><td>orbit · <kbd>Shift</kbd>+arrows pan</td></tr>
         <tr><td>Compass</td><td>click to reset north-up</td></tr>
         <tr><td>Drawing</td><td>click = vertex, double-click finishes, right-click undoes</td></tr>
       </table>
@@ -822,6 +839,7 @@ window.SBMM_BUILD="full";
 <script src="js/watermark.js"></script>
 <script src="js/shell.js"></script>
 <script src="js/map.js"></script>
+<script src="js/labels.js"></script>
 <script src="js/layers.js"></script>
 <script src="js/designea.js"></script>
 <script src="js/designgis.js"></script>

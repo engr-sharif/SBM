@@ -357,7 +357,11 @@ SBMM.designEA = (function () {
     const out = [];
     for (const f of D.features) {
       if (f.geometry.type !== "Polygon") continue;
-      out.push({ ring: f.geometry.coordinates[0], conf: f.properties.confidence });
+      /* v15 §3.1: the properties ride along so a 3D click on a PDF-derived
+         boundary opens the same popup a 2D click opens */
+      out.push({ ring: f.geometry.coordinates[0], conf: f.properties.confidence,
+                 props: Object.assign({ layer: "pdf_boundaries" }, f.properties),
+                 geom: f.geometry });
     }
     return out;
   }
