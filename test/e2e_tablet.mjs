@@ -466,12 +466,16 @@ const orbit = () => page.evaluate(() => SBMM.viewer3d.stats().orbit);
 }
 {
   /* a vertex handle: draw a small area, select it, long-press a handle and drag */
+  /* `rebuildFeature` and not `newFeature`: newFeature builds the geometry but
+     NOT the results card, and recompute() writes its rows into that card — the
+     app never calls one without the other, so a harness that does is testing a
+     path the app does not have. test/e2e.mjs builds its "ZZ box" the same way. */
   const made = await page.evaluate(() => {
     const c = SBMM.map.getCenter();
     const x = c.lng, y = c.lat;
-    const f = SBMM.tools.newFeature("area",
-      [[x - 90, y - 90], [x + 90, y - 90], [x + 90, y + 90], [x - 90, y + 90]], "Touch area", {});
-    SBMM.tools.recompute(f, false);
+    const f = SBMM.tools.rebuildFeature({
+      type: "area", name: "Touch area",
+      pts: [[x - 90, y - 90], [x + 90, y - 90], [x + 90, y + 90], [x - 90, y + 90]] });
     SBMM.store.select(f.id);
     return { id: f.id, pts: f.pts.map(p => p.slice()) };
   });
