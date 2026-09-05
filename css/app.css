@@ -1517,7 +1517,7 @@ body.field .modal .mbox{width:min(96vw,560px);max-height:88vh}
 .drainlbl{pointer-events:none;white-space:nowrap;font:11px/1.25 var(--mono);
   color:#DFF0FF;text-shadow:0 0 3px #000,0 0 6px #000;letter-spacing:.02em}
 
-/* ======================= v15 — labels and the 3D view =======================
+/* ======================= v15 — labels and the 3D view ================
    Two engines and one piece of chrome:
      * js/labels.js hides a colliding 2D label with `visibility:hidden` rather
        than removing it, so nothing here may set `display` on a label class —
@@ -1556,3 +1556,159 @@ body.field .modal .mbox{width:min(96vw,560px);max-height:88vh}
    to remove. Keep any FUTURE #v3dNav row behind this same rule. */
 body.field #v3dLookRow,
 body.field #v3dElevLeg{display:none}
+
+/* ====================================================================== */
+/* v16 layer tree                                                          */
+/* ---------------------------------------------------------------------- */
+/* The Layers tab is a real tree: six groups, named sub-groups, a row that
+   carries its own symbology, a hover toolbar, a drag grip, search, presets and
+   a legend card on the map. Everything here is chrome — the state is
+   SBMM.layerState and nothing in this file knows about it.
+   Rows are 26 px on the desktop and 44 px in field mode; that is the one metric
+   in the spec and it is set in exactly two places (`.ltrow` and the
+   `body.field` block at the end).                                          */
+
+/* ---------- the bar above the tree ---------- */
+#ltbar{margin:0 0 8px;display:flex;flex-direction:column;gap:5px}
+.ltsearchrow{display:flex;align-items:center;gap:5px;background:var(--panel2);
+  border:1px solid var(--line);border-radius:var(--r2);padding:3px 6px}
+.ltsearchrow .ic14{opacity:.55;margin:0}
+#ltSearch{flex:1;min-width:0;background:none;border:0;color:var(--ink);font:inherit;
+  font-size:12px;outline:none;padding:2px 0}
+#ltSearch::placeholder{color:var(--mut2)}
+#ltSearch::-webkit-search-cancel-button{display:none}
+#ltHits{font-size:10px;flex:none}
+.ltsearchrow .minib{flex:none;padding:0 5px;font-size:10px;line-height:16px}
+.ltprerow{display:flex;align-items:center;gap:4px}
+#ltPreset{flex:1;min-width:0;background:var(--panel2);color:var(--ink2);font:inherit;
+  font-size:11px;border:1px solid var(--line);border-radius:var(--r2);padding:2px 4px}
+#ltPreName{flex:1;min-width:0;background:var(--panel2);color:var(--ink);font:inherit;
+  font-size:11px;border:1px solid var(--acc);border-radius:var(--r2);padding:2px 5px;outline:none}
+.ltprerow .minib{flex:none;padding:1px 6px;font-size:10px}
+.ltrecent{display:flex;flex-wrap:wrap;gap:3px}
+.ltchip{background:var(--panel2);border:1px solid var(--line);border-radius:999px;
+  color:var(--mut);font:inherit;font-size:10px;padding:1px 8px;cursor:pointer;
+  max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ltchip:hover{color:var(--ink2);border-color:var(--line2)}
+.ltchip.on{color:var(--acc2);border-color:rgba(79,179,206,.45);background:var(--accdim)}
+
+/* ---------- the row ---------- */
+.lyr.ltrow{position:relative;min-height:26px;padding-right:6px;border-radius:3px}
+.lyr.ltrow:focus-visible{outline:1.5px solid var(--acc);outline-offset:-1px}
+.ltgrip{flex:none;width:8px;height:14px;display:flex;flex-direction:column;justify-content:center;
+  gap:2px;cursor:grab;opacity:0;transition:opacity .12s var(--ease);touch-action:none}
+.ltgrip i{display:block;height:1px;background:var(--mut2);border-radius:1px}
+.lyr:hover .ltgrip,.lyr:focus-within .ltgrip{opacity:.7}
+.lyr.ltdragging{opacity:.5;background:var(--panel3)}
+.ltsw{flex:none;width:16px;height:12px;display:block;line-height:0}
+.ltsw .ltswg{width:16px;height:12px;overflow:visible}
+.lyr .ltsw ~ .sw{display:none}          /* the flat chip stays for js/datasets.js */
+.ltn{flex:none;font-size:10px;color:var(--mut2);white-space:pre}
+.ltacts{position:absolute;right:4px;top:50%;transform:translateY(-50%);display:none;
+  gap:1px;background:var(--panel2);border:1px solid var(--line);border-radius:var(--r2);
+  padding:1px;box-shadow:0 2px 8px rgba(0,0,0,.35)}
+.lyr:hover .ltacts,.lyr:focus-within .ltacts{display:flex}
+.ltb{background:none;border:0;color:var(--mut);font:inherit;font-size:11px;line-height:1;
+  width:18px;height:18px;border-radius:3px;cursor:pointer;padding:0}
+/* a half-filled SQUARE, not the half-filled circle: at an 18-px button the
+   circle collapses into a dot */
+.ltb[data-a=opacity]::before{content:"\25E8";font-size:13px}
+.ltb[data-a=zoom]::before{content:"\2922"}
+.ltb[data-a=solo]::before{content:"\25CE"}
+.ltb[data-a=info]::before{content:"i";font-style:italic;font-weight:700}
+.ltb:hover{background:var(--panel3);color:var(--acc2)}
+.ltb:focus-visible{outline:1.5px solid var(--acc);outline-offset:-1px}
+
+/* ---------- group headers ---------- */
+.lsech{position:relative}
+/* "12" sits with the title, "5 of 12 on" is pushed to the right edge. The other
+   way round — the count keeping the `margin-left:auto` it has on its own — left
+   no free space for the phrase, so every group whose name is longer than "Base"
+   wrapped its header onto a second line. */
+.lsech .lcount{margin-left:6px}
+.ltonof{font-size:9.5px;color:var(--mut2);flex:none;margin-left:auto;white-space:nowrap}
+.ltgacts{position:absolute;right:0;top:0;display:none;gap:2px;background:var(--panel);
+  padding-left:6px}
+.lsech:hover .ltgacts{display:flex}
+.lsech:hover .lcount,.lsech:hover .ltonof{visibility:hidden}
+.ltgb{padding:0 5px !important;font-size:9.5px !important;line-height:15px}
+/* the sub-group says "3/3", which is both numbers; the plain total beside it was
+   the same information twice */
+.lgsub .subh .lcount.subcount{display:none}
+.ltsubon{margin-left:auto;font-size:9px;color:var(--mut2);background:var(--panel2);
+  border-radius:8px;padding:0 5px;flex:none}
+
+/* ---------- sub-groups ---------- */
+.lgsub.ltsub{margin:5px 0 2px}
+.lgsub .subh.subtoggle{display:flex;align-items:center;gap:3px}
+.lgsub .lgsubb{padding-left:6px;border-left:1px solid var(--line);margin-left:2px}
+.lgsub.closed > .lgsubb{display:none}
+.subh.subtoggle:focus-visible{outline:1.5px solid var(--acc);outline-offset:1px}
+
+/* ---------- search filtering ---------- */
+.lyr.lthide,.lgsub.lthide,.lsec.lthide{display:none}
+#layers.ltfiltering .lsec.ltforce > .lsecb{display:block}
+#layers.ltfiltering .lgsub.ltforce > .lgsubb{display:block}
+#layers.ltfiltering .lyr.lthit{background:rgba(79,179,206,.10)}
+
+/* ---------- popovers (opacity, info) — the 2300-2700 band ---------- */
+#ltPop{position:fixed;z-index:2500;min-width:210px;max-width:320px;background:var(--panel);
+  border:1px solid var(--line2);border-radius:var(--r);box-shadow:0 10px 30px rgba(0,0,0,.5);
+  padding:9px 11px;font-size:11.5px;color:var(--ink2)}
+#ltPop .lthd{font-size:12px;color:var(--ink);margin-bottom:6px;font-weight:600}
+#ltPop .ltoprow{display:flex;align-items:center;gap:8px}
+#ltPop .ltoprow input[type=range]{flex:1;accent-color:var(--acc)}
+#ltPop .ltnote{margin-top:7px;color:var(--mut);font-size:10.5px;line-height:1.4}
+#ltPop .ltinfo{width:100%;border-collapse:collapse}
+#ltPop .ltinfo td{padding:1px 0;vertical-align:top}
+#ltPop .ltinfo td:first-child{color:var(--mut2);width:74px;padding-right:8px;
+  text-transform:uppercase;font-size:9px;letter-spacing:.5px;padding-top:3px}
+#ltPop .ltacts2{margin-top:8px}
+
+/* ---------- the legend card on the map ---------- */
+/* Bottom-left of the stage, above the map (z 1) and the 3D canvas (z 5) and
+   below the floating sheet windows (4000). Collapsed by default: a legend that
+   covers the corner of the map before anybody asked for it is worse than no
+   legend, and this way it costs one 22-px chip. */
+#mapLegend{position:absolute;left:10px;bottom:34px;z-index:1200;width:206px;
+  background:rgba(22,30,35,.94);border:1px solid var(--line);border-radius:var(--r);
+  box-shadow:0 6px 22px rgba(0,0,0,.45);font-size:11px;overflow:hidden}
+#mapLegend .mlhead{display:flex;align-items:center;gap:6px;padding:5px 8px;cursor:pointer;
+  user-select:none;color:var(--ink2)}
+#mapLegend .mlhead:hover{color:var(--ink)}
+#mapLegend .mlhead:focus-visible{outline:1.5px solid var(--acc);outline-offset:-2px}
+#mapLegend .mlhead .caret{width:8px;height:8px;flex:none;border-right:1.5px solid currentColor;
+  border-bottom:1.5px solid currentColor;transform:rotate(45deg) translate(-1px,-1px);
+  transition:transform .15s var(--ease);opacity:.75}
+#mapLegend.closed .mlhead .caret{transform:rotate(-45deg) translate(-1px,1px)}
+#mapLegend .mlt{flex:1;font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--mut)}
+#mapLegend .mln{font-size:10px;color:var(--mut2)}
+#mapLegend .mlbody{max-height:38vh;overflow:auto;padding:0 8px 7px}
+#mapLegend.closed .mlbody{display:none}
+#mapLegend .mlg{font-size:9px;text-transform:uppercase;letter-spacing:.8px;color:var(--mut2);
+  margin:6px 0 2px}
+#mapLegend .mlr{display:flex;align-items:center;gap:6px;padding:1px 0;min-height:17px}
+#mapLegend .mlr .mll{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#mapLegend .mlonly{flex:none;background:none;border:0;color:var(--mut2);font:inherit;
+  font-size:9.5px;cursor:pointer;opacity:0;padding:0 2px}
+#mapLegend .mlr:hover .mlonly{opacity:1}
+#mapLegend .mlonly:hover{color:var(--acc2)}
+#mapLegend .mlempty{color:var(--mut2);padding:4px 0 2px}
+
+/* ---------- field mode: 44-px targets, and the legend behind the More sheet ---------- */
+body.field .lyr.ltrow{min-height:44px}
+body.field .ltgrip{opacity:.7;width:14px;height:26px}
+body.field .ltacts{display:flex;position:static;transform:none;margin-left:auto;background:none;
+  border:0;box-shadow:none}
+body.field .ltb{width:34px;height:34px;font-size:13px}
+body.field .ltsw,body.field .ltsw .ltswg{width:20px;height:15px}
+body.field #ltSearch{font-size:15px;padding:6px 0}
+body.field .ltprerow .minib,body.field .ltsearchrow .minib{min-height:32px;padding:0 10px;font-size:12px}
+body.field #ltPreset{min-height:32px;font-size:12px}
+body.field .ltchip{font-size:12px;padding:4px 10px}
+body.field .lgsub .subh.subtoggle{min-height:38px}
+body.field #mapLegend{display:none}
+body.field.legendopen #mapLegend{display:block;left:8px;right:8px;width:auto;bottom:78px;font-size:13px}
+body.field.legendopen #mapLegend .mlbody{max-height:44vh}
+body.field.legendopen #mapLegend .mlonly{opacity:1;font-size:12px;padding:4px 6px}
+.ltempty{font-size:10.5px;line-height:1.4;padding:3px 6px 6px;color:var(--mut2)}
