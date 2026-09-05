@@ -1516,3 +1516,23 @@ body.field .modal .mbox{width:min(96vw,560px);max-height:88vh}
    polygon under it still takes the hover and the click. */
 .drainlbl{pointer-events:none;white-space:nowrap;font:11px/1.25 var(--mono);
   color:#DFF0FF;text-shadow:0 0 3px #000,0 0 6px #000;letter-spacing:.02em}
+
+/* ---- v14 Phase 2: the design storm ------------------------------------- */
+/* The cover legend under the Land-cover row: a swatch and the class's curve
+   number, because the whole point of the layer is which CN a cell got. */
+.rnLegend{display:flex;flex-wrap:wrap;gap:3px 9px;padding:2px 8px 6px 26px;
+  font-size:10.5px;line-height:1.5;color:var(--mut)}
+.rnLeg{display:inline-flex;align-items:center;gap:4px;white-space:nowrap}
+.rnLeg i{width:9px;height:9px;border-radius:2px;display:inline-block;border:1px solid #0006}
+.rnLeg b{font-family:var(--mono);color:var(--ink2);font-weight:600}
+/* the per-catchment hydrograph on the results card */
+.rnChart{margin-top:7px}
+.rnChart .rnPick{width:100%;background:var(--panel2);color:var(--ink);
+  border:1px solid var(--line2);border-radius:5px;padding:3px 6px;font-size:11.5px}
+.rnChart .rnSvg{margin-top:4px}
+.rnChart svg.hydro text{fill:var(--mut);font:9.5px var(--mono)}
+table.dspop.runoffT td{padding:1px 6px 1px 0}
+table.dspop.runoffT td.v{font-family:var(--mono)}
+/* the provisional-rainfall warning: red, and it stays red until the Atlas 14
+   export replaces the baked table */
+.res .note.bad,.rnProv{color:var(--red);border-left:2px solid var(--red);padding-left:7px}

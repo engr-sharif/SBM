@@ -93,6 +93,7 @@
     if (SBMM.storm) SBMM.storm.wire();
     SBMM.water.wire();
     if (SBMM.drainage) SBMM.drainage.wire();
+    if (SBMM.runoff) SBMM.runoff.wire();
     /* EA's recovered design surfaces become read-only surface features (§5) —
        after SBMM.design.wire() so the surfaces list exists, and before
        refSurf.wire() so the first render has something to show. */
