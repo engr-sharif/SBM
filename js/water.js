@@ -1052,6 +1052,53 @@ SBMM.water = (function () {
     return R;
   }
 
+  /* ---------- a stage table with no UI attached (v14 Phase 2) ----------
+     The design storm routes a pond through the SAME stage-storage table the
+     overtopping card shows, so it must ask for it the way `overtop` does — the
+     same window, the same DEM pick, the same conduits, the same surveyed
+     levels — without clearing the current analysis, painting a band or opening
+     a card. Nothing about the `overtop` KERNEL changes; this is one more caller
+     of it. Returns the raw kernel result, or null after a toast.            */
+  async function stageTable(spec) {
+    spec = spec || {};
+    const ring = spec.ring || null, point = spec.point || null;
+    if (!ring && !point) { toast("nothing to route — name a pond or click on the water"); return null; }
+    const name = spec.name || (ring ? "Water body" : "Pond");
+    let pad = spec.pad || 800, R = null;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const b = ring ? bboxOf(ring) : [point[0], point[1], point[0], point[1]];
+      const bbox = [b[0] - pad, b[1] - pad, b[2] + pad, b[3] + pad];
+      const dem = SBMM.demForBox(bbox) || SBMM.demSite;
+      const grid = SBMM.compute.gridSpec(dem, bbox, 0);
+      if (!grid) { toast(name + " is outside the surveyed terrain"); return null; }
+      const job = { grid, plateauTol: PLATEAU_TOL, rimRange: spec.rimRange || RIM_RANGE,
+                    levelStep: LEVEL_STEP, maxClusters: 12 };
+      const cds = (SBMM.storm && SBMM.storm.data() && spec.storm !== false)
+        ? SBMM.storm.conduitsFor(bbox) : [];
+      if (cds.length) { job.conduits = cds; job.captureFt = SBMM.storm.captureFt(); }
+      if (ring) job.seedRing = ring.map(q => [q[0], q[1]]); else job.seedPoint = [point[0], point[1]];
+      const facts = (ring && spec.survey !== false) ? surveyFacts(ring) : null;
+      if (facts && facts.waterLevel != null) job.z0Override = facts.waterLevel;
+      if (facts) job.levels = [facts.pipeInvert, facts.wallCrest].filter(v => v != null);
+      try {
+        R = await SBMM.compute.run("overtop", job,
+          { transfer: [grid.z.buffer], label: "Stage-storage — " + name, silent: true }).promise;
+      } catch (e) {
+        if (e && e.cancelled) return null;
+        toast("stage-storage for " + name + " failed: " + e.message);
+        return null;
+      }
+      if (R && R.reason === "window" && attempt < 2) { pad += 800; continue; }
+      break;
+    }
+    if (!R || R.reason === "noseed" || !R.primary) {
+      toast("no flat water surface at " + name + " — it cannot be routed");
+      return null;
+    }
+    R.name = name;
+    return R;
+  }
+
   /* The overlay's markers carry their own label spec, so hiding and showing the
      overlay can re-register them in one pass rather than leaving the registry
      measuring elements Leaflet has taken off the map (v15 §2.2). */
@@ -1657,7 +1704,7 @@ SBMM.water = (function () {
              rimLevel: ov.R && ov.R.primary ? ov.R.primary.level : null };
   }
 
-  return { surveyFacts, stageSpec, routes, traceRimWhatIf, chainSentence,
+  return { surveyFacts, stageSpec, stageTable, routes, traceRimWhatIf, chainSentence,
     wire, dropAt, mkFlow, buildFlow, retrace, catchment, makeProfile,
     overtop, overtopHerman, overtopAt, clearOvertop, drapeSpec, active,
     refreshLabels, fillFlowCard, endSentence, endShort, pickPond,

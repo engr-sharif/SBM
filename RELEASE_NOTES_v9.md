@@ -17,6 +17,87 @@ All three are offline-only by design. Nothing in this app calls out to the inter
 
 ---
 
+## v9.13 — a design storm on the site
+
+Phase 1 (v9.10) told you where every acre of the site drains to. This tells you **how
+much water gets there in a storm** — over the same catchments, so the two can never
+disagree about which ground drains where. You said "go with your best assumptions and
+make the best choices possible", so every assumption is made, **printed on the card,
+printed first on the report sheet, and changeable in one dialog**.
+
+**Type `RAIN`** (or `RUNOFF`, `DESIGNSTORM`). Pick the storm — 2-, 10-, 25- or
+100-year 24-hour, the 25-year 1-hour for a pipe check, or a custom depth and duration —
+and run it.
+
+### What comes back, for the 25-year 24-hour storm
+
+6.4 inches of rain, a composite curve number of 82 over the 978.5 surveyed acres, and
+**357 acre-feet of runoff**:
+
+| catchment | acres | CN | runoff | volume | Tc | peak (SCS) |
+|---|---|---|---|---|---|---|
+| Clear Lake — direct overland | 403.05 | 82 | 4.36 in | 146.5 ac-ft | 21 min | 565 cfs |
+| Off the surveyed ground | 293.45 | 81 | 4.25 in | 103.9 ac-ft | 6 min | 429 cfs |
+| Clear Lake outfall (the storm network) | 281.99 | 84 | 4.53 in | 106.3 ac-ft | 17 min | 425 cfs |
+| **the whole site** | **978.49** | **82** | — | **356.7 ac-ft** | — | **1,396 cfs** |
+
+**None of the three ponds overtops in this storm.** The Herman Impoundment rises
+0.8 ft, from the surveyed 1,336.45 to 1,337.27 — four and a half feet below the
+1,341.55-ft invert of the two 24-in discharge pipes, so the storm never reaches them.
+Frog Pond fills 0.75 ft and leaves through the pond culvert at 1,415.74, a third of a
+foot below its rim. Green Pond is contained a foot and a half below its outlet. Each
+pond is routed properly — level-pool (Modified Puls) through the same stage–storage
+table the overtopping tool draws, with a broad-crested weir over the rim.
+
+### The assumptions, and where each one came from
+
+- **Rainfall — NOAA Atlas 14, and it is PROVISIONAL until you or I bake the export in.**
+  The app has no network by design, so the depths ship as a payload. Right now they are
+  my approximate values for this location and **the card says so in red**. Fixing it is
+  five minutes and no code: pull the point estimates for 39.003 N, 122.663 W from the
+  NOAA PFDS, save the CSV as `data/atlas14_sbmm.csv`, run `tools/build_rainfall.py`.
+  Every number above moves with the real depths, and the warning disappears by itself.
+- **Runoff — NRCS curve number** (TR-55), `Q = (P − 0.2S)²/(P + 0.8S)`, AMC II. The
+  method every drainage report in this county is written with.
+- **Soil group — D for mine waste, tailings, waste piles, decision units and compacted
+  fill; C for everything else.** There is no SSURGO and no infiltration test on hand.
+  This is the biggest assumption in the whole chain and it is on every card and sheet.
+- **Land cover — a 2-ft raster built from what we already have**: EA's water, building
+  and road layers, the decision units and traced waste piles, the canopy height model,
+  and the orthophoto (a green-excess index splits bare ground from vegetated). Over the
+  surveyed site: grass 661 ac, bare or disturbed 167, woods 57, gravel road 38, water
+  26, paved 12, mine waste 11, roofs 6. **Draw an area, give it a cover class, and the
+  storm counts it that way** — the override saves with the session like anything else
+  you draw.
+- **Time of concentration — TR-55 chapter 3** along the longest flow path the drainage
+  map already found: sheet flow for the first 100 ft, then shallow concentrated, then
+  channel.
+- **Peak flow — both methods, labelled.** Rational (`Q = C·i·A`) for a culvert check up
+  to 200 acres, and an SCS unit hydrograph everywhere. On this site all three catchments
+  are over 200 acres, so the card says "not reported above 200 ac" rather than giving
+  you a number the method does not support.
+- **Pipe capacity — not modelled, and it says so.** A conduit with no surveyed size or
+  invert passes its inflow and the card reads "capacity unknown — survey pending". When
+  you survey the inverts, that is the one thing that changes.
+
+### What you get out of it
+
+A results card with the catchment table, the pond routing rows, every assumption
+underneath and a hydrograph you can switch between catchments; `copy CSV` for all of it;
+and a **report sheet** (Print → PDF) that leads with the assumptions table before a
+single quantity. Two new layer rows under **Design storm (rainfall + runoff)** in Site
+framework: the land-cover raster with a legend naming each class's curve number, and the
+runoff depth as a shaded map.
+
+One small change to a keyboard habit: **`RAIN` now opens the design storm**, not the
+raindrop. The raindrop keeps `DROP`, `RAINDROP`, `WATERDROP` and `FLOW` — a command
+alias can only belong to one command.
+
+**What this is not:** a rain-on-grid simulation. No infiltration model beyond the curve
+number, no seepage, no evaporation, no pipe capacity, no continuous simulation. It is a
+planning-level drainage calculation of the kind a site report is written with, and it
+tells you which assumption every number rests on.
+
 ## v9.12 — the layers system
 
 You asked for the layers to be managed and presented properly, now that there are about
