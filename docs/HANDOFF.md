@@ -62,6 +62,11 @@ in code, and what comes next. It replaces re-reading the chat history that built
 | `length_ft` stays **overland**; `pipe_ft` is separate and `total_ft` is the sum | They are different quantities — one measured off the lidar, one off somebody's drawing — and the difference between them is exactly the survey he is about to commission |
 | **The overtopping analysis honours the storm conduits too (v13)**: the conduit spill is the FIRST inlet whose rim the sealed flood's level reaches, reported BESIDE the rim spill and never in place of it | His words: *"why does frog pond when i try the overflow tool it goes off to the north of the site rather then flowing into green pond"*. The raindrop had the pipe rule since v12; the overflow tool did not, and on Frog Pond the rim spill sits ten feet from a culvert inlet 0.30 ft lower. Adding it beside the rim analysis (and NOT seeding `fillDem` in `overtop`, which is the raindrop's rule) is what keeps every §9.2/§10 Herman golden exactly where it was |
 | A conduit stage row **merges into a surveyed `levels` row within 0.1 ft, and the survey wins** | Herman's kernel answer is 1,341.53 and the survey's is 1,341.55. Two rows a hundredth of a foot apart, one of them measured with an instrument, is noise pretending to be information |
+| **The drainage map (v14 Phase 1) is terrain only** — where water goes, never how much. No rainfall, runoff, curve numbers or time | His ask was "catchment areas for the entire site, like simulating rainfall and where those would go". Question A (which outlet each acre drains to) is pure geometry the lidar can answer; questions B and C are hydrology, and a runoff number dressed in the same UI would be believed. `docs/V14_CATCHMENT_PROPOSAL.md` §7 is where B and C wait for his answers |
+| **The map is D8 over the filled DEM — the raindrop's own physics, run once over the whole site** | So the map and a raindrop cannot disagree, which is the point of it and is the acceptance test (100 seeded raindrops, 100 agree). D-infinity and MFD look better on a hillslope and give fractional areas and fuzzy edges; "this acre drains to that grate" needs a hard edge |
+| **Nested depressions MERGE in the map, and a pond keeps its own reported level** | `flowpath` floods pits one at a time and never revisits one, which for a whole-site pointer field produces genuine cycles (357 acres of them) and pits it cannot see. The map's ponds are the filled DEM's own depressions at the level `F` says they pour at — the same escape test, at its fixed point. The three named ponds come out at the raindrop's numbers to the hundredth |
+| **A grate's overland catchment on this site is essentially nothing (0.019 ac across the eight road-drain grates), and that is the answer** | The road ditch runs past them into the impoundment, which discharges through the surveyed pipes. It matches what v12 found from the other end, and it is exactly what the invert survey will change |
+| **The field build runs the drainage map at 4 ft and the card says so** | 21.6 M cells is ~500 MB of typed arrays in a worker; a phone gets the same analysis at a quarter of that, within 1.33 % on every outlet over an acre. A desktop worker that cannot allocate the 2-ft arrays falls back to the same 4 ft and toasts it |
 | **The first-discharge route is one route**: where the conduit spill is the surveyed pipe (Herman), the surveyed pipe route stands and nothing is traced again | Two identical blue lines on the same pipe is how a card stops being read |
 | **Water in 3D is animation, not a new analysis** (v13): particles ~20 ft apart at ~40 ft/s along the flow, the stage surface at the slider's level | He asked for the 2D flow animation in 3D. It draws what is already computed; it does not add a number anyone could quote |
 | The 3D render loop asks for frames **only while a visible flow exists and "animate water" is on** | The on-demand loop is why an idle 3D view costs nothing, and `test/perf.mjs` asserts 0 idle renders. An animation that always runs would have quietly thrown that away |
@@ -75,6 +80,19 @@ in code, and what comes next. It replaces re-reading the chat history that built
 - A breakline-Delaunay "design surface" — refused on the merits (see decisions).
 
 ## Open items, in priority order
+
+0. **Phase 2 of the catchment work — rainfall and runoff — waits on the engineer.**
+   Phase 1 (the drainage map: which outlet every acre drains to, terrain only) shipped in
+   v14 and is in the app now. Phase 2 is questions B and C of
+   `docs/V14_CATCHMENT_PROPOSAL.md` — runoff volume by NRCS Curve Number, peak flow, and
+   whether a pond fills and overtops in a design storm — and §7 of that file lists what
+   has to be decided before any of it is built: which design storms, whose rainfall
+   depths, the curve numbers and hydrologic soil group for this ground, and whether he
+   wants a number at all before the pipe inverts are surveyed. **Do not start it from the
+   proposal alone**; the assumptions are the whole exercise and they are his to make.
+   The one thing Phase 1 has already answered for him: the eight road-drain grates take
+   0.019 acres between them overland, and 282 of the site's 978 acres reach the outfall
+   through the impoundment and its two surveyed pipes.
 
 1. **Repository and North-lobe final grade.** Not in the delivered DWGs. Ask EA for a
    LandXML export (or a proposed-grade raster) of the 02.01 / 02.02 surfaces. Everything

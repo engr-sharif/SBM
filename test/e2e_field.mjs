@@ -774,6 +774,42 @@ if (compareTo) {
     fail("the field build boots more than 1 s slower than the full build", { bootMs, fullMs });
 }
 
+
+/* ===================================================================== */
+/* the drainage map on a phone (v14 §4): the same kernel over the site grid
+   DECIMATED TO 4 FT, and the card has to say which grid it is — a 978-acre
+   answer computed at half the resolution is still the right answer, but only
+   if it says so. The rows exist from boot like every other layer row.        */
+{
+  const t0 = Date.now();
+  const D = await page.evaluate(async () => {
+    const rows = ["drain_outlet", "drain_first", "drain_paths"]
+      .map(id => !!document.querySelector(`.lyr[data-lid="${id}"]`));
+    const R = await SBMM.drainage.run();
+    if (!R) return { rows, failed: true };
+    SBMM.drainage.showCard();
+    const card = [...document.querySelectorAll("#resBody .res")]
+      .find(el => /Drainage map/.test(el.querySelector("h4").textContent));
+    return { rows, grid: R.gridFt, ms: R.ms_wall,
+             acres: +(R.surveyedArea_ft2 / 43560).toFixed(1),
+             outlets: R.sinks.length, loops: R.loops, flats: R.flats,
+             cardSays: card ? card.textContent.replace(/\s+/g, " ") : null };
+  });
+  const wall = Date.now() - t0;
+  console.log(`\ndrainage map (field): ${JSON.stringify(D)} in ${(wall / 1000).toFixed(1)} s`);
+  if (D.failed) fail("the field build could not compute the drainage map", D);
+  if (!D.rows.every(Boolean)) fail("the drainage rows are missing in field mode", D.rows);
+  if (D.grid !== 4) fail("the field build did not run the drainage map at 4 ft", D);
+  if (!/4-ft lidar grid/.test(D.cardSays || "")) fail("the field card does not name the 4-ft grid", D.cardSays);
+  if (wall > 30000) fail("the field drainage map took over 30 s", wall);
+  /* the pointer field must be acyclic at 4 ft as well as at 2 (a one-cell "pond"
+     reached by the flood from above its own level used to point uphill into the
+     neighbour that pointed back at it). A one-cell CLOSED depression is not a
+     defect at this resolution and is reported as the sink it is. */
+  if (D.loops || D.flats) fail("the 4-ft pointer field left cells unresolved", D);
+  if (D.outlets < 2) fail("the 4-ft map found no outlets", D);
+}
+
 /* ===================================================================== */
 console.log("\npage errors:", errors.length ? errors.slice(0, 8) : "none");
 await browser.close();

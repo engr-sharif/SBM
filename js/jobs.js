@@ -248,6 +248,23 @@ SBMM.compute = (function () {
     return { x0: m.x0, y0: m.y0, cell: m.cell, w: m.w, h: m.h, i0, j0, sw, sh, z };
   }
 
+  /* A WHOLE DEM sampled every `stride` cells — a standalone grid spec (i0 = j0 = 0,
+     w/h equal to the sample count), so a kernel cannot tell it from a real DEM.
+     v14: the field build runs the drainage map over the site grid at 4 ft rather
+     than 2, and the card says so. `strideFor`-style sampling, not averaging: the
+     terrain has to stay the lidar's own values or the ponds move. */
+  function subGrid(dem, stride) {
+    const m = dem.m, s = Math.max(1, stride | 0);
+    if (s === 1) return gridSpec(dem);
+    const w = Math.ceil(m.w / s), h = Math.ceil(m.h / s);
+    const z = new Float32Array(w * h);
+    for (let j = 0; j < h; j++) {
+      const src = Math.min(m.h - 1, j * s) * m.w;
+      for (let i = 0; i < w; i++) z[j * w + i] = dem.z[src + Math.min(m.w - 1, i * s)];
+    }
+    return { x0: m.x0, y0: m.y0, cell: m.cell * s, w, h, i0: 0, j0: 0, sw: w, sh: h, z };
+  }
+
   /* the DEM stack SBMM.elev() consults, in the same order, clipped to a bbox */
   function gridsFor(bbox) {
     const out = [];
@@ -291,7 +308,7 @@ SBMM.compute = (function () {
 
   return {
     run, cancel, probe, wire, stats,
-    gridSpec, gridsFor,
+    gridSpec, gridsFor, subGrid,
     activeCount: () => live.size,
     workerCount: () => slots.length,
     /* handy in the console / used by the tests */

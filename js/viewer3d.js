@@ -896,6 +896,24 @@ SBMM.viewer3d = (function () {
           new THREE.PointsMaterial({ size: 7, color: SC, sizeAttenuation: true })));
       }
     }
+    /* the drainage map (v14 §4): the catchment polygons draped like the DUs and
+       the longest flow path of each drawn as it runs. Read-only analysis, so the
+       pick card is the same popup the 2D map binds. */
+    if (SBMM.drainage && SBMM.drainage.hasResult()) {
+      /* rings3d hands back OPEN RUNS, not closed rings: a catchment boundary
+         that reaches the survey limit has no ground under the rest of it, and a
+         closed drape there stands up as a curtain (js/drainage.js groundRuns) */
+      for (const r of SBMM.drainage.rings3d()) {
+        const o = drapedLine(r.ring, new THREE.Color(r.color).getHex(), r.closed === true, 3);
+        o.userData.pick = { kind: "gis", props: r.props, geom: r.geom };
+        overlayGroup.add(o);
+      }
+      for (const r of SBMM.drainage.lines3d()) {
+        const o = drapedLine(r.ring, new THREE.Color(r.color).getHex(), false, r.width || 2);
+        o.userData.pick = { kind: "gis", props: r.props, geom: r.geom };
+        overlayGroup.add(o);
+      }
+    }
     /* EA native CAD design linework. designgis owns the authoritative polygons;
        these are the drafted lines around them, and they were previously visible
        in 2D only — which meant clicking one in 3D found nothing at all. */
