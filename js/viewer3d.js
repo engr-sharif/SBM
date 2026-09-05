@@ -2947,6 +2947,7 @@ SBMM.viewer3d = (function () {
       $("v3dStatus").textContent = "rebuilding terrain…";
       await new Promise(r => setTimeout(r, 30));
       await rebuildTerrain();
+      await refreshTerrainForCamera();
       $("v3dStatus").textContent = "";
     };
 
@@ -3228,6 +3229,24 @@ SBMM.viewer3d = (function () {
     scene.add(sketchObj);
     requestRender();
   }
+  /* v20 §3: the quadtree picks its levels from the camera, and nav.place()
+     only sets the DESIRED state — the camera itself is written in the render
+     loop. So opening the view has to step the rig once and re-select before it
+     says it is ready, or the terrain that greets the user is the 64-ft root
+     built against three.js's constructor camera and it refines a few seconds
+     later. That was visible as e2e block 9a-2 reading 66,049 vertices for
+     "high" and 1,585,176 for the same setting a moment afterwards. */
+  async function refreshTerrainForCamera() {
+    if (!lodOn || !nav || !camera) return;
+    nav.update();
+    camera.updateMatrixWorld();
+    await SBMM.terrain3d.update(true);
+    terrainMeshes = SBMM.terrain3d.records();
+    SBMM._v3dVerts = terrainMeshes.reduce((n, t) => n + t.nx * t.ny, 0);
+    lodDirty = false;
+    requestRender();
+  }
+
   async function toggle() {
     if (open) close();
     else {
@@ -3237,6 +3256,7 @@ SBMM.viewer3d = (function () {
       /* where the camera was last time, if it is still a sane place to stand
          (F11); otherwise frame whatever the 2D map is looking at, as before */
       if (!restoreCamera()) flyTo(c.lng, c.lat);
+      await refreshTerrainForCamera();
     }
   }
   /* ---- camera persistence (F11) ----
@@ -3272,6 +3292,7 @@ SBMM.viewer3d = (function () {
   async function openAt(x, y) {
     $("view3dBtn").classList.add("active");
     await show(); flyTo(x, y);
+    await refreshTerrainForCamera();
   }
   /* camera position in survey terms: State Plane feet + true elevation (un-exaggerated) */
   function cameraWorld() {
