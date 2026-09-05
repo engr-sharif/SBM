@@ -17,6 +17,122 @@ All three are offline-only by design. Nothing in this app calls out to the inter
 
 ---
 
+## v9.12 — the layers system
+
+You asked for the layers to be managed and presented properly, now that there are about
+120 of them. The Layers tab is a real tree.
+
+**Sub-groups.** Related rows sit together in a named sub-group that collapses on its own —
+*Storm drainage*, *Drainage (lidar + storm drains)*, *Survey — Aug 2026*, *Design areas*,
+*Boundaries*, *Existing conditions*, *Sheets (draped)*, *Design surfaces — EA* and
+*— mine*, *Drawing set*, *Datasets*, *Contours — lidar survey*, *Terrain analysis*. Each
+one carries its own count, and the tree remembers what you left open.
+
+**A row now looks like what it draws.** The colour square is gone: a line layer shows a
+line in its own colour, weight and dash pattern; a polygon layer shows a filled polygon; a
+point layer a point at its own size; imagery a band. It is the same symbology Leaflet was
+given, read off the layer itself, so it cannot drift out of step with the map.
+
+**Hover a row** for four buttons: opacity, **zoom to this layer**, **solo** (everything else
+in that group off — click solo again and the group comes back exactly as it was; alt-click
+the tick box does the same), and **info** — what the layer is, where it came from, how many
+features, the CRS, and for a CAD row a link straight into the Layer manager on that group.
+
+**Drag a row by its grip and the drawing order follows.** The row at the top of a list is
+drawn on top of the ones under it. Your order is remembered, and it travels in the session
+file, so a session you send someone opens looking the way you left it.
+
+**Search** — the box at the top, or press `/` anywhere in the tab. It filters the whole
+tree as you type, over the layer name, its sub-group, its group and its internal id; the
+groups holding a match open themselves and everything else gets out of the way. Esc clears
+it, Enter toggles the first match. The arrow keys walk the tree, Space toggles a row, and
+Left/Right collapse and expand.
+
+**Presets** — named layer states, applied in one click: *Terrain*, *Design review*,
+*Water & drainage*, *Investigations*, *Field*, *Everything on*, and any you save yourself.
+Applying one is a single undo, so you can always get back. **A preset never switches on the
+cultural resources group** — that group is still something you tick yourself, and it still
+asks you first. The last five rows you changed sit as chips under the search box.
+
+**A legend on the map.** Bottom-left, collapsible: every layer that is currently showing,
+with its symbol, grouped, and an "only" button beside each to isolate it. On the phone it is
+off the map by default and lives in the More sheet, so it never eats the screen.
+
+Each group header gained "n of m on" and, on hover, all on / all off / expand all / collapse
+all. Rows are 44 px in field mode, so all of it works with a thumb.
+
+Nothing about what a layer IS changed: the same rows, the same names, the same ids, the same
+one answer to "is this layer on" in 2D, in 3D, in the sheet windows and in the exports.
+
+## v9.11 — the overflow follows the pipes, and the 3D view
+
+Three things you asked for, in your words.
+
+**"if the frog pond does overflow it will flow into green pond first not out and up
+north."** It does now, and nothing says otherwise. When the analysis finds a storm
+inlet below the rim — Frog Pond's culvert, Green Pond's FES, Herman's surveyed 24-in
+pipes — that conduit **is** the overflow, and it is the only route drawn. The rim spill
+is still on the card as a fact:
+
+> Rim spill (lidar) — 1,416.04 ft · +0.30 ft above pond culvert — not traced; the drains
+> are assumed to handle it
+
+…and the rim band and the ranked rim lows are painted exactly as before. What is gone is
+the blue line running north over the ground, and the row that used to claim water went
+that way now reads *"not traced — the drains are assumed to carry it"*. The chain reads
+back as a sentence built from the route itself:
+
+> → Green Pond (fills to 1,394.50) → green outlet → road drain → branch → storm main →
+> Clear Lake outfall
+
+If you want to see what happens with the culvert blocked, there is a **trace the rim
+overflow** button on the card. It draws that route dashed, in a muted grey that is
+neither the water blue nor the storm blue, and names it *what-if: pond culvert blocked*.
+It belongs to the analysis: press the button again, or clear the analysis, and it goes.
+No number moved — Herman's 1,336.45 / 1,341.55 / 1,343.54 / 1,343.84 sequence and every
+storage figure are exactly what they were.
+
+**"the labels for the rim labels are not adjusting to the level im looking at."** The 3D
+labels are a proper layer now: chips that stay the same size on screen at any range, on a
+dark plate, with a leader down to the thing they are about — and they **restate
+themselves at every step of the slider**:
+
+| below the level | at or past it |
+|---|---|
+| rim low 2 · 1,344.34 · **+0.39 ft to go** | rim low 2 · 1,344.34 · **overtopped** |
+| first discharge · pond culvert · 1,415.74 · **+0.74 ft to go** | · **discharging** |
+
+plus *water level 1,343.95 ft* on the water surface itself.
+
+**"it puts the text inside like multiple times."** It did, and it was not only there.
+Every permanent label on the map — pond levels, flow ends, the ranked rim markers,
+catchment acreages, excavation depths, the "in pipe" tags — now goes through one engine
+that does two things: it shows the **same fact once** however many features state it, and
+it **stops two labels landing on each other**, keeping the more important one and hiding
+the other until it fits again. The 3D view does the same. On the phone too.
+
+**And the 3D view generally.** A gradient sky with the horizon fog matched to it, so the
+edge of the survey fades instead of stopping dead; a lake-coloured ground under the
+model; a **sun azimuth and elevation** you can swing in View settings, so the relief can
+be lit the way the 2D hillshade is lit. Lines carry a dark shadow a foot beneath them,
+which is what makes them readable over the orthophoto; points are discs with a dark ring
+instead of hard squares; the selected thing gets a halo that pulses for a moment. **Look
+at…** centres the view on a point you click, there is an elevation legend, and the number
+keys 1, 2, 4, 5, 6 (and Shift+3) snap to the six views — <kbd>3</kbd> still opens and
+closes 3D and <kbd>F</kbd> is still fly mode, so nothing you already use has moved.
+Shift+F fits to what is selected.
+
+Under all of that: a **parity table** now runs in the test suite. For every layer switched
+on, the 3D scene has to contain something for it. That found and fixed a list of things
+that were on in 2D and simply absent in 3D — EA's PDF-traced boundaries, the two survey
+contour sets (both drew whenever either was ticked), the computed contour set,
+cross-section station lines and chainages, EA's four recovered design surfaces, the
+drainage flow paths, and the cultural layers' points. The two things that stay 2D-only
+are the basemap rasters (in 3D those *are* the terrain drape) and EA's 22,000-entity CAD
+base map, which the 3D view cannot resample on every redraw; the design layers are drawn.
+
+---
+
 ## v9.10 — the drainage map
 
 You asked me to "start thinking about catchment areas for the entire site, like

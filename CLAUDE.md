@@ -200,6 +200,7 @@ terrain source, which needs an explicit decision + README/test update).
 |---|---|
 | gate.js | **the password gate** — the FIRST script in `index.html`, before the vendor bundles and the payloads. Full-viewport cover at z 9000, SHA-256 check, remembered unlock, the animated contour field and the flood/reveal unlock |
 | util.js | formatting, geometry helpers, ramps, toast; `$()` |
+| labels.js | **the 2D label engine (v15 §2.2)** — one registry for every permanent map label, dedupe by `key`, a greedy screen-space collision pass by priority, `visibility:hidden` never `display`, per-label zoom `gate()`; `SBMM.labels` |
 | compute.js | **pure** compute kernels (volume grid, rasters, marching squares, ring-aware simplify) — no DOM, no SBMM; runs in workers |
 | jobs.js | worker pool: progress, cancel, transferables; `SBMM.compute` |
 | dem.js | DEM decode — the Blob-URL **decode worker** and `Dem.loadAll` (one worker per payload, all started together) with the main-thread path as the fallback — plus bilinear `at()`, slope/aspect; the DEM stack `SBMM.dems` / `setDems` / `demAt` / `demForBox`; `SBMM.elev`, `SBMM.slopeAt`, `SBMM.canopy` |
@@ -210,6 +211,7 @@ terrain source, which needs an explicit decision + README/test update).
 | mode.js | **`SBMM.mode` — the tool-mode state machine (§2)**: modes, cursor, Mode HUD, every single-key shortcut, Esc discipline, Space-to-pan; also `SBMM.status` (the status bar, written by both views) |
 | shell.js | dock layout, left tabs (Layers/My work/Sheets), right tabs (Inspector/Results) + their auto-switch, four-stage topbar narrowing, job bar |
 | map.js | Leaflet init, layer-row API `SBMM.addLayerRow` (a row is a VIEW onto `SBMM.layerState`), zoom-gated annotation, context menu |
+| layertree.js | **`SBMM.layerTree` — the VIEW over `SBMM.layerState` (v16)**: sub-groups declared with `addLayerRow(..., {sub})`, legend swatches drawn from the layer's own symbology, the per-row hover toolbar (opacity / zoom to extent / solo / info), drag-to-reorder = draw order, fuzzy search, keyboard, presets, recently-changed chips, the legend card on the map |
 | layers.js | basemaps, survey contours, DUs, piles, samples (+symbology); `SBMM.layersUI` — the six §4 groups, master checkboxes, count badges, Areas quick-nav; `SBMM.myWork` — the class mask over the user's own features |
 | analysis.js | slope/aspect/hypso/canopy raster layers, custom contours |
 | draw.js | sketch engine: vertex edit, ortho/polar, typed input (`@150<45`), 3D hooks |
@@ -339,7 +341,8 @@ collected, they just stay quiet).
   layer-section count badges only write when the value actually changed, and disconnect around
   the write. The symptom was the app appearing to hang on the next background job.
 - `page.evaluate(() => SBMM.sheets.open(...))` fails in Playwright — the returned state object
-  holds DOM nodes. Wrap it in a block that returns nothing.
+  holds DOM nodes. Wrap it in a block that returns nothing. `SBMM.layerTree.search(...)` is the
+  same trap: it hands back the first matching row, which is a row ref holding DOM nodes.
 - **`preferCanvas` also means a Leaflet vector has no DOM element**, so `className` on a path
   reaches nothing: `.sheetpulse` (the "locate" flash) and `.sheethit` (the footprint's
   `cursor: zoom-in`) were both dead CSS. Animate with `setStyle()` and set the cursor on the
@@ -1213,6 +1216,258 @@ road ditch runs *past* them into the impoundment, which then discharges through
 the surveyed pipes. `through_area` on each inlet adds the ponds that pour into
 it, which is how the water actually reaches most of them (`herman_pipe_s` 37.90
 ac, `pond_culvert` 14.52 ac, `green_outlet` 2.62 ac).
+
+## v15 — conduits first, two label engines, and the 3D view
+
+Contract: `docs/V15_3D_POLISH_SPEC.md`. No kernel work (`VERSION` stays 8).
+New file `js/labels.js`; the rest is `js/water.js`, `js/viewer3d.js`,
+`js/pick3d.js` and the call sites that own a label. E2E blocks **9y (3D
+parity)** and **9z (labels)**, plus the updated 9t/9v; shots
+`test/v15_shots.mjs`.
+
+### The overflow rule (ruling, 2026-09-05): conduits first, the rim on request
+
+**When the overtopping analysis finds a conduit spill BELOW the rim spill, the
+conduit is the overflow.** `ov.rimSuppressed` is that test, and it is generic —
+Frog Pond's culvert, Green Pond's FES, Herman's surveyed 24-in pipes. What it
+changes is *visibility and wording, never a number*:
+
+- the rim overflow route is **not traced** (`ov.route` stays null); the seed
+  cell, the analysis's own grid and its window are kept on `ov.rimSeed /
+  rimDem / rimWindow / rimBlock` so the button can trace it later **on the same
+  grid** (§2: one analysis, one grid);
+- the card's rim row says so — "1,416.04 ft · +0.30 ft above pond culvert — not
+  traced; the drains are assumed to handle it" — and the "Overflow route" row
+  reads "not traced — the drains are assumed to carry it";
+- the slider above the rim reads "above the rim · the drains are assumed to
+  carry it (trace the rim overflow to see the what-if)";
+- **"trace the rim overflow"** on the card traces it as a what-if named for what
+  it assumes ("… — what-if: pond culvert blocked"), drawn dashed in `C.whatif`
+  (`#93A6B3`) with no glow and no animation (`props.whatif`, honoured by
+  `buildFlow` and by the 3D branch), and **owned by the analysis**: the button
+  toggles it off and `clearOvertop` removes it. It is created with
+  `dropAt(..., { noUndo: true })` on purpose — an undo entry pointing at a
+  feature the analysis has since removed is worse than none.
+- `SBMM.water.routes()` is the readable contract (`{rim, rimWhatIf,
+  rimSuppressed, conduit, pipe, …}`); the e2e asserts through it rather than
+  guessing from feature names other analyses also match.
+- `chainSentence(route)` reads the intended system back as words from the
+  route's own `legs` and the ponds that left through them (`via`), collapsing a
+  run of consecutive legs of the same family into one: "→ Green Pond (fills to
+  1,394.50) → green outlet → road drain → branch → storm main → Clear Lake
+  outfall".
+
+**Block 9w of the e2e passes `storm:false`, so it has no conduit spill and the
+rim route is still traced there** — that is what keeps every §9.2 number and the
+"the slider hides the route below the spill" assertions exactly as they were.
+
+### `SBMM.labels` (2D) and the 3D label layer
+
+Two engines, one idea: a label is a FACT, and a fact is shown once.
+
+```
+SBMM.labels.add({ id?, key, priority, latlng, el | marker, owner, gate? })
+SBMM.labels.remove(id) / removeOwner(owner) / place() / refresh()
+SBMM.labels.stats() / visible() / boxes() / count(owner)
+```
+
+- **Dedupe by `key`**, highest priority wins; then a **greedy collision pass**
+  in screen space after every `moveend`/`zoomend`/add/remove (debounced to one
+  frame), 2 px of padding. Priorities (§2.2): spill/first-discharge markers 100,
+  pond 60, drainage 50, design depth 45, flow end 40, "in pipe" 30.
+- **Hiding is `visibility:hidden`, never `display` and never removal** — the
+  element keeps its box so the next pass can measure it without a reflow, and a
+  label that stops colliding comes back on its own. **Do not put `display:none`
+  on a label class**: the engine reads a box-less element as absent (which is
+  exactly why the excavation labels' existing `#map.zoomfar` CSS gate still
+  works and costs them nothing).
+- A zero-size `divIcon` has no box of its own, so `boxOf()` measures the union
+  of its CHILDREN. Every one of these labels is a zero-size icon.
+- Zoom gating moved into `gate()` (pond labels at 36 px across, "in pipe" at
+  zoom ≥ 2). A gated-out label does NOT occupy space.
+- `owner` is how a label dies with its layer: `buildFlow` calls
+  `removeOwner("flow:"+f.id)`, `clearOvertop` and `toggleOverlay` re-register
+  `"overtop"`, `js/drainage.js` `clearLayers` drops `"drainage"`,
+  `js/designgis.js` `buildLayer` drops `"gis:exc"`. A record whose element is
+  detached is dropped on the next pass.
+
+**3D (`js/viewer3d.js`, the label layer).** Screen-sized camera-facing chips with
+a leader and a dark plate, `fog:false` (a label that fades out has stopped
+working), two sources (`overlay` from `rebuildOverlays`, `stage` from
+`SBMM.water.stageSpec()`), merged and deduped by key, capped at 60, **diffed by
+text** so a slider step rebuilds only the chips whose words changed. The chip
+material cache is an LRU of 140 — a slider dragged across a 44-row stage table
+asks for hundreds of distinct strings and an unbounded canvas-texture cache is a
+GPU leak. `updateLabels3d()` runs per DRAW, not per rAF, and allocates nothing:
+module-level vectors, one 6-float array per leader, `LBL_ORDER` reused. It must
+refresh `camera.matrixWorldInverse` itself — it runs *before* `renderer.render`,
+which is where three would otherwise do it, and without that the first pass
+projects through an identity matrix and culls every label.
+`stageSpec()` states each label relative to the CURRENT slider level ("+0.39 ft
+to go" / "overtopped" / "discharging") and steps the chips up the screen by
+`liftPx` for the same reason the 2D markers step down the page.
+**The world-sized `textSprite` is gone** — it grew with the camera and its text
+was fixed, which is both halves of what the user reported.
+
+### 3D parity (§3.1) — `userData.layer` and the table
+
+Every object `rebuildOverlays` (and the contour, canopy and sheet builders)
+makes carries `userData.layer = {g, l}` — the same `(group, id)`
+`SBMM.layerState` uses — and `SBMM.viewer3d.stats().layersDrawn` reports the
+set. E2E block **9y** turns every group on and requires each ON row to have an
+object, printing the ones that do not. **A new 3D object gets a tag**, or the
+table fails on the row it belongs to. Gaps closed in v15: EA's PDF boundaries
+(drawn, untagged and unpickable), **`SBMM.designGIS.batch3d()`** — `rings3d()`
+returned only the design group's POLYGONS, so EA's design LINES (daylight,
+grade, haul) and the entire boundary / existing-conditions half (lots, OU,
+parcels, water, buildings, roads, fences, utility points: 580 features) drew
+nothing at all in 3D; they are now MERGED per layer by `drapedBatch()` into one
+`LineSegments` each, with a segment→feature `owner` array so the new `gisBatch`
+/ `gisPts` pick kinds still answer with the right popup — the two survey contour
+sets (one sub-group
+each — before this both drew whenever *either* row was on), the computed contour
+set (`base/contours_custom`, an explicit id in `js/analysis.js`), cross-section
+station lines and chainages, EA's four recovered design surfaces (they have no
+`_surf` node grid, so the mesh branch skipped them and 3D drew nothing at all —
+now the footprint), the drainage flow-path row, one cultural point cloud per
+layer, and dataset rows tagged with `rowKey` (a dataset's row id is a slug of
+its LABEL, not its dataset id).
+Two exemptions, printed with their reasons: the basemaps and computed rasters
+(in 3D they ARE the terrain drape) and EA's CAD **base map** groups (contours
+3,159 rings, parcels 2,788, symbols 15,045 …), which stay 2D-only because every
+ring is resampled against the DEM every 10 ft on every overlay rebuild — that is
+what the 3,000-ring drape budget is for. The **design** CAD groups are drawn.
+
+### 3D appearance (§3.2) — three things not to undo
+
+- **The selection halo's pulse is BOUNDED (1.5 s after the selection changes).**
+  A halo that pulses for ever asks for a frame for ever, and `test/e2e.mjs`
+  block 9e fails an idle view that keeps rendering. One scalar per frame, no
+  allocation, and nothing at all once it has settled.
+- **The "outline" under an overlay line is geometry, and it is MERGED.** WebGL
+  cannot widen a line, so the dark edge that makes a bright line readable over a
+  bright ortho is the same polyline again 1.3 ft lower — all of them in ONE
+  `LineSegments` (`SHW`), one draw call. The CAD bulk is deliberately excluded.
+- **A draped polygon fill is a TIN of its own boundary**, and it is applied to
+  the user's `area` / `volume` features only (`drapedFill`). A flat fill at the
+  mean elevation floats or sinks over sloping ground; a fill over every
+  site-wide polygon is the overdraw that costs a software-GL frame its budget.
+- **The sky dome rides with the camera** (radius 30,000 ft, `depthTest:false`,
+  `renderOrder -1000`), which is why it can be small enough to sit inside the
+  far plane at any orbit radius; `updateSky()` is one `position.copy` per draw.
+  The ground plane lives in `envGroup`, whose `scale.z` follows the
+  exaggeration slider like every other group.
+
+**Two traps the field build found, both worth the words.**
+
+- **Every row added to `#v3dNav` grows it UPWARDS into the canvas.** The 3D
+  canvas on a phone is 412 x 653; the nav column is anchored bottom-right. The
+  v15 "Look at…" row (44 px) and the elevation legend (~120 px) took its top
+  edge from y 542 to y 378 — past the middle — and the second finger of a
+  two-finger pinch, which lands at the canvas centre, came down on a nav button
+  instead of the model. Its `pointerdown` went to that button, the rig never saw
+  a second touch pointer, `touches.size` stayed 1 and the pinch could not dolly.
+  Nothing errored; `test/e2e_field.mjs`'s pinch assertion is what caught it.
+  Both controls are now `display:none` under `body.field`, the legend is
+  `pointer-events:none` because it is a legend, and `stats()` reports `navDrag`
+  and `navTouches` so the next such failure can be read rather than guessed.
+  **A new `#v3dNav` row goes behind the same rule.**
+- **A feature whose only 3D object is a LABEL can lose the 60-chip budget.** A
+  single-point `text` annotation drew nothing at all once its chip was capped or
+  collided away — invisible in 3D and unpickable. It now also draws its anchor,
+  and `layersDrawn()` counts label RECORDS rather than their per-frame `visible`
+  flag (which is a collision/culling decision, not a statement about the layer).
+
+**Keys (a deviation, decided here).** The spec asked for 1–6 and `F` to fit.
+`3` has toggled the whole 3D view since v1 and `F` is fly mode — both are in the
+nav help table and in the buttons' tooltips, and silently re-binding a
+documented key is a user-facing regression the spec did not ask for. So: 1, 2,
+4, 5, 6 are top/north/east/west/iso, **Shift+3** is south, **Shift+F** fits,
+arrows orbit and Shift+arrows pan. The help table says so.
+
+## v16 — the layer tree
+
+Contract: `docs/V16_LAYERS_SPEC.md`. New file `js/layertree.js` (`SBMM.layerTree`),
+loaded after `js/map.js` and before every module that registers a row. The
+Layers tab markup in `index.html`, the `v16 layer tree` block at the end of
+`css/app.css`, and one e2e block, **"9z. layer tree"**, which runs LAST because
+it ends with a real `page.reload()`.
+
+**`SBMM.layerState` did not change and is still the one answer to "is this layer
+on".** The tree is the view: it decides which container a row lands in, decorates
+the row, and offers new ways to move the state — it never becomes the state. Two
+additive APIs were needed and are the only edits to `js/layerstate.js`:
+`batch(list)` (many sets, one `layers` event per group that moved — the same
+`{group, layer: null}` shape a master checkbox already emits) and `setExtra({save,
+load})`, which is how the tree's own record travels in the session file.
+
+**`SBMM.addLayerRow`'s signature is extended, never changed.** `opts.sub` names
+the sub-group the row belongs to and `opts.subTitle` its tooltip; everything else
+is what it always was. The five modules that used to append an ad-hoc `.lsub`
+header into a host div and let their rows fall in underneath it — `js/storm.js`,
+`js/drainage.js`, `js/survey.js`, `js/designea.js` (the sheet rows) and
+`js/designgis.js` — now pass `sub:` instead, and that one option is the whole of
+their diff. The sub-group container is `.lgsub` > `.subh.subtoggle.lsub` +
+`.lgsubb`: the exact markup the Terrain-analysis sub-section has always used, so
+`SBMM.layersUI.refreshCounts` and every selector that ever asked "is there a
+sub-heading called Storm drainage in this group" keep working untouched.
+
+Five things here will be walked into again:
+
+- **The cultural gate must keep winning.** `js/cultural.js` intercepts the
+  checkbox's `click` in the capture phase, so every switch the tree offers that
+  could turn a row ON goes through `row.cb.click()` — the keyboard, the
+  recently-changed chips, search-Enter — and never `layerState.set`. The bulk
+  paths (solo, presets, the group all-on button) skip the `cultural` group
+  outright, `snapshot()` excludes it, and solo refuses it with a toast. The
+  recently-changed list never records a cultural row, because a chip is a
+  one-click way back on. Block 9g still asserts the acknowledgement; block 9z
+  asserts the other half.
+- **Draw order is applied only to a container the user has actually reordered.**
+  The app's existing z-order is deliberate — the three orthophotos carry explicit
+  `zIndex` options, the sheet click rectangles call `bringToBack()` on add so only
+  empty ground opens a drawing, each pane has its own band — and a blanket
+  `bringToFront` pass at boot would silently undo all of it for nothing. So
+  `applyDrawOrder(group)` returns 0 until `S.order` has an entry for one of that
+  group's containers. Within one, the rows are walked bottom-up so the TOP row is
+  brought forward last and ends up on top; a layer that must stay at the back says
+  so with `options.sbmmBack` (the sheet hit rectangles do) and is put back rather
+  than brought forward. The e2e probe is `SBMM.layerTree.drawIndex(group, id)` —
+  a row's position in its canvas renderer's own `_drawFirst` chain, so the
+  assertion is about the map, not about the DOM.
+- **A swatch must not add a text node, and must not repaint on every event.** A
+  row's `textContent` is read by several harnesses and by the legend, so the
+  toolbar's four glyphs come from CSS `content` and the trailing "(140)" is moved
+  into its own span *including its leading space* — the string is byte-identical.
+  And the raster swatch's gradient id is derived from `(group, id)`, not a
+  counter: a new id every repaint would make every `layers` event a real DOM
+  write inside the pane the count-badge `MutationObserver` is watching.
+- **The tree owns the open/closed record now.** `sbmm.layertree.v1` holds the
+  open state of every group AND sub-group, the per-container row order, the user
+  presets and the legend's own state; `js/layers.js` migrates the old
+  `sbmm_layer_sections` key into it once and then reads and writes through
+  `SBMM.layerTree.openState`. Terrain analysis is the one sub-group that starts
+  closed (ruling F3) and that is `SUB_CLOSED_BY_DEFAULT` in `js/layertree.js`.
+- **The session key is `layers._tree` and it is additive both ways.**
+  `js/state.js` is untouched: `layerState.serialize()` folds the tree's record in
+  under `_tree`, and `restore()` skips that key in its group loop and hands it to
+  the extra. An old session has no `_tree` and restores exactly as before; a new
+  session opened by an older build finds no layer called `_tree` and skips it.
+
+Presets are `BUILTIN` in `js/layertree.js` — a rule per preset answering true /
+false / null (leave alone) per row — plus whatever the user saves. Applying one is
+ONE `SBMM.undo` entry with both closures (the before snapshot and the after
+snapshot, captured at the moment the action completes). Search is fuzzy over
+label + sub-group + group + id, which is why searching "storm" also shows the
+drainage rows: their sub-group is *Drainage (lidar + storm drains)*. That is the
+rule working, and block 9z asserts "every row shown really matches" rather than a
+bare count.
+
+**Shots:** `node test/layers_shots.mjs /abs/path/index.html` writes
+`layers_tree.png`, `layers_search.png` and `layers_legend.png` into `test/shots/`;
+not pass-fail — look at them. The baseline the acceptance test compares against is
+`test/fixtures/layer_rows_pre_v16.json`, dumped from the pre-v16 build: every
+`(group, id)` that existed before must exist after, and no row may be invented.
 
 ## Undo and redo (v9.4) — the both-closures rule and `readd`
 

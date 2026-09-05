@@ -548,7 +548,10 @@ SBMM.datasets = (function () {
   /* 3D spec — viewer3d owns THREE, this owns what is worth drawing */
   function threeSpec() {
     return list.filter(d => d.rowRef && d.rowRef.cb.checked).map(d => ({
-      id: d.id, name: d.name, color: d.style.color, size: d.style.size * 2.4,
+      /* v15 §3.1: the LAYER ROW this dataset draws under, so a 3D object can be
+         matched against the row that is on (the row id is a slug of the label,
+         not the dataset id) */
+      id: d.id, rowKey: d.rowRef.key, name: d.name, color: d.style.color, size: d.style.size * 2.4,
       stick: !!(d.style.stick3d && d.depthField),
       pts: d.points.map(p => ({
         x: p.x, y: p.y,
