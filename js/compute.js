@@ -291,6 +291,34 @@ var SBMM_COMPUTE = (function SBMMComputeModule() {
     } catch (e) { wRelease(); wasmFail(e); return null; }
   }
 
+  /* ---- traceMask ----------------------------------------------------------
+     A second guard beside marchOne's, and it earns its place: the overtopping
+     analysis calls this 42 times over the impoundment's own bounding box, and
+     the 0/1-to-Float32 conversion alone is a million cells a call. */
+  function wasmTraceMask(mask, w, h, cell, X0, Y0, tol) {
+    try {
+      var pm = wPutU8(mask);
+      W.trace_mask(pm, w, h, cell, X0, Y0, tol || 0);
+      var buf = wOut();
+      wRelease();
+      var dv = new DataView(buf.buffer), o = 0, k, q;
+      var nr = dv.getInt32(o, true); o += 4;
+      var rings = new Array(nr);
+      for (k = 0; k < nr; k++) {
+        var np = dv.getInt32(o, true); o += 4;
+        var area = dv.getFloat64(o, true); o += 8;
+        var closed = !!dv.getInt32(o, true); o += 4;
+        var pts = new Array(np);
+        for (q = 0; q < np; q++) {
+          pts[q] = [dv.getFloat64(o, true), dv.getFloat64(o + 8, true)];
+          o += 16;
+        }
+        rings[k] = { pts: pts, area: area, closed: closed };
+      }
+      return rings;
+    } catch (e) { wRelease(); wasmFail(e); return null; }
+  }
+
   /* ---- contoursFromGrid --------------------------------------------------- */
   function wasmContours(job) {
     try {
@@ -1474,6 +1502,8 @@ var SBMM_COMPUTE = (function SBMMComputeModule() {
 
   /* trace a 0/1 mask into rings via marching squares at 0.5, largest ring first */
   function traceMask(mask, w, h, cell, X0, Y0, tol) {
+    /* v21 dispatch (docs/V21_WASM_SPEC.md) — the port of everything below. */
+    if (wasmAvailable()) { var Rw = wasmTraceMask(mask, w, h, cell, X0, Y0, tol); if (Rw) return Rw; }
     var f = new Float32Array(w * h);
     for (var i = 0; i < w * h; i++) f[i] = mask[i] ? 1 : 0;
     var lines = marchOne(f, w, h, cell, X0, Y0, 0.5);

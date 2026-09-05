@@ -317,3 +317,84 @@ pub extern "C" fn march_one_f32(
         for p in l { out_f64(p[0]); out_f64(p[1]); }
     }
 }
+
+/* ------------------------------------------------------- traceMask -------- */
+/* js/compute.js's own: the 0.5 contour of a 0/1 mask, simplified twice (once
+   by marchOne at 0.35 * cell, once here at the caller's tol), ringArea'd and
+   sorted largest first. The sort is stable in both languages, which matters
+   when two rings have exactly the same area. */
+
+pub fn ring_area(l: &[[f64; 2]]) -> f64 {
+    let mut a = 0f64;
+    let n = l.len();
+    for i in 0..n {
+        let p = l[i];
+        let q = l[(i + 1) % n];
+        a += p[0] * q[1] - q[0] * p[1];
+    }
+    a.abs() / 2.0
+}
+
+/* the body of js/compute.js's traceMask, shared by the export below and by
+   the drainage kernel's own ring tracing */
+pub fn trace_mask_inner(mask: &[u8], w: usize, h: usize, cell: f64, x0: f64, y0: f64, tol: f64)
+    -> Vec<(Vec<[f64; 2]>, f64, i32)>
+{
+    let mut f = vec![0f32; w * h];
+    for i in 0..w * h { f[i] = if mask[i] != 0 { 1.0 } else { 0.0 }; }
+    let lines = march_one(&f, w, h, cell, x0, y0, 0.5, cell * 0.35);
+    let mut rings: Vec<(Vec<[f64; 2]>, f64, i32)> = Vec::new();
+    for l in lines {
+        if l.len() < 4 { continue; }
+        let closed = (l[0][0] - l[l.len() - 1][0]).abs() < 1e-6
+                  && (l[0][1] - l[l.len() - 1][1]).abs() < 1e-6;
+        let r = if tol != 0.0 { simplify_path(&l, tol) } else { l };
+        if r.len() < 4 { continue; }
+        let a = ring_area(&r);
+        rings.push((r, a, if closed { 1 } else { 0 }));
+    }
+    rings.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(core::cmp::Ordering::Equal));
+    rings
+}
+
+/* js/compute.js maskRings: the rings of a cell mask, traced in the mask's own
+   bounding box padded one cell so a ring that does not touch the edge closes */
+#[allow(clippy::too_many_arguments)]
+pub fn mask_rings(mask: &[u8], w: usize, h: usize, cell: f64, x0: f64, y0: f64,
+                  bb: [i32; 4], tol: f64) -> Vec<Vec<[f64; 2]>>
+{
+    let i0 = (bb[0] - 1).max(0) as usize;
+    let j0 = (bb[1] - 1).max(0) as usize;
+    let i1 = (bb[2] + 1).min(w as i32 - 1) as usize;
+    let j1 = (bb[3] + 1).min(h as i32 - 1) as usize;
+    if i1 < i0 || j1 < j0 { return Vec::new(); }
+    let bw = i1 - i0 + 1;
+    let bh = j1 - j0 + 1;
+    if bw < 2 || bh < 2 { return Vec::new(); }
+    let mut sub = vec![0u8; bw * bh];
+    for j in 0..bh {
+        for i in 0..bw { sub[j * bw + i] = mask[(j0 + j) * w + i0 + i]; }
+    }
+    trace_mask_inner(&sub, bw, bh, cell, x0 + i0 as f64 * cell, y0 + j0 as f64 * cell, tol)
+        .into_iter().map(|r| r.0).collect()
+}
+
+/// OUT arena: i32 n_rings, then per ring i32 npts, f64 area, i32 closed,
+/// npts * (f64 x, f64 y)
+#[no_mangle]
+#[allow(clippy::too_many_arguments)]
+pub extern "C" fn trace_mask(
+    mask_ptr: *const u8, w: i32, h: i32, cell: f64, x0: f64, y0: f64, tol: f64,
+) {
+    let (wu, hu) = (w as usize, h as usize);
+    let mask = unsafe { crate::su8(mask_ptr, wu * hu) };
+    let rings = trace_mask_inner(mask, wu, hu, cell, x0, y0, tol);
+    out_reset();
+    out_i32(rings.len() as i32);
+    for (pts, area, closed) in &rings {
+        out_i32(pts.len() as i32);
+        out_f64(*area);
+        out_i32(*closed);
+        for p in pts { out_f64(p[0]); out_f64(p[1]); }
+    }
+}
