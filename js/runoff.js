@@ -53,6 +53,8 @@ SBMM.runoff = (function () {
 
   const acft = v => v / AC;
   const ac = v => fmt(acft(v), v < AC ? 3 : 2);
+  /* "is this row on" — the ONE answer, never a checkbox (CLAUDE.md §1) */
+  const on = id => SBMM.layerState.isOn("framework", id);
   const DATA = () => window.SBMM_DATA || {};
   const RAIN = () => DATA().rainfall || null;
   const COVER = () => DATA().cover || null;
