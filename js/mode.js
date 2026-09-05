@@ -113,6 +113,18 @@ SBMM.mode = (function () {
       next: "click where the drop lands", more: "every click traces another drop",
       enter() { SBMM.tools.setTool("raindrop"); }
     },
+    /* Redline (v17 §5a). A freehand ink mode: no sketch engine, no vertices to
+       finish — the stroke IS the gesture, and the mode stays armed so a
+       mark-up is a series of strokes rather than a series of commands.
+       js/redline.js owns everything it does; this row owns only the state.
+       No single-key shortcut: every free letter is one somebody types by
+       accident, and a mark-up tool that arms itself under the hand is worse
+       than one more click. */
+    "redline": {
+      label: "Redline", cursor: "crosshair", transient: false,
+      next: "draw with the Pencil or a finger", more: "Esc when done · the palette picks the colour",
+      enter() { SBMM.tools.setTool(null); }
+    },
     "edit": {
       label: "Edit vertices", cursor: "move", transient: true,
       next: "drag a handle to move it", more: "Delete removes a vertex · Enter finishes",

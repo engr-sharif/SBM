@@ -51,7 +51,17 @@ SBMM.sheets = (function () {
   }
   /* dragging a dock grip, collapsing a dock or resizing the browser all move
      the stage's edges under a window that is already open */
-  function clampAll() { for (const st of wins.values()) { clampToStage(st.el); clampPan(st); apply(st); } }
+  function clampAll() {
+    for (const st of wins.values()) {
+      /* a maximised window follows the stage rather than being clamped into
+         its old rectangle — rotating an iPad changes the stage, not the intent */
+      if (st.maxed) { const b = stageBox();
+        st.el.style.left = Math.round(b.x + 4) + "px"; st.el.style.top = Math.round(b.y + 4) + "px";
+        st.el.style.width = Math.round(b.w - 8) + "px"; st.el.style.height = Math.round(b.h - 8) + "px"; }
+      else clampToStage(st.el);
+      clampPan(st); apply(st);
+    }
+  }
 
   /* ------------------------------------------------------------------ */
   /* index                                                               */
@@ -144,6 +154,7 @@ SBMM.sheets = (function () {
         <span class="vsep"></span>
         <button class="minib shfit" title="Fit the whole sheet">fit</button>
         <button class="minib shone" title="Actual pixels">1:1</button>
+        <button class="minib shmax" title="Maximise to the stage">⤢</button>
         <button class="minib shloc" title="Fly the 2D map to this sheet's footprint"${s.registered ? "" : " disabled"}>locate</button>
         <span class="ic x shclose" title="Close (Esc)">✕</span>
       </div>
@@ -164,9 +175,13 @@ SBMM.sheets = (function () {
        it. The stage is the map/3D box between the docks, so that is the box a
        floating window belongs in. */
     const b = stageBox();
-    const W = Math.round(clamp(b.w * 0.86, 420, Math.max(420, b.w - 24)));
-    const H = Math.round(clamp(b.h * 0.88, 300, Math.max(300, b.h - 24)));
-    const off = (cascade++ % 6) * 26;
+    /* v17 §4: under body.touch a sheet opens MAXIMISED. A 36x24 drawing in a
+       window inside a window on a tablet is two sets of edges to miss with a
+       thumb; the restore button is right there when the map is wanted back. */
+    const maxed = !!(SBMM.touch && SBMM.touch.on());
+    const W = maxed ? Math.round(b.w - 8) : Math.round(clamp(b.w * 0.86, 420, Math.max(420, b.w - 24)));
+    const H = maxed ? Math.round(b.h - 8) : Math.round(clamp(b.h * 0.88, 300, Math.max(300, b.h - 24)));
+    const off = maxed ? 0 : (cascade++ % 6) * 26;
     el.style.width = W + "px";
     el.style.height = H + "px";
     /* centred in the stage, then cascaded, then clamped — clamp last, so the
@@ -179,8 +194,10 @@ SBMM.sheets = (function () {
       view: el.querySelector(".shview"),
       img: el.querySelector(".shimg"),
       scale: 1, tx: 0, ty: 0, iw: s.w, ih: s.h, loaded: false,
-      origin: o.origin || null
+      origin: o.origin || null,
+      maxed: false, restore: null
     };
+    if (maxed) el.classList.add("maxed");
     wins.set(sheet, st);
     front(st);
     wireWindow(st);
@@ -281,6 +298,48 @@ SBMM.sheets = (function () {
     zoomAt(st, k, st.view.clientWidth / 2, st.view.clientHeight / 2);
   }
 
+  /* ---------- maximise (v17 §4) ----------
+     Available in EVERY profile — a 36x24 drawing wants the whole stage on a
+     desktop too — and the default state under body.touch. The restore geometry
+     is captured at the moment it is maximised, so restoring puts the window
+     back exactly where it was rather than re-cascading it. */
+  function maximise(st, want) {
+    const el = st.el;
+    want = want == null ? !st.maxed : !!want;
+    if (want === st.maxed) return st.maxed;
+    if (want) {
+      st.restore = { l: el.offsetLeft, t: el.offsetTop, w: el.offsetWidth, h: el.offsetHeight };
+      const b = stageBox();
+      el.style.transition = "none";
+      el.style.left = Math.round(b.x + 4) + "px";
+      el.style.top = Math.round(b.y + 4) + "px";
+      el.style.width = Math.round(b.w - 8) + "px";
+      el.style.height = Math.round(b.h - 8) + "px";
+      el.classList.add("maxed");
+    } else {
+      const r = st.restore;
+      el.style.transition = "none";
+      if (r) {
+        el.style.left = r.l + "px"; el.style.top = r.t + "px";
+        el.style.width = r.w + "px"; el.style.height = r.h + "px";
+      }
+      el.classList.remove("maxed");
+      clampToStage(el);
+    }
+    st.maxed = want;
+    paintMax(st);
+    clampPan(st); apply(st);
+    if (SBMM.sheetMarks) SBMM.sheetMarks.paint(st);
+    return st.maxed;
+  }
+  function paintMax(st) {
+    const b = st.el.querySelector(".shmax");
+    if (!b) return;
+    b.textContent = st.maxed ? "⤡" : "⤢";
+    b.title = st.maxed ? "Restore the window to its previous size" : "Maximise to the stage";
+    b.classList.toggle("on", st.maxed);
+  }
+
   /* ---------- wiring ----------
      Named wireWindow, not wire: the module already exports a wire() for its
      document-level keys, and two hoisted `function wire` declarations in one
@@ -299,6 +358,9 @@ SBMM.sheets = (function () {
     el.querySelector(".shloc").onclick = () => locate(st.sheet);
     el.querySelector(".shprev").onclick = () => step(st, -1);
     el.querySelector(".shnext").onclick = () => step(st, +1);
+    el.querySelector(".shmax").onclick = () => maximise(st);
+    st.maxed = el.classList.contains("maxed");
+    paintMax(st);
 
     /* wheel zoom toward the cursor */
     st.view.addEventListener("wheel", e => {
@@ -307,16 +369,17 @@ SBMM.sheets = (function () {
       zoomAt(st, Math.exp(-e.deltaY * 0.0016), e.clientX - r.left, e.clientY - r.top);
     }, { passive: false });
 
-    /* drag pan */
+    /* drag pan — the MOUSE path, unchanged; a finger goes through the
+       recogniser below (v17 §4) */
     let drag = null;
     st.view.addEventListener("pointerdown", e => {
-      if (e.button !== 0) return;
+      if (e.button !== 0 || e.pointerType !== "mouse") return;
       drag = { x: e.clientX, y: e.clientY, tx: st.tx, ty: st.ty };
       st.view.setPointerCapture(e.pointerId);
       st.view.classList.add("grabbing");
     });
     st.view.addEventListener("pointermove", e => {
-      if (!drag) return;
+      if (!drag || e.pointerType !== "mouse") return;
       st.tx = drag.tx + (e.clientX - drag.x);
       st.ty = drag.ty + (e.clientY - drag.y);
       clampPan(st); apply(st);
@@ -324,6 +387,48 @@ SBMM.sheets = (function () {
     const endDrag = () => { drag = null; st.view.classList.remove("grabbing"); };
     st.view.addEventListener("pointerup", endDrag);
     st.view.addEventListener("pointercancel", endDrag);
+
+    /* ---- touch (v17 §4) --------------------------------------------
+       THE SAME recogniser the 3D rig uses (js/touch.js). A second pinch
+       implementation here is how two surfaces come to disagree about what a
+       pinch is, so there is not one. Marking takes priority: while a mark tool
+       is armed, js/sheetmarks.js owns the one-finger press (press-hold-loupe)
+       and only the two-finger gestures reach this. */
+    if (SBMM.touch) {
+      let glide = null;
+      const stopGlide = () => { if (glide) { glide.cancel(); glide = null; } };
+      const marking = () => !!(SBMM.sheetMarks && SBMM.sheetMarks.armed(st));
+      const local = (x, y) => { const r = st.view.getBoundingClientRect(); return [x - r.left, y - r.top]; };
+
+      SBMM.touch.gestures(st.view, {
+        panstart() { stopGlide(); front(st); },
+        pan(g) {
+          if (marking()) return;
+          st.tx += g.dx; st.ty += g.dy;
+          clampPan(st); apply(st);
+        },
+        panend(g) {
+          if (marking() || !g.flick) return;
+          glide = SBMM.touch.momentum(g.vx, g.vy, (dx, dy) => {
+            st.tx += dx; st.ty += dy; clampPan(st); apply(st);
+          }, () => { glide = null; });
+        },
+        pinchstart() { stopGlide(); if (SBMM.sheetMarks) SBMM.sheetMarks.cancelPlace(st); },
+        pinch(g) {
+          /* zoom ABOUT the midpoint: the sheet point under the fingers stays
+             under them, which is the whole difference between a pinch and a
+             zoom button */
+          const [cx, cy] = local(g.cx, g.cy);
+          zoomAt(st, g.scale, cx, cy);
+          st.tx += g.dcx; st.ty += g.dcy;
+          clampPan(st); apply(st);
+        },
+        /* while a mark tool is armed a double-tap FINISHES the mark — the same
+           thing a double-click does — so it must not also zoom */
+        doubletap(g) { if (marking()) return; const [cx, cy] = local(g.x, g.y); zoomAt(st, 2, cx, cy); },
+        twofingertap(g) { const [cx, cy] = local(g.x, g.y); zoomAt(st, 0.5, cx, cy); }
+      });
+    }
 
     /* move by the title bar */
     const bar = el.querySelector(".shbar");
@@ -520,6 +625,11 @@ SBMM.sheets = (function () {
 
   return {
     wire, index, get, open, list, locate, close, closePicker, clampAll, stageBox, hasRender,
+    maximise, isMaxed: st => !!(st && st.maxed),
+    /* the open window's state, by sheet. It holds DOM nodes, so a
+       `page.evaluate` must read FIELDS off it and never return it whole — the
+       same trap `SBMM.sheets.open` has always carried (CLAUDE.md). */
+    stateOf: sheet => wins.get(sheet) || null,
     openCount: () => wins.size,
     closeAll: () => { for (const st of [...wins.values()]) close(st); }
   };

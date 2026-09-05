@@ -80,6 +80,18 @@ def build(field=False):
     # the one line index.html carries for this; the folder build reads "full"
     html = html.replace('window.SBMM_BUILD="full"', f'window.SBMM_BUILD="{kind}"', 1)
 
+    # v17 §2: drop the manifest and the icon links.
+    #
+    # A single-file build is ONE html file that gets emailed and double-clicked;
+    # `manifest.webmanifest` and `icons/*.png` are siblings that will not be
+    # there, so every one of those links is a guaranteed 404 (and over file://
+    # a console error the user sees in the report). The apple/theme META tags
+    # stay — they carry no URL, they cost nothing, and a dist opened from a web
+    # server still gets the dark status bar from them.
+    html = re.sub(r'\n?\s*<link rel="manifest"[^>]*>', "", html)
+    html = re.sub(r'\n?\s*<link rel="apple-touch-icon"[^>]*>', "", html)
+    html = re.sub(r'\n?\s*<link rel="icon"[^>]*>', "", html)
+
     # inline stylesheets
     def css_repl(m):
         href = m.group(1)

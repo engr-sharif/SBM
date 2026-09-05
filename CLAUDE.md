@@ -56,7 +56,18 @@ node test/e2e.mjs     /abs/path/dist/SBMM_Site_Explorer.html dist
 node test/split3d.mjs /abs/path/index.html                folder
 node test/split3d.mjs /abs/path/dist/SBMM_Site_Explorer.html dist
 node test/e2e_field.mjs /abs/path/dist/SBMM_Site_Explorer_field.html field
+node test/e2e_tablet.mjs /abs/path/index.html                tablet
 ```
+`test/e2e_tablet.mjs` is the v17 harness: Playwright's **`iPad Pro 11 landscape`**
+descriptor (1194x834, DPR 2, touch) against the FOLDER build, served BOTH ways —
+`file://` for everything, and a static `http` server the harness starts itself
+(node `http` + `fs`, no dependency) for the manifest, the icons and the service
+worker. Chromium, because WebKit is not installed here. Its six sections are
+§6's: boot and the profile, the profile switches, the 3D gesture set, the sheet
+viewer, the map + the Pencil + the chrome, and the offline copy.
+**`test/touch_unit.mjs` is the fast loop for it** — node, no browser, ~1 s, 56
+checks over the gesture recogniser's arithmetic; run it after any change to
+`js/touch.js` before you start a browser.
 `test/e2e_field.mjs` is the third build's harness (v11 §4.5): Playwright's **`Pixel 7`**
 descriptor (touch, 412x839, DPR 2.625) against the FIELD dist. It re-states the six
 sections §4.5 names — boot, the gate (unlocked by TAP), terrain, the golden Pile 1 volume,
@@ -200,6 +211,8 @@ terrain source, which needs an explicit decision + README/test update).
 |---|---|
 | gate.js | **the password gate** — the FIRST script in `index.html`, before the vendor bundles and the payloads. Full-viewport cover at z 9000, SHA-256 check, remembered unlock, the animated contour field and the flood/reveal unlock |
 | util.js | formatting, geometry helpers, ramps, toast; `$()` |
+| touch.js | **the three touch profiles, the ONE gesture recogniser, the loupe, the Done bar and the offline copy (v17)** — `SBMM.touch`: `profile()` / `on()` / `override()` / `lastPointer()`, `gestures(el, handlers)`, `momentum`, the shared loupe and Done bar, long-press-as-right-click, the tooltip chip, the map's press-hold vertex placement, the wake lock, the device diagnostics and the `sw.js` client |
+| redline.js | **freehand ink (v17 §5a)** — the `ink` store feature, event-resolution capture with `getCoalescedEvents`, pressure-driven width per vertex, the 6-swatch palette and eraser, the map host and (through `js/sheetmarks.js`) the sheet-window host; `SBMM.redline` |
 | labels.js | **the 2D label engine (v15 §2.2)** — one registry for every permanent map label, dedupe by `key`, a greedy screen-space collision pass by priority, `visibility:hidden` never `display`, per-label zoom `gate()`; `SBMM.labels` |
 | compute.js | **pure** compute kernels (volume grid, rasters, marching squares, ring-aware simplify) — no DOM, no SBMM; runs in workers |
 | jobs.js | worker pool: progress, cancel, transferables; `SBMM.compute` |
@@ -1372,7 +1385,13 @@ what the 3,000-ring drape budget is for. The **design** CAD groups are drawn.
   Both controls are now `display:none` under `body.field`, the legend is
   `pointer-events:none` because it is a legend, and `stats()` reports `navDrag`
   and `navTouches` so the next such failure can be read rather than guessed.
-  **A new `#v3dNav` row goes behind the same rule.**
+  **A new `#v3dNav` row goes behind the same rule** — v17's on-screen nav pad
+  is the first one to, and it is a `body.touch:not(.field)` control for exactly
+  this reason: on a phone the pinch and the double-tap already do zoom and tilt.
+  v17 also re-pointed `navDrag`/`navTouches`, because the `touches` Map they
+  read was replaced by js/touch.js's recogniser; they answer from
+  `navRec.mode()` / `navRec.count()` now, and `st.drag` still answers for the
+  mouse.
 - **A feature whose only 3D object is a LABEL can lose the 60-chip budget.** A
   single-point `text` annotation drew nothing at all once its chip was capped or
   collided away — invisible in 3D and unpickable. It now also draws its anchor,
@@ -1469,6 +1488,213 @@ bare count.
 not pass-fail — look at them. The baseline the acceptance test compares against is
 `test/fixtures/layer_rows_pre_v16.json`, dumped from the pre-v16 build: every
 `(group, id)` that existed before must exist after, and no row may be invented.
+
+## v17 — the iPad: three profiles, one recogniser, the Pencil, and the hardware
+
+Contract: `docs/V17_TOUCH_SPEC.md`. No kernel work (`VERSION` stays 8). New
+files `js/touch.js`, `js/redline.js`, `sw.js`, `manifest.webmanifest`,
+`icons/*` (drawn by `tools/make_icons.py`); the rest is the CSS `body.touch`
+block, `js/viewer3d.js`, `js/sheets.js`, `js/sheetmarks.js`, `js/pick3d.js`,
+`js/snap.js`, `js/shell.js`, `js/layertree.js` and `js/util.js`. Harnesses
+`test/touch_unit.mjs` (node, no browser) and `test/e2e_tablet.mjs`; shots
+`test/tablet_shots.mjs`; `test/audit.mjs` gained a touch pass.
+
+**Three profiles, one class.** `phone` is the v11 rule unchanged (coarse pointer
+AND `innerWidth <= 900`) and still owns `body.field`; `tablet` is touch-capable
+AND wider than 900 — the desktop layout with touch affordances — and is
+`body.touch` only; `desktop` is neither. `body.touch` is to v17 what
+`body.field` is to v11: the ONE switch every style keys off, so
+`test/e2e.mjs` passing unchanged IS the proof the desktop is untouched.
+Touch-capable means `(any-pointer: coarse)` OR `maxTouchPoints > 1` — **never a
+UA sniff**, because iPadOS reports a desktop UA. **The phone test is on the
+LONGER edge of the viewport, not on its width**, and there is one file with the
+rule in it: an iPad in PORTRAIT is 834 x 1194, so a width-only test reads it as
+a phone and lays it out as one — the exact thing v17 exists to avoid, and the
+first thing `test/e2e_tablet.mjs` caught. Split View at 507 x 834 has 834 as its
+longer edge and IS a phone, which is what §1 asks for, and a Pixel 7 at 412 x 839
+stays one. `js/field.js`'s own `sniff()` delegates to `SBMM.touch.sniff()` for
+exactly this reason — the two must agree or boot puts a portrait iPad into the
+phone layout while `profile()` calls it a tablet.
+
+**And the size is `edge()`, not `innerWidth`: a page can force the layout
+viewport WIDER THAN THE GLASS.** Ask this app at 507 x 834 and `innerWidth`
+answers **828** — the top bar under `body.touch` carries 22 buttons at 44 px, its
+min-content width is ~828, and the browser widens the layout viewport and scales
+the page rather than clip it. So the app measured its own top bar and concluded
+it was on a tablet, which is a self-fulfilling loop: stay a tablet, keep the wide
+bar. `screen` alone is not the answer either — iPadOS reports the whole 1194-px
+screen to a 507-px Split View pane. `glass()` takes the **smaller of the two on
+each axis**: a page can be laid out wider than the glass, and the glass is never
+wider than the screen.
+
+**And it is the SHORT edge that decides.** Neither edge alone works:
+
+```
+  Pixel 7          412 x 915    short 412   long  915
+  Split View       507 x 834    short 507   long  834
+  iPad portrait    834 x 1194   short 834   long 1194
+  iPad (gen 7)     810 x 1080   short 810   long 1080
+```
+
+v11's "width <= 900" makes an iPad in portrait a phone. The LONG edge alone
+makes a Pixel 7 a tablet, because its screen is 915 tall — `test/e2e_field.mjs`
+caught that one within minutes of the previous fix. What separates the two
+families is the short side: every phone is 400-500, every iPad 770 or more, and
+an iPad pane narrowed to 507 in Split View is genuinely phone-shaped and §1
+wants it treated as one. So **a phone is a screen whose SHORT side is <= 600, or
+whose LONG side is <= 900** — the second clause keeps v11's threshold for
+anything genuinely small in both directions, and 600 sits in the wide gap
+between 507 and 768. `test/touch_unit.mjs` carries every one of those rows with
+the numbers PROBED from the descriptors rather than assumed. A stored `SBMM.field` preference
+beats the viewport in both directions, so the resize handler only follows the
+phone/tablet line when the user has expressed none.
+
+**Per EVENT, not per profile.** `SBMM.touch.lastPointer()` returns
+`"mouse" | "touch" | "pen"` from the last pointer event seen in a capture-phase
+listener on `document`, and the hit tolerances read THAT: `js/snap.js`'s
+`touchK()` and `js/pick3d.js`'s raycaster thresholds are 1.5x / 2x for a finger
+and mouse-sized for a pen or a mouse on the same screen a second later.
+
+Seven things here will be walked into again:
+
+- **The recogniser is ONE implementation and it is DOM-free.**
+  `SBMM.touch.recognizer(handlers, opts)` takes pointer-shaped records and calls
+  handlers; `gestures(el, h)` is the thin part that wires real events to it.
+  That is what lets `test/touch_unit.mjs` drive tap / double-tap / two-finger tap
+  / long-press / pan / pinch / twist / three-finger / flick / palm / modifier
+  arithmetic in node in under a second (56 checks). **Run it after any change to
+  the recogniser, before you reach for Playwright.** Do not write a second pinch
+  anywhere; the 3D rig, the sheet viewer and the map sketch all use this one, and
+  v11's own pinch inside `js/viewer3d.js` was DELETED rather than kept beside it.
+- **`gestures(el, h)` calls `setPointerCapture` on `el`, so it must never be
+  attached to the MAP CONTAINER.** Capturing there redirects every subsequent
+  pointer event away from Leaflet's own marker elements, and a vertex handle is
+  a draggable marker — it would stop dragging by finger the moment the container
+  captured. `js/touch.js` `wireMap()` therefore builds a `recognizer(...)`
+  directly and feeds it from its own capture-phase listeners: the same gesture
+  semantics, no capture. The 3D canvas and a sheet view own their pointers
+  outright, so they use `gestures` as it comes.
+- **A browser delivers one pointermove at a time**, so a two-finger gesture
+  arrives as a pair of half-transformed frames. Each `pinch` event reports the
+  frame it saw: `scale`/`dcx`/`twist` are since the LAST move and `totalScale`/
+  `totalTwist` since the gesture began. A test that expects one atomic
+  transform per pair of moves is wrong about the browser, not about the code.
+- **Momentum MUST settle.** `v *= 0.92` per frame, stop under 0.02 px/ms — about
+  55 frames — and nothing asks for a frame after that. A momentum that keeps
+  requesting frames leaves the 3D view rendering for ever and `test/perf.mjs`
+  fails an idle view that still renders. The e2e asserts the render count stops
+  moving after a flick.
+- **Pinch-dolly raycasts ONCE per gesture.** `pinchstart` picks the terrain under
+  the midpoint and every `pinch` dollies about that fixed scene point with
+  exactly the wheel's own maths (`dollyAbout`), plus `panBy(dcx, dcy)` for the
+  midpoint's own motion. Re-picking a 1.5 M-vertex mesh per pointermove is the
+  difference between a pinch that tracks and one that stutters.
+- **A tap also produces a `click`.** The 3D canvas's click handler is factored
+  into a module-level `canvasClick` that both the DOM `click` (mouse) and the
+  recogniser's `tap` call; the DOM handler bails on `SBMM.touch.touchRecent()`
+  so a tap never picks twice. The nav rig is built in its own closure
+  (`makeNav`), which is why `canvasClick` is module-level and not inside
+  `init()`.
+- **The loupe is not decoration.** A fingertip is ~44 px across and sits ON the
+  point it is placing, so a tap cannot place a vertex on a 1 in = 20 ft drawing.
+  Press-and-hold shows a 2.5x, 120-px circle above-left with a crosshair on the
+  exact point, the finger slides, and the vertex lands where it LIFTS. It is ONE
+  canvas shared by the map and every sheet window; the map's source is a
+  `snapshot()` of the pane canvases taken ONCE per press (there is no
+  html2canvas here and never will be), the sheet's is `st.img` directly. Two
+  fingers cancel the placement and become a pinch. A PEN skips all of it — a
+  Pencil tip is exactly where it looks.
+- **A long-press menu has to survive the finger coming OFF the glass.** The
+  press fires at 500 ms with the finger still down; the lift then produces a
+  synthetic `click`, and `js/map.js` closes the context menu on any document
+  click — so the menu opened, fully built, and vanished on release, which looks
+  exactly like the long-press never worked. The click-swallow in `wireMap()`
+  (capture phase on the map container, ahead of that document listener) is
+  armed by the placement AND by the long-press for this reason. It is not armed
+  on the menu itself, which is a sibling in `<body>`, so choosing an item still
+  works.
+- **`Enter`, `Backspace` and `Esc` do not exist under a thumb**, so a sketch open
+  under `body.touch` gets the Done bar (Done / Undo vertex / Cancel), one shared
+  element driven by `js/touch.js` for the map and `js/sheetmarks.js` for a sheet
+  window. The touch furniture — loupe, Done bar, tooltip chip, ink palette —
+  lives in a new **4900-4999** band, above the sheet windows (a loupe behind the
+  drawing it magnifies is useless) and below the picker, the modals and the
+  toast. It is in the stacking comment at the top of `css/app.css`.
+
+### The Pencil (§5a)
+
+- **Palm rejection is one question, asked in one place.** While a pen pointer is
+  down, or within 150 ms of it having been, a `touch` pointer is not a gesture:
+  the recogniser records it as a MODIFIER instead of dropping it, because "pen
+  drag with a finger held" IS a gesture — the 3D pan — and the handler reads
+  `g.modifier` to tell the two apart.
+- **Pen hover is a real hover**, so `js/pick3d.js` lets `pen` into the hover and
+  drag paths and keeps only `touch` out. A finger's press is how the orbit
+  starts, which is why a finger reaches a 3D vertex handle through
+  `SBMM.pick3d.touchDrag` from the rig's long-press instead — the same
+  onDown/onDrag/onUp the mouse uses, handed a synthetic event.
+- **REDLINE** (`MARKUP`, `INK`) is freehand ink and a MODE like every other tool.
+  `getCoalescedEvents()` is what makes a fast stroke a curve rather than a
+  polygon; `e.pressure` drives a width stored PER VERTEX so a stroke reloaded
+  from a session is the stroke that was made. The stroke is simplified on
+  pen-up through the **ring-aware** `simplifyPath` (a redline circle is the
+  commonest closed loop anyone draws, and naive DP collapses one). `ink` is in
+  all five FeatureGroup places (`layerFor`, `applyStyle`, `redraw`, `relayer`,
+  `rebuildFeature`), exports to GeoJSON as a LineString and to DXF on a
+  **`REDLINE`** layer (one layer whatever folder it was drawn into — "freeze the
+  redlines" needs one name), drapes in 3D **unshadowed** (a mark-up sits ON the
+  drawing), and prints in the report in its own colour rather than the quiet grey
+  every other background feature gets.
+- **Two things the spec asked for that are deliberately NOT what shipped, both
+  because `test/e2e.mjs` has to pass unchanged**, and both one line plus one
+  harness edit away: (i) the session integer is still **8**, not 9 — the `ink`
+  type is additive by the same mechanism every bump before it used, nothing
+  reads the number to decide anything, and `test/e2e.mjs` asserts `=== 8` in
+  three places; (ii) a redline joins the **Drawings** My-work class rather than
+  getting a "Redline" row of its own, because block 9z baselines every
+  `(group, id)` against `test/fixtures/layer_rows_pre_v16.json` and fails on an
+  invented row. Both are noted in the code at the line that would change.
+
+### The hardware (§5b)
+
+- Anisotropic filtering on the drape textures comes from
+  `renderer.capabilities.getMaxAnisotropy()` capped at 16, not the old constant 4
+  — the ortho at a grazing angle is where the 3D view looked cheap.
+- **A WebGL context loss is recovered, not a black rectangle.** iPad Safari drops
+  contexts under memory pressure; `webglcontextlost` prevents the default (which
+  is what makes a restore possible at all), `webglcontextrestored` rebuilds the
+  terrain, the drape and the overlays from the store, and both toast.
+- The compute pool is `max(2, min(8, hardwareConcurrency - 1))` — an M-series
+  iPad has 8-10 cores and was being given one worker. A two-core build box still
+  gets two.
+- **`download()` in `js/util.js` is the one place every export passes through**,
+  so `navigator.share({files})` goes there: on a touch device with a shareable
+  file it opens the iPad share sheet, and `<a download>` is the fallback on every
+  refusal except `AbortError` (the user closing the sheet is not a failure and
+  must not toast). Add an export path and it gets the share sheet for free.
+- Position and Photo are reachable in the TABLET profile through the top bar's
+  **Field ▾** menu — the same `js/field.js` functions, one more entry point — and
+  `SBMM.field.card()` falls back to the Inspector when there is no bottom sheet
+  to put it in.
+- A screen wake lock is held while Position is on or a job is in flight
+  (`SBMM.touch.keepAwake(reason, on)`, reference-counted, re-acquired on
+  `visibilitychange` because the browser takes it away when the tab is hidden).
+
+### The offline copy — the ONE `fetch()` exemption
+
+`sw.js` is the only file in this repo that may call `fetch`, and it is not the
+app. `js/touch.js` registers it **only when `location.protocol` is `http:` or
+`https:`** — over `file://` nothing registers, nothing fetches, and the Help
+button says why. It caches its own origin only. The precache list is read out of
+`index.html` AT PRECACHE TIME (its `<script src>`, `<link href>` and the icon
+set), never restated in the worker, because a second copy of a 90-line script
+list goes stale the first time a module is added. `index.html` is served
+network-first (a deployed change wins) and everything else cache-first; the
+FNV-1a hash of the served `index.html` is stored beside the cache, and a
+difference posts `{type:"stale"}` to every client, which becomes one toast and an
+"Update offline copy" button. `tools/build_dist.py` DROPS the `manifest` and
+icon `<link>`s from both single-file builds — beside a lone HTML file they are
+guaranteed 404s — and keeps the apple/theme meta tags, which carry no URL.
 
 ## Undo and redo (v9.4) — the both-closures rule and `readd`
 

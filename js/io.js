@@ -7,7 +7,7 @@ SBMM.io = (function () {
     const P = project;   // p -> coordinate pair
     if (f.type === "spot" || f.type === "text" || f.type === "photo") return { type: "Point", coordinates: P(f.pts[0]) };
     if (f.type === "line" || f.type === "profile" || f.type === "dim" || f.type === "sections"
-        || f.type === "flow")
+        || f.type === "flow" || f.type === "ink")
       return { type: "LineString", coordinates: f.pts.map(P) };
     return { type: "Polygon", coordinates: [[...f.pts, f.pts[0]].map(P)] };
   }
