@@ -89,10 +89,12 @@ await page.evaluate(() => {
   }
   SBMM.shell.setRightTab("results");
   /* the card is taller than the panel and the chart is its last element, so the
-     PANE is scrolled to it — never scrollIntoView, which scrolls the page and
-     takes every absolutely positioned thing in the app with it (CLAUDE.md) */
-  const body = document.getElementById("resBody");
-  if (body) body.scrollTop = body.scrollHeight;
+     PANE is scrolled to it through the app's own helper — never scrollIntoView,
+     which scrolls the PAGE and takes every absolutely positioned thing in the
+     app with it (CLAUDE.md). scrollIntoPane finds the scrollable ancestor,
+     which is the part a guess gets wrong. */
+  const chart = card && card.querySelector(".rnChart");
+  if (chart && typeof scrollIntoPane === "function") scrollIntoPane(chart);
 });
 await wait(1200);
 await shot("runoff_hydrograph");
