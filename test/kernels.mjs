@@ -34,6 +34,7 @@ import path from "node:path";
 import vm from "node:vm";
 import { fileURLToPath } from "node:url";
 import * as T from "./lib/terrain.mjs";
+import { decodePNG } from "./lib/png.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(HERE, "..");
@@ -2086,6 +2087,454 @@ function secDrainage() {
       Rs.sinks.every(s => s.path && s.path.length > 1), "exact");
 }
 
+/* ============================ 12. RUNOFF ================================= */
+/* docs/V14_PHASE2_RUNOFF_SPEC.md §3. A design storm over the Phase 1
+   catchments. The call sites mirrored are js/runoff.js jobFor() (the class
+   table out of data/cover.json, the overrides, the storm and the ARI's own
+   depth curve out of data/rainfall.json, the catchments out of the `drainage`
+   kernel with their paths lifted onto SBMM.elev) and js/runoff.js routeOne()
+   (level-pool, ported below because the routing lives on the host).
+
+   Every reference here is one of three things and says which: TR-55's own
+   equation restated (the curve-number identity, the sheet-flow and shallow-
+   concentrated arithmetic), an exact arithmetic identity of the kernel's own
+   construction (the unit hydrograph's volume and peak, the routing's volume
+   balance), or a value RECORDED FROM THIS COMMIT as a regression guard. */
+
+function coverRasterN() {
+  if (coverRasterN._c) return coverRasterN._c;
+  const meta = T.readJSON("data/cover.json");
+  const png = path.join(REPO, "data", "cover.png");
+  if (!fs.existsSync(png)) throw new Error("data/cover.png is missing — run tools/build_cover.py");
+  const st = fs.statSync(png);
+  const cdir = path.join(HERE, ".cache");
+  const cf = path.join(cdir, `cover_${st.size}_${Math.round(st.mtimeMs)}.bin`);
+  const n = meta.grid.w * meta.grid.h;
+  let data = null;
+  if (fs.existsSync(cf) && fs.statSync(cf).size === n) data = new Uint8Array(fs.readFileSync(cf));
+  if (!data) {
+    const img = decodePNG(fs.readFileSync(png));
+    if (img.w !== meta.grid.w || img.h !== meta.grid.h)
+      throw new Error(`cover.png is ${img.w}x${img.h} but cover.json says ${meta.grid.w}x${meta.grid.h}`);
+    const key = new Map();
+    for (const c of meta.classes) key.set((c.rgb[0] << 16) | (c.rgb[1] << 8) | c.rgb[2], c.id);
+    data = new Uint8Array(n);
+    for (let r = 0; r < img.h; r++) {
+      const dst = (img.h - 1 - r) * img.w;              // PNG row 0 = north
+      for (let i = 0; i < img.w; i++) {
+        const k = (r * img.w + i) * img.channels;
+        const id = key.get((img.data[k] << 16) | (img.data[k + 1] << 8) | img.data[k + 2]);
+        data[dst + i] = id == null ? 0 : id;
+      }
+    }
+    try { fs.mkdirSync(cdir, { recursive: true }); fs.writeFileSync(cf, Buffer.from(data)); } catch (e) {}
+  }
+  coverRasterN._c = { meta,
+    cover: { data, w: meta.grid.w, h: meta.grid.h, cell: meta.grid.cell,
+             x0: meta.grid.x0, y0: meta.grid.y0 } };
+  return coverRasterN._c;
+}
+
+/* js/runoff.js depthFor()/idfFor() — the rainfall payload, read the same way */
+function rainTable() { return T.readJSON("data/rainfall.json"); }
+function depthFor(rain, ari, hours) {
+  const pts = [];
+  for (const k of rain.durations) {
+    const row = rain.table[k];
+    const v = row && row.depths ? row.depths[String(ari)] : null;
+    if (v != null) pts.push([row.hours, +v]);
+  }
+  pts.sort((a, b) => a[0] - b[0]);
+  for (const p of pts) if (Math.abs(p[0] - hours) < 1e-9) return p[1];
+  if (pts.length < 2) return pts.length ? pts[0][1] : NaN;
+  let a = pts[0], b = pts[pts.length - 1];
+  for (let i = 1; i < pts.length; i++) {
+    if (hours <= pts[i][0]) { a = pts[i - 1]; b = pts[i]; break; }
+    if (i === pts.length - 1) { a = pts[i - 1]; b = pts[i]; }
+  }
+  const t = (Math.log(hours) - Math.log(a[0])) / (Math.log(b[0]) - Math.log(a[0]));
+  return Math.exp(Math.log(a[1]) + t * (Math.log(b[1]) - Math.log(a[1])));
+}
+function idfFor(rain, ari) {
+  const out = [];
+  for (const k of rain.durations) {
+    const row = rain.table[k];
+    const v = row && row.depths ? row.depths[String(ari)] : null;
+    if (v != null) out.push([row.hours, +v]);
+  }
+  return out.sort((a, b) => a[0] - b[0]);
+}
+/* js/runoff.js jobFor() */
+function runoffJobFor(labels, cats, o) {
+  o = o || {};
+  const { meta, cover } = coverRasterN();
+  const rain = rainTable();
+  const grass = meta.classes.find(c => c.key === "grass");
+  const ari = o.ari == null ? 25 : o.ari;
+  const hours = o.hours == null ? 24 : o.hours;
+  return {
+    labels, cover: o.cover === null ? null : cover,
+    classes: meta.classes.map(c => ({ id: c.id, key: c.key, hsg: c.hsg, c: c.c,
+                                      n_sheet: c.n_sheet, paved: c.paved, cn: c.cn })),
+    hsgOf: o.hsgOf || {}, overrides: o.overrides || [],
+    catchments: cats,
+    storm: { name: ari + "-year, " + hours + "-hour",
+             P_in: o.P == null ? depthFor(rain, ari, hours) : o.P,
+             duration_h: hours, dt_min: 6, distName: o.dist || "IA",
+             dist: rain.distributions[o.dist || "IA"] },
+    idf: idfFor(rain, ari), P2_24_in: depthFor(rain, 2, 24),
+    defaultClass: grass ? grass.id : -1,
+    sheetMax_ft: 100, channelStart_ac: 5, channelN: 0.035, channelR_ft: 1.0,
+    minTc_min: 6, rationalMaxAc: 200
+  };
+}
+
+/* js/runoff.js routeOne() — level-pool (Modified Puls) with the step solved by
+   bisection, which is what makes the volume balance exact rather than nearly */
+function routeOneRef(spec) {
+  const { stage, rimLevel, conduitLevel, inflow, dtMin, weirLen } = spec;
+  const dt = dtMin * 60, WEIR_C = 3.0;
+  const interp = (level, key) => {
+    if (level <= stage[0].level) return 0;
+    for (let i = 1; i < stage.length; i++)
+      if (level <= stage[i].level) {
+        const t = (level - stage[i - 1].level) / ((stage[i].level - stage[i - 1].level) || 1e-9);
+        return stage[i - 1][key] + t * (stage[i][key] - stage[i - 1][key]);
+      }
+    const top = stage[stage.length - 1];
+    return key === "storage_ft3" ? top.storage_ft3 + (level - top.level) * top.area_ft2 : top.area_ft2;
+  };
+  const levelFor = S => {
+    let lo = stage[0].level, hi = stage[stage.length - 1].level + 20;
+    for (let i = 0; i < 60; i++) { const m = (lo + hi) / 2; if (interp(m, "storage_ft3") < S) lo = m; else hi = m; }
+    return (lo + hi) / 2;
+  };
+  const outQ = l => (rimLevel != null && l > rimLevel)
+    ? WEIR_C * Math.max(1, weirLen) * Math.pow(l - rimLevel, 1.5) : 0;
+  let S = 0, level = stage[0].level, O = 0, volIn = 0, volOut = 0;
+  let peakLevel = level, peakT = 0, overT = null, conduitT = null, peakO = 0;
+  for (let i = 1; i < inflow.length; i++) {
+    const I0 = inflow[i - 1], I1 = inflow[i], pass = I1;
+    const f = Sx => {
+      const lx = levelFor(Sx);
+      const Ox = outQ(lx) + (conduitLevel != null && lx >= conduitLevel ? pass : 0);
+      return Sx - S - dt * ((I0 + I1) / 2 - (O + Ox) / 2);
+    };
+    let lo = Math.max(0, S - dt * (O + 1)), hi = S + dt * (I0 + I1 + 1);
+    for (let k = 0; k < 60; k++) { const m = (lo + hi) / 2; if (f(m) < 0) lo = m; else hi = m; }
+    const Sn = (lo + hi) / 2, ln = levelFor(Sn);
+    const On = outQ(ln) + (conduitLevel != null && ln >= conduitLevel ? pass : 0);
+    volIn += dt * (I0 + I1) / 2; volOut += dt * (O + On) / 2;
+    S = Sn; level = ln; O = On;
+    if (level > peakLevel) { peakLevel = level; peakT = i * dtMin / 60; }
+    if (O > peakO) peakO = O;
+    if (overT == null && rimLevel != null && level > rimLevel) overT = i * dtMin / 60;
+    if (conduitT == null && conduitLevel != null && level >= conduitLevel) conduitT = i * dtMin / 60;
+  }
+  return { peakLevel, peakT, peakOut: peakO, overtops: overT != null, overtopT: overT,
+           throughConduit: conduitT != null, volIn, volOut, dS: S,
+           balance: volIn > 0 ? (volIn - volOut - S) / volIn : 0 };
+}
+
+/* js/water.js stageTable() — the same job overtop() builds, headless */
+function stageForRing(M, ring, name, opts) {
+  opts = opts || {};
+  const b = ring.reduce((a, p) => [Math.min(a[0], p[0]), Math.min(a[1], p[1]),
+                                   Math.max(a[2], p[0]), Math.max(a[3], p[1])],
+                        [1e12, 1e12, -1e12, -1e12]);
+  const pad = 800;
+  const bbox = [b[0] - pad, b[1] - pad, b[2] + pad, b[3] + pad];
+  const dem = T.demForBox(bbox) || T.loadDem("dem_site");
+  const job = { grid: T.gridSpec(dem, bbox, 0), plateauTol: 0.3, rimRange: 3,
+                levelStep: 0.25, maxClusters: 12, seedRing: ring };
+  const cds = M.conduitsFor(bbox);
+  if (cds.length) { job.conduits = cds; job.captureFt = 3; }
+  if (opts.z0Override != null) job.z0Override = opts.z0Override;
+  if (opts.levels) job.levels = opts.levels;
+  const R = C.runJob("overtop", job).result;
+  R.name = name;
+  return R;
+}
+
+/* §3(f), RECORDED FROM THIS COMMIT and thereafter asserted as regression
+   guards. The 25-year 24-hour storm at the PROVISIONAL depth of 6.4 in over
+   the Phase 1 catchments; if the Atlas 14 export replaces the provisional
+   table these move, and they should — re-record them and say so. */
+const RUNOFF_REC = {
+  /* TBD — recorded on the first full run of this section; see §12.5/§12.6 */
+  P_in: 6.4, area_ac: 978.49, cn: 0, volume_acft: 0, qPeak_cfs: 0,
+  outlets: {},
+  ponds: {}
+};
+
+function secRunoff() {
+  const rain = rainTable();
+  const { meta } = coverRasterN();
+  console.log("\n§12.1  the curve-number arithmetic (TR-55 / NEH-630 ch. 10)");
+  /* (a) the identity itself: Q = (P - 0.2S)^2 / (P + 0.8S), S = 1000/CN - 10.
+     A synthetic one-class catchment through the kernel must reproduce it.
+     NOTE: the spec's §3(a) prints 2.17 in for P = 4.0 / CN = 85. That value
+     does not satisfy the equation (it is the answer for CN ~ 81.4); the
+     equation is the authority and both the kernel and the reference below use
+     it. CN 70 -> 1.33 in, the spec's other number, agrees exactly. */
+  const cnQ = (P, cn) => { const S = 1000 / cn - 10; return (P - 0.2 * S) ** 2 / (P + 0.8 * S); };
+  for (const cn of [85, 70]) {
+    const cls = [{ id: 0, key: "nodata", cn: { C: null, D: null }, hsg: null, c: null, n_sheet: null, paved: 0 },
+                 { id: 1, key: "x", cn: { C: cn, D: cn }, hsg: "C", c: 0.5, n_sheet: 0.15, paved: 0 }];
+    const w = 40, h = 40, cell = 10;
+    const lab = new Int32Array(w * h).fill(7);
+    const cov = new Uint8Array(w * h).fill(1);
+    const area = w * h * cell * cell;
+    const J = { labels: { data: lab, w, h, cell, x0: 0, y0: 0 },
+                cover: { data: cov, w, h, cell, x0: 0, y0: 0 },
+                classes: cls, catchments: [{ label: 7, name: "synthetic", area_ft2: area, path: [] }],
+                storm: { name: "P=4", P_in: 4.0, duration_h: 24, dt_min: 6,
+                         dist: rain.distributions.uniform },
+                idf: [[1, 1], [24, 4]], P2_24_in: 3.3, defaultClass: 1 };
+    const c = C.runJob("runoff", J).result.catchments[0];
+    near("Q at P 4.0 in, CN " + cn, +c.Q_in.toFixed(4), +cnQ(4.0, cn).toFixed(4), 0.01, " in");
+    near("  its composite CN", c.cn, cn, 0, "");
+  }
+  /* (b) the composite CN of a two-class catchment is the area-weighted value */
+  {
+    const cls = [{ id: 0, key: "nodata", cn: { C: null, D: null }, hsg: null, c: null, n_sheet: null, paved: 0 },
+                 { id: 1, key: "a", cn: { C: 98, D: 98 }, hsg: "C", c: 0.95, n_sheet: 0.011, paved: 1 },
+                 { id: 2, key: "b", cn: { C: 79, D: 84 }, hsg: "C", c: 0.35, n_sheet: 0.15, paved: 0 }];
+    const w = 100, h = 100, cell = 10;
+    const lab = new Int32Array(w * h).fill(3);
+    const cov = new Uint8Array(w * h);
+    for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) cov[j * w + i] = i < 30 ? 1 : 2;
+    const area = w * h * cell * cell;
+    const J = { labels: { data: lab, w, h, cell, x0: 0, y0: 0 },
+                cover: { data: cov, w, h, cell, x0: 0, y0: 0 }, classes: cls,
+                catchments: [{ label: 3, name: "two-class", area_ft2: area, path: [] }],
+                storm: { name: "P=4", P_in: 4.0, duration_h: 24, dt_min: 6, dist: rain.distributions.uniform },
+                idf: [[1, 1], [24, 4]], P2_24_in: 3.3, defaultClass: 2 };
+    const R2 = C.runJob("runoff", J).result.catchments[0];
+    near("composite CN, 30 % paved + 70 % grass", R2.cn, 0.3 * 98 + 0.7 * 79, 0.001, "");
+    near("  and the Rational C with it", R2.rationalC, 0.3 * 0.95 + 0.7 * 0.35, 0.001, "");
+    near("  class shares add to 1", R2.classes.reduce((a, k) => a + k.frac, 0), 1, 1e-9, "");
+    /* the same catchment with an override ring over all of it is one class */
+    const ring = [[-100, -100], [3000, -100], [3000, 3000], [-100, 3000]];
+    const R3 = C.runJob("runoff", Object.assign({}, J, { overrides: [{ ring, cls: 1 }] })).result.catchments[0];
+    near("an override ring makes it all paved", R3.cn, 98, 0.001, "");
+  }
+
+  console.log("\n§12.2  time of concentration (TR-55 ch. 3) on a 500-ft path");
+  /* (c) sheet flow over the first 100 ft, shallow concentrated over the rest;
+     the reference is TR-55's own arithmetic, written out. */
+  {
+    const cls = [{ id: 0, key: "nodata", cn: { C: null, D: null }, hsg: null, c: null, n_sheet: null, paved: 0 },
+                 { id: 7, key: "grass", cn: { C: 79, D: 84 }, hsg: "C", c: 0.35, n_sheet: 0.15, paved: 0 }];
+    const w = 60, h = 20, cell = 10;
+    const lab = new Int32Array(w * h).fill(5);
+    const cov = new Uint8Array(w * h).fill(7);
+    const path = [];
+    for (let k = 0; k <= 10; k++) path.push([k * 50, 0, 100 - 0.02 * k * 50]);   // 500 ft at 2 %
+    const area = 0.5 * AC;                       // small: never reaches the 5-ac channel rule
+    const J = { labels: { data: lab, w, h, cell, x0: 0, y0: 0 },
+                cover: { data: cov, w, h, cell, x0: 0, y0: 0 }, classes: cls,
+                catchments: [{ label: 5, name: "500-ft path", area_ft2: area, path }],
+                storm: { name: "P=4", P_in: 4.0, duration_h: 24, dt_min: 6, dist: rain.distributions.uniform },
+                idf: [[1, 1], [24, 4]], P2_24_in: 3.3, defaultClass: 7,
+                sheetMax_ft: 100, channelStart_ac: 5, minTc_min: 6 };
+    const c = C.runJob("runoff", J).result.catchments[0];
+    const s = 0.02, P2 = 3.3;
+    const tSheet = 0.007 * Math.pow(0.15 * 100, 0.8) / (Math.pow(P2, 0.5) * Math.pow(s, 0.4));
+    const vSc = 16.1345 * Math.sqrt(s);
+    const tSc = 400 / (3600 * vSc);
+    const segs = c.tcSegments;
+    exact("segments", segs.length, 2);
+    exact("  the first is sheet flow", segs[0].kind, "sheet");
+    near("  sheet 100 ft, TR-55 eq 3-3", segs[0].t_min, tSheet * 60, 0.02, " min");
+    exact("  the second is shallow concentrated", segs[1].kind, "shallow");
+    near("  unpaved velocity 16.1345*sqrt(s)", segs[1].v_fps, vSc, 0.01, " fps");
+    near("  400 ft of it", segs[1].t_min, tSc * 60, 0.02, " min");
+    near("Tc = the sum of the segments", c.tc_min, (tSheet + tSc) * 60, 0.03, " min");
+    /* a big catchment on the same path goes into channel flow, and its Tc is
+       shorter for it — the 5-acre rule, doing what it is for */
+    const big = C.runJob("runoff", Object.assign({}, J, {
+      catchments: [{ label: 5, name: "big", area_ft2: 200 * AC, path }] })).result.catchments[0];
+    row("200 ac on the same path uses channel flow",
+        big.tcSegments.map(q => q.kind).join(">"), "sheet>channel",
+        big.tcSegments.some(q => q.kind === "channel"), "contains channel");
+    row("  and its Tc is shorter", fmt(big.tc_min) + " min", "< " + fmt(c.tc_min) + " min",
+        big.tc_min < c.tc_min, "identity");
+  }
+
+  console.log("\n§12.3  the SCS unit hydrograph");
+  /* (d) volume = Q x A within 1 %, peak = 484*A*Q/Tp within 1 % */
+  {
+    const cls = [{ id: 0, key: "nodata", cn: { C: null, D: null }, hsg: null, c: null, n_sheet: null, paved: 0 },
+                 { id: 7, key: "grass", cn: { C: 80, D: 84 }, hsg: "C", c: 0.35, n_sheet: 0.15, paved: 0 }];
+    const w = 50, h = 50, cell = 20;
+    const lab = new Int32Array(w * h).fill(2);
+    const cov = new Uint8Array(w * h).fill(7);
+    const path = [];
+    for (let k = 0; k <= 20; k++) path.push([k * 200, 0, 200 - 0.03 * k * 200]);   // 4,000 ft at 3 %
+    const area = 40 * AC;
+    const J = { labels: { data: lab, w, h, cell, x0: 0, y0: 0 },
+                cover: { data: cov, w, h, cell, x0: 0, y0: 0 }, classes: cls,
+                catchments: [{ label: 2, name: "uh", area_ft2: area, path }],
+                storm: { name: "25-yr 24-h", P_in: 6.4, duration_h: 24, dt_min: 6,
+                         dist: rain.distributions.IA },
+                idf: idfFor(rain, 25), P2_24_in: depthFor(rain, 2, 24), defaultClass: 7 };
+    const c = C.runJob("runoff", J).result.catchments[0];
+    const dtH = c.hydro.dt_min / 60;
+    const uhVol = c.uh.q.reduce((a, b) => a + b, 0) * dtH * 3600;
+    pct("unit hydrograph volume = 1 in over the area", uhVol, area / 12, 1);
+    const uhPeak = Math.max.apply(null, c.uh.q) * c.Q_in;
+    pct("its peak x Q = 484*A*Q/Tp", uhPeak, 484 * (c.area_ac / 640) * c.Q_in / c.tp_h, 1);
+    const hVol = c.hydro.q.reduce((a, b) => a + b, 0) * dtH * 3600;
+    pct("the storm hydrograph's volume = Q x A", hVol, c.volume_ft3, 1);
+    row("and the storm peak is at or below the single-burst peak",
+        fmt(c.qPeak_cfs) + " cfs", "<= " + fmt(c.qUH_cfs) + " cfs",
+        c.qPeak_cfs <= c.qUH_cfs * 1.001, "identity");
+    note(`Tc ${c.tc_min} min, Tp ${c.tp_h} h, step ${fmt(c.hydro.dt_min, 2)} min, `
+       + `Q ${fmt(c.Q_in, 2)} in over ${fmt(c.area_ac, 1)} ac`);
+  }
+
+  console.log("\n§12.4  level-pool routing conserves volume");
+  /* (e) a prismatic pond with a known stage-storage: with the rim above every
+     stage nothing leaves and the storage IS the inflow volume; with the rim
+     inside the range the balance still closes. */
+  {
+    const A0 = 10000;                                   // ft2, constant area
+    const stage = [];
+    for (let k = 0; k <= 80; k++) stage.push({ level: k * 0.25, area_ft2: A0, storage_ft3: k * 0.25 * A0 });
+    const dtMin = 6;
+    const inflow = [];
+    for (let i = 0; i <= 240; i++) inflow.push(i < 60 ? i * 0.5 : Math.max(0, 30 - (i - 60) * 0.25));
+    const dry = routeOneRef({ stage, rimLevel: 999, conduitLevel: null, inflow, dtMin, weirLen: 20 });
+    pct("nothing leaves: storage = inflow volume", dry.dS, dry.volIn, 0.5);
+    near("  and the peak stage is that volume / the area", dry.peakLevel, dry.volIn / A0, 0.02, " ft");
+    const wet = routeOneRef({ stage, rimLevel: 4, conduitLevel: null, inflow, dtMin, weirLen: 20 });
+    row("inflow - outflow = change in storage", fmt(100 * wet.balance, 4) + " %", "0 %",
+        Math.abs(wet.balance) < 0.005, "+/- 0.5 %");
+    row("  and it overtopped the 4-ft rim", wet.overtops ? "yes at " + fmt(wet.overtopT, 1) + " h" : "no",
+        "yes", wet.overtops, "identity");
+    row("  peak outflow below the weir's own rating", fmt(wet.peakOut, 1) + " cfs",
+        fmt(3.0 * 20 * Math.pow(wet.peakLevel - 4, 1.5), 1) + " cfs",
+        Math.abs(wet.peakOut - 3.0 * 20 * Math.pow(wet.peakLevel - 4, 1.5)) < 0.5, "Q = 3.0 L H^1.5");
+    const conduit = routeOneRef({ stage, rimLevel: 999, conduitLevel: 2, inflow, dtMin, weirLen: 20 });
+    row("a conduit at 2 ft passes the inflow", conduit.throughConduit ? "yes" : "no", "yes",
+        conduit.throughConduit, "identity");
+    row("  so the pond stops rising near it", fmt(conduit.peakLevel, 2) + " ft", "< 3 ft",
+        conduit.peakLevel < 3, "identity");
+  }
+
+  console.log("\n§12.5  the real site — 25-year, 24-hour");
+  const site = T.loadDem("dem_site");
+  const M = stormModel();
+  const LR = clearLakeRing();
+  const g2 = T.gridSpec(site, null, 0);
+  const cds = drainConduits(M, g2);
+  const [D, dms] = timed(() => C.runJob("drainage",
+    { grid: T.gridSpec(site, null, 0), conduits: cds, captureFt: 3, lakeRing: LR,
+      stride: 4, maxPolys: 60 }).result);
+  note(`the Phase 1 map: ${D.sinks.length} outlets over ${(D.surveyedArea_ft2 / AC).toFixed(1)} ac, `
+     + `label raster ${D.w}x${D.h} at ${D.dCell} ft (${(dms / 1000).toFixed(1)} s)`);
+
+  const lift = p => {
+    const out = [];
+    for (const q of (p || [])) { const z = T.elev(q[0], q[1]); if (!Number.isNaN(z)) out.push([q[0], q[1], z]); }
+    return out;
+  };
+  const cats = D.sinks.map(s => ({ label: s.label, kind: s.kind, name: s.id,
+                                   area_ft2: s.area_ft2, path: lift(s.path) }));
+  const labels = { data: D.labels, w: D.w, h: D.h, cell: D.dCell, x0: D.x0, y0: D.y0 };
+  const [RO, rms] = timed(() => C.runJob("runoff", runoffJobFor(labels, cats, { ari: 25, hours: 24 })).result);
+  budget("runoff, the whole site", rms, 20000);
+  const by = id => RO.catchments.find(c => c.label === (D.sinks.find(s => s.id === id) || {}).label);
+
+  near("the storm's depth (the provisional 25-yr 24-h)", RO.storm.P_in, RUNOFF_REC.P_in, 0.001, " in");
+  near("site area (Phase 1's own)", RO.totals.area_ac, RUNOFF_REC.area_ac, 0.05, " ac");
+  near("site composite CN (recorded)", RO.totals.cn, RUNOFF_REC.cn, 0.5, "");
+  near("site runoff volume (recorded)", RO.totals.volume_acft, RUNOFF_REC.volume_acft, 1, " ac-ft");
+  near("site peak, SCS (recorded)", RO.totals.qPeak_cfs, RUNOFF_REC.qPeak_cfs, RUNOFF_REC.qPeak_cfs * 0.02, " cfs");
+  for (const [id, ref] of Object.entries(RUNOFF_REC.outlets)) {
+    const c = by(id);
+    row(id + " volume (recorded)", c ? +c.volume_acft.toFixed(2) : NaN, ref.vol,
+        !!c && Math.abs(c.volume_acft - ref.vol) <= 0.5, "+/- 0.5 ac-ft",
+        c ? `CN ${fmt(c.cn, 0)}, Q ${fmt(c.Q_in, 2)} in, Tc ${c.tc_min} min, SCS ${fmt(c.qPeak_cfs, 0)} cfs` : "missing");
+    if (c) near("  " + id + " peak, SCS (recorded)", c.qPeak_cfs, ref.peak, Math.max(1, ref.peak * 0.03), " cfs");
+  }
+  /* the identity every catchment table has to satisfy: the volumes are a
+     partition of the site's, because the catchments are */
+  const sumVol = RO.catchments.reduce((a, c) => a + c.volume_ft3, 0);
+  near("the catchment volumes add to the site's", sumVol / AC, RO.totals.volume_acft, 0.01, " ac-ft");
+  row("every catchment has a curve number", RO.catchments.filter(c => !isNaN(c.cn)).length,
+      RO.catchments.length, RO.catchments.every(c => !isNaN(c.cn)), "exact");
+
+  console.log("\n§12.6  the ponds, routed");
+  /* the three named ponds, each seeded with EA's own water polygon so the
+     August-2026 survey applies to the impoundment (js/runoff.js routeAll) */
+  const firstCats = D.ponds.filter(p => p.contributing_area_ft2 > 0).map(p => ({
+    label: p.label, kind: "pond", name: p.via || ("pond " + p.label),
+    area_ft2: p.contributing_area_ft2,
+    path: [[p.entry[0], p.entry[1], T.elev(p.entry[0], p.entry[1])]]
+  }));
+  const first = { data: D.first, w: D.w, h: D.h, cell: D.dCell, x0: D.x0, y0: D.y0 };
+  const RF = C.runJob("runoff", runoffJobFor(first, firstCats, { ari: 25, hours: 24 })).result;
+  const inflowOf = via => {
+    const p = D.ponds.find(q => q.via === via);
+    if (!p) return null;
+    const c = RF.catchments.find(q => q.label === p.label);
+    return c ? c.hydro : null;
+  };
+  const PONDS = [
+    ["Herman Impoundment", "herman_pipe_s", { z0Override: 1336.45, levels: [1341.55, 1343.54] }],
+    ["Frog Pond", "pond_culvert", {}],
+    ["Green Pond", "green_outlet", {}]
+  ];
+  for (const [nm, via, opt] of PONDS) {
+    const ring = waterRing(nm);
+    const S = stageForRing(M, ring, nm, opt);
+    const hy = inflowOf(via);
+    const ref = RUNOFF_REC.ponds[via];
+    if (!hy) { row(nm + ": an inflow hydrograph", "none", "one", false, "exact"); continue; }
+    const cl = S.conduitSpill ? (S.conduitSpill.stageLevel != null ? S.conduitSpill.stageLevel : S.conduitSpill.level) : null;
+    const cluster = S.clusters && S.clusters.length ? S.clusters[0] : null;
+    const rr = routeOneRef({ stage: S.stage, rimLevel: S.primary.level, conduitLevel: cl,
+                             inflow: hy.q, dtMin: hy.dt_min,
+                             weirLen: cluster ? Math.max(S.cell, cluster.cells * S.cell) : S.cell });
+    near(nm + ": rim spill (the v13 golden)", S.primary.level, ref.rim, 0.02, " ft");
+    if (ref.conduit != null) near("  its conduit spill (the v13 golden)", cl, ref.conduit, 0.02, " ft");
+    near("  routed peak stage (recorded)", +rr.peakLevel.toFixed(2), ref.peak, 0.05, " ft");
+    row("  overtops the rim?", rr.overtops ? "yes" : "no", ref.overtops ? "yes" : "no",
+        rr.overtops === ref.overtops, "recorded",
+        `inflow peak ${fmt(Math.max.apply(null, hy.q), 1)} cfs, ${fmt(rr.volIn / AC, 1)} ac-ft in`);
+    row("  volume balance", fmt(100 * rr.balance, 4) + " %", "0 %",
+        Math.abs(rr.balance) < 0.005, "+/- 0.5 %");
+  }
+
+  console.log("\n§12.7  the cover raster");
+  /* (g) the classes are a partition of the surveyed ground, and the paved
+     class agrees with EA's own road and building geometry */
+  {
+    const { meta, cover } = coverRasterN();
+    const counts = new Float64Array(64);
+    for (let i = 0; i < cover.data.length; i++) counts[cover.data[i]]++;
+    const a2 = cover.cell * cover.cell;
+    const surveyed = (cover.data.length - counts[0]) * a2;
+    near("the class areas add to the surveyed ground", surveyed / AC,
+         meta.surveyed_ft2 / AC, 0.01, " ac");
+    near("  which is the drainage map's surveyed area", surveyed / AC,
+         D.surveyedArea_ft2 / AC, 1.0, " ac");
+    const idOf = k => (meta.classes.find(c => c.key === k) || {}).id;
+    const paved = (counts[idOf("paved")] + counts[idOf("roof")]) * a2;
+    const an = meta.analytic_check;
+    const ref = an.paved_road_ft2 + an.building_ft2;
+    pct("paved + roofs vs EA's own geometry", paved, ref, 5);
+    note("cover classes, biggest first: " + meta.classes.filter(c => c.id)
+      .map(c => [c.key, counts[c.id] * a2 / AC])
+      .sort((a, b) => b[1] - a[1])
+      .map(([k, v]) => `${k} ${v.toFixed(1)} ac`).join(", "));
+    note(`green-excess threshold ${meta.green_excess_threshold}, canopy >= `
+       + `${meta.canopy_min_ft} ft, road half-width ${meta.road_half_width_ft.paved} ft`);
+  }
+}
+
 /* ============================== run ====================================== */
 const SECTIONS = [
   { key: "volume", run: secVolume },
@@ -2099,7 +2548,8 @@ const SECTIONS = [
   { key: "water", run: secWater },
   { key: "storm", run: secStorm },
   { key: "water3d", run: secWater3d },
-  { key: "drainage", run: secDrainage }
+  { key: "drainage", run: secDrainage },
+  { key: "runoff", run: secRunoff }
 ];
 
 if (listOnly) {
@@ -2110,13 +2560,13 @@ if (listOnly) {
 const C = loadCompute();
 const Delaunay = loadDelaunay();
 console.log("SBMM kernel harness — js/compute.js VERSION " + C.VERSION +
-            (C.VERSION === 8 ? "" : "  (!! expected 8)"));
-if (C.VERSION !== 8) { fails++; checks++; }
+            (C.VERSION === 9 ? "" : "  (!! expected 9)"));
+if (C.VERSION !== 9) { fails++; checks++; }
 
 /* every kernel runJob dispatches must have a section here (V11 spec §2.4) */
 const COVERED = ["volume", "isopach", "raster", "contours", "design", "balance", "sections",
                  "wand", "cbound", "toecrest", "stands", "trees", "flowpath", "overtop", "catchment",
-                 "drainage"];
+                 "drainage", "runoff"];
 {
   const src = fs.readFileSync(path.join(REPO, "js", "compute.js"), "utf8");
   const dispatched = [...src.matchAll(/if \(kind === "([a-z]+)"\) return /g)].map(m => m[1]);

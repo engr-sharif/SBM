@@ -432,6 +432,22 @@ SBMM.runoff = (function () {
     };
   }
 
+  /* EA's own water polygon around a point, if there is one — the seed a stage
+     table wants (see routeAll). Named polygons only: an unnamed sliver is not
+     the pond anyone is routing. */
+  function waterRingAt(x, y) {
+    const D = DATA().design_gis;
+    if (!D || !D.features) return null;
+    for (const f of D.features) {
+      const p = f.properties || {};
+      if (p.layer !== "water" || !p.name || p.name === "Unnamed Water Feature") continue;
+      if (!f.geometry || f.geometry.type !== "Polygon") continue;
+      const ring = f.geometry.coordinates[0];
+      if (pointInPoly(x, y, ring)) return { name: p.name, ring: ring.map(q => [q[0], q[1]]) };
+    }
+    return null;
+  }
+
   /* Which ponds get routed, in chain order, and where each one's inflow comes
      from. The chain is read off the network rather than named here: a pond
      whose conduit discharges INSIDE another routed pond is upstream of it. */
@@ -443,7 +459,16 @@ SBMM.runoff = (function () {
     const tables = new Map();
     for (const c of wanted) {
       const p = c.pondRef;
-      const T = await SBMM.water.stageTable({ point: p.entry, name: c.name });
+      /* Seed the stage table with EA's own water polygon where the pond has
+         one: a ring seed is what lets js/water.js apply the AUGUST-2026 SURVEY
+         (the impoundment's surveyed water surface and the exact stage rows at
+         the two 24-in pipe inverts and the sandbag crest). A point seed would
+         route the impoundment off the lidar's January-2024 water surface and
+         lose the 1341.55 row the card is checked against. */
+      const wr = waterRingAt(p.entry[0], p.entry[1]);
+      const T = await SBMM.water.stageTable(wr
+        ? { ring: wr.ring, name: wr.name }
+        : { point: p.entry, name: c.name });
       if (!T || !T.stage || !T.stage.length) continue;
       tables.set(c.label, T);
     }
@@ -590,7 +615,7 @@ SBMM.runoff = (function () {
       ["Time of concentration", `TR-55: sheet ≤ ${a.sheetMax_ft} ft, shallow concentrated, `
         + `channel above ${a.channelStart_ac} ac (n ${a.channelN}, R ${a.channelR_ft} ft)`],
       ["Peaks", `Rational to ${a.rationalMaxAc} ac; SCS unit hydrograph (PRF 484) for every catchment`],
-      ["Catchments", `Phase 1 drainage map on the ${R.gridFt}-ft grid, sampled at ${R.dCell} ft`],
+      ["Catchments", `Phase 1 drainage map, ${R.gridFt}-ft lidar grid (sampled at ${R.dCell} ft)`],
       ["Clear Lake", "free outfall"]
     ];
   }
@@ -959,6 +984,7 @@ SBMM.runoff = (function () {
     storms, stormOf, depthFor, idfFor, provisional, settings,
     result: () => R, hasResult: () => !!R, isBuilt: () => built,
     routing: () => (R ? R.routing : []),
+    waterRingAt,
     catchment: label => R ? (R.outlets.find(c => c.label === label)
       || R.first.find(c => c.label === label) || null) : null,
     paintDepth, showCard, NOTE

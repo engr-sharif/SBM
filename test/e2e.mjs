@@ -5054,6 +5054,207 @@ await page.evaluate(() => {
   SBMM.layerState.set("framework", "drain_first", { on: false });
 });
 
+/* ==================================================================== */
+/* 9aa. design storm — rainfall and runoff (v14 Phase 2,                */
+/*      docs/V14_PHASE2_RUNOFF_SPEC.md §3)                              */
+/* ==================================================================== */
+/* The arithmetic is proved in node (test/kernels.mjs §12, against TR-55's own
+   equations and the kernel's own volume identities). What is proved HERE is
+   that the app wires it up: RAIN opens the dialog, the run produces the card
+   with its catchment and pond rows, the provisional warning tells the truth
+   about the baked rainfall, a drawn cover override really changes a curve
+   number, the report and the CSV come out, the two layer rows draw, and none
+   of it — except the override, which is an ordinary area feature — reaches the
+   session or spawns a job on reload. The drainage map computed in 9x is reused,
+   so this costs one runoff job and three stage tables. */
+const errBeforeRain = errors.length;
+
+/* the command opens the dialog, and RAIN belongs to exactly one command */
+const rainDlg = await page.evaluate(() => {
+  SBMM.cmd.run("RAIN");
+  const box = document.getElementById("rainDlg");
+  const out = {
+    open: !!box,
+    storms: box ? [...box.querySelectorAll("#rnStorm option")].map(o => o.textContent.trim()) : [],
+    warn: box ? !!box.querySelector(".mnote .bad") : false,
+    classes: box ? box.querySelectorAll("#rnCls option").length : 0,
+    provisional: SBMM.runoff.provisional()
+  };
+  if (box) box.remove();
+  return out;
+});
+console.log("RAIN dialog:", JSON.stringify(rainDlg));
+if (!rainDlg.open) { console.log("FAIL: RAIN did not open the Design storm dialog"); process.exit(1); }
+if (rainDlg.storms.length < 5) { console.log("FAIL: the dialog offers fewer than five storms"); process.exit(1); }
+if (rainDlg.classes < 5) { console.log("FAIL: the dialog has no cover classes to assign"); process.exit(1); }
+/* the warning is not decoration: it must agree with the payload */
+if (rainDlg.warn !== rainDlg.provisional)
+  { console.log("FAIL: the provisional-rainfall warning disagrees with the payload"); process.exit(1); }
+
+const rainT0 = Date.now();
+const rainRun = await page.evaluate(async () => {
+  const R = await SBMM.runoff.run({ storm: "25:24" });
+  if (!R) return { failed: true };
+  const rowsFor = re => [...document.querySelectorAll("#resBody .res")]
+    .filter(el => re.test(el.querySelector("h4").textContent));
+  const cardEl = rowsFor(/Design storm/)[0] || null;
+  const tables = cardEl ? [...cardEl.querySelectorAll("table.runoffT")] : [];
+  return {
+    storm: R.storm.name, P: R.storm.P, provisional: R.provisional,
+    outlets: R.outlets.length, first: R.first.length,
+    cn: R.totals.cn, volume: +R.totals.volume_acft.toFixed(2),
+    peak: R.totals.qPeak_cfs,
+    routing: R.routing.map(r => ({ name: r.name, peak: r.peakLevel, rim: r.rimLevel,
+                                   conduit: r.conduitLevel, over: r.overtops,
+                                   bal: r.balance_pct })),
+    card: !!cardEl,
+    catchmentRows: tables.length ? tables[0].querySelectorAll("tr").length - 1 : 0,
+    pondRows: tables.length > 1 ? tables[1].querySelectorAll("tr").length - 1 : 0,
+    warnOnCard: cardEl ? !!cardEl.querySelector(".rnProv") : false,
+    chart: cardEl ? !!cardEl.querySelector("svg.hydro path") : false,
+    assumptions: cardEl ? /Soil group|soil group/.test(cardEl.textContent) : false,
+    hasHydro: R.outlets.every(c => c.hydro && c.hydro.q.length > 10),
+    everyCN: R.outlets.every(c => c.cn > 0 && c.cn <= 100)
+  };
+});
+console.log("design storm:", JSON.stringify(rainRun));
+if (rainRun.failed) { console.log("FAIL: the design storm produced nothing"); process.exit(1); }
+if (Date.now() - rainT0 > 60000) { console.log("FAIL: the design storm took over 60 s"); process.exit(1); }
+if (!rainRun.card) { console.log("FAIL: no Design storm results card"); process.exit(1); }
+if (rainRun.catchmentRows < 4) { console.log("FAIL: fewer than four catchment rows"); process.exit(1); }
+if (rainRun.pondRows < 3) { console.log("FAIL: fewer than three pond routing rows"); process.exit(1); }
+if (!rainRun.everyCN) { console.log("FAIL: a catchment has no curve number"); process.exit(1); }
+if (!rainRun.hasHydro) { console.log("FAIL: a catchment has no hydrograph"); process.exit(1); }
+if (!rainRun.chart) { console.log("FAIL: the card has no hydrograph chart"); process.exit(1); }
+if (!rainRun.assumptions) { console.log("FAIL: the card does not print the assumptions"); process.exit(1); }
+if (rainRun.warnOnCard !== rainRun.provisional)
+  { console.log("FAIL: the card's provisional warning disagrees with the payload"); process.exit(1); }
+/* the routing conserves volume — the same identity the node harness asserts */
+for (const r of rainRun.routing) {
+  if (Math.abs(r.bal) > 0.5) {
+    console.log("FAIL: level-pool routing lost volume at " + r.name + ": " + r.bal + " %");
+    process.exit(1);
+  }
+}
+/* the impoundment is routed against the surveyed stages, not the lidar's */
+const herman = rainRun.routing.find(r => /Herman/i.test(r.name));
+if (!herman) { console.log("FAIL: the impoundment was not routed"); process.exit(1); }
+if (Math.abs(herman.rim - 1343.84) > 0.05)
+  { console.log("FAIL: the impoundment's rim moved from 1343.84:", herman.rim); process.exit(1); }
+if (herman.conduit == null || Math.abs(herman.conduit - 1341.55) > 0.1)
+  { console.log("FAIL: the impoundment's first discharge is not the surveyed pipe:", herman.conduit); process.exit(1); }
+
+/* a drawn cover override really changes a curve number */
+const rainOv = await page.evaluate(async () => {
+  const R = SBMM.runoff.result();
+  const big = R.outlets.slice().sort((a, b) => b.area_ft2 - a.area_ft2)[0];
+  const before = big.cn;
+  /* a square inside the impoundment's catchment, made paved: the CN can only go up */
+  const x = 6372119.56, y = 2127446.20, s = 400;
+  const f = SBMM.tools.rebuildFeature({ type: "area", name: "Cover override",
+    pts: [[x - s, y - s], [x + s, y - s], [x + s, y + s], [x - s, y + s]], props: {} });
+  SBMM.runoff.assignCover("paved", f);
+  const R2 = await SBMM.runoff.run({});
+  const after = (R2.outlets.find(c => c.label === big.label) || {}).cn;
+  return { id: f.id, name: big.name, before, after,
+           overrides: SBMM.runoff.overrides().length,
+           prop: f.props.cover };
+});
+console.log("cover override:", JSON.stringify(rainOv));
+if (rainOv.prop !== "paved") { console.log("FAIL: the override area did not take the cover class"); process.exit(1); }
+if (!(rainOv.after > rainOv.before))
+  { console.log("FAIL: a paved override did not raise the catchment's CN"); process.exit(1); }
+
+/* the report sheet and the CSV */
+const rainOut = await page.evaluate(() => {
+  const html = SBMM.report.runoffHTML(SBMM.runoff.result());
+  const csv = SBMM.runoff.csv();
+  const opened = !!SBMM.report.openRunoff(SBMM.runoff.result());
+  const modal = !!document.getElementById("reportModal");
+  const box = document.getElementById("reportModal");
+  if (box) box.remove();
+  return {
+    opened, modal,
+    /* the assumptions table comes FIRST, before any quantity */
+    assumptionsFirst: html.indexOf("Assumptions") < html.indexOf("Runoff by catchment"),
+    hsg: /D for mine waste/.test(html),
+    weir: /3.0/.test(html) && /weir/i.test(html),
+    author: /Mohammad Sharif/.test(html),
+    csvHead: csv.split("\n")[0],
+    csvCat: /catchment,kind,acres,CN/.test(csv),
+    csvRoute: /pond routing/.test(csv),
+    csvAssume: /assumptions/.test(csv),
+    csvCover: /cover class,acres/.test(csv)
+  };
+});
+console.log("design storm report/CSV:", JSON.stringify(rainOut));
+if (!rainOut.opened || !rainOut.modal) { console.log("FAIL: the design-storm report did not open"); process.exit(1); }
+if (!rainOut.assumptionsFirst) { console.log("FAIL: the report does not lead with the assumptions"); process.exit(1); }
+if (!rainOut.hsg || !rainOut.weir) { console.log("FAIL: the report omits an assumption it rests on"); process.exit(1); }
+if (!rainOut.author) { console.log("FAIL: the report has no author block"); process.exit(1); }
+if (!rainOut.csvCat || !rainOut.csvRoute || !rainOut.csvAssume || !rainOut.csvCover)
+  { console.log("FAIL: the design-storm CSV is missing a block"); process.exit(1); }
+
+/* the two layer rows draw */
+const rainRows = await page.evaluate(async () => {
+  SBMM.layerState.set("framework", "runoff_cover", { on: true });
+  SBMM.layerState.set("framework", "runoff_depth", { on: true });
+  await new Promise(r => setTimeout(r, 500));
+  let imgs = 0, polys = 0;
+  SBMM.map.eachLayer(l => {
+    if (l instanceof L.ImageOverlay && /cover/.test(l._url.slice(0, 40) + "x")) imgs++;
+    if (l instanceof L.Polygon && l.options.fillOpacity === 0.34) polys++;
+  });
+  const legend = document.querySelectorAll(".rnLegend .rnLeg").length;
+  const pop = SBMM.popups.forRunoff(SBMM.runoff.result().outlets[0].label);
+  return {
+    rows: ["runoff_cover", "runoff_depth"].map(id => !!document.querySelector(`.lyr[data-lid="${id}"]`)),
+    imgs, polys, legend,
+    popup: /Curve number/.test(pop) && /Runoff volume/.test(pop),
+    popupAssumption: /provisional|Atlas 14|composite/.test(pop)
+  };
+});
+console.log("design storm layers:", JSON.stringify(rainRows));
+if (!rainRows.rows.every(Boolean)) { console.log("FAIL: the design-storm rows are not in the tree"); process.exit(1); }
+if (rainRows.polys < 4) { console.log("FAIL: the runoff-depth choropleth drew nothing"); process.exit(1); }
+if (!rainRows.legend) { console.log("FAIL: the cover row has no CN legend"); process.exit(1); }
+if (!rainRows.popup) { console.log("FAIL: the runoff popup does not name its numbers"); process.exit(1); }
+
+/* the session: the override rides in it, the analysis does not, and a reload
+   spawns no job (the same contract the raindrop has had since v10) */
+const rainSess = await page.evaluate(async () => {
+  const wait = ms => new Promise(r => setTimeout(r, ms));
+  const ser = JSON.parse(JSON.stringify(SBMM.store.serialize()));
+  const txt = JSON.stringify(ser);
+  const jobs0 = SBMM.compute.stats.workerJobs + SBMM.compute.stats.syncJobs;
+  SBMM.store.restore(JSON.parse(JSON.stringify(ser)));
+  await wait(600);
+  const jobs1 = SBMM.compute.stats.workerJobs + SBMM.compute.stats.syncJobs;
+  const back = SBMM.store.features.filter(f => f.props && f.props.cover === "paved").length;
+  return {
+    covers: (txt.match(/"cover":"paved"/g) || []).length,
+    analysis: (txt.match(/design storm|qPeak_cfs|tcSegments/gi) || []).length,
+    jobs: jobs1 - jobs0, back,
+    layerState: !!(ser.layers && ser.layers.framework && "runoff_cover" in ser.layers.framework)
+  };
+});
+console.log("design storm in a session:", JSON.stringify(rainSess));
+if (!rainSess.covers) { console.log("FAIL: the cover override did not serialise"); process.exit(1); }
+if (!rainSess.back) { console.log("FAIL: the cover override did not survive the round trip"); process.exit(1); }
+if (rainSess.analysis) { console.log("FAIL: the design storm leaked into the session"); process.exit(1); }
+if (rainSess.jobs) { console.log("FAIL: reloading a session spawned " + rainSess.jobs + " job(s)"); process.exit(1); }
+if (!rainSess.layerState) { console.log("FAIL: the design-storm layer state does not serialise"); process.exit(1); }
+
+if (errors.length !== errBeforeRain) {
+  console.log("FAIL: the design storm raised page errors:", errors.slice(errBeforeRain, errBeforeRain + 4));
+  process.exit(1);
+}
+await page.evaluate(() => {
+  SBMM.layerState.set("framework", "runoff_cover", { on: false });
+  SBMM.layerState.set("framework", "runoff_depth", { on: false });
+  for (const f of SBMM.store.features.filter(g => g.props && g.props.cover)) SBMM.tools.deleteFeature(f);
+});
+
 /* 10. screenshot 2D — feature manager open, with the Pile 1 volume drawn */
 await page.click('#leftTabs .dtab[data-tab="features"]');
 await page.waitForTimeout(600);
