@@ -467,8 +467,12 @@ SBMM.popups = (function () {
     acts.push(btn("assumptions…", () => SBMM.runoff.dialog(),
                   "Change the storm, the soil group or the TR-55 segments"));
     acts.push(btn("report", () => SBMM.runoff.report(), "The printable design-storm sheet"));
-    if (SBMM.drainage && SBMM.drainage.hasResult())
-      acts.push(btn("what drains here", () => SBMM.drainage.showInto({ xy: [c.x || 0, c.y || 0] }),
+    /* the catchment's own outlet point comes from the Phase 1 record, not from
+       the runoff row — a runoff catchment carries quantities, not a position */
+    const D = SBMM.drainage && SBMM.drainage.hasResult() ? SBMM.drainage.result() : null;
+    const sink = D ? D.sinks.find(q => q.label === label) : null;
+    if (sink)
+      acts.push(btn("what drains here", () => SBMM.drainage.showInto({ xy: [sink.x, sink.y] }),
                     "Highlight the contributing catchments"));
     h += actions(acts.join(""));
     h += `<br><span style="opacity:.6;font-size:11px">${esc(SBMM.runoff.NOTE)}</span>`;
