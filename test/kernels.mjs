@@ -2839,6 +2839,35 @@ function secWasm() {
     identicalResult("contours (real terrain)", a2, b2,
       a2.levels.length + " polylines, " + (a2.coords.length / 2) + " vertices");
   }
+
+  /* ---- drainage -----------------------------------------------------------
+     The whole map, both cores, on the FIELD build's 4-ft grid: it is the same
+     kernel over the same site (the section-11 run is the 2-ft one and takes
+     five minutes a side), it exercises the two rules the 4-ft grid is the only
+     one to hit -- an inlet's own nearest cell counting as a capture cell, and
+     the uphill-parent one-cell component -- and it asks for the polygons and
+     the flow paths, which the 2-ft section switches off. */
+  {
+    const site = T.loadDem("dem_site");
+    const M = stormModel();
+    const LR = clearLakeRing();
+    const g4 = decimateGrid(T.gridSpec(site, null, 0), 2);
+    const cds = drainConduits(M, g4);
+    const [a, b, jms, wms] = ab("drainage", () =>
+      C.runJob("drainage", { grid: g4, conduits: cds, captureFt: 3, lakeRing: LR,
+                             stride: 4 }).result, false);
+    speed("drainage, " + a.gw + "x" + a.gh + " at " + a.cell + " ft", jms, wms);
+    /* `ms` is the kernel's own wall clock and differs by construction */
+    const strip = r => { const c = { ...r }; delete c.ms; return c; };
+    identicalResult("drainage (whole site, 4 ft)", strip(a), strip(b),
+      a.sinks.length + " outlets, " + a.ponds.length + " ponds, " + a.inlets.length +
+      " inlets, " + a.pondsTotal + " depressions");
+    row("the map really has polygons and paths",
+        a.sinks.reduce((n, s) => n + s.rings.length, 0) + " rings, " +
+        a.sinks.reduce((n, s) => n + (s.path ? 1 : 0), 0) + " paths",
+        "> 0 rings", a.sinks.reduce((n, s) => n + s.rings.length, 0) > 0, "identity");
+    exact("no unresolved loops on either core", a.loops + "/" + b.loops, "0/0");
+  }
 }
 
 /* the Herman ring's bbox +/- 800 ft, the window js/water.js cuts for the
