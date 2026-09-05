@@ -29,14 +29,13 @@ desktop.ini
 _staging/
 _to_delete/
 
-# kernel-harness decoded-terrain cache (test/lib/terrain.mjs)
+# kernel-harness decoded-terrain cache (test/lib/terrain.mjs).
+# BOTH forms, and the one without the slash is the one that matters: an agent
+# worktree makes test/.cache a SYMLINK into the main checkout, `test/.cache/`
+# matches a directory and not a symlink, and one got committed that way — an
+# absolute path to one machine's disk, which broke the Pages build.
 test/.cache
 test/.cache/
-# ...and the path itself, because an agent worktree makes test/.cache a SYMLINK
-# into the main checkout and a trailing-slash pattern does not match a symlink.
-# One got committed that way (an absolute path to one machine's disk, useless
-# anywhere else); this is what stops the next one.
-test/.cache
 
 # agent worktrees (Claude Code isolation)
 .claude/worktrees/
