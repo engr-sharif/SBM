@@ -17,6 +17,40 @@ All three are offline-only by design. Nothing in this app calls out to the inter
 
 ---
 
+## v9.16 — the heavy analyses run in a compiled core
+
+The drainage map, the overtopping flood, the raindrop, volumes and contours are loops
+over millions of grid cells, and they were the slowest thing in the app. They now run in
+a small compiled **WebAssembly** core when your browser has one, which every browser on
+your desk and on the iPad does.
+
+**Nothing about the answers changed, and that is checked rather than claimed.** The
+original JavaScript calculations are still in the app — they are the reference, and they
+are what runs if the compiled core will not load for any reason. Every calculation is run
+BOTH ways on the same job and the two results are compared number for number, including
+the rasters, before anything ships: **every one of them is bit-for-bit identical**. Pile
+1 still comes out at 278.5 yd³ against the published 278.4, computed by the new core.
+
+What you will notice: contours redraw in a blink rather than a beat, the drainage map and
+the overtopping analysis finish in roughly half the time, and a volume is instant. On the
+build box, measured side by side in one run:
+
+| | before | after | |
+|---|---|---|---|
+| contours over the site window | 199 ms | **12 ms** | 16× |
+| the Herman overtopping flood, drains on | 4.4 s | **2.1 s** | 2.1× |
+| the raindrop, chained through the storm network | 4.4 s | **2.3 s** | 1.9× |
+| the drainage map, whole site | 1.5 s | **0.9 s** | 1.6× |
+| a volume over a traced pile | 10 ms | **2 ms** | 5× |
+
+Every results card now says which of the two computed it and in how many milliseconds, so
+you can see it for yourself; Help has a **Force JavaScript kernels** switch if you ever
+want to compare. It works in all three copies of the app — the folder, the single file and
+the field build — because the core ships inside the file the same way the terrain and the
+imagery do. Nothing is downloaded, and the app still makes no network calls at all.
+
+---
+
 ## v9.15 — the tests, made quick
 
 You asked why a round takes "hours and hours". Measured on the cloud box: a desktop
