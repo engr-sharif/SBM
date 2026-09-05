@@ -1028,18 +1028,29 @@ const mapBox = await page.evaluate(() => {
 {
   const n0 = await page.evaluate(() => (SBMM.datasets.list() || []).length);
   await page.evaluate(() => {
-    const csv = "id,easting,northing\\nT1,6371600,2128900\\nT2,6371700,2129000\\n";
+    /* newlines via fromCharCode: this file has been through a couple of
+       generators, and a "\\n" that should have been "\n" made the CSV one
+       long line, which js/datasets.js correctly refused as having no data
+       rows. No escape here, nothing to mangle. */
+    const NL = String.fromCharCode(10);
+    const csv = ["id,easting,northing", "T1,6371600,2128900", "T2,6371700,2129000"].join(NL) + NL;
     const dt = new DataTransfer();
     dt.items.add(new File([csv], "dropped.csv", { type: "text/csv" }));
     document.dispatchEvent(new DragEvent("drop", { bubbles: true, cancelable: true, dataTransfer: dt }));
   });
-  await wait(1500);
+  /* the drop goes through a FileReader, so give it a moment rather than a frame */
+  await page.waitForFunction(() => !!document.getElementById("dsDialog"), null, { timeout: 15000 })
+    .catch(() => {});
   const dropped = await page.evaluate(() => ({
     dialog: !!document.getElementById("dsDialog"),
+    cols: document.getElementById("dsDialog")
+      ? document.querySelectorAll("#dsDialog select").length : 0,
     n: (SBMM.datasets.list() || []).length
   }));
-  console.log(`dropped CSV: mapping dialog ${dropped.dialog} · datasets ${n0} -> ${dropped.n}`);
-  if (!dropped.dialog && dropped.n === n0) fail("a dropped CSV reached no importer", dropped);
+  const dropToasts = await toasts();
+  console.log(`dropped CSV: mapping dialog ${dropped.dialog} (${dropped.cols} column pickers) `
+    + `· datasets ${n0} -> ${dropped.n} · toasts ${JSON.stringify(dropToasts.slice(-2))}`);
+  if (!dropped.dialog && dropped.n === n0) fail("a dropped CSV reached no importer", { dropped, dropToasts });
   await page.evaluate(() => { const d = document.getElementById("dsDialog"); if (d) d.remove(); });
 }
 
