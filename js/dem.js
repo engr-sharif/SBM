@@ -253,6 +253,80 @@ Dem.decodeInWorker = function (name, meta, url) {
   });
 };
 
+/* ---- the tile decode pool (v20 §2) --------------------------------------
+   A tile pyramid asks for hundreds of small PNGs, so the per-payload path above
+   — one worker per decode, created and terminated — is the wrong shape: the
+   worker construction alone costs more than a 256 x 256 decode. This is the
+   SAME worker source (demDecodeWorkerMain, the same terrain-RGB loop, so a
+   tile and a payload cannot disagree about what a pixel means), held open in a
+   small pool and multiplexed by request id.
+
+   It never rejects, for the same reason the payload path never rejects: a
+   browser without Worker / OffscreenCanvas decodes on the main thread through
+   Dem.context, and a hole in the survey is not a failure. */
+Dem._pool = null;
+Dem._poolSeq = 0;
+Dem._poolWaiting = new Map();
+Dem.poolSize = function () {
+  const n = (navigator && navigator.hardwareConcurrency) || 2;
+  return Math.max(1, Math.min(4, n - 1));
+};
+Dem.tilePool = function () {
+  if (Dem._pool) return Dem._pool;
+  if (typeof Worker !== "function" || typeof URL === "undefined" || !URL.createObjectURL) {
+    Dem._pool = [];
+    return Dem._pool;
+  }
+  const list = [];
+  for (let i = 0; i < Dem.poolSize(); i++) {
+    let w;
+    try { w = new Worker(Dem.workerUrl()); }
+    catch (e) { break; }
+    w.onmessage = ev => {
+      const d = ev.data || {}, f = Dem._poolWaiting.get(d.id);
+      if (!f) return;
+      Dem._poolWaiting.delete(d.id);
+      f(d.z && !d.unsupported ? d.z : null);
+    };
+    w.onerror = () => { /* the request times out into the main-thread path */ };
+    list.push(w);
+  }
+  Dem._pool = list;
+  return list;
+};
+/* Decode one terrain-RGB tile to a Float32Array, row 0 = SOUTH (the same way
+   round as Dem's own array). `url` is a data: URL exactly as a payload is. */
+Dem.decodeTile = async function (url, w, h, zmin, step) {
+  const pool = Dem.tilePool();
+  if (pool.length) {
+    let bytes;
+    try { bytes = Dem.bytes(url); } catch (e) { bytes = null; }
+    if (bytes) {
+      const id = "t" + (++Dem._poolSeq);
+      const wk = pool[Dem._poolSeq % pool.length];
+      const z = await new Promise(res => {
+        const timer = setTimeout(() => { Dem._poolWaiting.delete(id); res(null); }, 30000);
+        Dem._poolWaiting.set(id, v => { clearTimeout(timer); res(v); });
+        try { wk.postMessage({ id, bytes, w, h, zmin, step }, [bytes.buffer]); }
+        catch (e) { clearTimeout(timer); Dem._poolWaiting.delete(id); res(null); }
+      });
+      if (z) return z;
+    }
+  }
+  /* main-thread fallback — byte-for-byte the loop in Dem.load */
+  const g = await Dem.context(url, { w, h });
+  const px = g.getImageData(0, 0, w, h).data;
+  const z = new Float32Array(w * h);
+  for (let r = 0; r < h; r++) {
+    const dstRow = h - 1 - r;
+    for (let cx = 0; cx < w; cx++) {
+      const i = (r * w + cx) * 4, v = px[i] * 256 + px[i + 1];
+      z[dstRow * w + cx] = v === 0 ? NaN : zmin + (v - 1) * step;
+    }
+  }
+  return z;
+};
+
 /* Load several payloads at once, one worker each, all started together.
 
    opts.optional  names whose absence or failure is a warning, not an error
