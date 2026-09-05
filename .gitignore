@@ -30,6 +30,7 @@ _staging/
 _to_delete/
 
 # kernel-harness decoded-terrain cache (test/lib/terrain.mjs)
+test/.cache
 test/.cache/
 # ...and the path itself, because an agent worktree makes test/.cache a SYMLINK
 # into the main checkout and a trailing-slash pattern does not match a symlink.
