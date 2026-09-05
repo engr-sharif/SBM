@@ -2649,7 +2649,7 @@ SBMM.viewer3d = (function () {
     canvas.addEventListener("click", e => {
       if (SBMM.touch && SBMM.touch.touchRecent()) return;   // the tap already did it
       if (!wasClick(e)) return;                 // that was an orbit / look drag
-      onCanvasClick(e);
+      canvasClick(e);
     });
     canvas.addEventListener("dblclick", e => {
       if (SBMM.tools.active() && SBMM.draw.isDrawing()) { SBMM.draw.finishSketch(); return; }
