@@ -1096,10 +1096,15 @@ SBMM.runoff = (function () {
     if (SBMM.events) {
       SBMM.events.on("layers", ({ group, layer }) => {
         if (group !== "framework") return;
-        if (layer === "runoff_cover" && overlay)
+        /* `layer === null` is a GROUP switch (SBMM.layerState), and a group
+           switch turns these two rows on as surely as ticking them does — the
+           3D-parity table drives exactly that, and reading only the per-row
+           event left the cover drape unbuilt with the row on. */
+        const mine = layer == null || layer === "runoff_cover" || layer === "runoff_depth";
+        if (!mine) return;
+        if (overlay && (layer == null || layer === "runoff_cover"))
           overlay.setOpacity(SBMM.layerState.opacity("framework", "runoff_cover"));
-        if ((layer === "runoff_cover" || layer === "runoff_depth") && SBMM.viewer3d
-            && SBMM.viewer3d.isOpen && SBMM.viewer3d.isOpen()) {
+        if (SBMM.viewer3d && SBMM.viewer3d.isOpen && SBMM.viewer3d.isOpen()) {
           if (SBMM.viewer3d.refreshDrapes) SBMM.viewer3d.refreshDrapes();
           if (SBMM.viewer3d.refreshOverlays) SBMM.viewer3d.refreshOverlays();
         }
