@@ -49,8 +49,76 @@ replace the chat history that built v1–v9. `RELEASE_NOTES_v9.md` is the user-f
 
 ## Running tests (do this after every change)
 
+**One runner — `test/run.mjs` (v18, `docs/V18_TESTINFRA_SPEC.md`).** It owns the step
+list, the builds, the browser slots and the logs; the individual commands below are
+still exactly what it runs, and still work typed by hand.
+
 ```
 cd test && npm install && npx playwright install chromium && cd ..   # once per machine
+node test/run.mjs --quick          # THE LOOP AFTER EVERY EDIT — ~50 s, no browser
+node test/run.mjs                  # the whole matrix, every build
+node test/run.mjs --only e2e:folder,tablet:http
+node test/run.mjs --builds folder,field
+node test/run.mjs --parallel 2     # browser slots (default floor(cores/2), min 1)
+node test/run.mjs --list           # every step, its build, what it needs
+SBMM_GPU=1 node test/run.mjs       # render on a real GPU (§2 below)
+```
+
+- `--quick` is `check` + `touch_unit` + every kernel section but `drainage`. **The
+  browser is for when that is green.**
+- Every step writes `test/.logs/<step>.log` ending in `EXIT=<code>`, with a live
+  `test/.logs/PROGRESS`, a summary table on stdout and `test/.logs/summary.json`
+  (all gitignored). **Wait on the log, never on a process name:**
+  `until grep -q '^EXIT=' test/.logs/e2e-folder.log; do sleep 10; done`. `pgrep -f
+  e2e.mjs` matches the waiting shell's own command line and waits for itself — that
+  cost one agent forty minutes.
+- Steps declare their build and their dependencies (`e2e:dist` waits for
+  `build:dist`), so a matrix run builds both dists itself; independent steps run in
+  parallel up to the browser slots and node-only steps never take one.
+- `test/check.mjs` (`--only check`, 3 s, no browser) is the preflight, and every
+  check in it is a failure this repo has actually had: `node --check` on every
+  `js/*.js`, `sw.js` and `test/*.mjs`; **no tracked symlink** (`test/.cache` and
+  `test/node_modules` are symlinks in an agent worktree and one got committed, which
+  broke the Pages build); no `</script` inside either Blob-worker function
+  (`installWorker`, `demDecodeWorkerMain` — `js_safe` would mangle it); **no duplicate
+  command alias**, read statically out of `js/cmdline.js`'s own table; every `js/*.js`
+  in `index.html`'s script list and every listed script present; no model name in the
+  docs. A preflight failure stops the matrix before a browser opens.
+
+**The browser lock — `test/lib/lock.mjs`.** Two software-GL renderers on a two-core box
+crash the compositor ("Target crashed"), which looks like a test failure and is not one.
+So `test/lib/browser.mjs` takes a slot before it launches and every harness goes through
+it: a second one is refused with the holder's name, its pid and what to wait for. The
+runner takes the slot on a step's behalf (`SBMM_LOCK_TOKEN`) so the two never
+double-count. `--parallel N` raises the slot count; `--wait` queues instead of refusing.
+
+**One launcher — `test/lib/browser.mjs`.** The `CHROME_BIN` line every harness used to
+carry lives here once: `CHROME_BIN`, else the cloud box's `/opt/pw-browsers/...` if it
+is there, else Playwright's own chromium. Paths are resolved through `pathToFileURL`, so
+Windows paths work. It prints ONE `[browser]` line naming the renderer it actually got.
+**`SBMM_GPU=1`** drops the SwiftShader default for ANGLE (`--use-angle=d3d11` on
+Windows) and the default timeout with it — 180 s under software GL, 60 s on a GPU;
+`SBMM_HEADED=1` opens a window. On a box with no GPU the line says it fell back.
+
+**Block selection — `test/lib/blocks.mjs`.** The three big browser harnesses run named
+blocks, so a failure in the last one no longer costs a full re-run:
+
+```
+node test/e2e.mjs /abs/path/index.html folder --list          # the 78 block names
+node test/e2e.mjs /abs/path/index.html folder --only 9t       # ~48 s
+node test/e2e.mjs /abs/path/index.html folder --from 9w       # here to the end
+node test/e2e_tablet.mjs /abs/path/index.html tablet --skip "6. the offline copy"
+```
+`--only/--from/--skip` take a name, a prefix or a substring; `--list` answers without
+opening a browser. **A full run is unchanged** — blocks run inline, in order, and the
+module prints nothing unless a selection is active, which is the acceptance test for
+the conversion. State a later block needs is a **fixture**: `S.define("pile1", …)` beside
+the code that makes it, `needs: ["pile1"]` on the block that wants it, built on demand
+and cached. A block the harness cannot do without (boot) is `{ always: true }`.
+
+The individual commands, which are what the runner runs:
+
+```
 node test/e2e.mjs     /abs/path/index.html                folder
 node test/e2e.mjs     /abs/path/dist/SBMM_Site_Explorer.html dist
 node test/split3d.mjs /abs/path/index.html                folder
@@ -77,14 +145,12 @@ card, a raindrop by tap, Position refusing without a permission grant and landin
 2 ft with one, a photo from `test/fixtures/photo_exif.jpg` placed at its EXIF GPS ±2 ft and
 surviving a session round trip, and a one-finger orbit / two-finger pinch in 3D. It is a
 separate file rather than a build switch inside `test/e2e.mjs` **deliberately**: that file
-is 4,200 lines of flat top-level statements over one shared page and one accumulating
-scene, and it has to keep passing UNCHANGED on the other two builds. Pass the full dist as
+is 6,200 lines over one shared page and one accumulating scene (named blocks since v18,
+but still one page), and it has to keep passing UNCHANGED on the other two builds. Pass the full dist as
 a third argument to get the boot comparison. Optional fixture regeneration:
 `python3 tools/make_photo_fixture.py`.
-The harnesses use Playwright's own chromium unless `CHROME_BIN` points at one (the cloud
-build box's `/opt/pw-browsers/...` path is tried first and skipped if absent); paths are
-resolved through `pathToFileURL`, so Windows paths work. Runs are slow under software GL
-(180 s default timeouts are intentional). All four must pass.
+Runs are slow under software GL — the 180 s default timeouts are intentional, and
+`SBMM_GPU=1` is what makes 60 s enough. **All of them must pass.**
 **`test/kernels.mjs` is the fast loop — a node harness, no browser, covering EVERY kernel
 in `js/compute.js`'s `runJob`.** Run it after any change to `js/compute.js` or to a call
 site that builds a job, before you reach for Playwright. Everything except `drainage` is
@@ -162,8 +228,21 @@ node test/perf.mjs   /abs/path/index.html folder   # 3D / memory numbers (its la
 node test/audit.mjs  /abs/path/index.html folder   # every tool, command, dialog + its toasts
 node test/audit2.mjs /abs/path/index.html folder   # sheet viewer, properties, split, report
 ```
-**Run the browser harnesses one at a time.** Two software-GL renderers on a two-core box
-crash the compositor ("Target crashed"), which looks like a test failure and is not one.
+**One known flake, and it is older than the runner.** `test/e2e.mjs`'s last block,
+*9z. the layer tree*, reloads the page and measures the tree **1.5 s later** — a fixed
+wait, not a condition. On a loaded box (two browser steps in parallel) the app has not
+finished re-registering its rows by then and the draw-order assertion fails with a
+draw index far below the settled one (`{dus: 456, piles: 467}` against a settled
+`{dus: 1237, piles: 1231}`). It passed on the baseline, on a second full run and on the
+dist, and it fails in about one run in three under load. **Re-run the block alone before
+believing it** — `node test/e2e.mjs <index.html> folder --only "9z. the layer tree"`,
+14 seconds — and if it passes there, the matrix result is the flake, not a regression.
+Fixing it means waiting on the condition rather than on the clock, which is a change to
+a harness and belongs to the planner.
+
+**One browser at a time** — the lock above enforces it now rather than asking; raise
+`--parallel` only on a box with the cores for it. `docs/AGENT_RULES.md` is the ten-line
+version of all of this, for an agent starting a round.
 
 **Golden number:** Pile 1 (Fig 2 traced) perimeter-TIN volume = **278.4 yd³ fill /
 −48.1 net** (±10). If a change moves it, the change is wrong (or you changed the

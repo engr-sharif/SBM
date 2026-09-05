@@ -17,6 +17,49 @@ All three are offline-only by design. Nothing in this app calls out to the inter
 
 ---
 
+## v9.15 — the tests, made quick
+
+You asked why a round takes "hours and hours". Measured on the cloud box: a desktop
+end-to-end run is eleven minutes, the full matrix forty to seventy, only one browser can
+run at a time, and a failure in the last section meant running the first forty again from
+the top. None of that was about the app — it was about how the tests were run. So this
+release changes that, and **nothing about what any test checks**: every assertion line the
+harnesses printed before this release is printed, identically, after it.
+
+**One command.** `node test/run.mjs` now runs the whole thing: it builds both single-file
+copies, runs every harness against the right build in the right order, runs the
+independent ones side by side where the machine has the cores, writes a log for each one
+and prints a table at the end saying which passed, how long each took, and the first
+failing line of any that did not.
+
+**A one-minute loop to work in.** `node test/run.mjs --quick` — a preflight, the gesture
+tests and every calculation kernel except the slow drainage one — is what gets run after
+every edit. The browser is only for when that is green.
+
+**A preflight that costs three seconds.** Before any browser opens, the runner checks the
+things that have actually broken this project before: a file that does not parse, a
+command shortcut that quietly shadows another one, a new module missing from the app's
+script list (which would drop it silently out of both single-file builds), and a symlink
+committed by accident — the one that broke the GitHub Pages copy of the site.
+
+**A failing section can be re-run on its own.** Every section of the big harnesses now has
+a name, and `--only 9t` runs just that one: forty-eight seconds instead of eleven minutes.
+A full run is unchanged, and that was the acceptance test for the change.
+
+**Two browsers can no longer collide.** Starting a second one while the first is running
+used to crash the renderer and look like a test failure; it is now refused, by name, with
+the pid of the run that is holding it.
+
+**Your GPU machine, used.** `SBMM_GPU=1` runs the same tests on a real graphics card
+instead of the software renderer this box has — and the time limits drop from three
+minutes to one because they can. On a machine without one it says so rather than
+pretending.
+
+**And the tests run on GitHub too.** Every pull request now runs the matrix on GitHub's
+own machines, five jobs at once, with the logs and screenshots attached to the run.
+
+---
+
 ## v9.14 — the iPad, the Pencil, and touch everywhere
 
 You said the app was already working on your iPad, that you had saved it to the home

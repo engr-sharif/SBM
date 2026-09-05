@@ -23,17 +23,18 @@
      node test/e2e_field.mjs dist/SBMM_Site_Explorer_field.html field \
                              dist/SBMM_Site_Explorer.html      # + boot comparison
 */
-import { chromium, devices } from "playwright";
+import { devices } from "playwright";
+import { launch, TIMEOUT } from "./lib/browser.mjs";
 import { pathToFileURL as __furl } from "node:url";
 import { resolve as __res, dirname } from "node:path";
 import { existsSync as __ex } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { unlock, gatePassword } from "./gate.mjs";
+import { block, S } from "./lib/blocks.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = __res(HERE, "..");
 const FIXTURE = __res(HERE, "fixtures/photo_exif.jpg");
-const CHROME = process.env.CHROME_BIN || (__ex("/opt/pw-browsers/chromium-1194/chrome-linux/chrome") ? "/opt/pw-browsers/chromium-1194/chrome-linux/chrome" : undefined);
 
 const target = process.argv[2] || "dist/SBMM_Site_Explorer_field.html";
 const label = process.argv[3] || "field";
@@ -53,10 +54,10 @@ const fail = (msg, extra) => {
 
 console.log(`\n=== ${label} — ${PIXEL7.viewport.width}x${PIXEL7.viewport.height} @${PIXEL7.deviceScaleFactor}, touch ===`);
 
-const browser = await chromium.launch({ executablePath: CHROME });
+const browser = await launch();
 const ctx = await browser.newContext({ ...PIXEL7 });
 const page = await ctx.newPage();
-page.setDefaultTimeout(180000);
+page.setDefaultTimeout(TIMEOUT);
 const errors = [];
 page.on("pageerror", e => errors.push("pageerror: " + e.message));
 page.on("console", m => { if (m.type() === "error") errors.push("console: " + m.text()); });
@@ -67,6 +68,8 @@ const t0 = Date.now();
 await page.goto(__furl(__res(target)).href);
 
 /* ===================================================================== */
+let bootMs, toasts, clearToasts, build;   /* hoisted — v18 §3 */
+await block("1. boot", async () => {
 /* 1. boot                                                               */
 /* ===================================================================== */
 await page.waitForSelector("#loading", { state: "hidden", timeout: 240000 })
@@ -75,7 +78,7 @@ await page.waitForSelector("#loading", { state: "hidden", timeout: 240000 })
     console.log("BOOT FAILED — loader says:", (txt || "").trim().slice(0, 300));
     process.exit(1);
   });
-const bootMs = Date.now() - t0;
+bootMs = Date.now() - t0;
 console.log(`boot: OK (loader cleared) in ${(bootMs / 1000).toFixed(2)} s`);
 
 /* the toast recorder, installed as soon as there is a document to install it in */
@@ -85,23 +88,25 @@ await page.evaluate(() => {
   new MutationObserver(() => { const s = el.textContent.trim(); if (s && window.__toasts[window.__toasts.length - 1] !== s) window.__toasts.push(s); })
     .observe(el, { childList: true, characterData: true, subtree: true });
 });
-const toasts = () => page.evaluate(() => window.__toasts.slice());
-const clearToasts = () => page.evaluate(() => { window.__toasts.length = 0; });
+toasts = () => page.evaluate(() => window.__toasts.slice());
+clearToasts = () => page.evaluate(() => { window.__toasts.length = 0; });
 
-const build = await page.evaluate(() => ({
+build = await page.evaluate(() => ({
   build: SBMM_DATA.build, isField: SBMM.isField(),
   single: !!window.SBMM_SINGLE_FILE
 }));
 console.log("build stamp:", build.build, "| isField():", build.isField, "| single file:", build.single);
 if (build.build !== "field" || !build.isField) fail("this is not the field build", build);
+}, { always: true });
 
 /* ===================================================================== */
+await block("1a. the gate", async () => {
 /* 1a. the gate, with touch                                              */
 /* ===================================================================== */
 {
   const gctx = await browser.newContext({ ...PIXEL7 });
   const gp = await gctx.newPage();
-  gp.setDefaultTimeout(180000);
+  gp.setDefaultTimeout(TIMEOUT);
   const gerr = [];
   gp.on("pageerror", e => gerr.push("pageerror: " + e.message));
   gp.on("console", m => { if (m.type() === "error") gerr.push("console: " + m.text()); });
@@ -152,11 +157,14 @@ if (build.build !== "field" || !build.isField) fail("this is not the field build
   if (gerr.length) fail("errors on the gate page", gerr.slice(0, 5));
   await gctx.close();
 }
+});
 
 /* ===================================================================== */
+let terr;   /* hoisted — v18 §3 */
+await block("2. terrain", async () => {
 /* 2. terrain — the DEM stack, in the field build                        */
 /* ===================================================================== */
-const terr = await page.evaluate(() => ({
+terr = await page.evaluate(() => ({
   elev: SBMM.elev(6371600, 2128900),
   elevNW: SBMM.elev(6372000, 2130500),
   elevRes: SBMM.elev(6370800, 2129000),
@@ -172,8 +180,11 @@ if (!(terr.elev[0] > 1200 && terr.elev[0] < 1500)) fail("elevation out of range"
 if (terr.cells.join(",") !== "1,1,2") fail("the DEM stack is not [1ft abp, 1ft res, 2ft site]", terr.cells);
 if (terr.chm) fail("the field build must not carry the canopy height model");
 if (!(terr.workers >= 3)) fail("terrain did not decode in workers", terr.workers);
+});
 
 /* ===================================================================== */
+let vol;   /* hoisted — v18 §3 */
+await block("3. the golden volume", async () => {
 /* 3. the golden volume — Pile 1, perimeter TIN                          */
 /* ===================================================================== */
 await page.evaluate(() => SBMM.tools.volumeOfPile("Pile 1 (Fig 2)"));
@@ -181,7 +192,7 @@ await page.waitForFunction(() => {
   const f = SBMM.store.features.find(g => g.type === "volume");
   return f && f.props && f.props.fill_yd3 != null;
 }, null, { timeout: 180000 });
-const vol = await page.evaluate(() => {
+vol = await page.evaluate(() => {
   const f = SBMM.store.features.find(g => g.type === "volume");
   return { fill: f.props.fill_yd3, cut: f.props.cut_yd3, net: f.props.net_yd3, base: f.props.base };
 });
@@ -189,15 +200,18 @@ console.log(`golden Pile 1: fill ${vol.fill.toFixed(1)} yd³, cut ${vol.cut.toFi
   + `net ${vol.net.toFixed(1)} — base ${vol.base}`);
 if (Math.abs(vol.fill - 278.4) > 10 || Math.abs(vol.net + 48.1) > 10)
   fail("the golden Pile 1 volume moved in the field build", vol);
+});
 
 /* ===================================================================== */
+let drop, surv, storm;   /* hoisted — v18 §3 */
+await block("4. water", async () => {
 /* 4. water — a raindrop, and the survey                                 */
 /* ===================================================================== */
 /* the returned object holds Leaflet layers, so the block returns nothing —
    `page.evaluate` also AWAITS a returned promise, which would block here */
 await page.evaluate(() => { SBMM.water.dropAt(6372100, 2128600, { name: "Field drop" }); });
 await page.waitForFunction(() => SBMM.store.features.some(f => f.type === "flow"), null, { timeout: 180000 });
-const drop = await page.evaluate(() => {
+drop = await page.evaluate(() => {
   const f = SBMM.store.features.find(g => g.type === "flow");
   return { pts: f.pts.length, len: f.props.length_ft, fall: f.props.fall_ft,
            end: f.props.end && f.props.end.reason, dem: f.props.dem };
@@ -206,7 +220,7 @@ console.log(`raindrop: ${drop.pts} vertices, ${Math.round(drop.len)} ft, `
   + `${drop.fall == null ? "—" : drop.fall.toFixed(1)} ft of fall, ends "${drop.end}" on the ${drop.dem} grid`);
 if (!(drop.pts > 5 && drop.len > 50)) fail("the raindrop did not run", drop);
 
-const surv = await page.evaluate(() => {
+surv = await page.evaluate(() => {
   const ds = SBMM.datasets.list().find(d => /survey/i.test(d.id || d.name || ""));
   const D = SBMM.survey && SBMM.survey.data ? SBMM.survey.data() : null;
   return { rows: D ? D.features.length : null, layers: D ? D.layers.length : null,
@@ -219,7 +233,7 @@ if (surv.shots !== 24) fail("the survey's 24 shots are not in the field build", 
 
 /* the storm-drainage network (v12 §5.1): ~27 kB, so it stays in the field build
    — the rows, the master switch and the kernel list all work out on site */
-const storm = await page.evaluate(() => {
+storm = await page.evaluate(() => {
   const D = SBMM_DATA.storm_network;
   if (!D) return { err: "no payload" };
   const before = SBMM.storm.enabled();
@@ -239,12 +253,15 @@ if (storm.nodes !== 44 || storm.conduits !== 26 || storm.rowsOn !== 3 || storm.g
   fail("the storm rows did not build in field mode", storm);
 if (!storm.chip || storm.off !== 0 || storm.on < 1)
   fail("the storm master switch does not work in field mode", storm);
+});
 
 /* ===================================================================== */
+let absent, absentToasts;   /* hoisted — v18 §3 */
+await block("5. the four excluded payloads", async () => {
 /* 5. the four excluded payloads — tolerated, never an error             */
 /* ===================================================================== */
 await clearToasts();
-const absent = await page.evaluate(async () => {
+absent = await page.evaluate(async () => {
   const out = {};
   out.surfaces = (SBMM.CadNative.surfaces || []).length;
   out.cadGroups = (SBMM.CadNative.groupSpecs() || []).length;
@@ -268,7 +285,7 @@ const absent = await page.evaluate(async () => {
   return out;
 });
 await wait(400);
-const absentToasts = await toasts();
+absentToasts = await toasts();
 console.log(`absent payloads: surfaces ${absent.surfaces}, CAD groups ${absent.cadGroups}, `
   + `CHM ${absent.chm}, sheet renders ${absent.sheetsWithRender} of ${absent.sheets} listed`);
 console.log("  still present: design GIS", absent.designGis, "features ·",
@@ -284,11 +301,14 @@ for (const re of [/field build|full-sheet render/i, /native CAD payload/i,
   if (!absentToasts.some(t => re.test(t)))
     fail("a refusal was silent — every one must toast (" + re + ")", absentToasts);
 if (!/field build/i.test(absent.refSurfText)) fail("the surfaces list does not say why it is empty", absent.refSurfText);
+});
 
 /* ===================================================================== */
+let layout, want, openSheet, shutSheet;   /* hoisted — v18 §3 */
+await block("6. field mode", async () => {
 /* 6. field mode — the layout (§4.3)                                     */
 /* ===================================================================== */
-const layout = await page.evaluate(() => {
+layout = await page.evaluate(() => {
   const R = s => { const e = document.querySelector(s); if (!e) return null; const r = e.getBoundingClientRect(); return [Math.round(r.width), Math.round(r.height)]; };
   const btns = [...document.querySelectorAll("#fieldBar .fbtn")].map(b => {
     const r = b.getBoundingClientRect();
@@ -312,7 +332,7 @@ console.log(`field mode: body.field ${layout.field} (API ${layout.api}) · deskt
 console.log("  buttons:", layout.btns.map(b => `${b.a} ${b.w}x${b.h}`).join(", "));
 if (!layout.field || !layout.api) fail("field mode did not switch itself on", layout);
 if (layout.topbarShown) fail("the desktop top bar is still shown in field mode");
-const want = ["position", "inspect", "raindrop", "photo", "note", "layers"];
+want = ["position", "inspect", "raindrop", "photo", "note", "layers"];
 for (const k of want) {
   const b = layout.btns.find(x => x.a === k);
   if (!b) fail("the " + k + " action button is missing");
@@ -326,7 +346,7 @@ if (!layout.watermark) fail("the watermark is gone in field mode");
 /* the Layers sheet opens and closes by tap */
 await page.tap('#fieldBar .fbtn[data-fa="layers"]');
 await wait(900);                                     // the slide-up transition, and then some
-const openSheet = await page.evaluate(() => {
+openSheet = await page.evaluate(() => {
   const el = document.getElementById("leftdock");
   const d = el.getBoundingClientRect();
   return { which: document.body.dataset.fsheet, top: Math.round(d.top), bottom: Math.round(d.bottom),
@@ -351,7 +371,7 @@ if (Math.abs(openSheet.bottom - openSheet.barTop) > 2)
    wait forever for the sheet to stop intercepting. */
 await page.touchscreen.tap(206, 120);
 await wait(700);
-const shutSheet = await page.evaluate(() => ({
+shutSheet = await page.evaluate(() => ({
   which: document.body.dataset.fsheet || null,
   top: Math.round(document.getElementById("leftdock").getBoundingClientRect().top),
   barTop: Math.round(document.getElementById("fieldBar").getBoundingClientRect().top),
@@ -363,15 +383,18 @@ console.log("Layers sheet closed:", shutSheet.which === null,
 if (shutSheet.which !== null || shutSheet.scrim) fail("the Layers sheet did not close by tap", shutSheet);
 /* parked: its top edge is at or below the action bar, so none of it is on the stage */
 if (shutSheet.top < shutSheet.barTop) fail("the closed sheet is still on the stage", shutSheet);
+});
 
 /* ===================================================================== */
+let treeF, treeFs, moreHasLegend, legendF, cardCheck;   /* hoisted — v18 §3 */
+await block("4b. the layer TREE inside that sheet", async () => {
 /* 4b. the layer TREE inside that sheet (v16, docs/V16_LAYERS_SPEC.md §3) */
 /* ===================================================================== */
 /* 44-px rows, a search box you can tap and type into, and the legend card —
    which is hidden on a phone screen by design — reachable from the More sheet. */
 await page.tap('#fieldBar .fbtn[data-fa="layers"]');
 await wait(900);
-const treeF = await page.evaluate(() => {
+treeF = await page.evaluate(() => {
   const row = document.querySelector("#layers .lyr");
   const r = row.getBoundingClientRect();
   const b = row.querySelector(".ltacts .ltb").getBoundingClientRect();
@@ -398,7 +421,7 @@ if (!treeF.legendHidden) fail("the legend card must be off the map in field mode
 await page.tap("#ltSearch");
 await page.keyboard.type("storm");
 await wait(500);
-const treeFs = await page.evaluate(() => {
+treeFs = await page.evaluate(() => {
   const shown = [...document.querySelectorAll("#layers .lyr")].filter(r => !r.classList.contains("lthide"));
   return { shown: shown.length, storm: shown.filter(r => /^storm_/.test(r.dataset.lid)).length,
            hits: (document.getElementById("ltHits") || {}).textContent };
@@ -413,12 +436,12 @@ await wait(700);
 /* the legend lives in the More sheet on a phone */
 await page.tap('#fieldBar .fbtn[data-fa="more"]');
 await wait(600);
-const moreHasLegend = await page.evaluate(() =>
+moreHasLegend = await page.evaluate(() =>
   [...document.querySelectorAll("#fieldMore .fmbtn")].map(b => b.dataset.fa).indexOf("legend") >= 0);
 if (!moreHasLegend) fail("the More sheet has no Legend entry");
 await page.tap('#fieldMore .fmbtn[data-fa="legend"]');
 await wait(700);
-const legendF = await page.evaluate(() => {
+legendF = await page.evaluate(() => {
   const el = document.getElementById("mapLegend");
   const r = el.getBoundingClientRect();
   return { shown: getComputedStyle(el).display !== "none", rows: el.querySelectorAll(".mlr").length,
@@ -437,7 +460,7 @@ await page.evaluate(() => {
   return null;
 });
 await wait(350);
-const cardCheck = await page.evaluate(() => {
+cardCheck = await page.evaluate(() => {
   const c = document.getElementById("fieldCard");
   const r = c.getBoundingClientRect();
   return { shown: !c.hidden, w: Math.round(r.width), full: Math.round(r.width) >= innerWidth - 1,
@@ -450,18 +473,21 @@ console.log(`popup as bottom card: shown ${cardCheck.shown}, full width ${cardCh
 if (!cardCheck.shown || !cardCheck.full || cardCheck.leafletPopups || !cardCheck.hasFlowRows)
   fail("the popup did not become a bottom card", cardCheck);
 await page.evaluate(() => SBMM.field.closeCard());
+});
 
 /* ===================================================================== */
+let flowsBefore, armed, p, tapped;   /* hoisted — v18 §3 */
+await block("7. a raindrop by tap", async () => {
 /* 7. a raindrop by tap                                                  */
 /* ===================================================================== */
-const flowsBefore = await page.evaluate(() => SBMM.store.features.filter(f => f.type === "flow").length);
+flowsBefore = await page.evaluate(() => SBMM.store.features.filter(f => f.type === "flow").length);
 await page.evaluate(() => { SBMM.map.setView([2128600, 6372100], 1); });
 await wait(500);
 await page.tap('#fieldBar .fbtn[data-fa="raindrop"]');
 await wait(250);
-const armed = await page.evaluate(() => ({ mode: SBMM.mode.current(), tool: SBMM.tools.active() }));
+armed = await page.evaluate(() => ({ mode: SBMM.mode.current(), tool: SBMM.tools.active() }));
 if (armed.mode !== "raindrop" || armed.tool !== "raindrop") fail("the Raindrop button did not arm the mode", armed);
-const p = await page.evaluate(() => {
+p = await page.evaluate(() => {
   const c = SBMM.map.latLngToContainerPoint([2128560, 6372060]);
   const r = document.getElementById("map").getBoundingClientRect();
   return { x: Math.round(r.left + c.x), y: Math.round(r.top + c.y) };
@@ -469,7 +495,7 @@ const p = await page.evaluate(() => {
 await page.touchscreen.tap(p.x, p.y);
 await page.waitForFunction(n => SBMM.store.features.filter(f => f.type === "flow").length > n,
   flowsBefore, { timeout: 180000 });
-const tapped = await page.evaluate(() => {
+tapped = await page.evaluate(() => {
   const fs = SBMM.store.features.filter(f => f.type === "flow");
   const f = fs[fs.length - 1];
   return { n: fs.length, len: f.props.length_ft, name: f.name, cls: SBMM.myWork.classOf(f) };
@@ -478,20 +504,23 @@ console.log(`raindrop by tap: ${tapped.n} flows, newest "${tapped.name}" ${Math.
   + `(My work class: ${tapped.cls})`);
 if (tapped.n <= flowsBefore) fail("a tap on the map did not trace a raindrop");
 await page.evaluate(() => SBMM.mode.navigate());
+});
 
 /* ===================================================================== */
+let featsBefore, denied, deniedToasts, fixed, dev;   /* hoisted — v18 §3 */
+await block("8. POSITION", async () => {
 /* 8. POSITION — refused, then granted (§4.4)                            */
 /* ===================================================================== */
 await clearToasts();
-const featsBefore = await page.evaluate(() => SBMM.store.features.length);
+featsBefore = await page.evaluate(() => SBMM.store.features.length);
 await page.tap('#fieldBar .fbtn[data-fa="position"]');
 await wait(2500);
-const denied = await page.evaluate(() => ({
+denied = await page.evaluate(() => ({
   fix: SBMM.field.fix(), watching: SBMM.field.watching(),
   feats: SBMM.store.features.length,
   dots: document.querySelectorAll(".fixdot").length
 }));
-const deniedToasts = await toasts();
+deniedToasts = await toasts();
 /* Headless Chromium with no grant does not fire the error callback at all — the
    watch simply never calls back — so what has to be true here is what §4.4
    actually promises: nothing is placed, and the user is told something. */
@@ -508,13 +537,13 @@ await page.tap('#fieldBar .fbtn[data-fa="position"]');
 await page.waitForFunction(() => !!SBMM.field.fix(), null, { timeout: 30000 })
   .catch(() => fail("no fix arrived after the geolocation permission was granted"));
 await wait(400);
-const fixed = await page.evaluate(() => {
+fixed = await page.evaluate(() => {
   const f = SBMM.field.fix();
   return { f, dot: document.querySelectorAll(".fixmk .fixdot").length,
            m: SBMM.field.markers(),
            live: !!document.querySelector('#fieldBar .fbtn[data-fa="position"].live') };
 });
-const dev = Math.hypot(fixed.f.x - 6371600, fixed.f.y - 2128900);
+dev = Math.hypot(fixed.f.x - 6371600, fixed.f.y - 2128900);
 console.log(`position, granted: ${fixed.f.x.toFixed(1)} E, ${fixed.f.y.toFixed(1)} N `
   + `(${dev.toFixed(2)} ft from the seeded point) · accuracy ${fixed.f.acc_ft.toFixed(1)} ft `
   + `· marker drawn ${fixed.dot === 1} · accuracy circle ${fixed.m.accuracy_ft && fixed.m.accuracy_ft.toFixed(1)} ft `
@@ -527,19 +556,22 @@ if (!(fixed.f.acc_ft > 20 && fixed.f.acc_ft < 60)) fail("the accuracy is not 12 
 if (!fixed.m.inCircle || Math.abs(fixed.m.accuracy_ft - fixed.f.acc_ft) > 0.01)
   fail("the accuracy circle is missing or does not match the fix", fixed.m);
 await page.evaluate(() => SBMM.field.stopLocate());
+});
 
 /* ===================================================================== */
+let chooser, photo, perr, mywork, ur, rt, exp, dlg;   /* hoisted — v18 §3 */
+await block("9. PHOTO", async () => {
 /* 9. PHOTO — EXIF placement, thumb, session round-trip, export          */
 /* ===================================================================== */
 await clearToasts();
-const [chooser] = await Promise.all([
+;[chooser] = await Promise.all([
   page.waitForEvent("filechooser"),
   page.tap('#fieldBar .fbtn[data-fa="photo"]')
 ]);
 await chooser.setFiles(FIXTURE);
 await page.waitForFunction(() => SBMM.store.features.some(f => f.type === "photo"), null, { timeout: 60000 });
 await wait(500);
-const photo = await page.evaluate(() => {
+photo = await page.evaluate(() => {
   const f = SBMM.store.features.find(g => g.type === "photo");
   const p = f.props;
   return { id: f.id, name: f.name, group: f.group, pts: f.pts,
@@ -552,7 +584,7 @@ const photo = await page.evaluate(() => {
              || [...document.querySelectorAll("#featTree .ftrow")].length > 0,
            popup: SBMM.popups.forFeature(f) };
 });
-const perr = Math.hypot(photo.pts[0][0] - FIX_SP[0], photo.pts[0][1] - FIX_SP[1]);
+perr = Math.hypot(photo.pts[0][0] - FIX_SP[0], photo.pts[0][1] - FIX_SP[1]);
 console.log(`photo: "${photo.name}" placed ${photo.source} at ${photo.pts[0][0].toFixed(1)} E, `
   + `${photo.pts[0][1].toFixed(1)} N — ${perr.toFixed(2)} ft from the fixture's EXIF position`);
 console.log(`  taken ${photo.taken} · ${photo.w}x${photo.h} px · image ${(photo.imgLen / 1024).toFixed(0)} kB `
@@ -569,7 +601,7 @@ if (photo.marker !== 1) fail("the photo marker is not on the map", photo.marker)
 if (!/photofull/.test(photo.popup)) fail("the photo popup does not carry the image full width");
 
 /* the My-work "Field" row exists, and appending it left CLASSES[4] alone */
-const mywork = await page.evaluate(() => ({
+mywork = await page.evaluate(() => ({
   classes: SBMM.myWork.CLASSES.map(c => c[0]),
   row: !!SBMM.layerState.rec("mywork", "field"),
   counts: SBMM.myWork.counts()
@@ -580,7 +612,7 @@ if (mywork.classes[4] !== "imported") fail("CLASSES[4] is no longer `imported` �
 if (!mywork.row || mywork.counts.field !== 1) fail("the Field class row is wrong", mywork);
 
 /* undo/redo of a photo, the two-closure contract */
-const ur = await page.evaluate(() => {
+ur = await page.evaluate(() => {
   const f = SBMM.store.features.find(g => g.type === "photo");
   const id = f.id;
   /* walk back to the photo entry */
@@ -601,7 +633,7 @@ if (!ur.gone || !ur.back || !ur.sameId || ur.marker !== 1 || !ur.img)
   fail("the photo undo/redo cycle is broken", ur);
 
 /* session round-trip: v8, rebuilt from props, no jobs spawned */
-const rt = await page.evaluate(async () => {
+rt = await page.evaluate(async () => {
   const ser = SBMM.store.serialize();
   const mine = ser.features.filter(f => f.type === "photo");
   const jobs0 = SBMM.compute.stats.workerJobs;
@@ -627,7 +659,7 @@ if (rt.jobsBefore != null && rt.jobsAfter !== rt.jobsBefore)
   fail("restoring a photo spawned a compute job", rt);
 
 /* exports: the record always, the image only behind the checkbox */
-const exp = await page.evaluate(() => {
+exp = await page.evaluate(() => {
   const plain = SBMM.io.collection("sp").features.find(f => f.properties.tool === "photo");
   const withImg = SBMM.io.collection("sp", { photoImages: true }).features.find(f => f.properties.tool === "photo");
   return {
@@ -646,7 +678,7 @@ if (exp.plainImg) fail("the image went out without the checkbox being ticked");
 if (!exp.withImg) fail("the image did not go out when the checkbox was ticked");
 
 /* the export dialog itself, since it is the only way a user reaches that flag */
-const dlg = await page.evaluate(async () => {
+dlg = await page.evaluate(async () => {
   const p = SBMM.field.askPhotoExport(1);
   await new Promise(r => setTimeout(r, 120));
   const box = document.getElementById("photoExportAsk");
@@ -657,13 +689,16 @@ const dlg = await page.evaluate(async () => {
 });
 console.log("photo export dialog: checkbox present", dlg.has, "· cancel returns", JSON.stringify(dlg.answer));
 if (!dlg.has) fail("the photo export dialog has no checkbox");
+});
 
 /* ===================================================================== */
+let notePrompt, np, noteRes;   /* hoisted — v18 §3 */
+await block("10. NOTE", async () => {
 /* 10. NOTE                                                              */
 /* ===================================================================== */
 await page.evaluate(() => { SBMM.map.setView([2128900, 6371600], 1); });
 await wait(500);
-const notePrompt = await page.evaluate(async () => {
+notePrompt = await page.evaluate(async () => {
   const before = SBMM.store.features.filter(f => f.type === "text").length;
   SBMM.field.note();
   await new Promise(r => setTimeout(r, 150));
@@ -680,14 +715,14 @@ if (!notePrompt.box) fail("the note prompt did not open");
 if (notePrompt.font < 16) fail("the note field is under 16 px — iOS will zoom", notePrompt.font);
 if (!notePrompt.picking) fail("the note did not ask for a tap when there was no device fix");
 /* no device fix (the watch was stopped), so it asks where — tap the map */
-const np = await page.evaluate(() => {
+np = await page.evaluate(() => {
   const c = SBMM.map.latLngToContainerPoint([2128950, 6371700]);
   const r = document.getElementById("map").getBoundingClientRect();
   return { x: Math.round(r.left + c.x), y: Math.round(r.top + c.y) };
 });
 await page.touchscreen.tap(np.x, np.y);
 await wait(700);
-const noteRes = await page.evaluate(before => {
+noteRes = await page.evaluate(before => {
   const after = SBMM.store.features.filter(f => f.type === "text");
   const f = after[after.length - 1];
   return { made: after.length > before, text: f && f.props && f.props.text,
@@ -697,11 +732,14 @@ console.log(`note: prompt shown, ${notePrompt.font}px field, asked for a tap, `
   + `made ${noteRes.made} — "${noteRes.text}" (undo: ${noteRes.undo}, class ${noteRes.cls})`);
 if (!noteRes.made || noteRes.text !== "seep at the toe of the west berm") fail("the note was not placed", noteRes);
 if (noteRes.undo !== "note") fail("placing a note is not undoable", noteRes.undo);
+});
 
 /* ===================================================================== */
+let near;   /* hoisted — v18 §3 */
+await block("11. SAMPLES NEARBY", async () => {
 /* 11. SAMPLES NEARBY                                                    */
 /* ===================================================================== */
-const near = await page.evaluate(() => {
+near = await page.evaluate(() => {
   const list = SBMM.field.nearbySamples(20);
   const c = document.getElementById("fieldCard");
   return { n: list ? list.length : 0, sorted: list ? list.every((p, i) => !i || p.d >= list[i - 1].d) : false,
@@ -710,11 +748,14 @@ const near = await page.evaluate(() => {
 console.log(`samples nearby: ${near.n} listed, sorted ${near.sorted}, ${near.rows} tappable rows`);
 if (near.n !== 20 || !near.sorted || near.rows !== 20) fail("samples nearby is wrong", near);
 await page.evaluate(() => SBMM.field.closeCard());
+});
 
 /* ===================================================================== */
+let cmds, fieldCmd;   /* hoisted — v18 §3 */
+await block("12. the command surface", async () => {
 /* 12. the command surface                                               */
 /* ===================================================================== */
-const cmds = await page.evaluate(() => {
+cmds = await page.evaluate(() => {
   const seen = new Map(), dup = [];
   for (const c of SBMM.cmd.commands())
     for (const w of [c.n, ...c.a]) { if (seen.has(w)) dup.push(w + " (" + seen.get(w) + " vs " + c.n + ")"); else seen.set(w, c.n); }
@@ -730,7 +771,7 @@ if (cmds.field !== "FIELD" || cmds.gps !== "GPS" || cmds.photo !== "PHOTO" || cm
   fail("a field command is missing", cmds);
 
 /* FIELD turns it off and on again, and the switch in help follows */
-const fieldCmd = await page.evaluate(() => {
+fieldCmd = await page.evaluate(() => {
   SBMM.cmd.run("FIELD");
   const off = { body: document.body.classList.contains("field"), api: SBMM.field.on(),
                 sw: document.getElementById("fieldSwitch").checked,
@@ -744,14 +785,17 @@ console.log("FIELD off:", JSON.stringify(fieldCmd.off), "· back on:", JSON.stri
 if (fieldCmd.off.body || fieldCmd.off.api || fieldCmd.off.sw || !fieldCmd.off.topbar)
   fail("FIELD did not turn field mode off (and give the desktop bar back)", fieldCmd.off);
 if (!fieldCmd.on.body || !fieldCmd.on.api || !fieldCmd.on.sw) fail("FIELD did not turn it back on", fieldCmd.on);
+});
 
 /* ===================================================================== */
+let v3d, cdp, touch, box, before3d, after3d, dth, r0, pinched, fieldParity, CAD_BASEMAP_F, fieldMissing, fieldLabels;   /* hoisted — v18 §3 */
+await block("13. the 3D view", async () => {
 /* 13. the 3D view, on touch                                             */
 /* ===================================================================== */
 await page.evaluate(() => SBMM.viewer3d.toggle());
 await page.waitForFunction(() => SBMM.viewer3d.isOpen(), null, { timeout: 180000 });
 await wait(2500);
-const v3d = await page.evaluate(() => ({
+v3d = await page.evaluate(() => ({
   open: SBMM.viewer3d.isOpen(),
   detail: document.getElementById("v3dDetail").value,
   touchAction: getComputedStyle(document.getElementById("v3dCanvas")).touchAction,
@@ -779,15 +823,15 @@ if (v3d.touchAction !== "none") fail("the 3D canvas does not take touch gestures
    rather than synthetic PointerEvents, so the browser produces the real pointer
    stream (ids, capture, coalescing) the rig listens to — a hand-built
    PointerEvent proves the handler runs, not that a finger reaches it. */
-const cdp = await page.context().newCDPSession(page);
-const touch = (type, pts) => cdp.send("Input.dispatchTouchEvent", {
+cdp = await page.context().newCDPSession(page);
+touch = (type, pts) => cdp.send("Input.dispatchTouchEvent", {
   type, touchPoints: pts.map(p => ({ x: p.x, y: p.y, id: p.id, radiusX: 6, radiusY: 6, force: 1 }))
 });
-const box = await page.evaluate(() => {
+box = await page.evaluate(() => {
   const r = document.getElementById("v3dCanvas").getBoundingClientRect();
   return { cx: Math.round(r.left + r.width / 2), cy: Math.round(r.top + r.height / 2) };
 });
-const before3d = await page.evaluate(() => SBMM.viewer3d.stats().orbit);
+before3d = await page.evaluate(() => SBMM.viewer3d.stats().orbit);
 
 await touch("touchStart", [{ x: box.cx, y: box.cy, id: 1 }]);
 for (let i = 1; i <= 8; i++) {
@@ -796,13 +840,13 @@ for (let i = 1; i <= 8; i++) {
 }
 await touch("touchEnd", []);
 await wait(700);
-const after3d = await page.evaluate(() => SBMM.viewer3d.stats().orbit);
-const dth = Math.abs(after3d.theta - before3d.theta);
+after3d = await page.evaluate(() => SBMM.viewer3d.stats().orbit);
+dth = Math.abs(after3d.theta - before3d.theta);
 console.log(`one-finger orbit: theta ${before3d.theta.toFixed(3)} → ${after3d.theta.toFixed(3)} `
   + `(Δ ${dth.toFixed(3)} rad), phi ${before3d.phi.toFixed(3)} → ${after3d.phi.toFixed(3)}`);
 if (dth < 0.05) fail("a one-finger touch drag did not orbit the 3D camera", { before3d, after3d });
 
-const r0 = after3d.r;
+r0 = after3d.r;
 await touch("touchStart", [{ x: box.cx - 40, y: box.cy, id: 1 }, { x: box.cx + 40, y: box.cy, id: 2 }]);
 for (let i = 1; i <= 8; i++) {
   await touch("touchMove", [{ x: box.cx - 40 - i * 12, y: box.cy, id: 1 },
@@ -811,7 +855,7 @@ for (let i = 1; i <= 8; i++) {
 }
 await touch("touchEnd", []);
 await wait(700);
-const pinched = await page.evaluate(() => SBMM.viewer3d.stats().orbit.r);
+pinched = await page.evaluate(() => SBMM.viewer3d.stats().orbit.r);
 console.log(`two-finger pinch: orbit radius ${Math.round(r0)} → ${Math.round(pinched)} ft`);
 if (Math.abs(pinched - r0) < r0 * 0.05) fail("a two-finger pinch did not zoom", { r0, pinched });
 
@@ -866,7 +910,7 @@ if (Math.abs(pinched - r0) < r0 * 0.05) fail("a two-finger pinch did not zoom", 
    before block 9y on the desktop: the runoff-depth row can only draw a
    catchment once a storm has been run, and the cover drape uses the reduced
    texture the storm's decode builds. */
-const fieldParity = await page.evaluate(async () => {
+fieldParity = await page.evaluate(async () => {
   const w = ms => new Promise(r => setTimeout(r, ms));
   const LS = SBMM.layerState;
   for (const g of ["framework", "design", "invest", "mywork"]) LS.setGroup(g, true);
@@ -888,8 +932,8 @@ const fieldParity = await page.evaluate(async () => {
            labelsVisible: SBMM.viewer3d.stats().labelsVisible,
            sky: SBMM.viewer3d.stats().sky, sun: SBMM.viewer3d.stats().sun };
 });
-const CAD_BASEMAP_F = /^cad_(contour|parcel|road|bldg|fence|tree|util|env|symbol|misc|topo|du|storm|esc|algn|anno)$/;
-const fieldMissing = fieldParity.rows.filter(r => {
+CAD_BASEMAP_F = /^cad_(contour|parcel|road|bldg|fence|tree|util|env|symbol|misc|topo|du|storm|esc|algn|anno)$/;
+fieldMissing = fieldParity.rows.filter(r => {
   if (r.n) return false;
   if (r.group === "base" && /^(Hillshade|Ortho|Slope|Aspect|Elevation tint)/.test(r.label)) return false;
   if (r.group === "design" && (r.id === "sheets3d" || r.id === "sheet_footprints")) return false;
@@ -910,7 +954,7 @@ await page.evaluate(() => SBMM.viewer3d.toggle());
 await wait(600);
 
 /* ---- v15 §2.2: the 2D label engine on the phone ---------------------- */
-const fieldLabels = await page.evaluate(async () => {
+fieldLabels = await page.evaluate(async () => {
   const w = ms => new Promise(r => setTimeout(r, ms));
   SBMM.map.setView([2128400, 6372600], 0, { animate: false });
   await w(700);
@@ -928,8 +972,10 @@ console.log("2D labels (field):", JSON.stringify(fieldLabels.stats),
             "| overlaps:", fieldLabels.overlaps.length);
 if (fieldLabels.overlaps.length)
   fail("two visible labels overlap on the phone", fieldLabels.overlaps.slice(0, 4));
+});
 
 /* ===================================================================== */
+await block("14. boot comparison", async () => {
 /* 14. boot comparison, full vs field, same box, same descriptor         */
 /* ===================================================================== */
 if (compareTo) {
@@ -985,6 +1031,7 @@ if (compareTo) {
   if (D.loops || D.flats) fail("the 4-ft pointer field left cells unresolved", D);
   if (D.outlets < 2) fail("the 4-ft map found no outlets", D);
 }
+});
 
 /* ===================================================================== */
 console.log("\npage errors:", errors.length ? errors.slice(0, 8) : "none");

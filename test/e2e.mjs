@@ -1,21 +1,21 @@
 /* E2E: open the app over file:// (the failure mode on the work computer),
    verify boot, tools, and reproduce the memo's Pile 1 volume validation. */
-import { chromium } from "playwright";
+import { launch, TIMEOUT } from "./lib/browser.mjs";
 import { pathToFileURL as __furl } from "node:url";
 import { resolve as __res } from "node:path";
 import { existsSync as __ex, readFileSync as __read } from "node:fs";
 import { unlock, gatePassword } from "./gate.mjs";
-const CHROME = process.env.CHROME_BIN || (__ex("/opt/pw-browsers/chromium-1194/chrome-linux/chrome") ? "/opt/pw-browsers/chromium-1194/chrome-linux/chrome" : undefined); // undefined = Playwright's own chromium (npx playwright install chromium)
+import { block, S } from "./lib/blocks.mjs";
 
 const target = process.argv[2]; // path to index.html or dist html
 const label = process.argv[3] || target;
 
-const browser = await chromium.launch({ executablePath: CHROME });
+const browser = await launch();
 const page = await browser.newPage({ viewport: { width: 1500, height: 950 } });
 /* headless chromium here runs software GL: with the high-detail mesh (~1.56M verts) plus the
    canopy surface and contours in the scene, the render loop can keep the main thread busy
    longer than Playwright's 30 s default actionability window, which made clicks flaky. */
-page.setDefaultTimeout(180000);
+page.setDefaultTimeout(TIMEOUT);
 const errors = [];
 const f2s = v => v == null || isNaN(v) ? "—" : Math.round(v).toLocaleString("en-US");
 page.on("pageerror", e => errors.push("pageerror: " + e.message));
@@ -25,6 +25,50 @@ console.log(`\n=== ${label} ===`);
 await unlock(page);  /* the password gate — see test/gate.mjs */
 await page.goto(__furl(__res(target)).href);
 
+/* ---- fixtures (v18 §3) -------------------------------------------------
+   State that later blocks need, declared with the code that makes it, so a
+   selected block can be given it without running the forty blocks in front.
+   In a FULL run each of these is built exactly once, by the block that always
+   built it, in the same place — nothing moved. */
+S.define("pile1", () => page.evaluate(async () => {
+  SBMM.tools.volumeOfPile("Pile 1 (Fig 2)");
+  const f = SBMM.store.features[SBMM.store.features.length - 1];
+  for (let i = 0; i < 200 && f.props.fill_yd3 == null; i++) await new Promise(r => setTimeout(r, 100));
+  return f.props;
+}));
+
+/* §9 of docs/V10_WATER_SPEC.md, and the distance helper the water blocks read it
+   with. Constants and a pure function, read by four blocks — module scope, so
+   that "--only 9t" has them without running 9w. */
+const WREF = {
+  drop: [6371200, 2128674],          // §9.1, on the app's node convention
+  dropZ: 1358.44, dropZTol: 0.05,
+  reason: "nodata",
+  end: [6370884.5, 2128611.5], endTol: 3,
+  lastZ: 1326.10, lastZTol: 0.1,
+  lengthRaw: 409.6,                  // simplified path: -3 % / +0.5 %
+  ponds: 2,
+  pond1: { level: 1330.96, cells: 12 },
+  pond2: { level: 1329.76, cells: 19 },
+  catchment: 3046,                   // ft2, +/- 3 %
+  /* §9.2 — Herman Impoundment on the 2-ft site grid */
+  z0: 1336.58, z0Tol: 0.02,
+  seedCells: 223969,
+  spill: 1343.84, spillTol: 0.05,
+  spillAt: [6371927, 2127693], spillTol_ft: 15,
+  next: [6371925, 2127693], nextTol: 6,
+  freeboard: 7.26, freeboardTol: 0.05,
+  storage: 6881929,                  // ft3, +/- 3 %
+  areaAtSpill: 22.83,                // ac, +/- 3 %
+  rimLow2: { level: 1344.34, at: [6372015, 2127571] },
+  routeReason: "nodata",
+  routeEnd: [6371177, 2127473], routeEndTol: 50,
+  routeLength: 974,                  // ft, +/- 10 %
+  stageRows: 42
+};
+const wdist = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]);
+
+await block("1. boot completes (the old app hung here forever)", async () => {
 /* 1. boot completes (the old app hung here forever) */
 await page.waitForSelector("#loading", { state: "hidden", timeout: 60000 })
   .catch(async () => {
@@ -33,7 +77,9 @@ await page.waitForSelector("#loading", { state: "hidden", timeout: 60000 })
     process.exit(1);
   });
 console.log("boot: OK (loader cleared)");
+}, { always: true });
 
+await block("1a. THE PASSWORD GATE", async () => {
 /* 1a. THE PASSWORD GATE (v9.3).
    A second page, opened with no unlock token, so it meets the gate the way a
    colleague would. The gate must cover at z 9000, must let neither a keystroke
@@ -43,7 +89,7 @@ console.log("boot: OK (loader cleared)");
    one place the repo documents it and checks it against js/gate.js's hash. */
 {
   const gp = await browser.newPage({ viewport: { width: 1280, height: 860 } });
-  gp.setDefaultTimeout(180000);
+  gp.setDefaultTimeout(TIMEOUT);
   const gerr = [];
   gp.on("pageerror", e => gerr.push("pageerror: " + e.message));
   gp.on("console", m => { if (m.type() === "error") gerr.push("console: " + m.text()); });
@@ -127,9 +173,12 @@ console.log("boot: OK (loader cleared)");
   if (gerr.length) { console.log("FAIL: errors on the gate page:", gerr.slice(0, 5)); process.exit(1); }
   await gp.close();
 }
+});
 
+let checks;   /* hoisted — v18 §3 */
+await block("2. core readouts", async () => {
 /* 2. core readouts */
-const checks = await page.evaluate(() => {
+checks = await page.evaluate(() => {
   const r = {};
   r.elev = SBMM.elev(6371600, 2128900);                       // inside the 1-ft window
   /* ~1100 ft north of the ABP: outside the old 1-ft window, inside the v3 mine-area
@@ -154,25 +203,26 @@ console.log("elev @(6372000, 2130500) [new mine-area window]:", checks.elevNW,
 if (isNaN(checks.elevNW[0]) || checks.elevNW[1] !== "1-ft DEM") {
   console.log("FAIL: (6372000, 2130500) did not resolve on the 1-ft DEM"); process.exit(1);
 }
+});
 
+let vol;   /* hoisted — v18 §3 */
+await block("3. Pile 1 (Fig 2 traced) volume", async () => {
 /* 3. Pile 1 (Fig 2 traced) volume — baseline re-measured on LandXML lidar-derived DEM
       (v3). The old CAD-contour-derived surface gave 260.5/−58.3 (asserted ~261/−57)
       and the memo's scipy analysis 262/−58; the lidar grid resolves pile micro-relief
       the contour interpolation smoothed away, so the baseline legitimately moved. */
-const vol = await page.evaluate(async () => {
-  SBMM.tools.volumeOfPile("Pile 1 (Fig 2)");
-  const f = SBMM.store.features[SBMM.store.features.length - 1];
-  for (let i = 0; i < 200 && f.props.fill_yd3 == null; i++) await new Promise(r => setTimeout(r, 100));
-  return f.props;
-});
+vol = await S.get("pile1");
 console.log(`Pile 1 volume: fill ${vol.fill_yd3} yd³, net ${vol.net_yd3} yd³ (lidar baseline: 278.4 / −48.1)`);
 if (Math.abs(vol.fill_yd3 - 278.4) > 10 || Math.abs(vol.net_yd3 - (-48.1)) > 10) {
   console.log("FAIL: volume validation out of tolerance"); process.exit(1);
 }
 console.log("volume validation: OK");
+});
 
+let wk;   /* hoisted — v18 §3 */
+await block("3b. that volume must have gone through the Blob-URL Web Worker", async () => {
 /* 3b. that volume must have gone through the Blob-URL Web Worker, not the fallback */
-const wk = await page.evaluate(async () => {
+wk = await page.evaluate(async () => {
   await SBMM.compute.probe();
   const st = SBMM.compute.stats;
   return {
@@ -181,7 +231,7 @@ const wk = await page.evaluate(async () => {
     srcKernel: /volumeGrid/.test(SBMM.compute.source()) && /installWorker\(self\)/.test(SBMM.compute.source()),
     srcBytes: SBMM.compute.source().length
   };
-});
+}, { needs: ["pile1"] });
 console.log("compute:", JSON.stringify(wk));
 if (!wk.srcKernel) { console.log("FAIL: generated worker source does not contain the compute kernel"); process.exit(1); }
 if (wk.available !== true) { console.log("FAIL: Blob-URL workers unavailable over file://"); process.exit(1); }
@@ -189,10 +239,13 @@ if (!(wk.workerJobs > 0)) { console.log("FAIL: volume did not run in a worker");
 if (wk.syncJobs > 0) { console.log("FAIL: a compute job fell back to the main thread"); process.exit(1); }
 if (wk.failures > 0) { console.log("FAIL: compute job failures"); process.exit(1); }
 console.log("worker path: OK");
+});
 
+let cancelled;   /* hoisted — v18 §3 */
+await block("3c. superseded jobs are cancelled (this is what vertex-dragging", async () => {
 /* 3c. superseded jobs are cancelled (this is what vertex-dragging relies on) and the
        surviving job still returns the validated number */
-const cancelled = await page.evaluate(async () => {
+cancelled = await page.evaluate(async () => {
   const f = SBMM.store.features.find(x => x.type === "volume");
   const before = SBMM.compute.stats.cancelled;
   f.props.fill_yd3 = null;
@@ -201,14 +254,17 @@ const cancelled = await page.evaluate(async () => {
   SBMM.tools.compVolume(f);          // job C supersedes B
   for (let i = 0; i < 200 && f.props.fill_yd3 == null; i++) await new Promise(r => setTimeout(r, 100));
   return { cancelled: SBMM.compute.stats.cancelled - before, fill: f.props.fill_yd3, sync: SBMM.compute.stats.syncJobs };
-});
+}, { needs: ["pile1"] });
 console.log("superseded jobs cancelled:", cancelled.cancelled, "| surviving result:", cancelled.fill, "yd\u00b3");
 if (cancelled.cancelled < 2) { console.log("FAIL: superseded compute jobs were not cancelled"); process.exit(1); }
 if (Math.abs(cancelled.fill - 278.4) > 10) { console.log("FAIL: recompute after cancellation changed the answer"); process.exit(1); }
 if (cancelled.sync > 0) { console.log("FAIL: cancellation pushed a job onto the main thread"); process.exit(1); }
+});
 
+let meas;   /* hoisted — v18 §3 */
+await block("4. distance + area + profile via rebuildFeature", async () => {
 /* 4. distance + area + profile via rebuildFeature */
-const meas = await page.evaluate(async () => {
+meas = await page.evaluate(async () => {
   SBMM.tools.rebuildFeature({ type: "line", pts: [[6371400, 2128800], [6371700, 2128800]] });
   SBMM.tools.rebuildFeature({ type: "area", pts: [[6371400, 2128700], [6371500, 2128700], [6371500, 2128800], [6371400, 2128800]] });
   SBMM.tools.rebuildFeature({ type: "profile", pts: [[6371350, 2128600], [6371900, 2129100]] });
@@ -223,30 +279,39 @@ const meas = await page.evaluate(async () => {
 });
 console.log("distance 300ft check:", meas.line.length_ft, "| area 10000ft² check:", meas.area.area_ft2, "| profile pts:", meas.prof.profile && meas.prof.profile.length, "| chart:", meas.profSvg);
 if (Math.abs(meas.line.length_ft - 300) > 0.1 || Math.abs(meas.area.area_ft2 - 10000) > 1) { console.log("FAIL measurement"); process.exit(1); }
+});
 
+let gj;   /* hoisted — v18 §3 */
+await block("5. GeoJSON export content", async () => {
 /* 5. GeoJSON export content */
-const gj = await page.evaluate(() => {
+gj = await page.evaluate(() => {
   const feats = SBMM.store.features;
   // exercise the collection builder through the menu handler path
   const before = feats.length;
   return { nFeatures: before };
 });
 console.log("features in store:", gj.nFeatures);
+});
 
+let rows, rowsF;   /* hoisted — v18 §3 */
+await block("6. sample table", async () => {
 /* 6. sample table */
 await page.click("#tableBtn");
 await page.waitForTimeout(300);
-const rows = await page.evaluate(() => document.querySelectorAll("#tblBody tr").length);
+rows = await page.evaluate(() => document.querySelectorAll("#tblBody tr").length);
 console.log("table rows:", rows);
 if (rows < 100) { console.log("FAIL table"); process.exit(1); }
 await page.fill("#tblHg", "204");
 await page.waitForTimeout(250);
-const rowsF = await page.evaluate(() => document.querySelectorAll("#tblBody tr").length);
+rowsF = await page.evaluate(() => document.querySelectorAll("#tblBody tr").length);
 console.log("rows with Hg ≥ 204:", rowsF);
 await page.click("#tblClose");
+});
 
+let slopeOk;   /* hoisted — v18 §3 */
+await block("7. analysis layer", async () => {
 /* 7. analysis layer: slope */
-const slopeOk = await page.evaluate(async () => {
+slopeOk = await page.evaluate(async () => {
   const cb = [...document.querySelectorAll("#anaLayers .lyr")].find(l => l.textContent.includes("Slope")).querySelector("input");
   cb.click();
   for (let i = 0; i < 300; i++) {
@@ -257,22 +322,28 @@ const slopeOk = await page.evaluate(async () => {
   return false;
 });
 console.log("slope layer:", slopeOk ? "OK" : "TIMEOUT");
+});
 
+let ct;   /* hoisted — v18 §3 */
+await block("8. custom contours (small interval only over ABP)", async () => {
 /* 8. custom contours (small interval only over ABP) */
-const ct = await page.evaluate(async () => {
+ct = await page.evaluate(async () => {
   await SBMM.analysis.makeCustomContours(5);
   return document.querySelectorAll("#anaLayers .lyr").length;
 });
 console.log("contour gen added layer row (total ana rows now):", ct);
+});
 
+let chmGate, chm;   /* hoisted — v18 §3 */
+await block("8b. canopy height model (lidar CHM)", async () => {
 /* 8b. canopy height model (lidar CHM). Everything that consumes canopy heights
    goes through SBMM.chmReady, so that contract is checked here too — it is what
    would let the decode move off the boot path without a hunt through five
    modules. */
-const chmGate = await page.evaluate(async () => ({ promise: !!SBMM.chmReady, resolved: !!(await SBMM.chmReady) }));
+chmGate = await page.evaluate(async () => ({ promise: !!SBMM.chmReady, resolved: !!(await SBMM.chmReady) }));
 console.log("SBMM.chmReady gate:", JSON.stringify(chmGate));
 if (!chmGate.promise || !chmGate.resolved) { console.log("FAIL: SBMM.chmReady is not a resolved gate on the model"); process.exit(1); }
-const chm = await page.evaluate(() => {
+chm = await page.evaluate(() => {
   const r = { has: !!SBMM.chm };
   if (!SBMM.chm) return r;
   const c = SBMM.chm, m = c.m;
@@ -309,9 +380,12 @@ if (!chm.layerRow) { console.log("FAIL: canopy layer row absent"); process.exit(
 if (!isNaN(chm.canopyOffGrid)) { console.log("FAIL: canopy outside window should be NaN"); process.exit(1); }
 if (!/veg \d+ ft/.test(chm.statusText)) { console.log("FAIL: status bar missing veg readout"); process.exit(1); }
 if (!(chm.spotCanopy > 2)) { console.log("FAIL: spot card missing canopy"); process.exit(1); }
+});
 
+let canLayer;   /* hoisted — v18 §3 */
+await block("8c. the 2D canopy raster layer actually renders", async () => {
 /* 8c. the 2D canopy raster layer actually renders */
-const canLayer = await page.evaluate(async () => {
+canLayer = await page.evaluate(async () => {
   const row = [...document.querySelectorAll("#anaLayers .lyr")].find(l => l.textContent.includes("Canopy height (lidar)"));
   row.querySelector("input[type=checkbox]").click();
   for (let i = 0; i < 600; i++) {
@@ -325,9 +399,12 @@ const canLayer = await page.evaluate(async () => {
 });
 console.log("canopy 2D layer:", canLayer.ok ? "OK (image overlays on map: " + canLayer.imgs + ")" : "TIMEOUT");
 if (!canLayer.ok) { console.log("FAIL: canopy layer did not render"); process.exit(1); }
+});
 
+let om;   /* hoisted — v18 §3 */
+await block("8d. 6-inch mine-area orthophoto payload + its basemap row", async () => {
 /* 8d. 6-inch mine-area orthophoto payload + its basemap row */
-const om = await page.evaluate(() => ({
+om = await page.evaluate(() => ({
   jpg: typeof SBMM_DATA.ortho_mine_jpg === "string" && SBMM_DATA.ortho_mine_jpg.startsWith("data:image/jpeg"),
   geo: SBMM_DATA.ortho_mine,
   row: [...document.querySelectorAll("#baseLayers .lyr")].some(l => l.textContent.includes("Ortho — mine area (6 in)")),
@@ -338,11 +415,14 @@ if (!om.jpg) { console.log("FAIL: SBMM_DATA.ortho_mine_jpg missing"); process.ex
 if (!om.geo || om.geo.x0 !== 6370069 || om.geo.y1 !== 2131120) { console.log("FAIL: ortho_mine geo wrong"); process.exit(1); }
 if (!om.row) { console.log("FAIL: ortho_mine layer row absent"); process.exit(1); }
 if (!om.onMap) { console.log("FAIL: ortho_mine not added to map"); process.exit(1); }
+});
 
+let tabs, ftab;   /* hoisted — v18 §3 */
+await block("8e. workbench shell", async () => {
 /* 8e. workbench shell — dock tabs exist and switch.
    v9 (§3): the left dock is Layers / My work / Sheets and the old "props" pane
    moved to the right dock as the Inspector, alongside Results. */
-const tabs = await page.evaluate(() => ({
+tabs = await page.evaluate(() => ({
   names: [...document.querySelectorAll("#leftTabs .dtab")].map(b => b.dataset.tab),
   panes: [...document.querySelectorAll("#leftBody .dockpane")].map(p => p.dataset.pane),
   rails: [...document.querySelectorAll("#leftRail .railbtn")].map(b => b.dataset.tab),
@@ -363,7 +443,7 @@ if (!tabs.jobBar) { console.log("FAIL: status-bar job progress area missing"); p
 
 await page.click('#leftTabs .dtab[data-tab="features"]');
 await page.waitForTimeout(250);
-const ftab = await page.evaluate(() => ({
+ftab = await page.evaluate(() => ({
   featuresShown: !document.getElementById("featuresPane").hidden,
   layersHidden: document.getElementById("layers").hidden,
   rows: document.querySelectorAll("#featureTree .ftrow").length,
@@ -379,7 +459,10 @@ console.log("features tab:", ftab.featuresShown, "| layers pane hidden:", ftab.l
             "| first row:", JSON.stringify(ftab.first));
 if (!ftab.featuresShown || !ftab.layersHidden) { console.log("FAIL: tab switch did not swap panes"); process.exit(1); }
 if (ftab.rows !== ftab.storeN || ftab.rows < 1) { console.log("FAIL: feature manager rows do not match the store"); process.exit(1); }
+});
 
+let ren;   /* hoisted — v18 §3 */
+await block("8f. rename through the row", async () => {
 /* 8f. rename through the row */
 await page.evaluate(() => {
   const n = document.querySelector("#featureTree .ftrow .ftname");
@@ -390,7 +473,7 @@ await page.evaluate(() => {
 await page.keyboard.type("Pile 1 renamed via row");
 await page.keyboard.press("Enter");
 await page.waitForTimeout(200);
-const ren = await page.evaluate(() => {
+ren = await page.evaluate(() => {
   /* the first row of the tree, which is the first feature that is NOT one of
      EA's reference surfaces (those are read-only and are not listed here) */
   const f = SBMM.store.features.filter(q => !(q.props && q.props.ref))[0];
@@ -402,7 +485,10 @@ const ren = await page.evaluate(() => {
 console.log("rename via row -> store:", JSON.stringify(ren.storeName), "| results card:", JSON.stringify(ren.cardName));
 if (ren.storeName !== "Pile 1 renamed via row") { console.log("FAIL: row rename did not reach the store"); process.exit(1); }
 if (ren.cardName !== "Pile 1 renamed via row") { console.log("FAIL: row rename did not reach the results card"); process.exit(1); }
+});
 
+let mine0, hidden, shown;   /* hoisted — v18 §3 */
+await block("8g. eye toggles map visibility", async () => {
 /* 8g. eye toggles map visibility */
 await page.click("#featureTree .ftrow:first-child .ftb.eye");
 await page.waitForTimeout(150);
@@ -411,18 +497,21 @@ await page.waitForTimeout(150);
    no longer that. */
 await page.addInitScript(() => { window.__mine = () => SBMM.store.features.filter(q => !(q.props && q.props.ref)); });
 await page.evaluate(() => { window.__mine = () => SBMM.store.features.filter(q => !(q.props && q.props.ref)); });
-const mine0 = () => { const f = window.__mine()[0];
+mine0 = () => { const f = window.__mine()[0];
                       return { visible: f.visible, onMap: SBMM.map.hasLayer(f.layer) }; };
-const hidden = await page.evaluate(mine0);
+hidden = await page.evaluate(mine0);
 await page.click("#featureTree .ftrow:first-child .ftb.eye");
 await page.waitForTimeout(150);
-const shown = await page.evaluate(mine0);
+shown = await page.evaluate(mine0);
 console.log("eye toggle — hidden:", JSON.stringify(hidden), "| shown again:", JSON.stringify(shown));
 if (hidden.visible !== false || hidden.onMap !== false) { console.log("FAIL: eye did not hide the map layer"); process.exit(1); }
 if (shown.visible !== true || shown.onMap !== true) { console.log("FAIL: eye did not restore the map layer"); process.exit(1); }
+});
 
+let grp;   /* hoisted — v18 §3 */
+await block("8h. groups", async () => {
 /* 8h. groups: create a folder, move a feature into it, check serialization round-trips */
-const grp = await page.evaluate(() => {
+grp = await page.evaluate(() => {
   const p = SBMM.store.addGroup("Piles/Traced");
   SBMM.store.setGroup(window.__mine()[0], p);
   const ser = SBMM.store.serialize();
@@ -437,9 +526,12 @@ console.log("groups:", grp.groups.join(" / "), "| folder rows:", grp.folderRows,
             "| serialized group:", grp.serGroup, "| session version:", grp.serVersion);
 if (grp.folderRows < 2) { console.log("FAIL: nested folders not rendered"); process.exit(1); }
 if (grp.serGroup !== "Piles/Traced") { console.log("FAIL: group not serialized"); process.exit(1); }
+});
 
+let compat;   /* hoisted — v18 §3 */
+await block("8i. an OLD", async () => {
 /* 8i. an OLD (v2, no group/style/visible) session still restores */
-const compat = await page.evaluate(() => {
+compat = await page.evaluate(() => {
   const before = SBMM.store.features.length;
   SBMM.store.restore({
     app: "SBMM Site Explorer", version: 2,
@@ -453,12 +545,15 @@ if (compat.added !== 1 || compat.name !== "Legacy line" || compat.group !== "" |
   console.log("FAIL: v2 session did not restore cleanly"); process.exit(1);
 }
 if (Math.abs(compat.len - 200) > 0.1) { console.log("FAIL: restored legacy feature not measured"); process.exit(1); }
+});
 
+let props;   /* hoisted — v18 §3 */
+await block("8j. selection populates Properties", async () => {
 /* 8j. selection populates Properties */
 await page.evaluate(() => SBMM.store.select(window.__mine()[0].id));
 await page.click('#rightTabs .dtab[data-rtab="inspector"]');   /* v9 §3: Properties is the right dock's Inspector */
 await page.waitForTimeout(250);
-const props = await page.evaluate(() => ({
+props = await page.evaluate(() => ({
   selected: SBMM.store.selected,
   name: (document.getElementById("pName") || {}).value,
   groupSel: (document.getElementById("pGroup") || {}).value,
@@ -474,9 +569,12 @@ console.log("properties:", JSON.stringify({ name: props.name, group: props.group
 if (!props.name || !props.hasColor || !props.hasWeight) { console.log("FAIL: properties panel incomplete"); process.exit(1); }
 if (!(props.coordRows > 2)) { console.log("FAIL: properties coordinate list empty"); process.exit(1); }
 if (!props.cardSelected) { console.log("FAIL: selection did not highlight the results card"); process.exit(1); }
+});
 
+let selByMap, afterEsc;   /* hoisted — v18 §3 */
+await block("8k. clicking the map layer selects; Esc deselects", async () => {
 /* 8k. clicking the map layer selects; Esc deselects */
-const selByMap = await page.evaluate(() => {
+selByMap = await page.evaluate(() => {
   SBMM.store.select(null);
   const f = SBMM.store.features.find(q => q.type === "area");
   f.layer.fire("click", { latlng: { lat: f.pts[0][1], lng: f.pts[0][0] } });
@@ -484,37 +582,43 @@ const selByMap = await page.evaluate(() => {
 });
 await page.keyboard.press("Escape");
 await page.waitForTimeout(200);
-const afterEsc = await page.evaluate(() => ({ selected: SBMM.store.selected, placeholder: !!document.querySelector("#propsBody .pnone") }));
+afterEsc = await page.evaluate(() => ({ selected: SBMM.store.selected, placeholder: !!document.querySelector("#propsBody .pnone") }));
 console.log("map click selects:", selByMap.isArea, "| Esc deselects:", afterEsc.selected === null, "| props placeholder:", afterEsc.placeholder);
 if (!selByMap.isArea) { console.log("FAIL: clicking a drawn feature did not select it"); process.exit(1); }
 if (afterEsc.selected !== null) { console.log("FAIL: Esc did not clear the selection"); process.exit(1); }
+});
 
 /* ===================================================================== */
+let keepIds, spPage, spClick, draftView;   /* hoisted — v18 §3 */
+await block("8L. CAD drafting core", async () => {
 /* 8L. CAD drafting core — object snap, ortho/polar, typed input,        */
 /*     command line, modify tools, dimensions, DXF round-trip.           */
 /*     Everything created here is removed again at the end so the 3D     */
 /*     section still finds the Pile 1 volume it screenshots.             */
 /* ===================================================================== */
-const keepIds = await page.evaluate(() => SBMM.store.features.map(f => f.id));
-async function spPage(x, y) {
+keepIds = await page.evaluate(() => SBMM.store.features.map(f => f.id));
+spPage = async function spPage(x, y) {
   return await page.evaluate(([x, y]) => {
     const c = SBMM.map.latLngToContainerPoint([y, x]);
     const r = document.getElementById("map").getBoundingClientRect();
     return { x: r.left + c.x, y: r.top + c.y };
   }, [x, y]);
 }
-async function spClick(x, y) {
+spClick = async function spClick(x, y) {
   const p = await spPage(x, y);
   await page.mouse.move(p.x, p.y); await page.waitForTimeout(70);
   await page.mouse.click(p.x, p.y); await page.waitForTimeout(160);
 }
-async function draftView() {
+draftView = async function draftView() {
   await page.evaluate(() => { SBMM.tools.setTool(null); SBMM.map.setView([2128850, 6371500], 1); });
   await page.waitForTimeout(700);
 }
+});
 
+let osnapUi, afterF3, backOn, snapIdx;   /* hoisted — v18 §3 */
+await block("8L-a. the OSNAP / POLAR / CMD chrome exists and toggles", async () => {
 /* 8L-a. the OSNAP / POLAR / CMD chrome exists and toggles */
-const osnapUi = await page.evaluate(() => ({
+osnapUi = await page.evaluate(() => ({
   btn: !!document.getElementById("osnapBtn"),
   polar: !!document.getElementById("polarBtn"),
   cmd: !!document.getElementById("cmdBtn"),
@@ -524,17 +628,20 @@ const osnapUi = await page.evaluate(() => ({
 }));
 await page.evaluate(() => SBMM.snap.setEnabled(true));
 await page.keyboard.press("F3");
-const afterF3 = await page.evaluate(() => SBMM.snap.enabled());
+afterF3 = await page.evaluate(() => SBMM.snap.enabled());
 await page.keyboard.press("F3");
-const backOn = await page.evaluate(() => SBMM.snap.enabled());
+backOn = await page.evaluate(() => SBMM.snap.enabled());
 console.log("osnap chrome:", JSON.stringify(osnapUi), "| F3 ->", afterF3, "->", backOn);
 if (!osnapUi.btn || !osnapUi.polar || !osnapUi.cmd) { console.log("FAIL: drafting status-bar chrome missing"); process.exit(1); }
 if (osnapUi.boxes !== 5 || osnapUi.types.length !== 5) { console.log("FAIL: expected 5 per-type snap checkboxes"); process.exit(1); }
 if (afterF3 !== false || backOn !== true) { console.log("FAIL: F3 does not toggle object snap"); process.exit(1); }
-const snapIdx = await page.evaluate(() => { SBMM.snap.buildStatic(); return SBMM.snap.stats(); });
+snapIdx = await page.evaluate(() => { SBMM.snap.buildStatic(); return SBMM.snap.stats(); });
 console.log("static snap index:", snapIdx.segs, "segments +", snapIdx.pts, "points in", snapIdx.ms, "ms");
 if (!(snapIdx.segs > 1000)) { console.log("FAIL: static snap index looks empty"); process.exit(1); }
+});
 
+let snapped;   /* hoisted — v18 §3 */
+await block("8L-b. scripted snap", async () => {
 /* 8L-b. scripted snap: hover near a drawn endpoint, click, land exactly on it */
 await draftView();
 await page.evaluate(() => {
@@ -546,7 +653,7 @@ await spClick(6371450 + 1.5, 2128840 - 1.2);            // ~1.9 ft off the endpo
 await spClick(6371560, 2128900);
 await page.keyboard.press("Enter");
 await page.waitForTimeout(400);
-const snapped = await page.evaluate(() => {
+snapped = await page.evaluate(() => {
   const f = SBMM.store.features[SBMM.store.features.length - 1];
   return f && f.type === "line" ? f.pts[0] : null;
 });
@@ -554,18 +661,21 @@ console.log("osnap click landed at:", snapped, "| target vertex: [6371450, 21288
 if (!snapped || Math.abs(snapped[0] - 6371450) > 0.001 || Math.abs(snapped[1] - 2128840) > 0.001) {
   console.log("FAIL: object snap did not put the click on the endpoint"); process.exit(1);
 }
+});
 
+let dynHint, typed;   /* hoisted — v18 §3 */
+await block("8L-c. typed input", async () => {
 /* 8L-c. typed input: @100<0 makes a 100 ft segment due east */
 await page.evaluate(() => { SBMM.tools.setTool(null); SBMM.tools.setTool("distance"); });
 await spClick(6371430, 2128810);
 await page.keyboard.type("@100<0");
 await page.waitForTimeout(150);
-const dynHint = await page.textContent("#dynHint");
+dynHint = await page.textContent("#dynHint");
 await page.keyboard.press("Enter");
 await page.waitForTimeout(120);
 await page.keyboard.press("Enter");
 await page.waitForTimeout(400);
-const typed = await page.evaluate(() => {
+typed = await page.evaluate(() => {
   const f = SBMM.store.features[SBMM.store.features.length - 1];
   return f ? { pts: f.pts, len: f.props.length_ft } : null;
 });
@@ -573,7 +683,10 @@ console.log("typed @100<0 ->", JSON.stringify(typed), "| hint:", JSON.stringify(
 if (!typed || Math.abs(typed.len - 100) > 0.02 || Math.abs(typed.pts[1][1] - typed.pts[0][1]) > 0.01) {
   console.log("FAIL: typed @100<0 did not produce a 100 ft due-east segment"); process.exit(1);
 }
+});
 
+let orthoPts, polarPts;   /* hoisted — v18 §3 */
+await block("8L-d. ortho (Shift) and polar tracking constrain the next vertex", async () => {
 /* 8L-d. ortho (Shift) and polar tracking constrain the next vertex */
 await page.evaluate(() => { SBMM.tools.setTool(null); SBMM.snap.setEnabled(false); SBMM.tools.setTool("distance"); });
 await spClick(6371450, 2128800);
@@ -582,24 +695,27 @@ await spClick(6371520, 2128830);
 await page.keyboard.up("Shift");
 await page.keyboard.press("Enter");
 await page.waitForTimeout(300);
-const orthoPts = await page.evaluate(() => SBMM.store.features[SBMM.store.features.length - 1].pts);
+orthoPts = await page.evaluate(() => SBMM.store.features[SBMM.store.features.length - 1].pts);
 await page.evaluate(() => { SBMM.draw.setPolar(true); SBMM.tools.setTool(null); SBMM.tools.setTool("distance"); });
 await spClick(6371450, 2128780);
 await spClick(6371520, 2128786);                          // 4.9° — polar rounds it to 0°
 await page.keyboard.press("Enter");
 await page.waitForTimeout(300);
-const polarPts = await page.evaluate(() => { SBMM.draw.setPolar(false); SBMM.snap.setEnabled(true); return SBMM.store.features[SBMM.store.features.length - 1].pts; });
+polarPts = await page.evaluate(() => { SBMM.draw.setPolar(false); SBMM.snap.setEnabled(true); return SBMM.store.features[SBMM.store.features.length - 1].pts; });
 console.log("ortho ->", JSON.stringify(orthoPts), "| polar 15° ->", JSON.stringify(polarPts));
 if (Math.abs(orthoPts[1][1] - orthoPts[0][1]) > 0.01) { console.log("FAIL: Shift did not lock ortho"); process.exit(1); }
 if (Math.abs(polarPts[1][1] - polarPts[0][1]) > 0.01) { console.log("FAIL: polar tracking did not snap to 0°"); process.exit(1); }
+});
 
+let cmdMeta, volArmed, offRes, refused;   /* hoisted — v18 §3 */
+await block("8L-e. command line", async () => {
 /* 8L-e. command line: VOL arms the volume tool, OFFSET builds a real parallel copy */
-const cmdMeta = await page.evaluate(() => ({
+cmdMeta = await page.evaluate(() => ({
   n: SBMM.cmd.commands().length,
   aliases: ["PL", "O", "MI", "RO", "CO", "M", "J", "X", "ZE", "DI"].every(a => !!SBMM.cmd.find(a))
 }));
 await page.evaluate(() => { SBMM.tools.setTool(null); SBMM.cmd.run("VOL"); });
-const volArmed = await page.evaluate(() => SBMM.tools.active());
+volArmed = await page.evaluate(() => SBMM.tools.active());
 console.log("command line:", cmdMeta.n, "commands | AutoCAD aliases resolve:", cmdMeta.aliases, "| VOL armed:", volArmed);
 if (!cmdMeta.aliases || volArmed !== "volume") { console.log("FAIL: command line did not run VOL"); process.exit(1); }
 
@@ -611,7 +727,7 @@ await page.evaluate(() => {
 });
 await page.waitForTimeout(200);
 await spClick(6371490, 2128840);                          // inside -> offset inward
-const offRes = await page.evaluate(() => {
+offRes = await page.evaluate(() => {
   const f = SBMM.store.features.find(f => /offset/.test(f.name || ""));
   return f ? { name: f.name, area: f.props.area_ft2, n: f.pts.length } : null;
 });
@@ -626,16 +742,19 @@ await page.evaluate(() => {
 });
 await page.waitForTimeout(200);
 await spClick(6371500, 2128850);
-const refused = await page.evaluate(() => SBMM.store.features.filter(f => /offset/.test(f.name || "")).length);
+refused = await page.evaluate(() => SBMM.store.features.filter(f => /offset/.test(f.name || "")).length);
 console.log("OFFSET 40 into a 20 ft-wide strip -> features created:", refused, "(expect 0)");
 if (refused !== 0) { console.log("FAIL: OFFSET shipped self-intersecting geometry"); process.exit(1); }
+});
 
+let dimRes;   /* hoisted — v18 §3 */
+await block("8L-f. dimension between two points reports the right distance and", async () => {
 /* 8L-f. dimension between two points reports the right distance and draws CAD furniture */
 await page.evaluate(() => { SBMM.tools.setTool(null); SBMM.cmd.run("DIM"); });
 await page.waitForTimeout(150);
 await spClick(6371420, 2128800);
 await spClick(6371520, 2128800);
-const dimRes = await page.evaluate(() => {
+dimRes = await page.evaluate(() => {
   const f = SBMM.store.features.find(f => f.type === "dim");
   return f ? { len: f.props.length_ft, bearing: f.props.bearing_deg, parts: f.layer.getLayers().length,
                label: (f.layer.getLayers().find(l => l.getIcon) || {}).options } : null;
@@ -643,9 +762,12 @@ const dimRes = await page.evaluate(() => {
 console.log("DIM ->", dimRes && { len: dimRes.len, bearing: dimRes.bearing, layerParts: dimRes.parts });
 if (!dimRes || Math.abs(dimRes.len - 100) > 0.01) { console.log("FAIL: dimension distance is wrong"); process.exit(1); }
 if (!(dimRes.parts >= 5)) { console.log("FAIL: dimension did not draw its extension/arrow/text furniture"); process.exit(1); }
+});
 
+let sessionRT, v2ok;   /* hoisted — v18 §3 */
+await block("8L-g. annotation text + session v7 round-trip (and an old v2 file", async () => {
 /* 8L-g. annotation text + session v7 round-trip (and an old v2 file still loads) */
-const sessionRT = await page.evaluate(() => {
+sessionRT = await page.evaluate(() => {
   SBMM.store.features.filter(f => f.type === "dim" || f.type === "text").forEach(f => SBMM.store.remove(f));
   SBMM.tools.mkDim([[6371400, 2128700], [6371500, 2128700]]);
   SBMM.tools.mkText([[6371450, 2128750], [6371480, 2128780]], "Stockpile A");
@@ -667,16 +789,19 @@ console.log("session round-trip:", JSON.stringify(sessionRT));
 if (sessionRT.version !== 8 || Math.abs(sessionRT.dim - 100) > 0.01 || sessionRT.text !== "Stockpile A" || sessionRT.leader !== 2) {
   console.log("FAIL: dim/text did not survive the session round-trip"); process.exit(1);
 }
-const v2ok = await page.evaluate(() => {
+v2ok = await page.evaluate(() => {
   const n0 = SBMM.store.features.length;
   SBMM.store.restore({ app: "SBMM Site Explorer", version: 2, features: [{ name: "ZZ v2 line", type: "line", pts: [[6371400, 2128700], [6371450, 2128700]], props: {} }] });
   return SBMM.store.features.length - n0;
 });
 console.log("v2 session still loads:", v2ok === 1);
 if (v2ok !== 1) { console.log("FAIL: a v2 session no longer restores"); process.exit(1); }
+});
 
+let dxfRT, dxfGuard;   /* hoisted — v18 §3 */
+await block("8L-h. DXF round-trip", async () => {
 /* 8L-h. DXF round-trip: export, re-import, geometry back within 0.01 ft */
-const dxfRT = await page.evaluate(() => {
+dxfRT = await page.evaluate(() => {
   const mine = SBMM.store.features.filter(f => /^ZZ|Stockpile|Dim |Text /.test(f.name || "") || f.type === "dim" || f.type === "text");
   mine.forEach(f => SBMM.store.remove(f));
   const made = [
@@ -718,7 +843,7 @@ if (dxfRT.worst > 0.01) { console.log("FAIL: DXF round-trip drifted more than 0.
 if (!dxfRT.textBack.includes("Stockpile A")) { console.log("FAIL: DXF TEXT did not survive the round-trip"); process.exit(1); }
 
 /* a DXF in the wrong coordinate system must be refused, never guessed at */
-const dxfGuard = await page.evaluate(() => {
+dxfGuard = await page.evaluate(() => {
   const mk = (x1, y1, x2, y2) => `0\nSECTION\n2\nENTITIES\n0\nLINE\n8\n0\n10\n${x1}\n20\n${y1}\n30\n0\n11\n${x2}\n21\n${y2}\n31\n0\n0\nENDSEC\n0\nEOF\n`;
   const out = {};
   for (const [k, s] of [["latlong", mk(-122.66, 39.005, -122.65, 39.006)], ["local", mk(0, 0, 250, 180)]]) {
@@ -731,14 +856,20 @@ if (dxfGuard.latlong !== "refused" || dxfGuard.local !== "refused") {
   console.log("FAIL: DXF import accepted coordinates that are not State Plane feet"); process.exit(1);
 }
 console.log("drafting core: OK");
+});
 
 /* ==================================================================== */
+let EBOX;   /* hoisted — v18 §3 */
+await block("8M. earthworks", async () => {
 /* 8M. earthworks — design surfaces, balance, range, sections, report   */
 /* ==================================================================== */
-const EBOX = [[6371400, 2128700], [6371700, 2128700], [6371700, 2129000], [6371400, 2129000]];
+EBOX = [[6371400, 2128700], [6371700, 2128700], [6371700, 2129000], [6371400, 2129000]];
+});
 
+let padRes;   /* hoisted — v18 §3 */
+await block("8M-a. a graded pad on known terrain", async () => {
 /* 8M-a. a graded pad on known terrain: raster, daylight line, elevation API */
-const padRes = await page.evaluate(async (BOX) => {
+padRes = await page.evaluate(async (BOX) => {
   const wait = ms => new Promise(r => setTimeout(r, ms));
   const st = SBMM.design.rimStats(BOX);
   const f = SBMM.design.mkSurface(BOX.map(p => p.slice()), "ZZ Pad",
@@ -770,9 +901,12 @@ if (!(padRes.bx[0] < 6371400 - 5 && padRes.bx[1] > 6371700 + 5)) {
 if (!padRes.onMap || !padRes.rowInLayers || !padRes.inTree) {
   console.log("FAIL: the surface is missing from the map, the Surfaces list or the Features tree"); process.exit(1);
 }
+});
 
+let dvol;   /* hoisted — v18 §3 */
+await block("8M-b. cut/fill of the terrain against that design surface", async () => {
 /* 8M-b. cut/fill of the terrain against that design surface */
-const dvol = await page.evaluate(async () => {
+dvol = await page.evaluate(async () => {
   const wait = ms => new Promise(r => setTimeout(r, ms));
   const surf = SBMM.design.list().find(f => f.name === "ZZ Pad");
   const v = SBMM.design.volumeAgainst(surf);
@@ -785,9 +919,12 @@ if (!/design surface: ZZ Pad/.test(dvol.base || "")) { console.log("FAIL: volume
 if (!(dvol.cut > 0 && dvol.fill > 0)) { console.log("FAIL: cut/fill vs design is not plausible"); process.exit(1); }
 if (Math.abs((dvol.cut - dvol.fill) - dvol.net) > 1) { console.log("FAIL: net does not equal cut - fill"); process.exit(1); }
 if (!/Cut — terrain above design/.test(dvol.label)) { console.log("FAIL: design-base card still uses fitted-base wording"); process.exit(1); }
+});
 
+let balRes, balPct;   /* hoisted — v18 §3 */
+await block("8M-c. auto-balance converges to cut == fill", async () => {
 /* 8M-c. auto-balance converges to cut == fill */
-const balRes = await page.evaluate(async () => {
+balRes = await page.evaluate(async () => {
   const wait = ms => new Promise(r => setTimeout(r, ms));
   const f = SBMM.design.mkSurface(
     [[6371450, 2128750], [6371600, 2128750], [6371600, 2128900], [6371450, 2128900]],
@@ -797,15 +934,18 @@ const balRes = await page.evaluate(async () => {
   const after = await SBMM.design.balance(f);
   return { before, after, iters: f.props.balance_iters, box: !!f.card.querySelector(".sbalbox") };
 });
-const balPct = balRes.after
+balPct = balRes.after
   ? Math.abs(balRes.after.cut - balRes.after.fill) / Math.max(1e-9, (balRes.after.cut + balRes.after.fill) / 2) * 100
   : 999;
 console.log("balance:", JSON.stringify(balRes), "| cut vs fill:", balPct.toFixed(2), "%");
 if (!balRes.after || !balRes.box) { console.log("FAIL: balance produced no result"); process.exit(1); }
 if (balPct > 2) { console.log("FAIL: balance did not reach cut = fill within 2%"); process.exit(1); }
+});
 
+let rngRes;   /* hoisted — v18 §3 */
+await block("8M-d. uncertainty range", async () => {
 /* 8M-d. uncertainty range: low <= best <= high across five base surfaces */
-const rngRes = await page.evaluate(async () => {
+rngRes = await page.evaluate(async () => {
   const wait = ms => new Promise(r => setTimeout(r, ms));
   const f = SBMM.store.features.find(x => x.type === "volume" && /Pile 1/.test(x.name || ""));
   f.props.baseMode = "tin"; f.props.designId = null;
@@ -823,9 +963,12 @@ if (!(rngRes.r.lo <= rngRes.r.best && rngRes.r.best <= rngRes.r.hi)) {
 if (rngRes.r.methods.length !== 5 || !rngRes.box) { console.log("FAIL: range did not run all five bases"); process.exit(1); }
 /* "best" must remain the memo's perimeter-TIN number, i.e. the validated baseline */
 if (Math.abs(rngRes.r.best - 278.4) > 10) { console.log("FAIL: the range's best estimate drifted off the memo baseline"); process.exit(1); }
+});
 
+let secRes;   /* hoisted — v18 §3 */
+await block("8M-e. sections", async () => {
 /* 8M-e. sections: 7 stations over 300 ft at 50 ft, end area vs grid within 15% */
-const secRes = await page.evaluate(async () => {
+secRes = await page.evaluate(async () => {
   const wait = ms => new Promise(r => setTimeout(r, ms));
   const surf = SBMM.design.list().find(f => f.name === "ZZ Pad");
   const f = SBMM.sections.mkSections([[6371400, 2128850], [6371700, 2128850]], "ZZ Sections",
@@ -857,9 +1000,12 @@ if (secRes.csvRows !== secRes.ns * secRes.no) { console.log("FAIL: section CSV r
 if (!(secRes.cross.diffPct < 15)) {
   console.log("FAIL: end-area and grid volumes differ by more than 15%"); process.exit(1);
 }
+});
 
+let repRes;   /* hoisted — v18 §3 */
+await block("8M-f. report sheet", async () => {
 /* 8M-f. report sheet: opens, and carries the title block and the volume table */
-const repRes = await page.evaluate(async () => {
+repRes = await page.evaluate(async () => {
   const wait = ms => new Promise(r => setTimeout(r, ms));
   const v = SBMM.store.features.find(f => f.type === "volume" && /cut\/fill/.test(f.name || ""));
   await SBMM.report.open(v);
@@ -887,11 +1033,14 @@ if (!repRes.modal || !repRes.figure || repRes.tables < 2) { console.log("FAIL: r
 if (!repRes.author || !repRes.crs || !repRes.planning) { console.log("FAIL: report is missing the title block or the planning-level caveat"); process.exit(1); }
 if (!repRes.hasCut || !repRes.hasGrid || !repRes.designTable) { console.log("FAIL: report volume table is missing rows"); process.exit(1); }
 if (repRes.figBytes < 20000) { console.log("FAIL: report figure looks empty"); process.exit(1); }
+});
 
+let v5;   /* hoisted — v18 §3 */
+await block("8M-g. session v7 round-trip including a design surface and a", async () => {
 /* 8M-g. session v7 round-trip including a design surface and a section set.
    EA's reference surfaces (§5) are deliberately NOT serialised and cannot be
    removed, so both sides of this comparison exclude them. */
-const v5 = await page.evaluate(async () => {
+v5 = await page.evaluate(async () => {
   const wait = ms => new Promise(r => setTimeout(r, ms));
   const m = document.getElementById("reportModal"); if (m) m.remove();
   const ser = SBMM.store.serialize();
@@ -914,9 +1063,12 @@ console.log("session round-trip (surfaces + sections):", JSON.stringify(v5));
 if (v5.version !== 8 || v5.back !== v5.saved) { console.log("FAIL: session round-trip lost a surface or a section set"); process.exit(1); }
 if (!v5.regen || !v5.loops) { console.log("FAIL: a restored design surface did not regenerate its raster"); process.exit(1); }
 if (v5.ratio !== 3 || v5.side !== "out" || v5.kind !== "pad") { console.log("FAIL: surface parameters did not survive the session"); process.exit(1); }
+});
 
+let eExp;   /* hoisted — v18 §3 */
+await block("8M-h. exports carry the derived geometry", async () => {
 /* 8M-h. exports carry the derived geometry */
-const eExp = await page.evaluate(() => {
+eExp = await page.evaluate(() => {
   const dxf = SBMM.dxf.buildDXF(SBMM.store.features.filter(f => f.visible !== false && f.pts && f.pts.length));
   const gj = SBMM.io.collection ? SBMM.io.collection("sp") : null;
   /* match the LAYER NAME (group code 8, then the value), not the "SECTION"
@@ -948,16 +1100,21 @@ await page.evaluate(([keep]) => {
   SBMM.map.fitBounds(SBMM.demAbp.bounds());
 }, [keepIds]);
 await page.waitForTimeout(700);
+});
 
 /* ====================================================================== */
+await block("8N. phase 4", async () => {
 /* 8N. phase 4 — smart boundary tools, canopy v2, tree inventory          */
 /* ====================================================================== */
+});
 
+let chm2;   /* hoisted — v18 §3 */
+await block("8N-a. the CHM payload is the CLEANED v2 raster", async () => {
 /* 8N-a. the CHM payload is the CLEANED v2 raster, not the raw max-return grid.
    The despeckle + pit-free close + masked blur lift the median canopy height well
    clear of the raw grid's 0.61 ft and pull the absurd 147-ft noise spike down to a
    plausible tree, so both are asserted rather than just "a CHM loaded". */
-const chm2 = await page.evaluate(() => {
+chm2 = await page.evaluate(() => {
   const z = SBMM.chm.z;
   let n = 0, mx = 0; const s = [];
   for (let i = 0; i < z.length; i++) {
@@ -975,7 +1132,10 @@ if (chm2.w !== 2872 || chm2.h !== 3882) { console.log("FAIL: CHM grid changed sh
 if (!(chm2.p50 > 1.2)) { console.log("FAIL: CHM looks like the RAW v1 raster (p50 <= 1.2 ft) — cleanup did not ship"); process.exit(1); }
 if (!(chm2.max > 60 && chm2.max < 120)) { console.log("FAIL: CHM max " + chm2.max + " ft is not plausible after despeckle"); process.exit(1); }
 console.log("CHM v2: OK");
+});
 
+let PILE3, PILE3_MEMO_AC, wand, wandErr, wandVol, selfPct;   /* hoisted — v18 §3 */
+await block("8N-b. PILE WAND on Pile 3 part 1", async () => {
 /* 8N-b. PILE WAND on Pile 3 part 1.
    Two independent assertions:
      • agreement with the MEMO — the traced footprint against the pile part area the
@@ -985,8 +1145,8 @@ console.log("CHM v2: OK");
      • SELF-consistency — the wand's one-click volume against the same polygon put
        through the ordinary volume pipeline. These share a kernel, so this is really
        a check that the wand hands the rest of the app a well-formed footprint. */
-const PILE3 = [6371744, 2128677], PILE3_MEMO_AC = 0.184;
-const wand = await page.evaluate(async ([x, y]) => {
+PILE3 = [6371744, 2128677], PILE3_MEMO_AC = 0.184;
+wand = await page.evaluate(async ([x, y]) => {
   const f = await SBMM.smartbound.runWand(x, y);
   const first = f.pts[0], last = f.pts[f.pts.length - 1];
   return { type: f.type, id: f.id, n: f.pts.length, area_ac: f.props.area_ac,
@@ -997,7 +1157,7 @@ const wand = await page.evaluate(async ([x, y]) => {
            isPolygon: !!(f.layer && f.layer.getLatLngs),
            pts: f.pts };
 }, PILE3);
-const wandErr = 100 * (wand.area_ac - PILE3_MEMO_AC) / PILE3_MEMO_AC;
+wandErr = 100 * (wand.area_ac - PILE3_MEMO_AC) / PILE3_MEMO_AC;
 console.log(`WAND @Pile 3 p1: ${wand.area_ac} ac vs memo ${PILE3_MEMO_AC} ac = ${wandErr >= 0 ? "+" : ""}${wandErr.toFixed(0)}% | ${wand.n} vertices | closed polygon: ${wand.isPolygon && wand.distinctEnds} | folder "${wand.group}"`);
 if (wand.type !== "area") { console.log("FAIL: WAND did not produce an area feature"); process.exit(1); }
 if (!(wand.n >= 8 && wand.isPolygon && wand.distinctEnds)) { console.log("FAIL: WAND boundary is not a usable closed polygon"); process.exit(1); }
@@ -1009,7 +1169,7 @@ if (Math.abs(wandErr) > 40) { console.log(`FAIL: WAND footprint ${wandErr.toFixe
    triangulation of a different point set over the same ground). Re-running the
    identical job would agree to the bit and prove nothing; this actually tests that
    the wand's footprint is stable under the base-surface construction. */
-const wandVol = await page.evaluate(async (fid) => {
+wandVol = await page.evaluate(async (fid) => {
   const f = SBMM.store.byId(fid);
   const btn = f.card.querySelector(".sbvol");
   const before = new Set(SBMM.store.features.map(g => g.id));
@@ -1025,17 +1185,20 @@ const wandVol = await page.evaluate(async (fid) => {
            nPerim1: oneClick.perimeter_pts || null, nPerim2: built.nPerim,
            dense: +(dense.fill / 27).toFixed(1) };
 }, wand.id);
-const selfPct = Math.abs(wandVol.oneClick - wandVol.dense) / Math.max(1e-9, wandVol.dense) * 100;
+selfPct = Math.abs(wandVol.oneClick - wandVol.dense) / Math.max(1e-9, wandVol.dense) * 100;
 console.log(`WAND one-click volume: ${wandVol.oneClick} yd³ fill (base ${wandVol.base}) vs the same footprint on a 1/4-density perimeter TIN ${wandVol.dense} yd³ -> ${selfPct.toFixed(1)}% apart`);
 if (!(wandVol.oneClick > 0)) { console.log("FAIL: WAND one-click volume produced nothing"); process.exit(1); }
 if (selfPct > 25) { console.log("FAIL: WAND volume is not self-consistent across base constructions (>25%)"); process.exit(1); }
 console.log("pile wand: OK");
+});
 
+let HERMAN, cb;   /* hoisted — v18 §3 */
+await block("8N-c. CBOUND on the Herman impoundment", async () => {
 /* 8N-c. CBOUND on the Herman impoundment — the flooded pit, a flat 1336.6-ft water
    plateau about 20.6 acres across. It runs off the east edge of the 1-ft mine-area
    grid, so this also exercises the fallback to the 2-ft site DEM. */
-const HERMAN = [6372743, 2127834];
-const cb = await page.evaluate(async ([x, y]) => {
+HERMAN = [6372743, 2127834];
+cb = await page.evaluate(async ([x, y]) => {
   SBMM.smartbound.params.cbound.win = 1300;
   SBMM.smartbound.params.cbound.level = null;
   const f = await SBMM.smartbound.runCbound(x, y);
@@ -1049,18 +1212,24 @@ if (cb.type !== "area" || !cb.closedRing) { console.log("FAIL: CBOUND did not re
 if (!cb.inside) { console.log("FAIL: CBOUND ring does not enclose the clicked point"); process.exit(1); }
 if (!(cb.area_ac > 15 && cb.area_ac < 26)) { console.log(`FAIL: CBOUND area ${cb.area_ac} ac is not the impoundment (~20.6 ac)`); process.exit(1); }
 console.log("contour boundary: OK");
+});
 
+let toe;   /* hoisted — v18 §3 */
+await block("8N-d. TOE", async () => {
 /* 8N-d. TOE — a slope-magnitude contour near a click, delivered as a line feature */
-const toe = await page.evaluate(async () => {
+toe = await page.evaluate(async () => {
   const f = await SBMM.smartbound.runToe(6371744, 2128677);
   return { type: f.type, n: f.pts.length, len: f.props.length_ft, group: f.group };
 });
 console.log(`TOE: ${f2s(toe.len)} ft line, ${toe.n} vertices, type "${toe.type}"`);
 if (toe.type !== "line" || toe.n < 3) { console.log("FAIL: TOE did not return a usable line"); process.exit(1); }
 console.log("toe/crest: OK");
+});
 
+let stands;   /* hoisted — v18 §3 */
+await block("8N-e. STANDS over a scripted polygon in the wooded ground", async () => {
 /* 8N-e. STANDS over a scripted polygon in the wooded ground north-west of the pit */
-const stands = await page.evaluate(async () => {
+stands = await page.evaluate(async () => {
   const P = [[6371200, 2129000], [6371700, 2129000], [6371700, 2129450], [6371200, 2129450]];
   const made = await SBMM.smartbound.runStands(P, null);
   const tot = made.reduce((s, f) => s + (f.props.area_ft2 || 0), 0);
@@ -1072,9 +1241,12 @@ console.log(`STANDS: ${stands.n} stands, ${stands.totAc} ac canopy, folder "${st
 if (!(stands.n >= 1)) { console.log("FAIL: STANDS found nothing"); process.exit(1); }
 if (!stands.allAreas) { console.log("FAIL: STANDS kept a stand under the minimum area"); process.exit(1); }
 console.log("canopy stands: OK");
+});
 
+let trees;   /* hoisted — v18 §3 */
+await block("8N-f. tree detection over a scripted sub-window", async () => {
 /* 8N-f. tree detection over a scripted sub-window — count and heights plausible */
-const trees = await page.evaluate(async () => {
+trees = await page.evaluate(async () => {
   const chm = SBMM.chm, m = chm.m;
   const g = SBMM.compute.gridSpec(chm, [6371000, 2128900, 6371800, 2129700], 2);
   const t0 = performance.now();
@@ -1092,10 +1264,13 @@ if (!(trees.n > 50)) { console.log(`FAIL: only ${trees.n} trees detected (expect
 if (trees.over150 > 0) { console.log(`FAIL: ${trees.over150} trees taller than 150 ft`); process.exit(1); }
 if (!(trees.hmin >= 6)) { console.log("FAIL: a detected tree is below the 6-ft minimum"); process.exit(1); }
 console.log("tree detection: OK");
+});
 
+let sb;   /* hoisted — v18 §3 */
+await block("8N-g. every phase-4 result is an ORDINARY feature", async () => {
 /* 8N-g. every phase-4 result is an ORDINARY feature: it serialises, restores and
    stays editable. That is the whole design claim, so it gets asserted. */
-const sb = await page.evaluate(() => {
+sb = await page.evaluate(() => {
   const ser = SBMM.store.serialize();
   const kinds = ser.features.filter(f => /^(Pile boundary|Contour boundary|Toe line|Crest line|Stand) /.test(f.name));
   return { total: ser.features.length, phase4: kinds.length,
@@ -1116,23 +1291,29 @@ await page.evaluate((k) => {
   SBMM.map.fitBounds(SBMM.demAbp.bounds());
 }, keepIds);
 await page.waitForTimeout(600);
+});
 
+let v3d, v3dErr;   /* hoisted — v18 §3 */
+await block("9. 3D viewer", async () => {
 /* 9. 3D viewer */
 await page.click("#view3dBtn");
-const v3d = await page.waitForFunction(() =>
+v3d = await page.waitForFunction(() =>
   document.getElementById("v3dStatus").textContent === "" &&
   document.getElementById("view3d").style.display === "block", null, { timeout: 90000 })
   .then(() => true).catch(() => false);
 await page.waitForTimeout(1200);
-const v3dErr = await page.evaluate(() => $("v3dStatus").textContent);
+v3dErr = await page.evaluate(() => $("v3dStatus").textContent);
 console.log("3D init:", v3d ? "OK" : "FAILED", v3dErr || "");
 await page.screenshot({ path: "/tmp/shot_3d_" + label.replace(/\W+/g, "_") + ".png" });
+});
 
+let errBefore, ctr;   /* hoisted — v18 §3 */
+await block("9a. 3D survey contours", async () => {
 /* 9a. 3D survey contours. Since v9 there is no 3D checkbox for them (§3): the
    contour LAYER in the Layers tree drives both views, so this drives the one
    layer state and asserts the 3D scene follows. */
-const errBefore = errors.length;
-const ctr = await page.evaluate(async () => {
+errBefore = errors.length;
+ctr = await page.evaluate(async () => {
   if (!SBMM.layerState.rec("base", "contours_abp")) return { missing: true };
   /* the mine-area contours are ON by default, and since v9 that means they are
      already drawn in 3D — so measure from a known-off state */
@@ -1164,9 +1345,12 @@ if (!(ctr.on.contourVerts > 1000)) { console.log("FAIL: contour geometry empty")
 if (!ctr.on.contoursVisible || ctr.off.contoursVisible) { console.log("FAIL: contour toggle does not control visibility"); process.exit(1); }
 if (errors.length > errBefore) { console.log("FAIL: errors while toggling contours:", errors.slice(errBefore)); process.exit(1); }
 console.log("terrain vertices @", ctr.on.detail + ":", ctr.on.terrainVerts);
+});
 
+let det;   /* hoisted — v18 §3 */
+await block("9a-2. detail setting rebuilds the terrain at a different density", async () => {
 /* 9a-2. detail setting rebuilds the terrain at a different density */
-const det = await page.evaluate(async () => {
+det = await page.evaluate(async () => {
   const sel = document.getElementById("v3dDetail");
   if (!sel) return { missing: true };
   const high = SBMM.viewer3d.stats();
@@ -1180,9 +1364,12 @@ console.log("detail vertex counts — high:", det.high.terrainVerts, "| standard
             "| back to high:", det.back.terrainVerts);
 if (!(det.std.terrainVerts < det.high.terrainVerts)) { console.log("FAIL: standard detail not coarser"); process.exit(1); }
 if (det.back.terrainVerts !== det.high.terrainVerts) { console.log("FAIL: detail rebuild not reversible"); process.exit(1); }
+});
 
+let canVis;   /* hoisted — v18 §3 */
+await block("9b. 3D canopy surface", async () => {
 /* 9b. 3D canopy surface — driven by the Canopy LAYER, not a 3D checkbox (§3) */
-const canVis = await page.evaluate(async () => {
+canVis = await page.evaluate(async () => {
   if (!SBMM.layerState.rec("base", "canopy")) return { skipped: true };
   SBMM.layerState.set("base", "canopy", { on: true });
   for (let i = 0; i < 600; i++) {
@@ -1196,8 +1383,11 @@ console.log("3D canopy toggle:", canVis.skipped ? "SKIPPED (no CHM)" : "built, v
 if (canVis.skipped) { console.log("FAIL: the canopy layer is missing from SBMM.layerState"); process.exit(1); }
 if (!canVis.visible) { console.log("FAIL: the canopy layer did not build the 3D canopy surface"); process.exit(1); }
 await page.screenshot({ path: "/tmp/shot_canopy_" + label.replace(/\W+/g, "_") + ".png" });
+});
+let nav3d, northOff;   /* hoisted — v18 §3 */
+await block("9c. 3D navigation rig", async () => {
 /* 9c. 3D navigation rig: modes, chrome, presets, preserved APIs, terrain clamp */
-const nav3d = await page.evaluate(async () => {
+nav3d = await page.evaluate(async () => {
   const wait = ms => new Promise(r => setTimeout(r, ms));
   const r = {};
   r.compass = !!document.getElementById("v3dCompass");
@@ -1232,18 +1422,21 @@ if (!nav3d.compass || !nav3d.rose || !nav3d.flyBtn) { console.log("FAIL: 3D nav 
 if (nav3d.presets < 6) { console.log("FAIL: view presets missing"); process.exit(1); }
 if (nav3d.modeFly !== "fly" || nav3d.modeBack !== "orbit") { console.log("FAIL: fly-mode toggle broken"); process.exit(1); }
 if (!nav3d.roseMoved) { console.log("FAIL: compass does not rotate with the view"); process.exit(1); }
-const northOff = ((nav3d.northDeg % 360) + 540) % 360 - 180;   // -> [-180, 180)
+northOff = ((nav3d.northDeg % 360) + 540) % 360 - 180;   // -> [-180, 180)
 console.log("north-up leaves the rose at", northOff.toFixed(1), "deg from vertical");
 if (Math.abs(northOff) > 8) { console.log("FAIL: north-up did not point the compass north"); process.exit(1); }
+});
 
+let cv, cbb, zoomBefore, zoomAfter;   /* hoisted — v18 §3 */
+await block("9d. scroll zoom pulls toward the cursor and never sinks below the", async () => {
 /* 9d. scroll zoom pulls toward the cursor and never sinks below the terrain */
-const cv = await page.$("#v3dCanvas");
-const cbb = await cv.boundingBox();
+cv = await page.$("#v3dCanvas");
+cbb = await cv.boundingBox();
 await page.mouse.move(cbb.x + cbb.width * 0.5, cbb.y + cbb.height * 0.55);
-const zoomBefore = await page.evaluate(() => SBMM.viewer3d.cameraWorld());
+zoomBefore = await page.evaluate(() => SBMM.viewer3d.cameraWorld());
 for (let i = 0; i < 32; i++) { await page.mouse.wheel(0, -120); await page.waitForTimeout(35); }
 await page.waitForTimeout(1200);
-const zoomAfter = await page.evaluate(() => {
+zoomAfter = await page.evaluate(() => {
   const c = SBMM.viewer3d.cameraWorld();
   return { cam: c, ground: SBMM.elev(c.x, c.y)[0], clearance: c.z - SBMM.elev(c.x, c.y)[0] };
 });
@@ -1254,8 +1447,11 @@ if (!(zoomAfter.cam.z < zoomBefore.z)) { console.log("FAIL: scroll did not zoom 
 if (!isNaN(zoomAfter.clearance) && zoomAfter.clearance < 2.5) {
   console.log("FAIL: camera sank below the terrain clamp"); process.exit(1);
 }
+});
+let idle;   /* hoisted — v18 §3 */
+await block("9e. render-on-demand", async () => {
 /* 9e. render-on-demand: an idle 3D view must stop issuing draw calls */
-const idle = await page.evaluate(async () => {
+idle = await page.evaluate(async () => {
   const wait = ms => new Promise(r => setTimeout(r, ms));
   /* wait for the camera damping to settle first — software GL runs at a couple of frames
      per second here, so "settled" has to be measured in frames, not wall clock */
@@ -1285,9 +1481,12 @@ SBMM_FRAME_CHECK: {
   });
   console.log("frame selection -> camera at", framed.x.toFixed(0), "E,", framed.y.toFixed(0), "N,", framed.z.toFixed(0), "ft");
 }
+});
 
+let design, gis, xcheck, snapD, known;   /* hoisted — v18 §3 */
+await block("9b. EA residential Final Design payload", async () => {
 /* 9b. EA residential Final Design payload, layer rows, snap index and geometry */
-const design = await page.evaluate(() => {
+design = await page.evaluate(() => {
   const r = {};
   const D = window.SBMM_DATA && SBMM_DATA.design_ea;
   r.loaded = !!(D && D.features);
@@ -1401,7 +1600,7 @@ if (design.drapeBtns !== 12) { console.log("FAIL: every sheet row needs a 3D dra
    and the native geometry still agrees with the independent PDF registration
    on a known sheet — that last one is the cross-check that would catch a
    silent coordinate-frame or units mistake in a future rebuild.             */
-const gis = await page.evaluate(() => {
+gis = await page.evaluate(() => {
   const D = window.SBMM_DATA && SBMM_DATA.design_gis;
   if (!D) return { loaded: false };
   const byLayer = {};
@@ -1476,7 +1675,7 @@ if (!gis.dxfLayers.includes("EA-EXC")) { console.log("FAIL: native design not in
    from EA's geodatabase. Nothing links the two, so their agreement is a real
    independent check — and it is the assertion that fails first if anyone ever
    reprojects, rescales or shifts one side of this. */
-const xcheck = await page.evaluate(() => {
+xcheck = await page.evaluate(() => {
   const A = SBMM_DATA.design_ea.features.find(f =>
     f.properties.sheet === "C-106" && f.geometry.type === "Polygon"
     && f.properties.superseded_by);
@@ -1510,7 +1709,7 @@ if (!(xcheck.off < 6)) { console.log("FAIL: C-106 native geometry disagrees with
 
 
 /* the osnap static index must contain the design segments */
-const snapD = await page.evaluate(() => {
+snapD = await page.evaluate(() => {
   SBMM.snap.buildStatic();
   const P = SBMM.designEA.snapPaths();
   const ring = P.rings.find(r => r.length > 4);
@@ -1528,7 +1727,7 @@ console.log("design snap: rings", snapD.rings, "pts", snapD.pts,
 if (!snapD.hit) { console.log("FAIL: design linework is not in the snap index"); process.exit(1); }
 
 /* one known extracted boundary must have a plausible area (C-108, sheet prints 34,167 ft2) */
-const known = await page.evaluate(() => {
+known = await page.evaluate(() => {
   const D = SBMM_DATA.design_ea;
   const f = D.features.find(f => f.properties.sheet === "C-108"
     && f.properties.confidence === "area-validated");
@@ -1544,7 +1743,10 @@ console.log("design C-108 boundary:", f2s(known.area), "ft2 vs sheet-printed",
 if (!known || Math.abs(known.area - 34167) > 34167 * 0.05) {
   console.log("FAIL: C-108 extracted boundary area implausible"); process.exit(1);
 }
+});
 
+let errBeforeDrape, drape;   /* hoisted — v18 §3 */
+await block("9c. design sheets draped on the 3D terrain", async () => {
 /* 9c. design sheets draped on the 3D terrain.
    Enabling one sheet's "3D" toggle must build exactly one textured mesh over
    that sheet's footprint, the master switch must hide and show the group
@@ -1552,8 +1754,8 @@ if (!known || Math.abs(known.area - 34167) > 34167 * 0.05) {
    drape is a real mesh sampling the DEM, so its vertex count has to be
    non-trivial - a mesh that silently collapsed to a flat quad would still
    "exist" and would still be wrong. */
-const errBeforeDrape = errors.length;
-const drape = await page.evaluate(async () => {
+errBeforeDrape = errors.length;
+drape = await page.evaluate(async () => {
   const wait = ms => new Promise(r => setTimeout(r, ms));
   const rows = [...document.querySelectorAll("#designLayers .lyr")];
   const btn = rows.map(x => x.querySelector("button.d3d")).find(Boolean);
@@ -1598,8 +1800,11 @@ if (drape.offN !== 0 || drape.offVerts !== 0) { console.log("FAIL: disabling a s
 if (errors.length !== errBeforeDrape) { console.log("FAIL: page errors during 3D sheet draping:", errors.slice(errBeforeDrape, errBeforeDrape + 4)); process.exit(1); }
 
 await page.click("#v3dClose");
+});
 
 /* ==================================================================== */
+let errBeforeSheets, shIdx, pickRows, shOpen, zoomed, shClosed, fromMap, mapOpened, bpt, prio, prioOK;   /* hoisted — v18 §3 */
+await block("9d. the floating sheet viewer (phase B)", async () => {
 /* 9d. the floating sheet viewer (phase B)                               */
 /*                                                                       */
 /* The whole point of the viewer is reading the parts of a drawing the    */
@@ -1608,9 +1813,9 @@ await page.click("#v3dClose");
 /* sheet in the set has to be reachable including the four that are not   */
 /* georeferenced, and Esc has to give the window back.                    */
 /* ==================================================================== */
-const errBeforeSheets = errors.length;
+errBeforeSheets = errors.length;
 
-const shIdx = await page.evaluate(() => {
+shIdx = await page.evaluate(() => {
   const ix = SBMM.sheets.index();
   return {
     n: ix.length,
@@ -1635,7 +1840,7 @@ if (shIdx.aspect.some(a => Math.abs(a - 1.5) > 0.02)) {
 /* the SHEETS command lists every sheet and opens the one clicked */
 await page.evaluate(() => SBMM.cmd.run("SHEETS"));
 await page.waitForSelector("#sheetPicker", { timeout: 20000 });
-const pickRows = await page.evaluate(() => document.querySelectorAll("#sheetPicker .sheetrow").length);
+pickRows = await page.evaluate(() => document.querySelectorAll("#sheetPicker .sheetrow").length);
 console.log("SHEETS picker rows:", pickRows);
 if (pickRows !== 20) { console.log("FAIL: the SHEETS picker does not list the whole set"); process.exit(1); }
 
@@ -1644,7 +1849,7 @@ if (pickRows !== 20) { console.log("FAIL: the SHEETS picker does not list the wh
 await page.click('#sheetPicker .sheetrow[data-sheet="C-102"]');
 await page.waitForSelector('.shwin[data-sheet="C-102"] img.shimg', { timeout: 20000 });
 await page.waitForTimeout(900);
-const shOpen = await page.evaluate(() => {
+shOpen = await page.evaluate(() => {
   const w = document.querySelector('.shwin[data-sheet="C-102"]');
   const img = w.querySelector("img.shimg");
   const r = w.getBoundingClientRect();
@@ -1667,7 +1872,7 @@ if (!shOpen.onScreen) { console.log("FAIL: sheet window is off screen or too sma
 if (!shOpen.locateDisabled) { console.log("FAIL: an unregistered sheet must not offer 'locate on map'"); process.exit(1); }
 
 /* wheel zoom toward the cursor, then fit — the transform must actually change */
-const zoomed = await page.evaluate(async () => {
+zoomed = await page.evaluate(async () => {
   const w = document.querySelector('.shwin[data-sheet="C-102"]');
   const v = w.querySelector(".shview"), img = w.querySelector("img.shimg");
   const before = img.style.transform;
@@ -1686,7 +1891,7 @@ if (!zoomed.changed) { console.log("FAIL: wheel zoom did not move the sheet"); p
 /* Esc closes it, with the reverse animation */
 await page.keyboard.press("Escape");
 await page.waitForTimeout(500);
-const shClosed = await page.evaluate(() => ({
+shClosed = await page.evaluate(() => ({
   count: SBMM.sheets.openCount(),
   inDom: document.querySelectorAll(".shwin").length
 }));
@@ -1694,7 +1899,7 @@ console.log("sheet viewer closes on Esc:", shClosed.count === 0 && shClosed.inDo
 if (shClosed.count !== 0 || shClosed.inDom !== 0) { console.log("FAIL: Esc did not close the sheet viewer"); process.exit(1); }
 
 /* a click on a visible sheet footprint on the 2D map opens that sheet */
-const fromMap = await page.evaluate(async () => {
+fromMap = await page.evaluate(async () => {
   const wait = ms => new Promise(r => setTimeout(r, ms));
   SBMM.tools.setTool(null);
   const row = [...document.querySelectorAll("#designLayers .lyr")]
@@ -1729,7 +1934,7 @@ await page.mouse.move(fromMap.x, fromMap.y);
 await page.waitForTimeout(250);
 await page.mouse.click(fromMap.x, fromMap.y);
 await page.waitForTimeout(900);
-const mapOpened = await page.evaluate(() => {
+mapOpened = await page.evaluate(() => {
   const w = document.querySelector(".shwin");
   return w ? { sheet: w.dataset.sheet, hasImg: !!w.querySelector("img.shimg"),
                locate: !w.querySelector(".shloc").disabled } : null;
@@ -1747,7 +1952,7 @@ if (!mapOpened.locate) { console.log("FAIL: a registered sheet must offer 'locat
    that it swallowed every click over the whole lot.) */
 await page.evaluate(() => SBMM.sheets.closeAll());
 await page.waitForTimeout(400);
-const bpt = await page.evaluate(() => {
+bpt = await page.evaluate(() => {
   const f = SBMM_DATA.design_ea.features.find(f => f.properties.sheet === "C-106" && f.geometry.type === "Polygon");
   const ring = f.geometry.coordinates[0];
   let x = 0, y = 0;
@@ -1758,7 +1963,7 @@ const bpt = await page.evaluate(() => {
 });
 await page.mouse.click(bpt.x, bpt.y);
 await page.waitForTimeout(700);
-const prio = await page.evaluate(() => ({
+prio = await page.evaluate(() => ({
   popup: (document.querySelector(".leaflet-popup-content") || {}).textContent || "",
   sheetWins: document.querySelectorAll(".shwin").length
 }));
@@ -1772,7 +1977,7 @@ console.log(`click priority inside the footprint: "${prio.popup.trim().split("\n
    raw CAD drafting linework for the same limits is off by default so it cannot
    sit on top of the authority and answer in its place. If that default ever
    flips back, this assertion is the thing that catches it. */
-const prioOK = prio.sheetWins === 0 && /C-106/.test(prio.popup);
+prioOK = prio.sheetWins === 0 && /C-106/.test(prio.popup);
 if (!prioOK) {
   console.log("FAIL: the sheet footprint swallowed a click meant for a design boundary"); process.exit(1);
 }
@@ -1788,8 +1993,11 @@ await page.waitForTimeout(400);
 if (errors.length !== errBeforeSheets) {
   console.log("FAIL: page errors in the sheet viewer:", errors.slice(errBeforeSheets, errBeforeSheets + 4)); process.exit(1);
 }
+});
 
 /* ==================================================================== */
+let wasOpen3d, p3, shared, p3click, p3drag, p3edit;   /* hoisted — v18 §3 */
+await block("9f-2. 3D picking and parity", async () => {
 /* 9f-2. 3D picking and parity (v9 §8)                                   */
 /*                                                                       */
 /* The registry has to be populated from the scene the viewer actually    */
@@ -1797,13 +2005,13 @@ if (errors.length !== errBeforeSheets) {
 /* for the same object, empty terrain has to fall back to a coordinate    */
 /* card, and an edit made in 3D has to be the same edit 2D would make.    */
 /* ==================================================================== */
-const wasOpen3d = await page.evaluate(() => SBMM.viewer3d.isOpen());
+wasOpen3d = await page.evaluate(() => SBMM.viewer3d.isOpen());
 if (!wasOpen3d) {
   await page.evaluate(async () => { await SBMM.viewer3d.openAt(6371600, 2128900); });
   await page.waitForTimeout(2500);
 }
 
-const p3 = await page.evaluate(async () => {
+p3 = await page.evaluate(async () => {
   /* the sample-point cloud is off by default in the 3D toolbar, so switch it on
      before asking the registry what it holds — the point of the check is that
      everything DRAWN is registered, not that everything is drawn. A throwaway
@@ -1827,7 +2035,7 @@ for (const k of ["feature", "sample", "dataset", "gis"]) {
 }
 
 /* the shared popup builders: one function, both views */
-const shared = await page.evaluate(() => {
+shared = await page.evaluate(() => {
   const out = { api: Object.keys(SBMM.popups) };
   const d = SBMM.datasets.list()[0];
   out.datasetSame = d ? SBMM.datasets.popup(d, d.points[0]) === SBMM.popups.forDataset(d, d.points[0]) : null;
@@ -1853,7 +2061,7 @@ for (const want of ["Easting", "Northing", "Elevation", "Latitude", "Longitude",
    nothing on it" is not something a fixed screen coordinate can promise on a
    site with 22k CAD entities — emptying the registry is the same condition,
    arranged rather than hoped for. syncScene() puts it all back. */
-const p3click = await page.evaluate(async () => {
+p3click = await page.evaluate(async () => {
   const cv = document.getElementById("v3dCanvas");
   const r = cv.getBoundingClientRect();
   const at = { clientX: r.left + r.width / 2, clientY: r.top + r.height * 0.62 };
@@ -1889,7 +2097,7 @@ if (!p3click.open2 || !p3click.coord) { console.log("FAIL: the terrain fallback 
 if (!p3click.restored) { console.log("FAIL: syncScene did not repopulate the registry"); process.exit(1); }
 
 /* a drag must NOT be read as a click — the custom orbit rig shares the button */
-const p3drag = await page.evaluate(async () => {
+p3drag = await page.evaluate(async () => {
   const cv = document.getElementById("v3dCanvas");
   const r = cv.getBoundingClientRect();
   const x = r.left + r.width / 2, y = r.top + r.height * 0.6;
@@ -1903,7 +2111,7 @@ console.log("3D drag is not a pick:", !p3drag.open);
 if (p3drag.open) { console.log("FAIL: a 30 px drag opened an identify card"); process.exit(1); }
 
 /* editing parity: a vertex moved through the 3D path is the same store edit */
-const p3edit = await page.evaluate(async () => {
+p3edit = await page.evaluate(async () => {
   const f = SBMM.tools.rebuildFeature({ type: "line",
     pts: [[6371400, 2128700], [6371500, 2128700]], name: "ZZ 3D edit" });
   SBMM.store.select(f.id);
@@ -1927,11 +2135,14 @@ if (Math.abs(p3edit.before - 100) > 0.01 || Math.abs(p3edit.after - 200) > 0.01)
 if (!p3edit.onMap2D) { console.log("FAIL: the 3D-edited feature is not live in 2D"); process.exit(1); }
 
 if (!wasOpen3d) { await page.evaluate(() => SBMM.viewer3d.toggle()); await page.waitForTimeout(500); }
+});
 
 /* ==================================================================== */
+let smAff, smMark;   /* hoisted — v18 §3 */
+await block("9f-3. sheet measuring and marking", async () => {
 /* 9f-3. sheet measuring and marking (v9 §9)                             */
 /* ==================================================================== */
-const smAff = await page.evaluate(() => {
+smAff = await page.evaluate(() => {
   const D = SBMM_DATA.sheets_full;
   const withAff = D.sheets.filter(s => s.affine);
   const A = SBMM.sheetMarks.affineOf("C-107");
@@ -1964,7 +2175,7 @@ if (!smAff.centreInSite) { console.log("FAIL: a sheet pixel does not map into th
 if (!(smAff.ftPerPx > 0.05 && smAff.ftPerPx < 0.5)) { console.log("FAIL: implausible sheet scale"); process.exit(1); }
 if (!smAff.gis || smAff.gis.inside_pct < 50) { console.log("FAIL: the sheet affine failed its independent check"); process.exit(1); }
 
-const smMark = await page.evaluate(async () => {
+smMark = await page.evaluate(async () => {
   const out = {};
   { SBMM.sheets.open("C-107"); }
   await new Promise(r => setTimeout(r, 500));
@@ -2031,7 +2242,10 @@ if (!/not georeferenced/.test(smMark.nogeoMsg)) { console.log("FAIL: an unregist
 if (!smMark.noteStillOn) { console.log("FAIL: notes should still be allowed on an unregistered sheet"); process.exit(1); }
 for (const t of ["distance", "area", "inspect", "line", "point", "polygon"])
   if (!smMark.nogeoDisabled.includes(t)) { console.log("FAIL: " + t + " is offered on an unregistered sheet"); process.exit(1); }
+});
 
+let errBeforeC202, c202;   /* hoisted — v18 §3 */
+await block("9f-2. C-202 (North Lobe Grading)", async () => {
 /* 9f-2. C-202 (North Lobe Grading) — registered from EA's NATIVE polygon,   */
 /* not from a printed node table (tools/register_sheet_native.py). The sheet  */
 /* draws the North Lobe twice at 1 in = 20 ft, so it carries one affine per   */
@@ -2039,8 +2253,8 @@ for (const t of ["distance", "area", "inspect", "line", "point", "polygon"])
 /* BOTH viewports and round-trips exactly; a pixel on the title block is      */
 /* refused; the map raster contains the polygon; the drape row exists, and    */
 /* draping it in 3D builds a real mesh over the lobe.                         */
-const errBeforeC202 = errors.length;
-const c202 = await page.evaluate(async () => {
+errBeforeC202 = errors.length;
+c202 = await page.evaluate(async () => {
   const out = {};
   const rec = SBMM_DATA.sheets_full.sheets.find(s => s.sheet === "C-202");
   const vps = SBMM.sheetMarks.viewportsOf("C-202") || [];
@@ -2106,8 +2320,11 @@ if (c202.nodes !== 2) { console.log("FAIL: C-202's two printed nodes are not car
 if (!c202.row || !c202.drapeBtn) { console.log("FAIL: no C-202 sheet row with a 3D drape toggle"); process.exit(1); }
 if (!c202.draped || !(c202.drapeVerts > 200) || c202.drapedOff) { console.log("FAIL: C-202 did not drape in 3D"); process.exit(1); }
 if (errors.length !== errBeforeC202) { console.log("FAIL: page errors around C-202:", errors.slice(errBeforeC202, errBeforeC202 + 4)); process.exit(1); }
+});
 
 /* ==================================================================== */
+let cult0, cultAck, cult1, cultExport, cultOff;   /* hoisted — v18 §3 */
+await block("9g. cultural resources", async () => {
 /* 9g. cultural resources — CONFIDENTIAL (v9 §7)                         */
 /*                                                                       */
 /* The four assertions the spec names, in order: the group exists, it is  */
@@ -2116,7 +2333,7 @@ if (errors.length !== errBeforeC202) { console.log("FAIL: page errors around C-2
 /* make the acknowledgement worth anything: the stamp appears while the   */
 /* layers are visible, and an export carries the notice in its metadata.  */
 /* ==================================================================== */
-const cult0 = await page.evaluate(() => {
+cult0 = await page.evaluate(() => {
   const rows = [...document.querySelectorAll("#culturalLayers .lyr")];
   const D = window.SBMM_DATA && SBMM_DATA.cultural;
   /* count Leaflet layers actually on the map that belong to the group */
@@ -2163,7 +2380,7 @@ if (cult0.stampShown) { console.log("FAIL: the confidentiality stamp is up with 
 
 /* the acknowledgement dialog itself: clicking the row raises it, and declining
    leaves the layer off */
-const cultAck = await page.evaluate(async () => {
+cultAck = await page.evaluate(async () => {
   const row = document.querySelector("#culturalLayers .lyr");
   row.querySelector("input").click();
   await new Promise(r => setTimeout(r, 120));
@@ -2186,7 +2403,7 @@ if (cultAck.afterDecline.checked || cultAck.afterDecline.visible || cultAck.afte
 }
 
 /* (4) visible after accepting */
-const cult1 = await page.evaluate(async () => {
+cult1 = await page.evaluate(async () => {
   const row = document.querySelector("#culturalLayers .lyr");
   row.querySelector("input").click();
   await new Promise(r => setTimeout(r, 120));
@@ -2223,7 +2440,7 @@ if (!/NHPA/.test(cult1.metaNotice || "")) { console.log("FAIL: export metadata c
 if (!/CONFIDENTIAL/.test(cult1.popup)) { console.log("FAIL: a cultural popup does not mark itself confidential"); process.exit(1); }
 
 /* the GeoJSON export carries both the features and the notice */
-const cultExport = await page.evaluate(() => {
+cultExport = await page.evaluate(() => {
   const fc = SBMM.io.collection("sp");
   const cult = fc.features.filter(f => f.properties && f.properties.confidential);
   return { n: cult.length, meta: !!(fc.metadata && fc.metadata.confidential),
@@ -2239,7 +2456,7 @@ await page.screenshot({ path: "/tmp/shot_cultural_" + label.replace(/\W+/g, "_")
 
 /* put it back off — nothing after this section should be looking at protected
    geometry, and the stamp would otherwise be burned into every later shot */
-const cultOff = await page.evaluate(async () => {
+cultOff = await page.evaluate(async () => {
   for (const row of document.querySelectorAll("#culturalLayers .lyr")) {
     const cb = row.querySelector("input");
     if (cb.checked) cb.click();
@@ -2250,11 +2467,14 @@ const cultOff = await page.evaluate(async () => {
 });
 if (cultOff.visible || cultOff.stampShown) { console.log("FAIL: cultural layers could not be switched back off"); process.exit(1); }
 console.log("cultural: switched back off cleanly");
+});
 
 /* ==================================================================== */
+let wm, wmCult;   /* hoisted — v18 §3 */
+await block("9h. watermark", async () => {
 /* 9h. watermark (v9 §10) — element AND burned-in pixels                 */
 /* ==================================================================== */
-const wm = await page.evaluate(() => {
+wm = await page.evaluate(() => {
   const el = document.getElementById("watermark");
   const cs = el ? getComputedStyle(el) : null;
   /* burn into a blank white canvas and count the pixels that changed: the
@@ -2299,7 +2519,7 @@ if (wm.changed < 40) { console.log("FAIL: nothing was burned into the exported c
 if (wm.inCorner < wm.changed * 0.9) { console.log("FAIL: the burned mark is not in the bottom-right corner"); process.exit(1); }
 
 /* and the confidentiality stamp burns in too, on the same path */
-const wmCult = await page.evaluate(() => {
+wmCult = await page.evaluate(() => {
   const cv = document.createElement("canvas");
   cv.width = 600; cv.height = 400;
   const g = cv.getContext("2d");
@@ -2313,8 +2533,11 @@ const wmCult = await page.evaluate(() => {
 });
 console.log("confidentiality stamp burned in: red pixels across the top =", wmCult.red);
 if (wmCult.red < 100) { console.log("FAIL: the confidentiality stamp is not burned into exports"); process.exit(1); }
+});
 
 /* ==================================================================== */
+let surf5, demStack, excCut, changedSF, excVol;   /* hoisted — v18 §3 */
+await block("9i. design surfaces (docs/V9_SPEC.md §5)", async () => {
 /* 9i. design surfaces (docs/V9_SPEC.md §5)                              */
 /* ==================================================================== */
 /* The four recovered surfaces must be present with the §5 manifest keys, must
@@ -2322,7 +2545,7 @@ if (wmCult.red < 100) { console.log("FAIL: the confidentiality stamp is not burn
    sections consume them unchanged, must decode lazily (NaN first, a real
    elevation after `surfaceReady`), and the excavation-bottom surface must
    reproduce the cut Agent A validated at build time. */
-const surf5 = await page.evaluate(async () => {
+surf5 = await page.evaluate(async () => {
   const KEYS = ["id", "label", "kind", "method", "source_files", "confidence",
                 "raster", "footprint", "stats", "volumes_vs_lidar_yd3", "notes"];
   const list = SBMM.CadNative.surfaces;
@@ -2399,7 +2622,7 @@ if (surf5.notRecovered.join(",") !== "nlobe_fg,repo_fg" || !surf5.remedies) {
    window fell back to the 2-ft site grid. dem_res is a 1-ft window over the
    residential design bbox + a 60 ft buffer; SBMM.dems is the one ordered list
    everything consults, dem_abp first so the mine window's numbers are untouched. */
-const demStack = await page.evaluate(() => {
+demStack = await page.evaluate(() => {
   /* Two probes. SOUTH is inside EA's "Southern Residence" limit of excavation,
      ~750 ft south of the mine window and the only part of the residential
      design that was NOT already covered by dem_abp — note that Lot 25 and the
@@ -2471,7 +2694,7 @@ if (demStack.jobGrids.join(",") !== "1,1,2") {
    Agent A validated 7,561.9 yd3 against Sum(area x depth) 7,565.6 at build time;
    this is the same number computed through the PNG decoder and the isopach
    kernel, so it checks the whole chain rather than the manifest. */
-const excCut = await page.evaluate(async () => {
+excCut = await page.evaluate(async () => {
   const f = SBMM.refSurf.featureOf("res_excbottom");
   await SBMM.refSurf.ready(f);
   const R = await SBMM.isopach.show("res_excbottom");
@@ -2522,7 +2745,7 @@ if (excCut.hi > 0.25) {
 if (!excCut.nEdge) { console.log("FAIL: no raster-edge cells were excluded — the nodata guard is not running"); process.exit(1); }
 /* the area that actually CHANGES must be the excavation footprint, not the
    whole working buffer: EA prints 204,303 ft2 over the limits of excavation */
-const changedSF = excCut.nChanged * excCut.intCell * excCut.intCell;
+changedSF = excCut.nChanged * excCut.intCell * excCut.intCell;
 console.log("isopach changed area:", changedSF.toFixed(0), "ft2 vs EA's printed 204,303 ft2 |",
             "raster-edge cells excluded", excCut.nEdge, "| deepest fill", excCut.hi.toFixed(2), "ft");
 if (Math.abs(changedSF - 204303) > 204303 * 0.03) {
@@ -2537,7 +2760,7 @@ await page.screenshot({ path: "shots/isopach.png" });
 await page.evaluate(() => SBMM.isopach.clear());
 
 /* "volume of this excavation": area x depth and the raster method side by side */
-const excVol = await page.evaluate(async () => {
+excVol = await page.evaluate(async () => {
   const D = SBMM_DATA.design_gis;
   const f = D.features.find(x => x.properties.layer === "exc" && x.properties.name === "Limit of excavation — Lot 15");
   await SBMM.isopach.excavationVolume(f.properties, f.geometry);
@@ -2562,45 +2785,22 @@ if (excVol.depth !== 1) { console.log("FAIL: the Lot 15 limit should carry depth
     console.log("FAIL: the two excavation-volume methods disagree:", analytic, raster); process.exit(1);
   }
 }
+});
 
 /* ==================================================================== */
+let errBeforeWater, wmode, wdrop, wexport, duAim, duScr, duPop, wover, w3d, wcatch, wclear, wchain;   /* hoisted — v18 §3 */
+await block("9w. water", async () => {
 /* 9w. water — raindrop and overtopping (docs/V10_WATER_SPEC.md §4.5)    */
 /* ==================================================================== */
 /* The reference numbers are §9 of the water spec, computed by the planner with
    an independent Python implementation of §2 on the same PNG-decoded grids.
-   They are constants here so a change of terrain source shows up as an
+   They are constants (WREF, at the top of this file beside the fixtures, because
+   three later blocks read them too) so a change of terrain source shows up as an
    argument about the numbers rather than a quiet drift in the assertions. */
-const WREF = {
-  drop: [6371200, 2128674],          // §9.1, on the app's node convention
-  dropZ: 1358.44, dropZTol: 0.05,
-  reason: "nodata",
-  end: [6370884.5, 2128611.5], endTol: 3,
-  lastZ: 1326.10, lastZTol: 0.1,
-  lengthRaw: 409.6,                  // simplified path: -3 % / +0.5 %
-  ponds: 2,
-  pond1: { level: 1330.96, cells: 12 },
-  pond2: { level: 1329.76, cells: 19 },
-  catchment: 3046,                   // ft2, +/- 3 %
-  /* §9.2 — Herman Impoundment on the 2-ft site grid */
-  z0: 1336.58, z0Tol: 0.02,
-  seedCells: 223969,
-  spill: 1343.84, spillTol: 0.05,
-  spillAt: [6371927, 2127693], spillTol_ft: 15,
-  next: [6371925, 2127693], nextTol: 6,
-  freeboard: 7.26, freeboardTol: 0.05,
-  storage: 6881929,                  // ft3, +/- 3 %
-  areaAtSpill: 22.83,                // ac, +/- 3 %
-  rimLow2: { level: 1344.34, at: [6372015, 2127571] },
-  routeReason: "nodata",
-  routeEnd: [6371177, 2127473], routeEndTol: 50,
-  routeLength: 974,                  // ft, +/- 10 %
-  stageRows: 42
-};
-const wdist = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]);
-const errBeforeWater = errors.length;
+errBeforeWater = errors.length;
 
 /* --- 1. the mode, the menu and the commands -------------------------- */
-const wmode = await page.evaluate(async () => {
+wmode = await page.evaluate(async () => {
   const wait = ms => new Promise(r => setTimeout(r, ms));
   const key = k => document.dispatchEvent(new KeyboardEvent("keydown", { key: k, bubbles: true }));
   SBMM.mode.navigate();
@@ -2646,7 +2846,7 @@ if (wmode.pane.pe !== "none" || wmode.pane.canvas)
   { console.log("FAIL: the water pane must be an SVG pane that takes no pointer events"); process.exit(1); }
 
 /* --- 2. the golden raindrop (§9.1) ----------------------------------- */
-const wdrop = await page.evaluate(async (D) => {
+wdrop = await page.evaluate(async (D) => {
   const f = await SBMM.water.dropAt(D[0], D[1]);
   if (!f) return { err: "dropAt returned nothing" };
   const p = f.props;
@@ -2716,7 +2916,7 @@ if (wdrop.subLayers < 5 || !wdrop.animPaths || !wdrop.dropMarker || !wdrop.endMa
 
 /* the exports carry the run AND its ponds, and a session round-trip rebuilds
    both without running a single compute job */
-const wexport = await page.evaluate(() => {
+wexport = await page.evaluate(() => {
   const fc = SBMM.io.collection("sp");
   const line = fc.features.find(f => f.properties.tool === "flow");
   const ponds = fc.features.filter(f => f.properties.tool === "pond");
@@ -2752,7 +2952,7 @@ if (wexport.jobs !== 0)
    in CLAUDE.md, so the check is a real click on a decision unit with a flow and
    the animated water pane on the map. */
 await page.evaluate(() => { SBMM.mode.navigate(); SBMM.map.closePopup(); });
-const duAim = await page.evaluate(() => {
+duAim = await page.evaluate(() => {
   const gisAt = (x, y) => {
     const D = SBMM_DATA.design_gis;
     return D && D.features.some(f => f.geometry.type === "Polygon"
@@ -2782,7 +2982,7 @@ const duAim = await page.evaluate(() => {
   return null;
 });
 if (!duAim) { console.log("FAIL: could not find a clear point inside a decision unit"); process.exit(1); }
-const duScr = await page.evaluate(async (t) => {
+duScr = await page.evaluate(async (t) => {
   SBMM.map.invalidateSize();
   SBMM.map.setView([t.y, t.x], 1, { animate: false });
   await new Promise(r => setTimeout(r, 400));
@@ -2792,7 +2992,7 @@ const duScr = await page.evaluate(async (t) => {
 }, duAim);
 await page.mouse.click(duScr.x, duScr.y);
 await page.waitForTimeout(600);
-const duPop = await page.evaluate(() => ({
+duPop = await page.evaluate(() => ({
   txt: (document.querySelector(".leaflet-popup-content") || {}).textContent || "",
   anim: document.querySelectorAll(".leaflet-pane path.flowanim").length
 }));
@@ -2803,7 +3003,7 @@ if (!duPop.txt.includes(duAim.name))
 await page.evaluate(() => { SBMM.map.closePopup(); });
 
 /* --- 4. the overtopping analysis (§9.2) ------------------------------ */
-const wover = await page.evaluate(async () => {
+wover = await page.evaluate(async () => {
   /* survey:false, storm:false — this block checks the PURE-LIDAR §9.2
      reference: no surveyed stages (spec §10, block 9v below) and no storm
      network (v13 §2, block 9t below), so the numbers here are the terrain's
@@ -2914,7 +3114,7 @@ if (!wover.pool || !wover.pool.overtop || Math.abs(wover.pool.overtop.spill - WR
 if (wover.drape !== "yes") { console.log("FAIL: drapeSpec() is null after an overtopping analysis"); process.exit(1); }
 
 /* --- 5. the flow and the band reach 3D ------------------------------- */
-const w3d = await page.evaluate(async () => {
+w3d = await page.evaluate(async () => {
   const wait = ms => new Promise(r => setTimeout(r, ms));
   const wasOpen = SBMM.viewer3d.isOpen();
   if (!wasOpen) { await SBMM.viewer3d.toggle(); await wait(1400); }
@@ -2951,7 +3151,7 @@ if (!w3d.popupHasLength || !w3d.popupHasActions)
   { console.log("FAIL: the flow popup is missing its rows or actions"); process.exit(1); }
 
 /* --- 6. the catchment (§9.1) ----------------------------------------- */
-const wcatch = await page.evaluate(async () => {
+wcatch = await page.evaluate(async () => {
   const f = SBMM.store.features.find(g => g.type === "flow" && !/overflow/.test(g.name));
   const a = await SBMM.water.catchment(f);
   if (!a) return { err: "catchment returned nothing" };
@@ -2964,7 +3164,7 @@ if (wcatch.type !== "area" || Math.abs(wcatch.area - WREF.catchment) / WREF.catc
   { console.log("FAIL: contributing area", wcatch.area, "vs", WREF.catchment); process.exit(1); }
 
 /* --- 7. clearOvertop keeps the two features, drops the overlay -------- */
-const wclear = await page.evaluate(() => {
+wclear = await page.evaluate(() => {
   const before = SBMM.store.features.length;
   SBMM.water.clearOvertop();
   return { kept: SBMM.store.features.length === before,
@@ -2983,7 +3183,7 @@ if (wclear.drape || wclear.active || wclear.overlay || wclear.card)
 /* Not a golden: the planner kept this drop precisely because it runs off the
    edge of its window and has to be re-run on the next grid. What is asserted is
    the CHAINING, not a number. */
-const wchain = await page.evaluate(async () => {
+wchain = await page.evaluate(async () => {
   const f = await SBMM.water.dropAt(6371600, 2128900);
   if (!f) return { err: "no feature" };
   const p = f.props;
@@ -3002,8 +3202,11 @@ if (errors.length !== errBeforeWater) {
   console.log("FAIL: page errors during the water block:",
               errors.slice(errBeforeWater, errBeforeWater + 6)); process.exit(1);
 }
+});
 
 /* ==================================================================== */
+let errBeforeSurvey, survey;   /* hoisted — v18 §3 */
+await block("9v. the August-2026 survey (docs/V10_WATER_SPEC.md §10)", async () => {
 /* 9v. the August-2026 survey (docs/V10_WATER_SPEC.md §10)               */
 /*                                                                       */
 /* The survey payload and its dataset load; the pipes carry their inverts;*/
@@ -3013,8 +3216,8 @@ if (errors.length !== errBeforeWater) {
 /* over the same grid (survey_stage_ref): pipe 1341.55 -> 109.16 ac-ft,  */
 /* crest 1343.54 -> 153.84, spill 1343.84 -> 160.67; freeboard 7.39.     */
 /* ==================================================================== */
-const errBeforeSurvey = errors.length;
-const survey = await page.evaluate(async () => {
+errBeforeSurvey = errors.length;
+survey = await page.evaluate(async () => {
   const out = {};
   const D = SBMM_DATA.survey_2026;
   out.layers = D && D.layers ? D.layers.length : 0;
@@ -3132,8 +3335,11 @@ if (survey.hermanRimRoutes !== 1)
 if (errors.length !== errBeforeSurvey) {
   console.log("FAIL: page errors during the survey block:", errors.slice(errBeforeSurvey, errBeforeSurvey + 6)); process.exit(1);
 }
+});
 
 /* ==================================================================== */
+let errBeforeStorm, stormBase, FROG, stormDrop, stormOff, WLSHOT, stormWater, stormRest;   /* hoisted — v18 §3 */
+await block("9s. storm drainage (docs/V12_STORM_SPEC.md §6)", async () => {
 /* 9s. storm drainage (docs/V12_STORM_SPEC.md §6)                       */
 /* ==================================================================== */
 /* The network is read-only project data — 44 structures and 26 conduits out of
@@ -3142,8 +3348,8 @@ if (errors.length !== errBeforeSurvey) {
    that reaches an inlet leaves the ground and reappears at the outlet. The
    numbers here are the kernel harness's (test/kernels.mjs section `storm`),
    which computes them from the payload's own conduit lengths. */
-const errBeforeStorm = errors.length;
-const stormBase = await page.evaluate(() => {
+errBeforeStorm = errors.length;
+stormBase = await page.evaluate(() => {
   const D = SBMM_DATA.storm_network;
   if (!D) return { err: "no storm_network payload" };
   const rowsOn = D.layers.filter(l => SBMM.layerState.isOn("framework", l.key));
@@ -3242,8 +3448,8 @@ if (stormBase.cmd !== "STORM" || !stormBase.menu)
    to the Spot 8 grate and down the road drain to the Clear Lake outfall —
    never entering the impoundment; with them off it spills north-east off the
    survey, which is what the bare terrain does. */
-const FROG = [6374418, 2127912];
-const stormDrop = await page.evaluate(async (P) => {
+FROG = [6374418, 2127912];
+stormDrop = await page.evaluate(async (P) => {
   const jobs0 = SBMM.compute.stats.workerJobs + SBMM.compute.stats.syncJobs;
   const f = await SBMM.water.dropAt(P[0], P[1], { name: "Storm test drop" });
   if (!f) return { err: "dropAt returned nothing" };
@@ -3295,7 +3501,7 @@ if (stormDrop.rebuilt.legs !== stormDrop.legs.length || !stormDrop.rebuilt.drawn
 if (!stormDrop.pipeLabels) { console.log("FAIL: the conduit legs are not drawn"); process.exit(1); }
 
 /* STORM off: the same drop, ground only */
-const stormOff = await page.evaluate(async (P) => {
+stormOff = await page.evaluate(async (P) => {
   SBMM.cmd.run("STORM");
   const off = !SBMM.storm.enabled();
   const f = await SBMM.water.dropAt(P[0], P[1], { name: "Storm off drop" });
@@ -3325,8 +3531,8 @@ if (!stormOff.card.includes("ground only"))
    surveyed inverts and leaves through that pipe, EA's storm main and the
    outfall — which is what the overtopping card's "First discharge" row has said
    since v10 §10 and what the raindrop could not say until the mouths moved. */
-const WLSHOT = [6372119.56, 2127446.20];
-const stormWater = await page.evaluate(async (P) => {
+WLSHOT = [6372119.56, 2127446.20];
+stormWater = await page.evaluate(async (P) => {
   const f = await SBMM.water.dropAt(P[0], P[1], { name: "Herman water drop" });
   if (!f) return { err: "dropAt returned nothing" };
   const p = f.props;
@@ -3392,7 +3598,7 @@ for (const t of ["drains to", "24 in corrugated HDPE", "inlet cell moved"])
 }
 
 /* --- a broken conduit, 3D, and the exports --------------------------- */
-const stormRest = await page.evaluate(async () => {
+stormRest = await page.evaluate(async () => {
   const wait = ms => new Promise(r => setTimeout(r, ms));
   /* a broken conduit is not passed to the kernel at all */
   SBMM.storm.setStatus("pond_culvert", "broken");
@@ -3443,8 +3649,11 @@ if (errors.length !== errBeforeStorm) {
   console.log("FAIL: page errors during the storm block:",
               errors.slice(errBeforeStorm, errBeforeStorm + 6)); process.exit(1);
 }
+});
 
 /* ==================================================================== */
+let errBeforeW13, w13, w13d;   /* hoisted — v18 §3 */
+await block("9t. overtop + conduits", async () => {
 /* 9t. overtop + conduits, and water in 3D (docs/V13_WATER3D_SPEC.md)    */
 /* ==================================================================== */
 /* Two things. (1) The overtopping analysis now honours the storm network the
@@ -3457,8 +3666,8 @@ if (errors.length !== errBeforeStorm) {
    and the stage surface at the slider's level.
    The numbers are test/kernels.mjs section `water3d`, which computes them from
    the same payload the app reads. */
-const errBeforeW13 = errors.length;
-const w13 = await page.evaluate(async () => {
+errBeforeW13 = errors.length;
+w13 = await page.evaluate(async () => {
   const wait = ms => new Promise(r => setTimeout(r, ms));
   const ringOf = nm => SBMM_DATA.design_gis.features.find(
     f => f.properties.layer === "water" && f.properties.name === nm).geometry.coordinates[0];
@@ -3693,7 +3902,7 @@ if (w13.hermanRoutes.rimWhatIf !== true)
 /* The particles: precomputed per rebuild, advanced in the render loop, and the
    loop asks for frames ONLY while a visible flow is on screen — which is why
    test/perf.mjs's idle-render count is still 0. */
-const w13d = await page.evaluate(async () => {
+w13d = await page.evaluate(async () => {
   const wait = ms => new Promise(r => setTimeout(r, ms));
   const out = {};
   const wasOpen = SBMM.viewer3d.isOpen();
@@ -3793,8 +4002,11 @@ if (errors.length !== errBeforeW13) {
   console.log("FAIL: page errors during the v13 water block:",
               errors.slice(errBeforeW13, errBeforeW13 + 6)); process.exit(1);
 }
+});
 
 /* ==================================================================== */
+let errBeforeRedo, undoBtns, rdraw, b1, rvert, rdel, rdel2, rflow, rpad, rfork, rkeys, rclean;   /* hoisted — v18 §3 */
+await block("9u. redo (docs/V11_SPEC.md §1)", async () => {
 /* 9u. redo (docs/V11_SPEC.md §1)                                       */
 /* ==================================================================== */
 /* Undo grew a second stack. What is asserted here is the contract, not the
@@ -3802,8 +4014,8 @@ if (errors.length !== errBeforeW13) {
    feature object (same id, same vertices, same card) rather than a look-alike,
    a new action after an undo drops the branch that was left, and the two
    buttons are a view onto the two stacks at every step. */
-const errBeforeRedo = errors.length;
-const undoBtns = () => page.evaluate(() => ({
+errBeforeRedo = errors.length;
+undoBtns = () => page.evaluate(() => ({
   undo: document.getElementById("undoBtn").disabled,
   redo: document.getElementById("redoBtn").disabled,
   undoT: document.getElementById("undoBtn").title,
@@ -3811,7 +4023,7 @@ const undoBtns = () => page.evaluate(() => ({
 }));
 
 /* --- 1. draw a line -> undo -> redo -> undo --------------------------- */
-const rdraw = await page.evaluate(async () => {
+rdraw = await page.evaluate(async () => {
   const wait = ms => new Promise(r => setTimeout(r, ms));
   SBMM.mode.navigate();
   SBMM.undo.clear();
@@ -3860,7 +4072,7 @@ if (rdraw.redone.n !== 1 || !rdraw.redone.onMap || !rdraw.redone.card)
 if (rdraw.idAfter !== rdraw.id0 || rdraw.redone.pts !== rdraw.made.pts || rdraw.lenAfter !== rdraw.len0)
   { console.log("FAIL: redo produced a look-alike, not the same feature", rdraw.id0, rdraw.idAfter); process.exit(1); }
 if (rdraw.again.n !== 0) { console.log("FAIL: a second undo did not remove the line again"); process.exit(1); }
-const b1 = await undoBtns();
+b1 = await undoBtns();
 console.log("redo/buttons after undo:", JSON.stringify(b1));
 if (b1.undo !== true || b1.redo !== false || !/^Redo: draw /.test(b1.redoT))
   { console.log("FAIL: the buttons do not mirror the two stacks"); process.exit(1); }
@@ -3869,7 +4081,7 @@ if (b1.undo !== true || b1.redo !== false || !/^Redo: draw /.test(b1.redoT))
 /* The handle is a real DOM marker (`.vtx`), so this is the user's own path:
    Leaflet's Draggable listens for mousedown on the handle and mousemove /
    mouseup on the document. */
-const rvert = await page.evaluate(async () => {
+rvert = await page.evaluate(async () => {
   const wait = ms => new Promise(r => setTimeout(r, ms));
   SBMM.undo.redo(); await wait(80);                 // the line is back
   const f = window.__ru;
@@ -3910,7 +4122,7 @@ if (rvert.undone !== rvert.before) { console.log("FAIL: undo did not restore the
 if (rvert.redone !== rvert.after) { console.log("FAIL: redo did not restore the moved vertex", rvert.redone); process.exit(1); }
 
 /* --- 3. delete a feature (ERASE) ------------------------------------- */
-const rdel = await page.evaluate(async () => {
+rdel = await page.evaluate(async () => {
   const wait = ms => new Promise(r => setTimeout(r, ms));
   const f = window.__ru;
   SBMM.store.select(f.id);
@@ -3935,7 +4147,7 @@ if (rdel.goneAgain) { console.log("FAIL: redo did not delete the feature again")
 /* --- 3b. the other delete paths are the same action (v9.7) ----------
    The results-card ✕, the Features-tree bin and the popup's delete button all
    route through SBMM.tools.deleteFeature now, so each of them undoes. */
-const rdel2 = await page.evaluate(async () => {
+rdel2 = await page.evaluate(async () => {
   const wait = ms => new Promise(r => setTimeout(r, ms));
   const out = {};
   const mk = () => SBMM.tools.rebuildFeature({ type: "line", pts: [[6371400, 2128600], [6371500, 2128600]] });
@@ -3966,7 +4178,7 @@ for (const k of ["card", "tree"])
     { console.log("FAIL: the " + k + " delete is not an undoable action"); process.exit(1); }
 
 /* --- 4. a raindrop, and its animated copy in the water pane ---------- */
-const rflow = await page.evaluate(async (DROP) => {
+rflow = await page.evaluate(async (DROP) => {
   const wait = ms => new Promise(r => setTimeout(r, ms));
   const anim = () => document.querySelectorAll(".flowanim").length;
   const a0 = anim(), n0 = SBMM.store.features.length;
@@ -3996,7 +4208,7 @@ if (rflow.redone.n !== 1 || rflow.redone.anim !== 1 || !rflow.redone.sameId || !
   { console.log("FAIL: redo did not bring the raindrop back drawn"); process.exit(1); }
 
 /* --- 5. a graded pad ------------------------------------------------- */
-const rpad = await page.evaluate(async () => {
+rpad = await page.evaluate(async () => {
   const wait = ms => new Promise(r => setTimeout(r, ms));
   const box = [[6371380, 2128480], [6371520, 2128480], [6371520, 2128600], [6371380, 2128600]];
   const src = SBMM.tools.rebuildFeature({ type: "area", pts: box, name: "ZZ redo pad box" });
@@ -4035,7 +4247,7 @@ if (!rpad.redone.here || !rpad.redone.onMap || !rpad.redone.surf || !rpad.redone
   { console.log("FAIL: redo did not regenerate the design surface"); process.exit(1); }
 
 /* --- 6. a new action forks history: the redo branch is gone ---------- */
-const rfork = await page.evaluate(async () => {
+rfork = await page.evaluate(async () => {
   const wait = ms => new Promise(r => setTimeout(r, ms));
   SBMM.undo.pop(); await wait(120);                    // the pad again -> redo available
   const armed = SBMM.undo.canRedo();
@@ -4058,7 +4270,7 @@ if (rfork.redoReturned !== false || !/nothing to redo/.test(rfork.toastTxt))
   { console.log("FAIL: redo on an empty stack must be a no-op WITH a toast:", JSON.stringify(rfork)); process.exit(1); }
 
 /* --- 7. the keys and the command ------------------------------------- */
-const rkeys = await page.evaluate(async () => {
+rkeys = await page.evaluate(async () => {
   const wait = ms => new Promise(r => setTimeout(r, ms));
   SBMM.mode.navigate();
   SBMM.undo.clear();
@@ -4088,7 +4300,7 @@ if (rkeys.cmd !== "REDO" || rkeys.aliases.join(",") !== "REDO,REDO")
   { console.log("FAIL: the REDO command or its aliases are missing:", JSON.stringify(rkeys)); process.exit(1); }
 
 /* --- 8. every push carries both closures, and the block raised nothing */
-const rclean = await page.evaluate(async () => {
+rclean = await page.evaluate(async () => {
   const wait = ms => new Promise(r => setTimeout(r, ms));
   /* tidy: the fixtures this block left behind */
   for (const n of ["ZZ redo pad box", "ZZ fork", "ZZ keys"]) {
@@ -4113,11 +4325,14 @@ if (errors.length !== errBeforeRedo) {
   console.log("FAIL: page errors during the redo block:", errors.slice(errBeforeRedo, errBeforeRedo + 6)); process.exit(1);
 }
 console.log("redo: OK — 8 cycles, both closures at every push site");
+});
 
 /* ==================================================================== */
+let lstate, barClipping, modes;   /* hoisted — v18 §3 */
+await block("9j. one layer state (§1/§4) and the tool-mode machine (§2)", async () => {
 /* 9j. one layer state (§1/§4) and the tool-mode machine (§2)            */
 /* ==================================================================== */
-const lstate = await page.evaluate(async () => {
+lstate = await page.evaluate(async () => {
   const wait = ms => new Promise(r => setTimeout(r, ms));
   const evs = [];
   const off = SBMM.events.on("layers", e => evs.push(e.group + "/" + e.layer));
@@ -4176,7 +4391,7 @@ if (lstate.v3dCheckboxes !== 0 || lstate.oldIds.length) {
    reflowBar() now drops the labels and then parks the drape / relief / detail
    groups in the View settings popover, so every control that is still ON the
    bar has to be inside it. */
-async function barClipping(label) {
+barClipping = async function barClipping(label) {
   const bad = await page.evaluate(() => {
     const bar = document.querySelector("#view3d .v3dbar");
     if (!bar) return ["no toolbar"];
@@ -4215,7 +4430,7 @@ async function barClipping(label) {
   if (!wasOpen) { await page.evaluate(() => SBMM.viewer3d.toggle()); await page.waitForTimeout(400); }
 }
 
-const modes = await page.evaluate(async () => {
+modes = await page.evaluate(async () => {
   const wait = ms => new Promise(r => setTimeout(r, ms));
   const seen = [];
   const off = SBMM.events.on("mode", e => seen.push(e.from + "->" + e.to));
@@ -4266,8 +4481,11 @@ if (modes.spaceDown.mode !== "navigate" || !modes.spaceDown.drawing) {
 if (modes.spaceUp.mode !== "measure.area") { console.log("FAIL: releasing Space did not return to the mode"); process.exit(1); }
 if (!modes.events) { console.log("FAIL: SBMM.events emitted no 'mode' events"); process.exit(1); }
 if (modes.navHud !== "Navigate") { console.log("FAIL: the mode HUD does not name the mode"); process.exit(1); }
+});
 
 /* ==================================================================== */
+let lman;   /* hoisted — v18 §3 */
+await block("9k. Layer manager (§6)", async () => {
 /* 9k. Layer manager (§6)                                               */
 /* ==================================================================== */
 await page.evaluate(() => SBMM.layerMan.open());
@@ -4275,7 +4493,7 @@ await page.waitForTimeout(500);
 await page.fill("#layerMan #lmQ", "DYLGHT");
 await page.waitForTimeout(300);
 await page.screenshot({ path: "shots/layer_manager.png" });
-const lman = await page.evaluate(async () => {
+lman = await page.evaluate(async () => {
   const wait = ms => new Promise(r => setTimeout(r, ms));
   const rows = [...document.querySelectorAll("#lmRows tr[data-ly]")];
   const names = rows.map(r => r.dataset.ly);
@@ -4310,15 +4528,18 @@ if (!lman.info.file || !lman.info.count) { console.log("FAIL: the layer manager 
    same limits is off by default so it cannot answer clicks in their place. */
 if (!lman.excDefaultOff || lman.cadExcOn) { console.log("FAIL: the CAD 'exc' group must default OFF (ruling R1)"); process.exit(1); }
 if (!lman.gisExcOn) { console.log("FAIL: the geodatabase limits of excavation must be ON by default"); process.exit(1); }
+});
 
 /* ==================================================================== */
+let ia, WANT_SECS, designOrder, annoOff, chords, collapse, areas;   /* hoisted — v18 §3 */
+await block("9e. layers tab information architecture", async () => {
 /* 9e. layers tab information architecture                               */
 /* ==================================================================== */
 /* the left dock was left on another tab by an earlier section */
 await page.click('#leftTabs .dtab[data-tab="layers"]');
 await page.waitForTimeout(400);
 
-const ia = await page.evaluate(() => {
+ia = await page.evaluate(() => {
   const secs = [...document.querySelectorAll("#layers .lsec")].map(s => ({
     key: s.dataset.sec,
     title: s.querySelector(".lsectitle").textContent.trim(),
@@ -4341,7 +4562,7 @@ const ia = await page.evaluate(() => {
 });
 console.log("layers sections:", ia.secs.map(s => `${s.key} "${s.title}" (${s.count || 0})`).join(" · "));
 /* the six §4 groups, in the spec's order */
-const WANT_SECS = ["base", "framework", "design", "invest", "cultural", "mywork"];
+WANT_SECS = ["base", "framework", "design", "invest", "cultural", "mywork"];
 if (ia.secs.map(s => s.key).join(",") !== WANT_SECS.join(",")) {
   console.log("FAIL: the §4 layer groups are wrong:", ia.secs.map(s => s.key)); process.exit(1);
 }
@@ -4358,7 +4579,7 @@ if (ia.areaBtns.join(",") !== "mine,resid,site") { console.log("FAIL: Areas quic
    then the per-sheet raster drapes under their own sub-header at the bottom.
    Twenty "C-103 · Lot 13" rows at the top pushed every authoritative layer
    below the fold, which is how the group was shipped before this round. */
-const designOrder = await page.evaluate(() => {
+designOrder = await page.evaluate(() => {
   const host = document.getElementById("designLayers");
   /* v16: a sub-group is a real container (`.lgsub` > `.subh.lsub` + `.lgsubb`)
      rather than a bare header followed by its rows, so the reading order of the
@@ -4427,7 +4648,7 @@ if (!designOrder.afterSub.some(t => /Sheets draped in 3D/.test(t))) {
    Three EA CAD layers are annotation ABOUT the drawings rather than anything on
    the ground, and all three used to draw over the default 2D view: viewport
    frames, match lines and a detail call-out leader parked out in Clear Lake. */
-const annoOff = await page.evaluate(() => {
+annoOff = await page.evaluate(() => {
   const want = ["G-ANNO-SYMB", "G-ANNO-MATC", "G-ANNO-DETL-PROP"];
   const out = {};
   for (const n of want) {
@@ -4455,7 +4676,7 @@ for (const n of Object.keys(annoOff.out)) {
    reading as alignment lines drawn across open water */
 await page.evaluate(() => SBMM.layerState.set("base", "contours_site", { on: true }));
 await page.waitForTimeout(500);
-const chords = await page.evaluate(() => {
+chords = await page.evaluate(() => {
   let worst = 0, worstMid = null, n = 0, verts = 0, offTerrain = 0;
   SBMM.map.eachLayer(l => {
     if (!l.options || l.options.color !== "#6E8593" || !l.getLatLngs) return;
@@ -4490,7 +4711,7 @@ if (chords.n > 1200) {
   console.log("FAIL: the contour split produced", chords.n, "polylines — it is shattering real contours"); process.exit(1);
 }
 
-const collapse = await page.evaluate(async () => {
+collapse = await page.evaluate(async () => {
   const wait = ms => new Promise(r => setTimeout(r, ms));
   const sec = document.querySelector('#layers .lsec[data-sec="framework"]');
   const h = sec.querySelector(".lsech");
@@ -4505,7 +4726,7 @@ console.log("section collapse: open", collapse.shown0, "-> closed", !collapse.sh
 if (!collapse.shown0 || collapse.shown1 || !collapse.shown2) { console.log("FAIL: section header does not collapse"); process.exit(1); }
 
 /* Areas quick-nav really moves the 2D view */
-const areas = await page.evaluate(async () => {
+areas = await page.evaluate(async () => {
   const wait = ms => new Promise(r => setTimeout(r, ms));
   const out = {};
   for (const a of ["mine", "resid", "site"]) {
@@ -4520,12 +4741,15 @@ console.log("Areas widths ft — mine", areas.mine, "residential", areas.resid, 
 if (!(areas.site > areas.mine)) { console.log("FAIL: 'Full site' is not wider than the mine area"); process.exit(1); }
 
 await page.screenshot({ path: "/tmp/shotB_layers_" + label.replace(/\W+/g, "_") + ".png" });
+});
 
 /* ==================================================================== */
+let errBeforeDs, seeds, imported, dsTbl, dsIntegration, rt, oldLoad, escArm, aliases, zorder, keyScope, csvGuard, released, demWork, escModals;   /* hoisted — v18 §3 */
+await block("9f. datasets", async () => {
 /* 9f. datasets — baked seeds, CSV import, table, session round-trip      */
 /* ==================================================================== */
-const errBeforeDs = errors.length;
-const seeds = await page.evaluate(() => {
+errBeforeDs = errors.length;
+seeds = await page.evaluate(() => {
   const L = SBMM.datasets.list();
   const w = SBMM.datasets.byId("wells"), b = SBMM.datasets.byId("borings2025");
   const inSite = d => d.points.every(p => p.x > 6.36e6 && p.x < 6.385e6 && p.y > 2.12e6 && p.y < 2.14e6);
@@ -4562,7 +4786,7 @@ if (seeds.rows !== 3 || seeds.tabs !== 4) { console.log("FAIL: dataset rows/tabs
 /* import a synthetic CSV through the real file path: a File -> FileReader ->
    the mapping dialog -> "Add to map". Deliberately headed N/E rather than X/Y,
    and carrying one junk row, because that is what a field CSV looks like. */
-const imported = await page.evaluate(async () => {
+imported = await page.evaluate(async () => {
   const wait = ms => new Promise(r => setTimeout(r, ms));
   const csv = "LOC_ID,NORTHING,EASTING,TOTAL DEPTH (FT),CREW,NOTE\n"
     + "TESTPIT-1,2128900,6371500,12.5,A,\"comma, quoted\"\n"
@@ -4612,7 +4836,7 @@ if (imported.depthField !== "TOTAL DEPTH (FT)") { console.log("FAIL: depth attri
 if (!imported.row || !imported.tab || imported.markers !== 3) { console.log("FAIL: imported dataset did not build its layer/table"); process.exit(1); }
 
 /* the dataset's own table filters and sorts */
-const dsTbl = await page.evaluate(async () => {
+dsTbl = await page.evaluate(async () => {
   const wait = ms => new Promise(r => setTimeout(r, ms));
   SBMM.table.toggle(true);
   const d = SBMM.datasets.list().find(x => x.name === "testpits");
@@ -4644,7 +4868,7 @@ await page.screenshot({ path: "/tmp/shotB_dataset_" + label.replace(/\W+/g, "_")
 await page.evaluate(() => SBMM.table.toggle(false));
 
 /* datasets snap, export and render in 3D */
-const dsIntegration = await page.evaluate(() => {
+dsIntegration = await page.evaluate(() => {
   SBMM.snap.invalidate();
   SBMM.snap.buildStatic();
   const w = SBMM.datasets.byId("wells").points[0];
@@ -4672,7 +4896,7 @@ if (dsIntegration.stickPts < 100) { console.log("FAIL: 3D depth sticks have no d
 
 /* session round-trip: an imported dataset must survive save -> reload.
    Baked datasets must NOT be written into the file (they ship with the app). */
-const rt = await page.evaluate(async () => {
+rt = await page.evaluate(async () => {
   const wait = ms => new Promise(r => setTimeout(r, ms));
   const ser = SBMM.store.serialize();
   const written = (ser.datasets || []).map(d => d.name);
@@ -4703,7 +4927,7 @@ if (errors.length !== errBeforeDs) {
 
 /* an old session (v5, no datasets key) must still load — backward compatibility
    is a promise this file has kept since v2 */
-const oldLoad = await page.evaluate(() => {
+oldLoad = await page.evaluate(() => {
   const before = SBMM.store.features.length;
   SBMM.store.restore({ app: "SBMM Site Explorer", version: 5, groups: [],
     features: [{ name: "legacy line", type: "line", pts: [[6371500, 2128900], [6371600, 2128950]], props: {} }] });
@@ -4723,7 +4947,7 @@ if (oldLoad.after !== oldLoad.before + 1) { console.log("FAIL: v5 session no lon
        that was the original bug — and since v9 there is also no second rule
        for a sketch that has vertices: one key, one destination. A lit tool
        must still accept a click whatever tore the sketch down. */
-const escArm = await page.evaluate(async () => {
+escArm = await page.evaluate(async () => {
   SBMM.cmd.open(false);
   const base = SBMM.store.features.length;      // leave the drawing alone: the screenshots use it
   const press = () => document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
@@ -4759,7 +4983,7 @@ if (!escArm.armedTip) { console.log("FAIL: arming a tool gives no on-map instruc
 
 /* (ii) No command alias may be shadowed by an earlier command — REPORT's
        "SHEET" alias silently ate the sheet viewer's own. */
-const aliases = await page.evaluate(() => {
+aliases = await page.evaluate(() => {
   const seen = new Map(), dup = [];
   for (const c of SBMM.cmd.commands())
     for (const a of [c.n, ...c.a]) {
@@ -4774,7 +4998,7 @@ if (aliases.sheetGoesTo !== "SHEETS") { console.log("FAIL: SHEET should open the
 /* (iii) Overlay stacking: a sheet window must stay under the modals however
        many times it is brought to the front, and a toast must beat all of them
        (a toast behind a window is a failure report the user never sees). */
-const zorder = await page.evaluate(async () => {
+zorder = await page.evaluate(async () => {
   for (const s of SBMM.sheets.index().slice(0, 6)) SBMM.sheets.open(s.sheet);
   await new Promise(r => setTimeout(r, 300));
   for (let i = 0; i < 40; i++) SBMM.sheets.open(SBMM.sheets.index()[i % 6].sheet);   // 40 raise-to-front
@@ -4801,7 +5025,7 @@ if (!zorder.pickerClosedByEsc || !zorder.allClosed) { console.log("FAIL: Esc did
 
 /* (iv) Focus scope: a focused sheet window owns its keys. Pressing 3 or T while
        reading a drawing used to open the 3D view / the table behind it. */
-const keyScope = await page.evaluate(async () => {
+keyScope = await page.evaluate(async () => {
   SBMM.sheets.open("C-106");
   await new Promise(r => setTimeout(r, 300));
   const win = document.querySelector(".shwin");
@@ -4821,7 +5045,7 @@ if (keyScope.after.d3 !== keyScope.before.d3 || keyScope.after.tool !== keyScope
 
 /* (v) Pathological CSV: refuse cleanly, never half-import, and never lose a
        point to a repeated ID. */
-const csvGuard = await page.evaluate(async () => {
+csvGuard = await page.evaluate(async () => {
   const said = [];
   const orig = window.toast;
   window.toast = function (m) { said.push(String(m)); return orig.apply(this, arguments); };
@@ -4871,7 +5095,7 @@ if (!csvGuard.said.some(m => /skipped/.test(m))) { console.log("FAIL: no toast r
 
 /* (vi) The terrain payload strings are released once decoded — 28 MB of base64
        that nothing reads twice. The keys must still exist (dual-build contract). */
-const released = await page.evaluate(() => ({
+released = await page.evaluate(() => ({
   keys: ["dem_site_png", "dem_abp_png", "chm_png"].every(k => k in SBMM_DATA),
   nulled: ["dem_site_png", "dem_abp_png", "chm_png"].filter(k => SBMM_DATA[k] === null),
   elev: SBMM.elev(6371600, 2128900)[0],
@@ -4886,7 +5110,7 @@ if (isNaN(released.elev) || isNaN(released.canopy)) { console.log("FAIL: releasi
        main-thread fallback produce the SAME Float32Array. The comparison runs on a
        small synthetic terrain-RGB PNG built in the page (including NoData pixels),
        so it needs no real payload and cannot be fooled by one already released. */
-const demWork = await page.evaluate(async () => {
+demWork = await page.evaluate(async () => {
   const w = 64, h = 48;
   const meta = { w, h, zmin: 1000, step: 0.05, x0: 0, y0: 0, cell: 1 };
   const c = document.createElement("canvas"); c.width = w; c.height = h;
@@ -4923,7 +5147,7 @@ if (demWork.nan === 0 || demWork.nan !== demWork.nodata)
   { console.log("FAIL: NoData was not carried across identically (", demWork.nan, "vs", demWork.nodata, ")"); process.exit(1); }
 
 /* (vii) Modal overlays all answer Esc, and HELP twice leaves one overlay. */
-const escModals = await page.evaluate(async () => {
+escModals = await page.evaluate(async () => {
   const press = () => document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
   const out = {};
   document.getElementById("helpBtn").click();
@@ -4947,9 +5171,12 @@ console.log("Esc across the modal overlays:", JSON.stringify(escModals));
 for (const k of ["helpOpened", "helpClosed", "cmdHelpClosed", "dialogOpened", "dialogClosed"])
   if (!escModals[k]) { console.log("FAIL: Esc behaviour inconsistent —", k); process.exit(1); }
 if (escModals.cmdHelpOverlays !== 1) { console.log("FAIL: HELP twice stacked two overlays"); process.exit(1); }
+});
 
 
 /* ==================================================================== */
+let errBeforeDrain, drainT0, drainRun, drainTip, drainInto, drainAgree, drainExp, drain3d, drainOff, drainSess;   /* hoisted — v18 §3 */
+await block("9x. drainage", async () => {
 /* 9x. drainage — the whole-site catchment map (v14, docs/V14_DRAINAGE_SPEC.md) */
 /* ==================================================================== */
 /* The kernel's own acceptance test — 100 raindrops against the label raster —
@@ -4961,9 +5188,9 @@ if (escModals.cmdHelpOverlays !== 1) { console.log("FAIL: HELP twice stacked two
    into a session. Ten raindrops rather than the spec's twenty, because each one
    chains up to eight worker jobs on a software-GL box and the hundred are
    already proven in node on the same kernel. */
-const errBeforeDrain = errors.length;
-const drainT0 = Date.now();
-const drainRun = await page.evaluate(async () => {
+errBeforeDrain = errors.length;
+drainT0 = Date.now();
+drainRun = await page.evaluate(async () => {
   SBMM.cmd.open(false);
   const t0 = performance.now();
   const R = await SBMM.drainage.run();
@@ -5006,7 +5233,7 @@ if (!/Clear Lake outfall/.test(drainRun.sinks.join("|")))
   { console.log("FAIL: the storm outfall is not one of the outlets"); process.exit(1); }
 
 /* the tooltip a hover gets: the app's own polygon binding, not a re-derivation */
-const drainTip = await page.evaluate(() => {
+drainTip = await page.evaluate(() => {
   /* inside the Herman impoundment, whose first capture is the impoundment
      itself — the biggest and least ambiguous catchment on the site */
   const lab = SBMM.drainage.firstAt(6372119.56, 2127446.20);
@@ -5029,7 +5256,7 @@ if (!/outfall|Clear Lake/.test(drainTip.outlet || ""))
   { console.log("FAIL: the impoundment does not drain to the outfall"); process.exit(1); }
 
 /* "show what drains here" on the outfall node, from the storm popup's own action */
-const drainInto = await page.evaluate(async () => {
+drainInto = await page.evaluate(async () => {
   const n = SBMM.storm.node("outfall");
   const hi = await SBMM.drainage.showInto({ node: "outfall", title: n.name });
   const R = SBMM.drainage.result();
@@ -5051,7 +5278,7 @@ if (!drainInto.card) { console.log("FAIL: 'show what drains here' printed no car
 await page.evaluate(() => SBMM.drainage.paint());
 
 /* the identity, through the app's own raindrop */
-const drainAgree = await page.evaluate(async () => {
+drainAgree = await page.evaluate(async () => {
   let seed = 20260904;
   const rnd = () => (seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648;
   const m = SBMM.demSite.m, pts = [];
@@ -5095,7 +5322,7 @@ if (drainAgree.agree < drainAgree.n - 1)
   { console.log("FAIL: the raindrop and the drainage map disagree"); process.exit(1); }
 
 /* the exports */
-const drainExp = await page.evaluate(() => {
+drainExp = await page.evaluate(() => {
   const P = p => [p[0], p[1]];
   const gj = SBMM.drainage.geoFeatures(P);
   const dxf = SBMM.drainage.dxfEntities();
@@ -5116,7 +5343,7 @@ for (const L of ["DRAIN-OUTLET", "DRAIN-FIRST", "DRAIN-PATH"]) {
 }
 
 /* 3D: the catchments are draped and tagged for the pick registry */
-const drain3d = await page.evaluate(() => {
+drain3d = await page.evaluate(() => {
   const r = SBMM.drainage.rings3d();
   return { rings: r.length, tagged: r.every(q => q.props && q.props.layer && q.geom) };
 });
@@ -5125,7 +5352,7 @@ if (drain3d.rings < 12 || !drain3d.tagged)
   { console.log("FAIL: the drainage catchments are not drapeable/pickable in 3D"); process.exit(1); }
 
 /* the storm switch invalidates the map, and the inlet catchments go with it */
-const drainOff = await page.evaluate(async () => {
+drainOff = await page.evaluate(async () => {
   SBMM.storm.setEnabled(false, true);
   const R = await SBMM.drainage.run({ force: true });
   const back = { inletSinks: R.sinks.filter(s => s.kind === "outfall").length,
@@ -5148,7 +5375,7 @@ if (drainOff.sameGround !== drainOff.sameGroundBack)
 
 /* read-only project analysis: nothing here is a store feature and nothing of it
    serialises (the layer STATE does, like every other layer's) */
-const drainSess = await page.evaluate(() => {
+drainSess = await page.evaluate(() => {
   const s = JSON.parse(JSON.stringify(SBMM.store.serialize()));
   const txt = JSON.stringify(s);
   return { feats: (s.features || []).filter(f => /drain/i.test(f.type || "")).length,
@@ -5170,8 +5397,11 @@ await page.evaluate(() => {
   SBMM.layerState.set("framework", "drain_outlet", { on: false });
   SBMM.layerState.set("framework", "drain_first", { on: false });
 });
+});
 
 /* ==================================================================== */
+let errBeforeRain, rainDlg, rainT0, rainRun, herman, rainOv, rainOut, rainRows, rainSess;   /* hoisted — v18 §3 */
+await block("9aa. design storm", async () => {
 /* 9aa. design storm — rainfall and runoff (v14 Phase 2,                */
 /*      docs/V14_PHASE2_RUNOFF_SPEC.md §3)                              */
 /* ==================================================================== */
@@ -5188,10 +5418,10 @@ await page.evaluate(() => {
    It runs BEFORE the 3D-parity table (9y) on purpose: that block turns every
    layer row on and requires each one to draw something in 3D, and the
    runoff-depth row can only draw a catchment once a storm has been run. */
-const errBeforeRain = errors.length;
+errBeforeRain = errors.length;
 
 /* the command opens the dialog, and RAIN belongs to exactly one command */
-const rainDlg = await page.evaluate(() => {
+rainDlg = await page.evaluate(() => {
   SBMM.cmd.run("RAIN");
   const box = document.getElementById("rainDlg");
   const out = {
@@ -5212,8 +5442,8 @@ if (rainDlg.classes < 5) { console.log("FAIL: the dialog has no cover classes to
 if (rainDlg.warn !== rainDlg.provisional)
   { console.log("FAIL: the provisional-rainfall warning disagrees with the payload"); process.exit(1); }
 
-const rainT0 = Date.now();
-const rainRun = await page.evaluate(async () => {
+rainT0 = Date.now();
+rainRun = await page.evaluate(async () => {
   const R = await SBMM.runoff.run({ storm: "25:24" });
   if (!R) return { failed: true };
   const rowsFor = re => [...document.querySelectorAll("#resBody .res")]
@@ -5262,7 +5492,7 @@ for (const r of rainRun.routing) {
   }
 }
 /* the impoundment is routed against the surveyed stages, not the lidar's */
-const herman = rainRun.routing.find(r => /Herman/i.test(r.name));
+herman = rainRun.routing.find(r => /Herman/i.test(r.name));
 if (!herman) { console.log("FAIL: the impoundment was not routed"); process.exit(1); }
 if (Math.abs(herman.rim - 1343.84) > 0.05)
   { console.log("FAIL: the impoundment's rim moved from 1343.84:", herman.rim); process.exit(1); }
@@ -5270,7 +5500,7 @@ if (herman.conduit == null || Math.abs(herman.conduit - 1341.55) > 0.1)
   { console.log("FAIL: the impoundment's first discharge is not the surveyed pipe:", herman.conduit); process.exit(1); }
 
 /* a drawn cover override really changes a curve number */
-const rainOv = await page.evaluate(async () => {
+rainOv = await page.evaluate(async () => {
   const R = SBMM.runoff.result();
   const big = R.outlets.slice().sort((a, b) => b.area_ft2 - a.area_ft2)[0];
   const before = big.cn;
@@ -5291,7 +5521,7 @@ if (!(rainOv.after > rainOv.before))
   { console.log("FAIL: a paved override did not raise the catchment's CN"); process.exit(1); }
 
 /* the report sheet and the CSV */
-const rainOut = await page.evaluate(() => {
+rainOut = await page.evaluate(() => {
   const html = SBMM.report.runoffHTML(SBMM.runoff.result());
   const csv = SBMM.runoff.csv();
   const opened = !!SBMM.report.openRunoff(SBMM.runoff.result());
@@ -5321,7 +5551,7 @@ if (!rainOut.csvCat || !rainOut.csvRoute || !rainOut.csvAssume || !rainOut.csvCo
   { console.log("FAIL: the design-storm CSV is missing a block"); process.exit(1); }
 
 /* the two layer rows draw */
-const rainRows = await page.evaluate(async () => {
+rainRows = await page.evaluate(async () => {
   /* the cover raster is an image overlay and the site already has several, so
      the honest test is that ticking the row ADDS one */
   const countImgs = () => { let n = 0; SBMM.map.eachLayer(l => { if (l instanceof L.ImageOverlay) n++; }); return n; };
@@ -5360,7 +5590,7 @@ if (!rainRows.popup) { console.log("FAIL: the runoff popup does not name its num
    above spawns a handful of volume jobs whatever this module does. What IS
    asserted is the contract this block owns — the analysis object is untouched,
    so nothing here recomputed. */
-const rainSess = await page.evaluate(async () => {
+rainSess = await page.evaluate(async () => {
   const wait = ms => new Promise(r => setTimeout(r, ms));
   const ser = JSON.parse(JSON.stringify(SBMM.store.serialize()));
   const txt = JSON.stringify(ser);
@@ -5398,8 +5628,11 @@ await page.evaluate(() => {
   SBMM.layerState.set("framework", "runoff_depth", { on: false });
   for (const f of SBMM.store.features.filter(g => g.props && g.props.cover)) SBMM.tools.deleteFeature(f);
 });
+});
 
 /* ==================================================================== */
+let errBeforeParity, parity, rowsOn, classesLive, CAD_BASEMAP, exemptReason, parityTable, parityMissing, parityNamed, chrome3d, lbl3d, hasTxt;   /* hoisted — v18 §3 */
+await block("9y. 3D parity", async () => {
 /* 9y. 3D parity — everything that works in 2D works in 3D (v15 §3.1)   */
 /* ==================================================================== */
 /* The table: for every layer row that is ON, the 3D scene must contain at least
@@ -5426,8 +5659,8 @@ await page.evaluate(() => {
        draw, so it is only required when such a feature exists.
 
    Anything else with an ON row and no object is a FAIL and is listed. */
-const errBeforeParity = errors.length;
-const parity = await page.evaluate(async () => {
+errBeforeParity = errors.length;
+parity = await page.evaluate(async () => {
   const wait = ms => new Promise(r => setTimeout(r, ms));
   /* every group on, including the lazily built base layers — the same
      "everything on" test/perf.mjs uses */
@@ -5484,18 +5717,18 @@ const parity = await page.evaluate(async () => {
 });
 if (parity.treesSkipped)
   console.log("3D parity: the tree detector had not finished, so base/trees_detected is out of this table");
-const rowsOn = parity.rows.filter(r => r.on);
+rowsOn = parity.rows.filter(r => r.on);
 /* which My-work classes actually have a visible feature */
-const classesLive = await page.evaluate(() => {
+classesLive = await page.evaluate(() => {
   const out = {};
   for (const f of SBMM.store.features)
     if (f.visible !== false) out[SBMM.myWork.classOf(f)] = (out[SBMM.myWork.classOf(f)] || 0) + 1;
   return out;
 });
-const CAD_BASEMAP = new Set(["cad_contour", "cad_parcel", "cad_road", "cad_bldg", "cad_fence",
+CAD_BASEMAP = new Set(["cad_contour", "cad_parcel", "cad_road", "cad_bldg", "cad_fence",
   "cad_tree", "cad_util", "cad_env", "cad_symbol", "cad_misc", "cad_topo", "cad_du",
   "cad_storm", "cad_esc", "cad_algn", "cad_anno"]);
-function exemptReason(r) {
+exemptReason = function exemptReason(r) {
   if (r.group === "base" && /^(Hillshade|Ortho|Slope|Aspect|Elevation tint)/.test(r.label))
     return "the 3D terrain drape (toolbar picker)";
   if (r.group === "design" && r.id === "sheets3d") return "master switch for the per-sheet drapes";
@@ -5513,7 +5746,7 @@ function exemptReason(r) {
     return "ORPHAN ROW — its imported dataset was removed (layerState cannot undefine a row; v16)";
   return null;
 }
-const parityTable = rowsOn.map(r => {
+parityTable = rowsOn.map(r => {
   const key = r.group + "/" + r.id;
   const n = parity.drawn[key] || 0;
   return { key, label: r.label, objects: n, exempt: n ? null : exemptReason(r) };
@@ -5523,14 +5756,14 @@ console.log("3D parity table — rows ON:", parityTable.length,
             "| exempt:", parityTable.filter(t => !t.objects && t.exempt).length);
 for (const t of parityTable.filter(t => !t.objects))
   console.log("   " + t.key.padEnd(28) + (t.exempt ? "exempt — " + t.exempt : "*** MISSING ***"));
-const parityMissing = parityTable.filter(t => !t.objects && !t.exempt);
+parityMissing = parityTable.filter(t => !t.objects && !t.exempt);
 if (parityMissing.length) {
   console.log("FAIL: 3D parity — these layer rows are on and draw nothing in 3D:",
               JSON.stringify(parityMissing.map(t => t.key)));
   process.exit(1);
 }
 /* the §3.1 named gaps, each asserted by name rather than by the table alone */
-const parityNamed = await page.evaluate(async () => {
+parityNamed = await page.evaluate(async () => {
   const wait = ms => new Promise(r => setTimeout(r, ms));
   const out = {};
   const d = SBMM.viewer3d.stats().layersDrawn;
@@ -5572,7 +5805,7 @@ if (parityNamed.sectionsRow === false)
   { console.log("FAIL: a cross-section set draws nothing in 3D"); process.exit(1); }
 
 /* view presets move the camera, and the sun and animate-water controls exist */
-const chrome3d = await page.evaluate(async () => {
+chrome3d = await page.evaluate(async () => {
   const wait = ms => new Promise(r => setTimeout(r, ms));
   const out = {};
   const before = SBMM.viewer3d.stats().orbit;
@@ -5613,7 +5846,7 @@ if (chrome3d.sunSet.az !== 120 || chrome3d.sunSet.el !== 60)
   { console.log("FAIL: the sun control does not move the light:", JSON.stringify(chrome3d.sunSet)); process.exit(1); }
 
 /* the stage labels follow the slider (v15 §2.3) */
-const lbl3d = await page.evaluate(async () => {
+lbl3d = await page.evaluate(async () => {
   const wait = ms => new Promise(r => setTimeout(r, ms));
   const ringOf = nm => SBMM_DATA.design_gis.features.find(
     f => f.properties.layer === "water" && f.properties.name === nm).geometry.coordinates[0];
@@ -5640,7 +5873,7 @@ const lbl3d = await page.evaluate(async () => {
 });
 console.log("3D stage labels below the culvert:", JSON.stringify(lbl3d.belowTexts));
 console.log("3D stage labels above the rim:   ", JSON.stringify(lbl3d.aboveTexts));
-const hasTxt = (a, re) => a.some(t => re.test(t));
+hasTxt = (a, re) => a.some(t => re.test(t));
 if (!hasTxt(lbl3d.belowTexts, /first discharge .* ft to go/))
   { console.log("FAIL: below the culvert rim the label must say how far it has to go"); process.exit(1); }
 if (!hasTxt(lbl3d.aboveTexts, /first discharge .*discharging/))
@@ -5665,12 +5898,15 @@ await page.evaluate(async () => {
   if (window.__parityState) SBMM.layerState.restore(window.__parityState);
   await new Promise(r => setTimeout(r, 800));
 });
+});
 
 /* ==================================================================== */
+let errBeforeLbl, lab, labDrain;   /* hoisted — v18 §3 */
+await block("9z. labels", async () => {
 /* 9z. labels — one per fact, and none on top of another (v15 §2.2)     */
 /* ==================================================================== */
-const errBeforeLbl = errors.length;
-const lab = await page.evaluate(async () => {
+errBeforeLbl = errors.length;
+lab = await page.evaluate(async () => {
   const wait = ms => new Promise(r => setTimeout(r, ms));
   const ringOf = nm => SBMM_DATA.design_gis.features.find(
     f => f.properties.layer === "water" && f.properties.name === nm).geometry.coordinates[0];
@@ -5738,7 +5974,7 @@ if (lab.overlapSite.length)
   { console.log("FAIL: two visible labels overlap after a pan:", JSON.stringify(lab.overlapSite.slice(0, 4))); process.exit(1); }
 
 /* the drainage catchment names, at full-site zoom, must not pile up either */
-const labDrain = await page.evaluate(async () => {
+labDrain = await page.evaluate(async () => {
   const wait = ms => new Promise(r => setTimeout(r, ms));
   SBMM.layerState.set("framework", "drain_outlet", { on: true });
   for (let i = 0; i < 120 && !SBMM.drainage.hasResult(); i++) await wait(500);
@@ -5772,7 +6008,9 @@ await page.evaluate(async () => {
   for (const p of SBMM.store.features.filter(f => /^ZZ label probe/.test(f.name))) SBMM.store.remove(p);
   await new Promise(r => setTimeout(r, 200));
 });
+});
 
+await block("10. screenshot 2D", async () => {
 /* 10. screenshot 2D — feature manager open, with the Pile 1 volume drawn */
 await page.click('#leftTabs .dtab[data-tab="features"]');
 await page.waitForTimeout(600);
@@ -5780,9 +6018,12 @@ await page.screenshot({ path: "/tmp/shot_2d_" + label.replace(/\W+/g, "_") + ".p
 await page.click('#rightTabs .dtab[data-rtab="inspector"]');   /* v9 §3: Properties is the right dock's Inspector */
 await page.waitForTimeout(400);
 await page.screenshot({ path: "/tmp/shot_props_" + label.replace(/\W+/g, "_") + ".png" });
+}, { needs: ["pile1"] });
 
 
 /* ==================================================================== */
+let errBeforeTree, treeBase, tree, treeKeys, treeMissing, treeNew, treeUnexplained, treeSearch, treeSolo, treeActs, gripBox, treeOrder, grip2, treeOrder2, treePreset, treeSess, kbBefore, kbAfter, kbMoved, treeLegend, errBeforeReload, treeReload;   /* hoisted — v18 §3 */
+await block("9z. the layer tree", async () => {
 /* 9z. the layer tree (v16, docs/V16_LAYERS_SPEC.md §3)                  */
 /* ==================================================================== */
 /* Runs LAST, after the screenshots, because it ends with a real page
@@ -5794,7 +6035,7 @@ await page.screenshot({ path: "/tmp/shot_props_" + label.replace(/\W+/g, "_") + 
    half of that guarantee: none of the tree's new bulk switches (solo,
    presets, the group all-on button, the recently-changed chips) can
    reach the cultural group at all. */
-const errBeforeTree = errors.length;
+errBeforeTree = errors.length;
 /* block 10 left the left dock on the My-work tab; the tree needs to be on
    screen for a real drag and for keyboard focus to mean anything */
 await page.click('#leftTabs .dtab[data-tab="layers"]');
@@ -5803,8 +6044,8 @@ await page.waitForTimeout(400);
 /* ---- every row that existed before v16 exists after, same (group, id) ----
    The baseline is test/fixtures/layer_rows_pre_v16.json, dumped from the
    pre-v16 build (commit 475e302) with the same probe this block uses. */
-const treeBase = JSON.parse(__read(new URL("fixtures/layer_rows_pre_v16.json", import.meta.url), "utf8"));
-const tree = await page.evaluate(() => {
+treeBase = JSON.parse(__read(new URL("fixtures/layer_rows_pre_v16.json", import.meta.url), "utf8"));
+tree = await page.evaluate(() => {
   const d = SBMM.layerTree.dump();
   const keys = d.map(r => r.group + "/" + r.id);
   const dup = keys.filter((k, i) => keys.indexOf(k) !== i);
@@ -5823,8 +6064,8 @@ const tree = await page.evaluate(() => {
     toolbars: document.querySelectorAll("#layers .lyr .ltacts .ltb").length
   };
 });
-const treeKeys = new Set(tree.keys);
-const treeMissing = treeBase.keys.filter(k => !treeKeys.has(k));
+treeKeys = new Set(tree.keys);
+treeMissing = treeBase.keys.filter(k => !treeKeys.has(k));
 /* Rows this HARNESS created after boot are the only legitimate additions: the
    CSV datasets block 9f imports (invest) and the contour set the analysis block
    generates (base). Anything new anywhere else would be a row v16 invented.
@@ -5833,8 +6074,8 @@ const treeMissing = treeBase.keys.filter(k => !treeKeys.has(k));
    from commit 475e302, so they are absent from the fixture by construction
    rather than by accident. The fixture is not edited — a baseline that gets
    rewritten every release stops being a baseline. */
-const treeNew = tree.keys.filter(k => treeBase.keys.indexOf(k) < 0);
-const treeUnexplained = treeNew.filter(k => !/^invest\//.test(k) && !/^base\/contours_/.test(k)
+treeNew = tree.keys.filter(k => treeBase.keys.indexOf(k) < 0);
+treeUnexplained = treeNew.filter(k => !/^invest\//.test(k) && !/^base\/contours_/.test(k)
                                          && k !== "framework/runoff_cover"
                                          && k !== "framework/runoff_depth");
 console.log("layer tree:", tree.rows.length, "rows in the state,", tree.domRows, "in the DOM,",
@@ -5861,7 +6102,7 @@ if (tree.subs.length < 8) { console.log("FAIL: the sub-groups did not build:", t
    storm drains)" — that is the rule doing its job, so the assertion is
    "the three storm rows are shown and every shown row really matches",
    not a bare count. */
-const treeSearch = await page.evaluate(() => {
+treeSearch = await page.evaluate(() => {
   SBMM.layerTree.search("storm");
   const shown = [...document.querySelectorAll("#layers .lyr")]
     .filter(r => !r.classList.contains("lthide"))
@@ -5897,7 +6138,7 @@ if (!treeSearch.frameworkShown || !treeSearch.stormSubShown || !treeSearch.desig
 if (treeSearch.afterClear) { console.log("FAIL: Esc/clear left", treeSearch.afterClear, "rows hidden"); process.exit(1); }
 
 /* ---- solo, and its restore ---- */
-const treeSolo = await page.evaluate(() => {
+treeSolo = await page.evaluate(() => {
   const before = SBMM.layerState.list("framework").map(r => [r.id, r.on]);
   SBMM.layerTree.solo("framework", "storm_nodes");
   const during = SBMM.layerState.list("framework").map(r => [r.id, r.on]);
@@ -5925,7 +6166,7 @@ if (!/cultural/i.test(treeSolo.cultToast)) {
   console.log("FAIL: solo refused the cultural group silently:", JSON.stringify(treeSolo.cultToast)); process.exit(1); }
 
 /* ---- the row toolbar: opacity, zoom to extent, info ---- */
-const treeActs = await page.evaluate(async () => {
+treeActs = await page.evaluate(async () => {
   const wait = ms => new Promise(r => setTimeout(r, ms));
   const row = document.querySelector('#projLayers .lyr[data-lid="dus"]');
   const btn = a => row.querySelector('.ltb[data-a="' + a + '"]');
@@ -5988,7 +6229,7 @@ if (treeActs.maskZoom !== false || !/nothing to zoom to/.test(treeActs.maskToast
   console.log("FAIL: zoom to extent on a row with no geometry refused silently", treeActs); process.exit(1); }
 
 /* ---- drag to reorder, and the order IS the draw order ---- */
-const gripBox = await page.evaluate(() => {
+gripBox = await page.evaluate(() => {
   const rows = [...document.querySelectorAll('#projLayers > .lyr')];
   const dus = rows.find(r => r.dataset.lid === "dus"), piles = rows.find(r => r.dataset.lid === "piles");
   if (!dus || !piles) return null;
@@ -6006,7 +6247,7 @@ await page.mouse.move(gripBox.gx, gripBox.gy - 6, { steps: 3 });
 await page.mouse.move(gripBox.gx, gripBox.targetY, { steps: 6 });
 await page.mouse.up();
 await page.waitForTimeout(400);
-const treeOrder = await page.evaluate(() => {
+treeOrder = await page.evaluate(() => {
   const order = () => [...document.querySelectorAll('#projLayers > .lyr')].map(r => r.dataset.lid);
   const dragged = order();
   const idx = { dus: SBMM.layerTree.drawIndex("framework", "dus"),
@@ -6039,7 +6280,7 @@ if (!treeOrder.stored || !treeOrder.stored["#projLayers"]) {
    registered before "Waste piles", so insertion order alone puts the piles in
    front. Put Decision units back on top and its geometry has to be drawn LAST —
    the reverse of the order the app would have had on its own. */
-const grip2 = await page.evaluate(() => {
+grip2 = await page.evaluate(() => {
   const host = document.getElementById("projLayers");
   const dus = host.querySelector('.lyr[data-lid="dus"]'), piles = host.querySelector('.lyr[data-lid="piles"]');
   const g = dus.querySelector(".ltgrip").getBoundingClientRect(), p = piles.getBoundingClientRect();
@@ -6051,7 +6292,7 @@ await page.mouse.move(grip2.gx, grip2.gy - 6, { steps: 3 });
 await page.mouse.move(grip2.gx, grip2.targetY, { steps: 6 });
 await page.mouse.up();
 await page.waitForTimeout(400);
-const treeOrder2 = await page.evaluate(() => ({
+treeOrder2 = await page.evaluate(() => ({
   order: [...document.querySelectorAll('#projLayers > .lyr')].map(r => r.dataset.lid),
   idx: { dus: SBMM.layerTree.drawIndex("framework", "dus"),
          piles: SBMM.layerTree.drawIndex("framework", "piles") }
@@ -6062,7 +6303,7 @@ if (treeOrder2.order[0] !== "dus" || !(treeOrder2.idx.dus > treeOrder2.idx.piles
   console.log("FAIL: the top row is not drawn last", treeOrder2); process.exit(1); }
 
 /* ---- presets: apply, undo, and never the cultural group ---- */
-const treePreset = await page.evaluate(async () => {
+treePreset = await page.evaluate(async () => {
   const wait = ms => new Promise(r => setTimeout(r, ms));
   const cultId = (SBMM.layerState.list("cultural")[0] || {}).id;
   const cultBefore = cultId ? SBMM.layerState.isOn("cultural", cultId) : null;
@@ -6107,7 +6348,7 @@ if (treePreset.cultInSnapshot || treePreset.cultMoved) {
   console.log("FAIL: a preset touched the cultural group", treePreset); process.exit(1); }
 
 /* ---- a user preset survives a session round trip, and an old session still loads ---- */
-const treeSess = await page.evaluate(() => {
+treeSess = await page.evaluate(() => {
   SBMM.layerTree.savePreset("L round trip");
   const s = JSON.parse(JSON.stringify(SBMM.store.serialize()));
   const inFile = !!(s.layers && s.layers._tree && s.layers._tree.presets
@@ -6131,16 +6372,16 @@ if (!(treeSess.old >= 1)) { console.log("FAIL: a session without `_tree` no long
 await page.evaluate(() => {
   document.querySelector('#projLayers .lyr[data-lid="dus"]').focus();
 });
-const kbBefore = await page.evaluate(() => SBMM.layerState.isOn("framework", "dus"));
+kbBefore = await page.evaluate(() => SBMM.layerState.isOn("framework", "dus"));
 await page.keyboard.press("Space");
 await page.waitForTimeout(250);
-const kbAfter = await page.evaluate(() => ({
+kbAfter = await page.evaluate(() => ({
   on: SBMM.layerState.isOn("framework", "dus"),
   focused: (document.activeElement.dataset || {}).lid
 }));
 await page.keyboard.press("ArrowDown");
 await page.waitForTimeout(150);
-const kbMoved = await page.evaluate(() => (document.activeElement.dataset || {}).lid);
+kbMoved = await page.evaluate(() => (document.activeElement.dataset || {}).lid);
 await page.keyboard.press("Space");
 await page.waitForTimeout(250);
 console.log("keyboard: dus", kbBefore, "-> Space ->", kbAfter.on, "| focus after ArrowDown:", kbMoved);
@@ -6149,7 +6390,7 @@ if (!kbMoved || kbMoved === kbAfter.focused) { console.log("FAIL: ArrowDown did 
 await page.evaluate(on => SBMM.layerState.set("framework", "dus", { on }), kbBefore);
 
 /* ---- the legend card lists exactly the visible rows ---- */
-const treeLegend = await page.evaluate(async () => {
+treeLegend = await page.evaluate(async () => {
   const wait = ms => new Promise(r => setTimeout(r, ms));
   SBMM.layerTree.legend.toggle(true);
   await wait(250);
@@ -6189,11 +6430,20 @@ await page.evaluate(() => {
   SBMM.layerState.set("framework", "piles", { on: true });
 });
 await page.waitForTimeout(400);
-const errBeforeReload = errors.length;
+errBeforeReload = errors.length;
 await page.reload();
 await page.waitForSelector("#loading", { state: "hidden", timeout: 300000 });
-await page.waitForTimeout(1500);
-const treeReload = await page.evaluate(() => ({
+/* v18: wait on the CONDITION, not on a clock. The rows re-register and the
+   tree re-applies its draw order after the loader hides, and under a parallel
+   matrix that took longer than the fixed 1.5 s this used to wait (the one flake
+   the runner exposed). The assertion below is unchanged; only the wait is. */
+await page.waitForFunction(() => {
+  const d = SBMM.layerTree.drawIndex("framework", "dus");
+  const p = SBMM.layerTree.drawIndex("framework", "piles");
+  return p >= 0 && d > p;
+}, null, { timeout: 60000 }).catch(() => {});
+await page.waitForTimeout(300);
+treeReload = await page.evaluate(() => ({
   order: [...document.querySelectorAll('#projLayers > .lyr')].map(r => r.dataset.lid),
   idx: { dus: SBMM.layerTree.drawIndex("framework", "dus"),
          piles: SBMM.layerTree.drawIndex("framework", "piles") },
@@ -6219,6 +6469,7 @@ if (errors.length !== errBeforeReload) {
 }
 /* leave the box as we found it, so the next run does not inherit this drag */
 await page.evaluate(() => { try { localStorage.removeItem("sbmm.layertree.v1"); } catch (e) {} });
+});
 
 console.log("page errors:", errors.length ? errors.slice(0, 6) : "none");
 await browser.close();

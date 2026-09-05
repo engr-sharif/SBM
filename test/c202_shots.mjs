@@ -2,16 +2,15 @@
    2D map, the same sheet draped in 3D, and the sheet window with a mark made on
    the planting plan landing on the North Lobe. Writes test/shots/c202_*.png.
      node test/c202_shots.mjs /abs/path/index.html */
-import { chromium } from "playwright";
+import { launch, TIMEOUT } from "./lib/browser.mjs";
 import { pathToFileURL } from "node:url";
 import { resolve } from "node:path";
 import { existsSync } from "node:fs";
 import { unlock } from "./gate.mjs";
-const CHROME = process.env.CHROME_BIN || (existsSync("/opt/pw-browsers/chromium-1194/chrome-linux/chrome") ? "/opt/pw-browsers/chromium-1194/chrome-linux/chrome" : undefined);
 const target = process.argv[2];
-const browser = await chromium.launch({ executablePath: CHROME });
+const browser = await launch();
 const page = await browser.newPage({ viewport: { width: 1500, height: 950 } });
-page.setDefaultTimeout(180000);
+page.setDefaultTimeout(TIMEOUT);
 page.on("pageerror", e => console.log("pageerror:", e.message));
 await unlock(page);  /* the password gate — see test/gate.mjs */
 await page.goto(pathToFileURL(resolve(target)).href);
