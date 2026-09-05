@@ -56,6 +56,10 @@ took **no** part in the fit (the access haul route and the staging area) and, se
 the orthophoto, where the runner-up scores 0.009 against 0.650. The table is printed in the
 README and stored in the drawing's own record.
 
+The two new overlays are 1.2 MB and 3.3 MB of PNG (0.75 ft/px and 1.0 ft/px; C-203's
+covers the whole 1,600 ft plan, haul route included), so both downloads grow by about
+6 MB — the single-file build is now ~141 MB and the field build ~73 MB.
+
 **C-101, the site index sheet, is still not placed** and probably never will be: it is
 mostly sheet-boundary rectangles and text, it has no unique geometry of its own in EA's
 files, and there is nothing on it that imagery can lock onto. It is still fully readable in
