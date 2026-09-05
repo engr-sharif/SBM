@@ -343,7 +343,7 @@ SBMM.water = (function () {
        wearing the first one's answer. Later windows (if the run leaves this one)
        are the ordinary squares, on whatever DEM covers where it left. */
     let dem = opts.dem || SBMM.demAt(x, y);
-    if (!dem) { toast("no surveyed terrain under that point"); return null; }
+    if (!dem) { if (!opts.silent) toast("no surveyed terrain under that point"); return null; }
     const minPondDepth = opts.minPondDepth != null ? opts.minPondDepth : MIN_POND;
     const label = opts.label || "Raindrop";
     let cx = x, cy = y, hops = 0, half = HALF_COARSE;
@@ -354,7 +354,10 @@ SBMM.water = (function () {
        was given, and "a conduit is used at most once per run" is a statement
        about the run. */
     const stormOn = !!(SBMM.storm && SBMM.storm.data() && SBMM.storm.enabled() && opts.storm !== false);
-    const legs = [], used = new Set();
+    /* `opts.used` seeds the run's used-conduit set: the tail of a conduit-chain
+       route is a continuation of that run, and "a conduit is used at most once
+       per run" is a statement about the run, not about one kernel window. */
+    const legs = [], used = new Set(opts.used || []);
     let pipeFt = 0, prevReason = null;
 
     let first = true;
@@ -433,7 +436,7 @@ SBMM.water = (function () {
     }
 
     if (pts.length < 2) {
-      toast("nowhere to run from there — the drop is already at a low point of a flat");
+      if (!opts.silent) toast("nowhere to run from there — the drop is already at a low point of a flat");
       return null;
     }
     /* the OVERLAND length: the kernel's per-window `length_ft` already excludes
@@ -529,6 +532,205 @@ SBMM.water = (function () {
     return f;
   }
 
+
+  /* ================================================================== */
+  /* the conduit-chain route (ruling, project engineer, 2026-09-05)      */
+  /* ================================================================== */
+  /* His words: "for the Herman impoundment you are using the culvert discharge
+     pipes but there are 2 pipes and you only used one ... make sure the system
+     knows that the water flows through the pipes and out to Clear Lake; right
+     now I think it shows that it goes directly and makes its own path."
+
+     Two things were wrong and this is the second of them. The first was in the
+     NETWORK: only the North barrel reached EA's drawn storm line, so the South
+     barrel — the LOWER invert, the one the water actually leaves through —
+     ended 13 ft short of anything and its water left the pipe on to the ground.
+     data/storm_network.json now carries `pipe_to_main` AND `pipe_to_main_s`.
+
+     The second was here. The card's "pipe discharge route" was a RAINDROP
+     dropped at the plotted west end of the NORTH pipe: a terrain analysis that
+     happens to find a pipe, which is exactly "it makes its own path", and which
+     could only ever show one barrel. It is now the CONDUIT CHAIN itself, walked
+     node by node from the sandbag wall to the Clear Lake outfall — both barrels
+     in parallel, then the links, then EA's storm main — so there is no ground
+     between the wall and the lake for it to wander over. Its overland
+     `length_ft` is what happens AFTER the outfall, and nothing else.
+
+     Nothing here computes: the geometry, the lengths and the two elevations of
+     every leg come out of the payload and out of SBMM.storm.rimFor, which is
+     the surveyed invert where there is one and the lidar ground where there is
+     not. The tail past the outfall is an ordinary traceRun, seeded with the
+     conduits this run has already been through. */
+
+  const PIPE_GROUP_FT = 120;    // how far from the surveyed inverts a barrel may sit
+  const PARALLEL_FT = 30;       // how far apart two barrels of one crossing may sit
+
+  /* the working conduits that start at this water body's surveyed discharge
+     inverts — the parallel barrels through the wall, lowest invert first */
+  function dischargeConduits(facts) {
+    const st = SBMM.storm;
+    if (!st || !st.data() || !st.enabled()) return [];
+    if (!facts || facts.pipeInvert == null || !facts.pipeXY) return [];
+    const out = [];
+    for (const c of st.data().conduits) {
+      if (st.statusOf(c.id) !== "assumed_working") continue;
+      const a = st.node(c.from);
+      if (!a || a.invert_ft == null) continue;
+      if (Math.hypot(a.x - facts.pipeXY[0], a.y - facts.pipeXY[1]) > PIPE_GROUP_FT) continue;
+      if (Math.abs(a.invert_ft - facts.pipeInvert) > 1) continue;
+      out.push(c);
+    }
+    out.sort((p, q) => st.node(p.from).invert_ft - st.node(q.from).invert_ft);
+    return out;
+  }
+
+  /* walk `next` from a conduit: stop at one already on the spine, at a broken
+     one, and at a repeat — a chain is a chain, not a cycle */
+  function conduitChain(id, stop) {
+    const st = SBMM.storm, out = [], seen = new Set();
+    let k = id;
+    while (k && !seen.has(k) && !(stop && stop.has(k)) && st.conduit(k)
+           && st.statusOf(k) === "assumed_working") {
+      seen.add(k); out.push(k); k = st.nextOf(k);
+    }
+    return out;
+  }
+
+  /* the barrels that carry the same water as `cid`: same nominal size, inlets
+     within PARALLEL_FT, and chains that converge on a common conduit. That is
+     what makes "the two 24-in pipes" a fact read off the network rather than a
+     sentence about Herman written into the code. */
+  function parallelBarrels(cid) {
+    const st = SBMM.storm;
+    if (!st || !st.data() || !st.conduit(cid)) return [];
+    /* Both must be HEADS of the crossing — a head is a conduit whose inlet is
+       nobody else's outlet. Without that test the pipes' own downstream links
+       and the storm main's first run all sit within 30 ft of the sandbag wall,
+       carry the same 24-in size and converge on the same chain, and the card
+       announces "five 24-in pipes in parallel" where the site has two. */
+    const head = id => {
+      const q = st.conduit(id);
+      return !!q && !st.data().conduits.some(k => k.id !== id && k.to === q.from);
+    };
+    if (!head(cid)) return [];
+    const c = st.conduit(cid), a = st.node(c.from);
+    if (!a) return [];
+    const mine = new Set(conduitChain(cid, null));
+    const out = [];
+    for (const q of st.data().conduits) {
+      if (q.id === cid || st.statusOf(q.id) !== "assumed_working") continue;
+      if (q.size_in !== c.size_in || !head(q.id)) continue;
+      const b = st.node(q.from);
+      if (!b || Math.hypot(b.x - a.x, b.y - a.y) > PARALLEL_FT) continue;
+      if (!conduitChain(q.id, null).some(k => mine.has(k))) continue;
+      out.push(q);
+    }
+    return out;
+  }
+
+  /* Build the discharge route as the chain itself. Returns { pts, props } in
+     exactly the shape traceRun returns, so mkFlow, buildFlow, the 3D tubes and
+     the particle stream all take it unchanged. */
+  async function pipeChainRoute(facts, opts) {
+    opts = opts || {};
+    const st = SBMM.storm;
+    const heads = dischargeConduits(facts);
+    if (!heads.length) return null;
+    const spine = conduitChain(heads[0].id, null);
+    if (!spine.length) return null;
+    const spineSet = new Set(spine);
+    const branches = [];
+    for (let i = 1; i < heads.length; i++) {
+      const br = conduitChain(heads[i].id, spineSet);
+      if (br.length) branches.push(br);
+    }
+    const legOf = (id, at) => {
+      const c = st.conduit(id), a = st.node(c.from), b = st.node(c.to);
+      const az = st.rimFor(a.id), bz = st.rimFor(b.id);
+      return { id, at, length_ft: +c.length_ft.toFixed(1),
+               from: [+a.x.toFixed(2), +a.y.toFixed(2)], from_z: az == null ? null : +az.toFixed(2),
+               to: [+b.x.toFixed(2), +b.y.toFixed(2)], to_z: bz == null ? null : +bz.toFixed(2),
+               name: st.labelOf(id) };
+    };
+    const pts = [], legs = [], zs = [];
+    const head = st.node(st.conduit(spine[0]).from);
+    const hz = st.rimFor(head.id);
+    pts.push([+head.x.toFixed(2), +head.y.toFixed(2)]);
+    zs.push(hz == null ? null : +hz.toFixed(2));
+    let pipeFt = 0;
+    spine.forEach((id, i) => {
+      const lg = legOf(id, i);
+      legs.push(lg); pipeFt += lg.length_ft;
+      pts.push(lg.to.slice()); zs.push(lg.to_z);
+    });
+    /* the parallel barrels, drawn beside the spine: they carry the `at` of the
+       stretch they parallel, so buildFlow and the 3D tracks cut the ground
+       exactly as they do for the spine, and `parallel` so nothing counts their
+       length twice — the water goes 813 ft down this system, not 843. */
+    for (const br of branches)
+      br.forEach((id, i) => { const lg = legOf(id, i); lg.parallel = true; legs.push(lg); });
+
+    /* ordinary descent resumes where the pipe ends, and nowhere earlier */
+    const outNode = st.node(st.conduit(spine[spine.length - 1]).to);
+    const used = legs.map(l => l.id);
+    let tail = null;
+    if (outNode && SBMM.demAt(outNode.x, outNode.y))
+      tail = await traceRun(outNode.x, outNode.y, {
+        label: opts.label || "Pipe discharge", silent: true, used,
+        minPondDepth: opts.minPondDepth, blockRing: opts.blockRing || null,
+        plateauTol: opts.plateauTol
+      });
+    const base = pts.length;
+    if (tail) {
+      for (const q of tail.pts) pts.push(q.slice());
+      for (const lg of (tail.props.legs || [])) legs.push(Object.assign({}, lg, { at: lg.at + base }));
+      for (const v of (tail.props.zs || [])) zs.push(v);
+      pipeFt += tail.props.pipe_ft || 0;
+    }
+    const overland = tail ? tail.props.length_ft : 0;
+    const total = +(overland + pipeFt).toFixed(1);
+    const endP = tail ? tail.props.end
+      : { x: +outNode.x.toFixed(2), y: +outNode.y.toFixed(2), z: null,
+          z_last: zs[base - 1], reason: "nodata" };
+    let zB = endP.z_last;
+    if (zB == null) for (let i = zs.length - 1; i >= 0; i--) if (zs[i] != null) { zB = zs[i]; break; }
+    const zA = zs[0];
+    const fall = (zA == null || zB == null) ? null : +(zA - zB).toFixed(2);
+    const props = {
+      drop: pts[0].slice(), drop_z: zA,
+      length_ft: +overland.toFixed(1), fall_ft: fall,
+      /* the fall spans the pipes, so the grade that means anything is over the
+         whole run — the overland-only denominator of a traced raindrop would
+         report a 7 % storm main */
+      grade_pct: (fall == null || total <= 0) ? null : +(fall / total * 100).toFixed(2),
+      end: endP, ponds: tail ? tail.props.ponds : [],
+      zs: decimate(zs, 600).map(v => (v == null || isNaN(v)) ? null : +v.toFixed(2)),
+      dem: tail ? tail.props.dem : gridLabel(SBMM.demAt(head.x, head.y) || SBMM.demSite),
+      grids: tail ? tail.props.grids : [],
+      minPondDepth: opts.minPondDepth == null ? MIN_POND : opts.minPondDepth,
+      hops: tail ? tail.props.hops : 0, steps: tail ? tail.props.steps : 0,
+      searched_ft: tail ? tail.props.searched_ft : 0,
+      storm: true, legs, pipe_ft: +pipeFt.toFixed(1), total_ft: total,
+      outfall: legs.some(l => { const c = st.conduit(l.id); return !!c && c.to === "outfall"; }),
+      /* this run was assembled from the network, not traced over the ground:
+         `chain` is what the card, the tests and a session read to know that */
+      chain: true, chain_ids: spine.slice(),
+      chain_parallel: branches.map(b => b.slice())
+    };
+    return { pts, props };
+  }
+
+  /* the public entry point, the shape dropAt has: one feature, one card */
+  async function pipeChainDrop(name, facts, opts) {
+    const R = await pipeChainRoute(facts, opts || {});
+    if (!R) return null;
+    const f = mkFlow(R.pts, name, R.props, { group: "Water" });
+    SBMM.undo.push("pipe discharge route",
+      () => SBMM.store.remove(f), () => SBMM.store.readd(f));
+    if (SBMM.viewer3d.isOpen()) SBMM.viewer3d.refreshOverlays();
+    return f;
+  }
+
   /* ================================================================== */
   /* catchment (§2, the raindrop card's action)                         */
   /* ================================================================== */
@@ -601,6 +803,8 @@ SBMM.water = (function () {
       rows.push(["", legNames(p)]);
       const mv = movedMouths(p);
       if (mv) rows.push(["", mv]);
+      const par = parallelNote(p);
+      if (par) rows.push(["", par]);
       rows.push(["Total", fmt0((p.total_ft != null ? p.total_ft : p.length_ft + p.pipe_ft)) + " ft"]);
     }
     rows.push(["Storm drains", p.storm === false ? "off — ground only"
@@ -657,6 +861,25 @@ SBMM.water = (function () {
         + fmt(mo.moved, 1) + " ft to the channel floor the lidar sees");
     }
     return out.join(" · ");
+  }
+  /* The other half of the 2026-09-05 ruling. A DROP takes the lower invert
+     first — that is the kernel's rule and it is right for one drop — but the
+     card must still say the outlet has two barrels, or the reader concludes
+     the site has one pipe. Read off the network, not written about Herman. */
+  function parallelNote(p) {
+    if (!SBMM.storm || !SBMM.storm.data()) return "";
+    for (const lg of (p.legs || [])) {
+      if (lg.parallel) continue;
+      const sib = parallelBarrels(lg.id);
+      if (!sib.length) continue;
+      const c = SBMM.storm.conduit(lg.id), n = SBMM.storm.node(c.from);
+      const size = c.size_in ? fmt0(c.size_in) + "-in " : "";
+      const nm = ((n && n.name) ? n.name.split("\u2014")[0] : lg.id).trim();
+      return `this outlet discharges through ${CHAIN_NUM[sib.length + 1] || (sib.length + 1)} `
+        + `${size}pipes in parallel; this run took ${esc(nm)}`
+        + ((n && n.invert_ft != null) ? `, invert ${fmt(n.invert_ft, 2)} ft` : "");
+    }
+    return "";
   }
   function legNames(p) {
     const seen = [];
@@ -998,11 +1221,18 @@ SBMM.water = (function () {
       mk._lbl = { key: "spill:conduit:" + CS.id, pri: SBMM.labels.PRI.spill,
                   latlng: [CS.y, CS.x] };
     }
-    if (facts && facts.outlet) {
-      const pr = await dropAt(facts.outlet[0], facts.outlet[1], {
-        name: `${name} pipe discharge route`, group: "Water", quiet: true,
-        blockRing: ring, plateauTol: PLATEAU_TOL
-      });
+    /* the discharge route: the CONDUIT CHAIN from the wall to the outfall
+       (ruling, 2026-09-05), with the old raindrop from the plotted pipe end
+       kept as the fallback for a build with no network, the drains switched
+       off, or a water body whose discharge conduits are not in the payload */
+    if (facts && facts.pipeInvert != null) {
+      let pr = await pipeChainDrop(`${name} pipe discharge route`, facts,
+        { label: `${name} pipe discharge`, blockRing: ring, plateauTol: PLATEAU_TOL });
+      if (!pr && facts.outlet)
+        pr = await dropAt(facts.outlet[0], facts.outlet[1], {
+          name: `${name} pipe discharge route`, group: "Water", quiet: true,
+          blockRing: ring, plateauTol: PLATEAU_TOL
+        });
       if (pr) {
         ov.pipeRoute = pr; pr.props.blockRing = null;
         /* the route is no longer "where does this water go" but "it goes down
@@ -1353,15 +1583,31 @@ SBMM.water = (function () {
      was actually traced rather than a story about the site:
        "→ Green Pond (fills to 1,394.50) → green outlet → storm main lower →
         Clear Lake outfall". */
+  /* the FAMILY a leg belongs to — what a run of legs collapses into. The
+     label's first two words, or three when the second is a preposition, so
+     `pipe_to_main` and `pipe_to_main_s` are one thing ("pipe to main") rather
+     than the dangling "pipe to". Eight runs of one road drain, the two halves
+     of the storm main and the two barrels of one crossing each collapse the
+     same way. */
+  const CHAIN_STOPW = { to: 1, of: 1, the: 1, at: 1, in: 1, on: 1, and: 1 };
+  function legFamily(id) {
+    const w = conduitLabel(id).split(/\s+/);
+    return w.slice(0, CHAIN_STOPW[w[1]] ? 3 : 2).join(" ");
+  }
   function chainSentence(f) {
     if (!f || !f.props) return "";
     const p = f.props;
     const legs = (p.legs || []).slice().sort((a, b) => (a.at || 0) - (b.at || 0));
     if (legs.length < 2) return "";
     const parts = [];
-    /* the FIRST leg is the first discharge and the row above already names it;
-       what this sentence adds is everything after it */
-    for (let i = 1; i < legs.length; i++) {
+    /* the FIRST discharge is what the row above names, and where it is a set of
+       PARALLEL BARRELS (the impoundment's two 24-in pipes) all of them are one
+       first discharge — so the leading run of that family is skipped, not just
+       the first leg of it */
+    const fam0 = legFamily(legs[0].id);
+    let i0 = 1;
+    while (i0 < legs.length && legFamily(legs[i0].id) === fam0) i0++;
+    for (let i = i0; i < legs.length; i++) {
       const pd = (p.ponds || []).find(q => q.via === legs[i].id);
       if (pd) {
         const c = pondCentre(pd);
@@ -1371,11 +1617,28 @@ SBMM.water = (function () {
       /* a chain of eight road-drain runs between two grates is ONE thing to a
          reader — collapse consecutive legs of the same family (the label's
          first two words) into that family's name */
-      const fam = conduitLabel(legs[i].id).split(" ").slice(0, 2).join(" ");
+      const fam = legFamily(legs[i].id);
       if (parts[parts.length - 1] !== fam) parts.push(fam);
     }
     parts.push(p.outfall ? "Clear Lake outfall" : endShort(p));
     return parts.length < 2 ? "" : "→ " + parts.join(" → ");
+  }
+  /* the first discharge in words, read off the route's own legs: "through the
+     two 24-in pipes" where the water leaves through parallel barrels, "through
+     the pond culvert" where it leaves through one. The count is the number of
+     legs of the first family that leave at the same vertex — a fact about the
+     network, not a sentence about Herman written into the code. */
+  const CHAIN_NUM = ["no", "one", "two", "three", "four", "five", "six"];
+  function firstDischargeWords(f) {
+    const legs = ((f && f.props && f.props.legs) || []).slice()
+      .sort((a, b) => (a.at || 0) - (b.at || 0));
+    if (!legs.length) return "";
+    const fam = legFamily(legs[0].id), at0 = legs[0].at || 0;
+    const n = legs.filter(l => (l.at || 0) === at0 && legFamily(l.id) === fam).length;
+    if (n < 2) return "through the " + conduitLabel(legs[0].id);
+    const c = SBMM.storm && SBMM.storm.conduit(legs[0].id);
+    const size = c && c.size_in ? fmt0(c.size_in) + "-in " : "";
+    return `through the ${CHAIN_NUM[n] || n} ${size}pipes`;
   }
   function pondCentre(pd) {
     const r = (pd.rings || [])[0];
@@ -1428,8 +1691,15 @@ SBMM.water = (function () {
             : (pt.pipe_ft > 0
                 ? `${fmt0(pt.total_ft)} ft · ${fmt0(pt.pipe_ft)} ft in pipe · ${endShort(pt)}`
                 : `${fmt0(pt.length_ft)} ft · ${endShort(pt)}`))]);
+      /* the ruling's own sentence: the water discharges through BOTH barrels
+         and stays in pipe to the lake — never "it makes its own path" */
       const chain = chainSentence(ov.pipeRoute);
-      if (chain) rows.push(["", chain]);
+      const words = firstDischargeWords(ov.pipeRoute);
+      if (chain || words)
+        rows.push(["", ("discharging " + words + " " + chain).trim()]);
+      if (pt && pt.chain)
+        rows.push(["", `no ground between the sandbag wall and the outfall — `
+          + `${fmt0(pt.length_ft)} ft overland after it`]);
     }
     if (F && F.wallCrest != null) {
       const st = stageAt(R, F.wallCrest);
@@ -1700,11 +1970,20 @@ SBMM.water = (function () {
     if (!ov) return null;
     return { rim: !!ov.route, rimWhatIf: !!ov.rimRoute, rimSuppressed: !!ov.rimSuppressed,
              conduit: !!ov.conduitRoute, pipe: !!ov.pipeRoute,
+             /* 2026-09-05: the discharge route is the conduit CHAIN, and these
+                two say so — `pipeChain` that it was assembled from the network
+                rather than traced, `pipeLegs` which barrels and pipes it names */
+             pipeChain: !!(ov.pipeRoute && ov.pipeRoute.props && ov.pipeRoute.props.chain),
+             pipeLegs: ov.pipeRoute && ov.pipeRoute.props
+               ? (ov.pipeRoute.props.legs || []).map(l => l.id) : null,
+             pipeOverland_ft: ov.pipeRoute && ov.pipeRoute.props
+               ? ov.pipeRoute.props.length_ft : null,
              conduitLabel: ov.conduitLabel || null, conduitLevel: ov.conduitLevel,
              rimLevel: ov.R && ov.R.primary ? ov.R.primary.level : null };
   }
 
   return { surveyFacts, stageSpec, stageTable, routes, traceRimWhatIf, chainSentence,
+    firstDischargeWords, parallelBarrels, pipeChainRoute,
     wire, dropAt, mkFlow, buildFlow, retrace, catchment, makeProfile,
     overtop, overtopHerman, overtopAt, clearOvertop, drapeSpec, active,
     refreshLabels, fillFlowCard, endSentence, endShort, pickPond,

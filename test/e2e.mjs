@@ -1566,7 +1566,7 @@ console.log("design: worst printed-area error",
 console.log("design: sheets from the 90% set", JSON.stringify(design.preFinal),
             "| every sheet declares its design set:", design.allHaveSet);
 if (!design.loaded) { console.log("FAIL: design_ea payload absent"); process.exit(1); }
-if (design.sheets < 12) { console.log("FAIL: expected 12 registered design sheets"); process.exit(1); }
+if (design.sheets < 14) { console.log("FAIL: expected 14 registered design sheets"); process.exit(1); }
 if (design.polys < 55) { console.log("FAIL: too few design boundary polygons"); process.exit(1); }
 if (design.validated < 11) { console.log("FAIL: expected 11 area-validated boundaries"); process.exit(1); }
 /* C-110 exists only in the 90% Pre-Final set. It must be present AND must never
@@ -1579,7 +1579,7 @@ if (design.badNames) { console.log("FAIL: an unclassified boundary claims a mean
 if (design.worstAreaErr > 0.06) { console.log("FAIL: an area-validated boundary does not match its printed area"); process.exit(1); }
 if (design.worstResid > 2.0) { console.log("FAIL: a kept sheet's registration residual exceeds 2 ft"); process.exit(1); }
 if (design.rasterBadBounds) { console.log("FAIL: a design raster has bad State Plane bounds"); process.exit(1); }
-if (!design.vecRow || design.rows < 12) { console.log("FAIL: design layer rows missing"); process.exit(1); }
+if (!design.vecRow || design.rows < 14) { console.log("FAIL: design layer rows missing"); process.exit(1); }
 console.log("design: PDF boundaries superseded by native geometry", design.superseded,
             "| worst PDF-vs-native offset", design.supWorstOff, "ft | row on by default", design.vecRowChecked);
 if (design.vecRowChecked) { console.log("FAIL: PDF-extracted boundaries should default off now that native geometry ships"); process.exit(1); }
@@ -1589,8 +1589,8 @@ if (design.superseded < 12) { console.log("FAIL: expected the native geometry to
    EA's geodatabase, and nothing links them. A frame, unit or scale mistake on
    either side shows up here first. */
 if (design.supWorstOff > 6) { console.log("FAIL: a superseded boundary is " + design.supWorstOff + " ft from its native counterpart"); process.exit(1); }
-if (design.sheetRowsUnchecked !== 12) { console.log("FAIL: sheet overlays should be off by default"); process.exit(1); }
-if (design.drapeBtns !== 12) { console.log("FAIL: every sheet row needs a 3D drape toggle"); process.exit(1); }
+if (design.sheetRowsUnchecked !== 14) { console.log("FAIL: sheet overlays should be off by default"); process.exit(1); }
+if (design.drapeBtns !== 14) { console.log("FAIL: every sheet row needs a 3D drape toggle"); process.exit(1); }
 
 /* ---------------------------------------------------------------- */
 /* Native EA design geometry (v8): the geodatabase + CAD deliverables.
@@ -1844,13 +1844,15 @@ pickRows = await page.evaluate(() => document.querySelectorAll("#sheetPicker .sh
 console.log("SHEETS picker rows:", pickRows);
 if (pickRows !== 20) { console.log("FAIL: the SHEETS picker does not list the whole set"); process.exit(1); }
 
-/* deliberately open an UNREGISTERED sheet — C-102's staging-area notes are the
-   case that motivated carrying all 20 rather than only the placed ones */
-await page.click('#sheetPicker .sheetrow[data-sheet="C-102"]');
-await page.waitForSelector('.shwin[data-sheet="C-102"] img.shimg', { timeout: 20000 });
+/* deliberately open an UNREGISTERED sheet. C-102's staging-area notes were the
+   case that motivated carrying all 20 rather than only the placed ones; since
+   v9.16 C-102 IS placed, so the case is now C-501, a typical-details sheet that
+   is worth reading on site and will never have a footprint on the ground. */
+await page.click('#sheetPicker .sheetrow[data-sheet="C-501"]');
+await page.waitForSelector('.shwin[data-sheet="C-501"] img.shimg', { timeout: 20000 });
 await page.waitForTimeout(900);
 shOpen = await page.evaluate(() => {
-  const w = document.querySelector('.shwin[data-sheet="C-102"]');
+  const w = document.querySelector('.shwin[data-sheet="C-501"]');
   const img = w.querySelector("img.shimg");
   const r = w.getBoundingClientRect();
   return {
@@ -1865,7 +1867,7 @@ shOpen = await page.evaluate(() => {
     transform: getComputedStyle(w).transform
   };
 });
-console.log(`sheet viewer: C-102 "${shOpen.title}" ${shOpen.natW}x${shOpen.natH} px, `
+console.log(`sheet viewer: C-501 "${shOpen.title}" ${shOpen.natW}x${shOpen.natH} px, `
   + `window ${shOpen.w}x${shOpen.h}, fit ${shOpen.zoom}, locate disabled (unplaced): ${shOpen.locateDisabled}`);
 if (!shOpen.complete || !shOpen.srcOk || shOpen.natW < 3000) { console.log("FAIL: sheet image did not load"); process.exit(1); }
 if (!shOpen.onScreen) { console.log("FAIL: sheet window is off screen or too small"); process.exit(1); }
@@ -1873,7 +1875,7 @@ if (!shOpen.locateDisabled) { console.log("FAIL: an unregistered sheet must not 
 
 /* wheel zoom toward the cursor, then fit — the transform must actually change */
 zoomed = await page.evaluate(async () => {
-  const w = document.querySelector('.shwin[data-sheet="C-102"]');
+  const w = document.querySelector('.shwin[data-sheet="C-501"]');
   const v = w.querySelector(".shview"), img = w.querySelector("img.shimg");
   const before = img.style.transform;
   const r = v.getBoundingClientRect();
@@ -2168,7 +2170,7 @@ smAff = await page.evaluate(() => {
 console.log("sheet affines:", JSON.stringify({ total: smAff.total, registered: smAff.registered,
   ftPerPx: smAff.ftPerPx, ncc: smAff.ncc, gis: smAff.gis, roundtripPx: +smAff.roundtripPx.toFixed(6),
   unregistered: smAff.unregistered.length }));
-if (smAff.registered !== 12) { console.log("FAIL: expected 12 georeferenced sheets, got " + smAff.registered); process.exit(1); }
+if (smAff.registered !== 14) { console.log("FAIL: expected 14 georeferenced sheets, got " + smAff.registered); process.exit(1); }
 if (smAff.roundtripPx > 0.01) { console.log("FAIL: the sheet affine does not round-trip"); process.exit(1); }
 if (!smAff.geoC107 || smAff.geoC101) { console.log("FAIL: the wrong sheets are marked georeferenced"); process.exit(1); }
 if (!smAff.centreInSite) { console.log("FAIL: a sheet pixel does not map into the site window"); process.exit(1); }
@@ -2320,6 +2322,202 @@ if (c202.nodes !== 2) { console.log("FAIL: C-202's two printed nodes are not car
 if (!c202.row || !c202.drapeBtn) { console.log("FAIL: no C-202 sheet row with a 3D drape toggle"); process.exit(1); }
 if (!c202.draped || !(c202.drapeVerts > 200) || c202.drapedOff) { console.log("FAIL: C-202 did not drape in 3D"); process.exit(1); }
 if (errors.length !== errBeforeC202) { console.log("FAIL: page errors around C-202:", errors.slice(errBeforeC202, errBeforeC202 + 4)); process.exit(1); }
+});
+
+/* ==================================================================== */
+let natSheets, natClick, natMark;   /* hoisted — v18 §3 */
+await block("9f-4. C-102 and C-203 (placed from native geometry)", async () => {
+/* 9f-4. The two sheets v9.16 placed the way C-202 was placed, from EA's  */
+/* native geodatabase geometry rather than a printed node table:          */
+/*   C-102 Staging Area, from FIVE polygons of five different shapes      */
+/*     fitted together as one rigid transform (127 vertices, 4 unknowns); */
+/*     the sheet prints no coordinate table at all, which is why the PDF  */
+/*     method could never place it.                                       */
+/*   C-203 Borrow Source Demonstration Area, from the borrow rectangle    */
+/*     (whose four corners ARE printed nodes 83-86) and the 15 ft cell    */
+/*     grid the sheet's own work sequence specifies inside it. Its        */
+/*     control is symmetric, so the tool scored the 180 deg and 90 deg    */
+/*     rivals too and the record carries that table.                      */
+/* Asserted here: both are georeferenced from "native", the geometry each */
+/* was fitted to lands inside its plan viewport and round-trips, the map  */
+/* raster covers it, a click on empty ground inside the footprint opens   */
+/* the sheet, and a mark made in the C-102 window comes out on the map at */
+/* the sheet's own scale.                                                 */
+/* ==================================================================== */
+natSheets = await page.evaluate(() => {
+  const out = {};
+  for (const [nm, feats] of [["C-102", ["Staging Area", "Borrow Soil Staging Area",
+                                        "Gravel Area", "Construction Entrance"]],
+                             ["C-203", ["Borrow Area"]]]) {
+    const rec = SBMM_DATA.sheets_full.sheets.find(s => s.sheet === nm);
+    const ea = SBMM_DATA.design_ea.sheets[nm];
+    const vps = SBMM.sheetMarks.viewportsOf(nm) || [];
+    let n = 0, inside = 0, worst = 0, inRaster = 0;
+    for (const f of SBMM_DATA.design_gis.features) {
+      if (!feats.includes(f.properties.name)) continue;
+      for (const q of f.geometry.coordinates[0]) {
+        n++;
+        const px = SBMM.sheetMarks.toPx(nm, q[0], q[1]);
+        if (!px) continue;
+        const vp = vps[0];
+        if (px[0] >= vp.px[0] && px[0] <= vp.px[2] && px[1] >= vp.px[1] && px[1] <= vp.px[3]) inside++;
+        const back = SBMM.sheetMarks.toSP(nm, px[0], px[1]);
+        if (back) worst = Math.max(worst, Math.hypot(back[0] - q[0], back[1] - q[1]));
+        const r = ea.raster;
+        if (q[0] >= r.x0 && q[0] <= r.x1 && q[1] >= r.y0 && q[1] <= r.y1) inRaster++;
+      }
+    }
+    out[nm] = {
+      geo: SBMM.sheetMarks.georeferenced(nm), source: rec && rec.affine_source,
+      viewports: vps.length, n, inside, inRaster, worstFt: worst,
+      registered: !!SBMM.sheets.get(nm).registered,
+      rotDeg: ea.rot_deg, residMed: ea.resid_med_ft, residMax: ea.resid_max_ft,
+      orthoAgree: ea.ortho_agree_ft, orthoPeak: ea.ortho_peak,
+      darkZ: ea.darkness_null && ea.darkness_null.z,
+      ambiguity: (ea.ambiguity || []).length,
+      nodes: SBMM_DATA.design_ea.features.filter(f => f.properties.sheet === nm
+        && f.properties.kind === "node").length,
+      titleBlock: SBMM.sheetMarks.toSP(nm, 4150, 2760),
+      row: [...document.querySelectorAll("#designLayers .lyr")]
+        .some(x => new RegExp("^" + nm).test(x.textContent.trim())
+                   && !!x.querySelector("button.d3d"))
+    };
+  }
+  /* the two sheets were fitted independently and DO share ground — the staging
+     area is drawn on both, at 1 in = 20 ft on one and 1 in = 50 ft on the
+     other. Both plans must accept a point in it, and each must round-trip it.
+     (Whether the two fits AGREE about that ground is a build-time question and
+     the tool answers it: the staging area is one of C-203's confirmation
+     features, scoring 0.4912 against 0.15-0.38 for every rival rotation.) */
+  const p = [6371110.9, 2126523.3];
+  const a = SBMM.sheetMarks.toPx("C-102", p[0], p[1]);
+  const b = SBMM.sheetMarks.toPx("C-203", p[0], p[1]);
+  const pa = a && SBMM.sheetMarks.toSP("C-102", a[0], a[1]);
+  const pb = b && SBMM.sheetMarks.toSP("C-203", b[0], b[1]);
+  out.bothAcceptShared = !!(pa && pb);
+  out.sharedRoundTripFt = (pa && pb)
+    ? Math.max(Math.hypot(pa[0] - p[0], pa[1] - p[1]), Math.hypot(pb[0] - p[0], pb[1] - p[1]))
+    : null;
+  return out;
+});
+console.log("native registration C-102:", JSON.stringify(natSheets["C-102"]));
+console.log("native registration C-203:", JSON.stringify(natSheets["C-203"]));
+for (const nm of ["C-102", "C-203"]) {
+  const r = natSheets[nm];
+  if (!r.geo || r.source !== "native") { console.log("FAIL: " + nm + " is not registered from native geometry"); process.exit(1); }
+  if (r.inside !== r.n || r.n < 4) { console.log("FAIL: " + nm + "'s native control does not land inside its plan viewport", r); process.exit(1); }
+  if (r.worstFt > 1e-6) { console.log("FAIL: " + nm + "'s viewport affine does not round-trip"); process.exit(1); }
+  if (r.inRaster !== r.n) { console.log("FAIL: " + nm + "'s map raster does not cover the geometry it was fitted to"); process.exit(1); }
+  if (!r.registered || !r.row) { console.log("FAIL: " + nm + " has no registered sheet row with a 3D drape toggle"); process.exit(1); }
+  if (r.titleBlock !== null) { console.log("FAIL: a " + nm + " title-block pixel was georeferenced"); process.exit(1); }
+  /* the bar the tool refuses below: a median vertex residual under 1 ft, an
+     ortho agreement inside the class the twelve registered sheets define
+     (0.00-3.16 ft through the same check), and a fit that is nowhere near a
+     random placement of the same control on the same paper */
+  if (!(r.residMed <= 1.0)) { console.log("FAIL: " + nm + " residual median " + r.residMed + " ft"); process.exit(1); }
+  if (!(r.orthoAgree <= 3.5)) { console.log("FAIL: " + nm + " ortho agreement " + r.orthoAgree + " ft"); process.exit(1); }
+  if (!(r.darkZ >= 5)) { console.log("FAIL: " + nm + " fit is not distinguishable from a random placement"); process.exit(1); }
+}
+if (natSheets["C-102"].nodes !== 0) { console.log("FAIL: C-102 prints no coordinate table, so it can carry no surveyed nodes"); process.exit(1); }
+if (natSheets["C-203"].nodes !== 4) { console.log("FAIL: C-203's four printed nodes are not carried as surveyed-node features"); process.exit(1); }
+if (natSheets["C-203"].ambiguity !== 4) { console.log("FAIL: C-203's symmetric control must record every rival rotation it was scored against"); process.exit(1); }
+console.log("both plans cover the staging area and round-trip a point in it:",
+            natSheets.bothAcceptShared, "worst", natSheets.sharedRoundTripFt === null
+              ? "n/a" : natSheets.sharedRoundTripFt.toFixed(3) + " ft");
+if (!natSheets.bothAcceptShared || !(natSheets.sharedRoundTripFt < 0.01)) {
+  console.log("FAIL: the two sheets do not both cover and round-trip their shared ground"); process.exit(1);
+}
+
+/* a click on EMPTY GROUND inside each new footprint opens that sheet — the
+   same path C-106 is checked on above, on the two sheets that had no
+   footprint at all until now */
+for (const nm of ["C-102", "C-203"]) {
+  natClick = await page.evaluate(async sheet => {
+    const wait = ms => new Promise(r => setTimeout(r, ms));
+    SBMM.tools.setTool(null);
+    SBMM.sheets.closeAll();
+    const row = [...document.querySelectorAll("#designLayers .lyr")]
+      .find(l => new RegExp("^" + sheet).test(l.textContent.trim()));
+    const cb = row.querySelector("input[type=checkbox]");
+    if (!cb.checked) { cb.checked = true; cb.dispatchEvent(new Event("change")); }
+    await wait(500);
+    SBMM.map.invalidateSize();
+    await wait(300);
+    const r = SBMM_DATA.design_ea.sheets[sheet].raster;
+    SBMM.map.fitBounds([[r.y0, r.x0], [r.y1, r.x1]], { animate: false });
+    await wait(600);
+    /* 6% in from the SW corner: inside the footprint and off the drawn work */
+    const p = SBMM.map.latLngToContainerPoint([r.y0 + (r.y1 - r.y0) * 0.06,
+                                               r.x0 + (r.x1 - r.x0) * 0.06]);
+    const box = document.getElementById("map").getBoundingClientRect();
+    const scr = { x: Math.round(box.left + p.x), y: Math.round(box.top + p.y) };
+    const back = SBMM.map.containerPointToLatLng([scr.x - box.left, scr.y - box.top]);
+    scr.inside = back.lng > r.x0 && back.lng < r.x1 && back.lat > r.y0 && back.lat < r.y1;
+    return scr;
+  }, nm);
+  if (!natClick.inside) { console.log("FAIL: could not aim at the " + nm + " footprint", natClick); process.exit(1); }
+  await page.mouse.move(natClick.x, natClick.y);
+  await page.waitForTimeout(250);
+  await page.mouse.click(natClick.x, natClick.y);
+  await page.waitForTimeout(900);
+  const opened = await page.evaluate(() => {
+    const w = document.querySelector(".shwin");
+    return w ? { sheet: w.dataset.sheet, locate: !w.querySelector(".shloc").disabled } : null;
+  });
+  console.log("click on the " + nm + " footprint ->",
+    opened ? `${opened.sheet} viewer (locate enabled: ${opened.locate})` : "NOTHING OPENED");
+  if (!opened || opened.sheet !== nm || !opened.locate) {
+    console.log("FAIL: clicking the " + nm + " footprint did not open its viewer"); process.exit(1);
+  }
+  await page.evaluate(s2 => {
+    SBMM.sheets.closeAll();
+    const row = [...document.querySelectorAll("#designLayers .lyr")]
+      .find(l => new RegExp("^" + s2).test(l.textContent.trim()));
+    const cb = row.querySelector("input[type=checkbox]");
+    if (cb.checked) { cb.checked = false; cb.dispatchEvent(new Event("change")); }
+  }, nm);
+  await page.waitForTimeout(300);
+}
+
+/* a mark made in the C-102 window lands on the map, at the sheet's own scale,
+   and inside the ground the sheet covers */
+natMark = await page.evaluate(async () => {
+  const out = {};
+  { SBMM.sheets.open("C-102"); }
+  await new Promise(r => setTimeout(r, 500));
+  const win = document.querySelector('.shwin[data-sheet="C-102"]');
+  out.msg = win.querySelector(".shmsg").textContent;
+  out.disabled = [...win.querySelectorAll(".shtools [data-sht]")].filter(b => b.disabled).length;
+  const A = SBMM.sheetMarks.affineOf("C-102");
+  const n0 = SBMM.store.features.length;
+  const p1 = SBMM.sheetMarks.toSP("C-102", 1500, 1100);
+  const p2 = SBMM.sheetMarks.toSP("C-102", 2100, 1100);
+  const f = SBMM.tools.rebuildFeature({ type: "line", pts: [p1, p2], name: "C-102 line 1" });
+  f.props.provenance = { source: "sheet", sheet: "C-102", px: [[1500, 1100], [2100, 1100]] };
+  SBMM.store.emit();
+  await new Promise(r => setTimeout(r, 250));
+  out.added = SBMM.store.features.length - n0;
+  out.lengthFt = f.props.length_ft;
+  out.expectFt = 600 * A.ft_per_px;
+  out.onMap2D = !!(f.layer && SBMM.map.hasLayer(f.layer));
+  const r = SBMM_DATA.design_ea.sheets["C-102"].raster;
+  out.inFootprint = [p1, p2].every(q => q[0] >= r.x0 && q[0] <= r.x1 && q[1] >= r.y0 && q[1] <= r.y1);
+  out.popupNamesSheet = /C-102/.test(SBMM.popups.forFeature(f));
+  SBMM.store.remove(f);
+  SBMM.sheets.closeAll();
+  await new Promise(r => setTimeout(r, 400));
+  return out;
+});
+console.log("C-102 sheet marking:", JSON.stringify(natMark));
+if (natMark.disabled) { console.log("FAIL: sheet tools are disabled on C-102, which is georeferenced now"); process.exit(1); }
+if (/not georeferenced/.test(natMark.msg)) { console.log("FAIL: C-102 still says it is not georeferenced"); process.exit(1); }
+if (natMark.added !== 1 || !natMark.onMap2D) { console.log("FAIL: a C-102 sheet mark did not become a live map feature"); process.exit(1); }
+if (Math.abs(natMark.lengthFt - natMark.expectFt) > 0.5) {
+  console.log("FAIL: a C-102 measurement does not match the sheet scale: "
+    + natMark.lengthFt + " vs " + natMark.expectFt); process.exit(1);
+}
+if (!natMark.inFootprint) { console.log("FAIL: a C-102 mark landed outside the ground the sheet covers"); process.exit(1); }
+if (!natMark.popupNamesSheet) { console.log("FAIL: a C-102 mark's popup does not say which sheet it came from"); process.exit(1); }
 });
 
 /* ==================================================================== */
@@ -3247,9 +3445,25 @@ survey = await page.evaluate(async () => {
   const card = [...document.querySelectorAll("#resBody .res")].find(c => /Overtopping/.test(c.textContent));
   out.cardText = card ? card.textContent : "";
   out.pipeRoute = SBMM.store.features.filter(f => f.type === "flow" && /pipe discharge route/.test(f.name))
-    .map(f => ({ len: f.props.length_ft, reason: f.props.end.reason, name: f.name,
-                 pipe: f.props.pipe_ft, total: f.props.total_ft, outfall: !!f.props.outfall,
-                 legs: (f.props.legs || []).map(l => l.id) }));
+    .map(f => {
+      /* the 2026-09-05 acceptance: NO ground between the sandbag wall and the
+         outfall. Walk the run the way buildFlow does — the stretches between
+         the conduit legs — and add up what is drawn on the ground before the
+         last leg ends. It must be zero: every vertex up to the outfall is a
+         leg endpoint. */
+      const legs = (f.props.legs || []).filter(l => l.at != null && l.at >= 0);
+      const cuts = [...new Set(legs.map(l => l.at))].sort((a, b) => a - b);
+      let ground = 0, st = 0;
+      for (const cut of cuts) {
+        for (let i = st; i < cut; i++)
+          ground += Math.hypot(f.pts[i + 1][0] - f.pts[i][0], f.pts[i + 1][1] - f.pts[i][1]);
+        st = cut + 1;
+      }
+      return { len: f.props.length_ft, reason: f.props.end.reason, name: f.name,
+               pipe: f.props.pipe_ft, total: f.props.total_ft, outfall: !!f.props.outfall,
+               chain: !!f.props.chain, groundBeforeOutfall: +ground.toFixed(2),
+               legs: (f.props.legs || []).map(l => l.id) };
+    });
   out.pipeMarker = document.querySelectorAll(".spillmk.pipe").length;
   const sl = card && card.querySelector("#wsRange");
   out.sliderMax = sl ? +sl.max : -1; out.sliderVal = sl ? +sl.value : -1;
@@ -3313,10 +3527,29 @@ if (survey.pipeRoute.length !== 1 || !(survey.pipeRoute[0].len > 50)) { console.
 /* v12 §5.2: with the storm network on, what leaves the surveyed pipes goes down
    EA's drawn storm main to the Clear Lake outfall, and the row says how far of
    it is in pipe rather than reporting the overland stub alone. */
-if (!survey.pipeRoute[0].outfall || survey.pipeRoute[0].legs.join(",") !== "pipe_to_main,storm_main_upper,storm_main_lower")
-  { console.log("FAIL: the pipe discharge route did not follow the storm main:", JSON.stringify(survey.pipeRoute[0])); process.exit(1); }
-if (Math.abs(survey.pipeRoute[0].pipe - 796.8) > 0.5)
-  { console.log("FAIL: pipe length of the discharge route", survey.pipeRoute[0].pipe, "vs 796.8"); process.exit(1); }
+/* RULING (project engineer, 2026-09-05): both 24-in barrels are the
+   impoundment's discharge and the route is the CONDUIT CHAIN, not a raindrop
+   dropped at a pipe end — "right now I think it shows that it goes directly and
+   makes its own path". So it names BOTH pipes, both links and both halves of the
+   storm main, and it touches no ground at all between the wall and the outfall. */
+if (!survey.pipeRoute[0].chain)
+  { console.log("FAIL: the pipe discharge route is not the conduit chain:", JSON.stringify(survey.pipeRoute[0])); process.exit(1); }
+if (!survey.pipeRoute[0].outfall || survey.pipeRoute[0].legs.join(",")
+      !== "herman_pipe_s,pipe_to_main_s,storm_main_upper,storm_main_lower,herman_pipe_n,pipe_to_main")
+  { console.log("FAIL: the pipe discharge route did not follow both pipes into the storm main:", JSON.stringify(survey.pipeRoute[0])); process.exit(1); }
+if (survey.pipeRoute[0].groundBeforeOutfall !== 0)
+  { console.log("FAIL: the discharge route runs over the ground before the outfall:",
+                survey.pipeRoute[0].groundBeforeOutfall, "ft"); process.exit(1); }
+if (Math.abs(survey.pipeRoute[0].pipe - 812.8) > 0.5)
+  { console.log("FAIL: pipe length of the discharge route", survey.pipeRoute[0].pipe, "vs 812.8"); process.exit(1); }
+if (!/discharging through the two 24-in pipes/.test(survey.cardText))
+  { console.log("FAIL: the card must say the water discharges through both barrels"); process.exit(1); }
+if (!/no ground between the sandbag wall and the outfall/.test(survey.cardText))
+  { console.log("FAIL: the card must say the route touches no ground before the outfall"); process.exit(1); }
+if (!survey.routes || survey.routes.pipeChain !== true
+    || !survey.routes.pipeLegs.includes("herman_pipe_n") || !survey.routes.pipeLegs.includes("herman_pipe_s"))
+  { console.log("FAIL: routes() must report the chain and both barrels:",
+                JSON.stringify(survey.routes && survey.routes.pipeLegs)); process.exit(1); }
 if (!/storm main/.test(survey.pipeRoute[0].name))
   { console.log("FAIL: the route that reaches the outfall must say so in its name:", survey.pipeRoute[0].name); process.exit(1); }
 for (const t of ["in pipe", "Clear Lake outfall"])
@@ -3342,7 +3575,7 @@ let errBeforeStorm, stormBase, FROG, stormDrop, stormOff, WLSHOT, stormWater, st
 await block("9s. storm drainage (docs/V12_STORM_SPEC.md §6)", async () => {
 /* 9s. storm drainage (docs/V12_STORM_SPEC.md §6)                       */
 /* ==================================================================== */
-/* The network is read-only project data — 44 structures and 26 conduits out of
+/* The network is read-only project data — 44 structures and 27 conduits out of
    EA's CAD, Jacobs' survey and the project engineer's identification of the
    south-road drain — and it changes exactly one thing about the raindrop: a run
    that reaches an inlet leaves the ground and reappears at the outlet. The
@@ -3391,9 +3624,12 @@ console.log("storm network:", JSON.stringify({ nodes: stormBase.nodes, conduits:
   glyphs: stormBase.glyphs, arrows: stormBase.arrows, rim: stormBase.rim, invert: stormBase.invert,
   inBox: stormBase.inBox.length, snap: stormBase.snap, dxf: stormBase.dxfLayers, cmd: stormBase.cmd }));
 if (stormBase.err) { console.log("FAIL:", stormBase.err); process.exit(1); }
-if (stormBase.nodes !== 44 || stormBase.conduits !== 26)
-  { console.log("FAIL: the payload is not 44 nodes / 26 conduits"); process.exit(1); }
-if (stormBase.layers.map(l => l.join(":")).join(",") !== "storm_nodes:44,storm_cad:15,storm_inferred:11")
+/* 2026-09-05 ruling: BOTH 24-in barrels reach the storm main, so the network
+   carries `pipe_to_main` (North) and `pipe_to_main_s` (South) — one inferred
+   conduit more than v13's, and no other change to the payload. */
+if (stormBase.nodes !== 44 || stormBase.conduits !== 27)
+  { console.log("FAIL: the payload is not 44 nodes / 27 conduits"); process.exit(1); }
+if (stormBase.layers.map(l => l.join(":")).join(",") !== "storm_nodes:44,storm_cad:15,storm_inferred:12")
   { console.log("FAIL: the three layers' counts:", JSON.stringify(stormBase.layers)); process.exit(1); }
 if (stormBase.rowsOn !== 3 || !stormBase.subHeader || stormBase.rowLabels.length !== 3)
   { console.log("FAIL: the three rows are not on under the Storm drainage sub-header",
@@ -3401,7 +3637,7 @@ if (stormBase.rowsOn !== 3 || !stormBase.subHeader || stormBase.rowLabels.length
 for (const [key, n] of stormBase.layers)
   if (!stormBase.rowLabels.some(l => l.includes("(" + n + ")")))
     { console.log("FAIL: no row labelled with", key, "count", n); process.exit(1); }
-if (stormBase.glyphs !== 44 || stormBase.arrows !== 26)
+if (stormBase.glyphs !== 44 || stormBase.arrows !== 27)
   { console.log("FAIL: structures/arrows drawn:", stormBase.glyphs, stormBase.arrows); process.exit(1); }
 /* the popup: what it is, where it came from, and the two elevations — one of
    which is honestly "not surveyed" */
@@ -3571,10 +3807,17 @@ if (!stormWater.pond || !/^herman_pipe_[ns]$/.test(stormWater.pond.via))
                 JSON.stringify(stormWater.pond)); process.exit(1); }
 if (Math.abs(stormWater.pond.level - 1341.5) > 0.05)
   { console.log("FAIL: the pond must stop at the lower surveyed invert, got", stormWater.pond.level); process.exit(1); }
-if (stormWater.legs.join(",") !== stormWater.pond.via + ",pipe_to_main,storm_main_upper,storm_main_lower")
+/* the drop takes the LOWER invert first — the kernel's rule, and right for one
+   drop — and since 2026-09-05 that barrel reaches the storm main by its own
+   link instead of leaving the pipe on to the ground for the 3 ft to the other */
+if (stormWater.legs.join(",") !== stormWater.pond.via
+      + (stormWater.pond.via === "herman_pipe_s" ? ",pipe_to_main_s" : ",pipe_to_main")
+      + ",storm_main_upper,storm_main_lower")
   { console.log("FAIL: the chain out of the impoundment:", stormWater.legs); process.exit(1); }
-if (Math.abs(stormWater.pipe - 813.3) > 1 || !stormWater.outfall)
-  { console.log("FAIL: pipe_ft", stormWater.pipe, "vs 813.3, outfall", stormWater.outfall); process.exit(1); }
+if (Math.abs(stormWater.pipe - 812.8) > 1 || !stormWater.outfall)
+  { console.log("FAIL: pipe_ft", stormWater.pipe, "vs 812.8, outfall", stormWater.outfall); process.exit(1); }
+if (!/two 24-in pipes in parallel/.test(stormWater.card || ""))
+  { console.log("FAIL: the raindrop card must name both barrels:", stormWater.card); process.exit(1); }
 if (wdist(stormWater.end, [6371177, 2127474]) > 5)
   { console.log("FAIL: the drop should end in Clear Lake, got", stormWater.end); process.exit(1); }
 if (Math.abs(stormWater.offLevel - 1343.84) > 0.02 || stormWater.backOn !== true)
@@ -3638,11 +3881,11 @@ stormRest = await page.evaluate(async () => {
 console.log("storm broken/3D/export:", JSON.stringify(stormRest));
 if (stormRest.brokenOut !== stormRest.backOut - 1 || stormRest.persistedBroken !== "broken")
   { console.log("FAIL: a broken conduit must leave the kernel list and persist"); process.exit(1); }
-if (stormRest.withNet - stormRest.without !== 26 || stormRest.back !== stormRest.withNet)
-  { console.log("FAIL: the 26 conduits are not in the 3D pick registry",
+if (stormRest.withNet - stormRest.without !== 27 || stormRest.back !== stormRest.withNet)
+  { console.log("FAIL: the 27 conduits are not in the 3D pick registry",
                 stormRest.withNet, stormRest.without, stormRest.back); process.exit(1); }
-if (stormRest.geo !== 70 || stormRest.geoPts !== 44 || !stormRest.geoSource)
-  { console.log("FAIL: the GeoJSON must carry 44 structures + 26 conduits, each with a source",
+if (stormRest.geo !== 71 || stormRest.geoPts !== 44 || !stormRest.geoSource)
+  { console.log("FAIL: the GeoJSON must carry 44 structures + 27 conduits, each with a source",
                 JSON.stringify(stormRest)); process.exit(1); }
 if (!stormRest.dxf) { console.log("FAIL: the DXF is missing the STORM-* layers"); process.exit(1); }
 if (errors.length !== errBeforeStorm) {
@@ -6069,15 +6312,23 @@ treeMissing = treeBase.keys.filter(k => !treeKeys.has(k));
 /* Rows this HARNESS created after boot are the only legitimate additions: the
    CSV datasets block 9f imports (invest) and the contour set the analysis block
    generates (base). Anything new anywhere else would be a row v16 invented.
-   ONE exemption beyond those, and it is a dated one: the two design-storm rows
-   (v14 Phase 2, v9.13) were added to the app AFTER this baseline was dumped
-   from commit 475e302, so they are absent from the fixture by construction
-   rather than by accident. The fixture is not edited — a baseline that gets
-   rewritten every release stops being a baseline. */
+   Two DATED exemptions beyond those, and dated is what makes them exemptions
+   rather than a hole: both are rows the app grew AFTER this baseline was
+   dumped from commit 475e302, so they are absent from the fixture by
+   construction rather than by accident. The fixture is not edited — a baseline
+   that gets rewritten every release stops being a baseline.
+     · the two design-storm rows (v14 Phase 2, v9.13);
+     · the C-102 and C-203 sheet-raster rows (v9.16). Every registered plan
+       sheet gets one per-sheet raster row under "Sheets (draped)", and those
+       two sheets were placed from EA's native geometry after the baseline was
+       taken — so this is the twelve rows the fixture already carries becoming
+       fourteen, not an invented row. */
 treeNew = tree.keys.filter(k => treeBase.keys.indexOf(k) < 0);
 treeUnexplained = treeNew.filter(k => !/^invest\//.test(k) && !/^base\/contours_/.test(k)
                                          && k !== "framework/runoff_cover"
-                                         && k !== "framework/runoff_depth");
+                                         && k !== "framework/runoff_depth"
+                                         && k !== "design/c_102_staging_area"
+                                         && k !== "design/c_203_borrow_source_demonstration_area");
 console.log("layer tree:", tree.rows.length, "rows in the state,", tree.domRows, "in the DOM,",
             tree.subs.length, "sub-groups |", tree.swatches, "symbology swatches |",
             "baseline", treeBase.keys.length, "rows — missing", treeMissing.length,
