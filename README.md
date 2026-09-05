@@ -106,19 +106,49 @@ exports. The 3D view has no visibility checkboxes of its own — what it draws i
 Layers tree says is showing. Layer choices are remembered between sessions and travel in the
 session file, except the cultural group, which is off at every start by design.
 
-**Layers, in six groups** — Base (imagery, hillshade, lidar contours, canopy, slope, aspect),
-Site framework (decision units, waste piles, parcels, buildings, roads, fences, utilities,
-drainage, trees and survey blocks from EA's CAD), Residential design (EA 2025) — curated
-design layers first, the per-sheet drawing drapes last under a "Sheets (draped)"
-sub-header — Investigations
-(samples, wells, borings, imported datasets), Cultural resources, and My work. Each group has
-a master checkbox and a count; each row has an opacity slider where it makes sense, and rows
-that come from EA's own CAD carry a **CAD** tag. The heavier analysis rows (slope, aspect,
-elevation tint, canopy, generated contours, tree detection) fold into a collapsed
-**Terrain analysis** sub-section, and the groups remember which of them you left open.
+**Layers — a real tree, in six groups** (v16). Base (imagery, hillshade, lidar contours,
+canopy, slope, aspect), Site framework (decision units, waste piles, the storm network, the
+drainage map, and the parcels, buildings, roads, fences, utilities, trees and survey blocks
+from EA's CAD), Residential design (EA 2025) — curated design layers first, the per-sheet
+drawing drapes last under a "Sheets (draped)" sub-header — Investigations (samples, wells,
+borings, the 2026 survey, imported datasets), Cultural resources, and My work.
+
+Inside a group, related rows sit in **named sub-groups** that collapse on their own —
+*Storm drainage*, *Drainage (lidar + storm drains)*, *Survey — Aug 2026*, *Design areas*,
+*Sheets (draped)*, *Design surfaces*, *Datasets*, *Contours*, *Terrain analysis* — and the
+tree remembers which of them you left open. Each group header carries a master checkbox, a
+count, "n of m on" and, on hover, all-on / all-off / expand-all / collapse-all.
+
+Each **row** shows the layer's real symbology rather than a colour square: a line in its own
+colour, weight and dash, a filled polygon, a point at its own size, a band for a raster. Hover
+a row for its toolbar — **opacity**, **zoom to this layer**, **solo** (everything else in the
+group off; click again to put it back — alt-click on the tick box does the same) and **info**
+(what it is, where it came from, how many features, the CRS, and a link straight into the
+Layer manager for a CAD row). Rows from EA's own CAD carry a **CAD** tag; counts are
+monospace.
+
+**Drag a row by its grip to reorder it, and that order is the draw order** — the row at the
+top of a container draws on top of the ones below it. The order is remembered and travels in
+the session file.
+
+**Search** (the box at the top, or `/` anywhere in the tab) filters the whole tree as you
+type, over the layer name, its sub-group, its group and its id; ancestors open themselves,
+Esc clears, Enter toggles the first match. Arrow keys walk the tree, Space toggles a row,
+Left/Right collapse and expand.
+
+**Presets** are named layer states: *Terrain*, *Design review*, *Water & drainage*,
+*Investigations*, *Field* and *Everything on*, plus any you save yourself (save, rename,
+delete). Applying one is a single undoable action. **No preset ever switches on the cultural
+group** — that stays something you tick yourself, with its acknowledgement. The last five
+rows you changed sit as chips under the search box, one click to put one back.
+
+A collapsible **legend card** in the map's bottom-left lists every layer that is currently
+showing, grouped, with "only" beside each row to isolate it. On a phone it is off the map and
+lives in the More sheet.
+
 Layers that would drown the default view are off until you ask for them — sample results,
-the 2-ft contour set (which also waits for you to zoom in far enough to read it), and the
-sheet footprints. The
+the 2-ft contour set (which also waits for you to zoom in far enough to read it), the drainage
+map (its first tick runs the analysis) and the sheet footprints. The
 **Layer manager** on the design group searches EA's 110 CAD layer names, toggles, recolours
 and sets opacity per layer, and shows each one's source file, feature count and a real DWG
 entity handle you can type into AutoCAD.
@@ -955,9 +985,34 @@ outfall — 2,969 ft of it in pipe. On Herman the conduit spill *is* the surveye
 (1,341.53 against the survey's 1,341.55), so the surveyed row simply gains `via
 herman_pipe_s`: one row, one marker, one route, no double-counting.
 
-The level slider snaps onto the conduit row as it does the surveyed ones. Below it neither
-route shows; from it the first-discharge route shows; from the rim spill the rim overflow
-joins it.
+#### Conduits first — the rim overflow is a what-if (v15)
+
+**When the water finds a conduit below the rim, the conduit IS the overflow.** Since v15 the
+first-discharge route is the only route traced and drawn by default. The rim spill stays on
+the card as a fact — *"Rim spill (lidar) 1,416.04 ft · +0.30 ft above pond culvert — not
+traced; the drains are assumed to handle it"* — the rim band and the ranked rim lows are
+drawn exactly as before, and the "Overflow route" row says **"not traced — the drains are
+assumed to carry it"** rather than claiming water goes that way.
+
+A **trace the rim overflow** button on the card traces it on demand. It is named for what
+it assumes — *"Frog Pond rim overflow — what-if: pond culvert blocked"* — and drawn as a
+hypothesis: dashed, in a muted slate (`#93A6B3`) that is neither the water blue nor the
+storm blue, with no glow and no animation. It belongs to the analysis: pressing the button
+again removes it, and so does closing the analysis. Above the rim the slider reads *"above
+the rim · the drains are assumed to carry it (trace the rim overflow to see the what-if)"*.
+
+The rule is generic — any water body with a conduit spill below its rim. On **Herman** the
+conduit spill *is* the surveyed 24-in pipes, so the pipe route is the overflow and the rim
+route becomes the what-if; every §10 number is unchanged, only the default visibility of the
+rim route moved.
+
+The chain reads back as a sentence, built from the route's own legs and the ponds it filled
+on the way. Frog Pond's card says:
+
+> → Green Pond (fills to 1,394.50) → green outlet → road drain → branch → storm main → Clear Lake outfall
+
+The level slider snaps onto the conduit row as it does the surveyed ones. Below it the
+first-discharge route does not show; from it, it does.
 
 ### Water in 3D (v13)
 
@@ -975,6 +1030,96 @@ With an overtopping analysis open, the 3D view also draws the **water surface at
 level** as a translucent blue polygon at that elevation (holes honoured), with a label at
 each rim low, at the conduit spill and at the surveyed pipes. Moving the slider moves the
 surface; closing the analysis clears it.
+
+## The 3D view (v15)
+
+### Labels that say where the water is
+
+The 3D labels are a **layer**, not fixed sprites. Each one is a chip sized in *screen*
+pixels — the same size at any range — on a translucent dark plate, with a thin leader down
+to the point it is about, and a greedy collision pass in screen space keeps them from
+landing on each other (highest priority first, at most 60 at a time).
+
+**The stage labels follow the slider.** Every step re-states what each one means at the
+level you are looking at, and the viewer diffs them by text so only the chips whose words
+changed are rebuilt:
+
+| below the level | at or past it |
+|---|---|
+| `rim low 2 · 1,344.34 · +0.39 ft to go` (amber) | `rim low 2 · 1,344.34 · overtopped` (red) |
+| `first discharge · pond culvert · 1,415.74 · +0.74 ft to go` | `… · discharging` (storm blue) |
+| `water level 1,343.95 ft` at the water surface's centroid | |
+
+Dimension values, text annotations, pond levels and the recovered design surfaces go
+through the same layer and are **deduped by key**, so a pond crossed by three routes carries
+one label in 3D exactly as it does in 2D.
+
+### The same rule in 2D — `js/labels.js`
+
+Every permanent label on the 2D map — pond levels, flow ends, the ranked rim-low markers,
+catchment acreages, excavation depths, the "in pipe" labels — is registered with one engine.
+It does two things: **dedupe by key** (two labels stating the same fact show once, the
+higher priority wins) and a **greedy collision pass** after every move, zoom, add or remove
+(highest priority first; a label whose box touches a kept one is hidden with
+`visibility:hidden`, never removed, so it returns on its own when it fits again). Zoom gating
+stays where it was; the engine adds collision on top. Field mode uses the same engine.
+
+### Lighting, sky and materials
+
+A vertical gradient sky with distance fog matched to its horizon, so the edge of the survey
+fades into the sky instead of ending in a hard line; a lake-coloured plane below the
+terrain's lowest point; a hemisphere light plus one directional key light. The key light's
+**azimuth and elevation** are sliders in View settings (default 315° / 35°, remembered), so
+the 3D relief can be lit the way the 2D hillshade is lit.
+
+Overlay polylines carry a dark **drop shadow** a foot below them — merged into one
+LineSegments, so the whole effect is a single draw call — which is what makes a bright line
+readable over a bright orthophoto (WebGL cannot widen a line, so an outline has to be
+geometry). Points are small discs with a dark ring rather than hard squares. Your own closed
+features — areas and volume boundaries — gain a soft fill that follows the ground (the ring
+is triangulated in plan and every vertex lifted to its own draped elevation); the site-wide
+polygons keep their outline, because a translucent fill over the whole site is exactly the
+overdraw a software-GL frame cannot afford. The selected
+feature gains a brighter halo that **pulses for a second and a half** and then settles: a
+halo that pulsed for ever would ask for a frame for ever, and an idle 3D view that keeps
+rendering is exactly what this viewer's render-on-demand contract forbids.
+
+### Chrome and keys
+
+View presets (top / north / south / east / west / isometric), **Frame** (fit to the
+selection, or the mine area), **Look at…** (arm it, then click a point to centre the view
+there), the compass, and a small **elevation legend** showing the site's own range in the
+hypsometric ramp the 2D elevation tint uses.
+
+| key | |
+|---|---|
+| <kbd>1</kbd> <kbd>2</kbd> <kbd>4</kbd> <kbd>5</kbd> <kbd>6</kbd> | top / north / east / west / isometric |
+| <kbd>Shift</kbd>+<kbd>3</kbd> | look from the south — a bare <kbd>3</kbd> opens and closes the 3D view, as it always has |
+| <kbd>Shift</kbd>+<kbd>F</kbd> | fit to the selection — a bare <kbd>F</kbd> is fly mode, as it always has been |
+| arrows | orbit · <kbd>Shift</kbd>+arrows pan |
+
+### Parity — everything that works in 2D works in 3D
+
+`test/e2e.mjs` block **"9y. 3D parity"** builds a table: for every layer row that is ON,
+the 3D scene must contain at least one object tagged with that row's `(group, id)`. v15
+closed the gaps it found — EA's PDF-derived boundaries (drawn but untagged and unpickable),
+**EA's own geodatabase lines and its whole boundary and existing-conditions half** (daylight,
+grade and haul lines, lot lines, the OU, parcels, the water bodies, buildings, roads, fences
+and the utility points: 580 features that were on in 2D and simply absent in 3D — now merged
+one draw call per layer, with the segment-to-feature map that keeps a click naming the right
+thing), the two survey contour sets (both were drawn whenever *either* row was on), the computed
+contour set, cross-section station lines and their chainages, EA's four recovered design
+surfaces (read-only `surface` features with no node grid, so the mesh branch skipped them
+entirely and drew nothing), the drainage flow-path row, and one cultural point cloud per
+layer instead of one merged cloud.
+
+Two kinds of row are exempt, and the table prints the reason beside each: the basemaps and
+computed rasters, which in 3D **are** the terrain drape (one picker in the toolbar, the same
+pixels); and EA's CAD **base map** groups — contours (3,159 rings), parcels (2,788), roads,
+buildings, fences, trees, utilities, symbols (15,045) — which stay 2D-only, because every
+ring in 3D is resampled against the DEM every 10 ft on every overlay rebuild and the
+viewer's 3,000-ring drape budget exists for that reason. EA's **design** groups — limits of
+excavation, daylight, grade, repository, borrow, staging, haul — are drawn.
 
 ### Where the numbers come from
 

@@ -292,14 +292,6 @@ SBMM.storm = (function () {
     computeRims();
     computeMouths();
 
-    const host = document.getElementById("projLayers");
-    if (host) {
-      const h = document.createElement("div");
-      h.className = "lsub";
-      h.textContent = "Storm drainage — EA CAD + Jacobs survey";
-      host.appendChild(h);
-    }
-
     groups.storm_nodes = L.layerGroup();
     groups.storm_cad = L.layerGroup();
     groups.storm_inferred = L.layerGroup();
@@ -309,8 +301,11 @@ SBMM.storm = (function () {
     for (const spec of D.layers) {
       const g = groups[spec.key];
       if (!g) continue;
+      /* v16: `sub:` declares the sub-group; the tree builds the header (the
+         same `.lsub` text this module used to append by hand) and its count. */
       const row = SBMM.addLayerRow("proj", `${esc(spec.name)} (${spec.count})`, g,
-        { id: spec.key, checked: true, swatch: COL });
+        { id: spec.key, checked: true, swatch: COL,
+          sub: "Storm drainage — EA CAD + Jacobs survey" });
       row.row.title = `${spec.name} — ${spec.count}. ${spec.provenance}`;
       rows[spec.key] = row;
     }

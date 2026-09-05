@@ -76,9 +76,13 @@ SBMM.pick3d = (function () {
     if (!ctx) return;
     for (const id of sceneIds) reg.delete(id);
     sceneIds = [];
-    const grp = ctx.overlayGroup && ctx.overlayGroup();
-    if (!grp) return;
-    grp.traverse(o => {
+    /* v15 §2.3/§3.2: the label layer is a second root. Its chips are ordinary
+       tagged objects — a rim-low chip answers a hover and a click the same way
+       the geometry under it does. */
+    const roots = [ctx.overlayGroup && ctx.overlayGroup(),
+                   ctx.labelGroup && ctx.labelGroup()].filter(Boolean);
+    if (!roots.length) return;
+    for (const grp of roots) grp.traverse(o => {
       const t = o.userData && o.userData.pick;
       if (!t) return;
       const spec = specFor(o, t);
@@ -165,6 +169,36 @@ SBMM.pick3d = (function () {
           return { title: t.feature.name,
                    html: SBMM.cultural.popup(t.feature, spec || { name: "Cultural resource" }) };
         }
+      };
+      /* v15 §3.1: a whole reference layer merged into one LineSegments (or one
+         Points cloud). The hit's index maps back to the feature through the
+         owner array the batch builder recorded, so one draw call still answers
+         "what did I click" with the right popup. */
+      case "gisBatch": return {
+        object3d: o, kind: "gis", priority: P,
+        hit(ix) {
+          const own = o.userData.owner || [];
+          const seg = ix && ix.index != null ? Math.floor(ix.index / 2) : 0;
+          const it = t.items[own[seg] == null ? 0 : own[seg]];
+          if (!it) return null;
+          return { title: (it.props && it.props.name) || "Design feature",
+                   html: SBMM.popups.forGis(it.props || {}, it.geom) };
+        }
+      };
+      case "gisPts": return {
+        object3d: o, kind: "gis", priority: P,
+        hit(ix) {
+          const it = t.items[ix && ix.index != null ? ix.index : 0];
+          if (!it) return null;
+          return { title: (it.props && it.props.name) || "Design feature",
+                   html: SBMM.popups.forGis(it.props || {}, it.geom), xyz: [it.x, it.y] };
+        }
+      };
+      /* v15: a 3D label chip. Whatever built it said what it is about, so the
+         card is that text — no lookup, and nothing to keep in step. */
+      case "label": return {
+        object3d: o, kind: "label", priority: 3,
+        hit() { return { title: t.title || "Label", html: t.html || ("<b>" + esc(t.title || "") + "</b>") }; }
       };
       case "culturalPt": return {
         object3d: o, kind: "cultural", priority: P,

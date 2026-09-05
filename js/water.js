@@ -46,7 +46,11 @@ SBMM.water = (function () {
   const C = {
     line: "#55C1FF", glow: "rgba(85,193,255,.32)", anim: "#DFF4FF",
     pond: "rgba(85,193,255,.28)", drop: "#9FDCFF", spill: "#FF4D3D",
-    sel: "#FFD34D"
+    sel: "#FFD34D",
+    /* v15 §1: the rim overflow traced on demand is a WHAT-IF — "the culvert is
+       blocked" — and it must not read as the answer. A muted slate, dashed, no
+       glow and no animation: visibly a hypothesis rather than a flow. */
+    whatif: "#93A6B3"
   };
   /* the storm network's own colour (v12 §5.1): a pipe is infrastructure
      somebody drew, a flow is the terrain's answer, and they must not read as
@@ -147,11 +151,17 @@ SBMM.water = (function () {
     const g = f.layer;
     if (!g || !g.clearLayers) return;
     g.clearLayers();
-    f._pondLabels = [];
+    /* every label this feature owns goes with the layers it hung them on
+       (v15 §2.2) — otherwise the registry keeps measuring detached elements */
+    const LOWN = "flow:" + f.id;
+    SBMM.labels.removeOwner(LOWN);
     const p = f.props || {};
     if (!f.pts || f.pts.length < 2) return;
     const sel = SBMM.store.selected === f.id;
-    const col = (f.style && f.style.color) || C.line;
+    /* v15 §1: a what-if rim overflow is drawn as a hypothesis — muted, dashed,
+       no glow, no animation. Everything else about it is an ordinary flow. */
+    const whatif = !!p.whatif;
+    const col = whatif ? C.whatif : ((f.style && f.style.color) || C.line);
     /* v12: a run that went through a pipe is not one polyline. Each conduit leg
        ends an overland stretch and the next one starts at the outlet, so the
        ground line is drawn per stretch and the pipe is drawn as itself — a
@@ -171,7 +181,7 @@ SBMM.water = (function () {
     const lls = stretches.filter(sq => sq.length > 1).map(sq => sq.map(q => [q[1], q[0]]));
 
     /* (a) the soft glow — non-interactive, purely so the line reads over the ortho */
-    for (const line of lls)
+    if (!whatif) for (const line of lls)
       L.polyline(line, { pane: "drawings", color: C.glow, weight: 9, opacity: 1,
                          lineCap: "round", lineJoin: "round", interactive: false }).addTo(g);
 
@@ -189,23 +199,35 @@ SBMM.water = (function () {
            to read — the same idea as the excavation depth labels */
         const c = centroid(ring);
         const mk = L.marker([c[1], c[0]], {
-          pane: "drawings", interactive: false, opacity: 0,
+          pane: "drawings", interactive: false,
           icon: L.divIcon({ className: "pondlbl", iconSize: [0, 0],
                             html: `<span>${esc(pondShort(pd))}</span>` })
         }).addTo(g);
-        f._pondLabels.push({ mk, wft: ringWidth(ring) });
+        const wft = ringWidth(ring);
+        /* the dedupe key IS the fact: a pond at this cell at this level is one
+           pond however many routes crossed it (v15 §2.1) */
+        SBMM.labels.add({
+          key: `pond:${pd.level.toFixed(2)}:${Math.round(c[0] / 10)}:${Math.round(c[1] / 10)}`,
+          priority: SBMM.labels.PRI.pond, marker: mk, owner: LOWN,
+          latlng: [c[1], c[0]],
+          /* the old zoom gate, unchanged: a label only earns its place once the
+             pond is 36 px across */
+          gate: () => !!SBMM.map && wft * Math.pow(2, SBMM.map.getZoom()) >= 36
+        });
       }
     }
 
     /* (b) the core line — this is what a click selects */
     for (const line of lls)
       L.polyline(line, { pane: "drawings", color: sel ? C.sel : col,
-                         weight: sel ? 4.75 : 2.75, lineCap: "round", lineJoin: "round" }).addTo(g);
+                         weight: sel ? 4.75 : (whatif ? 2.2 : 2.75),
+                         dashArray: whatif ? "7 6" : null, opacity: whatif ? .9 : 1,
+                         lineCap: "round", lineJoin: "round" }).addTo(g);
 
     /* the flow animation: a second, non-interactive copy in the SVG `water`
        pane. Zero JS per frame — CSS walks the dash offset, and
        prefers-reduced-motion turns the movement off in the stylesheet. */
-    for (const line of lls)
+    if (!whatif) for (const line of lls)
       L.polyline(line, { renderer: waterRenderer(), pane: "water", interactive: false,
                          color: C.anim, weight: 1.6, dashArray: "5 11", opacity: .95,
                          className: "flowanim" }).addTo(g);
@@ -213,7 +235,6 @@ SBMM.water = (function () {
     /* (c2) the conduit legs — the pipe, drawn as a pipe: straight, dashed, in the
        storm colour, with a hollow ring where the water left the ground and an
        "in pipe" label at the midpoint once there is room for it. */
-    f._pipeLabels = [];
     for (const lg of legs) {
       const a = lg.from, b = lg.to;
       if (!a || !b) continue;
@@ -222,11 +243,15 @@ SBMM.water = (function () {
         dashArray: "8 5", lineCap: "butt", interactive: false
       }).addTo(g);
       const lab = L.marker([(a[1] + b[1]) / 2, (a[0] + b[0]) / 2], {
-        pane: "drawings", interactive: false, opacity: 0,
+        pane: "drawings", interactive: false,
         icon: L.divIcon({ className: "", iconSize: [0, 0],
           html: `<span class="flowpipe">in pipe · ${fmt0(lg.length_ft)} ft</span>` })
       }).addTo(g);
-      f._pipeLabels.push(lab);
+      SBMM.labels.add({
+        key: `pipe:${lg.id}`, priority: SBMM.labels.PRI.pipe, marker: lab, owner: LOWN,
+        /* §5.2: the words only fit inside a conduit at zoom >= 2 */
+        gate: () => !!SBMM.map && SBMM.map.getZoom() >= 2
+      });
       L.circleMarker([a[1], a[0]], { pane: "drawings", radius: 4.5, color: STORM_COL,
         weight: 2, fillColor: "#0E1418", fillOpacity: 1, interactive: false }).addTo(g);
     }
@@ -248,31 +273,22 @@ SBMM.water = (function () {
     /* (e) the end marker and its label */
     const e = p.end;
     if (e && e.x != null) {
-      L.marker([e.y, e.x], {
+      const em = L.marker([e.y, e.x], {
         pane: "drawings", interactive: false,
         icon: L.divIcon({ className: "flowend", iconSize: [0, 0],
           html: `<span class="dot"></span><span class="lbl mono">${esc(endText(p))}</span>` })
       }).addTo(g);
+      SBMM.labels.add({
+        key: `flowend:${Math.round(e.x / 10)}:${Math.round(e.y / 10)}:${e.reason}`,
+        priority: SBMM.labels.PRI.flowend, marker: em, owner: LOWN, latlng: [e.y, e.x]
+      });
     }
     refreshLabels();
   }
 
-  /* zoom gate for the pond labels — one pass, no rebuild */
-  function refreshLabels() {
-    if (!SBMM.map) return;
-    const k = Math.pow(2, SBMM.map.getZoom());       // screen px per ground ft
-    for (const f of SBMM.store.features) {
-      if (f.type !== "flow") continue;
-      for (const l of (f._pondLabels || [])) {
-        try { l.mk.setOpacity(l.wft * k >= 36 ? 1 : 0); } catch (err) {}
-      }
-      /* the "in pipe" labels appear at zoom >= 2, where a 150-ft conduit is
-         600 px long and the words fit inside it (§5.2) */
-      for (const l of (f._pipeLabels || [])) {
-        try { l.setOpacity(SBMM.map.getZoom() >= 2 ? 1 : 0); } catch (err) {}
-      }
-    }
-  }
+  /* v15 §2.2: the zoom gate and the pile-up are one problem, and js/labels.js
+     owns both now. This stays as the name the rest of the app calls. */
+  function refreshLabels() { SBMM.labels.refresh(); }
 
   /* normalise whatever we were handed (a fresh trace, a session, an import) */
   function normProps(props, pts) {
@@ -465,11 +481,15 @@ SBMM.water = (function () {
     opts = opts || {};
     const R = await traceRun(x, y, opts);
     if (!R) return null;
+    /* v15 §1: a what-if route says so in its own props, so it is drawn as a
+       hypothesis in 2D and in 3D and stays one across a session round trip */
+    if (opts.whatif) R.props.whatif = true;
     const f = mkFlow(R.pts, opts.name || SBMM.tools.nextName("Raindrop"), R.props,
                      { group: opts.group || "Water" });
     /* readd puts the whole FeatureGroup back — the line, the ponds, the drop
        marker and the animated copy in the `water` pane are all children of it */
-    SBMM.undo.push("raindrop " + f.name, () => SBMM.store.remove(f), () => SBMM.store.readd(f));
+    if (!opts.noUndo)
+      SBMM.undo.push("raindrop " + f.name, () => SBMM.store.remove(f), () => SBMM.store.readd(f));
     if (!opts.quiet) SBMM.store.select(f.id);
     if (SBMM.viewer3d.isOpen()) SBMM.viewer3d.refreshOverlays();
     return f;
@@ -866,6 +886,15 @@ SBMM.water = (function () {
     ov.conduitLabel = CS ? conduitLabel(CS.id) : null;
     ov.csIsPipe = !!(CS && facts && facts.pipeInvert != null
                      && Math.abs(CS.level - facts.pipeInvert) <= 0.1);
+    /* v15 §1 — the ruling: when the water finds a conduit BELOW the rim, the
+       conduit IS the overflow. The rim spill stays a fact on the card and the
+       rim band stays drawn, but no rim overflow route is traced by default and
+       nothing claims water goes that way. The route is one button away, and it
+       is labelled as what it is: a what-if in which the conduit is blocked.
+       The rule is generic — Herman's conduit spill is the surveyed pipe, Frog
+       Pond's is the culvert into Green Pond, Green Pond's is its FES. */
+    ov.rimSuppressed = !!(CS && ov.conduitLevel != null
+                          && ov.conduitLevel < R.primary.level - 1e-6);
 
     /* the rim band + the exact spill cells, one canvas */
     const painted = paintBand(R);
@@ -910,6 +939,8 @@ SBMM.water = (function () {
       mk.on("click", () => SBMM.map.setView([cl.y, cl.x], Math.max(SBMM.map.getZoom(), 2)));
       mk.addTo(SBMM.map);
       ov.markers.push(mk);
+      mk._lbl = { key: "spill:" + Math.round(cl.x / 5) + ":" + Math.round(cl.y / 5),
+                  pri: SBMM.labels.PRI.spill - cl.rank, latlng: [cl.y, cl.x] };
     });
 
     /* the two real features: they belong to the user's work and survive a
@@ -942,6 +973,8 @@ SBMM.water = (function () {
       mk.on("click", () => SBMM.map.setView([facts.pipeXY[1], facts.pipeXY[0]], Math.max(SBMM.map.getZoom(), 3)));
       mk.addTo(SBMM.map);
       ov.markers.push(mk);
+      mk._lbl = { key: "spill:pipes", pri: SBMM.labels.PRI.spill,
+                  latlng: [facts.pipeXY[1], facts.pipeXY[0]] };
     }
     /* the conduit spill's own marker — "C", beside the rim's ①, so the two
        answers are visibly two answers (v13 §2) */
@@ -962,6 +995,8 @@ SBMM.water = (function () {
       mk.on("click", () => SBMM.map.setView([CS.y, CS.x], Math.max(SBMM.map.getZoom(), 3)));
       mk.addTo(SBMM.map);
       ov.markers.push(mk);
+      mk._lbl = { key: "spill:conduit:" + CS.id, pri: SBMM.labels.PRI.spill,
+                  latlng: [CS.y, CS.x] };
     }
     if (facts && facts.outlet) {
       const pr = await dropAt(facts.outlet[0], facts.outlet[1], {
@@ -993,16 +1028,23 @@ SBMM.water = (function () {
       });
       if (cr) { ov.conduitRoute = cr; cr.props.blockRing = null; }
     }
+    /* v15 §1: the rim overflow. Everything needed to trace it is kept either
+       way — the seed cell, the analysis's own grid and window, and the ring to
+       treat as blocked — so the what-if button is one job away and runs on the
+       same grid the analysis did (§2: one analysis, one grid). */
     const nx = R.primary.next;
-    if (nx) {
+    ov.rimSeed = nx || null;
+    ov.rimDem = dem; ov.rimWindow = bbox;
+    ov.rimBlock = ring || (s0 && s0.rings && s0.rings.length ? s0.rings[0] : null);
+    if (nx && !ov.rimSuppressed) {
       const route = await dropAt(nx[0], nx[1], {
         name: `${name} overflow route`, group: "Water", quiet: true,
-        dem, window: bbox, plateauTol: PLATEAU_TOL,
-        blockRing: ring || (s0 && s0.rings && s0.rings.length ? s0.rings[0] : null)
+        dem, window: bbox, plateauTol: PLATEAU_TOL, blockRing: ov.rimBlock
       });
       if (route) { ov.route = route; route.props.blockRing = null; }
     }
 
+    registerOvLabels();
     overtopCard();
     applyLevel(ov.defaultLevel != null ? ov.defaultLevel : R.primary.level);
     if (SBMM.viewer3d.isOpen() && SBMM.viewer3d.refreshDrapes) SBMM.viewer3d.refreshDrapes();
@@ -1055,6 +1097,60 @@ SBMM.water = (function () {
     }
     R.name = name;
     return R;
+  }
+
+  /* The overlay's markers carry their own label spec, so hiding and showing the
+     overlay can re-register them in one pass rather than leaving the registry
+     measuring elements Leaflet has taken off the map (v15 §2.2). */
+  function registerOvLabels() {
+    SBMM.labels.removeOwner("overtop");
+    if (!ov || ov.hidden) return;
+    for (const m of ov.markers)
+      if (m._lbl) SBMM.labels.add({ key: m._lbl.key, priority: m._lbl.pri, marker: m,
+                                    owner: "overtop", latlng: m._lbl.latlng });
+  }
+
+  /* v15 §1 — the what-if. The rim overflow is NOT the answer when a conduit
+     carries the water first, so it is traced only on request, named for what it
+     assumes, and drawn as a hypothesis (dashed, muted, no animation). It belongs
+     to the analysis: closing the analysis takes it with it, which is why it is
+     created without an undo entry — there is no user action to undo, and an undo
+     stack entry pointing at a feature the analysis has since removed is worse
+     than none. */
+  async function traceRimWhatIf(btn) {
+    if (!ov) { toast("no overtopping analysis is open"); return null; }
+    if (ov.rimRoute) {
+      const old = ov.rimRoute;
+      ov.rimRoute = null;
+      SBMM.store.remove(old);
+      paintRimBtn();
+      toast("the rim overflow what-if is cleared");
+      if (SBMM.viewer3d.isOpen()) SBMM.viewer3d.refreshOverlays();
+      return null;
+    }
+    if (!ov.rimSeed) { toast("this analysis has no rim spill to trace an overflow from"); return null; }
+    const blocked = ov.csIsPipe ? "the 24-in pipes" : (ov.conduitLabel || "the drains");
+    if (btn) { btn.disabled = true; btn.textContent = "tracing…"; }
+    const r = await dropAt(ov.rimSeed[0], ov.rimSeed[1], {
+      name: `${ov.name} rim overflow — what-if: ${blocked} blocked`,
+      group: "Water", quiet: true, noUndo: true, whatif: true,
+      dem: ov.rimDem, window: ov.rimWindow, plateauTol: PLATEAU_TOL, blockRing: ov.rimBlock
+    });
+    if (!r) { paintRimBtn(); return null; }
+    r.props.blockRing = null;
+    ov.rimRoute = r;
+    paintRimBtn();
+    toast(`what-if: with ${blocked} blocked the water leaves over the rim at `
+      + `${fmt(ov.R.primary.level, 2)} ft — ${fmt0(r.props.length_ft)} ft, ${endShort(r.props)}`, 5200);
+    if (SBMM.viewer3d.isOpen()) SBMM.viewer3d.refreshOverlays();
+    return r;
+  }
+  function paintRimBtn() {
+    const b = ov && ov.card && ov.card.querySelector('[data-w="rimwhatif"]');
+    if (!b) return;
+    b.disabled = false;
+    b.textContent = ov.rimRoute ? "hide the rim overflow" : "trace the rim overflow";
+    b.classList.toggle("active", !!ov.rimRoute);
   }
 
   function nearestStage(R, level) {
@@ -1139,15 +1235,24 @@ SBMM.water = (function () {
     if (ov.route) SBMM.store.setVisible(ov.route, spilling);
     if (ov.pipeRoute) SBMM.store.setVisible(ov.pipeRoute, piping);
     if (ov.conduitRoute) SBMM.store.setVisible(ov.conduitRoute, draining);
+    /* the what-if is shown from the moment it is asked for: it answers "what if
+       the conduit were blocked", which is a question about the rim, not about
+       where this slider happens to sit */
+    if (ov.rimRoute) SBMM.store.setVisible(ov.rimRoute, true);
     const el = ov.card && ov.card.querySelector(".wslabel");
     if (el) {
       const store = s ? s.storage_ft3 : 0;
-      let state = spilling ? "OVERFLOWS the rim at ①"
+      /* v15 §1: above the rim, with a conduit carrying the water below it, the
+         honest sentence is not "OVERFLOWS" — it is that the drains are assumed
+         to take it and the rim route is a what-if one button away. */
+      let state = (spilling && ov.rimSuppressed)
+          ? "above the rim · the drains are assumed to carry it (trace the rim overflow to see the what-if)"
+        : spilling ? "OVERFLOWS the rim at ①"
         : overCrest ? "above the sandbag crest · discharging through the pipes"
         : piping ? "discharging through the 24-in pipes"
         : draining ? "discharging through " + ov.conduitLabel
         : "no discharge";
-      if (level > R.primary.level + 1e-6) state += " (if the rim at ① were raised)";
+      if (level > R.primary.level + 1e-6 && !ov.rimSuppressed) state += " (if the rim at ① were raised)";
       el.textContent = `water level ${fmt(level, 2)} ft · +${fmt(level - R.z0, 2)} ft above today · `
         + `${fmt(acft(store), 1)} ac-ft to store · ` + state
         + (s && s.extra ? " · surveyed stage" : "");
@@ -1169,22 +1274,113 @@ SBMM.water = (function () {
     const R = ov.R, level = ov.level == null ? R.primary.level : ov.level;
     const s = nearestStage(R, level);
     if (!s || !s.rings || !s.rings.length) return null;
-    /* the rim lows of one impoundment cluster in the same corner, so their
-       sprites overlap unless they are stepped — the same reason the 2D markers
-       step their labels down the page by rank */
+    /* v15 §2.3 — the labels are about the level the user is LOOKING at, so each
+       one states where it stands relative to the slider: how far the water still
+       has to rise to reach it, or that it has already been passed. The viewer
+       diffs these by text, so a slider step only rebuilds the sprites whose
+       words actually changed. */
+    const L = s.level;
+    const state = z => (L >= z - 1e-6 ? " · overtopped" : " · +" + fmt(z - L, 2) + " ft to go");
     const labels = (R.clusters || []).map(cl => ({
-      x: cl.x, y: cl.y, z: cl.level, lift: 14 + (cl.rank - 1) * 26,
-      text: (cl.rank === 1 ? "rim spill" : "rim low " + cl.rank) + " · " + fmt(cl.level, 2) + " ft",
-      color: cl.rank === 1 ? C.spill : "#E8B34B"
+      key: "rim" + cl.rank, x: cl.x, y: cl.y, z: cl.level, priority: 80 - cl.rank,
+      /* the rim lows of one impoundment cluster in the same corner, so their
+         chips are stepped up the screen by rank — the same reason the 2D
+         markers step their labels down the page (v10 §4.3) */
+      liftPx: 108 + (cl.rank - 1) * 26,
+      text: (cl.rank === 1 ? "rim spill" : "rim low " + cl.rank)
+        + " · " + fmt(cl.level, 2) + state(cl.level),
+      color: L >= cl.level - 1e-6 ? C.spill : "#E8B34B",
+      /* §3.2: the chip answers a hover and a click in 3D, like everything else */
+      title: (cl.rank === 1 ? "Rim spill" : "Rim low " + cl.rank),
+      html: `<b>${cl.rank === 1 ? "Rim spill" : "Rim low " + cl.rank} — ${esc(ov.name)}</b>`
+        + `<br>level ${fmt(cl.level, 2)} ft`
+        + (cl.rank === 1 ? "" : ` · +${fmt(cl.above_ft, 2)} ft above the spill`)
+        + `<br>water at ${fmt(L, 2)} ft — ${L >= cl.level - 1e-6 ? "overtopped"
+             : fmt(cl.level - L, 2) + " ft to go"}`
+        + `<br>${fmt0(cl.x)} E, ${fmt0(cl.y)} N · ${cl.cells} cells`
+        + `<br><span style="opacity:.7">Static spill analysis on the lidar bare earth `
+        + `(docs/V10_WATER_SPEC.md §2) — no inflow, wave run-up or seepage.</span>`
     }));
+    /* the water surface itself, at the centroid of its largest ring */
+    {
+      let big = null, ba = -1;
+      for (const r of s.rings) {
+        if (!r || r.length < 3) continue;
+        let a = 0;
+        for (let i = 0; i < r.length; i++) { const q = r[i], w = r[(i + 1) % r.length]; a += q[0] * w[1] - w[0] * q[1]; }
+        a = Math.abs(a) / 2;
+        if (a > ba) { ba = a; big = r; }
+      }
+      if (big) {
+        const c = centroid(big);
+        labels.push({ key: "level", x: c[0], y: c[1], z: L, priority: 95, liftPx: 26,
+                      text: "water level " + fmt(L, 2) + " ft", color: C.line,
+                      title: "Water level",
+                      html: `<b>${esc(ov.name)} — water level ${fmt(L, 2)} ft</b>`
+                        + `<br>+${fmt(L - R.z0, 2)} ft above today (${fmt(R.z0, 2)} ft)`
+                        + (s.storage_ft3 != null ? `<br>${fmt(acft(s.storage_ft3), 1)} ac-ft stored · `
+                            + `${fmt(acft(s.area_ft2), 2)} ac` : "") });
+      }
+    }
+    const dis = z => (L >= z - 1e-6 ? " · discharging" : " · +" + fmt(z - L, 2) + " ft to go");
     if (ov.conduitSpill && !ov.csIsPipe)
-      labels.push({ x: ov.conduitSpill.x, y: ov.conduitSpill.y, z: ov.conduitLevel, lift: 40,
-                    text: "first discharge · " + ov.conduitLabel + " · " + fmt(ov.conduitLevel, 2) + " ft",
-                    color: STORM_COL });
+      labels.push({ key: "cs", x: ov.conduitSpill.x, y: ov.conduitSpill.y, z: ov.conduitLevel,
+                    priority: 90, liftPx: 56,
+                    text: "first discharge · " + ov.conduitLabel + " · "
+                      + fmt(ov.conduitLevel, 2) + dis(ov.conduitLevel),
+                    color: STORM_COL, title: "First discharge",
+                    html: `<b>First discharge — ${esc(ov.conduitLabel)}</b>`
+                      + `<br>rim ${fmt(ov.conduitLevel, 2)} ft · +${fmt(ov.conduitLevel - R.z0, 2)} ft above today`
+                      + `<br>water at ${fmt(L, 2)} ft — ${L >= ov.conduitLevel - 1e-6 ? "discharging"
+                           : fmt(ov.conduitLevel - L, 2) + " ft to go"}`
+                      + `<br><span style="opacity:.7">A conduit is a topological shortcut with an `
+                      + `elevation at each end — no capacity, no hydraulic grade line.</span>` });
     if (ov.facts && ov.facts.pipeXY && ov.facts.pipeInvert != null)
-      labels.push({ x: ov.facts.pipeXY[0], y: ov.facts.pipeXY[1], z: ov.facts.pipeInvert, lift: 40,
-                    text: "24-in pipes · " + fmt(ov.facts.pipeInvert, 2) + " ft", color: "#E8B34B" });
+      labels.push({ key: "pipes", x: ov.facts.pipeXY[0], y: ov.facts.pipeXY[1],
+                    z: ov.facts.pipeInvert, priority: 90, liftPx: 82,
+                    text: "24-in pipes · " + fmt(ov.facts.pipeInvert, 2) + dis(ov.facts.pipeInvert),
+                    color: STORM_COL, title: "24-in HDPE pipes",
+                    html: `<b>24-in HDPE discharge pipes</b>`
+                      + `<br>surveyed invert ${fmt(ov.facts.pipeInvert, 2)} ft (Jacobs, Aug 2026)`
+                      + `<br>water at ${fmt(L, 2)} ft — ${L >= ov.facts.pipeInvert - 1e-6 ? "discharging"
+                           : fmt(ov.facts.pipeInvert - L, 2) + " ft to go"}` });
     return { rings: s.rings, level: s.level, labels };
+  }
+
+  /* v15 §1 — the intended system, read back as a sentence. Built from the
+     route's own legs and the ponds it filled on the way (each pond that left
+     through a conduit carries that conduit's id in `via`), so it describes what
+     was actually traced rather than a story about the site:
+       "→ Green Pond (fills to 1,394.50) → green outlet → storm main lower →
+        Clear Lake outfall". */
+  function chainSentence(f) {
+    if (!f || !f.props) return "";
+    const p = f.props;
+    const legs = (p.legs || []).slice().sort((a, b) => (a.at || 0) - (b.at || 0));
+    if (legs.length < 2) return "";
+    const parts = [];
+    /* the FIRST leg is the first discharge and the row above already names it;
+       what this sentence adds is everything after it */
+    for (let i = 1; i < legs.length; i++) {
+      const pd = (p.ponds || []).find(q => q.via === legs[i].id);
+      if (pd) {
+        const c = pondCentre(pd);
+        const wb = c ? waterBodyAt(c[0], c[1]) : null;
+        parts.push(`${wb ? wb.name : "a pond"} (fills to ${fmt(pd.level, 2)})`);
+      }
+      /* a chain of eight road-drain runs between two grates is ONE thing to a
+         reader — collapse consecutive legs of the same family (the label's
+         first two words) into that family's name */
+      const fam = conduitLabel(legs[i].id).split(" ").slice(0, 2).join(" ");
+      if (parts[parts.length - 1] !== fam) parts.push(fam);
+    }
+    parts.push(p.outfall ? "Clear Lake outfall" : endShort(p));
+    return parts.length < 2 ? "" : "→ " + parts.join(" → ");
+  }
+  function pondCentre(pd) {
+    const r = (pd.rings || [])[0];
+    if (!r || r.length < 3) return null;
+    return centroid(r);
   }
 
   function overtopCard() {
@@ -1214,6 +1410,8 @@ SBMM.water = (function () {
             ? `${fmt0(cr.total_ft)} ft · ${fmt0(cr.pipe_ft)} ft in pipe · `
               + (cr.outfall ? "Clear Lake outfall" : endShort(cr))
             : `${fmt0(cr.length_ft)} ft · ${endShort(cr)}`)]);
+      const chain = chainSentence(ov.conduitRoute);
+      if (chain) rows.push(["", chain]);
     }
     if (F && F.pipeInvert != null) {
       const st = stageAt(R, F.pipeInvert);
@@ -1230,22 +1428,35 @@ SBMM.water = (function () {
             : (pt.pipe_ft > 0
                 ? `${fmt0(pt.total_ft)} ft · ${fmt0(pt.pipe_ft)} ft in pipe · ${endShort(pt)}`
                 : `${fmt0(pt.length_ft)} ft · ${endShort(pt)}`))]);
+      const chain = chainSentence(ov.pipeRoute);
+      if (chain) rows.push(["", chain]);
     }
     if (F && F.wallCrest != null) {
       const st = stageAt(R, F.wallCrest);
       rows.push(["Sandbag wall crest", `${fmt(F.wallCrest, 2)} ft · +${fmt(F.wallCrest - R.z0, 2)} ft`
         + (st ? ` · ${fmt(acft(st.storage_ft3), 1)} ac-ft` : "")]);
     }
+    /* v15 §1: with a conduit carrying the water first, the rim spill is a FACT
+       on this card and not a route on the map. Say so in the row itself, and say
+       what carries it instead, so nobody reads the number as a prediction. */
+    const carrier = ov.csIsPipe ? "the 24-in pipes" : ov.conduitLabel;
     rows.push(
       /* "Rim spill" rather than "Spill elevation" the moment there is something
          to tell it apart from — a surveyed pipe, or a storm conduit (v13 §2) */
-      [(F || ov.conduitSpill) ? "Rim spill (lidar)" : "Spill elevation", fmt(R.primary.level, 2) + " ft"],
+      [(F || ov.conduitSpill) ? "Rim spill (lidar)" : "Spill elevation",
+        fmt(R.primary.level, 2) + " ft"
+        + (ov.rimSuppressed
+            ? ` · +${fmt(R.primary.level - ov.conduitLevel, 2)} ft above ${carrier}`
+              + " — not traced; the drains are assumed to handle it"
+            : "")],
       ["Freeboard to the rim", fmt(R.freeboard_ft, 2) + " ft"],
       ["Spills at", `${fmt0(R.primary.x)} E, ${fmt0(R.primary.y)} N`],
       ["Storage to spill", fmt(acft(R.storage_ft3), 1) + " ac-ft"],
       ["", fmt0(R.storage_ft3) + " ft³"],
       ["Area at spill", fmt(acft(R.area_ft2), 2) + " ac"],
-      ["Overflow route", rt ? `${fmt0(rt.length_ft)} ft · ${endShort(rt)}` : "—"],
+      ["Overflow route", ov.rimSuppressed
+        ? "not traced — the drains are assumed to carry it"
+        : (rt ? `${fmt0(rt.length_ft)} ft · ${endShort(rt)}` : "—")],
       ["Grid", grid + " · " + fmt0(R.seedCells) + " cells of water surface"]
     );
     const el = SBMM.results.card(null, "Overtopping — " + ov.name, rows);
@@ -1307,12 +1518,17 @@ SBMM.water = (function () {
     const btns = document.createElement("div");
     btns.className = "crow btns";
     btns.innerHTML = `<button class="minib" data-w="hide">hide overlay</button>`
+      + (ov.rimSuppressed
+          ? `<button class="minib whatif" data-w="rimwhatif" title="What-if: ${esc(carrier)} blocked — `
+            + `trace where the water would go over the rim instead">trace the rim overflow</button>`
+          : "")
       + `<button class="minib" data-w="3d">3D</button>`
       + `<button class="minib" data-w="clear">clear</button>`;
     btns.addEventListener("click", ev => {
       const w = ev.target.dataset && ev.target.dataset.w;
       if (!w) return;
       if (w === "hide") toggleOverlay(ev.target);
+      if (w === "rimwhatif") traceRimWhatIf(ev.target);
       if (w === "3d") SBMM.viewer3d.openAt(R.primary.x, R.primary.y);
       if (w === "clear") { clearOvertop(); toast("water overlays cleared"); }
     });
@@ -1340,6 +1556,7 @@ SBMM.water = (function () {
     ov.hidden = on;
     for (const l of [ov.band, ov.z0line, ov.water]) if (l) { if (on) SBMM.map.removeLayer(l); else l.addTo(SBMM.map); }
     for (const m of ov.markers) { if (on) SBMM.map.removeLayer(m); else m.addTo(SBMM.map); }
+    registerOvLabels();
     if (btn) btn.textContent = on ? "show overlay" : "hide overlay";
     if (SBMM.viewer3d.isOpen() && SBMM.viewer3d.refreshDrapes) SBMM.viewer3d.refreshDrapes();
     if (SBMM.viewer3d.setWaterStage) SBMM.viewer3d.setWaterStage(stageSpec());
@@ -1399,6 +1616,10 @@ SBMM.water = (function () {
     if (!ov) return;
     for (const l of [ov.band, ov.z0line, ov.water]) if (l) SBMM.map.removeLayer(l);
     for (const m of ov.markers) SBMM.map.removeLayer(m);
+    SBMM.labels.removeOwner("overtop");
+    /* the what-if belongs to the analysis (v15 §1) and goes with it; the real
+       routes are the user's features and stay, as they always have */
+    if (ov.rimRoute) { SBMM.store.remove(ov.rimRoute); ov.rimRoute = null; }
     if (ov.card) ov.card.remove();
     ov = null;
     SBMM.results.checkEmpty();
@@ -1473,7 +1694,17 @@ SBMM.water = (function () {
     });
   }
 
-  return { surveyFacts, stageSpec, stageTable,
+  /* which routes the OPEN analysis owns — the v15 §1 contract, readable rather
+     than inferred from feature names that other analyses also match */
+  function routes() {
+    if (!ov) return null;
+    return { rim: !!ov.route, rimWhatIf: !!ov.rimRoute, rimSuppressed: !!ov.rimSuppressed,
+             conduit: !!ov.conduitRoute, pipe: !!ov.pipeRoute,
+             conduitLabel: ov.conduitLabel || null, conduitLevel: ov.conduitLevel,
+             rimLevel: ov.R && ov.R.primary ? ov.R.primary.level : null };
+  }
+
+  return { surveyFacts, stageSpec, stageTable, routes, traceRimWhatIf, chainSentence,
     wire, dropAt, mkFlow, buildFlow, retrace, catchment, makeProfile,
     overtop, overtopHerman, overtopAt, clearOvertop, drapeSpec, active,
     refreshLabels, fillFlowCard, endSentence, endShort, pickPond,

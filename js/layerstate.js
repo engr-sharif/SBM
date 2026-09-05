@@ -171,6 +171,32 @@ SBMM.layerState = (function () {
   }
   function toggle(groupId, layerId) { const r = rec(groupId, layerId); return r ? set(groupId, layerId, { on: !r.on }) : null; }
 
+  /* Apply many changes as ONE change (v16). A layer preset, a solo and its
+     restore all move dozens of rows at once, and firing a `layers` event per
+     row would make js/viewer3d.js queue dozens of overlay rebuilds for a single
+     gesture. So the individual sets run silent and one event is emitted per
+     group that actually moved — the same `{group, layer: null}` shape a master
+     checkbox already emits, which every subscriber has always had to handle.
+     `list` is [{group, layer, on?, opacity?}, …]. */
+  function batch(list) {
+    if (!Array.isArray(list) || !list.length) return 0;
+    const touched = new Set();
+    let n = 0;
+    quiet++;
+    for (const it of list) {
+      const r = rec(it.group, it.layer);
+      if (!r) continue;
+      const was = r.on + "|" + r.opacity;
+      set(it.group, it.layer, { on: it.on, opacity: it.opacity }, { silent: true });
+      if (was !== r.on + "|" + r.opacity) { touched.add(it.group); n++; }
+    }
+    quiet--;
+    persist();
+    for (const g of touched)
+      SBMM.events.emit("layers", { group: g, layer: null, state: { on: groupState(g) !== "none" } });
+    return n;
+  }
+
   /* master checkbox on a group header */
   function setGroup(groupId, on) {
     const g = groups.get(groupId);
@@ -208,6 +234,16 @@ SBMM.layerState = (function () {
   /* ------------------------------------------------------------------ */
   /* persistence                                                         */
   /* ------------------------------------------------------------------ */
+  /* One additive extension point for the session file and the localStorage
+     record: js/layertree.js registers `{save, load}` here so the tree's row
+     order and the user's presets travel with the layer state instead of
+     needing their own key in js/state.js. It lands under `_tree`, which is not
+     a group id — an older build reading a newer session walks it in restore(),
+     finds no layer by that name and skips it, which is exactly the tolerance
+     restore() was written with. */
+  let extra = null;
+  function setExtra(o) { extra = o || null; }
+
   function serialize() {
     const o = {};
     for (const g of groups.values()) {
@@ -217,6 +253,9 @@ SBMM.layerState = (function () {
         gg[r.id] = { on: r.on, opacity: r.opacity };
       }
       if (Object.keys(gg).length) o[g.id] = gg;
+    }
+    if (extra && extra.save) {
+      try { const t = extra.save(); if (t) o._tree = t; } catch (e) { console.error("layerState extra save", e); }
     }
     return o;
   }
@@ -228,6 +267,7 @@ SBMM.layerState = (function () {
     let n = 0;
     quiet++;
     for (const gid in o) {
+      if (gid === "_tree") continue;
       for (const lid in o[gid]) {
         const s = o[gid][lid];
         if (!s || typeof s !== "object") continue;
@@ -236,6 +276,9 @@ SBMM.layerState = (function () {
     }
     quiet--;
     persist();
+    if (o._tree && extra && extra.load) {
+      try { extra.load(o._tree); } catch (e) { console.error("layerState extra load", e); }
+    }
     SBMM.events.emit("layers", { group: null, layer: null, state: null });
     return n;
   }
@@ -245,7 +288,7 @@ SBMM.layerState = (function () {
   }
 
   return {
-    defineGroup, define, get, set, isOn, opacity, toggle, setGroup, groupState,
+    defineGroup, define, get, set, isOn, opacity, toggle, batch, setExtra, setGroup, groupState,
     count, countOn, list, groupList, serialize, restore, resetDefaults, rec,
     GROUP_ORDER,
     /* debug / test hook: the whole thing as plain data */
