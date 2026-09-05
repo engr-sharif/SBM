@@ -60,18 +60,12 @@ SBMM.designGIS = (function () {
       (byLayer[k] = byLayer[k] || []).push(f);
     }
 
-    const host = document.getElementById("designLayers");
-
     for (const [gkey, gname] of GROUPS) {
       const specs = D.layers.filter(l => l.group === gkey);
       if (!specs.length) continue;
-      if (host) {
-        const h = document.createElement("div");
-        h.className = "lsub";
-        h.textContent = gname;
-        host.appendChild(h);
-      }
-      for (const spec of specs) buildLayer(spec);
+      /* v16: `sub:` declares the sub-group; the tree draws the header (the same
+         `.lsub` text this module used to append by hand) and its count. */
+      for (const spec of specs) buildLayer(spec, gname);
     }
 
     SBMM.designGIS.counts = Object.fromEntries(
@@ -108,9 +102,10 @@ SBMM.designGIS = (function () {
       : { color: EXC_1FT, weight: 2.6, dashArray: null, fillColor: EXC_1FT, fillOpacity: 0.13 };
   }
 
-  function buildLayer(spec) {
+  function buildLayer(spec, subName) {
     const feats = byLayer[spec.key] || [];
     if (!feats.length) return;
+    if (spec.key === "exc") SBMM.labels.removeOwner("gis:exc");
     const grp = L.layerGroup();
     const col = spec.color || "#ccc";
     const isExc = spec.key === "exc";
@@ -132,11 +127,17 @@ SBMM.designGIS = (function () {
              the zoom handler sets). */
           const c = ringCentroid(g.coordinates[0]);
           if (c && polyAreaOf(g.coordinates[0]) > 900) {
-            L.marker([c[1], c[0]], {
+            const dm = L.marker([c[1], c[0]], {
               pane: "vectors", interactive: false,
               icon: L.divIcon({ className: "excdepth", iconSize: [0, 0],
                 html: `<span>${d === 1 ? "1.0" : fmt(d, 1)} ft</span>` })
             }).addTo(grp);
+            /* v15 §2.2: the CSS zoom gate stays (a display:none label has no box
+               at all, so the engine treats it as absent); what the engine adds
+               on top is that two of these can no longer sit on each other. */
+            SBMM.labels.add({ key: `depth:${Math.round(c[0] / 10)}:${Math.round(c[1] / 10)}`,
+                              priority: SBMM.labels.PRI.depth, marker: dm,
+                              owner: "gis:exc", latlng: [c[1], c[0]] });
           }
         } else {
           lyr = L.polygon(rings, {
@@ -167,7 +168,8 @@ SBMM.designGIS = (function () {
 
     const on = !!ON[spec.key];
     const row = SBMM.addLayerRow("design", `${esc(spec.name)} (${spec.count})`, grp,
-      { id: "gis_" + spec.key, checked: on, swatch: isExc ? EXC_1FT : col });
+      { id: "gis_" + spec.key, checked: on, swatch: isExc ? EXC_1FT : col,
+        sub: subName || "" });
     row.row.title = `${spec.name} — ${spec.count} features. ${spec.provenance}`
       + (isExc ? " Styled by excavation depth: 1.0 ft solid, 0.5 ft dashed." : "");
     groups[spec.key] = grp;
@@ -245,10 +247,12 @@ SBMM.designGIS = (function () {
         + `The marker sits at the centroid of this sheet's limit of excavation because `
         + `the leader itself survives only as paper-space text.</span>`).openPopup());
       mk.addTo(grp);
-      L.marker([py, px], {
+      const hm = L.marker([py, px], {
         pane: "vectors", interactive: false,
         icon: L.divIcon({ className: "excdepth half", iconSize: [0, 0], html: `<span>6 in</span>` })
       }).addTo(grp);
+      SBMM.labels.add({ key: `depth6:${o.sheet}:${i}`, priority: SBMM.labels.PRI.depth + 1,
+                        marker: hm, owner: "gis:exc", latlng: [py, px] });
     }
   }
 
@@ -296,6 +300,39 @@ SBMM.designGIS = (function () {
                  props: p, geom: f.geometry });
     }
     return out;
+  }
+
+  /* v15 §3.1 — everything rings3d() does NOT draw. It returns only the design
+     group's POLYGONS, so EA's own design LINES (daylight, grade, haul) and the
+     whole boundary and existing-conditions half of the payload — lot lines, the
+     OU, parcels, the water bodies, buildings, roads, fences and the utility
+     points — were on in 2D and simply absent in 3D. They come back grouped by
+     LAYER so js/viewer3d.js can merge each into one draw call and still name
+     the feature a click hits; drawing 580 separate draped lines would cost more
+     than the rest of the overlay put together.
+
+     Visibility is read from SBMM.layerState, not from the checkbox (§1/§4). */
+  function batch3d() {
+    const D = data();
+    if (!D) return [];
+    const out = new Map();
+    for (const f of D.features) {
+      const p = f.properties || {}, g = f.geometry || {};
+      const spec = (D.layers || []).find(l => l.key === p.layer);
+      if (!spec) continue;
+      if (!SBMM.layerState.isOn("design", "gis_" + p.layer)) continue;
+      if (spec.group === "design" && g.type === "Polygon") continue;   // rings3d owns these
+      if (!out.has(p.layer))
+        out.set(p.layer, { key: p.layer, color: spec.color || "#cccccc", lines: [], points: [] });
+      const rec = out.get(p.layer);
+      if (g.type === "Polygon")
+        for (const r of g.coordinates) rec.lines.push({ ring: r, closed: true, props: p, geom: g });
+      else if (g.type === "LineString")
+        rec.lines.push({ ring: g.coordinates, closed: false, props: p, geom: g });
+      else if (g.type === "Point")
+        rec.points.push({ x: g.coordinates[0], y: g.coordinates[1], props: p, geom: g });
+    }
+    return [...out.values()];
   }
 
   /* ---------- osnap ---------- */
@@ -359,6 +396,6 @@ SBMM.designGIS = (function () {
              excluded: D.excluded, layers: D.layers };
   }
 
-  return { build, volumeOf, rings3d, snapPaths, geoFeatures, dxfEntities,
+  return { build, volumeOf, rings3d, batch3d, snapPaths, geoFeatures, dxfEntities,
            provenance, counts: null };
 })();

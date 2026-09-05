@@ -41,13 +41,6 @@ SBMM.survey = (function () {
       const k = f.properties && f.properties.layer;
       if (k) (byLayer[k] = byLayer[k] || []).push(f);
     }
-    const host = document.getElementById("investLayers");
-    if (host) {
-      const h = document.createElement("div");
-      h.className = "lsub";
-      h.textContent = "Survey — Aug 2026 (Jacobs)";
-      host.appendChild(h);
-    }
     for (const spec of D.layers) buildLayer(spec);
     SBMM.survey.counts = Object.fromEntries(D.layers.map(l => [l.key, l.count]));
   }
@@ -70,8 +63,10 @@ SBMM.survey = (function () {
       lyr.on("click", () => lyr.bindPopup(SBMM.popups.forGis(p, g)).openPopup());
       lyr.addTo(grp);
     }
+    /* v16: `sub:` declares the sub-group; the tree draws the header. */
     const row = SBMM.addLayerRow("invest", `${esc(spec.name)} (${spec.count})`, grp,
-      { id: "survey_" + spec.key, checked: true, swatch: col });
+      { id: "survey_" + spec.key, checked: true, swatch: col,
+        sub: "Survey — Aug 2026 (Jacobs)" });
     row.row.title = `${spec.name} — ${spec.count} features. ${spec.provenance}`;
     groups[spec.key] = grp;
     rows[spec.key] = row;
