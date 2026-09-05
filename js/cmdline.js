@@ -142,6 +142,26 @@ SBMM.cmd = (function () {
         if (!SBMM.runoff) { toast("this build has no design storm"); return; }
         SBMM.runoff.cmd();
       } },
+    /* v19 Phase 3. Every alias below is checked against the whole flat table by
+       test/check.mjs — a duplicate silently kills the later command's. */
+    { n: "ACCUM",   a: ["ACCUMULATION", "STREAMS", "UPSTREAM"],
+      d: "flow accumulation — how much ground drains through each cell, and the streams over 5 ac (v19)",
+      f: () => {
+        if (!SBMM.accum) { toast("this build has no flow accumulation"); return; }
+        SBMM.accum.cmd();
+      } },
+    { n: "PIPES",   a: ["CAPACITY", "HYDRAULICS", "HGL"],
+      d: "pipe capacity — Manning capacity, the design storm's peak and the hydraulic grade (v19)",
+      f: () => {
+        if (!SBMM.pipes) { toast("this build has no pipe hydraulics"); return; }
+        SBMM.pipes.cmd();
+      } },
+    { n: "SCENARIO", a: ["SCENARIOS", "WHATIF"],
+      d: "scenarios — name a set of assumptions, run it, and compare two to four of them (v19)",
+      f: v => {
+        if (!SBMM.scenarios) { toast("this build has no scenarios"); return; }
+        SBMM.scenarios.cmd(v);
+      }, arg: "new <name>" },
     { n: "CATCH",   a: ["WATERSHED"],
       d: "contributing area upslope of the selected raindrop",
       f: () => {

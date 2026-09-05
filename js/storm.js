@@ -72,6 +72,7 @@ SBMM.storm = (function () {
     paintChip();
     /* v14: the drainage map is an answer about this network, so it goes stale */
     if (SBMM.drainage) SBMM.drainage.markStale();
+    if (SBMM.accum) SBMM.accum.markStale();
     if (!quiet)
       toast(on ? "storm drains assumed working — a raindrop reaching a grate goes down the pipe"
                : "storm drains off — every analysis is ground only");
@@ -92,6 +93,7 @@ SBMM.storm = (function () {
     savePrefs();
     rebuildConduits();
     if (SBMM.drainage) SBMM.drainage.markStale();
+    if (SBMM.accum) SBMM.accum.markStale();
     toast(conduitById[id].id + " marked " + (st === "broken" ? "broken — water stays on the ground here"
                                                             : "working"));
     if (SBMM.viewer3d.isOpen()) SBMM.viewer3d.refreshOverlays();
@@ -341,8 +343,13 @@ SBMM.storm = (function () {
       const broken = statusOf(c.id) === "broken";
       const drawn = !(c.source === "inferred" || c.source === "structures_chain");
       const ll = c.pts.map(p => [p[1], p[0]]);
+      /* v19 §3: the capacity colouring, when js/pipes.js has been asked for it.
+         It answers null unless the mode is on AND that conduit has a ratio, so
+         the layer's own colour is what shows for everything unrated — which,
+         until the invert survey, is all of it. */
+      const cap = (SBMM.pipes && SBMM.pipes.colorFor) ? SBMM.pipes.colorFor(c.id) : null;
       const ln = L.polyline(ll, {
-        pane: "vectors", color: broken ? COL_BROKEN : COL, weight: broken ? 3 : 2.5,
+        pane: "vectors", color: broken ? COL_BROKEN : (cap || COL), weight: broken ? 3 : 2.5,
         opacity: broken ? 1 : .92, lineCap: "round", lineJoin: "round",
         dashArray: broken ? "2 5" : (drawn ? null : "9 6")
       });
@@ -459,6 +466,7 @@ SBMM.storm = (function () {
   }
 
   return { build, wire, data, enabled, setEnabled, toggle, statusOf, setStatus,
+           rebuildConduits,
            conduitsFor, captureFt, rimFor, fallOf, labelOf, shortLabel, isOutfall,
            mouthOf, mouthOfConduit, mouths: () => mouths, MOUTH_SEARCH_FT,
            node: id => byId[id] || null, conduit: id => conduitById[id] || null,

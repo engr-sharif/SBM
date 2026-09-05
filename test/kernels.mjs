@@ -3118,12 +3118,18 @@ function pipeJobFrom(NET, M, flows) {
     conduits: NET.conduits.map(c => {
       const a = elev(c.from), b = elev(c.to);
       const L = c.length_ft || 0;
-      const S = (a.z != null && b.z != null && L > 0) ? (a.z - b.z) / L : null;
+      /* a slope needs two elevations of the SAME kind (js/pipes.js jobFor): one
+         surveyed invert against one lidar ground is the pipe against the top of
+         the sandbags, and comes out adverse */
+      const mixed = (a.z != null && b.z != null) && (a.surveyed !== b.surveyed);
+      const S = (a.z != null && b.z != null && L > 0 && !mixed) ? (a.z - b.z) / L : null;
       return { id: c.id, from: c.from, to: c.to, length_ft: L,
                diameter_in: c.size_in == null ? null : c.size_in,
                n: c.material && PIPE_N[c.material] != null ? PIPE_N[c.material] : null,
                material: c.material || null,
-               slope: S, slope_source: (a.surveyed && b.surveyed) ? "invert" : "rim",
+               slope: S,
+               slope_source: mixed ? "mixed invert and lidar ground — not a slope"
+                                   : (a.surveyed && b.surveyed) ? "invert" : "rim",
                slope_provisional: !(a.surveyed && b.surveyed),
                inflow_cfs: flows ? (flows[c.id] == null ? null : flows[c.id]) : null,
                next: nextOf[c.id] };

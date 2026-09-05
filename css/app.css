@@ -1978,3 +1978,8 @@ table.dspop.runoffT td.v{font-family:var(--mono)}
 /* the provisional-rainfall warning: red, and it stays red until the Atlas 14
    export replaces the baked table */
 .res .note.bad,.rnProv{color:var(--red);border-left:2px solid var(--red);padding-left:7px}
+
+/* v19 §4: the scenario picker on the Scenarios card. Nothing new in the
+   stacking band — these are ordinary rows inside a results card. */
+.scnPick{display:inline-flex;align-items:center;gap:4px;white-space:nowrap;margin-right:8px}
+.scnPick input{margin:0}
