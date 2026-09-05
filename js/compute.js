@@ -343,6 +343,175 @@ var SBMM_COMPUTE = (function SBMMComputeModule() {
     } catch (e) { wRelease(); wasmFail(e); return null; }
   }
 
+  /* ---- drainage -----------------------------------------------------------
+     v14 Phase 1, ported WHOLE — sections 1 to 7, the polygon tracing and the
+     longest flow paths included. That is deliberate and it is the one place
+     the split is different from the other kernels: at 2 ft the grid is 21.6
+     million cells, so `term`, `firstL`, `pointer` and `pondId` are 86 MB
+     EACH, and handing four of them back across the ABI would cost more than
+     the loops save. What comes back is what the card reads — the decimated
+     label rasters and the three tables, with their rings and their paths.
+
+     What stays here: `ringMask` + `dilateMask` for Clear Lake (a mask the
+     kernel is handed), the `pointInPoly` test for each conduit outlet, and
+     the naming — the kernel answers in indices and this turns them into the
+     ids, the toFixed strings and the shape js/drainage.js expects. */
+  function wasmDrainage(job, onProgress) {
+    var t0 = Date.now();
+    var g = job.grid, w = g.sw, h = g.sh, cell = g.cell, z = g.z, n = w * h;
+    var X0 = g.x0 + g.i0 * cell, Y0 = g.y0 + g.j0 * cell;
+    var CD = (job.conduits && job.conduits.length) ? job.conduits : null;
+    var nc = CD ? CD.length : 0, k, i;
+    var stride = Math.max(1, (job.stride | 0) || 1);
+    var dw = Math.max(1, Math.ceil(w / stride)), dh = Math.max(1, Math.ceil(h / stride));
+
+    /* Clear Lake, so a run that leaves the survey can say WHICH way it left */
+    var lake = null;
+    if (job.lakeRing && job.lakeRing.length >= 3) {
+      lake = ringMask(job.lakeRing, w, h, cell, X0, Y0);
+      lake = dilateMask(lake, w, h, Math.round((job.lakeBuffer == null ? 10 : job.lakeBuffer) / cell));
+    }
+
+    var cix = new Float64Array(nc), ciy = new Float64Array(nc), crim = new Float64Array(nc);
+    var cox = new Float64Array(nc), coy = new Float64Array(nc), cnext = new Int32Array(nc);
+    var coutf = new Uint8Array(nc), clake = new Uint8Array(nc), cdIx = {};
+    for (k = 0; k < nc; k++) cdIx[CD[k].id] = k;
+    for (k = 0; k < nc; k++) {
+      var C1 = CD[k];
+      cix[k] = C1.ix; ciy[k] = C1.iy;
+      crim[k] = (C1.rim == null || !isFinite(C1.rim)) ? NaN : C1.rim;
+      cox[k] = C1.ox; coy[k] = C1.oy;
+      cnext[k] = (C1.next != null && cdIx[C1.next] != null) ? cdIx[C1.next] : -1;
+      coutf[k] = C1.outfall ? 1 : 0;
+      clake[k] = (job.lakeRing && job.lakeRing.length >= 3 &&
+                  pointInPoly(C1.ox, C1.oy, job.lakeRing)) ? 1 : 0;
+    }
+
+    var dTerm, dFirst, buf;
+    try {
+      var pz = wPutF32(z);
+      var pix = wPutF64(cix), piy = wPutF64(ciy), prim = wPutF64(crim);
+      var pox = wPutF64(cox), poy = wPutF64(coy), pnx = wPutI32(cnext);
+      var pof = wPutU8(coutf), plk = wPutU8(clake);
+      var plake = lake ? wPutU8(lake) : 0;
+      var pdt = wAlloc(dw * dh * 4), pdf = wAlloc(dw * dh * 4);
+      var rc = W.drainage(pz, w, h, cell, X0, Y0,
+                          job.minPondDepth == null ? 0.25 : job.minPondDepth,
+                          stride, job.longest === false ? 0 : 1,
+                          pix, piy, prim, pox, poy, pnx, pof, plk, nc,
+                          job.captureFt == null ? 3 : job.captureFt,
+                          plake,
+                          job.outlineTol == null ? cell * stride : job.outlineTol,
+                          job.minPolyCells == null ? 8 : job.minPolyCells,
+                          job.maxPolys == null ? 240 : job.maxPolys,
+                          job.maxPonds == null ? 60 : job.maxPonds,
+                          pdt, pdf);
+      if (rc !== 0) throw new Error("drainage refused (" + rc + ")");
+      dTerm = new Int32Array(w32(pdt, dw * dh));
+      dFirst = new Int32Array(w32(pdf, dw * dh));
+      buf = wOut();
+      wRelease();
+    } catch (e) { wRelease(); wasmFail(e); return null; }
+
+    var dv = new DataView(buf.buffer), o = 0;
+    var gi = function () { var v = dv.getInt32(o, true); o += 4; return v; };
+    var gf = function () { var v = dv.getFloat64(o, true); o += 8; return v; };
+    var gRings = function () {
+      var nr = gi(), out = new Array(nr), r, q, np;
+      for (r = 0; r < nr; r++) {
+        np = gi();
+        var pts = new Array(np);
+        for (q = 0; q < np; q++) { pts[q] = [dv.getFloat64(o, true), dv.getFloat64(o + 8, true)]; o += 16; }
+        out[r] = pts;
+      }
+      return out;
+    };
+    var gPath = function () {
+      var np = gi(), pts = new Array(np), q;
+      for (q = 0; q < np; q++) { pts[q] = [dv.getFloat64(o, true), dv.getFloat64(o + 8, true)]; o += 16; }
+      return pts;
+    };
+
+    var dwR = gi(), dhR = gi(), pn = gi();
+    var loops = gi(), flats = gi(), pondSinks = gi(), surveyed = gi(), nSinks = gi();
+    var nLS = gi(), loopSample = [];
+    for (k = 0; k < nLS; k++) {
+      var lx = gf(), ly = gf(), lz = gf(), lp = gi(), llv = gf(), lin = gi();
+      loopSample.push({ x: lx, y: ly, z: lz, pond: lp,
+                        level: isNaN(llv) ? null : +llv.toFixed(2),
+                        inlet: lin >= 0 && CD ? CD[lin].id : null });
+    }
+    var a2 = cell * cell;
+    var KIND = ["lake", "off", "loop", "flat", "outfall", "pond"];
+
+    var nS = gi(), outSinks = [];
+    for (k = 0; k < nS; k++) {
+      var lab = gi(), kind = gi(), param = gi(), sx = gf(), sy = gf();
+      var cells = gi(), slong = gf(), sslope = gf();
+      var rings = gRings(), path = gPath();
+      var id = kind === 4 ? "outfall:" + CD[param].id : (kind === 5 ? "pond:" + param : KIND[kind]);
+      outSinks.push({ label: lab, id: id, kind: KIND[kind],
+                      via: kind === 4 ? CD[param].id : null,
+                      x: sx, y: sy, cells: cells, area_ft2: cells * a2,
+                      rings: rings, path: path,
+                      longest_ft: +slong.toFixed(1),
+                      meanSlope_pct: cells ? +(sslope / cells).toFixed(2) : 0 });
+    }
+
+    var nP = gi(), pondOut = [];
+    for (k = 0; k < nP; k++) {
+      var pl = gi(), pid = gi(), lvl = gf(), zmin = gf(), pc = gi(), sumZ = gf();
+      var via = gi(), outIdx = gi(), ox = gf(), oy = gf(), ex = gf(), ey = gf();
+      var termAt = gi(), fc = gi(), flg = gf(), fsl = gf();
+      var prings = gRings(), crings = gRings();
+      pondOut.push({ label: pl, id: "pond:" + pid, level: +lvl.toFixed(2),
+                     depth_ft: +(lvl - zmin).toFixed(2),
+                     cells: pc, area_ft2: pc * a2,
+                     volume_ft3: (lvl * pc - sumZ) * a2,
+                     rings: prings,
+                     entry: [ex, ey],
+                     outlet: outIdx < 0 ? null : [ox, oy],
+                     via: (CD && via >= 0) ? CD[via].id : null,
+                     terminal: termAt,
+                     contributing_cells: fc, contributing_area_ft2: fc * a2,
+                     contributing_rings: crings,
+                     longest_ft: +flg.toFixed(1),
+                     meanSlope_pct: fc ? +(fsl / fc).toFixed(2) : 0 });
+    }
+
+    var nI = gi(), inletOut = [];
+    for (k = 0; k < nI; k++) {
+      var il = gi(), icd = gi(), iterm = gi(), ic = gi(), ilg = gf(), isl = gf(), ivia = gi();
+      var irings = gRings();
+      inletOut.push({ label: il, id: CD[icd].id, x: CD[icd].ix, y: CD[icd].iy, rim: CD[icd].rim,
+                      outfall: !!CD[icd].outfall,
+                      terminal: iterm,
+                      cells: ic, area_ft2: ic * a2,
+                      through_cells: ic + ivia, through_area_ft2: (ic + ivia) * a2,
+                      rings: irings,
+                      longest_ft: +ilg.toFixed(1),
+                      meanSlope_pct: ic ? +(isl / ic).toFixed(2) : 0 });
+    }
+    inletOut.sort(function (a, b) { return b.through_cells - a.through_cells; });
+
+    if (onProgress) onProgress(1);
+    return {
+      result: {
+        cell: cell, stride: stride, w: dwR, h: dhR, x0: X0, y0: Y0, dCell: cell * stride,
+        gw: w, gh: h,
+        sinks: outSinks, ponds: pondOut, inlets: inletOut,
+        firstBase: { sinks: 0, ponds: nSinks, inlets: nSinks + pn },
+        labels: dTerm, first: dFirst,
+        surveyedCells: surveyed, surveyedArea_ft2: surveyed * a2,
+        pondsTotal: pn - 1, loops: loops, loopSample: loopSample,
+        flats: flats, pondSinks: pondSinks,
+        conduits: nc,
+        ms: Date.now() - t0
+      },
+      transfer: [dTerm.buffer, dFirst.buffer]
+    };
+  }
+
   /* ---- flowpath -----------------------------------------------------------
      The WALK is in the crate (the inlet index, the fill, the descent, the
      fill-spill flood, the escape test, the conduit chain); everything that is
@@ -3135,6 +3304,8 @@ var SBMM_COMPUTE = (function SBMMComputeModule() {
   }
 
   function drainage(job, onProgress) {
+    /* v21 dispatch (docs/V21_WASM_SPEC.md) — the port of everything below. */
+    if (wasmAvailable()) { var Dw = wasmDrainage(job, onProgress); if (Dw) return Dw; }
     var t0 = Date.now();
     var g = job.grid, w = g.sw, h = g.sh, cell = g.cell, z = g.z, n = w * h;
     var X0 = g.x0 + g.i0 * cell, Y0 = g.y0 + g.j0 * cell;
