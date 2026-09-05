@@ -1,0 +1,108 @@
+# The test matrix on GitHub's runners (v18 §4).
+#
+# Five jobs in parallel put the whole matrix at roughly the length of its
+# slowest step, instead of the 40-70 minutes it takes queued behind ONE
+# browser on the two-core cloud box. Each job runs the same runner an agent
+# runs locally — test/run.mjs --only <step> — so there is one definition of
+# what a step is, and the logs and screenshots come back as artifacts.
+#
+# COST: Actions is free while this repository is PUBLIC. This repository is
+# private (site imagery and sample results for an active Superfund project —
+# see CLAUDE.md "Sensitivity"), so every run spends Actions minutes from the
+# account's allowance. That is why this runs on pull_request and on demand,
+# never on every push. Trim `jobs` or use `workflow_dispatch` only if the
+# allowance gets tight.
+#
+# The Pages deployment is untouched: it is configured in the repository's
+# settings, not here, and this workflow never writes to a branch.
+
+name: test matrix
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: matrix-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  matrix:
+    name: ${{ matrix.step }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - step: e2e:folder
+            also: split3d:folder
+          - step: e2e:dist
+            also: split3d:dist
+          - step: field
+            also: ""
+          - step: tablet:file
+            also: tablet:http
+          - step: perf
+            also: audit,audit2
+          - step: kernels
+            also: touch_unit
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('test/package.json') }}
+
+      - name: Install test dependencies
+        working-directory: test
+        run: npm install --no-audit --no-fund
+
+      - name: Install Chromium
+        working-directory: test
+        run: npx playwright install --with-deps chromium
+
+      - name: Preflight
+        run: node test/run.mjs --only check
+
+      - name: Run the step
+        run: |
+          steps="${{ matrix.step }}${{ matrix.also && format(',{0}', matrix.also) || '' }}"
+          echo "running: $steps"
+          node test/run.mjs --only "$steps" --parallel 1
+
+      - name: Job summary
+        if: always()
+        run: |
+          {
+            echo '### ${{ matrix.step }}'
+            echo '```'
+            tail -n 40 test/.logs/PROGRESS 2>/dev/null || echo 'no PROGRESS file'
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: logs-${{ strategy.job-index }}
+          path: test/.logs/
+          if-no-files-found: ignore
+
+      - name: Upload screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: shots-${{ strategy.job-index }}
+          path: test/shots/*.png
+          if-no-files-found: ignore
