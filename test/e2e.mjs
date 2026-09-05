@@ -6433,7 +6433,16 @@ await page.waitForTimeout(400);
 errBeforeReload = errors.length;
 await page.reload();
 await page.waitForSelector("#loading", { state: "hidden", timeout: 300000 });
-await page.waitForTimeout(1500);
+/* v18: wait on the CONDITION, not on a clock. The rows re-register and the
+   tree re-applies its draw order after the loader hides, and under a parallel
+   matrix that took longer than the fixed 1.5 s this used to wait (the one flake
+   the runner exposed). The assertion below is unchanged; only the wait is. */
+await page.waitForFunction(() => {
+  const d = SBMM.layerTree.drawIndex("framework", "dus");
+  const p = SBMM.layerTree.drawIndex("framework", "piles");
+  return p >= 0 && d > p;
+}, null, { timeout: 60000 }).catch(() => {});
+await page.waitForTimeout(300);
 treeReload = await page.evaluate(() => ({
   order: [...document.querySelectorAll('#projLayers > .lyr')].map(r => r.dataset.lid),
   idx: { dus: SBMM.layerTree.drawIndex("framework", "dus"),
