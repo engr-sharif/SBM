@@ -94,12 +94,22 @@ SBMM.touch = (function () {
     return v;
   }
 
-  /* What the DEVICE is, before field mode has its say. */
+  /* What the DEVICE is, before field mode has its say.
+
+     The phone test is on the LONGER edge of the viewport, not on its width,
+     and that is the whole difference between an iPad and a phone. An iPad in
+     PORTRAIT is 834 x 1194: 834 px wide, which a width-only rule reads as a
+     phone and lays out as one — the exact thing v17 exists to avoid, and the
+     first thing test/e2e_tablet.mjs caught. Its longer edge is 1194, and a
+     viewport with 1194 px on any side holds the desktop layout in the other
+     orientation, so it is a tablet in both. Split View at 507 x 834 has 834 as
+     its longer edge and IS a phone, which is what §1 asks for; a Pixel 7 at
+     412 x 839 is 839 and stays one. The 900-px threshold is v11's, unmoved. */
   function sniff() {
     const ov = override();
     if (ov === "off") return "desktop";
     if (ov !== "on" && !touchCapable()) return "desktop";
-    return window.innerWidth <= 900 ? "phone" : "tablet";
+    return Math.max(window.innerWidth, window.innerHeight) <= 900 ? "phone" : "tablet";
   }
 
   /* What the APP is running as. Field mode wins the phone half, because a

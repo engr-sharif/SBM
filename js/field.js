@@ -69,9 +69,17 @@ SBMM.field = (function () {
     catch (e) { return null; }
   }
   function remember(v) { try { localStorage.setItem(STORE, v ? "1" : "0"); } catch (e) {} }
+  /* v17: ONE rule, in one place. js/touch.js owns the phone/tablet line now —
+     an iPad in portrait is 834 px WIDE and must not be a phone, so the test is
+     on the longer edge (see the comment there) — and field mode has to agree
+     with it or boot would put a portrait iPad into the phone layout while
+     `SBMM.touch.profile()` called it a tablet. The v11 rule stays here as the
+     fallback for a build where js/touch.js is somehow absent; it is the same
+     rule with the same 900-px threshold, read on one axis. */
   function sniff() {
+    if (SBMM.touch && SBMM.touch.sniff) return SBMM.touch.sniff() === "phone";
     const coarse = !!(window.matchMedia && window.matchMedia("(pointer: coarse)").matches);
-    return coarse && window.innerWidth <= 900;
+    return coarse && Math.max(window.innerWidth, window.innerHeight) <= 900;
   }
   function autoDetect() {
     const s = stored();
