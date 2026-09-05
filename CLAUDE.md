@@ -2191,15 +2191,51 @@ tables.
   `wf32()`/`w32()` are called AFTER the last `wAlloc` of a call, never before; a
   stale view reads as length 0 with no error at all.
 
+### What it cost, and the one target that was not met
+
+Node on the build box, A/B inside one run (`node test/kernels.mjs --only wasm`
+prints these itself, and the drainage rows come from `--only drainage`):
+
+| job | js | wasm | |
+|---|---|---|---|
+| `contours`, 400 x 400 cone | 292 ms | 12 ms | 24x |
+| `contours`, 1001 x 1001 site window at 10 ft | 199 ms | 12 ms | 17x |
+| `volume`, Pile 1 perimeter TIN | 10 ms | 2 ms | 5x |
+| `overtop`, Herman + 19 conduits | 4,382 ms | 2,127 ms | 2.1x |
+| `fillDem`, Herman window 1757 x 1208 | 1,357 ms | 634 ms | 2.1x |
+| `flowpath`, the §6.8 drop chained with storm on | 4,431 ms | 2,345 ms | 1.9x |
+| `drainage`, whole site at 4 ft | 1,265 ms | 713 ms | 1.8x |
+| `drainage`, whole site at 2 ft (warm) | 5,490 ms | 3,749 ms | 1.5x |
+| the 100-raindrop drainage identity | 83.5 s | 58.7 s | 1.4x |
+
+**The spec's 2-second target for the 2-ft drainage map is NOT met and will not
+be met by compiling harder.** At 21.6 M cells the kernel touches half a dozen
+86-MB arrays several times each: it is bound by memory bandwidth, not by
+arithmetic, and WebAssembly does not change memory bandwidth. Every other §4
+target is met (contours ≥ 3x, volume ≥ 5x, overtop well under 0.25 s on its own
+flood). Do not chase the drainage number by changing what the kernel computes —
+that is §6, not in scope.
+
+**The first 2-ft run in a fresh worker is ~5.7 s, not 3.7 s**, because it pays
+for growing linear memory to ~600 MB. Every run after it in the same worker is
+the faster number, and the app re-runs this job whenever a storm switch moves,
+so the warm number is the one a user sees twice onwards. `drop()` returns the
+arrays to the wasm allocator but never shrinks the memory, which is what makes
+that true.
+
 ### Two things NOT ported, and why
 
 - **`simplifyPath` as an exported kernel.** It is small and it runs on the main
   thread, so a call across the ABI would cost more than the loop (spec §2 says
   so). It IS in the crate as an internal helper, because `marchOne`, `traceMask`
   and `contoursFromGrid` all call it inside their own loops.
-- **`runoff`'s convolution.** Measure it before reaching for it: the whole
-  `runoff` kernel is ~50 ms and the convolution is ~190 k multiply-adds per
-  catchment over three catchments — about a millisecond. The kernel's cost is
-  the class-share pass over the label raster, not the convolution, and a wasm
-  call per catchment for a 1 ms loop would be slower than the loop. Recorded as
-  a finding, not a gap.
+- **`runoff`'s convolution — measured, and deliberately left alone.** The whole
+  `runoff` kernel over the site is **122 ms**; its convolution is `nStorm x nUH`
+  per catchment, which at the kernel's own time base is 103–195 k multiply-adds,
+  **0.2–0.3 ms a catchment, 0.6–0.8 ms for all three** — well under 1 % of the
+  kernel. The cost is the class-share pass over the label raster, not the
+  convolution, and a wasm call per catchment (with its array copies) would cost
+  more than the loop it replaced. Recorded as a finding, not a gap; the
+  measurement is `scratchpad/conv.mjs`'s shape and is trivial to repeat. If a
+  future storm makes `nStorm x nUH` an order of magnitude bigger, measure again
+  before assuming the answer still holds.
