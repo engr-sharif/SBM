@@ -17,6 +17,50 @@ All three are offline-only by design. Nothing in this app calls out to the inter
 
 ---
 
+## v9.17 — both discharge pipes, and the water stays in them
+
+You said it plainly: *"for the Herman impoundment you are using the culvert discharge
+pipes but there are 2 pipes and you only used one, so make sure you account for that and
+the flow goes to the two discharge pipes; make sure the system knows that the water flows
+through the pipes and out to Clear Lake; right now I think it shows that it goes directly
+and makes its own path."*
+
+Two separate things were wrong, and both are fixed.
+
+**The network only connected one barrel.** Jacobs surveyed two 24-in HDPE pipes through
+the sandbag wall in August 2026, inverts 1,341.53 (South) and 1,341.57 (North). EA's drawn
+storm line starts 13 ft west of where the survey plots the pipes' west ends, and the app
+carried one inferred link across that gap — from the **North** pipe only. So the South
+barrel, which has the **lower** invert and is therefore the one the water actually leaves
+through, ended 13 ft short of anything, and the analysis had to put its water back on the
+ground to find the storm line again. There are now two links, one per barrel
+(`pipe_to_main`, `pipe_to_main_s`), both inferred and both recorded as such: 44 structures
+and **27** conduits.
+
+**The discharge route was a raindrop, not the pipe.** The overtopping card's "pipe
+discharge route" was traced by dropping a raindrop at the North pipe's plotted west end
+and letting it find its own way — a terrain analysis that happens to meet a pipe, which is
+exactly the "makes its own path" you saw. It is now built from the **conduit chain
+itself**: the sandbag wall → both 24-in barrels → both links → EA's storm main → the
+junction → the Clear Lake outfall. **812.8 ft of it is pipe and none of it is ground** —
+ordinary descent resumes at the outfall, where the pipe ends, and runs the last 137 ft
+into Clear Lake. The card says so in those words: *"discharging through the two 24-in
+pipes → pipe to main → storm main → Clear Lake outfall"*, with *"no ground between the
+sandbag wall and the outfall"* under it. In 3D both barrels are drawn as pipes and the
+moving water runs through both.
+
+A **raindrop** dropped inside the impoundment still takes the lower invert first — that is
+what one drop does, and it is right — but its card now says the outlet has two barrels and
+which one that drop took.
+
+**Nothing else moved.** Herman's surveyed stages are unchanged (first discharge 1,341.55
+ft / 109.16 ac-ft, sandbag crest 1,343.54, lidar rim spill 1,343.84, freeboard 7.39 ft, 44
+stage rows); the drainage map's 100-out-of-100 identity and every catchment acreage are
+unchanged (Clear Lake 403.05 ac, off-survey 293.45, the outfall 282.00). The one number
+that moved is the raindrop's pipe length out of the impoundment, 813.3 → **812.8 ft**,
+because the South barrel now goes straight into the main instead of stepping across three
+feet of ground to the North one.
+
 ## v9.16 — the staging area and the borrow area go on the map
 
 The two plan sheets you asked for are now placed. **Fourteen of the twenty drawings are on

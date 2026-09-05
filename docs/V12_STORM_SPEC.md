@@ -59,7 +59,8 @@ The network, upstream to downstream (all coordinates EPSG:6418 ft):
 | `road_drain_9` | grate Spot 15 | branch start (6371958.6, 2127426.4), a bend node with no structure | inferred straight | 157 ft |
 | `branch` | branch start | junction grate `STRM INLET SQUARE` (6371825.8, 2127494.2) | CAD line `E943F` | 145 ft |
 | `herman_pipe_n`, `herman_pipe_s` | the surveyed inverts at the wall (6372041.23, 2127486.62) / (6372041.79, 2127483.07), invert 1341.57 / 1341.53 | the plotted west ends (6372025.33, 2127481.72) / (6372025.85, 2127478.79) | Jacobs survey Aug 2026 (`data/survey_2026.json`) | 24 in corrugated HDPE, two barrels |
-| `pipe_to_main` | the North pipe's plotted west end | the drawn storm line's east end (6372013.4, 2127476.1) | **inferred**: EA's line starts 13 ft west of the plotted pipe end | the connection the user asked for |
+| `pipe_to_main` | the **North** pipe's plotted west end | the drawn storm line's east end (6372013.4, 2127476.1) | **inferred**: EA's line starts 13 ft west of the plotted pipe end | the connection the user asked for |
+| `pipe_to_main_s` | the **South** pipe's plotted west end | the same point on the drawn storm line | **inferred**, same reason | added by the engineer's ruling of 2026-09-05: *both* barrels are the impoundment's discharge. Until then the South pipe — the lower invert, and the one the water leaves through — ended 13 ft short of anything and its water left the pipe on to the ground |
 | `storm_main_upper` | storm line east end | junction grate | CAD `E943C` vertices from its east end to the junction | ~200 ft |
 | `storm_main_lower` | junction grate | Clear Lake outfall (6371273.0, 2127487.9) — `outfall` node | CAD `E943C` vertices from the junction west | ~590 ft; the outfall is the end of the drawn line at the shore |
 | `south_culvert` | `STRM FES` (6372740.6, 2127345.2) | `STRM FES` (6372717.9, 2127378.2) | CAD mark `E5D2E`, 40 ft under the south road | drains the ditch south of the road into Herman; not part of the grate chain |
@@ -204,10 +205,18 @@ Implementation notes, which are rulings:
   second-order effect: a depression drained by a grate still looks full to a
   neighbouring flood's escape test).
 
-`overtop` and `catchment` are unchanged. The Herman pipe discharge route is a
-raindrop dropped at the North pipe's plotted west end; that node is the inlet
-of `pipe_to_main`, so with the network on the route reads pipes → storm main
-→ outfall, and its card row says how far of it is in pipe.
+`overtop` and `catchment` are unchanged.
+
+**Amended 2026-09-05 (ruling).** The Herman pipe discharge route WAS a raindrop
+dropped at the North pipe's plotted west end — a terrain analysis that happens
+to meet a pipe, which could only ever show one barrel and which the engineer
+read, correctly, as the water "making its own path". It is now assembled from
+the CONDUIT CHAIN itself (`js/water.js` `pipeChainRoute()`): the surveyed
+inverts at the sandbag wall → both 24-in barrels → both links → EA's storm main
+→ the junction → the Clear Lake outfall, 812.8 ft of it in pipe and **none of it
+on the ground**. Ordinary descent resumes at the outfall, where the pipe ends.
+The kernel is untouched: the route is an ordinary `flow` feature whose `legs`
+are read out of the payload and whose tail is one ordinary `flowpath` run.
 
 ## 5. Application
 
