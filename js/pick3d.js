@@ -255,7 +255,11 @@ SBMM.pick3d = (function () {
     /* the orbit radius is exactly "how far away is what I am looking at", which
        is the number a screen-space tolerance has to be built from */
     const dist = Math.max(60, (ctx.camDist && ctx.camDist()) || 1000);
-    const t = clamp(dist * 0.006, 3, 90);
+    /* v17 §3: a fingertip is ~44 px across against a mouse cursor's 1, so the
+       screen tolerance doubles under body.touch. It is still a SCREEN
+       tolerance — the distance scaling above is what keeps it one. */
+    const coarse = !!(SBMM.touch && SBMM.touch.on() && SBMM.touch.lastPointer() === "touch");
+    const t = clamp(dist * (coarse ? 0.012 : 0.006), 3, coarse ? 180 : 90);
     rc.params.Points = rc.params.Points || {};
     rc.params.Line = rc.params.Line || {};
     rc.params.Points.threshold = t;
@@ -480,7 +484,10 @@ SBMM.pick3d = (function () {
     handleGroup.scale.z = ctx.exag();
     const geo = new THREE.SphereGeometry(1, 8, 8);
     const mat = new THREE.MeshBasicMaterial({ color: 0xFFD34D, depthTest: false });
-    const r = clamp(ctx.camera.position.length() * 0.004, 3, 40);
+    /* 44-px hit spheres under body.touch (§3) — twice the mouse radius, for
+       the same reason the raycaster thresholds double */
+    const coarse = !!(SBMM.touch && SBMM.touch.on() && SBMM.touch.lastPointer() === "touch");
+    const r = clamp(ctx.camera.position.length() * (coarse ? 0.008 : 0.004), 3, coarse ? 80 : 40);
     f.pts.forEach((p, i) => {
       const [z] = SBMM.elev(p[0], p[1]);
       const m = new THREE.Mesh(geo, mat);
@@ -519,7 +526,9 @@ SBMM.pick3d = (function () {
     /* the entry is pushed on pointer UP, where the "after" state exists — see
        the same rule in js/draw.js */
     dragging = { f, i: v.i, before: f.pts.map(q => q.slice()) };
-    ctx.dom.setPointerCapture && ctx.dom.setPointerCapture(e.pointerId);
+    /* capture throws for a pointer id the browser has no active pointer for,
+       which is exactly what `touchDrag`'s synthetic event is */
+    try { ctx.dom.setPointerCapture && ctx.dom.setPointerCapture(e.pointerId); } catch (err) {}
   }
   function onDrag(e) {
     if (!dragging) return;
@@ -563,15 +572,42 @@ SBMM.pick3d = (function () {
 
   function wireCanvas() {
     const dom = ctx.dom;
-    dom.addEventListener("pointermove", onMove);
+    /* v17 §3: hover is a mouse and a PEN (an M-series iPad's Pencil hovers);
+       a finger has no hover at all, and a finger's press is how the orbit
+       starts — so touch never enters the drag path here. It reaches the same
+       code through `touchDrag` from js/viewer3d.js's long-press instead. */
+    const notFinger = e => e.pointerType !== "touch";
+    dom.addEventListener("pointermove", e => { if (notFinger(e)) onMove(e); });
     dom.addEventListener("pointerleave", () => clearHover());
-    dom.addEventListener("pointerdown", onDown, true);
-    dom.addEventListener("pointermove", onDrag, true);
-    dom.addEventListener("pointerup", onUp, true);
-    dom.addEventListener("pointercancel", onUp, true);
+    dom.addEventListener("pointerdown", e => { if (notFinger(e)) onDown(e); }, true);
+    dom.addEventListener("pointermove", e => { if (notFinger(e)) onDrag(e); }, true);
+    dom.addEventListener("pointerup", e => { if (notFinger(e)) onUp(e); }, true);
+    dom.addEventListener("pointercancel", e => { if (notFinger(e)) onUp(e); }, true);
     document.addEventListener("keydown", onKey);
     SBMM.store.onSelect(() => editHandles());
     SBMM.store.onChange(() => { if (handleGroup) editHandles(); });
+  }
+
+  /* v17 §3 — dragging a vertex handle with a finger.
+     A mouse gets this from a plain press, because a press that does not move
+     is not an orbit. A finger's press IS how the orbit starts, so the gesture
+     has to be asked for: js/viewer3d.js calls `start()` from the recogniser's
+     long-press, and while it returns true the rig feeds `move()` instead of
+     orbiting. The three below are the same onDown/onDrag/onUp the mouse uses,
+     handed a synthetic event — one implementation of the edit, not two. */
+  const touchDrag = {
+    start(x, y) {
+      if (!ctx || !ctx.isOpen() || !handleGroup) return false;
+      onDown(synth(x, y));
+      return !!dragging;
+    },
+    move(x, y) { if (dragging) onDrag(synth(x, y)); },
+    end() { if (dragging) onUp(); },
+    active: () => !!dragging
+  };
+  function synth(x, y) {
+    return { clientX: x, clientY: y, button: 0, pointerId: 1,
+             stopPropagation() {}, preventDefault() {} };
   }
 
   /* called from viewer3d's render loop so the card tracks the camera */
@@ -587,7 +623,15 @@ SBMM.pick3d = (function () {
 
   return {
     register, unregister, registered, registerCad, attach, attached, syncScene,
-    click, onCamera, closeCard, editHandles, stats,
+    click, onCamera, closeCard, editHandles, stats, touchDrag,
+    /* the i-th 3D vertex handle's scene position — the harness needs somewhere
+       real to put a finger, and the console needs somewhere to look */
+    handlePos: i => {
+      if (!handleGroup || !handleGroup.children[i]) return null;
+      const p = handleGroup.children[i].position;
+      return [p.x, p.y * 1, p.z * handleGroup.scale.z];
+    },
+    handleCount: () => (handleGroup ? handleGroup.children.length : 0),
     cardOpen: () => !!card,
     cardHtml: () => (card ? card.querySelector(".p3body").innerHTML : null)
   };

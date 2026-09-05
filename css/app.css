@@ -9,6 +9,9 @@
      5600       modals: help, command help, the report, the dataset dialog
      7000       toasts, which must be readable over every one of the above
                 (a toast behind a sheet window is a failure the user never sees)
+     4900-4999  v17 touch furniture: the loupe, the Done bar, the tooltip chip.
+                Above the sheet windows (a loupe behind the drawing it
+                magnifies is useless) and below the picker and the modals.
      9000       the password gate (js/gate.js) — the one thing above the toast,
                 because while it is up nothing behind it may be seen or reached
    --------------------------------------------------------------------------- */
@@ -1694,3 +1697,236 @@ body.field.legendopen #mapLegend{display:block;left:8px;right:8px;width:auto;bot
 body.field.legendopen #mapLegend .mlbody{max-height:44vh}
 body.field.legendopen #mapLegend .mlonly{opacity:1;font-size:12px;padding:4px 6px}
 .ltempty{font-size:10.5px;line-height:1.4;padding:3px 6px 6px;color:var(--mut2)}
+
+/* =====================================================================
+   v17 — TOUCH  (docs/V17_TOUCH_SPEC.md §2, §3, §4, §5)
+
+   `body.touch` is the ONE switch, exactly as `body.field` is for the phone.
+   Nothing below applies without it, which is what makes "the desktop is
+   untouched" a property of this stylesheet rather than a promise —
+   test/e2e.mjs, unchanged, is the proof. A phone carries BOTH classes, and
+   everything here is additive to the field block above it.
+
+   Stacking (see the band comment at the top of this file):
+     4900-4999  the touch furniture — the loupe, the Done bar, the tooltip
+                chip. ABOVE the floating sheet windows (4000-4899), because a
+                loupe hidden behind the drawing it magnifies is useless, and
+                BELOW the SHEETS picker (5200), the modals (5600), the toast
+                (7000) and the gate (9000).
+
+   Safe areas: an iPad added to the home screen runs under the notch and the
+   home indicator (`viewport-fit=cover`), so every edge-anchored element pads
+   by env(safe-area-inset-*). The `env()` fallbacks are 0px, so a browser
+   without them lays out exactly as before.
+   ===================================================================== */
+
+/* --- the page itself ---------------------------------------------------- */
+html,body{overscroll-behavior:none}     /* no rubber-band, no pull-to-refresh */
+
+/* 100dvh with the 100vh fallback, written as two declarations so a browser
+   that does not know dvh keeps the first. On iOS Safari 100vh is the TALLEST
+   the viewport ever gets, so with the URL bar shown the status bar sits below
+   the fold; dvh is the height it actually has right now. Identical to 100% on
+   every desktop browser, which is why it is safe to state globally. */
+html,body{height:100vh;height:100dvh}
+
+body.touch{-webkit-touch-callout:none}
+body.touch #stage,
+body.touch #topbar,
+body.touch #status,
+body.touch .dockbody,
+body.touch #v3dNav{user-select:none;-webkit-user-select:none}
+body.touch input,
+body.touch textarea,
+body.touch [contenteditable]{user-select:text;-webkit-user-select:text}
+
+/* 16 px or iOS zooms the whole page on focus, which throws the map away
+   mid-tap. The field block already does this; this is the same rule hoisted
+   to every touch profile. */
+body.touch select,
+body.touch input[type=text],
+body.touch input[type=number],
+body.touch input[type=search],
+body.touch input[type=password],
+body.touch textarea,
+body.touch #cmdIn,
+body.touch #gotoInp,
+body.touch #ltSearch{font-size:16px}
+
+/* no 300-ms delay and no double-tap page zoom on anything that is a control */
+body.touch button,
+body.touch .minib,
+body.touch .toolbtn,
+body.touch .navbtn,
+body.touch .railbtn,
+body.touch .dtab,
+body.touch .ci,
+body.touch label,
+body.touch input[type=checkbox]{touch-action:manipulation}
+/* the gesture surfaces take every pointer themselves */
+body.touch #map,
+body.touch #v3dCanvas,
+body.touch .shview{touch-action:none}
+#v3dCanvas{touch-action:none}
+
+/* --- safe areas --------------------------------------------------------- */
+/* Everything from here to the touch-only controls is scoped `body.touch:not(.field)`.
+   A phone carries BOTH classes, field mode already lays every one of these
+   elements out for itself (docks as bottom sheets, a 26-px status bar, an action
+   bar the map sits above), and these rules land LATER in the file at the same
+   specificity — so unscoped they would silently win over v11's layout and break
+   test/e2e_field.mjs, which has to pass unchanged. The genuinely shared pieces —
+   overscroll, dvh, touch-action, the 16-px control fonts, the loupe, the Done bar,
+   the tooltip chip and the ink palette — are NOT scoped and apply to both. */
+body.touch:not(.field) #topbar{padding-left:calc(10px + env(safe-area-inset-left,0px));
+  padding-right:calc(10px + env(safe-area-inset-right,0px));
+  padding-top:env(safe-area-inset-top,0px);
+  height:calc(var(--topH) + env(safe-area-inset-top,0px))}
+body.touch:not(.field) #leftdock,body.touch:not(.field) #rightdock,body.touch:not(.field) #stage{top:calc(var(--topH) + env(safe-area-inset-top,0px))}
+body.touch:not(.field) #leftdock{padding-left:env(safe-area-inset-left,0px)}
+body.touch:not(.field) #rightdock{padding-right:env(safe-area-inset-right,0px)}
+body.touch:not(.field) #status{height:calc(var(--statusH) + env(safe-area-inset-bottom,0px));
+  padding-bottom:env(safe-area-inset-bottom,0px);
+  padding-left:calc(14px + env(safe-area-inset-left,0px));
+  padding-right:calc(14px + env(safe-area-inset-right,0px))}
+body.touch:not(.field) #toast{bottom:calc(var(--botH) + 52px + env(safe-area-inset-bottom,0px))}
+body.touch:not(.field) #v3dNav{bottom:calc(30px + env(safe-area-inset-bottom,0px));
+  right:calc(14px + env(safe-area-inset-right,0px))}
+body.touch:not(.field) #view3d .v3dbar{padding-left:calc(10px + env(safe-area-inset-left,0px));
+  padding-right:calc(10px + env(safe-area-inset-right,0px))}
+body.touch:not(.field) #watermark{right:calc(10px + env(safe-area-inset-right,0px))}
+
+/* the on-screen keyboard shrinks the VISUAL viewport, not innerHeight —
+   js/touch.js measures it and writes --kbInset */
+:root{ --kbInset:0px }
+body.touch #cmdbar{bottom:calc(var(--statusH) + var(--kbInset))}
+body.touch.field #cmdbar{bottom:calc(var(--fbarH) + 26px + var(--kbInset))}
+body.touch:not(.field) .modal .mbox,
+body.touch:not(.field) #help .box{max-height:calc(100vh - var(--kbInset) - 24px)}
+
+/* --- 44-px targets ------------------------------------------------------ */
+body.touch:not(.field) .toolbtn{min-height:44px;padding:0 11px;font-size:13px}
+body.touch:not(.field) .toolbtn.iconly{min-width:44px;justify-content:center}
+body.touch:not(.field) .minib{min-height:36px;padding:0 11px}
+body.touch:not(.field) .dtab,body.touch:not(.field) .railbtn{min-height:44px}
+body.touch:not(.field) .railbtn{min-width:44px}
+body.touch:not(.field) .navbtn{min-height:44px;min-width:44px;font-size:13px}
+body.touch:not(.field) #v3dCompass{width:82px;height:82px}
+body.touch:not(.field) .lyr{min-height:38px}
+body.touch:not(.field) .lyr input[type=checkbox]{width:19px;height:19px}
+body.touch:not(.field) .ci{min-height:40px;display:flex;align-items:center}
+body.touch:not(.field) .popact .minib,
+body.touch:not(.field) .leaflet-popup-content .minib{min-height:44px;padding:0 12px}
+body.touch:not(.field) .dockgrip{width:12px}
+body.touch:not(.field) #ctxmenu .ci{min-height:44px}
+/* The drafting vertex handles (§5). Leaflet writes the divIcon's `iconSize`
+   as an inline style, which is why the base rule at the top of this file uses
+   `!important` on width/height — so these have to as well, and the negative
+   margins re-centre the bigger circle on the same vertex. */
+body.touch:not(.field) .vtx{width:24px !important;height:24px !important;
+  margin-left:-12px !important;margin-top:-12px !important}
+body.touch:not(.field) .vtx.mid{width:20px !important;height:20px !important;
+  margin-left:-10px !important;margin-top:-10px !important}
+
+/* only under body.touch — the command-bar button and the 3D nav pad */
+.touchonly{display:none !important}
+body.touch .touchonly{display:flex !important}
+body.touch .navpad{display:flex !important}
+
+/* --- the layer tree's hover toolbar gets a tap path (§5) ---------------- */
+/* On the desktop `.ltacts` appears on :hover. A finger has no hover, so under
+   body.touch every row carries a visible "..." and the toolbar is what it
+   opens. The button is a real element rather than CSS `content`, because it
+   has to be tappable — but it is EMPTY of text for the same reason the four
+   glyphs are: a row's textContent is read by several harnesses and by the
+   legend, and four extra characters on every layer name would change what all
+   of them see. */
+.ltmore{display:none}
+/* in FIELD mode the row toolbar is always visible (it has room and no hover), so
+   a ⋯ beside it would be a second way to reach what is already on screen */
+body.field .ltmore{display:none !important}
+body.touch:not(.field) .ltmore{display:flex;align-items:center;justify-content:center;
+  position:absolute;right:2px;top:50%;transform:translateY(-50%);
+  width:32px;height:32px;background:none;border:0;color:var(--mut);cursor:pointer;
+  border-radius:5px;padding:0}
+body.touch .ltmore::before{content:"\22EF";font-size:15px;line-height:1}
+body.touch .ltmore:active{background:var(--panel3);color:var(--acc2)}
+body.touch:not(.field) .lyr:hover .ltacts,
+body.touch:not(.field) .lyr:focus-within .ltacts{display:none}
+body.touch:not(.field) .lyr.ltopen .ltacts{display:flex;background:var(--panel2);
+  border:1px solid var(--line);border-radius:var(--r2);padding:2px}
+body.touch:not(.field) .lyr.ltopen .ltmore{display:none}
+body.touch:not(.field) .ltb{width:36px;height:36px;font-size:13px}
+
+/* --- the loupe (§4/§5) -------------------------------------------------- */
+#touchLoupe{position:fixed;z-index:4960;width:120px;height:120px;border-radius:50%;
+  overflow:hidden;border:2px solid var(--acc);box-shadow:var(--sh3);
+  pointer-events:none;background:var(--bg)}
+#touchLoupe canvas{display:block;width:120px;height:120px}
+#touchLoupe .lpcross{position:absolute;inset:0;pointer-events:none}
+#touchLoupe .lpcross::before,
+#touchLoupe .lpcross::after{content:"";position:absolute;background:var(--gold);opacity:.9}
+#touchLoupe .lpcross::before{left:50%;top:calc(50% - 11px);width:1px;height:22px;transform:translateX(-.5px)}
+#touchLoupe .lpcross::after{top:50%;left:calc(50% - 11px);height:1px;width:22px;transform:translateY(-.5px)}
+
+/* --- the Done bar (§4/§5) ----------------------------------------------- */
+#touchDone{position:fixed;z-index:4970;left:50%;transform:translateX(-50%);
+  bottom:calc(var(--botH) + 14px + env(safe-area-inset-bottom,0px));
+  display:flex;align-items:center;gap:8px;padding:8px 10px;
+  background:rgba(22,30,35,.96);border:1px solid var(--line2);border-radius:var(--r);
+  box-shadow:var(--sh3);backdrop-filter:blur(6px);max-width:calc(100vw - 24px)}
+body.field #touchDone{bottom:calc(var(--fbarH) + 34px + env(safe-area-inset-bottom,0px))}
+#touchDone .tdlbl{font-size:12px;color:var(--mut);white-space:nowrap;overflow:hidden;
+  text-overflow:ellipsis;max-width:38vw}
+#touchDone .tdb{min-height:44px;min-width:64px;padding:0 14px;font:inherit;font-size:13px;
+  background:var(--panel2);border:1px solid var(--line);color:var(--ink2);
+  border-radius:var(--r2);cursor:pointer;touch-action:manipulation}
+#touchDone .tdb.prim{background:var(--acc);border-color:var(--acc);color:#06222C;font-weight:650}
+#touchDone .tdb:active{filter:brightness(1.15)}
+
+/* --- the tooltip chip (§5) ---------------------------------------------- */
+#touchTip{position:fixed;z-index:4980;max-width:min(320px,80vw);padding:8px 11px;
+  background:rgba(10,15,18,.96);border:1px solid var(--line2);border-radius:var(--r2);
+  color:var(--ink2);font-size:12.5px;line-height:1.35;box-shadow:var(--sh2);
+  pointer-events:none}
+
+/* --- the sheet viewer on touch (§4) ------------------------------------- */
+.shmax{display:none}
+body.touch .shmax{display:inline-flex}
+.shwin.maxed{border-radius:0}
+body.touch .shwin .shbar{min-height:48px}
+body.touch .shwin .shbar .minib,
+body.touch .shwin .shtools .sht{min-height:40px;padding:0 12px}
+body.touch .shwin .shtools{flex-wrap:wrap;row-gap:4px;min-height:auto;padding:5px 6px}
+body.touch .shwin .shgrip{width:34px;height:34px}
+body.touch .shwin .shfoot .shhint{display:none}
+
+/* --- the Help panel's offline row --------------------------------------- */
+#offlineStatus{color:var(--mut);margin-right:6px}
+
+@media (prefers-reduced-motion: reduce){
+  #touchLoupe{transition:none}
+}
+
+/* ---- v17 §5a — the redline palette ------------------------------------- */
+/* Six swatches and an eraser, bottom-centre above the status bar (and above
+   the field action bar when there is one), in the touch-furniture band so it
+   sits over a maximised sheet window as well as over the map. Shown only while
+   the REDLINE mode is armed — js/redline.js owns that. */
+#inkPal{position:fixed;z-index:4965;left:50%;transform:translateX(-50%);
+  bottom:calc(var(--botH) + 66px + env(safe-area-inset-bottom,0px));
+  display:flex;align-items:center;gap:6px;padding:7px 9px;
+  background:rgba(22,30,35,.96);border:1px solid var(--line2);border-radius:var(--r);
+  box-shadow:var(--sh3);backdrop-filter:blur(6px)}
+body.field #inkPal{bottom:calc(var(--fbarH) + 86px + env(safe-area-inset-bottom,0px))}
+.inksw{width:34px;height:34px;border-radius:50%;border:2px solid rgba(0,0,0,.45);
+  cursor:pointer;padding:0;touch-action:manipulation}
+body.touch .inksw{width:40px;height:40px}
+.inksw.on{border-color:var(--ink);box-shadow:0 0 0 2px var(--acc)}
+.inksw.inkerase{background:var(--panel2);color:var(--mut);font-size:15px;
+  display:flex;align-items:center;justify-content:center;border-color:var(--line2)}
+.inksw.inkerase.on{background:var(--red);color:#160A08}
+
+/* the Field menu (v17 §5b) uses the app's own menu chrome; only its width is
+   its own, because its items are sentences rather than commands */
+#fieldMenu{min-width:212px}

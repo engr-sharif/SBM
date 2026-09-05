@@ -66,7 +66,11 @@ SBMM.sheetMarks = (function () {
     ["point", "Point", "Drop a point feature at this spot on the drawing"],
     ["line", "Line", "Draw a polyline on the drawing"],
     ["polygon", "Polygon", "Draw a polygon on the drawing"],
-    ["note", "Note", "Leave a text note on the drawing"]
+    ["note", "Note", "Leave a text note on the drawing"],
+    /* v17 §5a — freehand ink on the drawing. Not in GEO_TOOLS: a redline on an
+       unregistered sheet is still a redline, it simply has no ground position
+       (and is kept as sheet-pixel provenance, like a note). */
+    ["redline", "Redline", "Freehand ink on the drawing — the Pencil or a finger"]
   ];
   const GEO_TOOLS = new Set(["inspect", "distance", "area", "point", "line", "polygon"]);
 
@@ -205,11 +209,14 @@ SBMM.sheetMarks = (function () {
        the same one the 3D view uses: a press that ends within a few pixels is a
        click, anything further is a pan. */
     let down = null;
+    /* §5a: this precise path serves the mouse AND the pen. Only a FINGER needs
+       the press-hold loupe below — a Pencil tip is exactly where it looks. */
     st.view.addEventListener("pointerdown", e => {
-      if (e.button !== 0) return;
+      if (e.button !== 0 || e.pointerType === "touch") return;
       down = [e.clientX, e.clientY, performance.now()];
     });
     st.view.addEventListener("pointerup", e => {
+      if (e.pointerType === "touch") return;
       if (!state.tool || !down) { down = null; return; }
       const moved = Math.hypot(e.clientX - down[0], e.clientY - down[1]);
       const held = performance.now() - down[2];
@@ -218,7 +225,7 @@ SBMM.sheetMarks = (function () {
       onClick(state, e);
     });
     st.view.addEventListener("pointermove", e => {
-      if (!state.tool) return;
+      if (!state.tool || e.pointerType === "touch") return;
       state.cursor = viewToPx(state, e);
       paint(state);
     });
@@ -226,6 +233,104 @@ SBMM.sheetMarks = (function () {
       if (!state.tool) return;
       state.cursor = null; paint(state);
     });
+
+    /* ---- placing a vertex with a FINGER (v17 §4) --------------------
+       A finger covers the point it is placing, so a tap cannot be precise and
+       "tap where you want it" is a lie on a 36x24 drawing at 1 in = 20 ft.
+       The rule is press-and-hold: the loupe (js/touch.js, shared with the map)
+       shows a 2.5x circle of the sheet above-left of the finger with a
+       crosshair on the exact pixel, the finger slides until the crosshair is
+       right, and the vertex lands where the finger LIFTS. A tap that does not
+       slide places immediately, which is the same thing with a zero-length
+       slide. A second finger cancels the placement and becomes a pinch. */
+    let place = null, lastTap = null;
+    const loupeFor = (u, v) => (ctx, size, zoom) => {
+      const src = size / (zoom * st.scale);
+      ctx.drawImage(st.img, u - src / 2, v - src / 2, src, src, 0, 0, size, size);
+    };
+    st.view.addEventListener("pointerdown", e => {
+      if (e.pointerType !== "touch" || !state.tool) return;
+      if (SBMM.touch.penRecent()) return;            // palm, while the pen is drawing
+      if (place) { if (state.cancelPlace) state.cancelPlace(); return; }   // a second finger: pinch wins
+      place = { id: e.pointerId, x: e.clientX, y: e.clientY, t: performance.now(),
+                x0: e.clientX, y0: e.clientY };
+      state.cursor = viewToPx(state, e);
+      paint(state);
+      const [u, v] = state.cursor;
+      SBMM.touch.loupe.show(loupeFor(u, v), e.clientX, e.clientY);
+    }, true);
+    st.view.addEventListener("pointermove", e => {
+      if (!place || e.pointerId !== place.id) return;
+      place.x = e.clientX; place.y = e.clientY;
+      state.cursor = viewToPx(state, e);
+      paint(state);
+      const [u, v] = state.cursor;
+      SBMM.touch.loupe.show(loupeFor(u, v), e.clientX, e.clientY);
+    }, true);
+    const endPlace = e => {
+      if (!place || e.pointerId !== place.id) return;
+      const p = place;
+      place = null;
+      SBMM.touch.loupe.hide();
+      if (e.type === "pointercancel") return;
+      const t = performance.now();
+      /* a second tap in the same spot finishes the mark, the way a
+         double-click does for the mouse */
+      if (lastTap && t - lastTap.t < 320 && Math.hypot(p.x - lastTap.x, p.y - lastTap.y) < 24
+          && Math.hypot(p.x - p.x0, p.y - p.y0) < 12) {
+        lastTap = null;
+        finish(state);
+        return;
+      }
+      lastTap = { x: p.x, y: p.y, t };
+      onClick(state, { clientX: p.x, clientY: p.y });
+      touchBar(state);
+    };
+    st.view.addEventListener("pointerup", endPlace, true);
+    st.view.addEventListener("pointercancel", endPlace, true);
+    /* ---- redline on a drawing (v17 §5a) -----------------------------
+       The same js/redline.js capture the map uses, with a HOST that speaks
+       sheet pixels: `toWorld` returns the pixel under the pointer,
+       `provenance` records those pixels the way every other sheet mark does,
+       and the finished stroke's `pts` are georeferenced through the sheet's
+       own affine. One capture, two coordinate systems. */
+    const inkHost = {
+      kind: "sheet",
+      toWorld: (x, y) => viewToPx(state, { clientX: x, clientY: y }),
+      pxToWorld: px => px / Math.max(1e-6, st.scale),
+      scale: () => 1,
+      paint: L0 => { state.inkLive = L0; paint(state); },
+      repaint: () => { state.inkLive = null; paint(state); },
+      provenance: () => ({ source: "sheet", sheet: st.sheet })
+    };
+    st.view.addEventListener("pointerdown", e => {
+      if (state.tool !== "redline") return;
+      if (e.pointerType === "touch" && SBMM.touch && SBMM.touch.penRecent()) return;   // palm
+      if (SBMM.redline.live()) return;
+      e.preventDefault(); e.stopPropagation();
+      SBMM.redline.begin(inkHost, e);
+    }, true);
+    st.view.addEventListener("pointermove", e => {
+      const L0 = SBMM.redline.live();
+      if (!L0 || L0.host !== inkHost) return;
+      e.preventDefault(); e.stopPropagation();
+      SBMM.redline.add(e);
+    }, true);
+    const endInk = e => {
+      const L0 = SBMM.redline.live();
+      if (!L0 || L0.host !== inkHost) return;
+      finishInk(state, L0, e.type === "pointercancel");
+    };
+    st.view.addEventListener("pointerup", endInk, true);
+    st.view.addEventListener("pointercancel", endInk, true);
+
+    state.cancelPlace = () => {
+      if (!place) return;
+      place = null;
+      SBMM.touch.loupe.hide();
+      state.cursor = null;
+      paint(state);
+    };
     st.view.addEventListener("dblclick", e => {
       if (!state.tool) return;
       e.preventDefault(); e.stopPropagation();
@@ -289,6 +394,8 @@ SBMM.sheetMarks = (function () {
   function detach(st) {
     const s = S.get(st);
     if (!s) return;
+    if (s.cancelPlace) s.cancelPlace();
+    if (s.tool && SBMM.touch) SBMM.touch.doneBar.hide();
     S.delete(st);
     live.delete(s);
     if (s.onStore) { SBMM.store.offChange(s.onStore); s.onStore = null; }
@@ -310,6 +417,43 @@ SBMM.sheetMarks = (function () {
   function pxToView(state, u, v) {
     const st = state.st;
     return [u * st.scale + st.tx, v * st.scale + st.ty];
+  }
+
+  /* A sheet redline is captured in sheet pixels and committed in State Plane:
+     js/redline.js's own `end()` would build the feature from the raw pixels, so
+     the pixels are converted HERE, through the same affine (and the same
+     one-plan rule) every mark goes through, and the pixels are kept as
+     provenance exactly as a mark keeps them. */
+  function finishInk(state, L0, cancelled) {
+    const st = state.st;
+    const pts = L0.pts.slice(), widths = L0.widths.slice(), col = SBMM.redline.colour();
+    SBMM.redline.end(true);                    // drop the capture, keep the samples
+    state.inkLive = null;
+    paint(state);
+    if (cancelled || pts.length < 2) return null;
+    if (!state.geo) { toast(st.sheet + " is not georeferenced — a redline on it would have no place on the map"); return null; }
+    const vp0 = viewportAt(st.sheet, pts[0][0], pts[0][1]);
+    const sp = [], w2 = [];
+    for (let i = 0; i < pts.length; i++) {
+      if (viewportsOf(st.sheet) && viewportAt(st.sheet, pts[i][0], pts[i][1]) !== vp0) continue;
+      const p = toSP(st.sheet, pts[i][0], pts[i][1]);
+      if (!p) continue;
+      sp.push(p); w2.push(widths[i]);
+    }
+    if (sp.length < 2) { toast(st.sheet + ": that stroke is outside the plan viewports"); return null; }
+    const f = SBMM.redline.mkInk(sp, "Redline — " + st.sheet, {
+      color: col, widths: w2, pen: L0.type === "pen",
+      provenance: { source: "sheet", sheet: st.sheet,
+                    px: pts.map(p => [+p[0].toFixed(2), +p[1].toFixed(2)]) }
+    }, {});
+    SBMM.undo.push("redline on " + st.sheet,
+      () => SBMM.store.remove(f),
+      () => { SBMM.store.readd(f); SBMM.redline.build(f); });
+    SBMM.store.emit();
+    SBMM.store.autosave();
+    status(state, "redline · " + sp.length + " points · it is on the map and in 3D now");
+    paint(state);
+    return f;
   }
 
   function status(state, txt) {
@@ -338,11 +482,34 @@ SBMM.sheetMarks = (function () {
     state.bar.querySelectorAll("[data-sht]").forEach(b =>
       b.classList.toggle("on", b.dataset.sht === k));
     state.st.el.classList.toggle("marking", !!k);
+    if (SBMM.redline) SBMM.redline.showPalette(k === "redline");
+    if (k !== "redline") { SBMM.redline && SBMM.redline.end(true); state.inkLive = null; }
     if (k) {
       state.st.el.focus({ preventScroll: true });
       status(state, PROMPT[k] || "");
     } else status(state, null);
+    touchBar(state);
     paint(state);
+  }
+
+  /* v17 §4: Enter, Backspace and Esc have no touch equivalent, so a sketch
+     open under body.touch gets the three of them as 44-px buttons. The bar is
+     ONE element shared with the map's sketch (js/touch.js), so it is claimed on
+     arm and released on disarm rather than created per window. */
+  function touchBar(state) {
+    if (!SBMM.touch || !SBMM.touch.on()) return;
+    if (!state || !state.tool) { SBMM.touch.doneBar.hide(); return; }
+    const n = state.pts.length;
+    SBMM.touch.doneBar.show({
+      label: state.st.sheet + " · " + state.tool + (n ? " · " + n + " point" + (n === 1 ? "" : "s") : ""),
+      done: () => finish(state),
+      undo: n ? () => { state.pts.pop(); paint(state); touchBar(state); } : null,
+      cancel: () => {
+        if (state.cancelPlace) state.cancelPlace();
+        if (state.pts.length) { state.pts = []; paint(state); status(state, "cancelled"); touchBar(state); }
+        else setTool(state, null);
+      }
+    });
   }
   const PROMPT = {
     inspect: "click anywhere on the drawing",
@@ -351,7 +518,8 @@ SBMM.sheetMarks = (function () {
     point: "click to place a point",
     line: "click each vertex · double-click or Enter to finish",
     polygon: "click each vertex · double-click or Enter to close",
-    note: "click where the note goes"
+    note: "click where the note goes",
+    redline: "draw freehand with the Pencil or a finger · pick a colour from the palette"
   };
 
   /* ------------------------------------------------------------------ */
@@ -388,12 +556,13 @@ SBMM.sheetMarks = (function () {
     }
     state.pts.push(px);
     paint(state);
+    touchBar(state);
     if (state.tool === "distance" && state.pts.length >= 2) liveReadout(state);
   }
 
   function finish(state) {
     const need = (state.tool === "area" || state.tool === "polygon") ? 3 : 2;
-    if (!state.pts.length) return;
+    if (!state.pts.length) { toast("nothing to finish — place a point first"); return; }
     if (state.pts.length < need) { toast(`need at least ${need} points`); return; }
     commit(state);
   }
@@ -469,6 +638,7 @@ SBMM.sheetMarks = (function () {
       + ` · it is on the map and in 3D now`, 3600);
     status(state, null);
     if (tool === "point" || tool === "note") setTool(state, null);
+    else touchBar(state);
   }
 
   /* ------------------------------------------------------------------ */
@@ -488,6 +658,20 @@ SBMM.sheetMarks = (function () {
     g.clearRect(0, 0, w, h);
 
     if (state.geo) paintStore(state, g);
+
+    /* the in-progress redline stroke, in sheet pixels */
+    if (state.inkLive && state.inkLive.pts.length > 1) {
+      const pv = state.inkLive.pts.map(p => pxToView(state, p[0], p[1]));
+      g.save();
+      g.setLineDash([]);
+      g.lineWidth = 2.5; g.lineCap = "round"; g.lineJoin = "round";
+      g.strokeStyle = SBMM.redline.colour();
+      g.beginPath();
+      g.moveTo(pv[0][0], pv[0][1]);
+      for (let i = 1; i < pv.length; i++) g.lineTo(pv[i][0], pv[i][1]);
+      g.stroke();
+      g.restore();
+    }
 
     /* the in-progress sketch */
     const P = state.pts;
@@ -608,6 +792,11 @@ SBMM.sheetMarks = (function () {
   function wire() { /* nothing global — everything is per window */ }
 
   return { wire, attach, detach, resheet, onEscape, paint: st => paint(S.get(st)),
+           /* v17 §4: js/sheets.js asks these two before it pans or pinches —
+              while a mark tool is armed the one-finger press belongs to the
+              loupe, and a second finger cancels the placement */
+           armed: st => { const s = S.get(st); return !!(s && s.tool); },
+           cancelPlace: st => { const s = S.get(st); if (s && s.cancelPlace) s.cancelPlace(); },
            affineOf, georeferenced, toSP, toPx, toPxAll, viewportsOf, viewportAt, ftPerPx, fromSheet,
            activeCount: () => [...live].filter(s => s.tool).length,
            state: st => S.get(st) };

@@ -18,7 +18,11 @@
 
 SBMM.compute = (function () {
 
-  const MAX_WORKERS = Math.max(1, Math.min(3, (navigator.hardwareConcurrency || 4) - 1));
+  /* v17 §5b: sized from the CPU, min 2 max 8. An M-series iPad has 8-10 cores
+     and was being given one worker; a two-core build box still gets two, which
+     is the floor a pool needs to be a pool at all. Above 8 the terrain jobs are
+     memory-bound, not core-bound, and Safari kills a page over ~1.5 GB. */
+  const MAX_WORKERS = Math.max(2, Math.min(8, (navigator.hardwareConcurrency || 4) - 1));
   const SHOW_AFTER = 220;   // ms before a job earns a status-bar row (no flicker)
 
   const stats = {
@@ -284,6 +288,11 @@ SBMM.compute = (function () {
     paintQueued = true;
     requestAnimationFrame(() => {
       paintQueued = false;
+      /* v17 §5b: a two-minute drainage job on a tablet must not be interrupted
+         by the screen going to sleep. Reference-counted by reason in
+         js/touch.js, feature-detected there, and released the moment the queue
+         empties — this is the one place that knows whether work is in flight. */
+      if (window.SBMM && SBMM.touch && SBMM.touch.keepAwake) SBMM.touch.keepAwake("job", live.size > 0);
       const bar = $("jobBar");
       if (!bar) return;
       const now = performance.now();
@@ -311,6 +320,9 @@ SBMM.compute = (function () {
     gridSpec, gridsFor, subGrid,
     activeCount: () => live.size,
     workerCount: () => slots.length,
+    /* v17 §5b: what the pool is ALLOWED to grow to, for the Help diagnostics
+       line — `workerCount` is how many have actually been spun up so far */
+    poolSize: () => MAX_WORKERS,
     /* handy in the console / used by the tests */
     source: workerSource
   };

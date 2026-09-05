@@ -141,6 +141,13 @@ SBMM.report = (function () {
     for (const o of SBMM.store.features) {
       if (o === f || o.visible === false || !o.pts || o.pts.length < 2) continue;
       if (o.type === "surface" && o._daylight) continue;
+      /* v17 §5a: a redline is the ONE thing on the sheet that is not quiet —
+         somebody drew it to be seen, in the colour they chose, and a report
+         that greys it out has thrown away the point of it */
+      if (o.type === "ink") {
+        ring(o.pts, false, { color: (o.props && o.props.color) || "#E4433A", w: 1.6 });
+        continue;
+      }
       ring(o.pts, o.type === "area" || o.type === "volume" || o.type === "surface",
         { color: "rgba(90,90,90,.55)", w: 0.8 });
     }

@@ -124,10 +124,34 @@ function toast(msg, ms = 2600) {
   t.textContent = msg; t.classList.add("show");
   clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove("show"), ms);
 }
+/* Every export in the app goes through here, which is why the iPad share sheet
+   goes here too (v17 §5b). On a touch device with `navigator.share` and a file
+   the platform will take, this opens Files / AirDrop / Mail — the only way a
+   file leaves a home-screen web app on iPadOS, where `<a download>` lands in a
+   place the user cannot easily find. Everywhere else, and on any refusal, it is
+   the download it always was: the fallback is not an error path, it is the
+   normal path on a desktop. A user cancelling the share sheet is not a failure
+   and must not toast. */
 function download(name, blob) {
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(blob); a.download = name; a.click();
-  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  const plain = () => {
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob); a.download = name; a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  };
+  const touchy = !!(window.SBMM && SBMM.touch && SBMM.touch.on());
+  if (!touchy || !navigator.share || !navigator.canShare || typeof File !== "function") { plain(); return; }
+  let file;
+  try { file = new File([blob], name, { type: blob.type || "application/octet-stream" }); }
+  catch (e) { plain(); return; }
+  if (!navigator.canShare({ files: [file] })) { plain(); return; }
+  navigator.share({ files: [file], title: name })
+    .then(() => { if (window.SBMM && SBMM.touch) SBMM.touch.noteShared(name); })
+    .catch(err => {
+      /* AbortError = the user closed the sheet. Anything else means the share
+         did not happen at all, so hand them the file the old way. */
+      if (err && err.name === "AbortError") return;
+      plain();
+    });
 }
 function copyText(s, okMsg) {
   const done = () => toast(okMsg || "copied to clipboard");

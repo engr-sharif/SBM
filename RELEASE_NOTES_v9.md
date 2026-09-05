@@ -17,6 +17,83 @@ All three are offline-only by design. Nothing in this app calls out to the inter
 
 ---
 
+## v9.14 — the iPad, the Pencil, and touch everywhere
+
+You said the app was already working on your iPad, that you had saved it to the home
+screen, and that you wanted it to be *properly* good there — especially the 3D view, and
+pinch-and-zoom in the sheet viewer. Then you said the Pencil was a must. Here is all of it.
+
+**The iPad keeps the layout you liked.** It is not switched into the phone layout — the
+docks, the top bar and the floating sheet windows all stay. What changes is everything
+that quietly assumed a mouse. The app works out for itself whether it is on a desktop, a
+tablet or a phone (and an iPad in Split View crosses that line and comes back on its own);
+**Help → Touch controls** overrides it if the guess is ever wrong.
+
+**The 3D view now handles like a map.** One finger orbits and keeps drifting when you let
+go. Two fingers pinch to zoom **towards the point between them** — that patch of ground
+stays under your fingers instead of the view sliding off to the orbit centre — drag to
+pan, and twist to swing the view round by the angle you turned. Three fingers tilt.
+Double-tap centres and zooms in; a two-finger tap zooms out. A press and hold identifies
+what is under your finger, and on a vertex handle it starts dragging it. There is a
+four-button nav pad in the corner for zoom and tilt.
+
+**The sheet viewer opens maximised and pinches properly.** Pinch about a point and that
+point stays put; two fingers pan, one finger pans, double-tap zooms in, two-finger tap
+zooms out. Every button on the window is a full-size target and the toolbar wraps rather
+than sitting on top of the drawing. There is a maximise/restore button on every window now,
+on the desktop too.
+
+**Placing a point precisely, with a finger.** Your fingertip covers the thing you are
+placing, so on touch a vertex is *press, hold, slide, lift*: a magnifying **loupe**
+appears with a crosshair on the exact spot, you slide until it is right, and the point
+lands where you lift. A **Done / Undo vertex / Cancel** bar appears while you are drawing,
+because there is no Enter or Esc key under a thumb. Same on the map and inside a drawing.
+Press and hold is the right-click everywhere, every layer row has a visible **⋯** for the
+tools that appear on hover on a desktop, and holding a button shows its tooltip (which is
+where the keyboard shortcut is written) without firing it.
+
+**The Apple Pencil.** The Pencil is treated as what it is — a precise pointer. A pen tap
+places a vertex exactly where the tip is, with no loupe and the same snapping a mouse gets.
+Hovering the tip moves the object-snap glyphs and the 3D highlight. Your palm is ignored
+while the tip is down. In 3D a pen drag orbits, a pen tap picks, and a pen drag with a
+finger held down pans.
+
+**Redlining, new.** `REDLINE` (or `MARKUP`, or `INK`) is freehand ink, on the map **and**
+inside a sheet window — a circle round the thing that is wrong and an arrow to the note.
+Pressure drives the line width, there are six colours and an eraser, and every stroke is
+one undo. A stroke is not a picture: it is a real feature in State Plane feet, so it
+appears in My work, travels in the session file, exports to GeoJSON and to DXF on a
+**REDLINE** layer, drapes over the terrain in 3D, and prints in the report in its own
+colour. Scribble works in every text box.
+
+**A real home-screen app, and an offline copy.** Added to the home screen it opens full
+screen with its own icon and no browser chrome. Over a web address, **Help → Make
+available offline** downloads the whole thing to the device in one tap, with a progress
+count — after that it opens with no signal at all, tells you when a new version has been
+deployed, and lets you remove it again. (Opened as a plain file, as you do today, nothing
+changes and the button says why.) There is one thing to decide about this: GitHub Pages
+will not serve a private repository on the free plan, and this repository must stay
+private — so a web address means either a paid GitHub plan or an internal Jacobs host.
+Everything else in this release works exactly the same double-clicked.
+
+**Using the iPad properly.** The 3D view runs WebGL2 with anisotropic filtering on the
+terrain imagery, which is what a hillside seen edge-on actually needs. Mesh detail defaults
+to standard on an older iPad and high on an M-series one, and remembers whichever you pick.
+The compute workers scale with the number of cores instead of being fixed at one. A lost
+graphics context — which iPad Safari does under memory pressure — is rebuilt and says so,
+instead of leaving a black rectangle. The screen stays awake while Position or a long
+calculation is running. Exports go to the iPad **share sheet** (Files, AirDrop, Mail), and
+a CSV, GeoJSON, DXF or session file dragged in from the Files app in Split View imports.
+**Position**, **Photo**, **Note** and **Samples nearby** are now reachable from a
+**Field ▾** menu in the top bar, without switching to the phone layout. And Help shows the
+build, the profile, the pixel ratio, the GPU and the worker count on one line — read that
+back if anything ever feels slow.
+
+**Nothing about the desktop changed.** That is not a hope: the desktop test suite is the
+same file it was, and it passes unchanged, which is what proves it.
+
+---
+
 ## v9.12 — the layers system
 
 You asked for the layers to be managed and presented properly, now that there are about

@@ -38,6 +38,13 @@ in code, and what comes next. It replaces re-reading the chat history that built
 | Residential excavation surfaces are derived from EA's written depths | EA's design is depth-based (1 ft default, 6-in call-outs), so this *is* the design |
 | Geodatabase polygons own "Limits of excavation"; CAD exc linework off by default (R1) | Avoids duplicate answers to one click |
 | One layer state for 2D/3D/sheets/exports; no 3D checkboxes | §1 of the spec |
+| **The iPad keeps the DESKTOP layout** (`body.touch`), not the phone one | He said the app already "looks good" on his iPad and he likes it. v17 adds touch affordances to that layout rather than replacing it; field mode (`body.field`) is untouched and still the phone's |
+| Touch capability is detected, never sniffed from the user agent | iPadOS reports a desktop UA. `(any-pointer: coarse)` OR `maxTouchPoints > 1`, re-evaluated on resize and rotation |
+| Hit sizes come from the LAST POINTER EVENT, not the profile | The same iPad is a thumb one second and a Pencil the next; a per-profile rule would make the Pencil clumsy or the thumb miss |
+| **Full Apple Pencil support was made a MUST** (Sep 5 2026: "fully utilize the iPad pencil") | Pen = precise pointer, pen hover = mouse hover, palm rejection, pen gestures in 3D, and a new REDLINE ink tool with pressure-driven width |
+| A redline stroke is a real feature in State Plane feet, never a painted bitmap | It has to export to CAD, stay put when the map zooms, drape in 3D and print in the report — a raster does none of that |
+| The offline copy is the ONE `fetch()` exemption, and it is `sw.js`, not the app | http(s) only, own origin only, opt-in, never over `file://`. The file:// constraint is unbroken: over a file URL nothing registers and nothing fetches |
+| **The session integer stayed 8 and the redline has no My-work row of its own** | Both would have failed assertions in `test/e2e.mjs`, which the delivery procedure requires to pass UNCHANGED. Both are additive, both are one line plus one harness edit, and both are marked in the code — see the v17 section of CLAUDE.md |
 | Esc always returns to Navigate | Dead-button bug history |
 | Watermark "Mo Sharif - Jacobs 2026" bottom-right, burned into exports | User request |
 | C-202 registered from EA's native North Lobe polygon (v9.1), one affine per plan viewport; the raster and 3D drape are the grading plan | The PDF methods could not place it; the native polygon is the drawn boundary with every vertex surveyed |
@@ -106,6 +113,21 @@ in code, and what comes next. It replaces re-reading the chat history that built
    The one thing Phase 1 has already answered for him: the eight road-drain grates take
    0.019 acres between them overland, and 282 of the site's 978 acres reach the outfall
    through the impoundment and its two surveyed pipes.
+
+0a. **GitHub Pages on a private repo needs a paid plan — the engineer decides.**
+   The iPad work assumes he opens the app from a web address: that is what makes it an
+   installable home-screen app (the manifest and the icons are 404s beside a lone HTML
+   file, so `tools/build_dist.py` strips their links from both single-file builds) and it
+   is the only way the offline copy can exist at all — a service worker cannot be
+   registered over `file://`. GitHub Pages will not serve a **private** repository on the
+   free plan, and this repository must stay private (site imagery, sample results, the
+   gated cultural payload, the gate password). So one of three, and it is his call:
+   (i) GitHub Team or Enterprise, which allows Pages on a private repo;
+   (ii) any internal Jacobs web host — the folder build is a static directory and needs
+   nothing but a file server;
+   (iii) keep double-clicking `SBMM_Site_Explorer.html`, which works exactly as it does
+   today with the touch affordances on and only the home-screen install and the offline
+   copy missing. Nothing else in v17 depends on the answer.
 
 1. **Repository and North-lobe final grade.** Not in the delivered DWGs. Ask EA for a
    LandXML export (or a proposed-grade raster) of the 02.01 / 02.02 surfaces. Everything

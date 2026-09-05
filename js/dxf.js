@@ -67,6 +67,10 @@ SBMM.dxf = (function () {
   /* ------------------------------------------------------------------ */
   const N = v => (Math.round(v * 1e6) / 1e6).toFixed(6);
   function layerName(f) {
+    /* v17 §5a: every redline goes out on ONE conventional layer, whatever
+       folder it was drawn into — "freeze the redlines" is the first thing a
+       drafter does with a marked-up drawing, and that needs one layer name */
+    if (f.type === "ink") return "REDLINE";
     const raw = f.group ? f.group.replace(/\//g, "-") : "SBMM-" + String(f.type).toUpperCase();
     return raw.toUpperCase().replace(/[^A-Z0-9_\-$.]/g, "_").slice(0, 31) || "SBMM";
   }
@@ -223,7 +227,9 @@ SBMM.dxf = (function () {
       return;
     }
     if (t === "area" || t === "volume" || t === "surface") { polyline(w, lay, f.pts, true); return; }
-    if (t === "line" || t === "profile" || t === "sections" || t === "flow") { polyline(w, lay, f.pts, false); return; }
+    if (t === "line" || t === "profile" || t === "sections" || t === "flow" || t === "ink") {
+      polyline(w, lay, f.pts, false); return;
+    }
     if (t === "text") {
       const h = (f.props && f.props.size_ft) || 20;
       if (f.pts.length > 1) line(w, lay, f.pts[1], f.pts[0]);
