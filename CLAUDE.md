@@ -2243,7 +2243,7 @@ only, and it is AREA, never discharge** — every card says so in those words.
 - **The app's default is D8 and D-infinity is a button on the card.** Both are
   exposed, as §2 asks. D8's values ARE the contributing area TR-55's 5-acre rule
   names, it is the method the identity is exact for, and it draws 109 stream
-  links where D-infinity's dispersion draws 1,563. `js/runoff.js` asks
+  links where D-infinity's dispersion draws more than 1,500. `js/runoff.js` asks
   `SBMM.accum.rasterFor("d8")` whatever the display is set to.
 - **A stream link that ends at a pipe says `conduit`, not `junction`.** The
   tracer ends a link ON the capture cell, so the end label has to be read off

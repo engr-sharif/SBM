@@ -21,7 +21,7 @@
      * **D8 is the default here and D-infinity is one click away.** The spec
        offers both; D8 is the method whose values ARE the contributing area the
        5-acre channel rule names, it is the one the identity is exact for, and
-       it draws 109 stream links where D-infinity's dispersion draws 1,563. The
+       it draws 108 stream links where D-infinity's dispersion draws more than 1,500. The
        card's "D-infinity" button re-runs and redraws, and every card, popup and
        export says which method produced the number.
 
