@@ -901,11 +901,11 @@ invert and **trace discharge** — where water leaving the pipe runs.
 
 The site has a drainage system, and until v12 the app did not know about it: a raindrop that
 reached a grate walked past it. The **storm network** is now in the app as read-only project
-data — 43 structures and 25 conduits assembled by `tools/build_storm_network.py` from EA's
+data — 44 structures and 27 conduits assembled by `tools/build_storm_network.py` from EA's
 V-Base drawing, the geodatabase's storm structures, Jacobs' August-2026 survey and the
 project engineer's identification of the south-road drain. Three rows under **Site framework
-→ Storm drainage**, on by default: *Storm structures* (43), *Storm conduits — drawn in CAD /
-surveyed* (15) and *Storm conduits — inferred* (10). Click a structure or a pipe for what it
+→ Storm drainage**, on by default: *Storm structures* (44), *Storm conduits — drawn in CAD /
+surveyed* (15) and *Storm conduits — inferred* (12). Click a structure or a pipe for what it
 is, where it came from, its ground and its invert, its length and its fall.
 
 | conduit | from → to | source | note |
@@ -917,7 +917,8 @@ is, where it came from, its ground and its invert, its length and its fall.
 | `road_drain_15_branch` | grate Spot 15 → the branch start (a bend, no structure) | inferred straight | 155 ft |
 | `branch` | the branch start → the junction grate | CAD line `E943F` | 149 ft |
 | `herman_pipe_n` / `herman_pipe_s` | the surveyed inverts at the sandbag wall (**1341.57 / 1341.53 ft**) → the plotted west ends | Jacobs survey, Aug 2026 | the two 24-in corrugated HDPE barrels |
-| `pipe_to_main` | the North pipe's plotted west end → the east end of EA's drawn storm line | **inferred**: EA's line starts 13 ft west of the plotted pipe end | the connection he asked for |
+| `pipe_to_main` | the **North** pipe's plotted west end → the east end of EA's drawn storm line | **inferred**: EA's line starts 13 ft west of the plotted pipe end | the connection he asked for |
+| `pipe_to_main_s` | the **South** pipe's plotted west end → the same point on EA's storm line | **inferred**, same reason | the engineer's ruling of 5 Sep 2026: *both* barrels are the impoundment's discharge. Until then the South pipe — the lower invert, the one the water leaves through — ended 13 ft short of anything |
 | `storm_main_upper` | the storm line's east end → the junction grate | CAD `E943C` | 195 ft |
 | `storm_main_lower` | the junction grate → the **Clear Lake outfall** | CAD `E943C` | 589 ft |
 | `south_culvert` | `STRM FES` → `STRM FES` | CAD mark `E5D2E` | 40 ft under the south road, into Herman; not part of the grate chain |
@@ -958,9 +959,19 @@ Two answers worth having in front of you:
   the drains off it never leaves the north-east corner: it spills off the survey.
 - **Naming.** EA's geodatabase `water` layer has it right, and the engineer confirmed it (Sep 2026): **Frog Pond is the east pond** (E 6,374,450–6,374,726, floor 1,415 ft) and **Green Pond the west pond** (E 6,373,925–6,374,152, floor 1,391.6 ft). The storm network uses those names.
 
-The **Herman pipe discharge route** (on the overtopping card) now reads *"934 ft · 797 ft in
-pipe · Clear Lake outfall"*: what leaves the surveyed 24-in pipes goes down EA's drawn storm
-main to the lake rather than stopping at a stub of overland flow.
+The **Herman pipe discharge route** (on the overtopping card) reads *"950 ft · 813 ft in
+pipe · Clear Lake outfall"*, and since the ruling of 5 September 2026 it is **the conduit
+chain itself, not a raindrop**: the sandbag wall → both 24-in barrels → both links → EA's
+storm main → the junction → the Clear Lake outfall, with *no ground at all* between the wall
+and the outfall. Ordinary descent resumes at the outfall, where the pipe ends, and runs the
+last 137 ft into the lake. The card says which system carries it — *"discharging through the
+two 24-in pipes → pipe to main → storm main → Clear Lake outfall"* — and 3D draws both
+barrels as pipes with the moving water running through both.
+
+Before that ruling the route was traced by dropping a raindrop at the North pipe's plotted
+west end and letting it find its own way, which is a terrain analysis that happens to meet a
+pipe: it could only ever show one barrel, and it was the reason the engineer reported that
+the water *"goes directly and makes its own path"*.
 
 **A sunken pipe mouth.** The lidar is the January-2024 flight; the sandbag wall and the two
 24-inch discharge pipes were surveyed in August 2026 and were built into a regraded channel
@@ -976,7 +987,8 @@ inlet cell was moved and by how far. If nothing low enough is found within 30 ft
 stays exactly where it was surveyed and the popup says so.
 
 The consequence: **a drop inside the Herman Impoundment now ponds to 1,341.54 ft and leaves
-through the surveyed South pipe**, the storm main and the outfall — 813 ft in pipe — instead
+through the surveyed South pipe**, its own link, the storm main and the outfall — 813 ft in
+pipe (812.8 since both barrels were connected) — instead
 of filling 2.30 ft higher and spilling over the rim. That is the same first discharge the
 overtopping card has reported since v10 (1,341.55 ft, the surveyed invert), so the raindrop
 and the overtopping analysis now give the same answer about the impoundment. Switch the
