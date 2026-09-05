@@ -97,6 +97,12 @@ in code, and what comes next. It replaces re-reading the chat history that built
 | **The legend card is collapsed by default, and off the map entirely on a phone** | A legend that covers the corner of the map before anyone asked for it is worse than no legend; on a 412-px screen there is no corner to spare, so it lives in the More sheet |
 | **Sub-groups are declared by the registering module (`addLayerRow(..., {sub})`), not listed in the tree** | The module knows which rows belong together and how many of them there are; a list in the tree would go stale the first time a payload changed. It also made the migration one option per call site |
 | A password screen in front of the app (v9.3), and it is a **deterrent, not security** | He asked for "something to deter someone from using it", explicitly not full security. Everything ships to the browser, so the check is in the file the browser reads — this stops a colleague, not an attacker |
+| **The test round runs through one runner** (`test/run.mjs`, v18) | He asked why a round takes "hours and hours". The steps, their builds and their dependencies are declared once; independent steps run in parallel up to the browser slots, each writes its own log, and a failure names the step instead of scrolling past |
+| One Chromium at a time is a **lock**, not a rule in a document | Two software-GL renderers on this two-core box crash the compositor and it reads as a test failure. `test/lib/lock.mjs` refuses the second one by name and pid; `--parallel` is how you raise it on a bigger machine |
+| **Waiting is on a log's `EXIT=` line, never on a process name** | `pgrep -f e2e.mjs` matches the waiting shell's own command line and waits for itself — it cost an agent forty minutes |
+| Harness sections became **named blocks** (`--only 9t`), and a full run stays byte-identical | A failure on block 40 used to cost a full eleven-minute re-run. The conversion was accepted only against a line-for-line diff of the output before and after |
+| **`SBMM_GPU=1`** exists because he has a GPU machine and this box does not | Same harnesses, ANGLE instead of SwiftShader, timeouts 180 s → 60 s. On a box with no GPU it says it fell back rather than pretending |
+| The matrix also runs on **GitHub Actions** (`.github/workflows/matrix.yml`), on pull requests | Five jobs in parallel put the whole matrix at the length of its slowest step. The repository is private, so it spends Actions minutes — the workflow says so |
 
 ## What was tried and dropped
 
@@ -294,24 +300,27 @@ this repo is private; if that ever changes, this line goes first.
 
 ## Delivery procedure (what "ship it" means)
 
-**Three outputs now, and all three are built and tested.** One browser harness at a time —
-two software-GL renderers on this box crash the compositor.
+**Three outputs now, and all three are built and tested.** Since v18 that is one command:
+`node test/run.mjs` builds both dists and runs every step in the right order, one Chromium
+at a time (the lock, not a promise), with a log per step in `test/.logs/` and a summary
+table at the end. Read the table, not the scrollback.
 
-1. `node test/kernels.mjs` (fast, no browser — 229 checks; run it first after any kernel or
-   call-site change).
-2. e2e + split3d on the **folder** build.
-3. `python tools/build_dist.py` **and** `python tools/build_dist.py --field`.
-4. e2e + split3d on `dist/SBMM_Site_Explorer.html`.
-5. `node test/e2e_field.mjs dist/SBMM_Site_Explorer_field.html field` (Playwright's Pixel 7
-   descriptor; add the full dist as a third argument for the boot comparison).
-   Golden Pile 1 = 278.4 yd³ fill / −48.1 net ±10 in every one of them.
-6. Regenerate and **look at** `test/shots/` — `node test/v9_shots.mjs <abs path to index.html>`
+1. `node test/run.mjs --quick` while you work (preflight + `touch_unit` + every kernel
+   section but `drainage`, ~50 s, no browser).
+2. `node test/run.mjs` — the whole matrix: `check`, `kernels`, `touch_unit`, both builds,
+   e2e + split3d on the **folder** build and on `dist/SBMM_Site_Explorer.html`, the tablet
+   harness both ways, the field harness on `dist/SBMM_Site_Explorer_field.html`, and
+   `perf` / `audit` / `audit2`. Golden Pile 1 = 278.4 yd³ fill / −48.1 net ±10 in every
+   one of them.
+3. If a step fails, re-run its block alone — `node test/e2e.mjs <index.html> folder
+   --only 9t` — fix, then run the step again. Never report a matrix from a partial run.
+4. Regenerate and **look at** `test/shots/` — `node test/v9_shots.mjs <abs path to index.html>`
    and `node test/field_shots.mjs <abs path to the field dist>`.
-7. Copy `dist/SBMM_Site_Explorer.html`, `dist/SBMM_Site_Explorer_field.html` and this folder
+5. Copy `dist/SBMM_Site_Explorer.html`, `dist/SBMM_Site_Explorer_field.html` and this folder
    to `C:\Users\nawaz\WORK\SBMM\Site Explorer WebApp\` (both dists beside the
    `sbmm-site-explorer\` folder). Old versions go to `_to_delete\v<N>_<date>\`, never
    deleted by the tool.
-8. Bump `RELEASE_NOTES_v<N>.md`, update CLAUDE.md / this file where behaviour changed.
+6. Bump `RELEASE_NOTES_v<N>.md`, update CLAUDE.md / this file where behaviour changed.
 
 ## Source data that is NOT in this repo (on the user's machine)
 

@@ -1921,8 +1921,20 @@ git push -u origin main
 `.gitignore` keeps `dist/` (regenerate with `python tools/build_dist.py`), `node_modules`
 and any raw survey/CAD files out. No file exceeds GitHub's 100 MB limit (largest payload
 is 22 MB). Then open the folder in Claude Code — it reads `CLAUDE.md` automatically; that
-file, `docs/HANDOFF.md` and `docs/V9_SPEC.md` are the complete handover. Tests:
-`cd test && npm install && npx playwright install chromium`, then the commands in CLAUDE.md.
+file, `docs/HANDOFF.md` and `docs/V9_SPEC.md` are the complete handover, and
+`docs/AGENT_RULES.md` is the ten-line version for an agent starting a round.
+
+Tests: `cd test && npm install && npx playwright install chromium`, then everything goes
+through **one runner** (v18): `node test/run.mjs --quick` is the ~50-second loop to run
+after every edit (preflight + the gesture unit harness + every compute kernel but
+`drainage`), and `node test/run.mjs` is the whole matrix — it builds both dists itself,
+runs independent steps in parallel up to the browser slots, and writes a log per step
+under `test/.logs/` ending in `EXIT=<code>` plus a summary table. One Chromium at a time
+is enforced by a lock rather than asked for, `SBMM_GPU=1` renders on a real GPU where
+there is one, and a failing block is re-run on its own with
+`node test/e2e.mjs index.html folder --only 9t` (~48 s) instead of eleven minutes.
+`.github/workflows/matrix.yml` runs the same steps on GitHub's runners, five jobs in
+parallel, on every pull request.
 
 Layout (v9 modules are listed in CLAUDE.md's code map; this is the original skeleton):
 
@@ -1976,6 +1988,13 @@ vendor/             Leaflet, d3-delaunay, Three.js bundle (no CDN, works offline
 tools/build_dems_from_master.py   master_1ft.f32 -> data/dem_*.png/.json + hs_*.jpg
 tools/build_data.py   data/  -> datajs/
 tools/build_dist.py   everything -> dist/SBMM_Site_Explorer.html
+test/run.mjs        THE RUNNER — every harness, its build and its dependencies;
+                    --quick, --only, --builds, --parallel, --list; logs in test/.logs/
+test/check.mjs      the 3-second preflight the runner starts with (syntax, tracked
+                    symlinks, Blob-worker sources, command aliases, the script list)
+test/lib/browser.mjs  one Chromium launcher: CHROME_BIN, the browser lock, SBMM_GPU=1
+test/lib/lock.mjs   the browser slot — one renderer at a time, by pid, with a name
+test/lib/blocks.mjs named blocks and their fixtures: --only 9t instead of 11 minutes
 test/e2e.mjs        Playwright end-to-end test incl. the memo volume validation,
                     the worker path, the workbench shell, the 3D nav rig, the
                     drafting core (snap, ortho/polar, typed input, command line,
