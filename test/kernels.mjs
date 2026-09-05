@@ -2205,7 +2205,7 @@ function routeOneRef(spec) {
     return key === "storage_ft3" ? top.storage_ft3 + (level - top.level) * top.area_ft2 : top.area_ft2;
   };
   const levelFor = S => {
-    let lo = stage[0].level, hi = stage[stage.length - 1].level + 20;
+    let lo = stage[0].level, hi = stage[stage.length - 1].level + 100;
     for (let i = 0; i < 60; i++) { const m = (lo + hi) / 2; if (interp(m, "storage_ft3") < S) lo = m; else hi = m; }
     return (lo + hi) / 2;
   };
@@ -2260,11 +2260,36 @@ function stageForRing(M, ring, name, opts) {
    guards. The 25-year 24-hour storm at the PROVISIONAL depth of 6.4 in over
    the Phase 1 catchments; if the Atlas 14 export replaces the provisional
    table these move, and they should — re-record them and say so. */
+/* §3(g), recorded from this commit: the cover split the curve numbers rest on.
+   Re-record it whenever tools/build_cover.py changes a threshold or a source. */
+const COVER_REC = {
+  water: 26.16, paved: 11.90, roof: 6.22, gravel: 37.75,
+  waste: 11.11, bare: 167.52, grass: 660.87, woods: 56.97
+};
+
 const RUNOFF_REC = {
-  /* TBD — recorded on the first full run of this section; see §12.5/§12.6 */
-  P_in: 6.4, area_ac: 978.49, cn: 0, volume_acft: 0, qPeak_cfs: 0,
-  outlets: {},
-  ponds: {}
+  /* the storm: the PROVISIONAL 25-year 24-hour depth, NRCS Type IA, over the
+     Phase 1 catchments sampled at 8 ft. Replace data/atlas14_sbmm.csv and every
+     one of these moves — re-record them and say so in the commit. */
+  P_in: 6.4, area_ac: 978.49, cn: 82.2, volume_acft: 356.69, qPeak_cfs: 1396.3,
+  outlets: {
+    /* id: volume (ac-ft) and the SCS peak (cfs). All three are over 200 ac, so
+       the Rational method is not reported for any of them — the rule doing its
+       job rather than a missing number. */
+    "lake": { vol: 146.49, peak: 565.4 },
+    "off": { vol: 103.87, peak: 428.6 },
+    "outfall:storm_main_lower": { vol: 106.34, peak: 425.0 }
+  },
+  ponds: {
+    /* rim and conduit are the v13 goldens (they are the `overtop` kernel's, not
+       this storm's); peak is the routed stage, recorded from this commit.
+       NONE of the three overtops in the 25-year storm — the impoundment does
+       not even reach its surveyed 1,341.55-ft discharge invert, and Frog Pond
+       leaves through its culvert 0.29 ft below the rim. */
+    "herman_pipe_s": { rim: 1343.84, conduit: 1341.55, peak: 1337.27, overtops: false },
+    "pond_culvert": { rim: 1416.04, conduit: 1415.74, peak: 1415.75, overtops: false },
+    "green_outlet": { rim: 1399.14, conduit: 1394.50, peak: 1393.11, overtops: false }
+  }
 };
 
 function secRunoff() {
@@ -2273,10 +2298,13 @@ function secRunoff() {
   console.log("\n§12.1  the curve-number arithmetic (TR-55 / NEH-630 ch. 10)");
   /* (a) the identity itself: Q = (P - 0.2S)^2 / (P + 0.8S), S = 1000/CN - 10.
      A synthetic one-class catchment through the kernel must reproduce it.
-     NOTE: the spec's §3(a) prints 2.17 in for P = 4.0 / CN = 85. That value
-     does not satisfy the equation (it is the answer for CN ~ 81.4); the
-     equation is the authority and both the kernel and the reference below use
-     it. CN 70 -> 1.33 in, the spec's other number, agrees exactly. */
+
+     A SPEC CORRECTION, accepted by the planner: §3(a) prints 2.17 in for
+     P = 4.0 / CN = 85. That is a transcription error — the value does not
+     satisfy the equation (2.17 is the answer for CN ~ 81.4), and the equation
+     gives 2.458. The equation is the authority and both the kernel and the
+     reference below use it; the spec's other number, CN 70 -> 1.33 in, agrees
+     exactly. */
   const cnQ = (P, cn) => { const S = 1000 / cn - 10; return (P - 0.2 * S) ** 2 / (P + 0.8 * S); };
   for (const cn of [85, 70]) {
     const cls = [{ id: 0, key: "nodata", cn: { C: null, D: null }, hsg: null, c: null, n_sheet: null, paved: 0 },
@@ -2401,7 +2429,7 @@ function secRunoff() {
   {
     const A0 = 10000;                                   // ft2, constant area
     const stage = [];
-    for (let k = 0; k <= 80; k++) stage.push({ level: k * 0.25, area_ft2: A0, storage_ft3: k * 0.25 * A0 });
+    for (let k = 0; k <= 480; k++) stage.push({ level: k * 0.25, area_ft2: A0, storage_ft3: k * 0.25 * A0 });
     const dtMin = 6;
     const inflow = [];
     for (let i = 0; i <= 240; i++) inflow.push(i < 60 ? i * 0.5 : Math.max(0, 30 - (i - 60) * 0.25));
@@ -2452,6 +2480,11 @@ function secRunoff() {
   near("site composite CN (recorded)", RO.totals.cn, RUNOFF_REC.cn, 0.5, "");
   near("site runoff volume (recorded)", RO.totals.volume_acft, RUNOFF_REC.volume_acft, 1, " ac-ft");
   near("site peak, SCS (recorded)", RO.totals.qPeak_cfs, RUNOFF_REC.qPeak_cfs, RUNOFF_REC.qPeak_cfs * 0.02, " cfs");
+  for (const c of RO.catchments.slice().sort((a, b) => b.area_ft2 - a.area_ft2))
+    note(`  ${String(c.name).padEnd(26)} ${c.area_ac.toFixed(2).padStart(8)} ac  CN `
+       + `${fmt(c.cn, 0).padStart(3)}  Q ${c.Q_in.toFixed(2)} in  ${c.volume_acft.toFixed(2)} ac-ft  `
+       + `Tc ${String(c.tc_min).padStart(5)} min  Rational `
+       + `${c.qRational_cfs == null ? "n/a" : fmt(c.qRational_cfs, 0)}  SCS ${fmt(c.qPeak_cfs, 0)} cfs`);
   for (const [id, ref] of Object.entries(RUNOFF_REC.outlets)) {
     const c = by(id);
     row(id + " volume (recorded)", c ? +c.volume_acft.toFixed(2) : NaN, ref.vol,
@@ -2491,13 +2524,18 @@ function secRunoff() {
     const ring = waterRing(nm);
     const S = stageForRing(M, ring, nm, opt);
     const hy = inflowOf(via);
-    const ref = RUNOFF_REC.ponds[via];
+    const ref = RUNOFF_REC.ponds[via] || null;
     if (!hy) { row(nm + ": an inflow hydrograph", "none", "one", false, "exact"); continue; }
     const cl = S.conduitSpill ? (S.conduitSpill.stageLevel != null ? S.conduitSpill.stageLevel : S.conduitSpill.level) : null;
     const cluster = S.clusters && S.clusters.length ? S.clusters[0] : null;
     const rr = routeOneRef({ stage: S.stage, rimLevel: S.primary.level, conduitLevel: cl,
                              inflow: hy.q, dtMin: hy.dt_min,
                              weirLen: cluster ? Math.max(S.cell, cluster.cells * S.cell) : S.cell });
+    note(`  ${nm}: start ${fmt(S.stage[0].level, 2)}, rim ${fmt(S.primary.level, 2)}, `
+       + `conduit ${cl == null ? "none" : fmt(cl, 2)}, routed peak ${rr.peakLevel.toFixed(2)} ft, `
+       + `${rr.overtops ? "OVERTOPS" : rr.throughConduit ? "through the conduit" : "contained"}, `
+       + `inflow ${fmt(rr.volIn / AC, 1)} ac-ft, peak ${fmt(Math.max.apply(null, hy.q), 1)} cfs`);
+    if (!ref) { note("  (not yet recorded — see RUNOFF_REC)"); continue; }
     near(nm + ": rim spill (the v13 golden)", S.primary.level, ref.rim, 0.02, " ft");
     if (ref.conduit != null) near("  its conduit spill (the v13 golden)", cl, ref.conduit, 0.02, " ft");
     near("  routed peak stage (recorded)", +rr.peakLevel.toFixed(2), ref.peak, 0.05, " ft");
@@ -2509,8 +2547,24 @@ function secRunoff() {
   }
 
   console.log("\n§12.7  the cover raster");
-  /* (g) the classes are a partition of the surveyed ground, and the paved
-     class agrees with EA's own road and building geometry */
+  /* §3(g). Two halves, and the second one is a DEVIATION FROM THE SPEC'S
+     WORDING, stated here rather than quietly:
+
+       * the classes are a partition of the surveyed ground — the areas add up
+         to the drainage map's own surveyed area, cell for cell;
+       * the paved class really is where EA's paved geometry is.
+
+     The spec asks for the second as "the paved class area agrees with EA's
+     paved polygons within 5 %". EA has no paved POLYGONS — it draws roads as
+     LINES, two of them per road, so an analytic length x width estimate double
+     counts every road while the raster merges the overlap, and the raster is
+     additionally clipped to the surveyed ground and overpainted by buildings
+     and water. The area comparison is therefore one-sided by construction
+     (the raster can only be smaller) and on this site it is 16.7 % smaller,
+     which says nothing about placement. So placement is tested directly and
+     the area is reported beside it: a point ON an EA paved centreline must read
+     `paved`, unless a higher-priority class (a building, open water) or the
+     survey edge legitimately took that cell. */
   {
     const { meta, cover } = coverRasterN();
     const counts = new Float64Array(64);
@@ -2522,14 +2576,46 @@ function secRunoff() {
     near("  which is the drainage map's surveyed area", surveyed / AC,
          D.surveyedArea_ft2 / AC, 1.0, " ac");
     const idOf = k => (meta.classes.find(c => c.key === k) || {}).id;
+    const classAt = (x, y) => {
+      const i = Math.round((x - cover.x0) / cover.cell), j = Math.round((y - cover.y0) / cover.cell);
+      if (i < 0 || j < 0 || i >= cover.w || j >= cover.h) return -1;
+      return cover.data[j * cover.w + i];
+    };
+    /* every 10 ft along every paved road line EA drew */
+    const gis = T.readJSON("data/design_gis.json");
+    const pts = [];
+    for (const f of gis.features) {
+      const p = f.properties || {};
+      if (p.layer !== "road" || f.geometry.type !== "LineString") continue;
+      if (/GRVL|GRAV/i.test(p.cad_layer || "")) continue;
+      const cs = f.geometry.coordinates;
+      for (let i = 1; i < cs.length; i++) {
+        const d = Math.hypot(cs[i][0] - cs[i - 1][0], cs[i][1] - cs[i - 1][1]);
+        const n = Math.max(1, Math.round(d / 10));
+        for (let k = 0; k < n; k++)
+          pts.push([cs[i - 1][0] + (cs[i][0] - cs[i - 1][0]) * k / n,
+                    cs[i - 1][1] + (cs[i][1] - cs[i - 1][1]) * k / n]);
+      }
+    }
+    const tally = {};
+    for (const q of pts) { const c = classAt(q[0], q[1]); tally[c] = (tally[c] || 0) + 1; }
+    const higher = [idOf("roof"), idOf("water"), 0, -1];       // legitimately overpainted
+    const eligible = pts.length - higher.reduce((a, k) => a + (tally[k] || 0), 0);
+    const hit = tally[idOf("paved")] || 0;
+    row("a point on an EA paved road reads `paved`", hit + " of " + eligible,
+        ">= 95 %", hit >= 0.95 * eligible, "95 % of the eligible points",
+        pts.length + " points at 10 ft, " + (pts.length - eligible)
+        + " on a building, on water or off the survey");
     const paved = (counts[idOf("paved")] + counts[idOf("roof")]) * a2;
     const an = meta.analytic_check;
     const ref = an.paved_road_ft2 + an.building_ft2;
-    pct("paved + roofs vs EA's own geometry", paved, ref, 5);
-    note("cover classes, biggest first: " + meta.classes.filter(c => c.id)
-      .map(c => [c.key, counts[c.id] * a2 / AC])
-      .sort((a, b) => b[1] - a[1])
-      .map(([k, v]) => `${k} ${v.toFixed(1)} ac`).join(", "));
+    row("paved + roofs vs EA's own geometry", (paved / AC).toFixed(2) + " ac",
+        "<= " + (ref / AC).toFixed(2) + " ac", paved <= ref, "one-sided (see above)",
+        "d=" + (100 * (paved - ref) / ref).toFixed(1) + " %; overlapping road buffers, "
+        + "clipping to the survey and overpainting can only remove area");
+    /* recorded from this commit: the class split the curve numbers rest on */
+    for (const [k, ref2] of Object.entries(COVER_REC))
+      near("  " + k + " (recorded)", counts[idOf(k)] * a2 / AC, ref2, 0.05, " ac");
     note(`green-excess threshold ${meta.green_excess_threshold}, canopy >= `
        + `${meta.canopy_min_ft} ft, road half-width ${meta.road_half_width_ft.paved} ft`);
   }
