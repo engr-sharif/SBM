@@ -1,0 +1,76 @@
+<!doctype html><meta charset="utf-8"><title>SBMM WebGPU feasibility probe (v20 §5)</title>
+<body style="font:13px system-ui;background:#11161a;color:#dfe6ea;padding:14px">
+<h3>SBMM — WebGPU feasibility probe</h3>
+<pre id="out">running…</pre>
+<!-- A module that only EXISTS as a sibling file. Over file:// a module script
+     is fetched, and a fetch from an opaque origin is what CORS refuses — the
+     whole question this page exists to answer. -->
+<script type="module" src="webgpu_probe_mod.js"></script>
+<script>
+window.SBMM_PROBE = { moduleSrcRan: false };
+(async function () {
+  const R = window.SBMM_PROBE;
+  R.protocol = location.protocol;
+  R.origin = location.origin;
+
+  /* 1. is there a WebGPU adapter at all */
+  R.hasNavigatorGpu = !!navigator.gpu;
+  if (navigator.gpu) {
+    try {
+      const a = await navigator.gpu.requestAdapter();
+      R.adapter = !!a;
+      if (a) {
+        R.adapterInfo = a.info ? { vendor: a.info.vendor, architecture: a.info.architecture,
+                                   description: a.info.description } : null;
+        const d = await a.requestDevice();
+        R.device = !!d;
+        /* a minimal WGSL pipeline: if this compiles, a renderer could exist */
+        try {
+          d.createShaderModule({ code: "@vertex fn v() -> @builtin(position) vec4f { return vec4f(0,0,0,1); }" +
+                                       "@fragment fn f() -> @location(0) vec4f { return vec4f(1,1,1,1); }" });
+          R.wgsl = true;
+        } catch (e) { R.wgsl = false; R.wgslErr = String(e).slice(0, 200); }
+      }
+    } catch (e) { R.adapterErr = String(e).slice(0, 200); }
+  }
+
+  /* 2. an INLINE module script — no fetch, so this is the baseline */
+  try {
+    const s = document.createElement("script");
+    s.type = "module";
+    s.textContent = "window.SBMM_PROBE.inlineModuleRan = true;";
+    document.head.appendChild(s);
+    await new Promise(r => setTimeout(r, 60));
+    R.inlineModule = !!R.inlineModuleRan;
+  } catch (e) { R.inlineModule = false; }
+
+  /* 3. dynamic import of a BLOB url — the only way an ES-module library could
+        be inlined into a single HTML file and still be imported */
+  try {
+    const url = URL.createObjectURL(new Blob(["export const ok = 42;"], { type: "text/javascript" }));
+    const m = await import(url);
+    R.blobImport = m.ok === 42;
+  } catch (e) { R.blobImport = false; R.blobImportErr = String(e).slice(0, 200); }
+
+  /* 4. a blob module importing a SECOND blob module through an import map —
+        what three's WebGPU build would need, since it is dozens of modules */
+  try {
+    const dep = URL.createObjectURL(new Blob(["export const dep = 7;"], { type: "text/javascript" }));
+    const im = document.createElement("script");
+    im.type = "importmap";
+    im.textContent = JSON.stringify({ imports: { "three-dep": dep } });
+    document.head.appendChild(im);
+    const main = URL.createObjectURL(new Blob(
+      ["import { dep } from 'three-dep'; export const v = dep * 6;"], { type: "text/javascript" }));
+    const m = await import(main);
+    R.importMapBlob = m.v === 42;
+  } catch (e) { R.importMapBlob = false; R.importMapErr = String(e).slice(0, 200); }
+
+  /* 5. a module fetched as a sibling FILE (the <script type="module" src> above) */
+  await new Promise(r => setTimeout(r, 120));
+  R.moduleSrc = !!R.moduleSrcRan;
+
+  document.getElementById("out").textContent = JSON.stringify(R, null, 1);
+  window.SBMM_PROBE_DONE = true;
+})();
+</script>

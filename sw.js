@@ -22,6 +22,14 @@
    moment the device is online), everything else cache-first (the payloads are
    ~130 MB and never change without index.html changing).
 
+   The terrain tiles (v20) are NOT in the list index.html carries: they are
+   injected on demand by js/tiles.js, so index.html names only the 30 kB tile
+   INDEX. "Download the terrain tiles too" is therefore an explicit opt-in —
+   {type:"precache", tiles:true} — which reads that index out of the payload it
+   just cached and adds every tile file it names, 52 MB on top of the app. The
+   list still comes from the shipped payload rather than from a second copy
+   here, for the same reason the script list does.
+
    Staleness: the FNV-1a hash of the served index.html is stored beside the
    cache. Every network-first fetch compares it; a difference posts {type:
    "stale"} to every client, which js/touch.js turns into one toast and a
@@ -94,7 +102,33 @@ function urlsFrom(html, baseHref) {
 /* --------------------------------------------------------------- */
 /* precache                                                         */
 /* --------------------------------------------------------------- */
-async function precache(port) {
+/* Every tile payload the pyramid's own index names. Read out of the shipped
+   datajs/tiles/index.js rather than restated here — one list, not two. */
+async function tileUrls(baseHref) {
+  const u = new URL("datajs/tiles/index.js", baseHref).href;
+  let txt;
+  try {
+    const r = await fetch(u, { cache: "reload" });
+    if (!r.ok) return [];
+    txt = await r.text();
+  } catch (e) { return []; }
+  const m = txt.match(/SBMM_TILES\.index=([\s\S]+);\s*$/);
+  if (!m) return [];
+  let idx;
+  try { idx = JSON.parse(m[1]); } catch (e) { return []; }
+  const out = [];
+  for (const layer of Object.keys(idx.layers || {})) {
+    const L = idx.layers[layer];
+    for (const z of Object.keys(L.levels || {})) {
+      for (const t of L.levels[z].tiles || []) {
+        out.push(new URL(`datajs/tiles/${layer}_${z}_${t[0]}_${t[1]}.js`, baseHref).href);
+      }
+    }
+  }
+  return out;
+}
+
+async function precache(port, withTiles) {
   const say = o => { try { port && port.postMessage(o); } catch (e) {} };
   let html;
   try {
@@ -106,6 +140,7 @@ async function precache(port) {
     return;
   }
   const urls = urlsFrom(html, INDEX);
+  if (withTiles) for (const u of await tileUrls(INDEX)) if (urls.indexOf(u) < 0) urls.push(u);
   const cache = await caches.open(CACHE);
   let done = 0, bytes = 0;
   /* Serially, on purpose: this is 130 MB over somebody's site wifi, and forty
@@ -120,13 +155,17 @@ async function precache(port) {
       bytes += buf.byteLength;
       await cache.put(u, res);
     } catch (e) {
+      /* a missing TILE is a hole in the pyramid, not a broken app: the loader
+         falls back to a coarser level or to synthesis. A missing anything else
+         means the copy would not open, and that has to stop. */
+      if (u.indexOf("/tiles/") >= 0) { say({ type: "progress", done, total: urls.length, bytes, skipped: u }); continue; }
       say({ type: "error", message: "could not cache " + u.split("/").pop() + " — " + e.message });
       return;
     }
     done++;
     say({ type: "progress", done, total: urls.length, bytes });
   }
-  const meta = { count: done, bytes, at: new Date().toISOString(), hash: hashOf(html) };
+  const meta = { count: done, bytes, tiles: !!withTiles, at: new Date().toISOString(), hash: hashOf(html) };
   await writeMeta(meta);
   say(Object.assign({ type: "done", ready: true }, meta));
 }
@@ -146,7 +185,7 @@ self.addEventListener("activate", e => { e.waitUntil(self.clients.claim()); });
 self.addEventListener("message", e => {
   const d = e.data || {};
   const port = e.ports && e.ports[0];
-  if (d.type === "precache") e.waitUntil(precache(port));
+  if (d.type === "precache") e.waitUntil(precache(port, !!d.tiles));
   else if (d.type === "status") e.waitUntil(status().then(s => port && port.postMessage(s)));
   else if (d.type === "clear") e.waitUntil(clearAll().then(r => port && port.postMessage(r)));
 });
