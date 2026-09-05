@@ -3059,6 +3059,12 @@ const survey = await page.evaluate(async () => {
   const orr = flows.filter(f => /overflow route/.test(f.name)).pop();
   out.pipeRouteShownAtPipe = pr ? pr.visible !== false : null;
   out.overflowShownAtPipe = orr ? orr.visible !== false : null;
+  /* v15 §1: with the surveyed pipes carrying the water below the rim, this
+     analysis traces no rim overflow route at all — the one `orr` finds is the
+     lidar-only block's, left behind by design. */
+  out.routes = SBMM.water.routes();
+  out.hermanRimRoutes = SBMM.store.features.filter(f => f.type === "flow"
+    && /^Herman Impoundment overflow route/.test(f.name)).length;
   SBMM.water.clearOvertop();
   await new Promise(r => setTimeout(r, 200));
   return out;
@@ -3112,8 +3118,14 @@ for (const t of ["in pipe", "Clear Lake outfall"])
 if (survey.pipeMarker !== 1) { console.log("FAIL: no pipe marker"); process.exit(1); }
 if (!/discharging through the 24-in pipes/.test(survey.labelAtPipe) || !/surveyed stage/.test(survey.labelAtPipe))
   { console.log("FAIL: the slider label at the pipe stage: " + survey.labelAtPipe); process.exit(1); }
-if (survey.pipeRouteShownAtPipe !== true || survey.overflowShownAtPipe !== false)
-  { console.log("FAIL: route visibility at the pipe stage (pipe route on, rim overflow off)"); process.exit(1); }
+if (survey.pipeRouteShownAtPipe !== true)
+  { console.log("FAIL: the pipe discharge route must show at the pipe stage"); process.exit(1); }
+/* v15 §1 */
+if (!survey.routes || survey.routes.rim !== false || survey.routes.rimSuppressed !== true)
+  { console.log("FAIL: the surveyed Herman analysis must not trace a rim route:",
+                JSON.stringify(survey.routes)); process.exit(1); }
+if (survey.hermanRimRoutes !== 1)
+  { console.log("FAIL: a second Herman rim overflow route was created:", survey.hermanRimRoutes); process.exit(1); }
 if (errors.length !== errBeforeSurvey) {
   console.log("FAIL: page errors during the survey block:", errors.slice(errBeforeSurvey, errBeforeSurvey + 6)); process.exit(1);
 }
@@ -3468,12 +3480,39 @@ const w13 = await page.evaluate(async () => {
                     end: [cr.props.end.x, cr.props.end.y], reason: cr.props.end.reason,
                     pipe: cr.props.pipe_ft, outfall: !!cr.props.outfall, visible: cr.visible } : null,
       rim: rr ? { name: rr.name, len: rr.props.length_ft, end: [rr.props.end.x, rr.props.end.y],
-                  reason: rr.props.end.reason, visible: rr.visible } : null
+                  reason: rr.props.end.reason, visible: rr.visible } : null,
+      /* v15 §1 — which routes this analysis owns, read from the module rather
+         than guessed from feature names other analyses also match */
+      routes: SBMM.water.routes(),
+      whatIfBtn: !!(card && card.querySelector('[data-w="rimwhatif"]'))
     };
   };
   out.frog = await run("Frog Pond");
-  /* the slider: below the conduit level neither route shows, at it the conduit
-     route does, at the rim spill the rim route joins it */
+  /* v15 §1: the rim overflow is not traced when a conduit carries the water
+     first. The button traces it on demand, as a what-if, dashed and muted, and
+     the analysis takes it away with it. */
+  {
+    const card = [...document.querySelectorAll("#resBody .res")].find(c => /Overtopping/.test(c.textContent));
+    const btn = card.querySelector('[data-w="rimwhatif"]');
+    out.wiLabel0 = btn ? btn.textContent : "";
+    btn.click();
+    for (let i = 0; i < 60 && !SBMM.water.routes().rimWhatIf; i++) await wait(500);
+    await wait(400);
+    const wf = SBMM.store.features.filter(f => f.type === "flow" && /what-if/.test(f.name)).pop();
+    out.whatIf = wf ? {
+      name: wf.name, whatif: !!wf.props.whatif, len: wf.props.length_ft,
+      end: [wf.props.end.x, wf.props.end.y], reason: wf.props.end.reason, visible: wf.visible,
+      dashed: !!(wf.layer && wf.layer.getLayers && wf.layer.getLayers()
+        .some(l => l.options && l.options.dashArray === "7 6")),
+      /* the muted slate, not the water blue */
+      color: (wf.layer && wf.layer.getLayers ? (wf.layer.getLayers()
+        .find(l => l.options && l.options.dashArray === "7 6") || { options: {} }).options.color : null)
+    } : null;
+    out.routesWithWhatIf = SBMM.water.routes();
+    out.wiLabel1 = btn.textContent;
+  }
+  /* the slider: below the conduit level the route does not show, at it it does;
+     above the rim the label says the drains are assumed to carry it */
   {
     const R = SBMM.water.active();
     const card = [...document.querySelectorAll("#resBody .res")].find(c => /Overtopping/.test(c.textContent));
@@ -3484,6 +3523,7 @@ const w13 = await page.evaluate(async () => {
       const cr = SBMM.store.features.filter(f => f.type === "flow" && /first-discharge route/.test(f.name)).pop();
       const rr = SBMM.store.features.filter(f => f.type === "flow" && /Frog Pond overflow route/.test(f.name)).pop();
       return { c: cr ? cr.visible : null, r: rr ? rr.visible : null,
+               rim: SBMM.water.routes().rim,
                label: (card.querySelector(".wslabel") || {}).textContent || "" };
     };
     const set = async i => { sl.value = String(i); sl.dispatchEvent(new Event("input")); await wait(120); };
@@ -3493,7 +3533,9 @@ const w13 = await page.evaluate(async () => {
     await set(R.stage.length - 1); out.atTop = vis();
     await set(iC); await wait(60);
   }
+  /* closing an analysis takes its what-if with it (v15 §1) */
   out.green = await run("Green Pond");
+  out.whatIfAfterClear = SBMM.store.features.filter(f => /what-if/.test(f.name)).length;
   /* Herman keeps its §10 card: the conduit spill IS the surveyed pipe, so the
      pipe row gains the via and nothing is traced or listed twice */
   SBMM.water.clearOvertop();
@@ -3510,8 +3552,25 @@ const w13 = await page.evaluate(async () => {
     card: hcard ? hcard.textContent : "",
     markerC: document.querySelectorAll(".spillmk.conduit").length,
     extraRoutes: SBMM.store.features.filter(f => f.type === "flow"
-      && /^Herman Impoundment first-discharge route/.test(f.name)).length
+      && /^Herman Impoundment first-discharge route/.test(f.name)).length,
+    routes: SBMM.water.routes(),
+    whatIfBtn: !!(hcard && hcard.querySelector('[data-w="rimwhatif"]'))
   };
+  /* and the same button on Herman: the surveyed pipes are the overflow, the rim
+     route is the what-if */
+  {
+    const btn = hcard.querySelector('[data-w="rimwhatif"]');
+    if (btn) {
+      btn.click();
+      for (let i = 0; i < 60 && !SBMM.water.routes().rimWhatIf; i++) await wait(500);
+      await wait(400);
+    }
+    const wf = SBMM.store.features.filter(f => f.type === "flow"
+      && /^Herman Impoundment rim overflow/.test(f.name)).pop();
+    out.hermanWhatIf = wf ? { name: wf.name, whatif: !!wf.props.whatif,
+                              len: wf.props.length_ft, reason: wf.props.end.reason } : null;
+    out.hermanRoutes = SBMM.water.routes();
+  }
   return out;
 });
 console.log("v13 Frog Pond:", JSON.stringify({ spill: w13.frog.spill, cs: w13.frog.cs,
@@ -3547,18 +3606,46 @@ if (w13.frog.route.reason !== "nodata" || wdist(w13.frog.route.end, [6371177, 21
 /* the defect, stated as the user stated it: it does NOT go north */
 if (w13.frog.route.end[1] >= 2128000)
   { console.log("FAIL: the first-discharge route still runs north:", w13.frog.route.end); process.exit(1); }
-if (!w13.frog.rim || w13.frog.rim.reason == null)
-  { console.log("FAIL: the rim overflow route is gone"); process.exit(1); }
+/* v15 §1: the rim route is NOT traced by default when a conduit spills lower */
+if (w13.frog.routes.rim !== false || w13.frog.routes.rimSuppressed !== true)
+  { console.log("FAIL: Frog Pond's rim route must not be traced by default:",
+                JSON.stringify(w13.frog.routes)); process.exit(1); }
+if (w13.frog.rim)
+  { console.log("FAIL: a rim 'overflow route' feature was created anyway:", w13.frog.rim.name); process.exit(1); }
+if (!w13.frog.whatIfBtn) { console.log("FAIL: no 'trace the rim overflow' button on the card"); process.exit(1); }
+for (const t of ["not traced; the drains are assumed to handle it",
+                 "not traced — the drains are assumed to carry it",
+                 "+0.30 ft above pond culvert",
+                 "→ Green Pond (fills to 1,394.50) → green outlet"])
+  if (!w13.frog.card.includes(t)) { console.log("FAIL: the Frog Pond card lacks '" + t + "'"); process.exit(1); }
+if (!w13.whatIf || !w13.whatIf.whatif || !w13.whatIf.dashed)
+  { console.log("FAIL: the what-if rim overflow was not traced dashed:", JSON.stringify(w13.whatIf)); process.exit(1); }
+if (w13.whatIf.color !== "#93A6B3")
+  { console.log("FAIL: the what-if route must be drawn in the muted colour, got", w13.whatIf.color); process.exit(1); }
+if (!/what-if: pond culvert blocked/.test(w13.whatIf.name))
+  { console.log("FAIL: the what-if route must say what it assumes:", w13.whatIf.name); process.exit(1); }
+if (w13.routesWithWhatIf.rimWhatIf !== true)
+  { console.log("FAIL: the analysis does not own its what-if route"); process.exit(1); }
+if (!/trace the rim overflow/.test(w13.wiLabel0) || !/hide the rim overflow/.test(w13.wiLabel1))
+  { console.log("FAIL: the what-if button does not toggle its label:", w13.wiLabel0, "|", w13.wiLabel1); process.exit(1); }
+if (w13.whatIfAfterClear !== 0)
+  { console.log("FAIL: closing the analysis must take its what-if with it, left", w13.whatIfAfterClear); process.exit(1); }
 if (w13.frog.viaRows.length !== 1 || w13.frog.viaRows[0][1] !== "pond_culvert")
   { console.log("FAIL: exactly one stage row carries the via:", JSON.stringify(w13.frog.viaRows)); process.exit(1); }
 
 /* --- the slider ------------------------------------------------------ */
-if (w13.below.c !== false || w13.below.r !== false)
-  { console.log("FAIL: below the conduit level neither route may show:", JSON.stringify(w13.below)); process.exit(1); }
-if (w13.atConduit.c !== true || w13.atConduit.r !== false)
+/* v15 §1: `r` is the rim OVERFLOW ROUTE feature, and there is no longer one to
+   find — the conduit spills below the rim, so the rim route is not traced at
+   all (`rim: false`) and only the what-if button can produce one. */
+if (w13.below.c !== false || w13.below.rim !== false || w13.below.r !== null)
+  { console.log("FAIL: below the conduit level nothing may show:", JSON.stringify(w13.below)); process.exit(1); }
+if (w13.atConduit.c !== true || w13.atConduit.rim !== false || w13.atConduit.r !== null)
   { console.log("FAIL: at the conduit level only the conduit route shows:", JSON.stringify(w13.atConduit)); process.exit(1); }
-if (w13.atTop.c !== true || w13.atTop.r !== true)
-  { console.log("FAIL: above the rim spill both routes show:", JSON.stringify(w13.atTop)); process.exit(1); }
+if (w13.atTop.c !== true || w13.atTop.rim !== false)
+  { console.log("FAIL: above the rim the conduit route shows and no rim route is traced:",
+                JSON.stringify(w13.atTop)); process.exit(1); }
+if (!/the drains are assumed to carry it/.test(w13.atTop.label))
+  { console.log("FAIL: the slider label above the rim:", w13.atTop.label); process.exit(1); }
 if (!/discharging through pond culvert/.test(w13.atConduit.label))
   { console.log("FAIL: the slider label at the conduit level:", w13.atConduit.label); process.exit(1); }
 
@@ -3585,6 +3672,17 @@ if (w13.herman.markerC !== 0 || w13.herman.extraRoutes !== 0)
   { console.log("FAIL: Herman must not get a second marker or a second route"); process.exit(1); }
 for (const t of ["24-in HDPE pipes", "via herman_pipe_s", "Rim spill"])
   if (!w13.herman.card.includes(t)) { console.log("FAIL: the Herman card lacks '" + t + "'"); process.exit(1); }
+/* v15 §1 on Herman: the surveyed pipes are the overflow, the rim route is the
+   what-if, and every §10 number above is unchanged */
+if (w13.herman.routes.rim !== false || w13.herman.routes.pipe !== true
+    || w13.herman.routes.rimSuppressed !== true || !w13.herman.whatIfBtn)
+  { console.log("FAIL: Herman's default routes:", JSON.stringify(w13.herman.routes)); process.exit(1); }
+if (!w13.herman.card.includes("not traced; the drains are assumed to handle it"))
+  { console.log("FAIL: the Herman card does not say the rim spill is not traced"); process.exit(1); }
+if (!w13.hermanWhatIf || !w13.hermanWhatIf.whatif || !/24-in pipes blocked/.test(w13.hermanWhatIf.name))
+  { console.log("FAIL: Herman's what-if rim overflow:", JSON.stringify(w13.hermanWhatIf)); process.exit(1); }
+if (w13.hermanRoutes.rimWhatIf !== true)
+  { console.log("FAIL: Herman's what-if is not owned by the analysis"); process.exit(1); }
 
 /* --- water in 3D ----------------------------------------------------- */
 /* The particles: precomputed per rebuild, advanced in the render loop, and the
@@ -5052,6 +5150,380 @@ if (errors.length !== errBeforeDrain) {
 await page.evaluate(() => {
   SBMM.layerState.set("framework", "drain_outlet", { on: false });
   SBMM.layerState.set("framework", "drain_first", { on: false });
+});
+
+/* ==================================================================== */
+/* 9y. 3D parity — everything that works in 2D works in 3D (v15 §3.1)   */
+/* ==================================================================== */
+/* The table: for every layer row that is ON, the 3D scene must contain at least
+   one object tagged with that row's (group, id). js/viewer3d.js tags every
+   object it builds (`userData.layer`) and `stats().layersDrawn` reports the set.
+
+   Some rows have no overlay object BY CONSTRUCTION, and each of those is
+   exempted here with the reason printed beside it rather than quietly skipped:
+
+     * the basemaps and the computed rasters (hillshade, the three orthos,
+       slope, aspect, elevation tint) are the 3D TERRAIN DRAPE — one picker in
+       the 3D toolbar, the same pixels, not an overlay;
+     * a plan sheet's raster is draped on request (the ⛰ button on its row);
+       `sheets3d` is the master switch for those and draws nothing on its own;
+     * the sheet footprints are 2D click targets that open a drawing — in 3D
+       you click the drape itself;
+     * EA's CAD BASE MAP groups (contours 3,159 rings, parcels 2,788, roads,
+       buildings, fences, trees, utilities, symbols 15,045) are 2D-only: every
+       ring in 3D is resampled against the DEM every 10 ft on every overlay
+       rebuild, and the viewer's 3,000-ring drape budget exists because of it.
+       The DESIGN groups — limits of excavation, daylight, grade, repository,
+       borrow, staging, haul — ARE drawn, and they are what the 3D view is for;
+     * a My-work class row with no visible feature of that class has nothing to
+       draw, so it is only required when such a feature exists.
+
+   Anything else with an ON row and no object is a FAIL and is listed. */
+const errBeforeParity = errors.length;
+const parity = await page.evaluate(async () => {
+  const wait = ms => new Promise(r => setTimeout(r, ms));
+  /* every group on, including the lazily built base layers — the same
+     "everything on" test/perf.mjs uses */
+  const LS = SBMM.layerState;
+  /* put every row back afterwards: turning EA's 22k-entity CAD base map and the
+     twelve sheet rasters on is a state the blocks after this one should not
+     inherit (and the cultural stamp must not end up in the screenshots) */
+  window.__parityState = LS.dump();
+  for (const g of ["framework", "design", "invest", "mywork", "cultural"]) LS.setGroup(g, true);
+  for (const id of ["contours_site", "contours_abp", "canopy", "trees_detected"])
+    if (LS.get("base", id)) LS.set("base", id, { on: true });
+  /* the drainage rows run their job on the first tick; it is cached from block
+     9x, but wait for it rather than racing it */
+  for (let i = 0; i < 120 && SBMM.drainage && !SBMM.drainage.hasResult(); i++) await wait(500);
+  /* the CAD groups parse their geometry lazily on first enable */
+  await wait(4000);
+  const wasOpen = SBMM.viewer3d.isOpen();
+  if (!wasOpen) { await SBMM.viewer3d.toggle(); await wait(4000); }
+  /* the canopy mesh, the contour sets and the tree detector are all built on
+     first need; wait for them rather than racing them into the table */
+  for (let i = 0; i < 90; i++) {
+    const st = SBMM.viewer3d.stats();
+    const okCanopy = !LS.isOn("base", "canopy") || st.canopyVisible;
+    const okTrees = !LS.isOn("base", "trees_detected") || !!(SBMM.trees && SBMM.trees.data);
+    const okCont = !(LS.isOn("base", "contours_site") || LS.isOn("base", "contours_abp"))
+                 || st.contoursVisible;
+    if (okCanopy && okTrees && okCont) break;
+    await wait(1000);
+  }
+  /* the tree detector runs over the whole canopy window on first enable; if it
+     has not finished, say so and take the row out rather than failing the table
+     on a race (the tag itself is checked by the row when it IS ready) */
+  let treesSkipped = false;
+  if (LS.isOn("base", "trees_detected") && !(SBMM.trees && SBMM.trees.data)) {
+    LS.set("base", "trees_detected", { on: false });
+    treesSkipped = true;
+    await wait(500);
+  }
+  SBMM.viewer3d.refreshOverlays();
+  await wait(4000);
+  const drawn = SBMM.viewer3d.stats().layersDrawn;
+
+  /* every row of every group, from the ONE layer state (§1/§4) rather than from
+     the DOM — the label is what says whether a row is a raster or a vector */
+  const rows = [];
+  for (const g of ["base", "framework", "design", "invest", "cultural", "mywork"])
+    for (const r of LS.list(g))
+      rows.push({ group: g, id: r.id, label: String(r.label || r.id).slice(0, 60), on: !!r.on });
+  /* the layer rows that belong to a dataset that still EXISTS — an imported
+     dataset that was removed leaves its row behind (see exemptReason) */
+  const dsKeys = (SBMM.datasets ? SBMM.datasets.list() : [])
+    .map(d => d.rowRef && d.rowRef.key).filter(Boolean);
+  return { drawn, rows, wasOpen, treesSkipped, dsKeys };
+});
+if (parity.treesSkipped)
+  console.log("3D parity: the tree detector had not finished, so base/trees_detected is out of this table");
+const rowsOn = parity.rows.filter(r => r.on);
+/* which My-work classes actually have a visible feature */
+const classesLive = await page.evaluate(() => {
+  const out = {};
+  for (const f of SBMM.store.features)
+    if (f.visible !== false) out[SBMM.myWork.classOf(f)] = (out[SBMM.myWork.classOf(f)] || 0) + 1;
+  return out;
+});
+const CAD_BASEMAP = new Set(["cad_contour", "cad_parcel", "cad_road", "cad_bldg", "cad_fence",
+  "cad_tree", "cad_util", "cad_env", "cad_symbol", "cad_misc", "cad_topo", "cad_du",
+  "cad_storm", "cad_esc", "cad_algn", "cad_anno"]);
+function exemptReason(r) {
+  if (r.group === "base" && /^(Hillshade|Ortho|Slope|Aspect|Elevation tint)/.test(r.label))
+    return "the 3D terrain drape (toolbar picker)";
+  if (r.group === "design" && r.id === "sheets3d") return "master switch for the per-sheet drapes";
+  if (r.group === "design" && r.id === "sheet_footprints") return "2D click targets; in 3D you click the drape";
+  if (r.group === "design" && /^C-\d|^G-\d/.test(r.label)) return "a plan sheet, draped on request (⛰)";
+  if (CAD_BASEMAP.has(r.id)) return "EA CAD base map — 2D only (drape budget, see the block header)";
+  if (r.group === "mywork" && !classesLive[r.id]) return "no visible feature of this class";
+  /* An imported dataset that was REMOVED leaves its layer row behind: nothing
+     can undefine a row once SBMM.layerState has it, so the row stays on with no
+     data under it. That is a pre-existing leak in the layer state, not a 3D
+     parity gap — it is reported here by name so it is not lost, and it belongs
+     with the Layers work (docs/V16_LAYERS_SPEC.md), not with this spec. */
+  if (r.group === "invest" && r.id !== "samples" && !/^survey_/.test(r.id)
+      && !parity.dsKeys.includes(r.group + "/" + r.id))
+    return "ORPHAN ROW — its imported dataset was removed (layerState cannot undefine a row; v16)";
+  return null;
+}
+const parityTable = rowsOn.map(r => {
+  const key = r.group + "/" + r.id;
+  const n = parity.drawn[key] || 0;
+  return { key, label: r.label, objects: n, exempt: n ? null : exemptReason(r) };
+});
+console.log("3D parity table — rows ON:", parityTable.length,
+            "| with 3D objects:", parityTable.filter(t => t.objects).length,
+            "| exempt:", parityTable.filter(t => !t.objects && t.exempt).length);
+for (const t of parityTable.filter(t => !t.objects))
+  console.log("   " + t.key.padEnd(28) + (t.exempt ? "exempt — " + t.exempt : "*** MISSING ***"));
+const parityMissing = parityTable.filter(t => !t.objects && !t.exempt);
+if (parityMissing.length) {
+  console.log("FAIL: 3D parity — these layer rows are on and draw nothing in 3D:",
+              JSON.stringify(parityMissing.map(t => t.key)));
+  process.exit(1);
+}
+/* the §3.1 named gaps, each asserted by name rather than by the table alone */
+const parityNamed = await page.evaluate(async () => {
+  const wait = ms => new Promise(r => setTimeout(r, ms));
+  const out = {};
+  const d = SBMM.viewer3d.stats().layersDrawn;
+  out.pdf = !!d["design/pdf_boundaries"];
+  out.contoursSite = !!d["base/contours_site"];
+  out.contoursAbp = !!d["base/contours_abp"];
+  out.drainPaths = !!d["framework/drain_paths"];
+  out.cultural = Object.keys(d).some(k => k.indexOf("cultural/") === 0);
+  /* a dataset's row id is a slug of its LABEL, not its dataset id, so the row
+     key is what threeSpec() carries — compare against that, not a prefix */
+  const ds = SBMM.datasets ? SBMM.datasets.threeSpec() : [];
+  out.datasets = ds.filter(sp => d[sp.rowKey]).length;
+  out.datasetsOn = ds.length;
+  /* EA's four recovered design surfaces: read-only `surface` features with no
+     node grid, so the mesh branch skipped them entirely before v15 */
+  out.refSurfaces = SBMM.store.features.filter(f => f.type === "surface" && f.props && f.props.ref).length;
+  /* a cross-section set: its station lines and chainages, not just the baseline */
+  const sec = SBMM.store.features.filter(f => f.type === "sections").pop();
+  if (sec) {
+    SBMM.store.setVisible(sec, true);
+    SBMM.viewer3d.refreshOverlays();
+    await wait(900);
+    const st = SBMM.viewer3d.stats();
+    out.sectionsRow = !!st.layersDrawn["mywork/sections"];
+    out.stationLabels = st.labelTexts.filter(t => /^\d+\+/.test(t)).length;
+  }
+  return out;
+});
+console.log("3D parity — the named gaps:", JSON.stringify(parityNamed));
+for (const [k, v] of Object.entries({ "EA PDF boundaries": parityNamed.pdf,
+    "survey contours (site)": parityNamed.contoursSite,
+    "drainage flow paths": parityNamed.drainPaths,
+    "cultural layers": parityNamed.cultural }))
+  if (!v) { console.log("FAIL: 3D parity gap still open —", k); process.exit(1); }
+if (parityNamed.datasetsOn && parityNamed.datasets !== parityNamed.datasetsOn)
+  { console.log("FAIL: a dataset row is on and has no 3D object:",
+                parityNamed.datasets, "of", parityNamed.datasetsOn); process.exit(1); }
+if (parityNamed.sectionsRow === false)
+  { console.log("FAIL: a cross-section set draws nothing in 3D"); process.exit(1); }
+
+/* view presets move the camera, and the sun and animate-water controls exist */
+const chrome3d = await page.evaluate(async () => {
+  const wait = ms => new Promise(r => setTimeout(r, ms));
+  const out = {};
+  const before = SBMM.viewer3d.stats().orbit;
+  SBMM.viewer3d.preset("w");
+  await wait(1400);
+  out.moved = JSON.stringify(SBMM.viewer3d.stats().orbit) !== JSON.stringify(before);
+  /* the keyboard: 1,2,4,5,6 are presets and Shift+3 is the south one — a bare 3
+     has toggled the whole 3D view since v1 (v15 §3.2, and the report says so) */
+  const b2 = SBMM.viewer3d.stats().orbit;
+  /* keyed on e.code (Shift+3 is "#" on a US keyboard, so e.key cannot carry it) */
+  document.dispatchEvent(new KeyboardEvent("keydown", { key: "2", code: "Digit2", bubbles: true }));
+  await wait(1200);
+  out.keyPreset = JSON.stringify(SBMM.viewer3d.stats().orbit) !== JSON.stringify(b2);
+  /* a bare 3 still opens and closes the 3D view; Shift+3 is the south preset */
+  const b3 = SBMM.viewer3d.stats().orbit;
+  document.dispatchEvent(new KeyboardEvent("keydown", { key: "#", code: "Digit3", shiftKey: true, bubbles: true }));
+  await wait(1200);
+  out.keyShift3 = JSON.stringify(SBMM.viewer3d.stats().orbit) !== JSON.stringify(b3);
+  out.stillOpen = SBMM.viewer3d.isOpen();
+  out.animWater = !!document.getElementById("v3dAnimWater");
+  out.sunAz = !!document.getElementById("v3dSunAz");
+  out.sunEl = !!document.getElementById("v3dSunEl");
+  out.lookAt = !!document.getElementById("v3dLookAt");
+  out.elevLegend = (document.getElementById("v3dElevLeg") || { textContent: "" }).textContent.trim().length > 0;
+  const s0 = SBMM.viewer3d.sun();
+  SBMM.viewer3d.sun(120, 60);
+  out.sunSet = SBMM.viewer3d.sun();
+  SBMM.viewer3d.sun(s0.az, s0.el);
+  out.sky = SBMM.viewer3d.stats().sky;
+  out.ground = SBMM.viewer3d.stats().groundPlane;
+  return out;
+});
+console.log("3D chrome:", JSON.stringify(chrome3d));
+for (const k of ["moved", "keyPreset", "keyShift3", "stillOpen", "animWater", "sunAz", "sunEl",
+                 "lookAt", "elevLegend", "sky", "ground"])
+  if (!chrome3d[k]) { console.log("FAIL: 3D chrome —", k); process.exit(1); }
+if (chrome3d.sunSet.az !== 120 || chrome3d.sunSet.el !== 60)
+  { console.log("FAIL: the sun control does not move the light:", JSON.stringify(chrome3d.sunSet)); process.exit(1); }
+
+/* the stage labels follow the slider (v15 §2.3) */
+const lbl3d = await page.evaluate(async () => {
+  const wait = ms => new Promise(r => setTimeout(r, ms));
+  const ringOf = nm => SBMM_DATA.design_gis.features.find(
+    f => f.properties.layer === "water" && f.properties.name === nm).geometry.coordinates[0];
+  SBMM.water.clearOvertop();
+  await wait(200);
+  const R = await SBMM.water.overtop({ ring: ringOf("Frog Pond").map(q => [q[0], q[1]]), name: "Frog Pond" });
+  await wait(600);
+  await SBMM.viewer3d.openAt(R.conduitSpill.x, R.conduitSpill.y);
+  await wait(3000);
+  const card = [...document.querySelectorAll("#resBody .res")].find(c => /Overtopping/.test(c.textContent));
+  const sl = card.querySelector("#wsRange");
+  const at = async lv => {
+    const i = R.stage.findIndex(st => st.level >= lv - 1e-9);
+    sl.value = String(Math.max(0, i)); sl.dispatchEvent(new Event("input"));
+    await wait(1400);
+    return SBMM.viewer3d.stats();
+  };
+  const below = await at(R.conduitSpill.level - 0.5);
+  const atRim = await at(R.primary.level + 0.5);
+  return {
+    belowTexts: below.labelTexts, aboveTexts: atRim.labelTexts,
+    registered: atRim.labels3d, visible: atRim.labelsVisible
+  };
+});
+console.log("3D stage labels below the culvert:", JSON.stringify(lbl3d.belowTexts));
+console.log("3D stage labels above the rim:   ", JSON.stringify(lbl3d.aboveTexts));
+const hasTxt = (a, re) => a.some(t => re.test(t));
+if (!hasTxt(lbl3d.belowTexts, /first discharge .* ft to go/))
+  { console.log("FAIL: below the culvert rim the label must say how far it has to go"); process.exit(1); }
+if (!hasTxt(lbl3d.aboveTexts, /first discharge .*discharging/))
+  { console.log("FAIL: at the culvert rim the label must say it is discharging"); process.exit(1); }
+if (!hasTxt(lbl3d.aboveTexts, /rim spill .*overtopped/))
+  { console.log("FAIL: past the rim spill the rim label must say overtopped"); process.exit(1); }
+if (!hasTxt(lbl3d.belowTexts, /rim spill .* ft to go/))
+  { console.log("FAIL: below the rim spill the rim label must say how far it has to go"); process.exit(1); }
+if (!hasTxt(lbl3d.aboveTexts, /^water level /))
+  { console.log("FAIL: no water-level label on the stage surface"); process.exit(1); }
+/* the collision pass: what is drawn is never more than what is registered */
+if (!(lbl3d.visible <= lbl3d.registered) || !lbl3d.visible)
+  { console.log("FAIL: the 3D label collision pass:", lbl3d.visible, "of", lbl3d.registered); process.exit(1); }
+if (errors.length !== errBeforeParity) {
+  console.log("FAIL: page errors during the 3D parity block:",
+              errors.slice(errBeforeParity, errBeforeParity + 6)); process.exit(1);
+}
+await page.evaluate(async () => {
+  SBMM.water.clearOvertop();
+  if (SBMM.viewer3d.isOpen()) SBMM.viewer3d.toggle();
+  SBMM.layerState.setGroup("cultural", false);
+  if (window.__parityState) SBMM.layerState.restore(window.__parityState);
+  await new Promise(r => setTimeout(r, 800));
+});
+
+/* ==================================================================== */
+/* 9z. labels — one per fact, and none on top of another (v15 §2.2)     */
+/* ==================================================================== */
+const errBeforeLbl = errors.length;
+const lab = await page.evaluate(async () => {
+  const wait = ms => new Promise(r => setTimeout(r, ms));
+  const ringOf = nm => SBMM_DATA.design_gis.features.find(
+    f => f.properties.layer === "water" && f.properties.name === nm).geometry.coordinates[0];
+  const out = {};
+  /* Frog Pond's overtopping makes a first-discharge route through the culvert
+     into Green Pond; a raindrop dropped on the same inlet runs the same way, so
+     the two features draw the SAME ponds — which is exactly how the text used
+     to stack (v15 §2.1). */
+  const R = await SBMM.water.overtop({ ring: ringOf("Frog Pond").map(q => [q[0], q[1]]), name: "Frog Pond" });
+  await wait(500);
+  /* two drops on the same cell: identical runs, identical ponds, so every pond
+     label is stated twice — which is the defect, arranged rather than hoped for */
+  await SBMM.water.dropAt(R.conduitSpill.x, R.conduitSpill.y, { name: "ZZ label probe 1" });
+  await wait(600);
+  await SBMM.water.dropAt(R.conduitSpill.x, R.conduitSpill.y, { name: "ZZ label probe 2" });
+  await wait(600);
+  /* zoom onto Green Pond (E 6,373,925–6,374,152), where both runs pond */
+  SBMM.map.setView([2127900, 6374020], 2, { animate: false });
+  await wait(700);
+  SBMM.labels.place();
+  const vis = SBMM.labels.visible();
+  const boxes = SBMM.labels.boxes();
+  out.stats = SBMM.labels.stats();
+  /* one visible label per pond key */
+  const perKey = {};
+  for (const v of vis) if (v.key && v.key.indexOf("pond:") === 0) perKey[v.key] = (perKey[v.key] || 0) + 1;
+  out.pondKeys = perKey;
+  out.pondVisible = Object.keys(perKey).length;
+  out.pondMax = Object.values(perKey).reduce((a, b) => Math.max(a, b), 0);
+  /* how many were hidden BECAUSE they were duplicates — the defect, measured */
+  out.dupHidden = out.stats.dup;
+  /* no two visible boxes overlap */
+  const over = [];
+  for (let i = 0; i < boxes.length; i++) for (let j = i + 1; j < boxes.length; j++) {
+    const a = boxes[i], b = boxes[j];
+    if (!(a.right < b.left || b.right < a.left || a.bottom < b.top || b.bottom < a.top))
+      over.push([a.key || a.id, b.key || b.id]);
+  }
+  out.overlapZoom = over;
+  out.nBoxes = boxes.length;
+  /* pan and zoom out, then measure again */
+  SBMM.map.fitBounds(SBMM.demSite.bounds(), { animate: false });
+  await wait(700);
+  SBMM.labels.place();
+  const b2 = SBMM.labels.boxes();
+  const over2 = [];
+  for (let i = 0; i < b2.length; i++) for (let j = i + 1; j < b2.length; j++) {
+    const a = b2[i], b = b2[j];
+    if (!(a.right < b.left || b.right < a.left || a.bottom < b.top || b.bottom < a.top))
+      over2.push([a.key || a.id, b.key || b.id]);
+  }
+  out.overlapSite = over2;
+  out.nBoxesSite = b2.length;
+  return out;
+});
+console.log("2D labels:", JSON.stringify({ stats: lab.stats, pondVisible: lab.pondVisible,
+  pondMax: lab.pondMax, dupHidden: lab.dupHidden, boxes: lab.nBoxes, overlaps: lab.overlapZoom.length }));
+if (lab.pondMax > 1)
+  { console.log("FAIL: a pond has more than one visible label:", JSON.stringify(lab.pondKeys)); process.exit(1); }
+if (!lab.dupHidden)
+  { console.log("FAIL: two routes over the same pond must produce a deduped label, got", lab.dupHidden); process.exit(1); }
+if (lab.overlapZoom.length)
+  { console.log("FAIL: two visible labels overlap after a zoom:", JSON.stringify(lab.overlapZoom.slice(0, 4))); process.exit(1); }
+if (lab.overlapSite.length)
+  { console.log("FAIL: two visible labels overlap after a pan:", JSON.stringify(lab.overlapSite.slice(0, 4))); process.exit(1); }
+
+/* the drainage catchment names, at full-site zoom, must not pile up either */
+const labDrain = await page.evaluate(async () => {
+  const wait = ms => new Promise(r => setTimeout(r, ms));
+  SBMM.layerState.set("framework", "drain_outlet", { on: true });
+  for (let i = 0; i < 120 && !SBMM.drainage.hasResult(); i++) await wait(500);
+  await wait(1200);
+  SBMM.map.fitBounds(SBMM.demSite.bounds(), { animate: false });
+  await wait(800);
+  SBMM.labels.place();
+  const b = SBMM.labels.boxes().filter(q => q.owner === "drainage");
+  const all = SBMM.labels.boxes();
+  const over = [];
+  for (let i = 0; i < all.length; i++) for (let j = i + 1; j < all.length; j++) {
+    const x = all[i], y = all[j];
+    if (!(x.right < y.left || y.right < x.left || x.bottom < y.top || y.bottom < x.top))
+      over.push([x.key, y.key]);
+  }
+  const st = SBMM.labels.stats();
+  SBMM.layerState.set("framework", "drain_outlet", { on: false });
+  return { drainVisible: b.length, allVisible: all.length, overlaps: over, stats: st };
+});
+console.log("2D labels with the drainage map on:", JSON.stringify(labDrain));
+if (!labDrain.drainVisible)
+  { console.log("FAIL: the drainage catchments have no visible label at site zoom"); process.exit(1); }
+if (labDrain.overlaps.length)
+  { console.log("FAIL: drainage labels overlap:", JSON.stringify(labDrain.overlaps.slice(0, 4))); process.exit(1); }
+if (errors.length !== errBeforeLbl) {
+  console.log("FAIL: page errors during the labels block:",
+              errors.slice(errBeforeLbl, errBeforeLbl + 6)); process.exit(1);
+}
+await page.evaluate(async () => {
+  SBMM.water.clearOvertop();
+  for (const p of SBMM.store.features.filter(f => /^ZZ label probe/.test(f.name))) SBMM.store.remove(p);
+  await new Promise(r => setTimeout(r, 200));
 });
 
 /* 10. screenshot 2D — feature manager open, with the Pile 1 volume drawn */

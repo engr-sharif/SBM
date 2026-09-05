@@ -750,8 +750,74 @@ const pinched = await page.evaluate(() => SBMM.viewer3d.stats().orbit.r);
 console.log(`two-finger pinch: orbit radius ${Math.round(r0)} → ${Math.round(pinched)} ft`);
 if (Math.abs(pinched - r0) < r0 * 0.05) fail("a two-finger pinch did not zoom", { r0, pinched });
 
+/* ---- v15 §3.1/§3.3: the parity table on the FIELD rows --------------- */
+/* Same rule as the desktop e2e's block 9y, on the rows this build actually
+   has: a row that is ON must have at least one 3D object tagged with its
+   (group, id). The field build excludes the CAD payloads and the CHM, so those
+   rows are simply not there — which is the payload-tolerance rule working, not
+   a parity gap. */
+const fieldParity = await page.evaluate(async () => {
+  const w = ms => new Promise(r => setTimeout(r, ms));
+  const LS = SBMM.layerState;
+  for (const g of ["framework", "design", "invest", "mywork"]) LS.setGroup(g, true);
+  /* the drainage rows run their job on the first tick (4 ft in this build) */
+  for (let i = 0; i < 120 && SBMM.drainage && !SBMM.drainage.hasResult(); i++) await w(500);
+  await w(2000);
+  SBMM.viewer3d.refreshOverlays();
+  await w(3500);
+  const drawn = SBMM.viewer3d.stats().layersDrawn;
+  const rows = [];
+  for (const g of ["base", "framework", "design", "invest", "cultural", "mywork"])
+    for (const r of LS.list(g))
+      if (r.on) rows.push({ group: g, id: r.id, label: String(r.label || r.id).slice(0, 60),
+                            n: drawn[g + "/" + r.id] || 0 });
+  const live = {};
+  for (const f of SBMM.store.features)
+    if (f.visible !== false) live[SBMM.myWork.classOf(f)] = 1;
+  return { rows, live, labels3d: SBMM.viewer3d.stats().labels3d,
+           labelsVisible: SBMM.viewer3d.stats().labelsVisible,
+           sky: SBMM.viewer3d.stats().sky, sun: SBMM.viewer3d.stats().sun };
+});
+const CAD_BASEMAP_F = /^cad_(contour|parcel|road|bldg|fence|tree|util|env|symbol|misc|topo|du|storm|esc|algn|anno)$/;
+const fieldMissing = fieldParity.rows.filter(r => {
+  if (r.n) return false;
+  if (r.group === "base" && /^(Hillshade|Ortho|Slope|Aspect|Elevation tint)/.test(r.label)) return false;
+  if (r.group === "design" && (r.id === "sheets3d" || r.id === "sheet_footprints")) return false;
+  if (r.group === "design" && /^C-\d|^G-\d/.test(r.label)) return false;
+  if (CAD_BASEMAP_F.test(r.id)) return false;
+  if (r.group === "mywork" && !fieldParity.live[r.id]) return false;
+  return true;
+});
+console.log(`3D parity (field): ${fieldParity.rows.length} rows on, `
+  + `${fieldParity.rows.filter(r => r.n).length} with 3D objects, `
+  + `${fieldMissing.length} missing | 3D labels ${fieldParity.labelsVisible}/${fieldParity.labels3d} `
+  + `| sky ${fieldParity.sky} sun ${JSON.stringify(fieldParity.sun)}`);
+if (fieldMissing.length)
+  fail("3D parity gaps in the field build", fieldMissing.map(r => r.group + "/" + r.id));
+if (!fieldParity.sky) fail("the field build has no 3D sky");
+
 await page.evaluate(() => SBMM.viewer3d.toggle());
 await wait(600);
+
+/* ---- v15 §2.2: the 2D label engine on the phone ---------------------- */
+const fieldLabels = await page.evaluate(async () => {
+  const w = ms => new Promise(r => setTimeout(r, ms));
+  SBMM.map.setView([2128400, 6372600], 0, { animate: false });
+  await w(700);
+  SBMM.labels.place();
+  const b = SBMM.labels.boxes();
+  const over = [];
+  for (let i = 0; i < b.length; i++) for (let j = i + 1; j < b.length; j++) {
+    const x = b[i], y = b[j];
+    if (!(x.right < y.left || y.right < x.left || x.bottom < y.top || y.bottom < x.top))
+      over.push([x.key, y.key]);
+  }
+  return { stats: SBMM.labels.stats(), overlaps: over };
+});
+console.log("2D labels (field):", JSON.stringify(fieldLabels.stats),
+            "| overlaps:", fieldLabels.overlaps.length);
+if (fieldLabels.overlaps.length)
+  fail("two visible labels overlap on the phone", fieldLabels.overlaps.slice(0, 4));
 
 /* ===================================================================== */
 /* 14. boot comparison, full vs field, same box, same descriptor         */

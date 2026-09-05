@@ -319,6 +319,8 @@ SBMM.cultural = (function () {
     }
     return out;
   }
+  /* v15 §3.1: which layer each point belongs to, so js/viewer3d.js can build one
+     cloud per ROW and tag it — a single merged cloud can only claim one row. */
   function points3d() {
     if (!visible()) return [];
     const D = data();
@@ -327,7 +329,8 @@ SBMM.cultural = (function () {
       const spec = (D.layers || []).find(l => l.key === k);
       for (const f of (byLayer[k] || [])) {
         if (f.geom !== "point") continue;
-        out.push({ x: f.coords[0], y: f.coords[1], color: (spec && spec.color) || "#E8B34B", feature: f });
+        out.push({ x: f.coords[0], y: f.coords[1], color: (spec && spec.color) || "#E8B34B",
+                   layer: k, feature: f });
       }
     }
     return out;

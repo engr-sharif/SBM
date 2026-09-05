@@ -200,6 +200,7 @@ terrain source, which needs an explicit decision + README/test update).
 |---|---|
 | gate.js | **the password gate** — the FIRST script in `index.html`, before the vendor bundles and the payloads. Full-viewport cover at z 9000, SHA-256 check, remembered unlock, the animated contour field and the flood/reveal unlock |
 | util.js | formatting, geometry helpers, ramps, toast; `$()` |
+| labels.js | **the 2D label engine (v15 §2.2)** — one registry for every permanent map label, dedupe by `key`, a greedy screen-space collision pass by priority, `visibility:hidden` never `display`, per-label zoom `gate()`; `SBMM.labels` |
 | compute.js | **pure** compute kernels (volume grid, rasters, marching squares, ring-aware simplify) — no DOM, no SBMM; runs in workers |
 | jobs.js | worker pool: progress, cancel, transferables; `SBMM.compute` |
 | dem.js | DEM decode — the Blob-URL **decode worker** and `Dem.loadAll` (one worker per payload, all started together) with the main-thread path as the fallback — plus bilinear `at()`, slope/aspect; the DEM stack `SBMM.dems` / `setDems` / `demAt` / `demForBox`; `SBMM.elev`, `SBMM.slopeAt`, `SBMM.canopy` |
@@ -1213,6 +1214,154 @@ road ditch runs *past* them into the impoundment, which then discharges through
 the surveyed pipes. `through_area` on each inlet adds the ponds that pour into
 it, which is how the water actually reaches most of them (`herman_pipe_s` 37.90
 ac, `pond_culvert` 14.52 ac, `green_outlet` 2.62 ac).
+
+## v15 — conduits first, two label engines, and the 3D view
+
+Contract: `docs/V15_3D_POLISH_SPEC.md`. No kernel work (`VERSION` stays 8).
+New file `js/labels.js`; the rest is `js/water.js`, `js/viewer3d.js`,
+`js/pick3d.js` and the call sites that own a label. E2E blocks **9y (3D
+parity)** and **9z (labels)**, plus the updated 9t/9v; shots
+`test/v15_shots.mjs`.
+
+### The overflow rule (ruling, 2026-09-05): conduits first, the rim on request
+
+**When the overtopping analysis finds a conduit spill BELOW the rim spill, the
+conduit is the overflow.** `ov.rimSuppressed` is that test, and it is generic —
+Frog Pond's culvert, Green Pond's FES, Herman's surveyed 24-in pipes. What it
+changes is *visibility and wording, never a number*:
+
+- the rim overflow route is **not traced** (`ov.route` stays null); the seed
+  cell, the analysis's own grid and its window are kept on `ov.rimSeed /
+  rimDem / rimWindow / rimBlock` so the button can trace it later **on the same
+  grid** (§2: one analysis, one grid);
+- the card's rim row says so — "1,416.04 ft · +0.30 ft above pond culvert — not
+  traced; the drains are assumed to handle it" — and the "Overflow route" row
+  reads "not traced — the drains are assumed to carry it";
+- the slider above the rim reads "above the rim · the drains are assumed to
+  carry it (trace the rim overflow to see the what-if)";
+- **"trace the rim overflow"** on the card traces it as a what-if named for what
+  it assumes ("… — what-if: pond culvert blocked"), drawn dashed in `C.whatif`
+  (`#93A6B3`) with no glow and no animation (`props.whatif`, honoured by
+  `buildFlow` and by the 3D branch), and **owned by the analysis**: the button
+  toggles it off and `clearOvertop` removes it. It is created with
+  `dropAt(..., { noUndo: true })` on purpose — an undo entry pointing at a
+  feature the analysis has since removed is worse than none.
+- `SBMM.water.routes()` is the readable contract (`{rim, rimWhatIf,
+  rimSuppressed, conduit, pipe, …}`); the e2e asserts through it rather than
+  guessing from feature names other analyses also match.
+- `chainSentence(route)` reads the intended system back as words from the
+  route's own `legs` and the ponds that left through them (`via`), collapsing a
+  run of consecutive legs of the same family into one: "→ Green Pond (fills to
+  1,394.50) → green outlet → road drain → branch → storm main → Clear Lake
+  outfall".
+
+**Block 9w of the e2e passes `storm:false`, so it has no conduit spill and the
+rim route is still traced there** — that is what keeps every §9.2 number and the
+"the slider hides the route below the spill" assertions exactly as they were.
+
+### `SBMM.labels` (2D) and the 3D label layer
+
+Two engines, one idea: a label is a FACT, and a fact is shown once.
+
+```
+SBMM.labels.add({ id?, key, priority, latlng, el | marker, owner, gate? })
+SBMM.labels.remove(id) / removeOwner(owner) / place() / refresh()
+SBMM.labels.stats() / visible() / boxes() / count(owner)
+```
+
+- **Dedupe by `key`**, highest priority wins; then a **greedy collision pass**
+  in screen space after every `moveend`/`zoomend`/add/remove (debounced to one
+  frame), 2 px of padding. Priorities (§2.2): spill/first-discharge markers 100,
+  pond 60, drainage 50, design depth 45, flow end 40, "in pipe" 30.
+- **Hiding is `visibility:hidden`, never `display` and never removal** — the
+  element keeps its box so the next pass can measure it without a reflow, and a
+  label that stops colliding comes back on its own. **Do not put `display:none`
+  on a label class**: the engine reads a box-less element as absent (which is
+  exactly why the excavation labels' existing `#map.zoomfar` CSS gate still
+  works and costs them nothing).
+- A zero-size `divIcon` has no box of its own, so `boxOf()` measures the union
+  of its CHILDREN. Every one of these labels is a zero-size icon.
+- Zoom gating moved into `gate()` (pond labels at 36 px across, "in pipe" at
+  zoom ≥ 2). A gated-out label does NOT occupy space.
+- `owner` is how a label dies with its layer: `buildFlow` calls
+  `removeOwner("flow:"+f.id)`, `clearOvertop` and `toggleOverlay` re-register
+  `"overtop"`, `js/drainage.js` `clearLayers` drops `"drainage"`,
+  `js/designgis.js` `buildLayer` drops `"gis:exc"`. A record whose element is
+  detached is dropped on the next pass.
+
+**3D (`js/viewer3d.js`, the label layer).** Screen-sized camera-facing chips with
+a leader and a dark plate, `fog:false` (a label that fades out has stopped
+working), two sources (`overlay` from `rebuildOverlays`, `stage` from
+`SBMM.water.stageSpec()`), merged and deduped by key, capped at 60, **diffed by
+text** so a slider step rebuilds only the chips whose words changed. The chip
+material cache is an LRU of 140 — a slider dragged across a 44-row stage table
+asks for hundreds of distinct strings and an unbounded canvas-texture cache is a
+GPU leak. `updateLabels3d()` runs per DRAW, not per rAF, and allocates nothing:
+module-level vectors, one 6-float array per leader, `LBL_ORDER` reused. It must
+refresh `camera.matrixWorldInverse` itself — it runs *before* `renderer.render`,
+which is where three would otherwise do it, and without that the first pass
+projects through an identity matrix and culls every label.
+`stageSpec()` states each label relative to the CURRENT slider level ("+0.39 ft
+to go" / "overtopped" / "discharging") and steps the chips up the screen by
+`liftPx` for the same reason the 2D markers step down the page.
+**The world-sized `textSprite` is gone** — it grew with the camera and its text
+was fixed, which is both halves of what the user reported.
+
+### 3D parity (§3.1) — `userData.layer` and the table
+
+Every object `rebuildOverlays` (and the contour, canopy and sheet builders)
+makes carries `userData.layer = {g, l}` — the same `(group, id)`
+`SBMM.layerState` uses — and `SBMM.viewer3d.stats().layersDrawn` reports the
+set. E2E block **9y** turns every group on and requires each ON row to have an
+object, printing the ones that do not. **A new 3D object gets a tag**, or the
+table fails on the row it belongs to. Gaps closed in v15: EA's PDF boundaries
+(drawn, untagged and unpickable), **`SBMM.designGIS.batch3d()`** — `rings3d()`
+returned only the design group's POLYGONS, so EA's design LINES (daylight,
+grade, haul) and the entire boundary / existing-conditions half (lots, OU,
+parcels, water, buildings, roads, fences, utility points: 580 features) drew
+nothing at all in 3D; they are now MERGED per layer by `drapedBatch()` into one
+`LineSegments` each, with a segment→feature `owner` array so the new `gisBatch`
+/ `gisPts` pick kinds still answer with the right popup — the two survey contour
+sets (one sub-group
+each — before this both drew whenever *either* row was on), the computed contour
+set (`base/contours_custom`, an explicit id in `js/analysis.js`), cross-section
+station lines and chainages, EA's four recovered design surfaces (they have no
+`_surf` node grid, so the mesh branch skipped them and 3D drew nothing at all —
+now the footprint), the drainage flow-path row, one cultural point cloud per
+layer, and dataset rows tagged with `rowKey` (a dataset's row id is a slug of
+its LABEL, not its dataset id).
+Two exemptions, printed with their reasons: the basemaps and computed rasters
+(in 3D they ARE the terrain drape) and EA's CAD **base map** groups (contours
+3,159 rings, parcels 2,788, symbols 15,045 …), which stay 2D-only because every
+ring is resampled against the DEM every 10 ft on every overlay rebuild — that is
+what the 3,000-ring drape budget is for. The **design** CAD groups are drawn.
+
+### 3D appearance (§3.2) — three things not to undo
+
+- **The selection halo's pulse is BOUNDED (1.5 s after the selection changes).**
+  A halo that pulses for ever asks for a frame for ever, and `test/e2e.mjs`
+  block 9e fails an idle view that keeps rendering. One scalar per frame, no
+  allocation, and nothing at all once it has settled.
+- **The "outline" under an overlay line is geometry, and it is MERGED.** WebGL
+  cannot widen a line, so the dark edge that makes a bright line readable over a
+  bright ortho is the same polyline again 1.3 ft lower — all of them in ONE
+  `LineSegments` (`SHW`), one draw call. The CAD bulk is deliberately excluded.
+- **A draped polygon fill is a TIN of its own boundary**, and it is applied to
+  the user's `area` / `volume` features only (`drapedFill`). A flat fill at the
+  mean elevation floats or sinks over sloping ground; a fill over every
+  site-wide polygon is the overdraw that costs a software-GL frame its budget.
+- **The sky dome rides with the camera** (radius 30,000 ft, `depthTest:false`,
+  `renderOrder -1000`), which is why it can be small enough to sit inside the
+  far plane at any orbit radius; `updateSky()` is one `position.copy` per draw.
+  The ground plane lives in `envGroup`, whose `scale.z` follows the
+  exaggeration slider like every other group.
+
+**Keys (a deviation, decided here).** The spec asked for 1–6 and `F` to fit.
+`3` has toggled the whole 3D view since v1 and `F` is fly mode — both are in the
+nav help table and in the buttons' tooltips, and silently re-binding a
+documented key is a user-facing regression the spec did not ask for. So: 1, 2,
+4, 5, 6 are top/north/east/west/iso, **Shift+3** is south, **Shift+F** fits,
+arrows orbit and Shift+arrows pan. The help table says so.
 
 ## Undo and redo (v9.4) — the both-closures rule and `readd`
 

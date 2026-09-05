@@ -265,6 +265,7 @@ SBMM.drainage = (function () {
   /* ------------------------------------------------------------------ */
   function clearLayers() {
     for (const k of ["outlet", "first", "paths"]) if (groups[k]) groups[k].clearLayers();
+    SBMM.labels.removeOwner("drainage");
     polyOf = new Map();
   }
 
@@ -292,10 +293,15 @@ SBMM.drainage = (function () {
     /* the acreage label at the centroid, zoom-gated like every other annotation */
     if (rings && rings.length && area > 43560) {
       const c = centroid(rings[0]);
-      L.marker([c[1], c[0]], {
+      const mk = L.marker([c[1], c[0]], {
         pane: "vectors", interactive: false, keyboard: false,
         icon: L.divIcon({ className: "drainlbl", html: `${esc(name)}<br>${ac(area)} ac` })
       }).addTo(g);
+      /* v15 §2.2: at full-site zoom every catchment centroid is within a few
+         pixels of the next, so the acreages piled up. One name per catchment
+         (the key), and the engine drops whichever ones will not fit. */
+      SBMM.labels.add({ key: "drain:" + rec.r.label, priority: SBMM.labels.PRI.drainage,
+                        marker: mk, owner: "drainage", latlng: [c[1], c[0]] });
     }
   }
 
