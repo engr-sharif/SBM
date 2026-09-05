@@ -41,6 +41,7 @@ SBMM.runoff = (function () {
     + "No infiltration model, no pipe capacity, no continuous simulation — every "
     + "assumption is listed above and can be changed in the Design storm dialog.";
   const WEIR_C = 3.0;          // broad-crested weir coefficient, Q = C·L·H^1.5
+  const SUB = "Design storm (rainfall + runoff)";   // the v16 layer-tree sub-group
 
   let R = null;                // the last run { outlets, first, storm, routing, ... }
   let cover = null;            // { data:Uint8Array, w, h, cell, x0, y0 }
@@ -366,7 +367,11 @@ SBMM.runoff = (function () {
   }
   function levelFor(stage, storage) {
     if (!stage.length) return NaN;
-    let lo = stage[0].level, hi = stage[stage.length - 1].level + 20;
+    /* above the top row the surface area is held at the top row's, which is an
+       extrapolation — 100 ft of head above the table is far more than any storm
+       here puts on any of these ponds, and the freeboard the card reports is
+       against the rim, which is inside the table */
+    let lo = stage[0].level, hi = stage[stage.length - 1].level + 100;
     for (let i = 0; i < 60; i++) {
       const mid = (lo + hi) / 2;
       if (interp(stage, mid, "storage_ft3") < storage) lo = mid; else hi = mid;
@@ -788,19 +793,14 @@ SBMM.runoff = (function () {
 
   function build() {
     if (!COVER() && !RAIN()) return;            // neither payload: no rows at all
-    const host = document.getElementById("projLayers");
-    if (host) {
-      const hh = document.createElement("div");
-      hh.className = "lsub";
-      hh.textContent = "Design storm (rainfall + runoff)";
-      host.appendChild(hh);
-    }
     groups.cover = L.layerGroup();
     groups.depth = L.layerGroup();
     const cv = coverOverlay();
     if (cv) {
       const row = SBMM.addLayerRow("proj", "Land cover (curve number)", groups.cover,
         { id: "runoff_cover", checked: false, swatch: "#7CB460", opacity: 0.65,
+          /* v16: `sub:` declares the sub-group; the tree draws the header. */
+          sub: SUB,
           onChange: st => {
             if (st.on) {
               if (!COVER()) { toast("this build has no land-cover raster"); return; }
@@ -810,19 +810,15 @@ SBMM.runoff = (function () {
           } });
       row.row.title = "The cover class behind every curve number, on the 2-ft site grid.";
       rows.runoff_cover = row;
-      const leg = document.createElement("div");
-      leg.className = "rnLegend";
-      leg.innerHTML = legendHtml();
-      row.row.parentNode.insertBefore(leg, row.row.nextSibling);
     } else {
       const row = SBMM.addLayerRow("proj", "Land cover (not in this build)", null,
-        { id: "runoff_cover", checked: false, swatch: "#5A6570",
+        { id: "runoff_cover", checked: false, swatch: "#5A6570", sub: SUB,
           onChange: st => { if (st.on) { toast("the land-cover raster is not in this build"); SBMM.layerState.set("framework", "runoff_cover", { on: false }); } } });
       row.row.title = "The cover raster payload is absent from this build.";
       rows.runoff_cover = row;
     }
     const rd = SBMM.addLayerRow("proj", "Runoff depth (design storm)", groups.depth,
-      { id: "runoff_depth", checked: false, swatch: "#F2C14E",
+      { id: "runoff_depth", checked: false, swatch: "#F2C14E", sub: SUB,
         onChange: async st => {
           if (!st.on) return;
           if (!R) { const res = await run({}); if (!res) { SBMM.layerState.set("framework", "runoff_depth", { on: false }); return; } }
@@ -830,6 +826,16 @@ SBMM.runoff = (function () {
         } });
     rd.row.title = "Each catchment shaded by the runoff depth of the chosen storm.";
     rows.runoff_depth = rd;
+    /* the CN legend goes at the END of the sub-group's body, after both rows:
+       js/layertree.js reorders the `.lyr` elements among themselves and leaves
+       everything else where it is, so a legend parked between two rows would
+       shuffle with them. */
+    if (cv && rd.row.parentNode) {
+      const leg = document.createElement("div");
+      leg.className = "rnLegend";
+      leg.innerHTML = legendHtml();
+      rd.row.parentNode.appendChild(leg);
+    }
     built = true;
   }
 

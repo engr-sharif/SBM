@@ -1,0 +1,226 @@
+{
+ "source": "SBMM cover raster (docs/V14_PHASE2_RUNOFF_SPEC.md \u00a71), tools/build_cover.py",
+ "grid": {
+  "x0": 6368100.0,
+  "y0": 2122800.0,
+  "cell": 2.0,
+  "w": 4850,
+  "h": 4450
+ },
+ "bounds": {
+  "x0": 6368099.0,
+  "y0": 2122799.0,
+  "x1": 6377799.0,
+  "y1": 2131699.0
+ },
+ "row0": "north",
+ "png": "cover.png",
+ "green_excess_threshold": 12.0,
+ "canopy_min_ft": 6.0,
+ "road_half_width_ft": {
+  "paved": 8.0,
+  "gravel": 8.0
+ },
+ "hsg_rule": "D for mine waste, tailings, waste piles, decision units and compacted fill; C for everything else (no SSURGO or infiltration data on hand)",
+ "priority": [
+  "grass (default)",
+  "ortho green excess -> bare",
+  "canopy -> woods",
+  "mine waste",
+  "gravel road",
+  "paved road",
+  "building",
+  "open water"
+ ],
+ "sources": [
+  "ortho_site.jpg (green excess 2G-R-B >= 12)",
+  "chm.png (canopy >= 6 ft, mine window only)",
+  "dus.json (6), piles.json (11), design_gis repo/staging (9) -> mine waste, HSG D",
+  "design_gis road lines buffered: 68 paved at 8 ft, 70 gravel at 8 ft (half-width)",
+  "design_gis bldg polygons (103)",
+  "design_gis water polygons (19)"
+ ],
+ "classes": [
+  {
+   "id": 0,
+   "key": "nodata",
+   "name": "Outside the surveyed ground",
+   "rgb": [
+    26,
+    30,
+    34
+   ],
+   "cn": {
+    "C": null,
+    "D": null
+   },
+   "hsg": null,
+   "c": null,
+   "n_sheet": null,
+   "paved": 0
+  },
+  {
+   "id": 1,
+   "key": "water",
+   "name": "Open water",
+   "rgb": [
+    74,
+    155,
+    232
+   ],
+   "cn": {
+    "C": 100,
+    "D": 100
+   },
+   "hsg": "C",
+   "c": 1.0,
+   "n_sheet": null,
+   "paved": 0
+  },
+  {
+   "id": 2,
+   "key": "paved",
+   "name": "Paved road / concrete",
+   "rgb": [
+    122,
+    126,
+    132
+   ],
+   "cn": {
+    "C": 98,
+    "D": 98
+   },
+   "hsg": "C",
+   "c": 0.95,
+   "n_sheet": 0.011,
+   "paved": 1
+  },
+  {
+   "id": 3,
+   "key": "roof",
+   "name": "Building / roof",
+   "rgb": [
+    200,
+    162,
+    200
+   ],
+   "cn": {
+    "C": 98,
+    "D": 98
+   },
+   "hsg": "C",
+   "c": 0.95,
+   "n_sheet": 0.011,
+   "paved": 1
+  },
+  {
+   "id": 4,
+   "key": "gravel",
+   "name": "Gravel road",
+   "rgb": [
+    176,
+    136,
+    90
+   ],
+   "cn": {
+    "C": 89,
+    "D": 91
+   },
+   "hsg": "C",
+   "c": 0.7,
+   "n_sheet": 0.05,
+   "paved": 0
+  },
+  {
+   "id": 5,
+   "key": "waste",
+   "name": "Mine waste / tailings / decision unit",
+   "rgb": [
+    196,
+    104,
+    78
+   ],
+   "cn": {
+    "C": 91,
+    "D": 94
+   },
+   "hsg": "D",
+   "c": 0.6,
+   "n_sheet": 0.05,
+   "paved": 0
+  },
+  {
+   "id": 6,
+   "key": "bare",
+   "name": "Bare / disturbed ground",
+   "rgb": [
+    196,
+    172,
+    122
+   ],
+   "cn": {
+    "C": 91,
+    "D": 94
+   },
+   "hsg": "C",
+   "c": 0.6,
+   "n_sheet": 0.05,
+   "paved": 0
+  },
+  {
+   "id": 7,
+   "key": "grass",
+   "name": "Grass / weeds, fair",
+   "rgb": [
+    124,
+    180,
+    96
+   ],
+   "cn": {
+    "C": 79,
+    "D": 84
+   },
+   "hsg": "C",
+   "c": 0.35,
+   "n_sheet": 0.15,
+   "paved": 0
+  },
+  {
+   "id": 8,
+   "key": "woods",
+   "name": "Woods / brush, fair",
+   "rgb": [
+    58,
+    112,
+    70
+   ],
+   "cn": {
+    "C": 73,
+    "D": 79
+   },
+   "hsg": "C",
+   "c": 0.25,
+   "n_sheet": 0.4,
+   "paved": 0
+  }
+ ],
+ "areas_ft2": {
+  "nodata": 43706832.0,
+  "water": 1139320.0,
+  "paved": 518292.0,
+  "roof": 270856.0,
+  "gravel": 1644260.0,
+  "waste": 483972.0,
+  "bare": 7297208.0,
+  "grass": 28787700.0,
+  "woods": 2481560.0
+ },
+ "surveyed_ft2": 42623168.0,
+ "analytic_check": {
+  "paved_road_ft2": 669510.3370363072,
+  "gravel_road_ft2": 1843056.7025186478,
+  "building_ft2": 277786.076171875,
+  "water_ft2": 21058168.490234375,
+  "note": "length x width for the road lines and the shoelace area for the polygons, with no allowance for overlap or for clipping to the surveyed ground \u2014 an independent check on the rasteriser, not a second answer"
+ }
+}
