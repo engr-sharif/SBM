@@ -341,9 +341,14 @@ SBMM.popups = (function () {
         + mouthNote(S.mouthOf(n.id))
         + (n.note ? `<span style="opacity:.75">${esc(n.note)}</span><br>` : "")
         + `<span style="opacity:.55;font-size:11px">${esc(n.provenance || "")}</span>`;
-      return h + actions(btn("trace a raindrop", () => SBMM.water.dropAt(n.x, n.y),
-                             "Follow the water from this structure — through the pipes if the drains are on"))
-        + coordLine(n.x, n.y);
+      const nacts = [btn("trace a raindrop", () => SBMM.water.dropAt(n.x, n.y),
+                         "Follow the water from this structure — through the pipes if the drains are on")];
+      /* v14 §4: everything the drainage map says arrives here */
+      if (SBMM.drainage)
+        nacts.push(btn("show what drains here",
+          () => SBMM.drainage.showInto({ node: n.id, title: n.name || n.id }),
+          "Highlight every catchment whose water passes through this structure"));
+      return h + actions(nacts.join("")) + coordLine(n.x, n.y);
     }
     const st = S.statusOf(c.id);
     const a = S.node(c.from), b = S.node(c.to);
@@ -373,8 +378,57 @@ SBMM.popups = (function () {
                       : "Water reaching this inlet stays on the ground"));
     if (a) acts.push(btn("trace from the inlet", () => SBMM.water.dropAt(a.x, a.y),
                          "A raindrop at this conduit's upstream structure"));
+    if (SBMM.drainage)
+      acts.push(btn("show what drains here",
+        () => SBMM.drainage.showInto({ conduit: c.id, title: S.labelOf(c.id) }),
+        "Highlight every catchment whose water passes through this conduit"));
     h += actions(acts.join(""));
     return h + coordLine(c.pts[0][0], c.pts[0][1], c.pts.length + " vertices");
+  }
+
+
+  /* ---------------------------------------------------------------- */
+  /* the drainage map (v14 §4)                                         */
+  /* ---------------------------------------------------------------- */
+  function forDrainage(label) {
+    const D = SBMM.drainage;
+    if (!D || !D.hasResult()) return "<b>Drainage</b><br><span style=\"opacity:.7\">the map has not been computed — type DRAIN</span>";
+    const rec = D.recOf(label);
+    if (!rec) return "<b>Drainage</b><br><span style=\"opacity:.7\">that catchment is no longer in the map</span>";
+    const R = D.result(), r = rec.r, area = D.areaOf(rec);
+    const acres = area / 43560;
+    const kind = rec.t === "sink" ? "catchment — by outlet" : "catchment — by first capture";
+    const pairs = [
+      ["Outlet", D.nameOf(rec)],
+      ["Area", (acres < 1 ? fmt(acres, 3) : fmt(acres, 2)) + " ac"],
+      ["Share of the surveyed site", R.surveyedArea_ft2
+        ? fmt(100 * area / R.surveyedArea_ft2, 1) + " %" : null],
+      ["Longest flow path", r.longest_ft == null ? null : fmt0(r.longest_ft) + " ft (overland)"],
+      ["Mean slope", r.meanSlope_pct == null ? null : fmt(r.meanSlope_pct, 1) + " %"],
+      ["Pond level", rec.t === "pond" ? fmt(r.level, 2) + " ft" : null],
+      ["Pond depth", rec.t === "pond" ? fmt(r.depth_ft, 2) + " ft" : null],
+      ["Drains on through", r.via && SBMM.storm ? SBMM.storm.labelOf(r.via) : null],
+      ["Grid", R.gridFt + "-ft lidar grid"],
+      ["Storm drains", R.storm ? "assumed working" : "off — ground only"]
+    ];
+    let h = `<b>${esc(D.nameOf(rec))}</b><br><span style="opacity:.7">${esc(kind)}</span><br>`
+      + attrTable(pairs);
+    const acts = [];
+    /* a pond is addressed by its label; an inlet by the conduit it IS, so the
+       highlight picks up everything further upstream that pours into it too */
+    if (rec.t === "pond")
+      acts.push(btn("show what drains here", () => SBMM.drainage.showInto({ pond: label }),
+                    "Highlight everything upstream of this pond and total the acres"));
+    else if (rec.t === "inlet")
+      acts.push(btn("show what drains here",
+                    () => SBMM.drainage.showInto({ conduit: r.id, title: D.nameOf(rec) }),
+                    "Highlight everything upstream of this inlet and total the acres"));
+    acts.push(btn("trace a raindrop", () => SBMM.water.dropAt(r.x != null ? r.x : (r.entry ? r.entry[0] : 0),
+                                                             r.y != null ? r.y : (r.entry ? r.entry[1] : 0)),
+                  "The single flow line this catchment says it agrees with"));
+    h += actions(acts.join(""));
+    h += `<br><span style="opacity:.6;font-size:11px">${esc(SBMM.drainage.NOTE)}</span>`;
+    return h;
   }
 
   /* ---------------------------------------------------------------- */
@@ -430,5 +484,6 @@ SBMM.popups = (function () {
   }
 
   return { forDataset, forGis, forCad, forSample, forTree, forFeature, forTerrain, forStorm,
+           forDrainage,
            attrTable, coordLine, action, run, btn, actions, copyText };
 })();

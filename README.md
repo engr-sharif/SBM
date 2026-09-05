@@ -984,6 +984,89 @@ Python implementation of the same definitions over the same PNG-decoded grids:
 `test/water_kernels.mjs` reproduces all 37 reference numbers in `docs/V10_WATER_SPEC.md` §9
 in node, without a browser, and is the fast loop for anyone touching them.
 
+## Drainage map — where every acre goes
+
+> **The whole site, 978.5 surveyed acres, coloured by the outlet each square foot
+> drains to.** Three answers and nothing else: **403.1 ac (41 %)** run overland
+> into Clear Lake, **293.5 ac (30 %)** leave the surveyed ground at its edge, and
+> **282.0 ac (29 %)** reach the Clear Lake outfall through the storm network —
+> almost all of that by way of the Herman Impoundment and the two surveyed 24-in
+> discharge pipes. Switch the drains off and the outfall's 282 acres split back
+> to the lake (+118.2) and off-survey (+163.8): the impoundment fills to its
+> 1,343.84-ft rim and spills over it instead.
+
+Type `DRAIN` (or `DRAINAGE`, `WATERSHEDS`, `CATCHMENTS`), pick *Drainage map* from
+the Water ▾ menu, or tick one of the three rows under **Drainage (lidar + storm
+drains)** in Site framework. The first tick runs the analysis; after that it is
+cached until the storm switch or a conduit's status changes, at which point it
+says "drainage map is stale — recomputing" and re-runs itself.
+
+**It is the raindrop's physics run once over the whole site instead of from one
+click** — the same filled DEM with conduit inlets seeded at their rims, the same
+escape test, ponds read at their level, conduits as topological shortcuts. That is
+not a claim, it is the acceptance test: `test/kernels.mjs` drops **100 seeded
+raindrops** at pseudo-random surveyed points, traces each one with the raindrop's
+own kernel and its own window chaining, and requires it to land in the catchment
+the map drew under it. **All 100 agree.**
+
+**Terrain only.** No rainfall, no runoff, no curve numbers, no time. The map says
+where water goes, never how much — rainfall and volumes are Phase 2 of
+`docs/V14_CATCHMENT_PROPOSAL.md` and are not built.
+
+### What it draws
+
+| row | what it is |
+|---|---|
+| **Catchments — by outlet** | one translucent polygon per terminal outlet: Clear Lake direct (deep blue), the storm outfall (steel blue), off the survey (grey), a closed depression (green). Acreage labelled at the centroid |
+| **Catchments — by first capture** | the first pond or storm inlet each square foot reaches on the way — "what drains INTO Green Pond", which is the question that gets asked most |
+| **Flow paths** | the single longest flow path inside each catchment, drawn as it runs (a pipe leg drawn as the straight jump it is) |
+
+Hover brightens a catchment and names its outlet and acres; a click opens a card
+with the outlet, the acres, the share of the site, the longest flow path
+(**overland** — a pipe is not ground), the mean slope, and the grid it was
+computed on. Every storm structure and conduit popup gained **"show what drains
+here"**, which highlights every catchment whose water passes through it and
+prints the total. The results card carries the outlet table, `copy CSV`, GeoJSON
+(`DRAIN-OUTLET` / `DRAIN-FIRST` / `DRAIN-PATH`, every feature carrying its
+`outlet` and `acres`) and DXF on the same three layers. All of it drapes in 3D.
+
+### The recorded answers
+
+Site grid, 2 ft, storm drains assumed working:
+
+| outlet | acres | share |
+|---|---|---|
+| Clear Lake — direct overland | 403.05 | 41.2 % |
+| Off the surveyed ground | 293.45 | 30.0 % |
+| Clear Lake outfall (storm network) | 282.00 | 28.8 % |
+| **surveyed total** | **978.49** | **100 %** |
+
+| first capture | level | contributing |
+|---|---|---|
+| Herman Impoundment (via `herman_pipe_s`) | 1,341.53 ft, 22.18 ac of water | 37.90 ac |
+| Frog Pond, the east pond (via `pond_culvert`) | 1,415.74 ft | 14.52 ac |
+| Green Pond, the west pond (via `green_outlet`) | 1,394.50 ft, 3.08 ft deep | 2.62 ac |
+| `green_riser` (the high-level overflow to Herman) | — | 1.34 ac |
+| `south_culvert` | — | 1.75 ac |
+| the eight road-drain grates, between them | — | **0.019 ac** |
+
+That last row is a finding, not a missing catchment. **The road ditch runs past
+the grates into the impoundment**, which then discharges through the surveyed
+pipes; a 3-ft capture disc only takes the flow lines that actually cross it. It is
+the same picture v12 recorded from the other end ("a raindrop at every one of the
+nine grates runs overland into the impoundment or stays in the road ditch"), and
+it is the number the invert survey will change.
+
+### What it costs
+
+9.5 s over 21.6 M cells at 2 ft, 2.2 s at 4 ft, in a worker with progress and
+cancellation. The field build runs it at **4 ft** and the card says so; its outlet
+areas are within **1.33 %** of the 2-ft map's. A machine that cannot allocate the
+2-ft arrays retries at 4 ft and toasts that it did. Nothing here is a drawn
+feature: it does not serialise into a session, it is not undoable, and it is not
+in the feature tree — it is a read-only analysis of the ground, like the storm
+network it depends on.
+
 ## Canopy v2 and the tree inventory
 
 ### The cleaned canopy model

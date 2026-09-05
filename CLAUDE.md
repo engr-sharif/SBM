@@ -74,13 +74,18 @@ The harnesses use Playwright's own chromium unless `CHROME_BIN` points at one (t
 build box's `/opt/pw-browsers/...` path is tried first and skipped if absent); paths are
 resolved through `pathToFileURL`, so Windows paths work. Runs are slow under software GL
 (180 s default timeouts are intentional). All four must pass.
-**`test/kernels.mjs` is the fast loop — a node harness, no browser, ~19 s cold and ~17 s
-warm, covering EVERY kernel in `js/compute.js`'s `runJob`.** Run it after any change to
-`js/compute.js` or to a call site that builds a job, before you reach for Playwright:
+**`test/kernels.mjs` is the fast loop — a node harness, no browser, covering EVERY kernel
+in `js/compute.js`'s `runJob`.** Run it after any change to `js/compute.js` or to a call
+site that builds a job, before you reach for Playwright. Everything except `drainage` is
+~48 s; the `drainage` section adds ~175 s of its own because its acceptance test is 100
+chained raindrops (§11.4), so **`--only` everything else while you iterate and run the
+whole thing before you ship**:
 ```
-node test/kernels.mjs                  # every section (304 checks)
+node test/kernels.mjs                  # every section (345 checks, ~3.7 min)
 node test/kernels.mjs --only water     # one or more sections, comma-separated
-node test/kernels.mjs --list           # volume isopach raster contours design sections smart trees water storm water3d
+node test/kernels.mjs --only drainage  # ~3 min on its own — the v14 identity
+node test/kernels.mjs --list           # volume isopach raster contours design sections smart
+                                       #   trees water storm water3d drainage
 node test/water_kernels.mjs            # a thin alias for --only water
 ```
 It loads `js/compute.js` through `vm.runInThisContext` (the module is context-free, which
@@ -128,6 +133,9 @@ asserts their shape before it asserts anything measured in them.
 overtopping 2D/3D) into `test/shots/` and `test/storm_shots.mjs` the two v12 storm shots
 (the south-road grate chain with a Frog Pond raindrop on it, and the network draped in 3D);
 neither is pass-fail — look at them.
+`test/drainage_shots.mjs` writes the three v14 drainage shots (drainage_2d — the whole
+site by outlet, drainage_click — the outfall's contributing area highlighted, drainage_3d)
+into `test/shots/`; not pass-fail — look at them.
 `test/field_shots.mjs` writes the four v11 field shots (field_map, field_layers,
 field_photo, field_3d) into `test/shots/` on the Pixel 7 descriptor; not pass-fail — look
 at them.
@@ -228,6 +236,7 @@ terrain source, which needs an explicit decision + README/test update).
 | water.js | **v10 water, v13 conduit spill** — the raindrop (`flow` feature type, window chaining, ponds, catchment) and the overtopping analysis (rim band, ranked rim lows, level slider, stage–storage chart, overflow route, the surveyed stages of §10); `SBMM.water` |
 | survey.js | the **August-2026 Jacobs survey** linework (`data/survey_2026.json`: the two 24-in HDPE discharge pipes, the sandbag wall, the NW Pit low) as read-only rows under Investigations; snap, 3D, export; `SBMM.survey` — the survey's 24 shots are a baked dataset, not this module |
 | storm.js | **v12 storm drainage** — EA's storm structures and storm line, the six CAD culvert marks, Jacobs' two surveyed 24-in pipes and the south-road grate chain, as read-only project data (`data/storm_network.json`): three layer rows under Site framework, rims from `SBMM.elev` on boot, the "storm drains work" switch, per-conduit broken/working, snap, 3D, exports, and `conduitsFor(bbox)` — the list `js/water.js` hands the kernel; `SBMM.storm` |
+| drainage.js | **v14 Phase 1 — the drainage map**: the `drainage` kernel run once over the whole site, three read-only layer rows under a *Drainage* sub-header in Site framework, the outlet table and its CSV/GeoJSON/DXF, "show what drains here" on any storm popup, the catchments draped in 3D; `SBMM.drainage` |
 | layerman.js | the Layer manager dialog: search / toggle / recolour / opacity / source + handle for EA's 110 CAD layer names |
 | sheetcards.js | the Sheets tab — a card per drawing with a thumbnail derived on first open, filtered by lot |
 | field.js | **field mode (`body.field`) and the field capabilities (§4)** — the trigger and `SBMM.field`, the slim top bar / bottom action bar / More sheet, docks as bottom sheets, popups as bottom cards, Position (`watchPosition`, never fabricated), Photo (the `photo` feature type + a small EXIF reader), Note, Samples nearby |
@@ -1051,6 +1060,159 @@ Recorded numbers (regression guards, `test/kernels.mjs --only water3d`): Frog Po
   `localStorage` record the camera uses. It is in the field build too. It is NOT on the
   toolbar row itself: that row is measured and reflowed by `reflowBar()` at four widths, and
   a fifth control there is a layout problem for a switch nobody touches twice.
+
+## v14 Phase 1 — the drainage map
+
+Contract: `docs/V14_DRAINAGE_SPEC.md` (Phase 1 of `docs/V14_CATCHMENT_PROPOSAL.md`).
+Kernel `drainage` in `js/compute.js` (**api VERSION 8**); host `js/drainage.js`
+(`SBMM.drainage`); harness section `drainage` in `test/kernels.mjs`.
+
+**ONE LABEL PER CELL: the outlet that cell drains to.** The same physics the
+raindrop uses — the filled DEM with conduit inlets seeded at their rims, the same
+escape test, ponds read at their level, conduits as topological shortcuts — run
+once over the whole `dem_site` grid (4,850 × 4,450 = 21.6 M cells at 2 ft)
+instead of from one click. **Terrain only: no rainfall, no runoff, no curve
+numbers, no time.** The map says where water goes, never how much; every card
+says so in those words, and Phase 2 of the proposal is where the rest lives.
+
+The acceptance test is the identity, and it is the whole point of reusing the
+raindrop's physics: 100 seeded pseudo-random surveyed points, each traced by
+`flowpath` the way `js/water.js` traces it, must land in the catchment the label
+raster draws under them. **100 of 100 agree.**
+
+### The one ruling this kernel makes for itself
+
+`flowpath` floods one pit at a time, in the order its descent meets them, and
+never revisits a pond. Two consequences are invisible to a single drop and fatal
+to a map, and both were hit:
+
+- A small depression **A** that spills into ground a later, higher pond **B**
+  takes over keeps its own lower level, so its pour point sits under B's water.
+  Descent then leaves A at A's level, crosses B, leaves B at B's spill and —
+  where that spill drains back towards A — enters A again. It is a genuine cycle;
+  a raindrop only escapes it through `maxSteps`, a label raster cannot escape it
+  at all. On this site it labelled **357 acres** "loop".
+- A cell whose only downhill neighbour was a pond floor loses its drop when that
+  pond fills, so it becomes a pit the first pass did not see. A drop meets those
+  lazily; a map has to find every one.
+
+Patching flowpath's order (lazy re-scans, a union-find over ponds) was tried and
+made it worse — 500 acres of loop and a scatter of walled-in "no outlet" ponds.
+**The ponds here are therefore the connected components of `F > z`** — the filled
+DEM's own depressions, at the level `F` says they pour at. That is not a different
+definition: Barnes' `F` IS the fixed point of flowpath's escape test (the minimal
+level at which water at a cell drains to a sink strictly below it), and `fillDem`
+is already seeded with every conduit inlet at its rim, so a depression drained by
+a grate pours at the grate exactly as the raindrop's flood stops there. The only
+visible difference is that **nested depressions merge into the outer one** —
+which is also what flowpath itself reports when a drop happens to meet the outer
+one first, and which is what the identity shows costs nothing: the terminal is
+the same either way. The three named ponds come out at the raindrop's own levels
+(Herman 1,341.53 via `herman_pipe_s`, Frog 1,415.74 via `pond_culvert`, Green
+1,394.50 / 3.08 ft deep via `green_outlet` — the same 3.08 the §6.6 storm case
+records).
+
+### Why it is provably acyclic, and the two things that make it so
+
+A pointer field over 21.6 M cells cannot be debugged by inspection, so it is
+built to a rule instead: **`F` never rises along a pointer, and where `F` stays
+equal the step always shortens the distance to the root of the priority flood's
+own parent forest.** Both halves are needed:
+
+- Steepest descent on effective elevation strictly decreases `F` (a non-pond cell
+  has `F ≈ z`; its target is either lower ground or a pond whose level is below
+  it).
+- **A pond cell points at `parent[c]`, not at the pond's outlet.** The outside-in
+  flood ENTERED the depression through its pour point, so `parent` inside it
+  points back at that point cell by cell — and where the depression is drained by
+  a grate the flood's SEED is the capture cell, so `parent` points at the pipe
+  instead. Every pond cell is a descendant of the pour cell in that forest, so
+  the step strictly shortens the path to a sink. Jumping straight to the outlet
+  (which is what a raindrop does, and which is right for one run) is exactly what
+  reintroduced the cycles.
+- **A flat uses `parent[c]` too.** That is what the spec's flood-parent flag is
+  for: a cell with no strictly lower effective neighbour and no pond has no D8
+  direction of its own, and the flood's parent is by construction a step towards
+  the sink it drains to. `fillDem` gained ONE optional out-parameter for it
+  (`parentOut`); absent, not one value changes and not one extra byte is touched.
+
+Only a conduit can break the rule (a pipe may discharge uphill), so the label
+resolution keeps a cycle guard and reports a `loop` sink. On this site `loops`
+and `flats` are **0 at 2 ft and at 4 ft** and the harness asserts it; `pondSinks`
+counts the cells that drain nowhere at all, one on each grid.
+
+**One trap inside that rule, and it was the field build that found it.** A
+component one cell across — the filled DEM's rounding, not a depression — can be
+reached by the flood from ground ABOVE its own level, and then `parent` points
+uphill: the water leaves the pond, the cell it leaves to descends straight back
+in, and the two point at each other. So the parent route is taken only while the
+parent is in the same pond or its GROUND is at or below the pond's level;
+otherwise the cell falls through to ordinary descent on effective elevation
+(which strictly lowers it, so it cannot close a cycle) and, failing that, is
+reported as the one-cell closed pit it is. It cost 0.005 acre at 4 ft and nothing
+at 2 ft — which is the whole argument for asserting acyclicity at every
+resolution the app actually ships, not only the one it was developed on.
+
+### Four more traps
+
+- **A Float32 `F` against a Float64 invert.** `rim <= level` fails by one ULP —
+  1341.57 against 1341.5699462890625 — on exactly the cell the whole analysis
+  turns on, and the impoundment then becomes a sink with 165 acres behind it
+  rather than draining through the surveyed pipe. The comparison uses `RIM_EPS`
+  (1e-3 ft, under the 0.02-ft terrain-RGB step), and a cell the flood SEEDED
+  counts as an inlet by construction whatever the arithmetic says.
+- **The pour level is the MINIMUM `F` over the component, not the maximum.** `F`
+  is constant over a depression except where an inlet seeded it, and where TWO
+  inlets seeded it — the two Herman discharge pipes at 1,341.53 and 1,341.57 —
+  the water leaves at the lower. Taking the max reports the north pipe.
+- **An inlet's own nearest cell is always a capture cell**, whatever `captureFt`
+  says. 3 ft does not reach the centre of any 4-ft cell, so on the field build's
+  4-ft run every capture disc came back empty and the map said the drains did not
+  exist rather than that they did not work.
+- **Areas are full-resolution cell counts; polygons are traced on the decimated
+  raster.** Tracing 21.6 M cells per label costs more than the whole analysis, and
+  decimating the areas with the outlines would quietly move the acreage someone
+  reports. Both numbers are exact about what they are and the card names the grid.
+
+**And one more the 3D view found.** A catchment boundary follows the edge of the
+surveyed ground, so a good part of every big one has NO TERRAIN UNDER IT — and
+`drapeZ` falls back to the middle of the site's elevation range there, which
+drew each boundary as a 70-ft vertical curtain standing along the survey limit
+and out over Clear Lake. `groundRuns()` in `js/drainage.js` applies exactly the
+rule `js/layers.js` already applies to the survey contours — drop a vertex with
+no ground under it, and break a run wherever the drape would cross open water —
+and hands `rings3d()` OPEN RUNS rather than closed rings, which is what a
+boundary that genuinely stops at the survey limit is. **Test the segment the way
+`drapedLine` will walk it** (every 10 ft, its own resampling step), not just its
+midpoint: both ends of a boundary running along the shore can be on surveyed
+ground while the straight line between them cuts the corner across the lake, and
+that one segment is enough to put the curtain back. Keep the three in mind
+together: the survey contours, the v8 3D drape's `BRIDGE_FT`/`TOL_FT`, and this.
+
+### What it costs, and what the app does with it
+
+9.5 s at 2 ft and 2.2 s at 4 ft in node (budgets 20 s / 6 s); ~500 MB of typed
+arrays in the worker at 2 ft, and a worker that cannot allocate them retries at
+4 ft and toasts that it did. The field build runs at 4 ft by construction
+(`SBMM.compute.subGrid`, new in `js/jobs.js`) and the card says "4-ft grid"; the
+4-ft map's outlet areas are within **1.33 %** of the 2-ft map's.
+
+The job runs **once per switch state and is cached** — the storm master switch or
+a conduit going broken marks it stale, toasts "drainage map is stale —
+recomputing" and re-runs debounced. Three rows sit under a **Drainage (lidar +
+storm drains)** sub-header in Site framework, all default OFF with the first tick
+running the job: *Catchments — by outlet*, *Catchments — by first capture* (ponds
+and inlets), *Flow paths (longest per catchment)*. `DRAIN` (aliases `DRAINAGE`,
+`WATERSHEDS`, `CATCHMENTS`), a Water ▾ entry and a chip on the raindrop Mode HUD
+all reach it; `SBMM.popups.forDrainage(label)` is the popup and every storm node
+and conduit popup gained **"show what drains here"**.
+
+**A grate's catchment on this site is essentially nothing, and that is a finding,
+not a bug.** The eight road-drain grates take 0.019 ac between them overland: the
+road ditch runs *past* them into the impoundment, which then discharges through
+the surveyed pipes. `through_area` on each inlet adds the ponds that pour into
+it, which is how the water actually reaches most of them (`herman_pipe_s` 37.90
+ac, `pond_culvert` 14.52 ac, `green_outlet` 2.62 ac).
 
 ## Undo and redo (v9.4) — the both-closures rule and `readd`
 
