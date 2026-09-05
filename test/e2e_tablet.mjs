@@ -960,19 +960,36 @@ const mapBox = await page.evaluate(() => {
   await wait(700);
 }
 
-/* --- Cmd+Z --- */
+/* --- Cmd+Z (an iPad keyboard sends metaKey, not ctrlKey) --- */
 {
-  const before = await page.evaluate(() => SBMM.store.features.length);
+  /* Asserted on the UNDO STACK, not on the feature count. The top of the stack
+     at this point is whatever the previous block left there — the redline's
+     3D check turns a layer group on, and a layer change is an undoable action
+     too — so "one fewer feature" is not what Cmd+Z means. What it means is
+     that the key reached SBMM.undo: the undo stack moved and the redo stack
+     gained the entry it moved. */
+  const before = await page.evaluate(() => ({
+    undo: SBMM.undo.labels().undo, redo: SBMM.undo.labels().redo,
+    canUndo: SBMM.undo.canUndo(), canRedo: SBMM.undo.canRedo(),
+    feats: SBMM.store.features.length }));
+  if (!before.canUndo) fail("nothing on the undo stack to test Cmd+Z with", before);
   await page.keyboard.press("Meta+z");
-  await wait(600);
-  const after = await page.evaluate(() => SBMM.store.features.length);
-  console.log(`Cmd+Z: ${before} features -> ${after}`);
-  if (after >= before) fail("Cmd+Z did not undo (an iPad keyboard sends metaKey)", { before, after });
+  await wait(700);
+  const after = await page.evaluate(() => ({
+    undo: SBMM.undo.labels().undo, redo: SBMM.undo.labels().redo,
+    canRedo: SBMM.undo.canRedo(), feats: SBMM.store.features.length }));
+  console.log(`Cmd+Z: undid "${before.undo}" · stack top now "${after.undo}" · `
+    + `redo "${after.redo}" · features ${before.feats} -> ${after.feats}`);
+  if (!after.canRedo || after.redo !== before.undo)
+    fail("Cmd+Z did not reach the undo stack (an iPad keyboard sends metaKey)", { before, after });
   await page.keyboard.press("Meta+Shift+z");
-  await wait(600);
-  const redone = await page.evaluate(() => SBMM.store.features.length);
-  console.log(`Cmd+Shift+Z: -> ${redone}`);
-  if (redone !== before) fail("Cmd+Shift+Z did not redo", { before, after, redone });
+  await wait(700);
+  const redone = await page.evaluate(() => ({
+    undo: SBMM.undo.labels().undo, canRedo: SBMM.undo.canRedo(),
+    feats: SBMM.store.features.length }));
+  console.log(`Cmd+Shift+Z: redid it · stack top "${redone.undo}" · features ${redone.feats}`);
+  if (redone.undo !== before.undo || redone.feats !== before.feats)
+    fail("Cmd+Shift+Z did not redo", { before, after, redone });
 }
 
 /* --- the share sheet, stubbed --- */
