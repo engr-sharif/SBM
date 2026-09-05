@@ -1050,6 +1050,14 @@ SBMM.touch = (function () {
            by finger. A real MouseEvent at the same client point means every
            existing handler answers it unchanged — there is no second menu. */
         fireContextMenu(g.x, g.y, document.elementFromPoint(g.x, g.y));
+        /* AND THE MENU HAS TO SURVIVE THE FINGER COMING OFF THE GLASS. A long
+           press fires at 500 ms with the finger still DOWN; the lift then
+           produces a synthetic `click`, and js/map.js closes the context menu
+           on any document click. So the menu opened, fully built, and vanished
+           on release — it looked like the long-press had not worked at all.
+           The click-swallow below already exists for the vertex placement;
+           this arms it for the same reason. */
+        swallowUntil = DEF.now() + 700;
       }
     });
     host.addEventListener("pointerdown", e => {
@@ -1062,7 +1070,12 @@ SBMM.touch = (function () {
     host.addEventListener("pointerup", e => { if (e.pointerType !== "mouse") rec.up(e); }, true);
     host.addEventListener("pointercancel", e => { if (e.pointerType !== "mouse") rec.cancel(e); }, true);
 
-    /* the synthetic click a tap produces would place the vertex a second time */
+    /* The synthetic click a touch produces has to be swallowed twice over: it
+       would place a second vertex on top of the one the lift just placed, and
+       it would close the context menu the long-press just opened. Capture
+       phase on the MAP CONTAINER, which runs before js/map.js's document-level
+       bubble listener — and not on the menu itself, which is a sibling in
+       <body>, so choosing an item still works. */
     host.addEventListener("click", e => {
       if (DEF.now() > swallowUntil) return;
       e.stopPropagation(); e.preventDefault();

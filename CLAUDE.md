@@ -1585,6 +1585,15 @@ Seven things here will be walked into again:
   html2canvas here and never will be), the sheet's is `st.img` directly. Two
   fingers cancel the placement and become a pinch. A PEN skips all of it — a
   Pencil tip is exactly where it looks.
+- **A long-press menu has to survive the finger coming OFF the glass.** The
+  press fires at 500 ms with the finger still down; the lift then produces a
+  synthetic `click`, and `js/map.js` closes the context menu on any document
+  click — so the menu opened, fully built, and vanished on release, which looks
+  exactly like the long-press never worked. The click-swallow in `wireMap()`
+  (capture phase on the map container, ahead of that document listener) is
+  armed by the placement AND by the long-press for this reason. It is not armed
+  on the menu itself, which is a sibling in `<body>`, so choosing an item still
+  works.
 - **`Enter`, `Backspace` and `Esc` do not exist under a thumb**, so a sketch open
   under `body.touch` gets the Done bar (Done / Undo vertex / Cancel), one shared
   element driven by `js/touch.js` for the map and `js/sheetmarks.js` for a sheet
