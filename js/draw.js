@@ -557,6 +557,12 @@ SBMM.draw = (function () {
 
   return {
     begin, click, finish, cancel, edit, endEdit, isDrawing, isEditing, wire,
+    /* v17: "is anything collecting points right now" — the module has always
+       had this internally (a sketch OR a pick); js/touch.js needs it to know
+       whether a finger's press belongs to the crosshair or to the map's pan.
+       Exported, not reimplemented at the call site, because the two halves of
+       "armed" are this module's business and have changed before. */
+    armed,
     previewAt, finishSketch, removeLastVertex,
     /* drafting stack */
     beginPick, endPick, finishPick, isPicking, drawGhost, resolve, parseTyped,

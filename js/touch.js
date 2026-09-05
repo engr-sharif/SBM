@@ -980,7 +980,7 @@ SBMM.touch = (function () {
     if (!host) return;
 
     let press = null, painter = null, dragWas = null, swallowUntil = 0;
-    const armed = () => !!(on() && SBMM.draw && SBMM.draw.armed());
+    const armed = () => on() && drawArmed();
 
     /* Leaflet's own event object, built from a client point, so `map.fire`
        reaches exactly the handlers a real click reaches */
@@ -1073,11 +1073,24 @@ SBMM.touch = (function () {
     SBMM.events.on("touch", sketchBar);
   }
 
+  /* "Is the sketch engine collecting points right now?" — a sketch or a pick.
+     js/draw.js exports `armed()`; the fallback is the same two questions asked
+     separately, so a build whose draw module predates that export degrades to
+     the right answer instead of throwing inside an event handler (which is
+     exactly how this was found: a `touch` event, a TypeError, and a profile
+     switch that half-happened). */
+  function drawArmed() {
+    const d = SBMM.draw;
+    if (!d) return false;
+    if (typeof d.armed === "function") return !!d.armed();
+    return !!((d.isDrawing && d.isDrawing()) || (d.isPicking && d.isPicking()));
+  }
+
   /* Done / Undo vertex / Cancel for the MAP sketch. js/sheetmarks.js drives the
      same bar for a sheet window; whichever armed last owns it. */
   function sketchBar() {
     if (!on() || !SBMM.draw) { doneBar.hide(); return; }
-    if (!SBMM.draw.armed()) {
+    if (!drawArmed()) {
       /* a sheet window may still be marking — leave its bar alone */
       if (!(SBMM.sheetMarks && SBMM.sheetMarks.activeCount())) doneBar.hide();
       return;
