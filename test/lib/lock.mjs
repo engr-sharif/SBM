@@ -29,11 +29,19 @@
 import { mkdirSync, rmSync, readFileSync, writeFileSync, existsSync, mkdirSync as mkd } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { tmpdir } from "node:os";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 export const LOGS = resolve(HERE, "../.logs");
-const LOCK = resolve(LOGS, "browser.lock");
-const MUTEX = resolve(LOGS, ".lock.mutex");
+/* The lock is MACHINE-wide, not per checkout: five agent worktrees each had
+   their own test/.logs/browser.lock and five Chromiums ran at once on a
+   four-core box (load average 143). One lock directory under the OS temp dir
+   is shared by every checkout on the machine; SBMM_LOCK_DIR overrides it (a
+   harness run in an isolated CI container can point it anywhere). */
+const LOCKDIR = process.env.SBMM_LOCK_DIR || resolve(tmpdir(), "sbmm-browser-lock");
+const LOCK = resolve(LOCKDIR, "browser.lock");
+const MUTEX = resolve(LOCKDIR, ".lock.mutex");
+try { mkd(LOCKDIR, { recursive: true }); } catch (e) {}
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const alive = pid => { try { process.kill(pid, 0); return true; } catch (e) { return e.code === "EPERM"; } };
@@ -87,7 +95,7 @@ export async function acquire(name, opts = {}) {
     if (!wait)
       throw new Error(`browser lock: all ${n} slot(s) are held by ${who} — `
         + `wait for its log's EXIT= line, run with --wait, or raise --parallel. `
-        + `(test/.logs/browser.lock)`);
+        + `(the machine-wide lock under the OS temp dir)`);
     if (Date.now() > deadline) throw new Error(`browser lock: waited an hour for ${who}`);
     await sleep(3000);
   }

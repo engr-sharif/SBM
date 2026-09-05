@@ -6,8 +6,15 @@
    sandbag wall, and the south-road drain the project engineer identified along
    the nine grate inlets — Frog Pond (east) → Green Pond (west) → its FES → the
    grates → the junction → the Clear Lake outfall. `tools/build_storm_network.py` assembles all of that
-   into data/storm_network.json (44 nodes, 26 conduits); this module renders it
+   into data/storm_network.json (44 nodes, 27 conduits); this module renders it
    and answers ONE question for the raindrop: which conduits are in play.
+
+   RULING (project engineer, 2026-09-05): the impoundment discharges through
+   BOTH 24-in HDPE barrels, in parallel, and both reach EA's drawn storm line —
+   `pipe_to_main` (North) and `pipe_to_main_s` (South). Before that the South
+   barrel, which carries the LOWER surveyed invert and is therefore the one the
+   water leaves through, ended 13 ft short of anything and its water left the
+   pipe on to the ground.
 
    Three things about it are the whole design:
 
