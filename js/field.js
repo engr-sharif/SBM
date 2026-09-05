@@ -120,6 +120,9 @@ SBMM.field = (function () {
   const MORE = [
     ["distance", "Distance"], ["area", "Area"], ["samples", "Samples nearby"],
     ["sheets", "Sheets"], ["3d", "3D view"], ["mywork", "My work"],
+    /* v16: the legend card is hidden on a phone screen by default — there is no
+       corner to spare — so this is where it is reachable from */
+    ["legend", "Legend"],
     ["results", "Results"], ["help", "Help"], ["lock", "Lock"], ["fieldoff", "Field mode off"]
   ];
 
@@ -336,6 +339,10 @@ SBMM.field = (function () {
       case "sheets": openSheet("sheets"); break;
       case "mywork": openSheet("mywork"); break;
       case "results": openSheet("results"); break;
+      case "legend":
+        if (!SBMM.layerTree) { toast("no legend in this build"); break; }
+        toast(SBMM.layerTree.legend.toggle() ? "legend on" : "legend off");
+        break;
       case "3d": SBMM.viewer3d.toggle(); break;
       case "help": { const h = document.getElementById("help"); if (h) h.style.display = "flex"; break; }
       case "lock": if (SBMM.gate) SBMM.gate.lock(); else toast("no password gate in this build"); break;

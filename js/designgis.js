@@ -60,18 +60,12 @@ SBMM.designGIS = (function () {
       (byLayer[k] = byLayer[k] || []).push(f);
     }
 
-    const host = document.getElementById("designLayers");
-
     for (const [gkey, gname] of GROUPS) {
       const specs = D.layers.filter(l => l.group === gkey);
       if (!specs.length) continue;
-      if (host) {
-        const h = document.createElement("div");
-        h.className = "lsub";
-        h.textContent = gname;
-        host.appendChild(h);
-      }
-      for (const spec of specs) buildLayer(spec);
+      /* v16: `sub:` declares the sub-group; the tree draws the header (the same
+         `.lsub` text this module used to append by hand) and its count. */
+      for (const spec of specs) buildLayer(spec, gname);
     }
 
     SBMM.designGIS.counts = Object.fromEntries(
@@ -108,7 +102,7 @@ SBMM.designGIS = (function () {
       : { color: EXC_1FT, weight: 2.6, dashArray: null, fillColor: EXC_1FT, fillOpacity: 0.13 };
   }
 
-  function buildLayer(spec) {
+  function buildLayer(spec, subName) {
     const feats = byLayer[spec.key] || [];
     if (!feats.length) return;
     if (spec.key === "exc") SBMM.labels.removeOwner("gis:exc");
@@ -174,7 +168,8 @@ SBMM.designGIS = (function () {
 
     const on = !!ON[spec.key];
     const row = SBMM.addLayerRow("design", `${esc(spec.name)} (${spec.count})`, grp,
-      { id: "gis_" + spec.key, checked: on, swatch: isExc ? EXC_1FT : col });
+      { id: "gis_" + spec.key, checked: on, swatch: isExc ? EXC_1FT : col,
+        sub: subName || "" });
     row.row.title = `${spec.name} — ${spec.count} features. ${spec.provenance}`
       + (isExc ? " Styled by excavation depth: 1.0 ft solid, 0.5 ft dashed." : "");
     groups[spec.key] = grp;

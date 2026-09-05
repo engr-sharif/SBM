@@ -121,6 +121,8 @@ SBMM.initMap = function () {
   SBMM.addLayerRow = function (group, label, layer, opts = {}) {
     const { checked = true, swatch = null, opacity = null, onFirstShow = null,
             onChange = null, meta = null } = opts;
+    /* opts.sub — v16, optional: the name of the sub-group inside this group the
+       row belongs to. opts.subTitle — the sub-group header's tooltip. */
     const gid = SGRP[group] || "base";
     let lid = opts.id || slug(label);
     /* two rows with the same slug (two "Contours — …" say) must not collide */
@@ -190,10 +192,21 @@ SBMM.initMap = function () {
     else if (opacity != null) setOpacity(rec.opacity);
     if (onChange) { try { onChange({ on: rec.on, opacity: rec.opacity }); } catch (e) { console.error(e); } }
 
-    hostEl(group).appendChild(row);
+    /* v16: the tree decides which container inside the module's own host div
+       the row belongs in — the host itself with no `sub:`, that sub-group's body
+       with one — and then decorates the row (symbology swatch, hover toolbar,
+       drag grip, keyboard). `addLayerRow`'s signature is unchanged: `sub:` is
+       one more optional key, and a build without js/layertree.js falls straight
+       through to the behaviour this had before. */
+    const host = (SBMM.layerTree && SBMM.layerTree.hostFor)
+      ? SBMM.layerTree.hostFor(hostEl(group), opts) : hostEl(group);
+    host.appendChild(row);
+    const ref = { layer, row, cb, group: gid, id: lid, key: gid + "/" + lid,
+                  uiGroup: group, sub: opts.sub || "",
+                  state: () => SBMM.layerState.get(gid, lid) };
+    if (SBMM.layerTree && SBMM.layerTree.onRow) SBMM.layerTree.onRow(ref, opts);
     if (SBMM.layersUI && SBMM.layersUI.refreshCounts) SBMM.layersUI.refreshCounts();
-    return { layer, row, cb, group: gid, id: lid, key: gid + "/" + lid,
-             state: () => SBMM.layerState.get(gid, lid) };
+    return ref;
   };
 
   /* ---------- status bar ---------- */
