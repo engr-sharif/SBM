@@ -198,6 +198,90 @@ gesture set of a native map:
   (the backtick has no key), and stays above the on-screen keyboard.
 - Text selection and the iOS callout never fire on the stage.
 
+## 5a. The Apple Pencil (ruling, 2026-09-05: "fully utilize the iPad pencil, that is a must")
+
+The Pencil arrives as Pointer Events with `pointerType === "pen"`, `pressure`
+(0–1), `tiltX/tiltY` (and `altitudeAngle/azimuthAngle` where present), and on an
+M2-or-later iPad **hover** (`pointermove` with no buttons while the tip is up
+to ~12 mm away; `matchMedia("(hover: hover)")` may still be false — detect hover
+by the events, not the media query). Rules:
+
+- **A pen is a precise pointer.** Pen taps place a vertex immediately with no
+  loupe (the loupe is for fingers); pen hit tolerances are the mouse's, not the
+  44-px touch ones; osnap works at mouse size for the pen. `SBMM.touch.lastPointer()`
+  reports `"pen" | "touch" | "mouse"` from the most recent pointerdown so the
+  chrome can size hit targets per event rather than per profile.
+- **Pen hover = mouse hover.** In 2D: the osnap glyphs, the sketch's rubber band
+  and the status-bar coordinate readout follow a hovering pen; in 3D: the hover
+  highlight and pick-card preview follow it, and the layer-tree row toolbar and
+  tooltips appear on pen hover exactly as on mouse hover.
+- **Palm rejection.** While a pen pointer is down (or was down within 150 ms),
+  `touch` pointers are ignored by every gesture surface (map sketching, 3D rig,
+  sheet viewer). Two fingers with no pen are still a pinch.
+- **3D with the Pencil.** Pen drag orbits (as the finger and the left mouse do);
+  pen tap picks; pen hover highlights; pen double-tap centres and dollies in;
+  a pen drag with a finger held down (one touch pointer) PANS — the Pencil's
+  "modifier" — and the two-finger gestures stay finger gestures. Pen pressure
+  and tilt do not drive the camera.
+- **Redline (new tool, `REDLINE`, aliases `MARKUP`, `INK`): freehand ink on the
+  map AND in a sheet window.** A pen stroke is captured at event resolution
+  (`getCoalescedEvents()` where available), width from pressure (1.5–5 px at
+  the screen, stored as a width scalar per vertex), colour from a 6-swatch
+  palette (red default), simplified on pen-up with the ring-aware
+  `simplifyPath` at 0.5 screen px. A finger with the tool active also draws
+  (constant width). Strokes are store features of type `ink` (points in State
+  Plane, `props.widths`, `props.color`, `props.provenance` for sheet strokes
+  exactly like marks), serialised in sessions (v9: additive), undoable per
+  stroke, exported to GeoJSON as LineStrings and to DXF on a `REDLINE` layer,
+  drawn in 3D as draped lines, and in the report. The five FeatureGroup places
+  (`layerFor`, `applyStyle`, `redraw`, `relayer`, `rebuildFeature`) carry it the
+  way `flow` and `photo` are carried. An eraser mode (the palette's last
+  swatch) deletes a stroke on touch. Pencil double-tap is not exposed to the
+  web and is not promised.
+- **Scribble** works in every text input by itself; keep inputs as real
+  `<input>`/`<textarea>` elements (no contenteditable tricks) so it does.
+- **A hardware keyboard** on an iPad sends `metaKey`: Cmd+Z / Cmd+Shift+Z /
+  Cmd+Y undo/redo alongside Ctrl; the single-key tool shortcuts already work.
+
+## 5b. The iPad's hardware, used (ruling: "take full advantage of the iPad backend")
+
+- **GPU**: WebGL2 where available (three.js picks it), renderer at the device
+  pixel ratio capped at 2, MSAA on, and **anisotropic filtering** on the terrain
+  drape textures (`EXT_texture_filter_anisotropic`, max the device offers — the
+  ortho at a grazing angle is where the 3D view looks cheap today). Detail
+  defaults to HIGH when `navigator.hardwareConcurrency >= 8` (M-series) and
+  STANDARD otherwise, remembered once chosen (§3). A WebGL context loss (iPad
+  Safari drops contexts under memory pressure) is handled: `webglcontextlost`
+  prevents default, `webglcontextrestored` rebuilds the scene from the store,
+  and a toast says so — never a dead black canvas.
+- **CPU**: the compute pool and the DEM decode workers size from
+  `navigator.hardwareConcurrency` (min 2, max 8), as they should on any machine.
+- **Memory**: Safari kills a page over ~1.5 GB. Under `body.touch` the app
+  releases decoded payload strings exactly as it does now, keeps the CAD
+  payload lazy, and `SBMM.perf` records `performance.memory` where it exists.
+  The Help panel shows the build, the profile, the pixel ratio, the GPU string
+  (`WEBGL_debug_renderer_info`) and the worker count — the line the engineer
+  reads back when something is slow.
+- **Sharing and files**: every export (GeoJSON, CSV, DXF, session, PNG
+  snapshot, report PDF via print) goes through **`navigator.share({files})`**
+  when it exists and the file type is shareable (the iPad share sheet: Files,
+  AirDrop, Mail), with the `<a download>` path as the fallback; **drag-and-drop
+  import** onto the stage (a CSV, GeoJSON, DXF or `.sbmm.json` dragged from the
+  Files app in Split View) routes to the same importers the Import dialog
+  uses; the clipboard "copy CSV" keeps working. Photo capture (`<input
+  type=file accept=image/* capture>`) and **Position** (`watchPosition`, an
+  iPad with cellular has GPS) are available in the tablet profile too, not only
+  in field mode — the same code, one more entry point in the top bar's Water ▾
+  neighbour "Field ▾" menu.
+- **Screen wake lock** (`navigator.wakeLock`, Safari 16.4+): requested while
+  Position is on or a job is running, released otherwise; feature-detected,
+  never an error.
+- **Standalone quirks**: in a home-screen app there is no reload button — the
+  Help panel gets "Reload app"; external links open in Safari (`target=_blank`
+  with `rel=noopener`); `localStorage` is per-app, so the gate asks once more
+  the first time — say so in the README.
+
+
 ## 6. Acceptance
 
 **`test/e2e_tablet.mjs`** (new; the tablet harness) on Playwright's
@@ -225,7 +309,7 @@ the harness (for the manifest, the icons and the service worker). Sections:
    the press (screenshot it) and finished with Done georeferences within the
    sheet's existing tolerance; restore/maximise; the page step, locate, marks
    list, measure and export by tap.
-5. map: long-press opens the context menu; a polygon sketched by taps + Done
+5. map: long-press opens the context menu; a pen tap places a vertex with no loupe and mouse-size snap; a pen hover moves the osnap glyph; a pen stroke makes an `ink` feature with per-vertex widths from pressure, survives a session round trip, exports to GeoJSON/DXF and draws in 3D; a touch pointer during a pen stroke is ignored (palm); in 3D a pen drag orbits, pen + one finger pans, pen hover highlights; Cmd+Z undoes; a share-capable export calls `navigator.share` (stub it in the harness and assert the call) and falls back without it; a dropped CSV imports; the context-loss handler rebuilds the scene; a polygon sketched by taps + Done
    has the same area as the same polygon drawn by mouse clicks (±0.1 %); a
    vertex drag by touch moves it; the layer-tree row toolbar by "⋯"; a popup
    action by tap; the command bar from its button.
