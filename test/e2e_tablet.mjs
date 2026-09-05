@@ -1225,21 +1225,29 @@ if (errors.length) fail("page errors after the map / pen block", errors.slice(0,
   if (!reg.controller) fail("the service worker never took control over http", reg);
 
   /* the manifest and the icons resolve */
+  /* statuses and manifest FACTS in separate bags: the manifest's icon COUNT is
+     a number too, and a flat map made the loop below read "3 icons" as
+     "HTTP 3" */
   const assets = await hp.evaluate(async () => {
-    const out = {};
+    const status = {};
     for (const u of ["manifest.webmanifest", "icons/icon-192.png", "icons/icon-512.png",
                      "icons/icon-maskable-512.png", "icons/apple-touch-icon.png"]) {
-      try { const r = await fetch(u, { cache: "no-store" }); out[u] = r.status; }
-      catch (e) { out[u] = "ERR"; }
+      try { const r = await fetch(u, { cache: "no-store" }); status[u] = r.status; }
+      catch (e) { status[u] = "ERR"; }
     }
+    const man = {};
     try { const m = await (await fetch("manifest.webmanifest")).json();
-          out.name = m.name; out.display = m.display; out.icons = (m.icons || []).length; } catch (e) {}
-    return out;
+          man.name = m.name; man.short = m.short_name; man.display = m.display;
+          man.orientation = m.orientation; man.icons = (m.icons || []).length;
+          man.maskable = (m.icons || []).some(i => /maskable/.test(i.purpose || "")); } catch (e) {}
+    return { status, man };
   });
-  console.log(`  assets: ${JSON.stringify(assets)}`);
-  for (const k of Object.keys(assets)) if (typeof assets[k] === "number" && assets[k] !== 200)
-    fail("an icon or the manifest did not resolve", { k, status: assets[k] });
-  if (assets.display !== "standalone" || assets.icons !== 3) fail("the manifest is not the one v17 asks for", assets);
+  console.log(`  assets: ${JSON.stringify(assets.status)}`);
+  console.log(`  manifest: ${JSON.stringify(assets.man)}`);
+  for (const k of Object.keys(assets.status)) if (assets.status[k] !== 200)
+    fail("an icon or the manifest did not resolve", { k, status: assets.status[k] });
+  if (assets.man.display !== "standalone" || assets.man.icons !== 3 || !assets.man.maskable)
+    fail("the manifest is not the one v17 asks for", assets.man);
 
   /* precache */
   const pre = await hp.evaluate(async () => {
