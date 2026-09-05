@@ -264,6 +264,57 @@ var SBMM_COMPUTE = (function SBMMComputeModule() {
     } catch (e) { wRelease(); return wasmFail(e), null; }
   }
 
+  /* ---- marchOne -----------------------------------------------------------
+     The highest-leverage export in the crate: `marchOne` is what `traceMask`
+     runs, and `traceMask` draws every pond outline, every stage-table ring of
+     the overtopping analysis, every catchment polygon of the drainage map and
+     the smart-boundary tools' rings. One guard at the top of `marchOne` reaches
+     all of them without a single other line moving. */
+  function wasmMarchOne(z, nx, ny, cell, x0, y0, lv) {
+    try {
+      var pz = wPutF32(z);
+      W.march_one_f32(pz, nx, ny, cell, x0, y0, lv, cell * 0.35);
+      var buf = wOut();
+      wRelease();
+      var dv = new DataView(buf.buffer), o = 0, lines = [], k, q, np;
+      var nl = dv.getInt32(o, true); o += 4;
+      for (k = 0; k < nl; k++) {
+        np = dv.getInt32(o, true); o += 4;
+        var line = new Array(np);
+        for (q = 0; q < np; q++) {
+          line[q] = [dv.getFloat64(o, true), dv.getFloat64(o + 8, true)];
+          o += 16;
+        }
+        lines.push(line);
+      }
+      return lines;
+    } catch (e) { wRelease(); wasmFail(e); return null; }
+  }
+
+  /* ---- contoursFromGrid --------------------------------------------------- */
+  function wasmContours(job) {
+    try {
+      var g = job.grid, cell = g.cell;
+      var X0 = g.x0 + g.i0 * cell, Y0 = g.y0 + g.j0 * cell;
+      var pz = wPutF32(g.z);
+      W.contours_from_grid(pz, g.sw, g.sh, cell, X0, Y0, job.interval, job.stride,
+                           job.maxPts || 500000);
+      var buf = wOut();
+      wRelease();
+      var dv = new DataView(buf.buffer);
+      var nl = dv.getInt32(0, true), trunc = !!dv.getInt32(4, true), nco = dv.getInt32(8, true);
+      var o = 12, k;
+      var levels = new Float64Array(nl);
+      for (k = 0; k < nl; k++) { levels[k] = dv.getFloat64(o, true); o += 8; }
+      var offsets = new Uint32Array(nl + 1);
+      for (k = 0; k <= nl; k++) { offsets[k] = dv.getUint32(o, true); o += 4; }
+      var coords = new Float64Array(nco);
+      for (k = 0; k < nco; k++) { coords[k] = dv.getFloat64(o, true); o += 8; }
+      var out = { levels: levels, offsets: offsets, coords: coords, truncated: trunc };
+      return { result: out, transfer: [out.levels.buffer, out.offsets.buffer, out.coords.buffer] };
+    } catch (e) { wRelease(); wasmFail(e); return null; }
+  }
+
   /* ---- flowpath -----------------------------------------------------------
      The WALK is in the crate (the inlet index, the fill, the descent, the
      fill-spill flood, the escape test, the conduit chain); everything that is
@@ -767,6 +818,11 @@ var SBMM_COMPUTE = (function SBMMComputeModule() {
      Returns flat arrays (levels + offsets + coords) — much cheaper to structured-clone
      than a few hundred thousand two-element arrays. */
   function contoursFromGrid(job, onProgress) {
+    /* v21 dispatch (docs/V21_WASM_SPEC.md) — the port of everything below. */
+    if (wasmAvailable()) {
+      var Cw = wasmContours(job);
+      if (Cw) { if (onProgress) onProgress(1); return Cw; }
+    }
     var g = job.grid, interval = job.interval, s = job.stride;
     /* z is the WINDOW's array (sw x sh, row-major), so the sweep runs over the
        window and its origin is the window's south-west corner. For a whole-grid
@@ -987,6 +1043,8 @@ var SBMM_COMPUTE = (function SBMMComputeModule() {
      Deliberately separate from contoursFromGrid(), whose validated behaviour over
      the terrain DEM is not worth risking for a bit of shared code. */
   function marchOne(z, nx, ny, cell, x0, y0, lv) {
+    /* v21 dispatch (docs/V21_WASM_SPEC.md) — the port of everything below. */
+    if (wasmAvailable()) { var Lw = wasmMarchOne(z, nx, ny, cell, x0, y0, lv); if (Lw) return Lw; }
     var segList = [];
     for (var j = 0; j + 1 < ny; j++) {
       for (var i = 0; i + 1 < nx; i++) {

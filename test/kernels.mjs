@@ -2789,6 +2789,56 @@ function secWasm() {
     speed("flowpath, blocked ring", jms3, wms3);
     identicalResult("flowpath (blocked ring)", a3, b3, "reason " + a3.reason);
   }
+
+  /* ---- marchOne, through the kernels that run it -------------------------
+     `marchOne` is not a runJob kind, so it is exercised the way the app runs
+     it: the overtopping analysis (42 stage rings and a rim band through
+     traceMask/maskRings), and CBOUND, which is one contour of the terrain
+     followed by the ring-aware simplify. */
+  {
+    const g = hermanWindow();
+    const ring = hermanRing().map(q => [q[0], q[1]]);
+    const [a, b, jms, wms] = ab("overtop", () =>
+      C.runJob("overtop", { grid: g, seedRing: ring }).result, false);
+    speed("overtop, Herman", jms, wms);
+    identicalResult("overtop (rim, 42 stage rows)", a, b,
+      a.stage.length + " stage rows, " + a.clusters.length + " rim lows");
+
+    const M = stormModel();
+    const X0 = g.x0 + g.i0 * g.cell, Y0 = g.y0 + g.j0 * g.cell;
+    const win = [X0, Y0, X0 + (g.sw - 1) * g.cell, Y0 + (g.sh - 1) * g.cell];
+    const cds = M.conduitsFor(win);
+    const [a2, b2, jms2, wms2] = ab("overtop+conduits", () =>
+      C.runJob("overtop", { grid: g, seedRing: ring, conduits: cds, captureFt: 3 }).result, false);
+    speed("overtop, " + cds.length + " conduits", jms2, wms2);
+    identicalResult("overtop (conduit spill)", a2, b2,
+      a2.conduitSpill ? "spills through " + a2.conduitSpill.id : "no conduit spill");
+    row("the conduit spill is really found", a2.conduitSpill ? a2.conduitSpill.id : "none",
+        "a conduit", !!a2.conduitSpill, "identity");
+  }
+
+  /* ---- contoursFromGrid ---------------------------------------------------
+     The same two jobs the `contours` section runs: the analytic cone (where a
+     ring's length is 2*pi*r and the identity is arithmetic) and the real 10-ft
+     site window, which is the set the v9.7 stub rule was written for. */
+  {
+    const cone = T.synthGrid(0, 0, 2, 400, 400, (x, y) => {
+      const r = Math.hypot(x - 400, y - 400);
+      return r > 380 ? NaN : 100 - r * 0.25;
+    });
+    const [a, b, jms, wms] = ab("contours", () =>
+      C.runJob("contours", { grid: cone, interval: 5, stride: 1, maxPts: 500000 }).result);
+    speed("contours, 400x400 cone", jms, wms);
+    identicalResult("contours (cone)", a, b, a.levels.length + " polylines");
+
+    const site = T.loadDem("dem_site");
+    const win = T.gridSpec(site, [6371000, 2127000, 6373000, 2129000], 0);
+    const [a2, b2, jms2, wms2] = ab("contours+site", () =>
+      C.runJob("contours", { grid: win, interval: 10, stride: 5, maxPts: 500000 }).result);
+    speed("contours, " + win.sw + "x" + win.sh + " at 10 ft", jms2, wms2);
+    identicalResult("contours (real terrain)", a2, b2,
+      a2.levels.length + " polylines, " + (a2.coords.length / 2) + " vertices");
+  }
 }
 
 /* the Herman ring's bbox +/- 800 ft, the window js/water.js cuts for the
