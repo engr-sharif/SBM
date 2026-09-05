@@ -57,7 +57,7 @@ await wait(1600);
 await shot("accum_2d");
 
 /* ---- 2. the streams in 3D ---- */
-await page.evaluate(() => { SBMM.viewer3d.open(); });
+await page.evaluate(async () => { await SBMM.viewer3d.openAt(6371900, 2128200); });
 await wait(4500);
 await page.evaluate(() => {
   SBMM.viewer3d.refreshDrapes();
@@ -65,7 +65,7 @@ await page.evaluate(() => {
 });
 await wait(3500);
 await shot("streams_3d");
-await page.evaluate(() => { SBMM.viewer3d.close(); });
+await page.evaluate(() => { if (SBMM.viewer3d.isOpen()) SBMM.viewer3d.toggle(); });
 await wait(1200);
 
 /* ---- 3. the pipe capacity, with the conduits coloured by ratio ---- */
