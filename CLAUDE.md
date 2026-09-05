@@ -239,6 +239,7 @@ terrain source, which needs an explicit decision + README/test update).
 | survey.js | the **August-2026 Jacobs survey** linework (`data/survey_2026.json`: the two 24-in HDPE discharge pipes, the sandbag wall, the NW Pit low) as read-only rows under Investigations; snap, 3D, export; `SBMM.survey` — the survey's 24 shots are a baked dataset, not this module |
 | storm.js | **v12 storm drainage** — EA's storm structures and storm line, the six CAD culvert marks, Jacobs' two surveyed 24-in pipes and the south-road grate chain, as read-only project data (`data/storm_network.json`): three layer rows under Site framework, rims from `SBMM.elev` on boot, the "storm drains work" switch, per-conduit broken/working, snap, 3D, exports, and `conduitsFor(bbox)` — the list `js/water.js` hands the kernel; `SBMM.storm` |
 | drainage.js | **v14 Phase 1 — the drainage map**: the `drainage` kernel run once over the whole site, three read-only layer rows under a *Drainage* sub-header in Site framework, the outlet table and its CSV/GeoJSON/DXF, "show what drains here" on any storm popup, the catchments draped in 3D; `SBMM.drainage` |
+| runoff.js | **v14 Phase 2 — the design storm**: the `runoff` kernel over the Phase 1 catchments, the rainfall and land-cover payloads, the `RAIN` dialog, the results card with its hydrograph, level-pool routing of the three ponds through the `overtop` kernel's stage table, the report sheet, the CSV, and two layer rows (the cover raster with a CN legend, the runoff depth as a choropleth); `SBMM.runoff` |
 | layerman.js | the Layer manager dialog: search / toggle / recolour / opacity / source + handle for EA's 110 CAD layer names |
 | sheetcards.js | the Sheets tab — a card per drawing with a thumbnail derived on first open, filtered by lot |
 | field.js | **field mode (`body.field`) and the field capabilities (§4)** — the trigger and `SBMM.field`, the slim top bar / bottom action bar / More sheet, docks as bottom sheets, popups as bottom cards, Position (`watchPosition`, never fabricated), Photo (the `photo` feature type + a small EXIF reader), Note, Samples nearby |
@@ -1740,3 +1741,42 @@ be a guess). If either is absent the module still builds a row and refuses with
 a toast — `SBMM.runoff.build()` returns early when both are missing, the cover
 row becomes "Land cover (not in this build)", and `run()` toasts and returns
 null rather than throwing.
+
+### What it found, recorded from this commit
+
+On the **provisional** 25-year 24-hour depth (6.4 in, NRCS Type IA) over the
+Phase 1 catchments sampled at 8 ft — `node test/kernels.mjs --only runoff`,
+69 checks in 12.7 s:
+
+| catchment | acres | CN | Q | volume | Tc | SCS peak |
+|---|---|---|---|---|---|---|
+| Clear Lake — direct overland | 403.05 | 82.0 | 4.36 in | 146.49 ac-ft | 21.2 min | 565 cfs |
+| Off the surveyed ground | 293.45 | 81.0 | 4.25 in | 103.87 ac-ft | 6.0 min | 429 cfs |
+| Clear Lake outfall (storm network) | 281.99 | 83.6 | 4.53 in | 106.34 ac-ft | 17.1 min | 425 cfs |
+| **site** | **978.49** | **82.2** | — | **356.69 ac-ft** | — | **1,396 cfs** |
+
+**No catchment gets a Rational peak, and that is the rule working**: all three
+are over the 200-acre limit, so the card reports "not reported above 200 ac"
+rather than a number the method does not support.
+
+**None of the three ponds overtops.** The impoundment rises 0.82 ft
+(1,336.45 → 1,337.27) and never reaches its surveyed 1,341.55-ft discharge
+invert; Frog Pond leaves through the pond culvert at 1,415.75, 0.29 ft under
+its 1,416.04-ft rim; Green Pond is contained 1.4 ft below its FES. Those are
+the answers for THIS storm on THESE depths — the whole table moves when the
+Atlas 14 export replaces the provisional one, and the harness numbers have to
+be re-recorded with it.
+
+### The one acceptance check that could not be run as written
+
+Spec §3(g) asks that "the paved class area agrees with EA's paved polygons
+within 5 %". **EA has no paved polygons** — it draws roads as LINES, two of
+them per road — so a length × width reference double counts every road while
+the raster merges the overlap, clips to the surveyed ground and is overpainted
+by buildings and water. The comparison is one-sided by construction and is
+−16.7 % here, all of it explainable and none of it about placement. So the
+harness tests placement directly — **a point every 10 ft along every EA paved
+road line must read `paved`, and 4,206 of 4,206 eligible points do** — and
+keeps the area comparison beside it as the one-sided identity it is, with the
+reasons printed. Do not "fix" this by widening the tolerance; the area number
+is not the question.

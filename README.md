@@ -1212,6 +1212,94 @@ feature: it does not serialise into a session, it is not undoable, and it is not
 in the feature tree — it is a read-only analysis of the ground, like the storm
 network it depends on.
 
+## Design storm — how much water, and where it ends up
+
+> **The 25-year 24-hour storm over the whole site: 6.4 in of rain, a composite
+> curve number of 82, and 357 acre-feet of runoff.** 146 ac-ft of it reaches
+> Clear Lake overland, 106 ac-ft goes through the storm network to the outfall
+> and 104 ac-ft leaves the surveyed ground at its edge. **None of the three
+> ponds overtops** — the Herman Impoundment rises 0.8 ft and never reaches its
+> surveyed 1,341.55-ft discharge pipes; Frog Pond leaves through its culvert
+> 0.29 ft below its rim; Green Pond is contained 1.4 ft below its outlet.
+>
+> **The rainfall depths are provisional until the NOAA Atlas 14 export is
+> baked in, and the card says so in red.** Everything below moves with them.
+
+Type `RAIN` (or `RUNOFF`, `DESIGNSTORM`) and the **Design storm** dialog opens:
+pick the storm (2-, 10-, 25- or 100-year 24-hour, the 25-year 1-hour for the
+pipes, or a custom depth and duration), the temporal distribution, the
+hydrologic soil-group rule and the TR-55 segment lengths, then run it. This is
+Phase 2 of the catchment work: **Phase 1 said where the water goes, this says
+how much**, over Phase 1's own catchments — so the drainage map and the design
+storm can never disagree about which ground drains where.
+
+### Every number carries the assumption it rests on
+
+The card prints them, the report sheet leads with them, and the dialog changes
+them. Nothing here is hidden in the code:
+
+| what | the assumption | why |
+|---|---|---|
+| Rainfall | NOAA Atlas 14 vol. 6 at 39.003 N, 122.663 W — **provisional depths until `data/atlas14_sbmm.csv` is baked** | the app has no network by design; the depths must be citable |
+| Distribution | NRCS **Type IA** (the Pacific-coast type that covers Lake County); Type I and a uniform intensity are offered beside it | TR-55 |
+| Runoff | NRCS curve number, `Q = (P − 0.2S)² / (P + 0.8S)`, `S = 1000/CN − 10`, AMC II | the method every drainage report in this county uses |
+| Soil group | **D** for mine waste, tailings, waste piles, decision units and compacted fill; **C** for everything else | no SSURGO and no infiltration test on hand — the biggest assumption in the chain |
+| Cover | a 2-ft class raster from EA's water, building and road layers, the decision units and waste piles, the canopy model and the orthophoto | the data we have |
+| Time of concentration | TR-55 ch. 3 along Phase 1's longest flow path: sheet flow ≤ 100 ft, shallow concentrated, channel above 5 acres | TR-55 |
+| Peak flow | **both**: Rational `Q = C·i·A` up to 200 ac, and an SCS unit hydrograph (peak rate factor 484) everywhere | two methods, not two attempts at one number |
+| Pond routing | level-pool (Modified Puls) on the overtopping analysis's own stage–storage, a broad-crested weir over the rim; a conduit with no surveyed size or invert **passes its inflow** and says "capacity unknown — survey pending" | half of it is real now, half waits on the invert survey |
+| Clear Lake | free outfall | a ruling |
+
+### What it reports
+
+Per catchment: the area by cover class, the composite curve number, the runoff
+depth and volume, the time of concentration with its TR-55 segments, the
+Rational peak (where the catchment is small enough for it) and the SCS peak
+with its hydrograph. Per pond: the peak stage, the freeboard, the time to peak,
+and whether it overtops its rim or leaves through a conduit first. `copy CSV`
+takes the lot; **report** opens the printable sheet with the assumptions table
+first, before a single quantity.
+
+Two layer rows sit under **Design storm (rainfall + runoff)** in Site
+framework: **Land cover** — the class raster with a legend that names each
+class's curve number — and **Runoff depth**, the catchments shaded by the
+runoff of the chosen storm. Draw an area, give it a cover class from the
+dialog, and the storm counts it that way; the override is an ordinary drawn
+feature, so it saves in the session with everything else.
+
+### The recorded answers
+
+25-year, 24-hour, 6.4 in, Type IA, over the 978.5 surveyed acres:
+
+| catchment | acres | CN | Q | volume | Tc | Rational | SCS peak |
+|---|---|---|---|---|---|---|---|
+| Clear Lake — direct overland | 403.05 | 82.0 | 4.36 in | 146.49 ac-ft | 21.2 min | over 200 ac | 565 cfs |
+| Off the surveyed ground | 293.45 | 81.0 | 4.25 in | 103.87 ac-ft | 6.0 min | over 200 ac | 429 cfs |
+| Clear Lake outfall (storm network) | 281.99 | 83.6 | 4.53 in | 106.34 ac-ft | 17.1 min | over 200 ac | 425 cfs |
+| **site** | **978.49** | **82.2** | — | **356.69 ac-ft** | — | — | **1,396 cfs** |
+
+| pond | today | peak stage | outcome |
+|---|---|---|---|
+| Herman Impoundment | 1,336.45 ft (surveyed) | 1,337.27 ft | contained — 4.3 ft below the surveyed 1,341.55-ft discharge invert |
+| Frog Pond (east) | 1,415.00 ft | 1,415.75 ft | leaves through the pond culvert at 1,415.74, 0.29 ft under its 1,416.04-ft rim |
+| Green Pond (west) | 1,391.60 ft | 1,393.11 ft | contained — 1.4 ft below its outlet at 1,394.50 |
+
+The cover raster behind those curve numbers, over the same 978.5 acres: grass
+and weeds 660.9 ac, bare or disturbed 167.5, woods and brush 57.0, gravel road
+37.8, open water 26.2, paved 11.9, mine waste 11.1, roofs 6.2.
+
+**Nothing here is a rain-on-grid simulation.** There is no infiltration model
+beyond the curve number, no seepage, no evaporation, no pipe capacity and no
+continuous simulation — and the card says so in those words.
+
+### Replacing the provisional rainfall (five minutes, no code)
+
+Open the NOAA PFDS at `lat=39.0030&lon=-122.6630`, take the PDS-based
+precipitation-frequency estimates in English units, save the CSV as
+`data/atlas14_sbmm.csv`, and run `python tools/build_rainfall.py`. The red
+warning disappears by itself, every number above moves with the new depths, and
+the recorded values in `test/kernels.mjs` §12.5 need re-recording.
+
 ## Canopy v2 and the tree inventory
 
 ### The cleaned canopy model
