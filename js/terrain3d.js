@@ -55,7 +55,7 @@ SBMM.terrain3d = (function () {
 
   const N = 256;                    // tile pixels
   const V = N + 1;                  // mesh vertices per side (trap 1)
-  const MAX_TILES = 56;
+  const MAX_TILES = 40;
   const MAX_VERTS = 3.2e6;
 
   let ctx = null;                   // set by attach()
@@ -304,11 +304,29 @@ SBMM.terrain3d = (function () {
   }
 
   /* ----------------------------------------------------------- selection -- */
-  function childrenExist(z, x, y) {
+  /* THE DESCENT RULE, and getting it wrong is silent.
+
+     On a NOT-partial level an absent child means the ground there is absent
+     too — the parent is the same samples, coarser — so descending as soon as
+     ONE child exists loses nothing and the empty quadrants are simply skipped.
+     On a PARTIAL level (dem z0: written only where the 1-ft windows cover the
+     whole square) an absent child means the FINE data does not reach there
+     while the parent still has ground, so all four are required or a strip of
+     terrain disappears.
+
+     Requiring all four everywhere was tried first, and the quadtree then drew
+     nothing but its 64-ft root: level 5 has three tiles, not four, because the
+     fourth is entirely off the survey. tools/build_tiles.py sets `partial` and
+     documents it; test/tiles.mjs guards the level-0 half of it. */
+  function canDescend(z, x, y) {
     const cz = z - 1;
-    if (!SBMM.tiles.levelInfo("dem", cz)) return false;
-    return SBMM.tiles.has("dem", cz, x * 2, y * 2) && SBMM.tiles.has("dem", cz, x * 2 + 1, y * 2)
-        && SBMM.tiles.has("dem", cz, x * 2, y * 2 + 1) && SBMM.tiles.has("dem", cz, x * 2 + 1, y * 2 + 1);
+    const li = SBMM.tiles.levelInfo("dem", cz);
+    if (!li) return false;
+    const T = SBMM.tiles;
+    const q = [[x * 2, y * 2], [x * 2 + 1, y * 2], [x * 2, y * 2 + 1], [x * 2 + 1, y * 2 + 1]];
+    let n = 0;
+    for (const [cx, cy] of q) if (T.has("dem", cz, cx, cy)) n++;
+    return li.partial ? n === 4 : n > 0;
   }
 
   const _box = new THREE.Box3(), _v = new THREE.Vector3(), _m4 = new THREE.Matrix4();
@@ -338,10 +356,19 @@ SBMM.terrain3d = (function () {
       _box.min.set(r[0] - CX, r[1] - CY, (zr[0] - ZMID) * zx - 60);
       _box.max.set(r[2] - CX, r[3] - CY, (zr[1] - ZMID) * zx + 60);
       if (!_frustum.intersectsBox(_box)) return;
-      _box.clampPoint(cam.position, _v);
+      /* The distance the error is measured at is the tile's CENTRE, not its
+         nearest corner. Measuring at the nearest corner gives a guaranteed
+         bound and costs eight times the geometry for it: a 2,048-ft tile whose
+         near corner is 300 ft away is subdivided although its far end is 2,000
+         ft away, and the whole subtree is then drawn at full density. Measured
+         here it was 2.58 M vertices at 2 px against an ideal of ~0.32 M for the
+         viewport. The centre is what a quadtree terrain normally uses; the near
+         edge of a tile is under-refined by at most the tile's own half-diagonal
+         in distance, which is one level, and the skirts cover the seam. */
+      _box.getCenter(_v);
       const d = Math.max(1, _v.distanceTo(cam.position));
       const err = T.cellOf(z) * (H * 0.5) / (halfTan * d);   // px per DEM cell
-      if (err > targetPx && z - 1 >= zMin && childrenExist(z, x, y)) {
+      if (err > targetPx && z - 1 >= zMin && canDescend(z, x, y)) {
         visit(z - 1, x * 2, y * 2); visit(z - 1, x * 2 + 1, y * 2);
         visit(z - 1, x * 2, y * 2 + 1); visit(z - 1, x * 2 + 1, y * 2 + 1);
         return;
@@ -350,6 +377,10 @@ SBMM.terrain3d = (function () {
     }
     const root = T.levelInfo("dem", zMax);
     for (const [x, y] of root.tiles) visit(zMax, x, y);
+    /* A frustum that misses every root tile (the camera inside the terrain, or
+       parked outside it) must not blank the view: fall back to the roots. */
+    if (!out.length) for (const [x, y] of root.tiles) out.push([zMax, x, y]);
+    if (out.length * V * V > MAX_VERTS) overflow = true;
     return { list: out, overflow };
   }
 
@@ -392,7 +423,7 @@ SBMM.terrain3d = (function () {
     try {
       let targetPx = ctx.quality();
       let sel = select(targetPx), guard = 0;
-      while (sel.overflow && guard++ < 4) { targetPx *= 2; stat.raisedFor++; sel = select(targetPx); }
+      while (sel.overflow && guard++ < 6) { targetPx *= 1.5; stat.raisedFor++; sel = select(targetPx); }
       stat.selects++;
       const sig = style + "|" + targetPx + "|" + sel.list.map(t => t.join("/")).sort().join(",");
       if (!force && sig === lastSig) return false;

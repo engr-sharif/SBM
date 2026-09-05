@@ -31,13 +31,21 @@ test/tiles.mjs compare a tile against SBMM.elev's own grid and demand equality t
 the terrain-RGB step rather than to a tolerance.  Imagery is box-averaged when it
 is being reduced, which is a display decision and affects no number.
 
-THE FINEST LEVEL, AND WHY A PARTIAL TILE IS NOT WRITTEN
--------------------------------------------------------
+THE FINEST LEVEL, AND THE `partial` FLAG THE RENDERER DESCENDS BY
+-----------------------------------------------------------------
 Level 0 (1 ft) exists only where the 1-ft data does: dem_abp and dem_res.  A level-0
 tile is written only when the whole 256 x 256 square lies inside the union of those
-two windows.  The renderer's coverage rule is then exact -- a coarse tile is dropped
-only where all four of its children exist -- instead of needing a per-tile coverage
-mask.  The cost is a fringe of at most 256 ft at the window edge drawn at 2 ft.
+two windows, and that level is marked `partial: true` in the index.  Every other
+level is written whenever the square has ANY data at all, and is `partial: false`.
+
+The distinction is the whole of the quadtree's descent rule, and getting it wrong
+is silent: on a NOT-partial level an absent child means the ground there is absent
+too (the parent is the same samples, coarser), so the renderer descends as soon as
+ONE child exists and simply skips the empty quadrants.  On a partial level an absent
+child means the FINE data does not cover it while the parent still has ground there,
+so the renderer descends only when all four exist.  Requiring all four everywhere
+was tried first and is why the quadtree drew nothing but its 64-ft root: level 5 has
+three tiles, not four, because the fourth is entirely off the survey.
 
 SOURCE
 ------
@@ -266,9 +274,10 @@ def build_dem(dems, dry):
                 blob, mime = encode_png(rgb)
                 n = write_tile("dem", z, tx, ty, blob, mime, dry)
                 tiles.append([tx, ty, n]); total += n
-        levels[str(z)] = {"cell": cell_of(z), "count": len(tiles),
+        levels[str(z)] = {"cell": cell_of(z), "count": len(tiles), "partial": z <= 0,
                           "bytes": total, "tiles": tiles}
-        print(f"  dem  z{z} cell {cell_of(z):>4.0f} ft  {len(tiles):>4} tiles  {total/1e6:6.2f} MB")
+        print(f"  dem  z{z} cell {cell_of(z):>4.0f} ft  {len(tiles):>4} tiles  {total/1e6:6.2f} MB"
+              + ("  (partial — whole tiles only)" if z <= 0 else ""))
     return {"kind": "terrain-rgb", "mime": "image/png", "zmin": ZMIN, "step": STEP,
             "levels": levels}
 
@@ -298,7 +307,7 @@ def build_image(name, srcs, zlo, zhi, dry, mime="jpeg", quality=78, mode="RGB"):
                            else encode_png(out))
                 n = write_tile(name, z, tx, ty, blob, m, dry)
                 tiles.append([tx, ty, n]); total += n
-        levels[str(z)] = {"cell": cell_of(z), "count": len(tiles),
+        levels[str(z)] = {"cell": cell_of(z), "count": len(tiles), "partial": False,
                           "bytes": total, "tiles": tiles}
         print(f"  {name:<9} z{z} cell {cell_of(z):>4.0f} ft  {len(tiles):>4} tiles  {total/1e6:6.2f} MB")
     return {"kind": "image", "mime": "image/" + ("jpeg" if mime == "jpeg" else "png"),
@@ -328,16 +337,75 @@ def build_chm(dry):
                 blob, m = encode_png(rgb)
                 n = write_tile("chm", z, tx, ty, blob, m, dry)
                 tiles.append([tx, ty, n]); total += n
-        levels[str(z)] = {"cell": cell_of(z), "count": len(tiles),
+        levels[str(z)] = {"cell": cell_of(z), "count": len(tiles), "partial": False,
                           "bytes": total, "tiles": tiles}
         print(f"  chm       z{z} cell {cell_of(z):>4.0f} ft  {len(tiles):>4} tiles  {total/1e6:6.2f} MB")
     return {"kind": "terrain-rgb", "mime": "image/png",
             "zmin": meta["zmin"], "step": meta["step"], "levels": levels}
 
 
+PARTIAL = {("dem", 0): True}      # the ONE partial level; see the header
+
+
+def reindex():
+    """Rebuild datajs/tiles/index.js from the tiles already on disk.
+
+    The index is 30 kB of bookkeeping over 52 MB of payload, and it is the only
+    part of the pyramid that changes when the RENDERER learns something new
+    about it (the `partial` flag was exactly that). Re-cutting 2,311 PNGs to
+    rewrite a manifest is 35 minutes for nothing, so this reads the directory
+    instead. It cannot invent a tile that is not there, which is the property
+    that makes it safe: test/tiles.mjs still checks the index against the disk
+    both ways."""
+    layers = {}
+    for f in sorted(os.listdir(OUT)):
+        if not f.endswith(".js") or f == "index.js":
+            continue
+        stem = f[:-3].rsplit("_", 3)
+        if len(stem) != 4:
+            print("  skipping unrecognised", f); continue
+        layer, z, x, y = stem[0], int(stem[1]), int(stem[2]), int(stem[3])
+        n = os.path.getsize(os.path.join(OUT, f))
+        L = layers.setdefault(layer, {})
+        L.setdefault(z, []).append([x, y, n])
+    out = {}
+    for layer, lv in layers.items():
+        terrain = layer in ("dem", "chm")
+        meta = load_json("chm") if layer == "chm" else None
+        rec = {"kind": "terrain-rgb" if terrain else "image",
+               "mime": "image/png" if terrain or layer == "cover" else "image/jpeg",
+               "levels": {}}
+        if terrain:
+            rec["zmin"] = meta["zmin"] if meta else ZMIN
+            rec["step"] = meta["step"] if meta else STEP
+        for z in sorted(lv):
+            t = sorted(lv[z])
+            rec["levels"][str(z)] = {"cell": cell_of(z), "count": len(t),
+                                     "partial": PARTIAL.get((layer, z), False),
+                                     "bytes": sum(a[2] for a in t), "tiles": t}
+        out[layer] = rec
+    return out
+
+
 def main():
     args = sys.argv[1:]
     dry = "--dry-run" in args
+    if "--reindex" in args:
+        layers = reindex()
+        idx = {"version": 1, "built": datetime.date.today().isoformat(), "source": SOURCE,
+               "origin": {"x0": X0, "y0": Y0}, "tileSize": TILE,
+               "cellRule": "cell_ft = 2**z", "row0": "north", "layers": layers}
+        js = ('window.SBMM_TILES=window.SBMM_TILES||{};SBMM_TILES.index='
+              + json.dumps(idx, separators=(",", ":")) + ";\n")
+        with open(os.path.join(OUT, "index.js"), "w") as f:
+            f.write(js)
+        for layer, L in layers.items():
+            for z in sorted(L["levels"], key=int):
+                l = L["levels"][z]
+                print(f"  {layer:<9} z{z} cell {l['cell']:>4.0f} ft  {l['count']:>4} tiles"
+                      f"  {l['bytes']/1e6:6.2f} MB" + ("  partial" if l["partial"] else ""))
+        print(f"\nindex.js  {len(js)/1024:.0f} kB  (rebuilt from disk, no tile re-cut)")
+        return
     only = None
     if "--only" in args:
         only = set(args[args.index("--only") + 1].split(","))
