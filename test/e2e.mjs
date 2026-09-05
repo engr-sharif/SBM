@@ -3,7 +3,7 @@
 import { chromium } from "playwright";
 import { pathToFileURL as __furl } from "node:url";
 import { resolve as __res } from "node:path";
-import { existsSync as __ex } from "node:fs";
+import { existsSync as __ex, readFileSync as __read } from "node:fs";
 import { unlock, gatePassword } from "./gate.mjs";
 const CHROME = process.env.CHROME_BIN || (__ex("/opt/pw-browsers/chromium-1194/chrome-linux/chrome") ? "/opt/pw-browsers/chromium-1194/chrome-linux/chrome" : undefined); // undefined = Playwright's own chromium (npx playwright install chromium)
 
@@ -1411,7 +1411,10 @@ const gis = await page.evaluate(() => {
   }
   const exc = D.features.filter(f => f.properties.layer === "exc");
   const rows = [...document.querySelectorAll("#designLayers .lyr")].length;
-  const subs = [...document.querySelectorAll("#designLayers .lsub:not(.cadnative-sub)")].map(d => d.textContent);
+  /* v16: a sub-header carries a caret and two count badges beside its name, so
+     the name is its own text nodes */
+  const subs = [...document.querySelectorAll("#designLayers .lsub:not(.cadnative-sub)")]
+    .map(d => [...d.childNodes].filter(n => n.nodeType === 3).map(n => n.textContent).join("").trim());
   /* every feature must say where it came from, and none of the excluded
      cultural-resource layers may have leaked in */
   const noProv = D.features.filter(f => !f.properties.provenance).length;
@@ -3151,7 +3154,9 @@ const stormBase = await page.evaluate(() => {
     layers: D.layers.map(l => [l.key, l.count]),
     rowsOn: rowsOn.length,
     rowLabels: [...document.querySelectorAll("#projLayers .lyr")]
-      .filter(r => /^storm_/.test(r.dataset.lid)).map(r => r.querySelector(".lbl").textContent),
+      /* v16 moves the trailing "(44)" out of .lbl into its own monospace span —
+         same characters, same row text, so read the row */
+      .filter(r => /^storm_/.test(r.dataset.lid)).map(r => r.textContent),
     subHeader: [...document.querySelectorAll("#projLayers .lsub")].some(h => /Storm drainage/.test(h.textContent)),
     glyphs: document.querySelectorAll(".stormnode").length,
     arrows: document.querySelectorAll(".stormarrow").length,
@@ -4355,10 +4360,24 @@ if (ia.areaBtns.join(",") !== "mine,resid,site") { console.log("FAIL: Areas quic
    below the fold, which is how the group was shipped before this round. */
 const designOrder = await page.evaluate(() => {
   const host = document.getElementById("designLayers");
-  const kids = [...host.children];
-  const seq = kids.map(el => el.classList.contains("lsub")
-    ? { sub: el.textContent.trim() }
-    : { row: (el.querySelector(".lbl") || el).textContent.trim() });
+  /* v16: a sub-group is a real container (`.lgsub` > `.subh.lsub` + `.lgsubb`)
+     rather than a bare header followed by its rows, so the reading order of the
+     group is the header followed by the rows inside it. Flatten it back to the
+     sequence this assertion has always been about. */
+  const seq = [];
+  /* the sub-group header holds a caret span and a count span beside its name,
+     so the name is its own text nodes */
+  const subName = h => h ? [...h.childNodes].filter(n => n.nodeType === 3).map(n => n.textContent).join("").trim() : "";
+  const walk = el => {
+    for (const kid of el.children) {
+      if (kid.classList.contains("lgsub")) {
+        seq.push({ sub: subName(kid.querySelector(".subh")) });
+        walk(kid.querySelector(".lgsubb") || kid);
+      } else if (kid.classList.contains("lsub")) seq.push({ sub: kid.textContent.trim() });
+      else if (kid.classList.contains("lyr")) seq.push({ row: (kid.querySelector(".lbl") || kid).textContent.trim() });
+    }
+  };
+  walk(host);
   const label = i => seq[i].row || "";
   const isSheet = t => /^[CG]-\d{3}\b/.test(t);
   const subIdx = seq.findIndex(x => x.sub === "Sheets (draped)");
@@ -5533,6 +5552,438 @@ await page.screenshot({ path: "/tmp/shot_2d_" + label.replace(/\W+/g, "_") + ".p
 await page.click('#rightTabs .dtab[data-rtab="inspector"]');   /* v9 §3: Properties is the right dock's Inspector */
 await page.waitForTimeout(400);
 await page.screenshot({ path: "/tmp/shot_props_" + label.replace(/\W+/g, "_") + ".png" });
+
+
+/* ==================================================================== */
+/* 9z. the layer tree (v16, docs/V16_LAYERS_SPEC.md §3)                  */
+/* ==================================================================== */
+/* Runs LAST, after the screenshots, because it ends with a real page
+   reload — the only honest way to assert that a dragged row order comes
+   back — and a reload throws the accumulated scene away.
+
+   The cultural acknowledgement is asserted in block 9g, which is
+   unchanged by v16 and still passes; what this block adds is the other
+   half of that guarantee: none of the tree's new bulk switches (solo,
+   presets, the group all-on button, the recently-changed chips) can
+   reach the cultural group at all. */
+const errBeforeTree = errors.length;
+/* block 10 left the left dock on the My-work tab; the tree needs to be on
+   screen for a real drag and for keyboard focus to mean anything */
+await page.click('#leftTabs .dtab[data-tab="layers"]');
+await page.waitForTimeout(400);
+
+/* ---- every row that existed before v16 exists after, same (group, id) ----
+   The baseline is test/fixtures/layer_rows_pre_v16.json, dumped from the
+   pre-v16 build (commit 475e302) with the same probe this block uses. */
+const treeBase = JSON.parse(__read(new URL("fixtures/layer_rows_pre_v16.json", import.meta.url), "utf8"));
+const tree = await page.evaluate(() => {
+  const d = SBMM.layerTree.dump();
+  const keys = d.map(r => r.group + "/" + r.id);
+  const dup = keys.filter((k, i) => keys.indexOf(k) !== i);
+  return {
+    rows: d, keys, dup,
+    domRows: document.querySelectorAll("#layers .lyr").length,
+    subs: [...document.querySelectorAll("#layers .lgsub")].map(s => ({
+      sub: [...s.querySelector(".subh").childNodes].filter(n => n.nodeType === 3).map(n => n.textContent).join("").trim(),
+      rows: s.querySelectorAll(".lyr, .surfrow, .refrow[data-sid]").length
+    })),
+    orphans: [...document.querySelectorAll("#layers .lyr")]
+      .filter(r => !SBMM.layerState.rec(r.dataset.lgroup, r.dataset.lid))
+      .map(r => r.dataset.lgroup + "/" + r.dataset.lid),
+    swatches: document.querySelectorAll("#layers .lyr .ltsw svg").length,
+    grips: document.querySelectorAll("#layers .lyr .ltgrip").length,
+    toolbars: document.querySelectorAll("#layers .lyr .ltacts .ltb").length
+  };
+});
+const treeKeys = new Set(tree.keys);
+const treeMissing = treeBase.keys.filter(k => !treeKeys.has(k));
+/* Rows this HARNESS created after boot are the only legitimate additions: the
+   CSV datasets block 9f imports (invest) and the contour set the analysis block
+   generates (base). Anything new anywhere else would be a row v16 invented. */
+const treeNew = tree.keys.filter(k => treeBase.keys.indexOf(k) < 0);
+const treeUnexplained = treeNew.filter(k => !/^invest\//.test(k) && !/^base\/contours_/.test(k));
+console.log("layer tree:", tree.rows.length, "rows in the state,", tree.domRows, "in the DOM,",
+            tree.subs.length, "sub-groups |", tree.swatches, "symbology swatches |",
+            "baseline", treeBase.keys.length, "rows — missing", treeMissing.length,
+            "| added by this run", treeNew.length, JSON.stringify(treeNew));
+console.log("layer tree sub-groups:", JSON.stringify(tree.subs));
+if (treeMissing.length) {
+  console.log("FAIL: the tree lost layer rows that existed before v16:", treeMissing.slice(0, 12)); process.exit(1); }
+if (treeUnexplained.length) {
+  console.log("FAIL: the tree invented layer rows:", treeUnexplained.slice(0, 12)); process.exit(1); }
+if (tree.dup.length) { console.log("FAIL: duplicate (group, id) layer keys:", tree.dup); process.exit(1); }
+/* every row on screen has a state entry (a dataset removed during the run keeps
+   its state entry and loses its row, so the state may be the larger of the two) */
+if (tree.domRows > tree.rows.length || tree.orphans.length) {
+  console.log("FAIL: a DOM row has no layer state behind it", { dom: tree.domRows, state: tree.rows.length, orphans: tree.orphans }); process.exit(1); }
+if (tree.swatches !== tree.domRows || tree.grips !== tree.domRows || tree.toolbars !== tree.domRows * 4) {
+  console.log("FAIL: not every row got its swatch, grip and 4-button toolbar", tree); process.exit(1); }
+if (tree.subs.length < 8) { console.log("FAIL: the sub-groups did not build:", tree.subs); process.exit(1); }
+
+/* ---- search ----
+   Fuzzy over label + sub-group + group + id (§2.1). "storm" therefore also
+   matches the three drainage rows, whose sub-group is "Drainage (lidar +
+   storm drains)" — that is the rule doing its job, so the assertion is
+   "the three storm rows are shown and every shown row really matches",
+   not a bare count. */
+const treeSearch = await page.evaluate(() => {
+  SBMM.layerTree.search("storm");
+  const shown = [...document.querySelectorAll("#layers .lyr")]
+    .filter(r => !r.classList.contains("lthide"))
+    .map(r => ({ k: r.dataset.lgroup + "/" + r.dataset.lid,
+                 /* the same haystack js/layertree.js searches: label, sub-group,
+                    group label, id */
+                 hay: [r.querySelector(".lbl").textContent, r.dataset.lsub || "",
+                       (SBMM.layerState.GROUP_ORDER.find(g => g[0] === r.dataset.lgroup) || [])[1] || "",
+                       r.dataset.lid].join(" ").toLowerCase() }));
+  const sec = document.querySelector('#layers .lsec[data-sec="framework"]');
+  const stormSub = [...document.querySelectorAll("#layers .lgsub")]
+    .find(s => /Storm drainage/.test(s.querySelector(".subh").textContent));
+  const out = {
+    shown: shown.map(s => s.k),
+    allMatch: shown.every(s => s.hay.includes("storm")),
+    frameworkShown: !sec.classList.contains("lthide") && sec.classList.contains("ltforce"),
+    stormSubShown: !!stormSub && !stormSub.classList.contains("lthide") && !stormSub.classList.contains("closed"),
+    designHidden: document.querySelector('#layers .lsec[data-sec="design"]').classList.contains("lthide"),
+    hits: (document.getElementById("ltHits") || {}).textContent
+  };
+  SBMM.layerTree.search("");
+  out.afterClear = [...document.querySelectorAll("#layers .lyr")].filter(r => r.classList.contains("lthide")).length;
+  return out;
+});
+console.log("search “storm”:", treeSearch.shown.join(" "), "|", treeSearch.hits,
+            "| framework expanded:", treeSearch.frameworkShown, "| storm sub open:", treeSearch.stormSubShown,
+            "| design group hidden:", treeSearch.designHidden, "| rows hidden after clear:", treeSearch.afterClear);
+for (const k of ["framework/storm_nodes", "framework/storm_cad", "framework/storm_inferred"])
+  if (treeSearch.shown.indexOf(k) < 0) { console.log("FAIL: search “storm” did not show", k); process.exit(1); }
+if (!treeSearch.allMatch) { console.log("FAIL: search “storm” showed a row that does not match it"); process.exit(1); }
+if (!treeSearch.frameworkShown || !treeSearch.stormSubShown || !treeSearch.designHidden) {
+  console.log("FAIL: search did not expand the ancestors and hide the rest", treeSearch); process.exit(1); }
+if (treeSearch.afterClear) { console.log("FAIL: Esc/clear left", treeSearch.afterClear, "rows hidden"); process.exit(1); }
+
+/* ---- solo, and its restore ---- */
+const treeSolo = await page.evaluate(() => {
+  const before = SBMM.layerState.list("framework").map(r => [r.id, r.on]);
+  SBMM.layerTree.solo("framework", "storm_nodes");
+  const during = SBMM.layerState.list("framework").map(r => [r.id, r.on]);
+  SBMM.layerTree.solo("framework", "storm_nodes");
+  const after = SBMM.layerState.list("framework").map(r => [r.id, r.on]);
+  const cultId = (SBMM.layerState.list("cultural")[0] || {}).id;
+  const cultBefore = cultId ? SBMM.layerState.isOn("cultural", cultId) : null;
+  const cultRefused = cultId ? SBMM.layerTree.solo("cultural", cultId) : false;
+  const cultToast = (document.getElementById("toast") || {}).textContent || "";
+  return {
+    cultToast,
+    onDuring: during.filter(r => r[1]).map(r => r[0]),
+    restored: JSON.stringify(before) === JSON.stringify(after),
+    cultId, cultRefused, cultChanged: cultId ? SBMM.layerState.isOn("cultural", cultId) !== cultBefore : false
+  };
+});
+console.log("solo storm_nodes: on during =", treeSolo.onDuring.join(","), "| restored:", treeSolo.restored,
+            "| solo refused on cultural:", treeSolo.cultRefused === false, "| cultural moved:", treeSolo.cultChanged);
+if (treeSolo.onDuring.length !== 1 || treeSolo.onDuring[0] !== "storm_nodes") {
+  console.log("FAIL: solo did not isolate the row", treeSolo); process.exit(1); }
+if (!treeSolo.restored) { console.log("FAIL: solo did not put the group back"); process.exit(1); }
+if (treeSolo.cultRefused !== false || treeSolo.cultChanged) {
+  console.log("FAIL: solo reached the cultural group", treeSolo); process.exit(1); }
+if (!/cultural/i.test(treeSolo.cultToast)) {
+  console.log("FAIL: solo refused the cultural group silently:", JSON.stringify(treeSolo.cultToast)); process.exit(1); }
+
+/* ---- the row toolbar: opacity, zoom to extent, info ---- */
+const treeActs = await page.evaluate(async () => {
+  const wait = ms => new Promise(r => setTimeout(r, ms));
+  const row = document.querySelector('#projLayers .lyr[data-lid="dus"]');
+  const btn = a => row.querySelector('.ltb[data-a="' + a + '"]');
+  const out = {};
+
+  btn("info").click(); await wait(150);
+  const pop = document.getElementById("ltPop");
+  out.info = { shown: !pop.hidden, z: getComputedStyle(pop).zIndex,
+               names: /framework\/dus/.test(pop.textContent),
+               crs: /6418/.test(pop.textContent) };
+
+  btn("opacity").click(); await wait(150);
+  const sl = document.getElementById("ltOpac");
+  out.opacity = { slider: !!sl, was: SBMM.layerState.opacity("framework", "dus") };
+  sl.value = 50; sl.dispatchEvent(new Event("input"));
+  await wait(150);
+  out.opacity.now = SBMM.layerState.opacity("framework", "dus");
+  SBMM.layerState.set("framework", "dus", { opacity: out.opacity.was });
+
+  /* Esc closes the popover and stops there */
+  document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+  await wait(120);
+  out.escClosed = document.getElementById("ltPop").hidden;
+
+  /* "zoom to extent" frames the layer — which is as often a zoom OUT as a zoom
+     in, depending where the map was left. So the test is the honest one: the
+     view moved, and the layer's own geometry is inside it afterwards. */
+  const b0 = SBMM.map.getBounds(), c0 = SBMM.map.getCenter();
+  out.zoomBefore = Math.round(b0.getEast() - b0.getWest());
+  btn("zoom").click();
+  await wait(1400);
+  const b1 = SBMM.map.getBounds(), c1 = SBMM.map.getCenter();
+  out.zoomAfter = Math.round(b1.getEast() - b1.getWest());
+  out.zoomMoved = Math.round(Math.hypot(c1.lng - c0.lng, c1.lat - c0.lat));
+  const du = SBMM_DATA.dus[0].ring;
+  out.zoomFrames = du.every(p => b1.contains([p[1], p[0]]));
+
+  /* a My-work class row has no Leaflet layer of its own — it is a mask — so
+     "zoom to extent" has nothing to fly to and must say so */
+  document.getElementById("toast").textContent = "";
+  out.maskZoom = SBMM.layerTree.zoomTo("mywork", "drawings");
+  out.maskToast = document.getElementById("toast").textContent;
+  return out;
+});
+console.log("row toolbar: info popover", JSON.stringify(treeActs.info),
+            "| opacity", treeActs.opacity.was, "->", treeActs.opacity.now,
+            "| Esc closed it:", treeActs.escClosed,
+            "| zoom to extent", treeActs.zoomBefore, "->", treeActs.zoomAfter,
+            "ft wide, centre moved", treeActs.zoomMoved, "ft, frames the layer:", treeActs.zoomFrames,
+            "| a mask row refuses:", JSON.stringify(treeActs.maskToast));
+if (!treeActs.info.shown || !treeActs.info.names || !treeActs.info.crs) {
+  console.log("FAIL: the info popover does not identify the layer", treeActs.info); process.exit(1); }
+if (treeActs.info.z !== "2500") { console.log("FAIL: the row popover is outside the popover band", treeActs.info.z); process.exit(1); }
+if (!treeActs.opacity.slider || Math.abs(treeActs.opacity.now - 0.5) > 1e-6) {
+  console.log("FAIL: the opacity popover did not drive the layer state", treeActs.opacity); process.exit(1); }
+if (!treeActs.escClosed) { console.log("FAIL: Esc did not close the row popover"); process.exit(1); }
+if (!treeActs.zoomFrames || treeActs.zoomMoved < 50) {
+  console.log("FAIL: zoom to extent did not frame the layer", treeActs); process.exit(1); }
+if (treeActs.maskZoom !== false || !/nothing to zoom to/.test(treeActs.maskToast)) {
+  console.log("FAIL: zoom to extent on a row with no geometry refused silently", treeActs); process.exit(1); }
+
+/* ---- drag to reorder, and the order IS the draw order ---- */
+const gripBox = await page.evaluate(() => {
+  const rows = [...document.querySelectorAll('#projLayers > .lyr')];
+  const dus = rows.find(r => r.dataset.lid === "dus"), piles = rows.find(r => r.dataset.lid === "piles");
+  if (!dus || !piles) return null;
+  const g = piles.querySelector(".ltgrip").getBoundingClientRect();
+  const d = dus.getBoundingClientRect();
+  return { gx: g.left + g.width / 2, gy: g.top + g.height / 2, targetY: d.top + 2,
+           order: rows.map(r => r.dataset.lid),
+           idx: { dus: SBMM.layerTree.drawIndex("framework", "dus"),
+                  piles: SBMM.layerTree.drawIndex("framework", "piles") } };
+});
+if (!gripBox) { console.log("FAIL: the Decision units / Waste piles rows are not in #projLayers"); process.exit(1); }
+await page.mouse.move(gripBox.gx, gripBox.gy);
+await page.mouse.down();
+await page.mouse.move(gripBox.gx, gripBox.gy - 6, { steps: 3 });
+await page.mouse.move(gripBox.gx, gripBox.targetY, { steps: 6 });
+await page.mouse.up();
+await page.waitForTimeout(400);
+const treeOrder = await page.evaluate(() => {
+  const order = () => [...document.querySelectorAll('#projLayers > .lyr')].map(r => r.dataset.lid);
+  const dragged = order();
+  const idx = { dus: SBMM.layerTree.drawIndex("framework", "dus"),
+                piles: SBMM.layerTree.drawIndex("framework", "piles") };
+  /* what a reload does, without the reload: scramble the DOM back by hand and
+     let the tree rebuild the order from its own record */
+  const host = document.getElementById("projLayers");
+  const dus = host.querySelector('.lyr[data-lid="dus"]');
+  host.insertBefore(dus, host.firstChild);
+  const scrambled = order();
+  SBMM.layerTree.restoreOrder();
+  let stored = null;
+  try { stored = JSON.parse(localStorage.getItem("sbmm.layertree.v1") || "{}").order; } catch (e) {}
+  return { dragged, scrambled, rebuilt: order(), idx, stored };
+});
+console.log("drag reorder:", gripBox.order.slice(0, 2).join(","), "->", treeOrder.dragged.slice(0, 2).join(","),
+            "| draw index dus", gripBox.idx.dus, "->", treeOrder.idx.dus,
+            "| piles", gripBox.idx.piles, "->", treeOrder.idx.piles,
+            "| rebuilt from the record:", treeOrder.rebuilt.slice(0, 2).join(","));
+if (treeOrder.dragged[0] !== "piles" || treeOrder.dragged[1] !== "dus") {
+  console.log("FAIL: the drag did not move the row", treeOrder); process.exit(1); }
+if (!(treeOrder.idx.piles > treeOrder.idx.dus)) {
+  console.log("FAIL: tree order is not draw order — the top row must be drawn last", treeOrder.idx); process.exit(1); }
+if (treeOrder.scrambled[0] !== "dus" || treeOrder.rebuilt[0] !== "piles") {
+  console.log("FAIL: the tree did not rebuild the row order from its record", treeOrder); process.exit(1); }
+if (!treeOrder.stored || !treeOrder.stored["#projLayers"]) {
+  console.log("FAIL: the row order was not persisted", treeOrder.stored); process.exit(1); }
+
+/* Drag it back, and THIS is the discriminating half: "Decision units" was
+   registered before "Waste piles", so insertion order alone puts the piles in
+   front. Put Decision units back on top and its geometry has to be drawn LAST —
+   the reverse of the order the app would have had on its own. */
+const grip2 = await page.evaluate(() => {
+  const host = document.getElementById("projLayers");
+  const dus = host.querySelector('.lyr[data-lid="dus"]'), piles = host.querySelector('.lyr[data-lid="piles"]');
+  const g = dus.querySelector(".ltgrip").getBoundingClientRect(), p = piles.getBoundingClientRect();
+  return { gx: g.left + g.width / 2, gy: g.top + g.height / 2, targetY: p.top + 2 };
+});
+await page.mouse.move(grip2.gx, grip2.gy);
+await page.mouse.down();
+await page.mouse.move(grip2.gx, grip2.gy - 6, { steps: 3 });
+await page.mouse.move(grip2.gx, grip2.targetY, { steps: 6 });
+await page.mouse.up();
+await page.waitForTimeout(400);
+const treeOrder2 = await page.evaluate(() => ({
+  order: [...document.querySelectorAll('#projLayers > .lyr')].map(r => r.dataset.lid),
+  idx: { dus: SBMM.layerTree.drawIndex("framework", "dus"),
+         piles: SBMM.layerTree.drawIndex("framework", "piles") }
+}));
+console.log("drag back:", treeOrder2.order.slice(0, 2).join(","), "| draw index", JSON.stringify(treeOrder2.idx),
+            "(Decision units was registered FIRST, so this is the reverse of insertion order)");
+if (treeOrder2.order[0] !== "dus" || !(treeOrder2.idx.dus > treeOrder2.idx.piles)) {
+  console.log("FAIL: the top row is not drawn last", treeOrder2); process.exit(1); }
+
+/* ---- presets: apply, undo, and never the cultural group ---- */
+const treePreset = await page.evaluate(async () => {
+  const wait = ms => new Promise(r => setTimeout(r, ms));
+  const cultId = (SBMM.layerState.list("cultural")[0] || {}).id;
+  const cultBefore = cultId ? SBMM.layerState.isOn("cultural", cultId) : null;
+  const before = SBMM.layerTree.snapshot();
+  const names = SBMM.layerTree.presetNames();
+  SBMM.layerTree.applyPreset("Terrain");
+  await wait(250);
+  const terrain = {
+    hillshade: SBMM.layerState.isOn("base", "hillshade_site"),
+    contours: SBMM.layerState.isOn("base", "contours_site"),
+    dus: SBMM.layerState.isOn("framework", "dus"),
+    gisExc: SBMM.layerState.isOn("design", "gis_exc"),
+    samples: SBMM.layerState.isOn("invest", "samples")
+  };
+  SBMM.undo.pop();                        /* a preset is an undoable action */
+  await wait(250);
+  const restored = JSON.stringify(SBMM.layerTree.snapshot()) === JSON.stringify(before);
+  SBMM.layerTree.applyPreset("Investigations");
+  await wait(250);
+  const invest = { samples: SBMM.layerState.isOn("invest", "samples"),
+                   gisExc: SBMM.layerState.isOn("design", "gis_exc") };
+  SBMM.layerTree.applySnapshot(before);
+  await wait(250);
+  return { names, terrain, restored, invest,
+           back: JSON.stringify(SBMM.layerTree.snapshot()) === JSON.stringify(before),
+           cultInSnapshot: Object.keys(before).indexOf("cultural") >= 0,
+           cultMoved: cultId ? SBMM.layerState.isOn("cultural", cultId) !== cultBefore : false };
+});
+console.log("presets:", treePreset.names.join(" · "));
+console.log("preset Terrain:", JSON.stringify(treePreset.terrain), "| undo restored:", treePreset.restored,
+            "| Investigations:", JSON.stringify(treePreset.invest), "| back to where we were:", treePreset.back,
+            "| cultural in a preset snapshot:", treePreset.cultInSnapshot, "| cultural moved:", treePreset.cultMoved);
+if (treePreset.names.length < 6) { console.log("FAIL: the built-in presets are missing", treePreset.names); process.exit(1); }
+if (!treePreset.terrain.hillshade || !treePreset.terrain.contours
+    || treePreset.terrain.dus || treePreset.terrain.gisExc || treePreset.terrain.samples) {
+  console.log("FAIL: the Terrain preset did not apply", treePreset.terrain); process.exit(1); }
+if (!treePreset.restored) { console.log("FAIL: undo did not restore the layer state a preset changed"); process.exit(1); }
+if (!treePreset.invest.samples || treePreset.invest.gisExc) {
+  console.log("FAIL: the Investigations preset did not apply", treePreset.invest); process.exit(1); }
+if (!treePreset.back) { console.log("FAIL: the layer state was not put back after the preset block"); process.exit(1); }
+if (treePreset.cultInSnapshot || treePreset.cultMoved) {
+  console.log("FAIL: a preset touched the cultural group", treePreset); process.exit(1); }
+
+/* ---- a user preset survives a session round trip, and an old session still loads ---- */
+const treeSess = await page.evaluate(() => {
+  SBMM.layerTree.savePreset("L round trip");
+  const s = JSON.parse(JSON.stringify(SBMM.store.serialize()));
+  const inFile = !!(s.layers && s.layers._tree && s.layers._tree.presets
+                    && s.layers._tree.presets["L round trip"]);
+  SBMM.layerTree.deletePreset("L round trip");
+  const gone = SBMM.layerTree.presetNames().indexOf("L round trip") < 0;
+  SBMM.layerState.restore(s.layers);
+  const back = SBMM.layerTree.presetNames().indexOf("L round trip") >= 0;
+  /* a pre-v16 session file has no `_tree` at all and must still load */
+  const old = SBMM.layerState.restore({ framework: { dus: { on: true, opacity: 1 } } });
+  SBMM.layerTree.deletePreset("L round trip");
+  return { inFile, gone, back, old, sessVer: s.version };
+});
+console.log("user preset round trip: in the session file:", treeSess.inFile, "| deleted:", treeSess.gone,
+            "| restored:", treeSess.back, "| a pre-v16 session still loads:", treeSess.old >= 1);
+if (!treeSess.inFile || !treeSess.gone || !treeSess.back) {
+  console.log("FAIL: a user preset did not survive a session round trip", treeSess); process.exit(1); }
+if (!(treeSess.old >= 1)) { console.log("FAIL: a session without `_tree` no longer restores layers"); process.exit(1); }
+
+/* ---- keyboard: arrows move, Space toggles ---- */
+await page.evaluate(() => {
+  document.querySelector('#projLayers .lyr[data-lid="dus"]').focus();
+});
+const kbBefore = await page.evaluate(() => SBMM.layerState.isOn("framework", "dus"));
+await page.keyboard.press("Space");
+await page.waitForTimeout(250);
+const kbAfter = await page.evaluate(() => ({
+  on: SBMM.layerState.isOn("framework", "dus"),
+  focused: (document.activeElement.dataset || {}).lid
+}));
+await page.keyboard.press("ArrowDown");
+await page.waitForTimeout(150);
+const kbMoved = await page.evaluate(() => (document.activeElement.dataset || {}).lid);
+await page.keyboard.press("Space");
+await page.waitForTimeout(250);
+console.log("keyboard: dus", kbBefore, "-> Space ->", kbAfter.on, "| focus after ArrowDown:", kbMoved);
+if (kbAfter.on === kbBefore) { console.log("FAIL: Space on a focused row did not toggle it"); process.exit(1); }
+if (!kbMoved || kbMoved === kbAfter.focused) { console.log("FAIL: ArrowDown did not move the focus", kbMoved); process.exit(1); }
+await page.evaluate(on => SBMM.layerState.set("framework", "dus", { on }), kbBefore);
+
+/* ---- the legend card lists exactly the visible rows ---- */
+const treeLegend = await page.evaluate(async () => {
+  const wait = ms => new Promise(r => setTimeout(r, ms));
+  SBMM.layerTree.legend.toggle(true);
+  await wait(250);
+  const el = document.getElementById("mapLegend");
+  const listed = [...el.querySelectorAll(".mlonly")].map(b => b.dataset.k).sort();
+  const on = [];
+  for (const g of SBMM.layerState.groupList())
+    for (const r of g.layers.values()) if (r.on) on.push(g.id + "/" + r.id);
+  const box = el.getBoundingClientRect(), stage = document.getElementById("stage").getBoundingClientRect();
+  SBMM.layerTree.legend.toggle(false);
+  return { listed, on: on.sort(), z: getComputedStyle(el).zIndex,
+           bottomLeft: box.left - stage.left < 40 && stage.bottom - box.bottom < 80,
+           closed: document.getElementById("mapLegend").classList.contains("closed") };
+});
+console.log("legend card:", treeLegend.listed.length, "rows listed for", treeLegend.on.length,
+            "switched on | z", treeLegend.z, "| bottom-left:", treeLegend.bottomLeft,
+            "| collapses:", treeLegend.closed);
+if (treeLegend.listed.join(",") !== treeLegend.on.join(",")) {
+  console.log("FAIL: the legend does not list exactly the visible rows",
+              { extra: treeLegend.listed.filter(k => treeLegend.on.indexOf(k) < 0),
+                missing: treeLegend.on.filter(k => treeLegend.listed.indexOf(k) < 0) });
+  process.exit(1);
+}
+if (!treeLegend.bottomLeft || !treeLegend.closed) {
+  console.log("FAIL: the legend card is not a collapsible bottom-left card", treeLegend); process.exit(1); }
+
+if (errors.length !== errBeforeTree) {
+  console.log("FAIL: the layer tree raised page errors:", errors.slice(errBeforeTree, errBeforeTree + 4));
+  process.exit(1);
+}
+
+/* ---- and it all comes back after a reload ---- */
+/* both rows ON first, or the draw-index comparison after the reload is vacuous:
+   a layer that is off has no renderer and reports -1 */
+await page.evaluate(() => {
+  SBMM.layerState.set("framework", "dus", { on: true });
+  SBMM.layerState.set("framework", "piles", { on: true });
+});
+await page.waitForTimeout(400);
+const errBeforeReload = errors.length;
+await page.reload();
+await page.waitForSelector("#loading", { state: "hidden", timeout: 300000 });
+await page.waitForTimeout(1500);
+const treeReload = await page.evaluate(() => ({
+  order: [...document.querySelectorAll('#projLayers > .lyr')].map(r => r.dataset.lid),
+  idx: { dus: SBMM.layerTree.drawIndex("framework", "dus"),
+         piles: SBMM.layerTree.drawIndex("framework", "piles") },
+  rows: document.querySelectorAll("#layers .lyr").length,
+  subs: document.querySelectorAll("#layers .lgsub").length,
+  analysisClosed: document.querySelector('#layers .lgsub[data-sub="analysis"]').classList.contains("closed")
+}));
+console.log("after a reload: order", treeReload.order.slice(0, 2).join(","), "| draw index",
+            JSON.stringify(treeReload.idx), "|", treeReload.rows, "rows,", treeReload.subs, "sub-groups",
+            "| Terrain analysis still closed:", treeReload.analysisClosed);
+if (treeReload.order[0] !== "dus" || treeReload.order[1] !== "piles") {
+  console.log("FAIL: the dragged row order did not survive a reload", treeReload.order); process.exit(1); }
+if (treeReload.idx.piles < 0 || !(treeReload.idx.dus > treeReload.idx.piles)) {
+  console.log("FAIL: draw order was not re-applied after a reload", treeReload.idx); process.exit(1); }
+if (treeReload.rows < treeBase.keys.length) {
+  console.log("FAIL: the reloaded tree has", treeReload.rows, "rows, fewer than the",
+              treeBase.keys.length, "the pre-v16 build had"); process.exit(1); }
+if (!treeReload.analysisClosed) {
+  console.log("FAIL: Terrain analysis must still start closed (ruling F3)"); process.exit(1); }
+if (errors.length !== errBeforeReload) {
+  console.log("FAIL: the reloaded tree raised page errors:", errors.slice(errBeforeReload, errBeforeReload + 4));
+  process.exit(1);
+}
+/* leave the box as we found it, so the next run does not inherit this drag */
+await page.evaluate(() => { try { localStorage.removeItem("sbmm.layertree.v1"); } catch (e) {} });
 
 console.log("page errors:", errors.length ? errors.slice(0, 6) : "none");
 await browser.close();
