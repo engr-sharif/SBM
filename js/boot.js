@@ -1,6 +1,25 @@
 /* SBMM Site Explorer — boot sequence with visible progress and real error reporting */
 "use strict";
 
+/* v21: the Help panel's "force JavaScript kernels" switch. It is remembered in
+   localStorage by js/jobs.js and it takes the worker pool down, so the next job
+   is built by a worker that was told the same thing. */
+function wireWasmSwitch() {
+  const cb = $("wasmSwitch"), st = $("wasmStatus");
+  if (!cb) return;
+  const paint = () => {
+    const i = SBMM.compute.wasmInfo();
+    cb.checked = !!i.forcedJs;
+    if (st) st.textContent = i.backend === "wasm"
+      ? "running the WebAssembly core" + (i.version ? " v" + i.version : "")
+      : (i.forcedJs ? "JavaScript kernels (forced)"
+                    : "JavaScript kernels" + (i.bytes ? " — the core did not load" : " — no core in this build"));
+  };
+  cb.onchange = () => { SBMM.compute.forceJs(cb.checked); paint(); toast("compute core: " + SBMM.compute.backend()); };
+  paint();
+  setTimeout(paint, 1500);          // the async compile lands after boot
+}
+
 (async function () {
   const lp = $("loadMsg");
   const fail = (msg, detail) => {
@@ -26,6 +45,13 @@
     lp.textContent = "starting compute workers…";
     SBMM.compute.probe().then(ok => {
       if (!ok) console.warn("compute workers unavailable — running analysis on the main thread");
+    });
+    /* v21: the WASM core, for this thread's own no-worker fallback path. The
+       workers get the bytes at creation instead (js/jobs.js primeWorker), so
+       nothing waits on this — a refusal is a console.warn and the JavaScript
+       kernels, which is the same answer a build without the payload gives. */
+    SBMM.compute.initWasm().then(ok => {
+      SBMM_PERF.mark("wasm-" + (ok ? "ready" : "js"));
     });
 
     SBMM_PERF.mark("boot-start");
@@ -71,6 +97,7 @@
     SBMM.touch.autoDetect();
     SBMM.shell.wire();
     SBMM.compute.wire();
+    wireWasmSwitch();
     SBMM_PERF.mark("wire-shell");
     SBMM.initMap();
     SBMM_PERF.mark("init-map");

@@ -32,10 +32,80 @@ SBMM.compute = (function () {
     failures: 0,
     workerAvailable: null,   // null = not probed yet
     lastMs: 0,
-    lastKind: null
+    lastKind: null,
+    /* v21: which core the last kernel job actually ran on, and when it landed.
+       js/results.js stamps a card with it -- a card built in a job's own
+       continuation is built microtasks after this is written. */
+    lastBackend: null,
+    lastDoneAt: 0
   };
 
   let blobUrl = null, seq = 0;
+
+  /* ------------------------------------------------------------------ */
+  /* v21: the WASM compute core (docs/V21_WASM_SPEC.md section 3)        */
+  /* ------------------------------------------------------------------ */
+  /* The module arrives as BASE64 IN A PAYLOAD, never as a file: over file://
+     nothing can be fetched, and a .wasm beside the HTML would be a guaranteed
+     404 in the single-file dist. So the bytes are decoded once here and a copy
+     is handed to every worker at creation, and to this thread for the
+     no-worker fallback path. A build without the payload, a browser without
+     WebAssembly and a module that will not instantiate all end in the same
+     place: the JavaScript kernels, one console.warn, no error. */
+  const FORCE_KEY = "sbmm.wasm.v1";
+  let wasmBytes = null, wasmMeta = null, wasmMain = false;
+  function forcedJs() {
+    try { return localStorage.getItem(FORCE_KEY) === "js"; } catch (e) { return false; }
+  }
+  function decodeWasm() {
+    if (wasmBytes !== null) return wasmBytes;
+    wasmBytes = false;
+    try {
+      const b64 = window.SBMM_DATA && SBMM_DATA.wasm_kernels;
+      if (!b64) return wasmBytes;
+      wasmMeta = SBMM_DATA.wasm_kernels_meta || null;
+      const bin = atob(b64), u = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i);
+      wasmBytes = u;
+      /* 400 kB of base64 nothing reads twice, dropped the way the DEM payloads
+         are (CLAUDE.md "the payload contract"). The KEY stays -- the dual-build
+         contract asserts both halves of that. */
+      SBMM_DATA.wasm_kernels = null;
+    } catch (e) { console.warn("wasm payload unreadable:", e.message); wasmBytes = false; }
+    return wasmBytes;
+  }
+  /* the main thread compiles asynchronously: synchronous WebAssembly.Module is
+     capped at 4 kB there, and only there */
+  function initMain() {
+    const b = decodeWasm();
+    if (!b || forcedJs()) { if (forcedJs()) SBMM_COMPUTE.wasmForce(true); return Promise.resolve(false); }
+    return SBMM_COMPUTE.wasmInit(b, wasmMeta).then(ok => { wasmMain = !!ok; return wasmMain; });
+  }
+  /* every worker gets the bytes as its first message; postMessage is ordered
+     and the worker's compile is synchronous, so every job that follows sees it */
+  function primeWorker(w) {
+    const b = decodeWasm();
+    if (!b) return;
+    try { w.postMessage({ id: 0, type: "wasm", bytes: b, meta: wasmMeta, forceJs: forcedJs() }); }
+    catch (e) { console.warn("could not hand the wasm core to a worker:", e.message); }
+  }
+  /* "wasm" | "js" -- what a job dispatched right now would run on */
+  function backend() { return (wasmMain && !forcedJs()) ? "wasm" : "js"; }
+  function wasmInfo() {
+    const b = wasmBytes;
+    return { backend: backend(), loaded: !!wasmMain, forcedJs: forcedJs(),
+             bytes: b && b.length ? b.length : 0,
+             version: wasmMeta && wasmMeta.version || null };
+  }
+  /* the Help switch. Remembered, and it takes the pool down so the next job is
+     built by a worker that was told the same thing. */
+  function forceJs(on) {
+    try { on ? localStorage.setItem(FORCE_KEY, "js") : localStorage.removeItem(FORCE_KEY); } catch (e) {}
+    SBMM_COMPUTE.wasmForce(!!on);
+    for (const s of slots.slice()) { try { s.w.terminate(); } catch (e) {} }
+    slots.length = 0;
+    return backend();
+  }
   const slots = [];          // { w: Worker, busy: bool, item }
   const pending = [];        // queued items
   const live = new Set();    // handles currently queued or running
@@ -58,6 +128,7 @@ SBMM.compute = (function () {
     try {
       const w = new Worker(ensureBlobUrl());
       w.onerror = e => { console.warn("compute worker error", e.message || e); };
+      primeWorker(w);
       return w;
     } catch (e) {
       console.warn("Web Workers unavailable — computing on the main thread instead:", e.message);
@@ -136,6 +207,7 @@ SBMM.compute = (function () {
       slot.busy = false; slot.item = null; h.slot = null;
       if (m.type === "done") {
         stats.lastMs = Math.round(performance.now() - h.t0); stats.lastKind = item.kind;
+        stats.lastBackend = backend(); stats.lastDoneAt = performance.now();
         settle(item, () => h._res(m.result));
       } else {
         stats.failures++;
@@ -172,6 +244,7 @@ SBMM.compute = (function () {
           h.progress = p; if (item.opts.onProgress) item.opts.onProgress(p);
         });
         stats.lastMs = Math.round(performance.now() - h.t0); stats.lastKind = item.kind;
+        stats.lastBackend = SBMM_COMPUTE.wasmBackend(); stats.lastDoneAt = performance.now();
         settle(item, () => h._res(out.result));
       } catch (e) {
         stats.failures++;
@@ -318,6 +391,8 @@ SBMM.compute = (function () {
   return {
     run, cancel, probe, wire, stats,
     gridSpec, gridsFor, subGrid,
+    /* v21: which core a job dispatched now would run on, and the switch */
+    backend, wasmInfo, forceJs, initWasm: initMain,
     activeCount: () => live.size,
     workerCount: () => slots.length,
     /* v17 §5b: what the pool is ALLOWED to grow to, for the Help diagnostics
