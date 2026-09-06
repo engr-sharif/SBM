@@ -224,6 +224,40 @@ SBMM.viewer3d = (function () {
      dem_res buys is mesh geometry and elevations, not pixels. */
   function whichFor(dem) { return dem === SBMM.demAbp ? "abp" : "site"; }
 
+  /* THE DRAPE TEXTURE BUDGET (v19.1 — the iPhone report).
+
+     A drape is one texture per DEM window, and nothing capped its size. The
+     composite ABP ortho is built at 4 px/ft over a 2,872 x 3,882 ft window:
+     11,488 x 15,528 px = 178 megapixels, which is a ~713 MB canvas and the same
+     again on the GPU. A desktop absorbs that; iOS kills the tab. So on a PHONE
+     every drape texture is capped at 2,048 px on its longest side — 4 MP, which
+     over a 3,900-ft window is still ~0.5 ft/px, finer than the 1.5-ft site
+     ortho it is mostly made of.
+
+     It is scoped to the phone profile deliberately: the desktop and the iPad
+     get byte-identical textures, which is what keeps test/e2e.mjs and
+     test/e2e_tablet.mjs unchanged. */
+  const PHONE_TEX_PX = 2048;
+  function texBudget() {
+    return (SBMM.touch && SBMM.touch.profile && SBMM.touch.profile() === "phone")
+      ? PHONE_TEX_PX : Infinity;
+  }
+
+  /* Redraw an already-decoded image into a canvas no larger than the budget.
+     Returns the source untouched when it is already small enough (so the
+     desktop path allocates nothing extra). */
+  function fitToBudget(img, w, h) {
+    const budget = texBudget();
+    const big = Math.max(w, h);
+    if (!isFinite(budget) || big <= budget) return null;
+    const k = budget / big;
+    const c = document.createElement("canvas");
+    c.width = Math.max(1, Math.round(w * k));
+    c.height = Math.max(1, Math.round(h * k));
+    c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+    return c;
+  }
+
   async function texture(kind, which) {   // which: "site" | "abp"
     const key = kind + "_" + which;
     if (texCache[key]) return texCache[key];
@@ -250,7 +284,9 @@ SBMM.viewer3d = (function () {
         `3D drape — ${SBMM.analysis.KIND_NAME[kind] || kind} (${which === "site" ? "site" : "mine area"})`);
       bounds = [db[0][1], db[0][0], db[1][1], db[1][0]];
     }
-    const tex = await new Promise((res, rej) => new THREE.TextureLoader().load(url, res, undefined, rej));
+    let tex = await new Promise((res, rej) => new THREE.TextureLoader().load(url, res, undefined, rej));
+    const small = fitToBudget(tex.image, tex.image.width, tex.image.height);
+    if (small) { tex.dispose(); tex = new THREE.CanvasTexture(small); }
     tex.colorSpace = THREE.SRGBColorSpace;
     tex.flipY = true;             // image row 0 = north = max Y; uv v=0 at min Y
     tex.anisotropy = maxAniso();
@@ -262,7 +298,11 @@ SBMM.viewer3d = (function () {
   async function compositeAbpOrtho(db) {
     // db = ABP dem bounds [[y0,x0],[y1,x1]]; canvas at 4 px/ft (ortho native ~3 in/px)
     const x0 = db[0][1], y0 = db[0][0], x1 = db[1][1], y1 = db[1][0];
-    const ppf = 4;
+    /* 4 px/ft is the ABP ortho's own resolution (3 in/px). On a phone the
+       budget above decides instead — see texBudget(): 4 px/ft over this window
+       is a 178-megapixel canvas, which iOS will not survive. */
+    const budget = texBudget();
+    const ppf = isFinite(budget) ? Math.min(4, budget / Math.max(x1 - x0, y1 - y0)) : 4;
     const c = document.createElement("canvas");
     c.width = Math.round((x1 - x0) * ppf); c.height = Math.round((y1 - y0) * ppf);
     const g = c.getContext("2d");
@@ -3216,6 +3256,21 @@ SBMM.viewer3d = (function () {
       detail: $("v3dDetail") ? $("v3dDetail").value : null,
       terrainVerts: terrainMeshes.reduce((n, t) => n + t.nx * t.ny, 0),
       sceneObjects: scene ? scene.children.length : 0,
+      /* v19.1 — what the GPU is actually holding, and the cap that decided it.
+         `texPx` is the largest drape texture in megapixels: the number that
+         killed the tab on an iPhone was 178. */
+      pixelRatio: renderer ? renderer.getPixelRatio() : null,
+      texBudgetPx: isFinite(texBudget()) ? texBudget() : null,
+      gpuGeometries: (renderer && renderer.info) ? renderer.info.memory.geometries : null,
+      gpuTextures: (renderer && renderer.info) ? renderer.info.memory.textures : null,
+      texMP: (() => {
+        let mp = 0;
+        for (const k in texCache) {
+          const im = texCache[k] && texCache[k].tex && texCache[k].tex.image;
+          if (im && im.width) mp = Math.max(mp, (im.width * im.height) / 1e6);
+        }
+        return +mp.toFixed(1);
+      })(),
       contourDrawCalls: (() => {
         let n = 0;
         if (contourGroup) contourGroup.traverse(o => { if (o.isLineSegments) n++; });
