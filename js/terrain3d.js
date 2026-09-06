@@ -70,6 +70,11 @@ SBMM.terrain3d = (function () {
   function vertsPerSide(step) { return N / step + 1; }
 
   let ctx = null;                   // set by attach()
+  /* v20 §3, and the reason is in js/viewer3d.js at the call site: a finger on
+     the glass suspends tile work, because js/touch.js's recogniser decides
+     what a gesture WAS from wall clock, and work that started before the
+     finger landed goes on blocking the thread after it. */
+  let suspended = false;
   let style = "ortho";
   let sunAz = 315, sunEl = 35;
   const drawn = new Map();          // key -> record, what is in the scene now
@@ -267,7 +272,17 @@ SBMM.terrain3d = (function () {
       }
     }
     if (!good) return null;
-    const idx = [];
+    /* THE INDEX IS A TYPED ARRAY, NOT A PUSHED JS ARRAY, and the normals are
+       computed from the height field rather than by traversing the triangles.
+       Both are the same numbers; both were costing ~320 ms PER TILE, and a
+       tile build is not a background job — it lands between a user's fingers.
+       That is not a figure of speech: the two-finger tap in test/e2e_tablet
+       block 3 measured 503 ms from pointerdown to pointerup against a 300 ms
+       tap window, and a long-task observer showed seven back-to-back tasks of
+       625-674 ms, which is this loop in 2-tile chunks. */
+    const maxTri = (V - 1) * (V - 1) * 2 + 4 * (V - 1) * 2;
+    const idx = new Uint32Array(maxTri * 3);
+    let ni = 0;
     for (let j = 0; j < V - 1; j++) {
       for (let i = 0; i < V - 1; i++) {
         /* skip any quad touching NoData — the rule the whole-DEM meshes used,
@@ -275,10 +290,11 @@ SBMM.terrain3d = (function () {
         if (isNaN(zAt(i, j)) || isNaN(zAt(i + 1, j)) ||
             isNaN(zAt(i, j + 1)) || isNaN(zAt(i + 1, j + 1))) continue;
         const a = j * V + i, b = a + 1, c = a + V, d = c + 1;
-        idx.push(a, b, d, a, d, c);
+        idx[ni++] = a; idx[ni++] = b; idx[ni++] = d;
+        idx[ni++] = a; idx[ni++] = d; idx[ni++] = c;
       }
     }
-    if (!idx.length) return null;
+    if (!ni) return null;
     /* the skirt: four strips, each vertex a copy of its border neighbour
        dropped by a few cells */
     const drop = Math.max(8, cell * step * 3);
@@ -303,18 +319,52 @@ SBMM.terrain3d = (function () {
         const a = edge[e].get(i), b = edge[e].get(i + 1);
         if (isNaN(zAt(a % V, (a / V) | 0)) || isNaN(zAt(b % V, (b / V) | 0))) continue;
         const c = base + i, d = base + i + 1;
-        if (e === 0 || e === 3) idx.push(a, c, d, a, d, b);
-        else idx.push(a, d, c, a, b, d);
+        if (e === 0 || e === 3) { idx[ni++] = a; idx[ni++] = c; idx[ni++] = d; idx[ni++] = a; idx[ni++] = d; idx[ni++] = b; }
+        else { idx[ni++] = a; idx[ni++] = d; idx[ni++] = c; idx[ni++] = a; idx[ni++] = b; idx[ni++] = d; }
       }
       s += V;
+    }
+    /* Normals straight off the height field: a heightfield vertex's normal is
+       (-dz/dx, -dz/dy, 1) normalised, by central differences over the same
+       samples the positions came from. That is 66 k iterations against
+       computeVertexNormals' 131 k triangle cross-products plus a second
+       normalising pass over every vertex, and it needs no triangle traversal
+       at all. The z scale is applied to the OBJECT, and three transforms
+       normals by the normal matrix, so these are computed unscaled exactly as
+       computeVertexNormals did. */
+    const nrm = new Float32Array((nv + 4 * V) * 3);
+    const sx = step * cell;
+    for (let j = 0; j < V; j++) {
+      for (let i = 0; i < V; i++) {
+        const k = j * V + i;
+        const zc = zAt(i, j);
+        if (isNaN(zc)) { nrm[k * 3 + 2] = 1; continue; }
+        let zl = zAt(Math.max(0, i - 1), j), zr = zAt(Math.min(V - 1, i + 1), j);
+        let zd = zAt(i, Math.max(0, j - 1)), zu = zAt(i, Math.min(V - 1, j + 1));
+        if (isNaN(zl)) zl = zc; if (isNaN(zr)) zr = zc;
+        if (isNaN(zd)) zd = zc; if (isNaN(zu)) zu = zc;
+        const dx = (zr - zl) / (2 * sx), dy = (zu - zd) / (2 * sx);
+        const inv = 1 / Math.hypot(dx, dy, 1);
+        nrm[k * 3] = -dx * inv; nrm[k * 3 + 1] = -dy * inv; nrm[k * 3 + 2] = inv;
+      }
+    }
+    /* the skirt copies its border neighbour's normal — it is a curtain, and a
+       curtain lit differently from the edge it hangs off is a visible seam */
+    for (let e = 0, sbase = nv; e < 4; e++, sbase += V) {
+      for (let i = 0; i < V; i++) {
+        const src = edge[e].get(i), dst = sbase + i;
+        nrm[dst * 3] = nrm[src * 3];
+        nrm[dst * 3 + 1] = nrm[src * 3 + 1];
+        nrm[dst * 3 + 2] = nrm[src * 3 + 2];
+      }
     }
     const g = new THREE.BufferGeometry();
     g.setAttribute("position", new THREE.BufferAttribute(pos, 3));
     g.setAttribute("uv", new THREE.BufferAttribute(uv, 2));
-    g.setIndex(idx);
-    g.computeVertexNormals();
+    g.setAttribute("normal", new THREE.BufferAttribute(nrm, 3));
+    g.setIndex(new THREE.BufferAttribute(idx.subarray(0, ni), 1));
     g.computeBoundingSphere();
-    return { geom: g, verts: nv, side: V, tris: idx.length / 3, zlo: lo, zhi: hi };
+    return { geom: g, verts: nv, side: V, tris: ni / 3, zlo: lo, zhi: hi };
   }
 
   /* ----------------------------------------------------------- selection -- */
@@ -438,6 +488,7 @@ SBMM.terrain3d = (function () {
      set is on screen; never rejects. */
   async function update(force) {
     if (!ctx || !available()) return false;
+    if (suspended) { again = true; return false; }
     if (busy) { again = true; return false; }
     busy = true;
     const myGen = ++generation;
@@ -475,7 +526,7 @@ SBMM.terrain3d = (function () {
          time, with a macrotask between, keeps the longest block to one tile. */
       let nb = 0;
       for (const [k, t, rec] of loaded) {
-        if (nb++ && (nb & 1) === 0) {
+        if (nb++) {
           await new Promise(r => setTimeout(r, 0));
           if (myGen !== generation) { for (const r of built.values()) dispose(r); return false; }
         }
@@ -572,6 +623,12 @@ SBMM.terrain3d = (function () {
 
   return {
     available, attach, detach, update, setStyle,
+    /* Abandon whatever is in flight and refuse new work. generation++ makes
+       the running update return at its next yield — which is why the build
+       yields between tiles at all — and `again` makes resume() re-run it. */
+    suspend() { if (suspended) return; suspended = true; generation++; },
+    resume() { suspended = false; if (again) { again = false; update(); } },
+    suspended: () => suspended,
     style: () => style,
     setExag(zx) { for (const r of drawn.values()) r.mesh.scale.z = zx; },
     setSun(az, el) {
