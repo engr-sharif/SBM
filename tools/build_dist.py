@@ -26,6 +26,21 @@ every drawing and says which ones have no render here.
 Every module that reads one of those four must tolerate its absence with a note
 or a toast and never an error; test/e2e_field.mjs is the proof.
 
+THE TERRAIN TILES ARE NOT INLINED, AND THAT IS DELIBERATE (v20 section 2)
+------------------------------------------------------------------------
+index.html carries `datajs/tiles/index.js` and nothing else from the pyramid,
+so that 30 kB index is all either dist inlines. The 2,311 tile payloads are
+injected on demand by js/tiles.js in the FOLDER build, and in a dist there is
+no datajs/ beside the file to inject from -- so js/tiles.js SYNTHESISES a tile
+out of the whole rasters this file already inlines. For a DEM tile that is
+bit-identical to the payload (the same grid nodes through the same terrain-RGB
+step); for imagery it is the same box filter tools/build_tiles.py runs.
+
+Measured, inlining the pyramid takes the full dist from 133 MB to about 206 MB
+for information it already carries, which is why nothing here globs
+datajs/tiles/. Do not add it. test/terrain3d.mjs runs against the dist and is
+what proves the synthesis path draws the same terrain.
+
 The build stamps window.SBMM_BUILD, which js/util.js copies to SBMM_DATA.build,
 so the app can say which of the three it is.
 

@@ -62,6 +62,8 @@ const STEPS = [
     cmd: [NODE, [R("test/kernels.mjs")]], desc: "every compute kernel, node only (~3.7 min)" },
   { name: "touch_unit",     build: "none",   browser: false, matrix: true,  needs: ["check"],
     cmd: [NODE, [R("test/touch_unit.mjs")]], desc: "the v17 gesture recogniser, node only" },
+  { name: "tiles",          build: "none",   browser: false, matrix: true,  needs: ["check"],
+    cmd: [NODE, [R("test/tiles.mjs")]], desc: "the v20 tile pyramid against the analysis grids, node only" },
 
   { name: "build:dist",     build: "dist",   browser: false, matrix: true,  needs: ["check"],
     cmd: [PY, [R("tools/build_dist.py")], { cwd: ROOT }], desc: "python tools/build_dist.py" },
@@ -70,6 +72,9 @@ const STEPS = [
 
   { name: "e2e:folder",     build: "folder", browser: true,  matrix: true,  needs: ["check"],
     cmd: [NODE, [R("test/e2e.mjs"), INDEX, "folder"]], desc: "the desktop e2e over file://, folder build" },
+  { name: "terrain3d:folder", build: "folder", browser: true, matrix: true, needs: ["check"],
+    cmd: [NODE, [R("test/terrain3d.mjs"), R("index.html"), "folder"]],
+    desc: "the v20 quadtree terrain and the GPU rasters, folder build" },
   { name: "split3d:folder", build: "folder", browser: true,  matrix: true,  needs: ["check"],
     cmd: [NODE, [R("test/split3d.mjs"), INDEX, "folder"]], desc: "split-view 3D, folder build" },
   { name: "tablet:file",    build: "folder", browser: true,  matrix: true,  needs: ["check"],
@@ -83,6 +88,9 @@ const STEPS = [
     desc: "the iPhone harness — the FOLDER build on a phone, http + file (v19.1)" },
   { name: "e2e:dist",       build: "dist",   browser: true,  matrix: true,  needs: ["build:dist"],
     cmd: [NODE, [R("test/e2e.mjs"), DIST, "dist"]], desc: "the desktop e2e against the single-file dist" },
+  { name: "terrain3d:dist", build: "dist",   browser: true,  matrix: true,  needs: ["build:dist"],
+    cmd: [NODE, [R("test/terrain3d.mjs"), R("dist/SBMM_Site_Explorer.html"), "dist"]],
+    desc: "the quadtree over the single-file build (tiles synthesised, not inlined)" },
   { name: "split3d:dist",   build: "dist",   browser: true,  matrix: true,  needs: ["build:dist"],
     cmd: [NODE, [R("test/split3d.mjs"), DIST, "dist"]], desc: "split-view 3D, dist" },
   { name: "field",          build: "field",  browser: true,  matrix: true,  needs: ["build:field"],
@@ -139,7 +147,7 @@ if (flag("--list")) {
     console.log(`  ${s.matrix ? "*" : " "} ${s.name.padEnd(16)} build=${s.build.padEnd(6)}`
       + ` ${(s.browser ? "browser" : "node   ")}`
       + ` needs=${(s.needs.join(",") || "-").padEnd(12)} ${s.desc}`);
-  console.log("\n  --quick = check + touch_unit + kernels (every section but drainage)");
+  console.log("\n  --quick = check + touch_unit + tiles + kernels (every section but drainage)");
   process.exit(0);
 }
 
@@ -194,6 +202,7 @@ if (QUICK) {
   const quick = [
     { name: "check", build: "none", browser: false, needs: [], cmd: [NODE, [R("test/check.mjs")]] },
     { name: "touch_unit", build: "none", browser: false, needs: [], cmd: [NODE, [R("test/touch_unit.mjs")]] },
+    { name: "tiles", build: "none", browser: false, needs: [], cmd: [NODE, [R("test/tiles.mjs")]] },
     { name: "kernels:quick", build: "none", browser: false, needs: [],
       cmd: [NODE, [R("test/kernels.mjs"), ...(sections.length ? ["--only", sections.join(",")] : [])]] }
   ];
