@@ -84,9 +84,17 @@ const MIME = {
   ".json": "application/json", ".webmanifest": "application/manifest+json",
   ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".svg": "image/svg+xml"
 };
+/* The FIRST request for one required payload FAILS — a 503, which the page
+   sees as a script error the way it sees a download that a weak signal cut
+   short (a bare socket drop is not usable here: Chromium quietly re-sends a
+   GET whose connection closed before any response, and the page never knows).
+   js/gate.js records the failed tag and js/boot.js retries it; block 1 asserts
+   that it did. Every later request for the file is served. */
+let droppedOnce = false;
 const server = createServer((req, res) => {
   let p = decodeURIComponent(req.url.split("?")[0]);
   if (p === "/") p = "/index.html";
+  if (p === "/datajs/d_dus.js" && !droppedOnce) { droppedOnce = true; res.writeHead(503).end("dropped once"); return; }
   const file = join(SITE, p);
   if (!file.startsWith(SITE)) { res.writeHead(403).end(); return; }
   try {
@@ -110,7 +118,13 @@ const page = await ctx.newPage();
 page.setDefaultTimeout(TIMEOUT);
 const errors = [];
 page.on("pageerror", e => errors.push("pageerror: " + e.message));
-page.on("console", m => { if (m.type() === "error") errors.push("console: " + m.text().slice(0, 200)); });
+page.on("console", m => {
+  if (m.type() !== "error") return;
+  /* the one 503 is the harness's own (the dropped first request for
+     datajs/d_dus.js above) — the retry that follows it is what is asserted */
+  if (/status of 503/.test(m.text())) return;
+  errors.push("console: " + m.text().slice(0, 200));
+});
 const wait = ms => page.waitForTimeout(ms);
 
 await unlock(page);
@@ -188,6 +202,12 @@ if (!g0.fieldOn) fail("SBMM.field.on() is false on a phone");
 const agree = await page.evaluate(() => ({ heavy: SBMM.touch.phoneAtBoot(), field: SBMM.field.sniff() }));
 if (agree.heavy !== agree.field) fail("phoneAtBoot() and field.sniff() disagree", agree);
 console.log(`phoneAtBoot ${agree.heavy} === field.sniff ${agree.field}: OK`);
+/* the server above dropped the first request for datajs/d_dus.js: the gate
+   recorded the failed tag and boot retried it before checking the payloads */
+const retried = await page.evaluate(() => ({ list: SBMM.retriedScripts || [], dus: !!(window.SBMM_DATA && SBMM_DATA.dus) }));
+if (retried.list.indexOf("d_dus.js") < 0 || !retried.dus)
+  fail("a payload whose first request was dropped was not retried at boot", retried);
+console.log(`dropped payload retried at boot: ${retried.list.join(", ")}`);
 }, { always: true });
 
 /* ===================================================================== */

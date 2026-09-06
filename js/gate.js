@@ -39,6 +39,17 @@
 
   window.SBMM = window.SBMM || {};
 
+  /* A <script src> that fails to load leaves nothing behind but a resource
+     `error` event that does not bubble — so it is caught HERE, in the capture
+     phase on window, from the first script in the page, and js/boot.js retries
+     each recorded file before it decides the app is broken. A 14 MB payload
+     over a phone's signal drops once and the tag has no retry of its own. */
+  SBMM.failedScripts = [];
+  window.addEventListener("error", function (e) {
+    var t = e && e.target;
+    if (t && t.tagName === "SCRIPT" && t.src) SBMM.failedScripts.push(t.src);
+  }, true);
+
   /* ==================================================================== */
   /* SHA-256 — crypto.subtle where it exists, a pure-JS fallback where not */
   /* ==================================================================== */
