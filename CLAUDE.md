@@ -2822,9 +2822,34 @@ change to the analysis contract and belongs to the planner, not to this round.
 The stage table is unchanged within noise (`test/boot_time.mjs`), and the tile
 index adds 30 kB to it.
 
-### WebGPU (§5) — the finding
+### WebGPU (§5) — the finding, measured
 
-See `docs/V20_TERRAIN_SPEC.md` §5 and `test/webgpu_probe.mjs`, which measures it
-rather than arguing it. The short version is in the release notes; the renderer
-switch was NOT built, `SBMM.view.pref("renderer")` does not exist, and every
-harness runs on WebGL2.
+`node test/webgpu_probe.mjs` answers it rather than arguing it: it launches its
+own Chromium with `--enable-unsafe-webgpu --use-webgpu-adapter=swiftshader` and
+loads one page over `file://` AND over http.
+
+| | file:// | http |
+|---|---|---|
+| `navigator.gpu`, adapter, device, a WGSL pipeline compiling | yes (SwiftShader) | yes |
+| inline `<script type="module">` | **yes** | yes |
+| `<script type="module" src="sibling.js">` | **NO** — CORS refuses a module fetch from an opaque origin | yes |
+| `import(blobURL)` | **yes** | yes |
+| an import map whose specifier is a blob: URL, imported from another blob module | **yes** | yes |
+
+**So the constraint everyone assumes is fatal is not.** An ES-module library CAN
+be loaded in both shipping shapes of this app — inline the sources, hand each to
+`URL.createObjectURL`, name them in an import map and `import()` the entry. That
+is the finding, and it is the useful half: it applies to any future ES-only
+dependency, not only to WebGPU.
+
+**WebGPU was still not adopted, for a reason that is about this repo rather than
+about the browser.** `vendor/three.bundle.js` is three r160's classic WebGL
+build and contains no WebGPU renderer at all — only an `isWebGPURenderer`
+duck-type check. Adopting one means vendoring the entire node-material ES module
+graph (hundreds of files in r160, and the renderer was still experimental there),
+generating an import map for it at build time, and carrying a second renderer
+path through every harness — against a WebGL2 path that already delivers what §3
+and §4 asked for. **So the renderer switch was NOT built,
+`SBMM.view.pref("renderer")` does not exist, and every harness runs on WebGL2.**
+The probe is committed so the next person can re-measure in one command rather
+than re-derive it.

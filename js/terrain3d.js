@@ -92,14 +92,30 @@ SBMM.terrain3d = (function () {
      1 slope, 2 aspect, 3 elevation tint. The relief term is the same in all
      four so the sun control relights every style at once (v15 asked for that
      and the CPU rasters could never do it). */
+  /* FOG ON A ShaderMaterial IS NOT FREE, and getting it wrong throws once per
+     frame rather than looking wrong. `fog: true` makes three call
+     refreshUniformsFog(), which writes `uniforms.fogColor.value` — and a
+     ShaderMaterial's uniforms are ONLY what the author supplied, so without
+     THREE.UniformsLib.fog merged in that is "Cannot read properties of
+     undefined (reading 'value')" inside renderBufferDirect, every draw, in
+     every shader drape style. (test/terrain_shots.mjs found it; the e2e never
+     switches the drape to a shader style with the scene fog on.) The chunks
+     below are three's own, so the terrain fades into the horizon exactly as
+     the ortho drape and everything else in the scene does. */
   const VERT = `
+    #include <common>
+    #include <fog_pars_vertex>
     varying vec2 vUv;
     void main() {
       vUv = uv;
-      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+      gl_Position = projectionMatrix * mvPosition;
+      #include <fog_vertex>
     }`;
   const FRAG = `
     precision highp float;
+    #include <common>
+    #include <fog_pars_fragment>
     varying vec2 vUv;
     uniform sampler2D uDem;
     uniform sampler2D uRamp;
@@ -159,6 +175,7 @@ SBMM.terrain3d = (function () {
         col = mix(vec3(0.05, 0.06, 0.07), col, clamp(f / w - 0.5, 0.0, 1.0));
       }
       gl_FragColor = vec4(col, uOpacity);
+      #include <fog_fragment>
     }`;
 
   const MODE = { hillshade: 0, slope: 1, aspect: 2, hypso: 3 };
@@ -200,7 +217,7 @@ SBMM.terrain3d = (function () {
     const zr = ctx.zRange();
     const m = new THREE.ShaderMaterial({
       vertexShader: VERT, fragmentShader: FRAG,
-      uniforms: {
+      uniforms: Object.assign(THREE.UniformsUtils.clone(THREE.UniformsLib.fog), {
         uDem: { value: rec.demTex },
         uRamp: { value: ramp(kind === "slope" ? "slope" : "hypso") },
         uCell: { value: SBMM.tiles.cellOf(rec.z) },
@@ -212,7 +229,7 @@ SBMM.terrain3d = (function () {
         uOpacity: { value: 1 },
         uSunAz: { value: sunAz }, uSunEl: { value: sunEl },
         uMode: { value: MODE[kind] == null ? 0 : MODE[kind] }
-      },
+      }),
       fog: true
     });
     m.extensions = { derivatives: true };       // dFdx/dFdy for the contour width

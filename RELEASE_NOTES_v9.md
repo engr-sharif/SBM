@@ -97,8 +97,13 @@ the whole pyramid comes down, so the 3D view is complete with no signal.
 so a tile is cut out of them in memory; inlining the pyramid would have taken the single
 file from 133 MB to about 206 MB for information it already had.
 
-**WebGPU** was investigated and not adopted — see the note at the end of the section in
-CLAUDE.md. WebGL2 remains the renderer everywhere.
+**WebGPU** was investigated and not adopted. It does work here — the probe finds an
+adapter, a device and a compiling shader — and the awkward part turned out to be solvable
+too: an ES-module library can be loaded even from a double-clicked file, through blob URLs
+and an import map. What stops it is that the three.js build this app carries has no WebGPU
+renderer in it at all, and adding one means vendoring several hundred more files for a view
+that already draws what was asked. WebGL2 remains the renderer everywhere; the measurement
+is kept so the question can be re-asked in one command.
 
 ---
 
