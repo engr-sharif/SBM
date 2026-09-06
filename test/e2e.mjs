@@ -5950,16 +5950,42 @@ accIdent = await page.evaluate(() => {
   for (const b of R.byLabel) {
     const rec = SBMM.drainage.recOf(b.label);
     if (!rec || rec.t !== "sink" || rec.r.area_ft2 < 43560) continue;
-    out.push({ id: rec.r.id, acc: +(b.area_ft2 / 43560).toFixed(2),
+    out.push({ id: rec.r.id, kind: rec.r.kind,
+               acc: +(b.area_ft2 / 43560).toFixed(2),
                want: +(rec.r.area_ft2 / 43560).toFixed(2),
                d: +(100 * (b.area_ft2 - rec.r.area_ft2) / rec.r.area_ft2).toFixed(3) });
   }
-  return { rows: out, checked: R.checked };
+  const card = [...document.querySelectorAll("#resBody .res")]
+    .find(el => /Flow accumulation/.test(el.querySelector("h4").textContent));
+  return { rows: out, checked: R.checked,
+           saysBoundary: card ? /not attributable at/.test(card.textContent) : false,
+           saysHarness: card ? /full resolution/.test(card.textContent) : false,
+           total: +(R.exitTotal_ft2 / 43560).toFixed(3),
+           surveyed: +(R.surveyedArea_ft2 / 43560).toFixed(3) };
 });
 console.log("accumulation vs the drainage map:", JSON.stringify(accIdent));
 if (accIdent.none || !accIdent.rows.length) { console.log("FAIL: the card has no cross-check to print"); process.exit(1); }
-for (const r of accIdent.rows) if (Math.abs(r.d) > 1) {
-  console.log("FAIL: accumulation disagrees with the catchment it is inside:", JSON.stringify(r));
+/* WHAT THE APP CAN AND CANNOT CHECK, and the card has to say which is which.
+   Summing what leaves the model by catchment needs a label AT THE EXIT CELL, and
+   the label raster the app keeps is decimated for drawing. An outlet that leaves
+   through a PIPE is attributed exactly — its exits are the pipe's own capture
+   cells, in the middle of the survey. An outlet that leaves along the survey
+   BOUNDARY cannot be: a boundary exit cell falls in an 8-ft label cell that may
+   belong to its neighbour, which is why the field build read Clear Lake at
+   -60 % while the storm outfall read 0.01 %. The exact identity is run at full
+   resolution in test/kernels.mjs §11.8 (0.000 % on all three outlets over an
+   acre); here the contract is that the pipe outlets agree and the card SAYS the
+   boundary ones are not comparable rather than printing a wrong number. */
+if (Math.abs(accIdent.total - accIdent.surveyed) > 0.01) {
+  console.log("FAIL: what leaves the model is not the surveyed area", accIdent); process.exit(1); }
+for (const r of accIdent.rows) if (r.kind === "outfall" && Math.abs(r.d) > 1) {
+  console.log("FAIL: a piped outlet's accumulation disagrees with its catchment:", JSON.stringify(r));
+  process.exit(1);
+}
+if (!accIdent.rows.some(r => r.kind === "outfall")) {
+  console.log("FAIL: no piped outlet to compare — the cross-check proves nothing"); process.exit(1); }
+if (!accIdent.saysBoundary || !accIdent.saysHarness) {
+  console.log("FAIL: the card does not say which outlets it cannot attribute, or where the exact identity lives");
   process.exit(1);
 }
 

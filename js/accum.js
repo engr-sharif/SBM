@@ -314,13 +314,43 @@ SBMM.accum = (function () {
   /* ------------------------------------------------------------------ */
   /* the card                                                            */
   /* ------------------------------------------------------------------ */
+  /* THE CROSS-CHECK, AND THE HALF OF IT THE APP CANNOT DO.
+
+     The identity is "what leaves the model at each cell, summed by the catchment
+     the drainage map gives that cell, is that catchment's area". Summing it needs
+     a label AT THE EXIT CELL — and the label raster the app keeps is decimated for
+     display (about a million cells whatever the grid, so 8 ft here). An exit cell
+     in the MIDDLE of a catchment samples that raster unambiguously; an exit cell on
+     the survey boundary — which is where a lake or an off-survey catchment does all
+     of its leaving — lands in an 8-ft label cell that may belong to the catchment
+     next door or to no catchment at all. The field build showed exactly that:
+     the storm outfall came back 0.01 %, and Clear Lake, whose exits are its whole
+     shoreline, came back -60 %.
+
+     So the card compares the outlets whose exits are INTERIOR by construction — a
+     conduit outfall leaves through its pipe's capture cells, well inside the
+     survey — and says plainly that a boundary outlet cannot be attributed at this
+     resolution. The exact form of the identity needs the full-resolution label
+     raster, which the harness has: test/kernels.mjs §11.8, 0.000 % on all three
+     outlets over an acre. Widening the tolerance until the wrong number fits would
+     be the opposite of a check. */
+  function boundarySink(rec) {
+    return !!(rec && rec.t === "sink" && rec.r.kind !== "outfall");
+  }
   function checkRows() {
     if (!R || !R.byLabel || !R.byLabel.length || !SBMM.drainage || !SBMM.drainage.result()) return "";
-    const D = SBMM.drainage.result();
+    let compared = 0;
     const rowsH = R.byLabel.slice(0, 6).map(b => {
       const rec = SBMM.drainage.recOf(b.label);
       if (!rec || rec.t !== "sink") return "";
-      const want = rec.r.area_ft2, d = want > 0 ? 100 * (b.area_ft2 - want) / want : NaN;
+      const want = rec.r.area_ft2;
+      if (boundarySink(rec))
+        return `<tr><td class="k">${esc(SBMM.drainage.nameOf(rec))}</td>`
+          + `<td class="v mono">${ac(b.area_ft2)}</td>`
+          + `<td class="v mono">${ac(want)}</td>`
+          + `<td class="v">boundary exits — not attributable at ${R.dCell} ft</td></tr>`;
+      compared++;
+      const d = want > 0 ? 100 * (b.area_ft2 - want) / want : NaN;
       return `<tr><td class="k">${esc(SBMM.drainage.nameOf(rec))}</td>`
         + `<td class="v mono">${ac(b.area_ft2)}</td>`
         + `<td class="v mono">${ac(want)}</td>`
@@ -330,12 +360,21 @@ SBMM.accum = (function () {
     return `<div class="note">Against the drainage map</div><div class="dspopwrap"><table class="dspop">
       <tr><td class="k"><b>outlet</b></td><td class="v"><b>accumulated ac</b></td>
           <td class="v"><b>catchment ac</b></td><td class="v"><b>d</b></td></tr>
+      <tr><td class="k">Everything that leaves the model</td>
+          <td class="v mono">${ac(R.exitTotal_ft2)}</td>
+          <td class="v mono">${ac(R.surveyedArea_ft2)}</td>
+          <td class="v mono">${fmt(100 * (R.exitTotal_ft2 - R.surveyedArea_ft2)
+                / (R.surveyedArea_ft2 || 1), 3)} %</td></tr>
       ${rowsH}</table>
-      <div class="note">What leaves the model at each cell, summed by the catchment the drainage
-      map gives that cell. For D8 the two are the same partition of the same ground and the
-      difference is zero; sampled against the map's decimated label raster it is within a
-      fraction of a percent. D-infinity disperses across facets, so its boundary is a gradient
-      rather than a line and it agrees to a few percent.</div></div>`;
+      <div class="note">Every square foot of the surveyed ground leaves the model exactly once —
+      that row is exact at any resolution. Per outlet, the sum needs a catchment label AT THE
+      EXIT CELL, and the label raster on this card is decimated to ${R.dCell} ft for drawing:
+      an outlet that leaves through a pipe is attributed exactly (its exits are the pipe's own
+      cells), while one that leaves along the survey boundary cannot be, because a boundary
+      exit cell falls in a label cell that may belong to its neighbour. The exact identity is
+      run at full resolution in test/kernels.mjs §11.8, where it is 0.000 % on every outlet
+      over an acre.${compared ? "" : " Nothing on this run leaves through a pipe, so there is"
+      + " nothing here to compare."}</div></div>`;
   }
 
   function csv() {
