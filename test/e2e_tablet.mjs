@@ -457,11 +457,28 @@ orbit = () => page.evaluate(() => SBMM.viewer3d.stats().orbit);
   await touch("touchEnd", []);
   await wait(180);
   const n1 = await page.evaluate(() => SBMM.viewer3d.stats().renderCount);
-  await wait(4000);
-  const n2 = await page.evaluate(() => SBMM.viewer3d.stats().renderCount);
+  /* "settled" is a CONDITION, not a clock — the same rule test/e2e.mjs block
+     9e applies: software GL runs at a couple of frames a second, and since v20
+     a flick also leaves the quadtree fetching the tiles the camera flew to,
+     each of which asks for one frame when it lands. So wait until a whole
+     second passes with at most one render AND the tile queue is empty, and
+     only then measure the idle window — the assertion itself is unchanged. */
+  const settled = await page.evaluate(async () => {
+    const wait = ms => new Promise(r => setTimeout(r, ms));
+    let prev = SBMM.viewer3d.stats().renderCount, tries = 0;
+    for (; tries < 40; tries++) {
+      await wait(1000);
+      const now = SBMM.viewer3d.stats().renderCount;
+      const q = SBMM.tiles && SBMM.tiles.stats ? SBMM.tiles.stats() : { queued: 0, running: 0 };
+      if (now - prev <= 1 && !(q.queued + q.running)) break;
+      prev = now;
+    }
+    return { tries, renders: SBMM.viewer3d.stats().renderCount };
+  });
+  const n2 = settled.renders;
   await wait(2500);
   const n3 = await page.evaluate(() => SBMM.viewer3d.stats().renderCount);
-  console.log(`3D flick: renders ${n0} -> ${n1} (during) -> ${n2} (settled) -> ${n3} (idle)`);
+  console.log(`3D flick: renders ${n0} -> ${n1} (during) -> ${n2} (settled after ${settled.tries} s) -> ${n3} (idle)`);
   if (n1 - n0 < 3) fail("a flick did not keep the camera moving for 3 frames", { n0, n1 });
   if (n3 !== n2) fail("the view is still rendering after the momentum settled — perf idle-0 is broken", { n2, n3 });
 }
