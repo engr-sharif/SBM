@@ -32,6 +32,13 @@ What is inferred, and says so on the feature (`source`):
                   segments between consecutive structures
   pipe_to_main    EA's drawn storm line starts 13 ft west of the surveyed pipe's
                   plotted end; the 13 ft is the connection the user asked for
+  pipe_to_main_s  the SAME connection for the South barrel (engineer, 2026-09-05:
+                  "there are 2 pipes and you only used one ... the flow goes to
+                  the two discharge pipes"). Both 24-in HDPE barrels through the
+                  sandbag wall are the impoundment's discharge, in parallel, and
+                  both end at EA's drawn storm line. Before this the South pipe
+                  stopped 13 ft short of anything and its water left the pipe on
+                  to the ground.
 Nothing here has an invert except the two surveyed pipe nodes. Nothing is
 shifted to make the drawing tidy.
 
@@ -192,7 +199,7 @@ def main():
 
     # ---- the surveyed Herman discharge pipes ---------------------------------
     pipes = [f for f in survey["features"] if (f.get("properties") or {}).get("layer") == "survey_pipe"]
-    pipe_end_n = None
+    pipe_end_n = pipe_end_s = None
     for f in pipes:
         p = f["properties"]; c = f["geometry"]["coordinates"]
         side = "n" if "North" in p.get("name", "") else "s"
@@ -206,12 +213,22 @@ def main():
                 size_in=p.get("size_in"), material=p.get("material"), provenance=SURVEY_PROV,
                 note="One of the two 24-in corrugated HDPE barrels through the sandbag wall.")
         if side == "n": pipe_end_n = west
+        else: pipe_end_s = west
     e943c = byHandle["E943C"]["coords"]
     main_east = node("storm_main_east", "bend", e943c[0][0], e943c[0][1], "Storm main — east end of the drawn line",
                      cad_handle="E943C", note="Where EA's storm line begins, 13 ft west of the surveyed pipe's plotted end.")
     conduit("pipe_to_main", pipe_end_n["id"], "storm_main_east", [xy(pipe_end_n), xy(main_east)], "inferred",
             size_in=24, provenance=USER_PROV,
-            note="The connection between the surveyed pipes and EA's drawn storm line (user, Sep 2026): the drawn line starts 13 ft west of the plotted pipe end.")
+            note="The connection between the North barrel and EA's drawn storm line (user, Sep 2026): the drawn line starts 13 ft west of the plotted pipe end.")
+    # RULING (project engineer, 2026-09-05): BOTH 24-in barrels are the
+    # impoundment's discharge and both reach the storm main. One conduit per
+    # barrel, beside the North one rather than a shared manifold node, because a
+    # manifold would have to move `pipe_to_main`'s inlet and re-cut its geometry
+    # — and every golden that names that conduit, its 13.2-ft length and the
+    # drainage map's per-inlet areas are measured on it as it stands.
+    conduit("pipe_to_main_s", pipe_end_s["id"], "storm_main_east", [xy(pipe_end_s), xy(main_east)], "inferred",
+            size_in=24, provenance=USER_PROV,
+            note="The same connection for the South barrel (engineer, 2026-09-05: the impoundment discharges through BOTH 24-in pipes). Not drawn in the CAD; inverts unknown. Before this the South barrel ended 13 ft short of the storm line and its water left the pipe on to the ground.")
     # split the main at the junction: the vertex run up to the closest point, then on
     jx = xy(junction)
     best_i, best_d = 0, 1e9
