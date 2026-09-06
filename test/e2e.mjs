@@ -3445,9 +3445,25 @@ survey = await page.evaluate(async () => {
   const card = [...document.querySelectorAll("#resBody .res")].find(c => /Overtopping/.test(c.textContent));
   out.cardText = card ? card.textContent : "";
   out.pipeRoute = SBMM.store.features.filter(f => f.type === "flow" && /pipe discharge route/.test(f.name))
-    .map(f => ({ len: f.props.length_ft, reason: f.props.end.reason, name: f.name,
-                 pipe: f.props.pipe_ft, total: f.props.total_ft, outfall: !!f.props.outfall,
-                 legs: (f.props.legs || []).map(l => l.id) }));
+    .map(f => {
+      /* the 2026-09-05 acceptance: NO ground between the sandbag wall and the
+         outfall. Walk the run the way buildFlow does — the stretches between
+         the conduit legs — and add up what is drawn on the ground before the
+         last leg ends. It must be zero: every vertex up to the outfall is a
+         leg endpoint. */
+      const legs = (f.props.legs || []).filter(l => l.at != null && l.at >= 0);
+      const cuts = [...new Set(legs.map(l => l.at))].sort((a, b) => a - b);
+      let ground = 0, st = 0;
+      for (const cut of cuts) {
+        for (let i = st; i < cut; i++)
+          ground += Math.hypot(f.pts[i + 1][0] - f.pts[i][0], f.pts[i + 1][1] - f.pts[i][1]);
+        st = cut + 1;
+      }
+      return { len: f.props.length_ft, reason: f.props.end.reason, name: f.name,
+               pipe: f.props.pipe_ft, total: f.props.total_ft, outfall: !!f.props.outfall,
+               chain: !!f.props.chain, groundBeforeOutfall: +ground.toFixed(2),
+               legs: (f.props.legs || []).map(l => l.id) };
+    });
   out.pipeMarker = document.querySelectorAll(".spillmk.pipe").length;
   const sl = card && card.querySelector("#wsRange");
   out.sliderMax = sl ? +sl.max : -1; out.sliderVal = sl ? +sl.value : -1;
@@ -3511,10 +3527,29 @@ if (survey.pipeRoute.length !== 1 || !(survey.pipeRoute[0].len > 50)) { console.
 /* v12 §5.2: with the storm network on, what leaves the surveyed pipes goes down
    EA's drawn storm main to the Clear Lake outfall, and the row says how far of
    it is in pipe rather than reporting the overland stub alone. */
-if (!survey.pipeRoute[0].outfall || survey.pipeRoute[0].legs.join(",") !== "pipe_to_main,storm_main_upper,storm_main_lower")
-  { console.log("FAIL: the pipe discharge route did not follow the storm main:", JSON.stringify(survey.pipeRoute[0])); process.exit(1); }
-if (Math.abs(survey.pipeRoute[0].pipe - 796.8) > 0.5)
-  { console.log("FAIL: pipe length of the discharge route", survey.pipeRoute[0].pipe, "vs 796.8"); process.exit(1); }
+/* RULING (project engineer, 2026-09-05): both 24-in barrels are the
+   impoundment's discharge and the route is the CONDUIT CHAIN, not a raindrop
+   dropped at a pipe end — "right now I think it shows that it goes directly and
+   makes its own path". So it names BOTH pipes, both links and both halves of the
+   storm main, and it touches no ground at all between the wall and the outfall. */
+if (!survey.pipeRoute[0].chain)
+  { console.log("FAIL: the pipe discharge route is not the conduit chain:", JSON.stringify(survey.pipeRoute[0])); process.exit(1); }
+if (!survey.pipeRoute[0].outfall || survey.pipeRoute[0].legs.join(",")
+      !== "herman_pipe_s,pipe_to_main_s,storm_main_upper,storm_main_lower,herman_pipe_n,pipe_to_main")
+  { console.log("FAIL: the pipe discharge route did not follow both pipes into the storm main:", JSON.stringify(survey.pipeRoute[0])); process.exit(1); }
+if (survey.pipeRoute[0].groundBeforeOutfall !== 0)
+  { console.log("FAIL: the discharge route runs over the ground before the outfall:",
+                survey.pipeRoute[0].groundBeforeOutfall, "ft"); process.exit(1); }
+if (Math.abs(survey.pipeRoute[0].pipe - 812.8) > 0.5)
+  { console.log("FAIL: pipe length of the discharge route", survey.pipeRoute[0].pipe, "vs 812.8"); process.exit(1); }
+if (!/discharging through the two 24-in pipes/.test(survey.cardText))
+  { console.log("FAIL: the card must say the water discharges through both barrels"); process.exit(1); }
+if (!/no ground between the sandbag wall and the outfall/.test(survey.cardText))
+  { console.log("FAIL: the card must say the route touches no ground before the outfall"); process.exit(1); }
+if (!survey.routes || survey.routes.pipeChain !== true
+    || !survey.routes.pipeLegs.includes("herman_pipe_n") || !survey.routes.pipeLegs.includes("herman_pipe_s"))
+  { console.log("FAIL: routes() must report the chain and both barrels:",
+                JSON.stringify(survey.routes && survey.routes.pipeLegs)); process.exit(1); }
 if (!/storm main/.test(survey.pipeRoute[0].name))
   { console.log("FAIL: the route that reaches the outfall must say so in its name:", survey.pipeRoute[0].name); process.exit(1); }
 for (const t of ["in pipe", "Clear Lake outfall"])
@@ -3540,7 +3575,7 @@ let errBeforeStorm, stormBase, FROG, stormDrop, stormOff, WLSHOT, stormWater, st
 await block("9s. storm drainage (docs/V12_STORM_SPEC.md §6)", async () => {
 /* 9s. storm drainage (docs/V12_STORM_SPEC.md §6)                       */
 /* ==================================================================== */
-/* The network is read-only project data — 44 structures and 26 conduits out of
+/* The network is read-only project data — 44 structures and 27 conduits out of
    EA's CAD, Jacobs' survey and the project engineer's identification of the
    south-road drain — and it changes exactly one thing about the raindrop: a run
    that reaches an inlet leaves the ground and reappears at the outlet. The
@@ -3589,9 +3624,12 @@ console.log("storm network:", JSON.stringify({ nodes: stormBase.nodes, conduits:
   glyphs: stormBase.glyphs, arrows: stormBase.arrows, rim: stormBase.rim, invert: stormBase.invert,
   inBox: stormBase.inBox.length, snap: stormBase.snap, dxf: stormBase.dxfLayers, cmd: stormBase.cmd }));
 if (stormBase.err) { console.log("FAIL:", stormBase.err); process.exit(1); }
-if (stormBase.nodes !== 44 || stormBase.conduits !== 26)
-  { console.log("FAIL: the payload is not 44 nodes / 26 conduits"); process.exit(1); }
-if (stormBase.layers.map(l => l.join(":")).join(",") !== "storm_nodes:44,storm_cad:15,storm_inferred:11")
+/* 2026-09-05 ruling: BOTH 24-in barrels reach the storm main, so the network
+   carries `pipe_to_main` (North) and `pipe_to_main_s` (South) — one inferred
+   conduit more than v13's, and no other change to the payload. */
+if (stormBase.nodes !== 44 || stormBase.conduits !== 27)
+  { console.log("FAIL: the payload is not 44 nodes / 27 conduits"); process.exit(1); }
+if (stormBase.layers.map(l => l.join(":")).join(",") !== "storm_nodes:44,storm_cad:15,storm_inferred:12")
   { console.log("FAIL: the three layers' counts:", JSON.stringify(stormBase.layers)); process.exit(1); }
 if (stormBase.rowsOn !== 3 || !stormBase.subHeader || stormBase.rowLabels.length !== 3)
   { console.log("FAIL: the three rows are not on under the Storm drainage sub-header",
@@ -3599,7 +3637,7 @@ if (stormBase.rowsOn !== 3 || !stormBase.subHeader || stormBase.rowLabels.length
 for (const [key, n] of stormBase.layers)
   if (!stormBase.rowLabels.some(l => l.includes("(" + n + ")")))
     { console.log("FAIL: no row labelled with", key, "count", n); process.exit(1); }
-if (stormBase.glyphs !== 44 || stormBase.arrows !== 26)
+if (stormBase.glyphs !== 44 || stormBase.arrows !== 27)
   { console.log("FAIL: structures/arrows drawn:", stormBase.glyphs, stormBase.arrows); process.exit(1); }
 /* the popup: what it is, where it came from, and the two elevations — one of
    which is honestly "not surveyed" */
@@ -3769,10 +3807,17 @@ if (!stormWater.pond || !/^herman_pipe_[ns]$/.test(stormWater.pond.via))
                 JSON.stringify(stormWater.pond)); process.exit(1); }
 if (Math.abs(stormWater.pond.level - 1341.5) > 0.05)
   { console.log("FAIL: the pond must stop at the lower surveyed invert, got", stormWater.pond.level); process.exit(1); }
-if (stormWater.legs.join(",") !== stormWater.pond.via + ",pipe_to_main,storm_main_upper,storm_main_lower")
+/* the drop takes the LOWER invert first — the kernel's rule, and right for one
+   drop — and since 2026-09-05 that barrel reaches the storm main by its own
+   link instead of leaving the pipe on to the ground for the 3 ft to the other */
+if (stormWater.legs.join(",") !== stormWater.pond.via
+      + (stormWater.pond.via === "herman_pipe_s" ? ",pipe_to_main_s" : ",pipe_to_main")
+      + ",storm_main_upper,storm_main_lower")
   { console.log("FAIL: the chain out of the impoundment:", stormWater.legs); process.exit(1); }
-if (Math.abs(stormWater.pipe - 813.3) > 1 || !stormWater.outfall)
-  { console.log("FAIL: pipe_ft", stormWater.pipe, "vs 813.3, outfall", stormWater.outfall); process.exit(1); }
+if (Math.abs(stormWater.pipe - 812.8) > 1 || !stormWater.outfall)
+  { console.log("FAIL: pipe_ft", stormWater.pipe, "vs 812.8, outfall", stormWater.outfall); process.exit(1); }
+if (!/two 24-in pipes in parallel/.test(stormWater.card || ""))
+  { console.log("FAIL: the raindrop card must name both barrels:", stormWater.card); process.exit(1); }
 if (wdist(stormWater.end, [6371177, 2127474]) > 5)
   { console.log("FAIL: the drop should end in Clear Lake, got", stormWater.end); process.exit(1); }
 if (Math.abs(stormWater.offLevel - 1343.84) > 0.02 || stormWater.backOn !== true)
@@ -3836,11 +3881,11 @@ stormRest = await page.evaluate(async () => {
 console.log("storm broken/3D/export:", JSON.stringify(stormRest));
 if (stormRest.brokenOut !== stormRest.backOut - 1 || stormRest.persistedBroken !== "broken")
   { console.log("FAIL: a broken conduit must leave the kernel list and persist"); process.exit(1); }
-if (stormRest.withNet - stormRest.without !== 26 || stormRest.back !== stormRest.withNet)
-  { console.log("FAIL: the 26 conduits are not in the 3D pick registry",
+if (stormRest.withNet - stormRest.without !== 27 || stormRest.back !== stormRest.withNet)
+  { console.log("FAIL: the 27 conduits are not in the 3D pick registry",
                 stormRest.withNet, stormRest.without, stormRest.back); process.exit(1); }
-if (stormRest.geo !== 70 || stormRest.geoPts !== 44 || !stormRest.geoSource)
-  { console.log("FAIL: the GeoJSON must carry 44 structures + 26 conduits, each with a source",
+if (stormRest.geo !== 71 || stormRest.geoPts !== 44 || !stormRest.geoSource)
+  { console.log("FAIL: the GeoJSON must carry 44 structures + 27 conduits, each with a source",
                 JSON.stringify(stormRest)); process.exit(1); }
 if (!stormRest.dxf) { console.log("FAIL: the DXF is missing the STORM-* layers"); process.exit(1); }
 if (errors.length !== errBeforeStorm) {
