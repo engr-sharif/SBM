@@ -29,7 +29,7 @@ import { pathToFileURL as __furl } from "node:url";
 import { resolve as __res, dirname } from "node:path";
 import { existsSync as __ex } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { unlock, gatePassword } from "./gate.mjs";
+import { unlock, gatePassword, FORCE_JS } from "./gate.mjs";
 import { block, S } from "./lib/blocks.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -200,6 +200,24 @@ console.log(`golden Pile 1: fill ${vol.fill.toFixed(1)} yd³, cut ${vol.cut.toFi
   + `net ${vol.net.toFixed(1)} — base ${vol.base}`);
 if (Math.abs(vol.fill - 278.4) > 10 || Math.abs(vol.net + 48.1) > 10)
   fail("the golden Pile 1 volume moved in the field build", vol);
+
+/* v21 §5: the WASM core is IN the field build — a phone is exactly where the
+   kernels are slowest, and datajs/w_kernels.js is deliberately not in
+   FIELD_EXCLUDE. The golden above was computed by it. */
+const core = await page.evaluate(() => {
+  const i = SBMM.compute.wasmInfo();
+  return { backend: SBMM.compute.backend(), loaded: i.loaded, bytes: i.bytes,
+           version: i.version, ranOn: SBMM.compute.stats.lastBackend };
+});
+console.log(`compute core: ${core.backend} (v${core.version}, ${core.bytes} bytes) `
+  + `— the golden ran on ${core.ranOn}` + (FORCE_JS ? " (SBMM_WASM=0)" : ""));
+/* the payload must BE in the field build either way — that is the half of this
+   that SBMM_WASM=0 does not change */
+if (!core.loaded && !FORCE_JS) fail("the field build has no WASM compute core", core);
+if (!core.bytes) fail("the field build carries no wasm payload at all", core);
+const want = FORCE_JS ? "js" : "wasm";
+if (core.backend !== want) fail(`the field build selected ${core.backend}, not ${want}`, core);
+if (core.ranOn !== want) fail(`the golden volume ran on ${core.ranOn}, not ${want}`, core);
 });
 
 /* ===================================================================== */

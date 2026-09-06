@@ -2286,6 +2286,58 @@ Where the remaining time goes, and what moved:
 **GitHub Pages:** Settings → Pages → deploy from branch, root. Keep the repo **private**
 — it contains site imagery, terrain, and analytical results.
 
+## The compute core (v21)
+
+The heavy analyses — the drainage map, the overtopping flood, the raindrop, volumes,
+contours — now run in a small compiled **WebAssembly** core when the browser has one.
+The JavaScript kernels stay in the app as the reference and the fallback: they are what
+every golden number was measured on, they are what runs if the module will not load, and
+every results card says which of the two computed it and in how many milliseconds.
+Help has a **Force JavaScript kernels** switch if you ever want to see for yourself.
+
+Nothing is fetched. The module is ~100 kB of WebAssembly shipped as base64 in
+`datajs/w_kernels.js`, exactly like the terrain and the imagery, so it works over
+`file://`, in the folder build, in the full dist and in the field build alike. Rust is a
+build dependency of that one payload; the app never needs it.
+
+**Identity is the acceptance, and it is bit-identity, not a tolerance.** Every ported
+kernel is run twice on the same job — once with the core forced off — and the two results
+are compared field by field, typed arrays included, with NoData counted equal to NoData.
+`node test/kernels.mjs` runs every section on **both** cores by default.
+
+Before and after, node on the build box, measured as an A/B inside one run (the machine
+was shared with two browser test matrices at the time, so read these as the shape of the
+answer rather than as bench figures):
+
+| kernel | job | JavaScript | WebAssembly | |
+|---|---|---|---|---|
+| `contours` | 400 × 400 analytic cone, 5 ft | 292 ms | **12 ms** | 24× |
+| `contours` | 1,001 × 1,001 site window, 10 ft | 199 ms | **12 ms** | 17× |
+| `volume` | Pile 1, perimeter TIN | 10 ms | **2 ms** | 5× |
+| `overtop` | Herman + 19 conduits | 4,382 ms | **2,127 ms** | 2.1× |
+| `fillDem` | Herman window, 1,757 × 1,208 | 1,357 ms | **634 ms** | 2.1× |
+| `flowpath` | the §6.8 drop, chained, storm on | 4,431 ms | **2,345 ms** | 1.9× |
+| `drainage` | the whole site, 4 ft (2,425 × 2,225) | 1,265 ms | **713 ms** | 1.8× |
+| `drainage` | the whole site, 2 ft (4,850 × 4,450) | 5,490 ms | **3,749 ms** | 1.5× |
+| 100 raindrops | the drainage identity, chained | 83.5 s | **58.7 s** | 1.4× |
+
+The contour figures are the honest headline: the JavaScript chains marching-squares
+segments through a `Map` keyed by a formatted string, and replacing that is exactly what
+a compiled core is for. The water and drainage kernels are a different shape — priority
+floods over millions of cells, bound by memory bandwidth rather than by arithmetic — and
+halving them is what that shape gives. **The v21 spec asked for 2 s on the 2-ft drainage
+map and it is not there**: at 21.6 million cells the kernel touches half a dozen
+86-MB arrays several times each, and compiling the loops does not make the memory faster.
+
+Two related notes, both measured. The FIRST 2-ft drainage run in a fresh worker is
+~5.7 s rather than 3.7 s, because it pays for growing WebAssembly's linear memory to
+about 600 MB; every run after it in the same worker is the faster number, and the app
+re-runs this job whenever a storm switch moves. And an early version of the port was
+*slower* than the JavaScript — it shadowed the storm-inlet capture distances in a
+full-grid array where the JavaScript uses a sparse map, which cost 190 MB of allocation
+and zeroing per run. A compiled core is not automatically faster; the memory it asks for
+is part of the kernel.
+
 ## Data
 
 | File | Contents |
