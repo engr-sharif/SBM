@@ -2470,6 +2470,48 @@ SBMM.viewer3d = (function () {
      its own and a TAP has to reach exactly the same code a click does. */
   let canvasClick = null;
 
+  /* THE QUADTREE HAS TO MAKE PICKING CHEAPER, NOT DEARER (v20 §3).
+
+     three tests every triangle of every mesh whose bounding sphere the ray
+     touches. Thrown at all thirty tiles that is ~3 M triangle tests and about
+     400 ms of BLOCKED MAIN THREAD — and that is not merely a stutter, because
+     js/touch.js's recogniser classifies a tap by wall clock: the pinch pivot
+     raycast happens on the second finger's `pointerdown`, so the 60 ms
+     two-finger tap in test/e2e_tablet.mjs block 3 arrived at `up` measuring
+     469 ms, past the 300 ms tap window, and silently stopped being a tap.
+     (The whole-DEM build got away with three meshes.)
+
+     So the tiles are ordered by where the ray ENTERS their bounding sphere and
+     raycast one at a time, stopping as soon as the best hit so far is nearer
+     than the next candidate's sphere. That is exact — a mesh whose bounds
+     start beyond a hit cannot contain a nearer one — and it usually stops at
+     the first tile. This is the pick the tiles were supposed to buy. */
+  const _pickSph = new THREE.Sphere(), _pickPt = new THREE.Vector3();
+  function raycastTerrain() {
+    const list = [];
+    for (const t of terrainMeshes) {
+      const m = t.mesh, g = m.geometry;
+      if (!g.boundingSphere) g.computeBoundingSphere();
+      if (!g.boundingSphere) continue;
+      m.updateMatrixWorld();
+      _pickSph.copy(g.boundingSphere).applyMatrix4(m.matrixWorld);
+      if (!raycaster.ray.intersectsSphere(_pickSph)) continue;
+      /* distance to where the ray enters the sphere; 0 when the camera is
+         inside it, which is the conservative answer */
+      const d = raycaster.ray.intersectSphere(_pickSph, _pickPt)
+        ? raycaster.ray.origin.distanceTo(_pickPt) : 0;
+      list.push([d, m]);
+    }
+    list.sort((a, b) => a[0] - b[0]);
+    let best = null;
+    for (const [d, m] of list) {
+      if (best && best.distance <= d) break;
+      const hits = raycaster.intersectObject(m, false);
+      if (hits.length && (!best || hits[0].distance < best.distance)) best = hits[0];
+    }
+    return best;
+  }
+
   /* raycast the terrain under a mouse/pointer event; returns a scene-space Vector3 */
   function pickScene(e) {
     if (!raycaster || !terrainMeshes.length) return null;
@@ -2477,8 +2519,8 @@ SBMM.viewer3d = (function () {
     const r = dom.getBoundingClientRect();
     const p = new THREE.Vector2(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
     raycaster.setFromCamera(p, camera);
-    const hits = raycaster.intersectObjects(terrainMeshes.map(t => t.mesh));
-    const out = hits.length ? hits[0].point.clone() : null;
+    const hit = raycastTerrain();
+    const out = hit ? hit.point.clone() : null;
     lastPick = { x: e.clientX, y: e.clientY, p: out, t: performance.now() };
     return out;
   }
