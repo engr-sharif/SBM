@@ -193,6 +193,13 @@ SBMM.buildLayers = function () {
      the storm on its first tick. */
   if (SBMM.runoff) SBMM.runoff.build();
 
+  /* ---------- flow accumulation and the streams (v19 §2) ----------
+     The same Drainage sub-header the catchments live under: accumulation is the
+     other half of the same answer — Phase 1 says where the water goes, this says
+     how much ground goes with it. Both rows are off from boot; the first tick
+     runs the job. */
+  if (SBMM.accum) SBMM.accum.build();
+
   /* ---------- sample points ----------
      Investigations (§4 group 4), not Site framework: a sample result is a
      measurement of the ground, not part of the ground. */
