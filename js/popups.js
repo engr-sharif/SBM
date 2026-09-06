@@ -68,6 +68,14 @@ SBMM.popups = (function () {
     return `<div class="dspopwrap"><table class="dspop">${rows ||
       '<tr><td class="mut">no attributes</td></tr>'}</table></div>`;
   }
+  /* v19 §3: the hydraulics rows js/pipes.js builds, wrapped in the same table
+     shell attrTable uses so a popup with them and one without look identical.
+     The module answers "" whenever it has nothing to say, which is the case
+     until somebody asks for a rating. */
+  function hydRows(rows) {
+    if (!rows) return "";
+    return `<div class="dspopwrap"><table class="dspop">${rows}</table></div>`;
+  }
   /* the coordinate footer every popup in the app ends with */
   function coordLine(x, y, extra) {
     const [z] = SBMM.elev(x, y);
@@ -338,6 +346,7 @@ SBMM.popups = (function () {
           ["CAD block", n.cad_block],
           ["CAD handle", n.cad_handle]
         ])
+        + hydRows(SBMM.pipes && SBMM.pipes.rowsForNode ? SBMM.pipes.rowsForNode(n.id) : "")
         + mouthNote(S.mouthOf(n.id))
         + (n.note ? `<span style="opacity:.75">${esc(n.note)}</span><br>` : "")
         + `<span style="opacity:.55;font-size:11px">${esc(n.provenance || "")}</span>`;
@@ -369,9 +378,20 @@ SBMM.popups = (function () {
       + mouthNote(S.mouthOf(c.from))
       + (c.note ? `<span style="opacity:.75">${esc(c.note)}</span><br>` : "")
       + `<span style="opacity:.55;font-size:11px">${esc(c.provenance || "")}</span>`
-      + `<br><span style="opacity:.6;font-size:11px">A topological shortcut with an elevation at each `
-      + `end — no capacity, no hydraulic grade, no time.</span>`;
+      + hydRows(SBMM.pipes && SBMM.pipes.rowsForConduit ? SBMM.pipes.rowsForConduit(c.id) : "")
+      + `<br><span style="opacity:.6;font-size:11px">`
+      + (SBMM.pipes && SBMM.pipes.hasResult()
+         ? `Manning full-flow capacity and a steady-state hydraulic grade — no unsteady routing, `
+           + `no storage in the pipe, no time. Anything unsurveyed says so.`
+         : `A topological shortcut with an elevation at each end — no capacity, no hydraulic `
+           + `grade, no time.`)
+      + `</span>`;
     const acts = [];
+    if (SBMM.pipes)
+      acts.push(btn(SBMM.pipes.hasResult() ? "pipe capacity" : "rate this pipe",
+        () => SBMM.pipes.cmd(),
+        "Manning capacity, the design storm's peak and the hydraulic grade — provisional "
+        + "until the inverts are surveyed"));
     acts.push(btn(st === "broken" ? "mark working" : "mark broken",
       () => S.setStatus(c.id, st === "broken" ? "assumed_working" : "broken"),
       st === "broken" ? "Let water through this conduit again"
@@ -386,6 +406,38 @@ SBMM.popups = (function () {
     return h + coordLine(c.pts[0][0], c.pts[0][1], c.pts.length + " vertices");
   }
 
+
+  /* ---------------------------------------------------------------- */
+  /* the stream network (v19 §2)                                       */
+  /* ---------------------------------------------------------------- */
+  function forStream(s, R) {
+    if (!s) return "<b>Stream</b><br><span style=\"opacity:.7\">no longer in the network</span>";
+    const A = SBMM.accum;
+    const ends = { sink: "a sink — it leaves the model here", conduit: "a storm conduit",
+                   junction: "a junction with the next link",
+                   "below threshold": "ground below the threshold (D-infinity dispersion)" };
+    const h = `<b>Stream — Strahler order ${s.order}</b><br>`
+      + `<span style="opacity:.7">flow accumulation, ${R && R.method === "d8" ? "D8" : "D-infinity"}`
+      + `, ${R ? R.gridFt : "?"}-ft grid</span><br>`
+      + attrTable([
+        ["Upstream area", fmt(s.accMax_ft2 / 43560, 2) + " ac"],
+        ["At its head", fmt(s.accMin_ft2 / 43560, 2) + " ac"],
+        ["Length", fmt0(s.length_ft) + " ft"],
+        ["Ends in", ends[s.ends] || s.ends],
+        ["Threshold", (R ? R.threshold_ac : 5) + " ac"]
+      ])
+      + `<span style="opacity:.6;font-size:11px">Contributing AREA over the lidar bare earth, `
+      + `never discharge. The design storm is what turns an area into a flow.</span>`;
+    const acts = [];
+    acts.push(btn("trace a raindrop here", () => SBMM.water.dropAt(s.pts[0][0], s.pts[0][1]),
+                  "Follow the water from the head of this link"));
+    if (SBMM.drainage)
+      acts.push(btn("show what drains here",
+        () => SBMM.drainage.showInto({ xy: [s.pts[s.pts.length - 1][0], s.pts[s.pts.length - 1][1]] }),
+        "Highlight the catchment this link is in"));
+    return h + actions(acts.join(""))
+      + coordLine(s.pts[0][0], s.pts[0][1], s.pts.length + " vertices");
+  }
 
   /* ---------------------------------------------------------------- */
   /* the drainage map (v14 §4)                                         */
@@ -532,6 +584,6 @@ SBMM.popups = (function () {
   }
 
   return { forDataset, forGis, forCad, forSample, forTree, forFeature, forTerrain, forStorm,
-           forDrainage, forRunoff,
+           forDrainage, forRunoff, forStream,
            attrTable, coordLine, action, run, btn, actions, copyText };
 })();

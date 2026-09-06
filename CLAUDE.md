@@ -338,6 +338,9 @@ terrain source, which needs an explicit decision + README/test update).
 | survey.js | the **August-2026 Jacobs survey** linework (`data/survey_2026.json`: the two 24-in HDPE discharge pipes, the sandbag wall, the NW Pit low) as read-only rows under Investigations; snap, 3D, export; `SBMM.survey` — the survey's 24 shots are a baked dataset, not this module |
 | storm.js | **v12 storm drainage** — EA's storm structures and storm line, the six CAD culvert marks, Jacobs' two surveyed 24-in pipes and the south-road grate chain, as read-only project data (`data/storm_network.json`): three layer rows under Site framework, rims from `SBMM.elev` on boot, the "storm drains work" switch, per-conduit broken/working, snap, 3D, exports, and `conduitsFor(bbox)` — the list `js/water.js` hands the kernel; `SBMM.storm` |
 | drainage.js | **v14 Phase 1 — the drainage map**: the `drainage` kernel run once over the whole site, three read-only layer rows under a *Drainage* sub-header in Site framework, the outlet table and its CSV/GeoJSON/DXF, "show what drains here" on any storm popup, the catchments draped in 3D; `SBMM.drainage` |
+| accum.js | **v19 Phase 3 — flow accumulation**: the `accum` kernel over the whole site, two rows under the *Drainage* sub-header (the log-scaled raster with its acre legend, and the streams ≥ 5 ac weighted by Strahler order), the status-bar hover, the card's cross-check against the drainage map, CSV/GeoJSON, the 3D drape and the draped streams, and `rasterFor("d8")` — the raster `js/runoff.js` reads for TR-55's channel test; `SBMM.accum` |
+| pipes.js | **v19 Phase 3 — pipe hydraulics**: the `hydraulics` kernel over the storm network, Manning capacity, HEC-22 inlet capacity, the steady-state HGL/EGL pass, the *Pipe capacity* card, the rows the storm popups gained and the capacity-ratio colouring. Provisional and says so; nothing is invented; `SBMM.pipes` |
+| scenarios.js | **v19 Phase 3 — scenarios**: a named set of the assumptions the dialogs already offer, run through the same kernels they call, with the 2–4 way compare table, the map diff, the CSV, the report sheet and the additive session key `scenarios`; `SBMM.scenarios` |
 | runoff.js | **v14 Phase 2 — the design storm**: the `runoff` kernel over the Phase 1 catchments, the rainfall and land-cover payloads, the `RAIN` dialog, the results card with its hydrograph, level-pool routing of the three ponds through the `overtop` kernel's stage table, the report sheet, the CSV, and two layer rows (the cover raster with a CN legend, the runoff depth as a choropleth); `SBMM.runoff` |
 | layerman.js | the Layer manager dialog: search / toggle / recolour / opacity / source + handle for EA's 110 CAD layer names |
 | sheetcards.js | the Sheets tab — a card per drawing with a thumbnail derived on first open, filtered by lot |
@@ -2189,6 +2192,131 @@ road line must read `paved`, and 4,206 of 4,206 eligible points do** — and
 keeps the area comparison beside it as the one-sided identity it is, with the
 reasons printed. Do not "fix" this by widening the tolerance; the area number
 is not the question.
+
+## v19 Phase 3 — accumulation, pipe hydraulics, scenarios
+
+Contract: `docs/V19_HYDRO3_SPEC.md` (Phase 3 of `docs/V14_CATCHMENT_PROPOSAL.md`).
+Kernels `accum` and `hydraulics` in `js/compute.js` (**api VERSION 10**), both in
+ONE delimited v19 block at the end of the module; hosts `js/accum.js`
+(`SBMM.accum`), `js/pipes.js` (`SBMM.pipes`) and `js/scenarios.js`
+(`SBMM.scenarios`); harness sections `accum` and `hydraulics` in
+`test/kernels.mjs` **plus §11.8 inside the `drainage` section**; e2e block
+**"9ab. accumulation + pipes"**; field block **15**; shots
+`test/hydro3_shots.mjs`.
+
+**Accumulation is the drainage map's own physics asked a different question.**
+Phase 1 gives every cell the outlet it drains to; this gives every cell the AREA
+that drains through it. Same `fillDem` with the same conduit seeding and the same
+parent forest, same pond components (`F > z` at the minimum `F` over the
+component), same pointer rules cell for cell — and **the identity is what proves
+the two are the same analysis**: what leaves the model at each cell, summed by
+the drainage map's own label, IS that outlet's Phase 1 area. Exact to **0.000 %**
+on all three outlets over an acre (lake 403.05, off-survey 293.45, outfall
+281.99); D-infinity agrees to 2.13 %, inside the spec's 3 %; accumulation never
+falls along any of Phase 1's 614 longest-flow-path steps. It is still **terrain
+only, and it is AREA, never discharge** — every card says so in those words.
+
+### Six things here will be walked into again
+
+- **The identity lives in the `drainage` harness section (§11.8), not in the
+  `accum` one.** It is an identity AGAINST the Phase 1 map and that section
+  already holds the map in memory; putting it in `accum` would run the 7-second
+  drainage job a second time inside `--quick`. `accum` is the synthetic
+  arithmetic (conservation, Tarboton's proportions, divergence, Strahler, the
+  conduit shortcut, the decimation) and runs in 0.6 s.
+- **The pointer field is duplicated, not shared, and the identity is why that is
+  safe.** `drainage`'s pointer construction is entangled with its sink table and
+  its label space, and Agent W is porting the existing kernels to WebAssembly in
+  parallel — so `accum` rebuilds the same rules in the v19 block (with the sink
+  table collapsed to "-1 = it leaves the model") rather than refactoring
+  `drainage` underneath that work. If the two ever drift, §11.8 fails, which is
+  the strongest guarantee available short of one implementation.
+- **D-infinity adds edges only to strictly lower EFFECTIVE elevation**, so it
+  cannot introduce a cycle the D8 field did not have; where no such neighbour
+  exists (a flat, the inside of a pond, a capture cell) the pointer is used
+  unsplit — that is what "the pointer field as the tie-breaker" means. And
+  acyclicity is still not *assumed*: the sweep is Kahn's and anything left
+  unprocessed is reported as `loops` (0 at 2 ft and at 4 ft, on both methods).
+- **The display raster is decimated by the MAXIMUM over each block, never by
+  sampling.** A channel is one cell wide; a sampled decimation loses the whole
+  stream network and draws a site with no drainage on it.
+- **The app's default is D8 and D-infinity is a button on the card.** Both are
+  exposed, as §2 asks. D8's values ARE the contributing area TR-55's 5-acre rule
+  names, it is the method the identity is exact for, and it draws 109 stream
+  links where D-infinity's dispersion draws more than 1,500. `js/runoff.js` asks
+  `SBMM.accum.rasterFor("d8")` whatever the display is set to.
+- **A stream link that ends at a pipe says `conduit`, not `junction`.** The
+  tracer ends a link ON the capture cell, so the end label has to be read off
+  the cell it lands on rather than off the fact that the next cell starts a new
+  link. Getting that wrong reports the storm network as a set of junctions.
+
+### Phase 2's Tc and peaks moved, and the volumes did not
+
+The TR-55 channel test now reads the real accumulation (`job.accum`, one
+optional input on the `runoff` kernel; absent, v14 Phase 2's linear proxy stands
+and `assumptions.upstreamArea` says which was used). The accumulation says the
+top of a long path carries a few acres rather than a proportional share of a
+400-acre catchment, so those stretches are shallow concentrated rather than
+channel, the water takes longer to arrive and the peak is lower:
+
+| catchment | Tc before | Tc now | SCS peak before | now |
+|---|---|---|---|---|
+| Clear Lake — direct overland | 21.2 min | **54.6 min** | 565.4 cfs | **438.9 cfs** |
+| Off the surveyed ground | 6.0 min | **6.5 min** | 428.6 cfs | **427.7 cfs** |
+| Clear Lake outfall | 17.1 min | **27.8 min** | 425.0 cfs | **392.7 cfs** |
+| **site** | — | — | 1,396.3 cfs | **1,034.8 cfs** |
+
+Volumes, curve numbers and every pond outcome are unchanged and could not move:
+they do not depend on Tc. `RUNOFF_REC` in `test/kernels.mjs` carries the old
+numbers beside the new ones with the reason.
+
+### The hydraulics are provisional, and the app says which part is
+
+`hydraulics` is pure arithmetic over a list — no terrain, no raster, no descent,
+so it runs in a millisecond and the popups can call it. Manning full-flow
+capacity (24 in, n 0.012, S 0.005 → **17.38 cfs**, recorded), HEC-22 grate inlets
+(sag: a weir until the grate drowns, an orifice after, capacity the smaller;
+on grade: the frontal/side split), and a steady-state HGL/EGL pass whose energy
+balance closes to 9e-14 ft.
+
+- **A SLOPE NEEDS TWO ELEVATIONS OF THE SAME KIND** (the one ruling this round
+  made for itself). Both ends surveyed is a real slope; both ends off the lidar
+  is a provisional one, flagged in red; one of each is NOT a slope — at the
+  sandbag wall it is the surveyed pipe invert against the top of the sandbags,
+  and it comes out adverse, reporting a 24-in pipe as running uphill. A mixed
+  pair therefore has no slope, no capacity, and a popup that says why.
+- **On this network every one of the 26 conduits is "unknown — survey pending"**,
+  with the missing item named. That is the answer, not a gap in the code: two
+  nodes have a surveyed invert and five conduits have a size. `data/storm_survey.csv`
+  (template: `.csv.example`, columns `node_id, invert_ft, rim_ft, diameter_in,
+  material, date, source`) through `tools/build_storm_network.py` is what changes
+  it, and `js/storm.js` `rimFor` already prefers a surveyed rim in the payload
+  over the lidar — inert today, correct the day it lands.
+- **HEC-22 is checked against its equations written out at the call, not against
+  a worked example.** No grate here has a surveyed size — that is the whole
+  point of §3 — so there is no dimensioned case from this project to reproduce,
+  and a number quoted from a manual this repo does not ship is a reference
+  nobody here can check. The harness says so in place.
+
+### Scenarios
+
+A scenario is a NAMED SET OF THE ASSUMPTIONS THE DIALOGS ALREADY OFFER, and
+`run()` sets those switches and calls the same kernels the dialogs call — so **a
+scenario can never produce a number the dialogs could not**, and there is no
+scenario-only arithmetic in `js/scenarios.js` at all. Two things to keep:
+
+- **It does NOT force the drainage map.** The map's cache key is already the
+  storm master switch plus every conduit's status, which is exactly what a
+  scenario changes about it; a scenario that only moves the storm depth reuses
+  the map and the accumulation with it. Forcing would cost 20 s per run for a
+  map that cannot have changed.
+- **Only the SWITCHES ride in the session** (`scenarios`, additive, the session
+  integer does not move). A run's results are large and would be a stale number
+  nobody can trace if they were loaded beside newer terrain or a newer network.
+
+**Shots:** `node test/hydro3_shots.mjs /abs/path/index.html` writes `accum_2d`,
+`streams_3d`, `pipe_capacity` and `scenario_compare` into `test/shots/`; not
+pass-fail — look at them.
 
 ## v21 — the WASM compute core
 

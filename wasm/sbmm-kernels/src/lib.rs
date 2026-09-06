@@ -75,7 +75,7 @@ pub extern "C" fn out_len() -> usize { outv().len() }
 /* The api version this crate implements — must equal js/compute.js VERSION, and
    js/compute.js refuses the module if it does not. */
 #[no_mangle]
-pub extern "C" fn api_version() -> i32 { 9 }
+pub extern "C" fn api_version() -> i32 { 10 }
 
 /* ----------------------------------------------------------------- slices - */
 

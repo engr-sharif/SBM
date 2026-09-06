@@ -1026,6 +1026,14 @@ window.SBMM_BUILD="full";
      Phase 1 label raster) and after water.js (it borrows the overtopping
      kernel's stage table to route a pond). -->
 <script src="js/runoff.js"></script>
+<!-- v19 Phase 3 (docs/V19_HYDRO3_SPEC.md). accum.js after drainage.js (its
+     identity is against that map) and after runoff.js, which asks it for the
+     accumulation raster its TR-55 channel test reads; pipes.js after storm.js,
+     whose network it rates; scenarios.js last of the three, because it drives
+     all of them. -->
+<script src="js/accum.js"></script>
+<script src="js/pipes.js"></script>
+<script src="js/scenarios.js"></script>
 <script src="js/refsurf.js"></script>
 <script src="js/sheetcards.js"></script>
 <!-- field mode + the field capabilities (docs/V11_SPEC.md §4). After every
