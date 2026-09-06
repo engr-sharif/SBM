@@ -1,0 +1,24 @@
+# SBMM storm-structure survey — the intake js/pipes.js is waiting for
+# (docs/V19_HYDRO3_SPEC.md §3). Copy to data/storm_survey.csv, fill in what was
+# surveyed, leave the rest blank, then:  python tools/build_storm_network.py
+#
+# node_id      a node id from data/storm_network.json (a conduit id also works,
+#              for diameter_in / material / status)
+# invert_ft    the surveyed pipe invert at that structure, NAVD88 ft
+# rim_ft       the surveyed rim/grate elevation, NAVD88 ft (blank = the lidar
+#              ground the app already computes on boot)
+# diameter_in  the pipe's inside diameter
+# material     one of: HDPE, corrugated HDPE, RCP, reinforced concrete, CMP,
+#              corrugated metal  (js/pipes.js PIPE_N maps these to Manning's n)
+# date, source who measured it and when — it becomes the feature's provenance
+#
+# A conduit gets a CAPACITY once both its ends have an invert and it has a
+# diameter and a material. Until then js/pipes.js reports "unknown — survey
+# pending" and names which of the three is missing; it never guesses one.
+node_id,invert_ft,rim_ft,diameter_in,material,date,source
+herman_pipe_n_end,,,24,corrugated HDPE,,
+herman_pipe_s_end,,,24,corrugated HDPE,,
+storm_main_east,,,24,,,
+junction,,,24,,,
+outfall,,,24,,,
+spot_8,,,,,,

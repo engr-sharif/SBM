@@ -232,8 +232,23 @@ SBMM.layerTree = (function () {
   /* ------------------------------------------------------------------ */
   const CRS_NOTE = "EPSG:6418 — NAD83(2011) California State Plane zone 2, US survey feet";
 
+  /* A row that registers AFTER the stored order was applied (a module that
+     builds its rows late in boot, or after a reload under load) has never been
+     ordered: applyStoredOrder ran once, and nothing re-ran it. So every
+     registration into a container the user has ordered re-applies the order,
+     debounced to one pass per burst. This was the "9z flake": the tree's
+     draw-order assertion after a reload measured with one row not yet
+     registered, and no later event ever put it in its place. */
+  let orderTimer = 0;
+  function orderSoon() {
+    if (!Object.keys(S.order).length) return;
+    clearTimeout(orderTimer);
+    orderTimer = setTimeout(() => { orderTimer = 0; try { applyStoredOrder(); } catch (e) {} }, 60);
+  }
+
   function onRow(ref, opts) {
     refs.set(ref.group + "/" + ref.id, ref);
+    orderSoon();
     const row = ref.row;
     row.dataset.lsub = (opts && opts.sub) || "";
     row.dataset.uigroup = ref.uiGroup || "";

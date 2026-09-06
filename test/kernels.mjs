@@ -1858,7 +1858,11 @@ const DRAIN_REC = {
   herman_level: 1341.53, herman_ac: 22.18, herman_contrib_ac: 37.90,
   frog_level: 1415.74, frog_contrib_ac: 14.52,
   green_level: 1394.50, green_depth: 3.08, green_contrib_ac: 2.62,
-  herman_off_level: 1343.84
+  herman_off_level: 1343.84,
+  /* v19 §2, recorded from this commit: the 5-acre stream network the
+     accumulation draws, and the biggest accumulation on the site (the last
+     cell before the impoundment leaves through the surveyed south pipe). */
+  stream_mi: 12.10, stream_order: 4, max_acc_ac: 197.82
 };
 
 function secDrainage() {
@@ -2117,6 +2121,86 @@ function secDrainage() {
   row("every sink carries its longest flow path",
       Rs.sinks.filter(s => s.path && s.path.length > 1).length, Rs.sinks.length,
       Rs.sinks.every(s => s.path && s.path.length > 1), "exact");
+
+  /* ---- v19 §2: FLOW ACCUMULATION, and the identity against this map -----
+     The accumulation kernel rebuilds the same filled DEM, the same conduit
+     seeding and the same pointer rules over the same grid, so it must agree
+     with the map above cell for cell. It is checked HERE rather than in its own
+     section because this is the map it is an identity against and it is already
+     built — running the 7-second drainage job a second time inside `--quick`
+     would buy nothing. */
+  console.log("\n§11.8  flow accumulation (v19) against this map");
+  const labFull = { data: R.labels, w: R.w, h: R.h, cell: R.dCell, x0: R.x0, y0: R.y0 };
+  const accJob = m => ({ grid: full(), conduits: cds, captureFt: 3, method: m,
+                         stride: 4, labels: labFull, streamThreshold_ft2: 5 * AC });
+  const [A8, ams8] = timed(() => C.runJob("accum", accJob("d8")).result);
+  budget("accum, D8, 2-ft site grid", ams8, 20000);
+  exact("the D8 field is acyclic", A8.loops, 0);
+  exact("  and complete", A8.flats, 0);
+  near("every square foot leaves the model exactly once",
+       A8.exitTotal_ft2 / AC, A8.surveyedArea_ft2 / AC, 0.001, " ac");
+  near("  over the drainage map's own surveyed ground",
+       A8.surveyedArea_ft2 / AC, R.surveyedArea_ft2 / AC, 0.001, " ac");
+  /* THE ACCEPTANCE TEST (spec §2): what leaves the model at each cell, summed
+     by the label the drainage map gives that cell, IS that outlet's area. */
+  let worstAcc = 0, worstAccId = "";
+  for (const s of R.sinks) {
+    if (s.area_ft2 < AC) continue;
+    const b = A8.byLabel.find(q => q.label === s.label);
+    const d = b ? 100 * Math.abs(b.area_ft2 - s.area_ft2) / s.area_ft2 : 100;
+    if (d > worstAcc) { worstAcc = d; worstAccId = s.id; }
+    row("  " + s.id + ": accumulation = its catchment",
+        b ? +(b.area_ft2 / AC).toFixed(2) : NaN, +(s.area_ft2 / AC).toFixed(2),
+        !!b && d <= 0.5, "+/- 0.5 %", "d=" + d.toFixed(3) + " %");
+  }
+  row("the worst outlet over an acre", worstAcc.toFixed(3) + " % (" + worstAccId + ")",
+      "<= 0.5 %", worstAcc <= 0.5, "+/- 0.5 %",
+      "D8 accumulation is a partition of the same ground the labels partition");
+  /* monotone along Phase 1's own longest flow paths — accumulation may only
+     grow downstream (a conduit leg carries it, it does not shed it) */
+  let mono = 0, monoBad = 0, minStep = Infinity;
+  for (const s of R.sinks) {
+    if (!s.path || s.path.length < 3) continue;
+    const P = C.runJob("accum", { ...accJob("d8"), probes: s.path.map(p => [p[0], p[1]]) }).result.probes;
+    for (let i = 1; i < P.length; i++) {
+      if (!P[i] || !P[i - 1]) continue;
+      mono++;
+      const d = P[i].acc_ft2 - P[i - 1].acc_ft2;
+      if (d < -1e-6) { monoBad++; if (d < minStep) minStep = d; }
+    }
+  }
+  row("accumulation never falls along a Phase 1 flow path", monoBad + " of " + mono,
+      "0 falls", monoBad === 0, "exact",
+      monoBad ? "worst " + minStep.toFixed(0) + " ft2" : "over every sink's longest path");
+  /* the streams, recorded from this commit */
+  row("every stream link ends in a sink, a conduit or a junction",
+      [...new Set(A8.streams.map(q => q.ends))].join(","), "no dead ends",
+      A8.streams.every(q => ["sink", "conduit", "junction"].includes(q.ends)), "exact",
+      A8.streamLinks + " links, " + fmt(A8.streamLength_ft) + " ft above 5 ac");
+  near("the stream network's length (recorded)", A8.streamLength_ft / 5280,
+       DRAIN_REC.stream_mi, 0.05, " mi");
+  exact("its highest Strahler order (recorded)", A8.maxOrder, DRAIN_REC.stream_order);
+  near("the largest accumulation on the site (recorded)", A8.maxAcc_ac,
+       DRAIN_REC.max_acc_ac, 1, " ac");
+  note("stream cells by order: " + JSON.stringify(A8.orders));
+  /* D-infinity on the same ground: the identity is looser by construction —
+     the flow disperses across facets rather than down one of eight directions,
+     so a catchment's boundary is a gradient rather than a line. */
+  const [Ad, amsd] = timed(() => C.runJob("accum", accJob("dinf")).result);
+  budget("accum, D-infinity, 2-ft site grid", amsd, 20000);
+  exact("the D-infinity field is acyclic too", Ad.loops, 0);
+  let worstD = 0, worstDid = "";
+  for (const s of R.sinks) {
+    if (s.area_ft2 < AC) continue;
+    const b = Ad.byLabel.find(q => q.label === s.label);
+    const d = b ? 100 * Math.abs(b.area_ft2 - s.area_ft2) / s.area_ft2 : 100;
+    if (d > worstD) { worstD = d; worstDid = s.id; }
+  }
+  row("D-infinity agrees with the map to 3 %", worstD.toFixed(2) + " % (" + worstDid + ")",
+      "<= 3 %", worstD <= 3, "+/- 3 %",
+      "dispersion across facets: the boundary is a gradient, not a line");
+  near("  and it still conserves the site", Ad.exitTotal_ft2 / AC,
+       Ad.surveyedArea_ft2 / AC, 0.001, " ac");
 }
 
 /* ============================ 12. RUNOFF ================================= */
@@ -2206,6 +2290,11 @@ function runoffJobFor(labels, cats, o) {
   const hours = o.hours == null ? 24 : o.hours;
   return {
     labels, cover: o.cover === null ? null : cover,
+    /* v19 §2 "Phase 2 uses it": the flow-accumulation raster the TR-55 channel
+       test reads. js/runoff.js asks js/accum.js for the D8 raster — the one
+       whose values are exactly the contributing area the 5-acre rule names, and
+       the one that reproduces Phase 1's own outlet areas to 0.000 %. */
+    accum: o.accum === null ? null : (o.accum || null),
     classes: meta.classes.map(c => ({ id: c.id, key: c.key, hsg: c.hsg, c: c.c,
                                       n_sheet: c.n_sheet, paved: c.paved, cn: c.cn })),
     hsgOf: o.hsgOf || {}, overrides: o.overrides || [],
@@ -2303,14 +2392,31 @@ const RUNOFF_REC = {
   /* the storm: the PROVISIONAL 25-year 24-hour depth, NRCS Type IA, over the
      Phase 1 catchments sampled at 8 ft. Replace data/atlas14_sbmm.csv and every
      one of these moves — re-record them and say so in the commit. */
-  P_in: 6.4, area_ac: 978.49, cn: 82.2, volume_acft: 356.69, qPeak_cfs: 1396.3,
+  P_in: 6.4, area_ac: 978.49, cn: 82.2, volume_acft: 356.69, qPeak_cfs: 1034.8,
   outlets: {
-    /* id: volume (ac-ft) and the SCS peak (cfs). All three are over 200 ac, so
-       the Rational method is not reported for any of them — the rule doing its
-       job rather than a missing number. */
-    "lake": { vol: 146.49, peak: 565.4 },
-    "off": { vol: 103.87, peak: 428.6 },
-    "outfall:storm_main_lower": { vol: 106.34, peak: 425.0 }
+    /* id: volume (ac-ft), Tc (min) and the SCS peak (cfs). All three are over
+       200 ac, so the Rational method is not reported for any of them — the rule
+       doing its job rather than a missing number.
+
+       RE-RECORDED AT v19 (spec §2, "Phase 2 uses it"). The volumes and the
+       curve numbers did not move and could not: they do not depend on the time
+       of concentration. The Tc's and the peaks did, because the TR-55 channel
+       test now reads the REAL flow accumulation along the path instead of v14
+       Phase 2's linear-in-path-length proxy, and the accumulation says the top
+       of a long path carries a few acres rather than a proportional share of a
+       400-acre catchment — so those stretches are shallow concentrated, not
+       channel, the water takes longer to arrive and the peak is lower:
+
+         Clear Lake — direct overland   Tc 21.2 -> 54.6 min, peak 565.4 -> 438.9
+         Off the surveyed ground        Tc  6.0 ->  6.5 min, peak 428.6 -> 427.7
+         Clear Lake outfall             Tc 17.1 -> 27.8 min, peak 425.0 -> 392.7
+         site total                             peak 1,396.3 -> 1,034.8 cfs
+
+       None of the three ponds' outcomes changed: the impoundment still peaks at
+       1,337.27 ft and still never reaches its 1,341.55-ft discharge invert. */
+    "lake": { vol: 146.49, tc: 54.6, peak: 438.9 },
+    "off": { vol: 103.87, tc: 6.5, peak: 427.7 },
+    "outfall:storm_main_lower": { vol: 106.34, tc: 27.8, peak: 392.7 }
   },
   ponds: {
     /* rim and conduit are the v13 goldens (they are the `overtop` kernel's, not
@@ -2503,7 +2609,16 @@ function secRunoff() {
   const cats = D.sinks.map(s => ({ label: s.label, kind: s.kind, name: s.id,
                                    area_ft2: s.area_ft2, path: lift(s.path) }));
   const labels = { data: D.labels, w: D.w, h: D.h, cell: D.dCell, x0: D.x0, y0: D.y0 };
-  const [RO, rms] = timed(() => C.runJob("runoff", runoffJobFor(labels, cats, { ari: 25, hours: 24 })).result);
+  /* v19: the accumulation raster the channel-flow test reads, built the way
+     js/accum.js builds it (the same site grid, the same display stride) */
+  const [AC8, ams] = timed(() => C.runJob("accum",
+    { grid: T.gridSpec(site, null, 0), conduits: cds, captureFt: 3, method: "d8",
+      stride: 4, streamThreshold_ft2: 5 * AC }).result);
+  note(`flow accumulation: ${(AC8.maxAcc_ac).toFixed(1)} ac at the largest cell, `
+     + `${AC8.streamLinks} stream links above 5 ac (${(ams / 1000).toFixed(1)} s)`);
+  const accR = { data: AC8.acc, w: AC8.w, h: AC8.h, cell: AC8.dCell, x0: AC8.x0, y0: AC8.y0 };
+  const [RO, rms] = timed(() => C.runJob("runoff",
+    runoffJobFor(labels, cats, { ari: 25, hours: 24, accum: accR })).result);
   budget("runoff, the whole site", rms, 20000);
   const by = id => RO.catchments.find(c => c.label === (D.sinks.find(s => s.id === id) || {}).label);
 
@@ -2523,6 +2638,12 @@ function secRunoff() {
         !!c && Math.abs(c.volume_acft - ref.vol) <= 0.5, "+/- 0.5 ac-ft",
         c ? `CN ${fmt(c.cn, 0)}, Q ${fmt(c.Q_in, 2)} in, Tc ${c.tc_min} min, SCS ${fmt(c.qPeak_cfs, 0)} cfs` : "missing");
     if (c) near("  " + id + " peak, SCS (recorded)", c.qPeak_cfs, ref.peak, Math.max(1, ref.peak * 0.03), " cfs");
+    if (c && ref.tc != null) {
+      near("  " + id + " Tc, from the real accumulation (recorded)", c.tc_min, ref.tc, 0.5, " min");
+      row("    and it says which upstream area it used", c.tcAccum ? "accumulation" : "path-length proxy",
+          "accumulation", c.tcAccum === true, "exact",
+          "assumptions.upstreamArea: " + RO.assumptions.upstreamArea);
+    }
   }
   /* the identity every catchment table has to satisfy: the volumes are a
      partition of the site's, because the catchments are */
@@ -2540,7 +2661,7 @@ function secRunoff() {
     path: [[p.entry[0], p.entry[1], T.elev(p.entry[0], p.entry[1])]]
   }));
   const first = { data: D.first, w: D.w, h: D.h, cell: D.dCell, x0: D.x0, y0: D.y0 };
-  const RF = C.runJob("runoff", runoffJobFor(first, firstCats, { ari: 25, hours: 24 })).result;
+  const RF = C.runJob("runoff", runoffJobFor(first, firstCats, { ari: 25, hours: 24, accum: accR })).result;
   const inflowOf = via => {
     const p = D.ponds.find(q => q.via === via);
     if (!p) return null;
@@ -2653,6 +2774,404 @@ function secRunoff() {
   }
 }
 
+/* ============================ 13. ACCUM ================================== */
+/* docs/V19_HYDRO3_SPEC.md §2. Flow accumulation — D-infinity (Tarboton 1997)
+   over the filled DEM with the drainage map's own pointer field as the
+   tie-breaker, and plain D8 beside it because the identity is exact only for
+   D8. The call site mirrored is js/accum.js jobFor().
+
+   WHERE THE SITE-WIDE IDENTITY IS: in §11.8, inside the `drainage` section.
+   It is an identity AGAINST the Phase 1 map, that section already holds that
+   map in memory, and putting it here would run the 7-second drainage job a
+   second time inside `--quick`. What is here is everything that can be proved
+   on a synthetic surface in a second: the conservation identity, the two
+   methods' own arithmetic, Tarboton's proportions, and the Strahler orders. */
+
+function accGrid(w, h, cell, f) {
+  const z = new Float32Array(w * h);
+  for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) z[j * w + i] = f(i, j);
+  return { x0: 0, y0: 0, cell, w, h, i0: 0, j0: 0, sw: w, sh: h, z };
+}
+
+function secAccum() {
+  console.log("\n§13.1  conservation — every square foot leaves the model exactly once");
+  /* A plane tilted to the east. Every interior cell drains east, so the
+     accumulation at column i is (i cells) x the cell area — the edge column
+     drains OFF the model and contributes nothing, which is drainage's own §4
+     rule and the reason the count starts at 1. */
+  {
+    const w = 40, h = 30, cell = 10, a2 = cell * cell;
+    const grid = () => accGrid(w, h, cell, (i) => 100 - i * 0.5);
+    for (const method of ["d8", "dinf"]) {
+      const [R, ms] = timed(() => C.runJob("accum",
+        { grid: grid(), method, stride: 1, probes: [[38 * cell, 15 * cell], [20 * cell, 15 * cell]] }).result);
+      exact(method + ": the method it was asked for", R.method, method);
+      near(method + ": what leaves = the surveyed area", R.exitTotal_ft2, R.surveyedArea_ft2, 1e-6, " ft2");
+      near("  and that is the whole plane", R.surveyedArea_ft2, w * h * a2, 1e-6, " ft2");
+      near("  accumulation at column 38", R.probes[0].acc_ft2, 38 * a2, 1e-6, " ft2");
+      near("  accumulation at column 20", R.probes[1].acc_ft2, 20 * a2, 1e-6, " ft2");
+      exact("  no loops", R.loops, 0);
+      exact("  no flats", R.flats, 0);
+      if (method === "d8") budget("accum, 1,200 synthetic cells", ms, 2000);
+    }
+  }
+
+  console.log("\n§13.2  D-infinity's proportions are Tarboton's");
+  /* On a plane tilted at angle `a` into the north-east quadrant the flow
+     direction IS `a` everywhere, so the water leaving a square domain splits
+     between its north and east edges in the ratio sin a : cos a. That is a
+     property of the FIELD, not of one cell, so it can be measured without
+     reaching inside the kernel: the accumulation of a boundary cell is
+     everything that left through it.
+
+     D8 cannot produce it — it has eight directions and would answer 0, a half
+     or 1 — so the same measurement on the same surface is reported for both,
+     which is the whole reason the app offers D-infinity at all. */
+  {
+    const n = 41, cell = 10;
+    const edgeSplit = (deg, method) => {
+      const a = deg * Math.PI / 180;
+      const grid = accGrid(n, n, cell, (i, j) => 100 - (i * Math.cos(a) + j * Math.sin(a)) * 0.4);
+      const probes = [];
+      for (let j = 0; j < n; j++) probes.push([(n - 1) * cell, j * cell]);   // the east edge
+      for (let i = 0; i < n - 1; i++) probes.push([i * cell, (n - 1) * cell]); // the north edge, corner once
+      const R = C.runJob("accum", { grid, method, stride: 1, probes }).result;
+      let east = 0, north = 0;
+      for (let k = 0; k < probes.length; k++) {
+        const v = R.probes[k] ? R.probes[k].acc_ft2 : 0;
+        if (k < n) east += v; else north += v;
+      }
+      return { f: north / (north + east), loops: R.loops };
+    };
+    for (const deg of [0, 22.5, 45]) {
+      const a = deg * Math.PI / 180;
+      const want = Math.sin(a) / (Math.sin(a) + Math.cos(a));
+      const D = edgeSplit(deg, "dinf"), E = edgeSplit(deg, "d8");
+      near(`plane at ${deg} deg: the north edge's share`, +D.f.toFixed(3), +want.toFixed(3), 0.05, "");
+      note(`  D8 answers ${E.f.toFixed(3)} on the same surface `
+         + `(eight directions; ${deg === 22.5 ? "the honest answer is between two of them" : "here it happens to agree"})`);
+      exact("  no loops on the plane", D.loops, 0);
+    }
+  }
+
+  console.log("\n§13.3  divergence: D-infinity spreads where D8 cannot");
+  /* Tarboton's own motivating case. On a cone every cell drains radially, and
+     D8 can only pick one of eight directions — so it braids the dispersion into
+     artificial channels and reports a maximum accumulation far above the truth.
+     D-infinity must report LESS on the same surface. */
+  {
+    const n = 61, cell = 5;
+    const grid = () => accGrid(n, n, cell, (i, j) => 100 - Math.hypot(i - 30, j - 30) * 0.5);
+    const A = C.runJob("accum", { grid: grid(), method: "d8", stride: 1 }).result;
+    const B = C.runJob("accum", { grid: grid(), method: "dinf", stride: 1 }).result;
+    row("D-infinity's peak on a cone is below D8's", fmt(B.maxAcc_ft2) + " ft2",
+        "< " + fmt(A.maxAcc_ft2) + " ft2", B.maxAcc_ft2 < A.maxAcc_ft2, "identity",
+        "the D8 braiding this method exists to remove");
+    near("both still conserve the plane", B.exitTotal_ft2, B.surveyedArea_ft2, 1e-6, " ft2");
+    near("  and so does D8", A.exitTotal_ft2, A.surveyedArea_ft2, 1e-6, " ft2");
+  }
+
+  console.log("\n§13.4  streams and Strahler order");
+  /* Two symmetric valleys meeting head to head: each is a first-order channel
+     and what they join into is second order. The threshold is set so that only
+     the two valley floors and their junction qualify. */
+  {
+    const w = 121, h = 81, cell = 10;
+    /* a Y: two channels running south-east and south-west into one running south */
+    const grid = accGrid(w, h, cell, (i, j) => {
+      const trunk = Math.abs(i - 60) * 0.5 + j * 0.15;
+      const armL = Math.abs((i - 60) + (j - 40) * 0.8) * 0.5 + j * 0.15;
+      const armR = Math.abs((i - 60) - (j - 40) * 0.8) * 0.5 + j * 0.15;
+      return 100 + (j > 40 ? Math.min(armL, armR) : trunk);
+    });
+    const R = C.runJob("accum", { grid, method: "d8", stride: 1,
+      streamThreshold_ft2: 30000 }).result;
+    row("the Y has channels", R.streamCount + " links", ">= 3", R.streamCount >= 3, ">= 3",
+        `${R.streamCells} stream cells, ${fmt(R.streamLength_ft)} ft, orders ${JSON.stringify(R.orders)}`);
+    row("  and a second-order trunk below the junction", R.maxOrder, ">= 2", R.maxOrder >= 2, ">= 2");
+    row("  every link ends in a sink, a conduit or a junction",
+        [...new Set(R.streams.map(s => s.ends))].join(","), "no dead ends",
+        R.streams.every(s => ["sink", "conduit", "junction"].includes(s.ends)), "exact");
+    row("  accumulation rises down every link", R.streams.filter(s => s.accMax_ft2 >= s.accMin_ft2).length,
+        R.streams.length, R.streams.every(s => s.accMax_ft2 >= s.accMin_ft2), "exact");
+    near("  the threshold is reported in acres", R.threshold_ac, 30000 / AC, 1e-9, " ac");
+  }
+
+  console.log("\n§13.5  a conduit carries the accumulation past the ground");
+  /* The v12 rule, in accumulation form: everything reaching a capture cell is
+     delivered to the conduit's outlet and carries on from there. A pipe from a
+     closed bowl to open ground must move that bowl's whole area across the
+     divide — and with the same conduit BROKEN (absent from the job) it must
+     not, which is the "bit-identical with conduits absent" rule the storm
+     section states for flowpath. */
+  {
+    const w = 60, h = 30, cell = 10, a2 = cell * cell;
+    /* a bowl on the left (a closed depression) and a plain falling east on the
+       right, with a ridge between them */
+    const grid = () => accGrid(w, h, cell, (i, j) => {
+      if (i < 24) return 100 + Math.hypot(i - 12, j - 15) * 0.4;      // bowl, floor at (12,15)
+      if (i < 28) return 130 - (i - 24) * 0.5;                        // the ridge
+      return 120 - (i - 28) * 0.5;                                    // the plain
+    });
+    const cd = [{ id: "pipe", ix: 12 * cell, iy: 15 * cell, rim: 100.0,
+                  ox: 40 * cell, oy: 15 * cell, next: null, outfall: false }];
+    const A = C.runJob("accum", { grid: grid(), method: "d8", stride: 1, conduits: cd, captureFt: 3,
+      probes: [[40 * cell, 15 * cell], [12 * cell, 15 * cell]] }).result;
+    const B = C.runJob("accum", { grid: grid(), method: "d8", stride: 1,
+      probes: [[40 * cell, 15 * cell], [12 * cell, 15 * cell]] }).result;
+    row("the pipe delivers the bowl to its outlet",
+        fmt(A.probes[0].acc_ft2 / a2) + " cells", "> 200 cells",
+        A.probes[0].acc_ft2 / a2 > 200, "identity",
+        `the bowl gathers ${fmt(A.probes[1].acc_ft2 / a2)} cells at its floor`);
+    row("  with no pipe the outlet has only its own hillside",
+        fmt(B.probes[0].acc_ft2 / a2) + " cells", "< " + fmt(A.probes[0].acc_ft2 / a2),
+        B.probes[0].acc_ft2 < A.probes[0].acc_ft2, "identity");
+    exact("  the pipe is reported", A.conduits, 1);
+    row("  and its capture cells are counted", A.pipeCells + " cells", ">= 1",
+        A.pipeCells >= 1, ">= 1");
+    near("  both still conserve", A.exitTotal_ft2, A.surveyedArea_ft2, 1e-6, " ft2");
+  }
+
+  console.log("\n§13.6  the display raster keeps the channels");
+  /* A decimation that SAMPLES loses a one-cell-wide channel entirely, so the
+     raster is decimated by the MAXIMUM over each block. On the Y above, the
+     decimated raster's own maximum must still be the full-resolution one. */
+  {
+    const w = 121, h = 81, cell = 10;
+    const mk = () => accGrid(w, h, cell, (i, j) => 100 + Math.abs(i - 60) * 0.5 + j * 0.15);
+    const full = C.runJob("accum", { grid: mk(), method: "d8", stride: 1 }).result;
+    const dec = C.runJob("accum", { grid: mk(), method: "d8", stride: 4 }).result;
+    near("the decimated raster's peak is the real peak",
+         Math.max.apply(null, Array.from(dec.acc)), full.maxAcc_ft2, 1e-6, " ft2");
+    exact("  its width", dec.w, Math.ceil(w / 4));
+    exact("  the channel mask is the same shape", dec.channelMask.length, dec.acc.length);
+    near("  specific catchment area is accumulation per unit width",
+         dec.sca[0] * dec.cell, dec.acc[0], 1e-6, " ft2");
+  }
+}
+
+/* ========================= 14. HYDRAULICS ================================ */
+/* docs/V19_HYDRO3_SPEC.md §3. Provisional until the invert survey arrives, and
+   the kernel says so on every record it cannot compute. The call site mirrored
+   is js/pipes.js jobFor(). Every reference here is either the published
+   equation restated in full or an identity of the kernel's own construction.
+
+   ONE DEVIATION, stated rather than hidden: the spec asks for HEC-22 checked
+   "against its worked example". No grate on this site has a surveyed size — the
+   whole point of §3 is that the survey has not happened — so there is no
+   dimensioned case from this project to reproduce, and quoting a number out of
+   a manual this repo does not ship would be a reference nobody here can check.
+   What is checked instead is the equation itself, written out at the call:
+   the sag weir and orifice ratings, the depth at which one takes over from the
+   other, and the on-grade interception's own frontal/side split. */
+
+function secHydraulics() {
+  console.log("\n§14.1  Manning full-flow capacity");
+  /* Q = (1.49/n) A R^(2/3) S^(1/2), circular pipe flowing full: A = pi D^2/4,
+     R = D/4. The reference is that expression, evaluated here. */
+  {
+    const cases = [[24, 0.012, 0.005], [18, 0.013, 0.01], [36, 0.024, 0.002]];
+    const J = { conduits: cases.map((c, k) => ({
+      id: "c" + k, from: "a" + k, to: "b" + k, length_ft: 100,
+      diameter_in: c[0], n: c[1], slope: c[2] })), nodes: [] };
+    const R = C.runJob("hydraulics", J).result;
+    for (let k = 0; k < cases.length; k++) {
+      const [din, n, S] = cases[k];
+      const D = din / 12, A = Math.PI * D * D / 4, Rh = D / 4;
+      const Q = (1.49 / n) * A * Math.pow(Rh, 2 / 3) * Math.sqrt(S);
+      near(`${din} in, n ${n}, S ${S}`, R.conduits[k].capacity_cfs, +Q.toFixed(2), 0.01, " cfs");
+      near("  full-flow velocity Q/A", R.conduits[k].vFull_fps, +(Q / A).toFixed(2), 0.01, " fps");
+    }
+    /* the 24-in HDPE case at 0.5 %, recorded so the number can be quoted */
+    near("24 in n 0.012 S 0.005 (recorded)", R.conduits[0].capacity_cfs, 17.38, 0.01, " cfs");
+    exact("nothing is unknown when everything is given", R.unknownConduits, 0);
+  }
+
+  console.log("\n§14.2  nothing is invented");
+  {
+    const J = { conduits: [
+      { id: "no_d", from: "a", to: "b", length_ft: 100, diameter_in: null, n: 0.012, slope: 0.01 },
+      { id: "no_s", from: "b", to: "c", length_ft: 100, diameter_in: 24, n: 0.012, slope: null },
+      { id: "no_n", from: "c", to: "d", length_ft: 100, diameter_in: 24, n: null, slope: 0.01 },
+      { id: "flat", from: "d", to: "e", length_ft: 100, diameter_in: 24, n: 0.012, slope: 0,
+        slope_provisional: true, slope_source: "rim" }
+    ], nodes: [] };
+    const R = C.runJob("hydraulics", J).result;
+    for (const c of R.conduits)
+      row(c.id + ": no capacity, and it says why", c.capacity_cfs === null ? c.unknown : c.capacity_cfs,
+          "null + a reason", c.capacity_cfs === null && !!c.unknown, "exact");
+    exact("all four are unknown", R.unknownConduits, 4);
+    row("a rim-derived slope is flagged provisional",
+        R.conduits[3].slope_provisional ? "provisional (" + R.conduits[3].slope_source + ")" : "no",
+        "provisional (rim)", R.conduits[3].slope_provisional === true, "exact");
+  }
+
+  console.log("\n§14.3  the HGL / EGL pass closes");
+  /* Two pipes in series into a free outfall at a known tailwater. The energy
+     grade rises upstream by exactly the friction loss over the reach plus the
+     entrance loss, and by nothing else — that is the identity §3 asks for. */
+  {
+    const J = {
+      conduits: [
+        { id: "upper", from: "n1", to: "n2", length_ft: 200, diameter_in: 24, n: 0.012,
+          slope: 0.005, inflow_cfs: 12, next: "lower" },
+        { id: "lower", from: "n2", to: "out", length_ft: 400, diameter_in: 24, n: 0.012,
+          slope: 0.004, inflow_cfs: 15, next: null }
+      ],
+      nodes: [{ id: "n1", rim_ft: 1360, invert_ft: 1350 },
+              { id: "n2", rim_ft: 1352, invert_ft: 1349 },
+              { id: "out", rim_ft: 1340, invert_ft: 1338 }],
+      tailwater_ft: 1339, entranceK: 0.5
+    };
+    const R = C.runJob("hydraulics", J).result;
+    let worstE = 0;
+    for (const e of R.energyChecks) worstE = Math.max(worstE, Math.abs(e.dE - e.losses));
+    row("sum of losses = the rise in energy grade", worstE.toExponential(2), "< 1e-6",
+        worstE < 1e-6, "1e-6 ft", R.energyChecks.length + " reaches");
+    const lower = R.conduits.find(c => c.id === "lower");
+    const upper = R.conduits.find(c => c.id === "upper");
+    near("the outfall reach starts at the tailwater", lower.egl_dn_ft, 1339, 1e-6, " ft");
+    /* the friction slope at the ACTUAL discharge, written out */
+    const D = 2, A = Math.PI, Rp = Math.pow(0.5, 2 / 3);
+    const Sf = Math.pow(15 * 0.012 / (1.49 * A * Rp), 2);
+    near("  its friction loss is Sf x L", lower.hf_ft, +(Sf * 400).toFixed(4), 1e-4, " ft");
+    near("  its entrance loss is 0.5 V^2/2g", lower.minor_ft,
+         +(0.5 * Math.pow(15 / A, 2) / (2 * 32.174)).toFixed(4), 1e-4, " ft");
+    row("the grade rises going upstream", fmt(upper.egl_up_ft) + " ft",
+        "> " + fmt(lower.egl_dn_ft) + " ft", upper.egl_up_ft > lower.egl_dn_ft, "identity");
+    row("  and nothing is surcharged at 15 cfs in a 17.4-cfs pipe",
+        R.surcharged.length, 0, R.surcharged.length === 0, "exact",
+        "ratio " + fmt(lower.ratio));
+    near("  the capacity ratio is Q / capacity", lower.ratio,
+         +(15 / lower.capacity_cfs).toFixed(3), 0.001, "");
+  }
+
+  console.log("\n§14.4  surcharge is flagged by construction");
+  {
+    const J = {
+      conduits: [{ id: "small", from: "n1", to: "out", length_ft: 400, diameter_in: 12,
+                   n: 0.013, slope: 0.002, inflow_cfs: 40, next: null }],
+      nodes: [{ id: "n1", rim_ft: 1345, invert_ft: 1341 }, { id: "out", rim_ft: 1340 }],
+      tailwater_ft: 1341
+    };
+    const R = C.runJob("hydraulics", J).result;
+    const c = R.conduits[0];
+    row("40 cfs in a 12-in pipe is over capacity", fmt(c.ratio),
+        "> 1", c.ratio > 1, "identity", "capacity " + fmt(c.capacity_cfs) + " cfs");
+    row("  and the hydraulic grade stands above the rim",
+        c.surcharged ? "surcharged by " + fmt(c.surcharge_ft) + " ft" : "no", "surcharged",
+        c.surcharged === true, "exact", "HGL " + fmt(c.hgl_up_ft) + " ft, rim 1345 ft");
+    exact("  the run names it", R.surcharged.join(","), "small");
+  }
+
+  console.log("\n§14.5  grate inlets (HEC-22 forms)");
+  /* IN A SAG: a weir until the grate drowns, an orifice after, capacity the
+     smaller of the two — Qw = Cw P d^1.5 (Cw 3.0) and Qo = Co A (2gd)^0.5
+     (Co 0.67). Both are written out here at the call. */
+  {
+    const grate = { P_ft: 6, A_ft2: 2, length_ft: 2 };
+    const J = { conduits: [], nodes: [], inlets: [
+      { id: "shallow", form: "sag", grate, depth_ft: 0.4 },
+      { id: "deep", form: "sag", grate, depth_ft: 1.2 },
+      { id: "nosize", form: "sag", grate: null, depth_ft: 0.4 },
+      { id: "road", form: "ongrade", grate, V_fps: 4, V0_fps: 3, Sx: 0.02, E0: 0.7, Q_cfs: 3 }
+    ] };
+    const R = C.runJob("hydraulics", J).result;
+    const g = 32.174;
+    const qw = d => 3.0 * 6 * Math.pow(d, 1.5), qo = d => 0.67 * 2 * Math.sqrt(2 * g * d);
+    const sh = R.inlets[0], dp = R.inlets[1];
+    near("0.4 ft ponded: weir rating", sh.weir_cfs, +qw(0.4).toFixed(2), 0.01, " cfs");
+    near("  its orifice rating", sh.orifice_cfs, +qo(0.4).toFixed(2), 0.01, " cfs");
+    exact("  the weir governs", sh.mode, "weir");
+    exact("1.2 ft ponded: the orifice governs", dp.mode, "orifice");
+    near("  and the capacity is the orifice rating", dp.capacity_cfs, +qo(1.2).toFixed(2), 0.01, " cfs");
+    row("the transition is where the two ratings cross",
+        sh.weir_cfs < sh.orifice_cfs && dp.orifice_cfs < dp.weir_cfs ? "yes" : "no", "yes",
+        sh.weir_cfs < sh.orifice_cfs && dp.orifice_cfs < dp.weir_cfs, "identity");
+    row("a grate with no surveyed size has no capacity", R.inlets[2].unknown,
+        "grate size not surveyed", R.inlets[2].capacity_cfs === null && !!R.inlets[2].unknown, "exact");
+    /* ON GRADE: Qi = Q [Rf E0 + Rs (1 - E0)], Rf = 1 - 0.09 (V - V0) clamped,
+       Rs = 1 / (1 + 0.15 V^1.8 / (Sx L^2.3)) */
+    const rd = R.inlets[3];
+    const Rf = 1 - 0.09 * (4 - 3), Rs = 1 / (1 + 0.15 * Math.pow(4, 1.8) / (0.02 * Math.pow(2, 2.3)));
+    near("on grade: the frontal-flow factor", rd.Rf, +Rf.toFixed(4), 1e-4, "");
+    near("  the side-flow factor", rd.Rs, +Rs.toFixed(4), 1e-4, "");
+    near("  the interception", rd.capacity_cfs, +((Rf * 0.7 + Rs * 0.3) * 3).toFixed(2), 0.01, " cfs");
+    row("  and it cannot exceed the approach flow", fmt(rd.capacity_cfs) + " cfs",
+        "<= 3 cfs", rd.capacity_cfs <= 3.0001, "identity");
+    /* Rf is clamped: a gutter slower than the splash-over velocity loses none */
+    const slow = C.runJob("hydraulics", { conduits: [], nodes: [], inlets: [
+      { id: "slow", form: "ongrade", grate, V_fps: 2, V0_fps: 3, Sx: 0.02, E0: 1, Q_cfs: 3 }] }).result.inlets[0];
+    near("  below the splash-over velocity the frontal flow is all caught", slow.Rf, 1, 1e-9, "");
+  }
+
+  console.log("\n§14.6  the site's own network — what is actually known");
+  /* Not a golden: a statement of what the survey has and has not delivered, so
+     the day an invert CSV lands the difference is visible in this log. */
+  {
+    const NET = T.readJSON("data/storm_network.json");
+    const withD = NET.conduits.filter(c => c.size_in != null).length;
+    const withInv = NET.nodes.filter(n => n.invert_ft != null).length;
+    note(`${NET.conduits.length} conduits, ${withD} with a diameter in the CAD, `
+       + `${NET.nodes.length} nodes, ${withInv} with a surveyed invert`);
+    row("the two Jacobs pipes are the ones with an invert", withInv, 2, withInv === 2, "exact",
+        "everything else is 'unknown — survey pending' until data/storm_survey.csv arrives");
+    const M = stormModel();
+    const J = pipeJobFrom(NET, M, null);
+    const R = C.runJob("hydraulics", J).result;
+    row("every conduit is answered, none is guessed", R.totalConduits, NET.conduits.length,
+        R.totalConduits === NET.conduits.length, "exact",
+        `${R.unknownConduits} of them "unknown — survey pending"`);
+    row("  and a capacity appears only where the CAD gives a diameter",
+        R.conduits.filter(c => c.capacity_cfs != null).length + " with capacity",
+        "<= " + withD, R.conduits.filter(c => c.capacity_cfs != null).length <= withD, "identity");
+  }
+}
+
+/* js/pipes.js jobFor() — the conduit records the hydraulics kernel is given.
+   The slope comes from the surveyed inverts where BOTH ends have one, else from
+   the lidar rims and flagged provisional; the diameter and the Manning n come
+   from the CAD where it says one and are null everywhere else. */
+const PIPE_N = { "corrugated HDPE": 0.024, "HDPE": 0.012, "RCP": 0.013, "CMP": 0.024 };
+function pipeJobFrom(NET, M, flows) {
+  const byId = Object.fromEntries(NET.nodes.map(n => [n.id, n]));
+  const nextOf = {};
+  for (const c of NET.conduits) {
+    const nx = NET.conduits.find(q => q.from === c.to && q.id !== c.id);
+    nextOf[c.id] = nx ? nx.id : null;
+  }
+  const elev = id => {
+    const n = byId[id];
+    if (!n) return { z: null, surveyed: false };
+    if (n.invert_ft != null) return { z: n.invert_ft, surveyed: true };
+    return { z: M.rims[id], surveyed: false };
+  };
+  return {
+    conduits: NET.conduits.map(c => {
+      const a = elev(c.from), b = elev(c.to);
+      const L = c.length_ft || 0;
+      /* a slope needs two elevations of the SAME kind (js/pipes.js jobFor): one
+         surveyed invert against one lidar ground is the pipe against the top of
+         the sandbags, and comes out adverse */
+      const mixed = (a.z != null && b.z != null) && (a.surveyed !== b.surveyed);
+      const S = (a.z != null && b.z != null && L > 0 && !mixed) ? (a.z - b.z) / L : null;
+      return { id: c.id, from: c.from, to: c.to, length_ft: L,
+               diameter_in: c.size_in == null ? null : c.size_in,
+               n: c.material && PIPE_N[c.material] != null ? PIPE_N[c.material] : null,
+               material: c.material || null,
+               slope: S,
+               slope_source: mixed ? "mixed invert and lidar ground — not a slope"
+                                   : (a.surveyed && b.surveyed) ? "invert" : "rim",
+               slope_provisional: !(a.surveyed && b.surveyed),
+               inflow_cfs: flows ? (flows[c.id] == null ? null : flows[c.id]) : null,
+               next: nextOf[c.id] };
+    }),
+    nodes: NET.nodes.map(n => ({ id: n.id, kind: n.kind, rim_ft: M.rims[n.id],
+                                 invert_ft: n.invert_ft == null ? null : n.invert_ft })),
+    inlets: [], entranceK: 0.5
+  };
+}
+
 /* ============================== run ====================================== */
 const SECTIONS = [
   { key: "volume", run: secVolume },
@@ -2667,7 +3186,9 @@ const SECTIONS = [
   { key: "storm", run: secStorm },
   { key: "water3d", run: secWater3d },
   { key: "drainage", run: secDrainage },
-  { key: "runoff", run: secRunoff }
+  { key: "runoff", run: secRunoff },
+  { key: "accum", run: secAccum },
+  { key: "hydraulics", run: secHydraulics }
 ];
 
 if (listOnly) {
@@ -2678,13 +3199,13 @@ if (listOnly) {
 const C = loadCompute();
 const Delaunay = loadDelaunay();
 console.log("SBMM kernel harness — js/compute.js VERSION " + C.VERSION +
-            (C.VERSION === 9 ? "" : "  (!! expected 9)"));
-if (C.VERSION !== 9) { fails++; checks++; }
+            (C.VERSION === 10 ? "" : "  (!! expected 10)"));
+if (C.VERSION !== 10) { fails++; checks++; }
 
 /* every kernel runJob dispatches must have a section here (V11 spec §2.4) */
 const COVERED = ["volume", "isopach", "raster", "contours", "design", "balance", "sections",
                  "wand", "cbound", "toecrest", "stands", "trees", "flowpath", "overtop", "catchment",
-                 "drainage", "runoff"];
+                 "drainage", "runoff", "accum", "hydraulics"];
 {
   const src = fs.readFileSync(path.join(REPO, "js", "compute.js"), "utf8");
   const dispatched = [...src.matchAll(/if \(kind === "([a-z]+)"\) return /g)].map(m => m[1]);

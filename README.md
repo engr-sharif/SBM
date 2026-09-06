@@ -1415,10 +1415,23 @@ feature, so it saves in the session with everything else.
 
 | catchment | acres | CN | Q | volume | Tc | Rational | SCS peak |
 |---|---|---|---|---|---|---|---|
-| Clear Lake — direct overland | 403.05 | 82.0 | 4.36 in | 146.49 ac-ft | 21.2 min | over 200 ac | 565 cfs |
-| Off the surveyed ground | 293.45 | 81.0 | 4.25 in | 103.87 ac-ft | 6.0 min | over 200 ac | 429 cfs |
-| Clear Lake outfall (storm network) | 281.99 | 83.6 | 4.53 in | 106.34 ac-ft | 17.1 min | over 200 ac | 425 cfs |
-| **site** | **978.49** | **82.2** | — | **356.69 ac-ft** | — | — | **1,396 cfs** |
+| Clear Lake — direct overland | 403.05 | 82.0 | 4.36 in | 146.49 ac-ft | 54.6 min | over 200 ac | 439 cfs |
+| Off the surveyed ground | 293.45 | 81.0 | 4.25 in | 103.87 ac-ft | 6.5 min | over 200 ac | 428 cfs |
+| Clear Lake outfall (storm network) | 281.99 | 83.6 | 4.53 in | 106.34 ac-ft | 27.8 min | over 200 ac | 393 cfs |
+| **site** | **978.49** | **82.2** | — | **356.69 ac-ft** | — | — | **1,035 cfs** |
+
+**The times of concentration and the peaks moved at v19, and the volumes did
+not.** TR-55 puts a flow path into channel flow once more than 5 acres drain to
+it, and until Phase 3 this app had no flow-accumulation raster to ask — it
+approximated the upstream area as the catchment's area times the fraction of the
+path above the point, said so on the card, and named the real raster as a Phase 3
+item. Phase 3 delivered it, and the real accumulation says the top of a long path
+carries a few acres rather than a proportional share of a 400-acre catchment. So
+those stretches are shallow concentrated rather than channel, the water takes
+longer to arrive, and the peak is lower: Clear Lake 21.2 → 54.6 min and 565 → 439
+cfs, the outfall 17.1 → 27.8 min and 425 → 393 cfs, the site 1,396 → 1,035 cfs.
+Runoff volume and curve number cannot move with Tc and did not. No pond outcome
+changed.
 
 | pond | today | peak stage | outcome |
 |---|---|---|---|
@@ -1431,8 +1444,9 @@ and weeds 660.9 ac, bare or disturbed 167.5, woods and brush 57.0, gravel road
 37.8, open water 26.2, paved 11.9, mine waste 11.1, roofs 6.2.
 
 **Nothing here is a rain-on-grid simulation.** There is no infiltration model
-beyond the curve number, no seepage, no evaporation, no pipe capacity and no
-continuous simulation — and the card says so in those words.
+beyond the curve number, no seepage, no evaporation and no continuous
+simulation — and the card says so in those words. Pipe capacity is v19's, below,
+and it is provisional until the inverts are surveyed.
 
 ### Replacing the provisional rainfall (five minutes, no code)
 
@@ -1441,6 +1455,86 @@ precipitation-frequency estimates in English units, save the CSV as
 `data/atlas14_sbmm.csv`, and run `python tools/build_rainfall.py`. The red
 warning disappears by itself, every number above moves with the new depths, and
 the recorded values in `test/kernels.mjs` §12.5 need re-recording.
+
+## Phase 3 — accumulation, pipe capacity and scenarios (v19)
+
+> **12.1 miles of stream network over 5 acres, to Strahler order 4; up to 197.8
+> acres draining through one cell; and the flow accumulation agrees with the
+> drainage map exactly** — what leaves the model at each cell, summed by the
+> catchment that cell belongs to, is that catchment's area to 0.000 %.
+>
+> **Not one of the 26 storm conduits can be given a capacity yet**, and the app
+> says so on every one of them with the reason. That is the answer the invert
+> survey changes, and `data/storm_survey.csv.example` is the sheet to fill in.
+
+### Flow accumulation and the streams — `ACCUM`
+
+`ACCUM` (`ACCUMULATION`, `STREAMS`, `UPSTREAM`) answers "how much ground drains
+through here". It is the drainage map's own physics — the same filled lidar
+surface, the same storm conduits seeded at their rims, the same pointer field —
+run once over the whole site to give every cell the contributing area above it.
+Two rows appear under **Drainage (lidar + storm drains)**: **Flow accumulation**,
+a log-scaled raster with a legend in acres, and **Streams (≥ 5 ac)**, the flow
+paths above the threshold drawn with their weight set by Strahler order. Hover
+anywhere with the raster on and the status bar reads `upstream 12.4 ac`; click a
+stream and the popup gives its order, its upstream acres, its length and what it
+ends in. Both draw in 3D. The card carries the cross-check against the drainage
+map, the CSV and the GeoJSON.
+
+**D8 is what runs by default and D-infinity is one button away.** D8's values ARE
+the contributing area TR-55's 5-acre rule names, it is the method the identity is
+exact for, and it draws 108 stream links where D-infinity's dispersion draws
+more than 1,500; D-infinity (Tarboton 1997) is the better picture of how water spreads on a
+hillslope and agrees with the map to 2.1 %. Every card, popup and export says
+which one produced the number.
+
+It is **contributing area, never discharge** — the design storm is what turns an
+area into a flow, and since v19 it reads this raster instead of approximating it.
+
+Recorded, 2-ft grid, storm drains assumed working: 978.49 surveyed acres, all of
+which leave the model exactly once; 197.82 ac through the largest cell (the last
+cell before the impoundment leaves through the surveyed south pipe); 109 stream
+links, 12.10 mi, orders 1/2/3/4 = 17,840 / 6,504 / 2,089 / 187 cells; no loops
+and no flats at 2 ft or at 4 ft. About 12 s at 2 ft, 3 s at 4 ft; the field build
+runs it at 4 ft and says so.
+
+### Pipe capacity — `PIPES`
+
+`PIPES` (`CAPACITY`, `HYDRAULICS`, `HGL`) rates the storm network as far as the
+data allows: Manning full-flow capacity `Q = (1.49/n) A R^(2/3) S^(1/2)`, HEC-22
+grate-inlet capacity in sag and on grade, and a steady-state hydraulic and energy
+grade line from the outfall upstream for the design storm's own peaks, with
+surcharge flagged wherever the hydraulic grade stands above a rim. The card, the
+conduit popups and the CSV carry the numbers; the conduit layer can be coloured
+by capacity ratio (green under 0.8, amber under 1, red surcharged).
+
+**On this network the answer today is "unknown — survey pending", 26 times, with
+the reason on each.** Only the two Jacobs pipes at the sandbag wall have a
+surveyed invert, only five conduits carry a size in EA's CAD, and **a slope needs
+two elevations of the same kind**: both ends surveyed is a real slope, both ends
+off the lidar is a provisional one, and one of each is the pipe invert against
+the top of the sandbags — which comes out adverse and would report a 24-in pipe
+as running uphill. Nothing is guessed to fill the gap.
+
+Fill in `data/storm_survey.csv` (copy the `.example`), run
+`python tools/build_storm_network.py`, rebuild, and every conduit whose two ends
+both have an invert gets a capacity, a ratio and a hydraulic grade.
+
+### Scenarios — `SCENARIO`
+
+`SCENARIO` (`SCENARIOS`, `WHATIF`) names a set of the assumptions the dialogs
+already offer — the storm and its distribution, the soil-group rule, curve-number
+overrides, whether the storm drains work, which conduits are broken, which are
+blocked as a what-if — and runs it through the same kernels those dialogs call.
+**A scenario can never produce a number the dialogs could not.** Capture, run,
+duplicate, rename, delete; pick two to four and the card compares them row by
+row: site volume and peak, the outfall's peak and volume, every pond's peak
+stage, freeboard and whether it overtops, and the worst pipe ratio. **map diff**
+highlights the catchments whose acreage moved and names the ponds whose peak
+stage moved by more than 0.1 ft; **report** prints the comparison with each
+scenario's assumptions under it. The switches ride in the session; the results
+deliberately do not, because a stale result beside newer terrain is a number
+nobody can trace.
 
 ## Canopy v2 and the tree inventory
 
