@@ -18,7 +18,7 @@ mkdirSync(SHOTS, { recursive: true });
 
 const browser = await launch();
 const page = await browser.newPage({ viewport: { width: 1500, height: 940 } });
-page.on("pageerror", e => console.log("pageerror:", e.message));
+page.on("pageerror", e => console.log("pageerror:", e.message, "\n", (e.stack || "").split("\n").slice(0, 4).join("\n")));
 await unlock(page);
 await page.goto(pathToFileURL(resolve(process.argv[2] || "index.html")).href);
 await page.waitForSelector("#loading", { state: "hidden", timeout: TIMEOUT });
@@ -41,20 +41,30 @@ await settle(5000);
 await say("tiles_abp_1ft:");
 await page.screenshot({ path: join(SHOTS, "tiles_abp_1ft.png") });
 
-/* 2. the whole site, coarsening away from the eye */
+/* 2. the whole site, coarsening away from the eye.
+   The camera is placed and then the terrain is asked to catch up EXPLICITLY:
+   the quadtree re-selects on a settled camera, and a screenshot taken before
+   that has happened photographs the previous framing (which is exactly what
+   the first version of this script did — two identical shots). */
 await page.evaluate(() => { const m = SBMM.demSite.m;
   SBMM.viewer3d.frameBox(m.x0, m.y0, m.x0 + (m.w - 1) * m.cell, m.y0 + (m.h - 1) * m.cell); });
-await settle(6000);
+await settle(4000);
+await page.waitForFunction(() => SBMM.tiles.stats().queued === 0, null, { timeout: TIMEOUT });
+await settle(3000);
 await say("tiles_site   :");
 await page.screenshot({ path: join(SHOTS, "tiles_site.png") });
 
 /* 3. the shader raster, relit */
 await page.evaluate(async () => {
-  SBMM.viewer3d.openAt(6371700, 2128900);
-  await new Promise(r => setTimeout(r, 500));
-  document.getElementById("v3dStyle").value = "hillshade";
-  document.getElementById("v3dStyle").onchange();
-  await new Promise(r => setTimeout(r, 1200));
+  await SBMM.viewer3d.openAt(6371700, 2128900);
+  await new Promise(r => setTimeout(r, 800));
+  const sel = document.getElementById("v3dStyle");
+  sel.value = "hillshade";
+  /* a real `change` event, not sel.onchange(): the toolbar's four-stage
+     reflow can move this control into a popover, and calling the handler by
+     hand is how this script used to throw three times a run */
+  sel.dispatchEvent(new Event("change"));
+  await new Promise(r => setTimeout(r, 1500));
   SBMM.viewer3d.sun(135, 22);
 });
 await settle(6000);
