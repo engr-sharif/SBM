@@ -1783,7 +1783,17 @@ Seven things here will be walked into again:
   duration of that call. **Both feeds go through it**: `gestures()` and
   `wireMap()`'s capture-phase listeners. A synthetic event with no usable
   timeStamp falls back to the clock, and `test/touch_unit.mjs` injects its own
-  `now` and is untouched.
+  `now` and is untouched. **And a harness tap must lift on a TIMER, never on the
+  renderer's acknowledgement.** A CDP `Input.dispatchTouchEvent` is stamped when
+  the browser RECEIVES it, but `await cdp.send(...)` resolves only once the
+  renderer has HANDLED it — so `await touchStart; wait(50); touchEnd` on a
+  stalled frame is a finger held for the stall plus 50 ms by the event clock
+  (measured: 240-450 ms on this box, the Actions runner worse), no longer a tap,
+  and the double-tap dolly assertion failed on CI on the first run after this
+  rule landed. `hold()` in `test/e2e_tablet.mjs` and `tap()` in
+  `test/e2e_phone.mjs` send the end `ms` after the start was SENT (a CDP session
+  delivers in order) and await both acknowledgements afterwards. Drags and
+  long-presses are unaffected — a longer hold only helps those.
 - **The recogniser is ONE implementation and it is DOM-free.**
   `SBMM.touch.recognizer(handlers, opts)` takes pointer-shaped records and calls
   handlers; `gestures(el, h)` is the thin part that wires real events to it.

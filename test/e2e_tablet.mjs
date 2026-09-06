@@ -131,11 +131,21 @@ const cdp = await page.context().newCDPSession(page);
 const touch = (type, pts) => cdp.send("Input.dispatchTouchEvent", {
   type, touchPoints: pts.map(p => ({ x: p.x, y: p.y, id: p.id, radiusX: 6, radiusY: 6, force: 1 }))
 });
-const tap = async (x, y, ms = 60) => {
-  await touch("touchStart", [{ x, y, id: 1 }]);
+/* A HOLD is timed by the glass, not by the renderer's acknowledgement. A CDP
+   touch event is stamped when the browser RECEIVES it, and the recogniser
+   reads that stamp (v20: `e.timeStamp`, the moment the finger really moved).
+   `await touch("touchStart")` resolves only once the renderer has HANDLED the
+   event, so on a stalled frame the "finger" stayed down for the stall plus
+   `ms` — a 50 ms tap measured 240-450 ms under software GL and stopped being
+   a tap, which is exactly what a real finger would not do. So the end is sent
+   `ms` after the start was SENT (CDP delivers a session's messages in order),
+   and both acknowledgements are awaited afterwards. */
+const hold = async (pts, ms) => {
+  const a = touch("touchStart", pts);
   await wait(ms);
-  await touch("touchEnd", []);
+  await Promise.all([a, touch("touchEnd", [])]);
 };
+const tap = (x, y, ms = 60) => hold([{ x, y, id: 1 }], ms);
 const longPress = async (x, y) => {
   await touch("touchStart", [{ x, y, id: 1 }]);
   await wait(720);
@@ -432,9 +442,7 @@ orbit = () => page.evaluate(() => SBMM.viewer3d.stats().orbit);
   console.log(`3D double-tap: r ${Math.round(a.r)} -> ${Math.round(b.r)} ft`);
   if (!(b.r < a.r * 0.95)) fail("a double-tap did not dolly in", { a, b });
 
-  await touch("touchStart", [{ x: box.cx - 50, y: box.cy, id: 1 }, { x: box.cx + 50, y: box.cy, id: 2 }]);
-  await wait(60);
-  await touch("touchEnd", []);
+  await hold([{ x: box.cx - 50, y: box.cy, id: 1 }, { x: box.cx + 50, y: box.cy, id: 2 }], 60);
   await wait(1800);
   const c = await orbit();
   console.log(`3D two-finger tap: r ${Math.round(b.r)} -> ${Math.round(c.r)} ft`);
