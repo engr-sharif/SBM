@@ -1,6 +1,6 @@
 # SBMM Site Explorer — v18: the test infrastructure (authoritative)
 
-Owner/decider: Fable (planner). Executor: one Opus agent (M). This is the
+Owner/decider: the planner. Executor: one agent (M). This is the
 contract. It changes HOW the harnesses run, never WHAT they assert: every
 assertion line every harness prints today must be printed, identically, after
 this round. Hard constraints as in CLAUDE.md.

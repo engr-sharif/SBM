@@ -133,8 +133,9 @@ const bad  = (n, msg, rows = []) => { fails++; console.log(`FAIL ${n} — ${msg}
 
 /* 6. no model name in the docs ------------------------------------------ */
 {
-  const docs = ["CLAUDE.md", "README.md", "docs/HANDOFF.md"].filter(f => existsSync(R(f)));
-  const names = /\b(opus|sonnet|haiku)\b/i;
+  const docs = ["CLAUDE.md", "README.md", "RELEASE_NOTES_v9.md",
+    ...readdirSync(R("docs")).filter(f => f.endsWith(".md")).map(f => "docs/" + f)].filter(f => existsSync(R(f)));
+  const names = /\b(opus|sonnet|haiku|fable)\b/i;
   const rows = [];
   for (const f of docs)
     readFileSync(R(f), "utf8").split("\n").forEach((l, i) => { if (names.test(l)) rows.push(`${f}:${i + 1}: ${l.trim().slice(0, 90)}`); });

@@ -1,6 +1,6 @@
 # SBMM Site Explorer — v17: the iPad, and touch everywhere (authoritative)
 
-Owner/decider: Fable (planner). Executor: one Opus agent (T). This is the
+Owner/decider: the planner. Executor: one agent (T). This is the
 contract; the agent implements it and does not re-decide it. Hard constraints as
 in CLAUDE.md (file:// only, plain scripts, three builds, every harness, golden
 Pile 1, browser harnesses one at a time, every refusal toasts, no model names).
