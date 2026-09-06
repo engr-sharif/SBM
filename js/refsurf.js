@@ -163,8 +163,10 @@ SBMM.refSurf = (function () {
     const list = manifest();
     const nr = notRecovered();
     if (!list.length && !nr.length) {
-      host.innerHTML = `<div class="surfnone mut">${SBMM.isField && SBMM.isField()
-        ? "EA's design surfaces are not in the field build — the isopach and the design-base volumes need the full build."
+      host.innerHTML = `<div class="surfnone mut">${SBMM.lowMem && SBMM.lowMem()
+        ? (SBMM.isField()
+            ? "EA's design surfaces are not in the field build — the isopach and the design-base volumes need the full build."
+            : "EA's design surfaces are not loaded on a phone — the isopach and the design-base volumes need a tablet or a desktop.")
         : "No EA design surfaces in this build."}</div>`;
       return;
     }

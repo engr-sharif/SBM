@@ -459,10 +459,16 @@ SBMM.cmd = (function () {
       if (e.key === "`" || e.key === "~") { e.preventDefault(); open(true); }
     });
 
-    /* the bar is open by default the first time, so it is discoverable at all */
+    /* The bar is open by default the first time, so it is discoverable at all —
+       EXCEPT on a phone (v19.1). There is no backtick and no Ctrl+K under a
+       thumb, the bar's own placeholder teaches desktop chords ("MI · RO · M ·
+       CO · J · X — mirror, rota…"), and it takes a 32-px row out of a map that
+       is already the whole screen. The engineer's iPhone screenshot has that
+       strip in it. FIELD mode reaches the commands through the More sheet. */
     let seen = false;
     try { seen = localStorage.getItem("sbmm_cmdseen") === "1"; localStorage.setItem("sbmm_cmdseen", "1"); } catch (err) {}
-    if (!seen) open(true);
+    const phone = !!(SBMM.touch && SBMM.touch.profile && SBMM.touch.profile() === "phone");
+    if (!seen && !phone) open(true);
   }
 
   return { wire, run, ask, pickFeature, cancelPick, open, commands: () => CMDS, find, showHelp, zoomExtents };

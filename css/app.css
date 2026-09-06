@@ -1748,6 +1748,45 @@ body.field.legendopen #mapLegend .mlonly{opacity:1;font-size:12px;padding:4px 6p
 /* --- the page itself ---------------------------------------------------- */
 html,body{overscroll-behavior:none}     /* no rubber-band, no pull-to-refresh */
 
+/* THE PAGE MUST NOT BE A SCROLL CONTAINER (v19.1 — the iPhone layout report).
+
+   Field mode parks the two docks BELOW the viewport with `transform:
+   translateY(105%)`, and a transformed box still contributes to the document's
+   SCROLLABLE OVERFLOW: on a Pixel 7 the folder build's scrollHeight is 1292
+   against an innerHeight of 839 — 453 px of overflow nobody can see. `overflow:
+   hidden` stops a FINGER scrolling that (the gotcha this repo already knows from
+   scrollIntoPane) but not the browser: iOS scrolls the layout viewport to lift a
+   focused input above the on-screen keyboard, and the gate's password field is
+   the first thing anyone touches. The page then stays scrolled ~250 px, and
+   because every piece of chrome is positioned against the initial containing
+   block the WHOLE app moves with it — the slim top bar off the top, the desktop
+   command hint and status bar into view, and the parked right dock up from under
+   the fold. That is exactly the screenshot the engineer sent.
+
+   THE FIX IS `position:relative` ON BODY, and `overflow:clip` beside it. Both
+   halves were measured on the iPhone descriptor (scrollHeight / innerHeight /
+   scrollY after a scrollTo, with every box compared):
+
+     body static, html+body clip     doc 1000/660, scrollTo(400) -> 340  BAD
+     body relative, overflow hidden  doc  660/660, scrollTo -> 0, but
+                                     body.scrollTop -> 340               BAD
+     body relative, overflow clip    doc  660/660, both 0                GOOD
+
+   `position:relative` makes BODY the containing block for the docks (they were
+   positioned against the initial containing block, which nothing can clip), so
+   body's own overflow finally applies to them and the DOCUMENT has no
+   scrollable overflow left. `clip` then stops body itself becoming the scroll
+   container that `hidden` would make it — root `overflow:clip` alone does NOT
+   stop Chromium scrolling the viewport, which is why it is not the fix on its
+   own. Every box is unchanged by this: body is `margin:0;padding:0` at
+   `height:100dvh`, so its padding box IS the initial containing block, and the
+   measured top bar, stage, action bar and parked dock are identical to the
+   pixel in all three rows above. On a browser with no `overflow:clip` (iOS 15
+   and earlier) the middle row applies and js/touch.js's wireScrollGuard()
+   carries it. */
+html,body{overflow:hidden;overflow:clip}
+body{position:relative}
+
 /* 100dvh with the 100vh fallback, written as two declarations so a browser
    that does not know dvh keeps the first. On iOS Safari 100vh is the TALLEST
    the viewport ever gets, so with the URL bar shown the status bar sits below

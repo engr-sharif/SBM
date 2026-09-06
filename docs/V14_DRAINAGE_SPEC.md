@@ -1,6 +1,6 @@
 # SBMM Site Explorer — v14 Phase 1: the drainage map (authoritative)
 
-Owner/decider: Fable (planner). Executor: one Opus agent (D). This is the
+Owner/decider: the planner. Executor: one agent (D). This is the
 contract for Phase 1 of `docs/V14_CATCHMENT_PROPOSAL.md` — the terrain-only
 half. No rainfall, no runoff, no curve numbers, no time: the map says where
 water goes, never how much. Decided by the engineer 2026-09-04 ("start

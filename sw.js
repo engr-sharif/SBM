@@ -91,6 +91,15 @@ function urlsFrom(html, baseHref) {
   while ((m = re2.exec(html))) push(m[1]);
   const re3 = /<img[^>]+src="([^"]+)"/g;
   while ((m = re3.exec(html))) push(m[1]);
+  /* v19.1 — the heavy payloads are NOT <script src> tags in the page: a phone
+     never parses them, so index.html carries them as one array that its own
+     loader document.writes. Read the same array (that is what the markers are
+     for) so the offline copy of a tablet or a desktop is still complete. */
+  const heavy = /SBMM_HEAVY_BEGIN\s*\*\/\s*window\.SBMM_HEAVY\s*=\s*\[([\s\S]*?)\]/.exec(html);
+  if (heavy) {
+    const re4 = /"([^"]+)"/g;
+    while ((m = re4.exec(heavy[1]))) push(m[1]);
+  }
   /* the icons the manifest names, and the manifest itself, are <link>s above;
      the maskable icon is only in the manifest, so add the folder's own set */
   for (const n of ["icons/icon-192.png", "icons/icon-512.png",

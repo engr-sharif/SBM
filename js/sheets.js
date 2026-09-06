@@ -106,9 +106,13 @@ SBMM.sheets = (function () {
   function hasRender(sheet) { const s = get(sheet); return !!(s && s.url); }
   /* the one sentence every refusal uses, so it reads the same everywhere */
   function noRenderWhy(sheet) {
-    return SBMM.isField && SBMM.isField()
-      ? sheet + " — the full-sheet renders are not in the field build; its design geometry is"
-      : "no full-sheet render for " + sheet;
+    if (SBMM.isField && SBMM.isField())
+      return sheet + " — the full-sheet renders are not in the field build; its design geometry is";
+    /* v19.1: the folder build drops the same renders on a PHONE, so the same
+       sentence has to be true there without claiming to be a different build */
+    if (SBMM.lowMem && SBMM.lowMem())
+      return sheet + " — the full-sheet renders are not loaded on a phone; its design geometry is";
+    return "no full-sheet render for " + sheet;
   }
   function get(sheet) { return index().find(s => s.sheet === sheet) || null; }
 

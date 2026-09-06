@@ -82,8 +82,12 @@ SBMM_GPU=1 node test/run.mjs       # render on a real GPU (§2 below)
   broke the Pages build); no `</script` inside either Blob-worker function
   (`installWorker`, `demDecodeWorkerMain` — `js_safe` would mangle it); **no duplicate
   command alias**, read statically out of `js/cmdline.js`'s own table; every `js/*.js`
-  in `index.html`'s script list and every listed script present; no model name in the
-  docs. A preflight failure stops the matrix before a browser opens.
+  in `index.html`'s script list and every listed script present; **every entry of
+  `window.SBMM_HEAVY` present and not also a static tag** (v19.1); **every LOOSE
+  script-src match in `index.html` a real file** — sw.js builds its precache list
+  with a loose regex over the page's own text, so a script tag written inside a JS
+  string becomes a URL it 404s on and aborts the whole precache over (v19.1); no
+  model name in the docs. A preflight failure stops the matrix before a browser opens.
 
 **The browser lock — `test/lib/lock.mjs`.** Two software-GL renderers on a two-core box
 crash the compositor ("Target crashed"), which looks like a test failure and is not one.
@@ -125,6 +129,7 @@ node test/split3d.mjs /abs/path/index.html                folder
 node test/split3d.mjs /abs/path/dist/SBMM_Site_Explorer.html dist
 node test/e2e_field.mjs /abs/path/dist/SBMM_Site_Explorer_field.html field
 node test/e2e_tablet.mjs /abs/path/index.html                tablet
+node test/e2e_phone.mjs  /abs/path/index.html                phone
 ```
 `test/e2e_tablet.mjs` is the v17 harness: Playwright's **`iPad Pro 11 landscape`**
 descriptor (1194x834, DPR 2, touch) against the FOLDER build, served BOTH ways —
@@ -136,6 +141,19 @@ viewer, the map + the Pencil + the chrome, and the offline copy.
 **`test/touch_unit.mjs` is the fast loop for it** — node, no browser, ~1 s, 56
 checks over the gesture recogniser's arithmetic; run it after any change to
 `js/touch.js` before you start a browser.
+**`test/e2e_phone.mjs` is the v19.1 harness — the FOLDER build on a PHONE**
+(runner step `phone:http`, ~2 min): Playwright's `iPhone 14 Pro` descriptor
+(393x659, DPR 3, touch) against the folder build, served over the same kind of
+local http server `test/e2e_tablet.mjs` starts and again over `file://`. It is
+the corner of the matrix nothing covered and the one the team actually uses —
+GitHub Pages on a phone. Seven blocks: the profile, the layout invariant (the
+document can never be taller than the viewport and a programmatic scroll must
+not move it), a bottom sheet opening and closing without making it scrollable,
+the heavy payloads being absent AND their refusals toasting, 3D inside a 600 MB
+heap budget at a capped pixel ratio and drape size, the same page on the iPad
+descriptor still carrying every payload, and the same layout over `file://`.
+`node test/phone_shots.mjs` writes `phone_map.png` / `phone_layers.png`; not
+pass-fail — look at them.
 `test/e2e_field.mjs` is the third build's harness (v11 §4.5): Playwright's **`Pixel 7`**
 descriptor (touch, 412x839, DPR 2.625) against the FIELD dist. It re-states the six
 sections §4.5 names — boot, the gate (unlocked by TAP), terrain, the golden Pile 1 volume,
@@ -245,7 +263,17 @@ dist, and it fails in about one run in three under load. **Re-run the block alon
 believing it** — `node test/e2e.mjs <index.html> folder --only "9z. the layer tree"`,
 14 seconds — and if it passes there, the matrix result is the flake, not a regression.
 Fixing it means waiting on the condition rather than on the clock, which is a change to
-a harness and belongs to the planner.
+a harness and belongs to the planner. **Since v18 the harness waits on the condition**
+(`waitForFunction`, 60 s), and the failure still appeared about one run in three under
+load, always at exactly the insertion order — the stored order was present, the DOM
+order came back, and the draw order was never re-applied. Two app-side causes were
+closed in v21: `legendSoon()` in `js/layertree.js` was a leading-edge debounce whose
+callback painted the legend BEFORE re-asserting the draw order, so a burst of layer
+adds outlasting its 80 ms, or a paint that threw, left the order unapplied; it is now
+trailing-edge and re-asserts the order first, on its own `try`. And `js/boot.js` emits
+`SBMM.events` **`boot`** when the loader hides, on which the tree re-applies the stored
+order once more — the one pass that cannot be early. If 9z fails again, read the draw
+indices it prints: insertion order means the pass did not run; anything else is new.
 
 **One browser at a time** — the lock above enforces it now rather than asking; raise
 `--parallel` only on a box with the cores for it. `docs/AGENT_RULES.md` is the ten-line
@@ -1882,6 +1910,143 @@ difference posts `{type:"stale"}` to every client, which becomes one toast and a
 icon `<link>`s from both single-file builds — beside a lone HTML file they are
 guaranteed 404s — and keeps the apple/theme meta tags, which carry no URL.
 
+## v19.1 — the FOLDER build on a PHONE (two field reports, one gap)
+
+*(v9.19 in `RELEASE_NOTES_v9.md`; the code and this file tag it v19.1.)*
+
+The engineer opens **the folder build from GitHub Pages on an iPhone**. Nothing
+tested that: `test/e2e.mjs` is the desktop, `test/e2e_tablet.mjs` is the folder
+build at 1194x834, `test/e2e_field.mjs` is the FIELD DIST on a Pixel 7. The one
+corner of the matrix nobody ran is the one the team actually uses, and two
+defects lived in it. `test/e2e_phone.mjs` (runner step **`phone:http`**) is that
+corner: the folder build, Playwright's `iPhone 14 Pro` descriptor, over the same
+local http server the tablet harness starts AND over `file://`.
+
+### Trap 1 — the page was a scroll container, and `overflow:hidden` does not stop a BROWSER
+
+`body.field` parks the two docks below the viewport with `transform:
+translateY(105%)`, and **a transformed box still counts towards the document's
+scrollable overflow**: on a Pixel 7 the folder build's `scrollHeight` was 1292
+against an `innerHeight` of 839 — 453 px of page nobody can see. This repo
+already knows that `overflow:hidden` stops a *user* scrolling and not a
+programmatic one (see the `scrollIntoPane` gotcha), and the browser is the
+programme here: **iOS scrolls the layout viewport to lift a focused input above
+the on-screen keyboard, and the gate's password field is the first thing anyone
+touches.** The page then stays scrolled ~250 px, and because every piece of
+chrome is positioned against the initial containing block the WHOLE app moves
+with it — the slim top bar off the top, the desktop command hint strip and
+status bar into the middle of the screen, and the parked right dock up from
+under the fold. That is exactly the screenshot that was reported.
+
+**The fix is `body{position:relative}`, with `overflow:clip` beside it** — and
+`overflow:clip` on its own is NOT the fix, which is worth knowing because it is
+the obvious answer. Measured on the iPhone descriptor:
+
+| | document | `scrollTo(0,400)` | `body.scrollTop = 400` |
+|---|---|---|---|
+| body static, `html,body{overflow:clip}` | 1000 / 660 | **340** | 0 |
+| `body{position:relative}` + `overflow:hidden` | 660 / 660 | 0 | **340** |
+| `body{position:relative}` + `overflow:clip` | 660 / 660 | 0 | 0 |
+
+Root `overflow:clip` computes (Chromium reports `clip` on the root) and still
+lets the viewport scroll — it behaves as `hidden` does there. What removes the
+overflow is making BODY the containing block: the docks were positioned against
+the initial containing block, which nothing can clip, and `position:relative`
+hands them to body, whose own overflow then applies. `clip` beside it stops body
+itself becoming the scroll container `hidden` would make it. **Every box is
+unchanged** — body is `margin:0;padding:0` at `height:100dvh`, so its padding box
+IS the initial containing block, and the top bar, stage, action bar and parked
+dock measure identically in all three rows. `wireScrollGuard()` in `js/touch.js`
+is the runtime belt for a browser with no `overflow:clip` (iOS 15 and earlier),
+where the middle row applies: a `scroll` listener that resets to 0 — on a page
+that cannot scroll it never fires, which is why it costs the desktop nothing.
+**Do not reintroduce document-level scrollable overflow**, and if you must, the
+two assertions in block 2 of `test/e2e_phone.mjs` are what will tell you:
+`scrollHeight === innerHeight` and `scrollTo(0, 400)` leaving `scrollY` at 0.
+
+**And the command bar no longer opens itself on a phone.** `js/cmdline.js`'s
+first-visit `open(true)` is right at a desk and wrong under a thumb: there is no
+backtick and no Ctrl+K, the placeholder teaches desktop chords, and it takes a
+32-px row out of a map that is the whole screen. `SBMM.touch.profile() ===
+"phone"` suppresses it; the More sheet is how field mode reaches the commands.
+
+### Trap 2 — the folder build carried the payloads the field build exists to drop
+
+`tools/build_dist.py`'s `FIELD_EXCLUDE` is the list of what a phone must not
+parse — the 20 full-sheet renders (~27 MB), the CHM, EA's 21 MB native CAD, the
+recovered design surfaces — and it only ever applied to the single-file build.
+The folder build parsed all of it on the phone, and then 3D drew its drape on
+top. iOS kills a tab at roughly 1-1.5 GB. Measured on the `iPhone 14 Pro`
+descriptor, folder build over http, before and after: **484 -> 326 MB of JS heap
+after boot, 532 -> 367 MB after opening 3D** (Pixel 7: 520 -> 351 and 535 ->
+393). And the heap is the SMALLER half of it — `performance.memory` does not
+count a canvas or a GPU texture, and the drape went from **178.4 MP to 3.8 MP**
+(Trap 3), which is where the gigabyte was.
+
+So the folder build is field-aware, with no build step:
+
+- **ONE LIST, three readers.** `index.html` carries the 24 payloads as
+  `window.SBMM_HEAVY` between the `SBMM_HEAVY_BEGIN` / `SBMM_HEAVY_END` markers.
+  The page's own inline loader `document.write`s the tags when
+  `SBMM.touch.phoneAtBoot()` is false; `tools/build_dist.py` replaces the whole
+  block with the payloads inlined (honouring `FIELD_EXCLUDE`, so both dists are
+  byte-for-byte what they were); `sw.js` reads the same array so a tablet's
+  offline copy is still complete; `test/check.mjs` fails on a missing or
+  duplicated entry. **A new heavy payload goes in that array, not in a
+  `<script src>` tag** — and one that belongs on a phone goes in a tag as before.
+- **`document.write`, deliberately.** It is the only injection that is
+  SYNCHRONOUS and ORDERED during parsing and it works over `file://`, where
+  nothing may be fetched. Appended `<script>` elements would race `js/boot.js`.
+- **And the tag it writes is spelled in PIECES** (`'<scr' + 'ipt src="'`), for a
+  reason worth its own line: **`sw.js` builds the offline precache list with a
+  LOOSE opening-script-tag regex over `index.html`'s own text**, so a tag written
+  inside a JS string — or quoted in a comment, which is how this recurred once
+  within the hour — is read as a URL. `' + window.SBMM_HEAVY[i] + ` went into the
+  list, 404'd, and `precache()` aborts on its first failure: `tablet:http` failed
+  with "the precache did not complete" and no other clue. `test/check.mjs`'s
+  **`swurls`** check runs the same loose regex and fails on any match that is not
+  a file. The split keeps `</script` out of the source too, which is the older
+  rule (`js_safe` in `tools/build_dist.py`).
+- **`js/touch.js` moved to the FIRST script position, right after `js/gate.js`.**
+  The loader has to ask the profile before a payload is parsed, and the profile
+  has exactly one implementation. `js/touch.js` only needs `SBMM` to exist, which
+  `js/gate.js` has just done; everything it touches beyond that it touches inside
+  `wire()`, which boot still calls in its old place.
+- **`SBMM.touch.phoneAtBoot()` is that question**, and it uses the same two
+  inputs in the same order as `js/field.js` `autoDetect` — the stored field
+  preference beats the sniff in BOTH directions. `FIELD_STORE` in `js/touch.js`
+  must stay equal to `STORE` in `js/field.js`; block 1 of the phone harness
+  asserts the two answer the same machine.
+- Every module that reads one of these already degrades with a row, a note or a
+  toast (the payload-tolerance rule), so a phone simply gets the field build's
+  behaviour out of the folder build. Block 4 asserts the keys are absent, that
+  the ones a phone KEEPS are present, and that `SBMM.sheets.open` refuses with a
+  toast rather than throwing.
+- **`SBMM.lowMem()` (js/util.js), NOT `SBMM.isField()`, is now the memory
+  question.** Four places branched on the BUILD to protect memory — the 4-ft
+  drainage grid (`js/drainage.js`), the 4-ft accumulation grid and its cache
+  signature (`js/accum.js`), and the "that payload is not in this build" wording
+  in `js/sheets.js` and `js/refsurf.js`. A phone running the FOLDER build is a
+  phone: `lowMem()` is `isField() || profile() === "phone"`. `isField()` still
+  means exactly what it always meant — which build this is — and the two wordings
+  stay distinct, because "not in the field build" is a lie on a folder build.
+
+### Trap 3 — a 178-megapixel drape texture
+
+`compositeAbpOrtho` builds the mine-area ortho at 4 px/ft over a 2,872 x 3,882 ft
+window: **11,488 x 15,528 px = 178 MP**, a ~713 MB canvas and the same again on
+the GPU. A desktop absorbs it; a phone does not. `texBudget()` in
+`js/viewer3d.js` caps every drape texture at **2,048 px on its longest side in
+the phone profile only** (`fitToBudget` redraws an over-budget image, and the
+composite picks its px/ft from the budget) — 4 MP, still ~0.5 ft/px over that
+window, finer than the 1.5-ft site ortho it is mostly made of. Scoped to the
+phone deliberately: the desktop and the iPad get byte-identical textures, which
+is what keeps `test/e2e.mjs` and `test/e2e_tablet.mjs` unchanged.
+`SBMM.viewer3d.stats()` reports `pixelRatio`, `texBudgetPx`, `texMP`,
+`gpuTextures` and `gpuGeometries`, and `SBMM.touch.diagnostics()` puts the heap,
+the heap limit, the GPU counts and "heavy payloads skipped (phone)" on the Help
+line — so the next report arrives with numbers.
+
 ## Undo and redo (v9.4) — the both-closures rule and `readd`
 
 `SBMM.undo` is two stacks of `{ desc, undo, redo }`, 100 deep each way:
@@ -2317,6 +2482,160 @@ scenario-only arithmetic in `js/scenarios.js` at all. Two things to keep:
 **Shots:** `node test/hydro3_shots.mjs /abs/path/index.html` writes `accum_2d`,
 `streams_3d`, `pipe_capacity` and `scenario_compare` into `test/shots/`; not
 pass-fail — look at them.
+
+## v21 — the WASM compute core
+
+Contract: `docs/V21_WASM_SPEC.md`. Crate `wasm/sbmm-kernels/` (Rust, `cdylib`),
+builder `tools/build_wasm.py`, payload `datajs/w_kernels.js`, host in
+`js/jobs.js`, dispatch in `js/compute.js`. `VERSION` stays **10** — this changes
+who computes, never what.
+
+**The JavaScript kernels are the reference and the fallback, and their bodies
+are not edited.** Every port is reached by a THREE-LINE guard at the top of the
+function it replaces (`if (wasmAvailable()) { … if (R) return R; }`), and a null
+answer falls straight through to the JavaScript below it. That is what makes
+"the two can never disagree" a property of the code: the fallback is the same
+function the golden was measured on, not a second implementation of it.
+
+### The rules, and each is why something looks the way it does
+
+- **BYTES, NEVER FILES.** The module ships as base64 in `datajs/w_kernels.js`
+  like every other payload, because over `file://` nothing can be fetched and a
+  `.wasm` beside the HTML would be a guaranteed 404 in the single-file dist.
+  `js/jobs.js` decodes it once (`atob` → `Uint8Array`), hands a **copy to each
+  worker at creation** (`primeWorker`; postMessage is ordered and the worker's
+  compile is synchronous, so every job that follows sees the core installed) and
+  initialises the main thread **asynchronously** for the no-worker fallback —
+  synchronous `WebAssembly.Module` is capped at 4 kB there, and only there.
+  `SBMM_DATA.wasm_kernels` is nulled after the decode, the way the DEM payloads
+  are; the KEY stays.
+- **A FAILURE IS THE JAVASCRIPT PATH AND ONE `console.warn`, NEVER AN ERROR.**
+  No `WebAssembly`, no payload, a refused instantiation, an `api_version()`
+  mismatch and a throw inside any wrapper all end in the same place.
+- **IDENTITY IS THE ACCEPTANCE.** `test/kernels.mjs --backend js|wasm|both`
+  (default **both**: every section runs on both cores, so a golden is a golden
+  whichever computed it) plus a `wasm` section that IS the A/B — it runs each
+  ported kernel twice on one job and compares. **Every kernel ported so far is
+  BIT-IDENTICAL**, not within a tolerance: `deepDiff` walks the whole result
+  object, typed arrays included, with NaN counted equal to NaN.
+- **`SBMM.compute.backend()` answers `"wasm" | "js"`**, every results card built
+  out of a job says which core computed it and in how many ms, Help has a
+  "Force JavaScript kernels" switch (remembered in `localStorage`, and it takes
+  the pool down so the next worker is told the same thing), and `SBMM_WASM=0`
+  does the same in the harness.
+- **The preflight fails on a stale payload.** The `.wasm` is not committed and
+  the payload is, so `test/check.mjs` hashes every `.rs`/`.toml`/`Cargo.lock`
+  under the crate and compares it with the `src_sha256` baked into
+  `datajs/w_kernels.js`. A crate edit that was never rebuilt fails in three
+  seconds instead of moving a golden three steps later.
+
+### Rebuilding
+
+```
+python tools/build_wasm.py            # cargo build --release + datajs/w_kernels.js
+python tools/build_wasm.py --check    # is the committed payload current?
+```
+
+`rustup target add wasm32-unknown-unknown` once. The crate has **no
+dependencies** on purpose — the build box is offline, so nothing may be fetched
+— and `wasm-opt` is optional (absent here; the builder says so and ships the
+cargo output). **Rust is a build dependency of the payload only. The app never
+needs it, and a checkout with no toolchain runs the JavaScript kernels.**
+
+### What is ported, and where the split falls
+
+| kernel | what is in the crate | what stayed in JavaScript |
+|---|---|---|
+| `fillDem` | all of it (the priority flood, the v12 conduit seeding, the v14 parent forest) | — |
+| `flowpath` | the inlet index, the fill, the descent, the fill-spill flood, `followChain` | `ringMask`/`medianOf` for the blocked ring, `traceMask` for the pond outlines, `simplifyPath`, the result assembly |
+| `marchOne` | marching squares + the endpoint chaining + the ring-aware DP | — (one guard; it reaches every ring the app draws) |
+| `traceMask` | the 0/1→f32 conversion, the trace, the area and the sort | — |
+| `contoursFromGrid` | all of it | — |
+| `drainage` | sections 1–7 **including the polygons and the longest paths** | `ringMask`+`dilateMask` for Clear Lake, the `pointInPoly` test per conduit outlet, the naming |
+| `volumeGrid` | all of it (the perimeter TIN, the plane, the design raster, the sweep) | the Delaunay triangulation, which was always the host's |
+
+**`drainage` is the one whose split is different, and deliberately so.** At 2 ft
+the grid is 21.6 M cells, so `term`, `firstL`, `pointer` and `pondId` are 86 MB
+EACH; handing four of them back across the ABI would cost more than the loops
+save. So the polygon tracing and the flow paths run in the crate too and what
+comes back is what the card reads — the decimated label rasters and the three
+tables.
+
+### Seven traps, every one of them a real bug in this port
+
+- **`Math.round` is round-half-UP, `f64::round` is round-half-away-from-zero.**
+  The marching-squares chaining keys on `Math.round(p * 10)`. Every coordinate
+  here is a large positive State Plane foot so the two agree, but `js_round` in
+  `geom.rs` says `(v + 0.5).floor()` anyway — the day one did not, rings would
+  differ in a way nothing would catch.
+- **The hash tables are hand-written and deterministically seeded.** std's
+  `RandomState` wants entropy `wasm32-unknown-unknown` does not have, and a
+  kernel whose answer depended on a hash seed would not be a kernel.
+- **`Math.hypot` is not `sqrt(a*a + b*b)`** to the bit — it scales by the larger
+  magnitude first — and `flowpath`'s lengths are compared against a golden. It
+  is ported as itself.
+- **`fillDem`'s edge loop does NOT test `closed`**, so a seeded sink that is also
+  an edge cell is closed again, has its key overwritten with `z` and is pushed a
+  SECOND time. Reproduced exactly. "The JavaScript is the reference" includes its
+  corners.
+- **A level walk is repeated ADDITION.** `contoursFromGrid` does `lv += interval`
+  and the levels are reported, so `lv0 + k*interval` is a different answer in the
+  last bits.
+- **An f32 accumulator is not an f64 one.** `drainage`'s `dist` is a
+  `Float32Array` but the JavaScript accumulates `dd` as a plain number across the
+  whole unwind and truncates only on the store. Truncating per step drifts.
+- **A view onto `memory` is detached, silently, by any allocation that grows it.**
+  `wf32()`/`w32()` are called AFTER the last `wAlloc` of a call, never before; a
+  stale view reads as length 0 with no error at all.
+
+### What it cost, and the one target that was not met
+
+Node on the build box, A/B inside one run (`node test/kernels.mjs --only wasm`
+prints these itself, and the drainage rows come from `--only drainage`):
+
+| job | js | wasm | |
+|---|---|---|---|
+| `contours`, 400 x 400 cone | 292 ms | 12 ms | 24x |
+| `contours`, 1001 x 1001 site window at 10 ft | 199 ms | 12 ms | 17x |
+| `volume`, Pile 1 perimeter TIN | 10 ms | 2 ms | 5x |
+| `overtop`, Herman + 19 conduits | 4,382 ms | 2,127 ms | 2.1x |
+| `fillDem`, Herman window 1757 x 1208 | 1,357 ms | 634 ms | 2.1x |
+| `flowpath`, the §6.8 drop chained with storm on | 4,431 ms | 2,345 ms | 1.9x |
+| `drainage`, whole site at 4 ft | 1,265 ms | 713 ms | 1.8x |
+| `drainage`, whole site at 2 ft (warm) | 5,490 ms | 3,749 ms | 1.5x |
+| the 100-raindrop drainage identity | 83.5 s | 58.7 s | 1.4x |
+
+**The spec's 2-second target for the 2-ft drainage map is NOT met and will not
+be met by compiling harder.** At 21.6 M cells the kernel touches half a dozen
+86-MB arrays several times each: it is bound by memory bandwidth, not by
+arithmetic, and WebAssembly does not change memory bandwidth. Every other §4
+target is met (contours ≥ 3x, volume ≥ 5x, overtop well under 0.25 s on its own
+flood). Do not chase the drainage number by changing what the kernel computes —
+that is §6, not in scope.
+
+**The first 2-ft run in a fresh worker is ~5.7 s, not 3.7 s**, because it pays
+for growing linear memory to ~600 MB. Every run after it in the same worker is
+the faster number, and the app re-runs this job whenever a storm switch moves,
+so the warm number is the one a user sees twice onwards. `drop()` returns the
+arrays to the wasm allocator but never shrinks the memory, which is what makes
+that true.
+
+### Two things NOT ported, and why
+
+- **`simplifyPath` as an exported kernel.** It is small and it runs on the main
+  thread, so a call across the ABI would cost more than the loop (spec §2 says
+  so). It IS in the crate as an internal helper, because `marchOne`, `traceMask`
+  and `contoursFromGrid` all call it inside their own loops.
+- **`runoff`'s convolution — measured, and deliberately left alone.** The whole
+  `runoff` kernel over the site is **122 ms**; its convolution is `nStorm x nUH`
+  per catchment, which at the kernel's own time base is 103–195 k multiply-adds,
+  **0.2–0.3 ms a catchment, 0.6–0.8 ms for all three** — well under 1 % of the
+  kernel. The cost is the class-share pass over the label raster, not the
+  convolution, and a wasm call per catchment (with its array copies) would cost
+  more than the loop it replaced. Recorded as a finding, not a gap; the
+  measurement is `scratchpad/conv.mjs`'s shape and is trivial to repeat. If a
+  future storm makes `nStorm x nUH` an order of magnitude bigger, measure again
+  before assuming the answer still holds.
 
 ## v20 — tiled terrain, on-demand payloads, and the GPU rasters
 

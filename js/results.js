@@ -38,11 +38,31 @@ SBMM.results = (function () {
         f.layer.on("mouseout", () => el.classList.remove("hl"));
       }
     }
+    stampBackend(el);
     $("resBody").prepend(el);
     /* §3: running a computation brings the Results tab forward */
     if (SBMM.shell && SBMM.shell.showResults) SBMM.shell.showResults();
     return el;
   }
+  /* v21 (docs/V21_WASM_SPEC.md section 3): a card that came out of a kernel
+     says which core computed it. A card built by a job's own `.then` is built
+     microtasks after js/jobs.js records the job, so a completion inside the
+     last window is that card's job; a card built with no recent job (a measure
+     that needs no kernel) gets no stamp at all. */
+  const CORE_WINDOW_MS = 2000;
+  function stampBackend(el) {
+    const st = SBMM.compute && SBMM.compute.stats;
+    if (!st || !st.lastBackend || !st.lastDoneAt) return;
+    if (performance.now() - st.lastDoneAt > CORE_WINDOW_MS) return;
+    const d = document.createElement("div");
+    d.className = "note core";
+    d.dataset.backend = st.lastBackend;
+    d.textContent = st.lastKind + " computed by the " +
+      (st.lastBackend === "wasm" ? "WebAssembly core" : "JavaScript kernels") +
+      " in " + st.lastMs + " ms";
+    el.appendChild(d);
+  }
+
   function rowsHtml(rows) {
     if (typeof rows === "string") return `<div class="note">${rows}</div>`;
     return rows.map((r, i) => `<div class="rrow ${i === 0 ? "big" : ""}"><span>${r[0]}</span><b>${r[1]}</b></div>`).join("");
@@ -63,5 +83,5 @@ SBMM.results = (function () {
     });
     return out;
   }
-  return { card, setRows, appendNote, checkEmpty, csv };
+  return { card, setRows, appendNote, checkEmpty, csv, stampBackend };
 })();
