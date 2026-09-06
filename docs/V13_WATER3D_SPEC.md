@@ -1,6 +1,6 @@
 # SBMM Site Explorer — v13: overtopping through conduits, and water in 3D (authoritative)
 
-Owner/decider: Fable (planner). Executor: one Opus agent (W). This document is
+Owner/decider: the planner. Executor: one agent (W). This document is
 the contract; the agent implements what is written here and does not re-decide
 it. Where something is not specified, choose the simplest option consistent
 with CLAUDE.md and say so in the final report.

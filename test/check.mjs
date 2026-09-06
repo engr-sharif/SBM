@@ -22,9 +22,15 @@
                  script exists. A new file that is not listed is missing from
                  BOTH dists, silently.
    6. names    — no model name in the docs (the CLAUDE.md rule).
+   7. wasm     — datajs/w_kernels.js carries a hash of the crate source, and it
+                 has to match wasm/sbmm-kernels/ as it stands (v21 §3). The
+                 .wasm is not committed and the payload is, so a crate edit
+                 that was never rebuilt would otherwise be found by a golden
+                 moving three steps later.
 
    Prints PASS/FAIL per check; any FAIL exits non-zero. */
-import { readFileSync, existsSync, readdirSync } from "node:fs";
+import { readFileSync, existsSync, readdirSync, statSync } from "node:fs";
+import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { dirname, resolve, basename } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -127,13 +133,50 @@ const bad  = (n, msg, rows = []) => { fails++; console.log(`FAIL ${n} — ${msg}
 
 /* 6. no model name in the docs ------------------------------------------ */
 {
-  const docs = ["CLAUDE.md", "README.md", "docs/HANDOFF.md"].filter(f => existsSync(R(f)));
-  const names = /\b(opus|sonnet|haiku)\b/i;
+  const docs = ["CLAUDE.md", "README.md", "RELEASE_NOTES_v9.md",
+    ...readdirSync(R("docs")).filter(f => f.endsWith(".md")).map(f => "docs/" + f)].filter(f => existsSync(R(f)));
+  const names = /\b(opus|sonnet|haiku|fable)\b/i;
   const rows = [];
   for (const f of docs)
     readFileSync(R(f), "utf8").split("\n").forEach((l, i) => { if (names.test(l)) rows.push(`${f}:${i + 1}: ${l.trim().slice(0, 90)}`); });
   rows.length ? bad("names", "a model name appears in the docs", rows)
               : ok("names", `${docs.length} doc files carry no model name`);
+}
+
+/* 7. the wasm payload is current --------------------------------------- */
+{
+  const crate = R("wasm/sbmm-kernels");
+  const payload = R("datajs/w_kernels.js");
+  if (!existsSync(crate)) ok("wasm", "no wasm crate in this checkout — the JavaScript kernels are the whole app");
+  else if (!existsSync(payload)) bad("wasm", "wasm/sbmm-kernels exists but datajs/w_kernels.js does not — run python tools/build_wasm.py");
+  else {
+    /* the same definition tools/build_wasm.py uses: every .rs/.toml/Cargo.lock
+       under the crate, sorted, each hashed with its own relative path */
+    const files = [];
+    (function walk(d) {
+      for (const e of readdirSync(d, { withFileTypes: true }).sort((a, b) => a.name < b.name ? -1 : 1)) {
+        if (e.isDirectory()) { if (e.name !== "target" && e.name !== ".git") walk(resolve(d, e.name)); }
+        else if (/\.(rs|toml)$/.test(e.name) || e.name === "Cargo.lock") files.push(resolve(d, e.name));
+      }
+    })(crate);
+    files.sort();
+    const h = createHash("sha256");
+    for (const f of files) {
+      h.update(f.slice(crate.length + 1).split("\\").join("/")); h.update(Buffer.from([0]));
+      h.update(readFileSync(f)); h.update(Buffer.from([0]));
+    }
+    const want = h.digest("hex");
+    const txt = readFileSync(payload, "utf8");
+    const m = txt.match(/SBMM_DATA\["wasm_kernels_meta"\]=(\{.*?\});/);
+    const meta = m ? JSON.parse(m[1]) : null;
+    if (!meta) bad("wasm", "datajs/w_kernels.js carries no wasm_kernels_meta block");
+    else if (meta.src_sha256 !== want)
+      bad("wasm", "datajs/w_kernels.js is STALE — run python tools/build_wasm.py",
+          [`payload ${meta.src_sha256}`, `crate   ${want}`, `${files.length} source files hashed`]);
+    else if (statSync(payload).size > 600 * 1024)
+      bad("wasm", `datajs/w_kernels.js is ${(statSync(payload).size / 1024) | 0} kB — over the field-build budget`);
+    else ok("wasm", `payload current (${want.slice(0, 12)}, ${meta.wasm_bytes} bytes of wasm, ${files.length} crate files)`);
+  }
 }
 
 console.log(fails ? `\ncheck: ${fails} FAILED` : "\ncheck: all preflight checks passed");
