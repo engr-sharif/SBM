@@ -79,7 +79,11 @@ export async function acquire(name, opts = {}) {
   const wait = opts.wait || process.argv.includes("--wait");
   const n = opts.slots || slots();
   const token = `${process.pid}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
-  const deadline = Date.now() + (opts.timeoutMs || 60 * 60 * 1000);
+  /* The default wait was one hour, and with three agents queued on one slot a
+     matrix lost its tail to that cap after 33 min of waiting. Four hours by
+     default; SBMM_LOCK_WAIT_MIN overrides it. */
+  const waitMin = Number(process.env.SBMM_LOCK_WAIT_MIN || 240) || 240;
+  const deadline = Date.now() + (opts.timeoutMs || waitMin * 60 * 1000);
 
   for (;;) {
     const got = await withMutex(() => {
@@ -96,7 +100,7 @@ export async function acquire(name, opts = {}) {
       throw new Error(`browser lock: all ${n} slot(s) are held by ${who} — `
         + `wait for its log's EXIT= line, run with --wait, or raise --parallel. `
         + `(the machine-wide lock under the OS temp dir)`);
-    if (Date.now() > deadline) throw new Error(`browser lock: waited an hour for ${who}`);
+    if (Date.now() > deadline) throw new Error(`browser lock: waited ${waitMin} min for ${who}`);
     await sleep(3000);
   }
 
