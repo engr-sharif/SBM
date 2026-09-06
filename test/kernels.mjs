@@ -1564,15 +1564,22 @@ function secStorm() {
       via === "herman_pipe_s" || via === "herman_pipe_n", "either");
   near("pond level = the lower surveyed invert", (hw.ponds.find(p => p.via) || {}).level,
        1341.5, 0.05, " ft");
-  const hwChain = [via, "pipe_to_main", "storm_main_upper", "storm_main_lower"];
+  /* RULING (project engineer, 2026-09-05): BOTH 24-in barrels discharge the
+     impoundment, so each one now reaches the storm main by its own inferred
+     link. A drop still takes the LOWER invert first — that is the kernel's rule
+     and it is right for one drop — and it now stays in pipe from there: before
+     the South barrel ended 13 ft short of the storm line and the drop left the
+     pipe on to the ground for the 3 ft to the North link's capture disc. */
+  const hwChain = [via, via === "herman_pipe_s" ? "pipe_to_main_s" : "pipe_to_main",
+                   "storm_main_upper", "storm_main_lower"];
   row("the chain it took", hw.legs.map(l => l.id).join(","), hwChain.join(","),
       hw.legs.map(l => l.id).join(",") === hwChain.join(","), "exact");
-  near("pipe_ft = 16.5 + 13.2 + 194.7 + 588.9", hw.pipeFt, chain(hwChain), 1, " ft");
+  near("pipe_ft = 16.5 + 12.7 + 194.7 + 588.9", hw.pipeFt, chain(hwChain), 1, " ft");
   exact("it ends at the outfall",
         M.NET.conduits.find(c => c.id === hw.legs[hw.legs.length - 1].id).to, "outfall");
   exact("reason", hw.reason, "nodata");
   dist("then overland to Clear Lake", hw.end[0], hw.end[1], 6371177, 2127474, 3);
-  near("overland length (recorded)", hw.length, 2637.5, 3, " ft");
+  near("overland length (recorded)", hw.length, 2634.6, 3, " ft");
   note("Herman water level: " + hw.length.toFixed(1) + " ft overland + " + hw.pipeFt.toFixed(1) +
        " ft in pipe, via " + via + ", pond " +
        (hw.ponds.find(p => p.via) || {}).level.toFixed(2) + " ft (" +
@@ -1589,6 +1596,31 @@ function secStorm() {
   near("with the drains off, overland (recorded)", hwoff.length, 3520.6, 3, " ft");
   note("Herman water level, drains off: " + hwoff.length.toFixed(1) + " ft overland, spills over the " +
        "1,343.84-ft rim; the 2.30-ft difference from the pipe invert is what the sunken-inlet rule buys");
+
+  /* ---- both barrels reach the storm main (ruling, 2026-09-05) ---------- */
+  /* The engineer: "there are 2 pipes and you only used one ... make sure the
+     system knows that the water flows through the pipes and out to Clear Lake".
+     Before this the South barrel — the LOWER invert, the one the water leaves
+     through — ended 13 ft short of EA's drawn storm line and its water left the
+     pipe on to the ground. Each barrel now has its own inferred link, and a
+     drop entering EITHER of them stays in pipe all the way to the outfall. */
+  console.log("\n§6.9  both 24-in barrels reach the storm main");
+  const nextIdOf = id => {
+    const c = M.NET.conduits.find(q => q.id === id);
+    const nx = c && M.NET.conduits.find(q => q.from === c.to && q.id !== c.id);
+    return nx ? nx.id : null;
+  };
+  for (const [barrel, link] of [["herman_pipe_n", "pipe_to_main"], ["herman_pipe_s", "pipe_to_main_s"]]) {
+    exact(barrel + " continues into the storm main", nextIdOf(barrel), link);
+    const mo = M.mouths[M.NET.conduits.find(c => c.id === barrel).from];
+    const d = hostRun(M, mo.x, mo.y, true);
+    const ch = d.legs.map(l => l.id).join(",");
+    row("a drop at its mouth stays in pipe to the outfall", ch,
+        [barrel, link, "storm_main_upper", "storm_main_lower"].join(","),
+        ch === [barrel, link, "storm_main_upper", "storm_main_lower"].join(","), "exact");
+    near("  and " + barrel + "'s chain is " + chain([barrel, link, "storm_main_upper", "storm_main_lower"]).toFixed(1)
+         + " ft of pipe", d.pipeFt, chain([barrel, link, "storm_main_upper", "storm_main_lower"]), 0.5, " ft");
+  }
 
   /* ---- a broken conduit is simply not passed --------------------------- */
   /* js/storm.js drops a "broken" conduit from conduitsFor(), so the kernel is
