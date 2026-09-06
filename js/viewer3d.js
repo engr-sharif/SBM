@@ -2242,6 +2242,22 @@ SBMM.viewer3d = (function () {
       const ev = (x, y) => ({ clientX: x, clientY: y, button: 0, pointerId: 1,
                               stopPropagation() {}, preventDefault() {} });
 
+      /* A FINGER ON THE GLASS SUSPENDS TILE WORK (v20 §3).
+
+         js/touch.js's recogniser decides what a gesture WAS from wall clock —
+         a tap is pointerdown to pointerup within 300 ms — so any main-thread
+         work running across a gesture can turn it into something else. The
+         settle guard stops a rebuild STARTING under a finger; this stops one
+         that started before the finger landed, which is the case that actually
+         bit: test/e2e_tablet block 3's two-finger tap came 1.8 s after a
+         double-tap, straight into the rebuild the double-tap's camera move had
+         asked for, and measured 503 ms against a 300 ms window. It is on the
+         canvas in the CAPTURE phase so it runs before the recogniser sees the
+         event, and only for touch — a mouse cannot be mistimed this way. */
+      dom.addEventListener("pointerdown", e => {
+        if (e.pointerType === "touch" && lodOn && SBMM.terrain3d.suspend) SBMM.terrain3d.suspend();
+      }, true);
+
       navRec = SBMM.touch.gestures(dom, {
         panstart() { stopGlide(); vtxDrag = false; },
 
@@ -2325,6 +2341,13 @@ SBMM.viewer3d = (function () {
         twofingertap() {
           st.dst.r = clamp(st.dst.r * 1.6, MINR, MAXR);
           requestRender();
+        },
+
+        end() {
+          /* the gesture is over: let the tiles catch up with wherever it left
+             the camera */
+          if (lodOn && SBMM.terrain3d.resume) SBMM.terrain3d.resume();
+          lodDirty = true; lodMoveAt = performance.now();
         },
 
         longpress(g) {
