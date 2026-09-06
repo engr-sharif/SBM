@@ -259,11 +259,17 @@ SBMM.runoff = (function () {
     return [[entry[0] - dx * L, entry[1] - dy * L, zf], [entry[0], entry[1], ze]];
   }
 
-  function jobFor(labels, cats, st, storm) {
+  function jobFor(labels, cats, st, storm, accR) {
     const rain = RAIN();
     const grass = classByKey("grass");
     return {
       labels, cover,
+      /* v19 §2 "Phase 2 uses it": the flow-accumulation raster TR-55's channel
+         test reads. Absent — no js/accum.js, or a run that failed — the kernel
+         falls back to v14 Phase 2's linear-in-path-length proxy and
+         `assumptions.upstreamArea` says which was used, so the card is never
+         ambiguous about it. */
+      accum: accR || null,
       classes: classes().map(c => ({
         id: c.id, key: c.key, hsg: c.hsg, c: c.c, n_sheet: c.n_sheet, paved: c.paved,
         cn: (st.cn && st.cn[c.id]) ? st.cn[c.id] : c.cn
@@ -298,6 +304,17 @@ SBMM.runoff = (function () {
     const D = await SBMM.drainage.run();
     if (!D) return null;                       // drainage already toasted
 
+    /* the upstream area TR-55's 5-acre rule asks for, from the accumulation
+       kernel — D8, because those values ARE the contributing area the rule
+       names. It is cached per switch state like the drainage map, so a second
+       storm over the same network costs nothing. A build without it (or a run
+       that failed and toasted) simply leaves the v14 proxy in place. */
+    let accR = null;
+    if (SBMM.accum) {
+      const A = await SBMM.accum.rasterFor("d8");
+      if (A) accR = SBMM.accum.rasterSpec(A);
+    }
+
     /* the by-outlet catchments — Phase 1's sinks, with its own areas */
     const outletCats = D.sinks.map(s => ({
       label: s.label, kind: s.kind, name: SBMM.drainage.sinkName(s),
@@ -324,10 +341,10 @@ SBMM.runoff = (function () {
     let A, B;
     try {
       const t0 = performance.now();
-      A = await SBMM.compute.run("runoff", jobFor(labels, outletCats, st, storm),
+      A = await SBMM.compute.run("runoff", jobFor(labels, outletCats, st, storm, accR),
         { label: "Design storm — " + storm.name }).promise;
       B = firstCats.length
-        ? await SBMM.compute.run("runoff", jobFor(first, firstCats, st, storm),
+        ? await SBMM.compute.run("runoff", jobFor(first, firstCats, st, storm, accR),
             { label: "Design storm — ponds and inlets", silent: true }).promise
         : { catchments: [], totals: null };
       A.ms_wall = Math.round(performance.now() - t0);
@@ -679,6 +696,7 @@ SBMM.runoff = (function () {
         + (R.overrides.length ? ` · ${R.overrides.length} drawn override${R.overrides.length === 1 ? "" : "s"}` : "")],
       ["Time of concentration", `TR-55: sheet ≤ ${a.sheetMax_ft} ft, shallow concentrated, `
         + `channel above ${a.channelStart_ac} ac (n ${a.channelN}, R ${a.channelR_ft} ft)`],
+      ["Upstream area", a.upstreamArea || "linear in path length (v14 Phase 2 approximation)"],
       ["Peaks", `Rational to ${a.rationalMaxAc} ac; SCS unit hydrograph (PRF 484) for every catchment`],
       ["Catchments", `Phase 1 drainage map, ${R.gridFt}-ft lidar grid (sampled at ${R.dCell} ft)`],
       ["Clear Lake", "free outfall"]

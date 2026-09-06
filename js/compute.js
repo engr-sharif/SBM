@@ -3374,6 +3374,23 @@ var SBMM_COMPUTE = (function SBMMComputeModule() {
     var L = job.labels, CV = job.cover || null;
     var lw = L.w, lh = L.h, lcell = L.cell, lx0 = L.x0, ly0 = L.y0;
     var lab = L.data;
+    /* v19 §2, "Phase 2 uses it": the flow-accumulation raster, when the host
+       has one. TR-55's channel-flow test asks for the area upstream of a point
+       on the flow path, and until Phase 3 this kernel had none — CLAUDE.md
+       records the linear-in-path-length proxy it used instead and names the
+       real accumulation as the Phase 3 item. This is that item. The raster is
+       the accum kernel's DISPLAY raster, decimated by the MAXIMUM over each
+       block: on a flow path that is the channel's own value, which is exactly
+       the number the rule wants. Absent, the v14 proxy stands unchanged and
+       `assumptions.upstreamArea` says which was used. */
+    var ACCR = (job.accum && job.accum.data) ? job.accum : null;
+    function accAtXY(x, y) {
+      if (!ACCR) return NaN;
+      var ai = Math.round((x - ACCR.x0) / ACCR.cell), aj = Math.round((y - ACCR.y0) / ACCR.cell);
+      if (ai < 0 || aj < 0 || ai >= ACCR.w || aj >= ACCR.h) return NaN;
+      var v = ACCR.data[aj * ACCR.w + ai];
+      return (v > 0) ? v : NaN;
+    }
     var CL = job.classes || [];
     var nCls = 0, ci, k, i, j;
     for (k = 0; k < CL.length; k++) if (CL[k].id + 1 > nCls) nCls = CL[k].id + 1;
@@ -3552,7 +3569,7 @@ var SBMM_COMPUTE = (function SBMMComputeModule() {
           + (path[q2][1] - path[q2 - 1][1]) * (path[q2][1] - path[q2 - 1][1])));
       pathFt = cum.length ? cum[cum.length - 1] : 0;
       if (path.length >= 2 && pathFt > 0) {
-        var mode = "sheet", segL = 0, segDz = 0, segCls = -1, segStart = 0;
+        var mode = "sheet", segL = 0, segDz = 0, segCls = -1, segStart = 0, upAcAt = null;
         var pushSeg = function (md, len, dz, cls, endD) {
           if (len <= 0) return;
           if (!isFinite(dz)) dz = 0;
@@ -3573,16 +3590,21 @@ var SBMM_COMPUTE = (function SBMMComputeModule() {
           segs.push({ kind: md, length_ft: +len.toFixed(1), slope_pct: +(100 * s).toFixed(2),
                       n: nMan, v_fps: v == null ? null : +v.toFixed(2),
                       t_min: +(tH2 * 60).toFixed(2), cover: cRec ? cRec.key : null,
-                      at_ft: +endD.toFixed(1) });
+                      at_ft: +endD.toFixed(1),
+                      up_ac: upAcAt == null ? null : +upAcAt.toFixed(2) });
           tcH += tH2;
         };
         for (q2 = 1; q2 < path.length; q2++) {
           var d = cum[q2] - cum[q2 - 1];
           if (d <= 0) continue;
           var upFt = cum[q2 - 1];
-          /* the mode this stretch is in — see the header note on the 5-acre rule */
-          var upAc = o.area_ac * (upFt / pathFt);
+          /* the mode this stretch is in — see the header note on the 5-acre rule.
+             v19: the upstream area is READ off the accumulation raster where the
+             host has one, and is the v14 proxy only where it has not. */
+          var upAcc = accAtXY(path[q2 - 1][0], path[q2 - 1][1]);
+          var upAc = isNaN(upAcc) ? o.area_ac * (upFt / pathFt) : upAcc / 43560;
           var md2 = (upFt < sheetMax) ? "sheet" : (upAc > chStart ? "channel" : "shallow");
+          upAcAt = upAc;
           var cls2 = coverAt(path[q2 - 1][0], path[q2 - 1][1]);
           if (cls2 < 0) cls2 = defCls;
           /* a sheet-flow stretch is cut at sheetMax exactly */
@@ -3609,6 +3631,7 @@ var SBMM_COMPUTE = (function SBMMComputeModule() {
       if (tcH * 60 < minTc) tcH = minTc / 60;
       o.tc_min = +(tcH * 60).toFixed(1);
       o.tcSegments = segs;
+      o.tcAccum = !!ACCR;
       o.pathLen_ft = +pathFt.toFixed(1);
 
       /* ---- Rational ---- */
@@ -3724,8 +3747,780 @@ var SBMM_COMPUTE = (function SBMMComputeModule() {
         assumptions: {
           sheetMax_ft: sheetMax, channelStart_ac: chStart, channelN: chN,
           channelR_ft: chR, minTc_min: minTc, rationalMaxAc: maxAc,
-          hsg: hsg, idf_min_h: idfMin, idf_max_h: idfMax
+          hsg: hsg, idf_min_h: idfMin, idf_max_h: idfMax,
+          upstreamArea: ACCR ? "flow accumulation (v19 Phase 3)"
+                             : "linear in path length (v14 Phase 2 approximation)"
         },
+        ms: Date.now() - t0
+      },
+      transfer: []
+    };
+  }
+
+  /* ======================================================================
+     v19 — HYDROLOGY PHASE 3 (docs/V19_HYDRO3_SPEC.md)
+     ======================================================================
+     Two kernels live in this block and nothing outside it changed except
+     runJob's two dispatch lines and the ONE optional `accum` raster the
+     runoff kernel now reads for its channel-flow test (v14 Phase 2 approximated
+     the upstream area as a fraction of the path length and said so; this is
+     the Phase 3 item that note pointed at).
+
+       `accum`       flow accumulation — D-infinity over the filled DEM with
+                     the drainage map's own pointer field as the tie-breaker,
+                     conduits as shortcuts, plus plain D8 for the identity.
+       `hydraulics`  Manning full-flow capacity, HEC-22 grate-inlet capacity
+                     and a steady-state HGL/EGL pass. Pure arithmetic over a
+                     list — no terrain, no raster, no descent.
+
+     WHAT ACCUMULATION IS HERE. One number per cell: the area that drains
+     THROUGH it, in square feet, counting the cell itself. The physics is the
+     drainage map's, cell for cell (docs/V14_DRAINAGE_SPEC.md §2): the same
+     `fillDem` with the same conduit-inlet seeding and the same parent forest,
+     ponds read at their level, a conduit a topological shortcut. It is still
+     terrain only — the map says how much ground drains through a point, never
+     how much water.
+
+     WHY IT IS PROVABLY ACYCLIC, and it is the same argument the labels use:
+     `F` never rises along a flow edge, and where `F` stays equal the step is
+     the priority flood's own parent, which strictly shortens the distance to
+     the root of that forest. D-infinity adds edges only to neighbours whose
+     EFFECTIVE elevation is strictly lower, so it cannot introduce a cycle
+     the D8 field did not have; where no such neighbour exists (a flat, the
+     inside of a pond, a capture cell) the pointer is used unsplit — that is
+     what "the pointer field as the tie-breaker" means. A cycle is still
+     detected rather than assumed away: the accumulation is resolved by a
+     Kahn topological sweep and any cell left unprocessed is reported in
+     `loops`, exactly as the label resolution reports its own.
+
+     THE IDENTITY, which is the acceptance test (spec §2): the D8 accumulation
+     leaving the model at each cell, summed by the drainage map's own label,
+     is that outlet's Phase 1 area. `byLabel` is that sum, computed here when
+     the host hands the label raster in, so the app can print the cross-check
+     on its own card rather than asserting it only in a harness.            */
+
+  var ACC_RIM_EPS = 1e-3;             /* a Float32 F against a Float64 invert */
+  var ACC_POND_EPS = 1e-3;            /* half the terrain-RGB step is 0.01 ft */
+  var ACC_QPI = Math.PI / 4;
+
+  /* Tarboton's eight triangular facets, each (cardinal, diagonal) in grid
+     steps. j increases NORTH, the way every grid in this module is laid out. */
+  var ACC_FACET = [
+    [1, 0, 1, 1], [0, 1, 1, 1], [0, 1, -1, 1], [-1, 0, -1, 1],
+    [-1, 0, -1, -1], [0, -1, -1, -1], [0, -1, 1, -1], [1, 0, 1, -1]
+  ];
+
+  /* The conduit index and the filled DEM, built exactly the way `drainage`
+     builds them (its §1 and §2) — the same capture discs, the same
+     nearest-inlet tie-break, the same "an inlet's own nearest cell is always a
+     capture cell whatever captureFt says" rule that the 4-ft field run needs,
+     and the same fill seeded at every capture cell's rim. `fillDem` is the
+     module's one fill and is reused, not copied. */
+  function accField(job, w, h, cell, X0, Y0, z, onProgress, p0, p1) {
+    var n = w * h, i, j, k, t, c, ni, nj, vi;
+    var CD = (job.conduits && job.conduits.length) ? job.conduits : null;
+    var inletAt = null, seedSinks = null, cdIx = {}, capFt = 0;
+    if (CD) {
+      capFt = job.captureFt == null ? 3 : job.captureFt;
+      inletAt = new Int16Array(n); inletAt.fill(-1);
+      var dmap = new Map(), crc = Math.max(0, Math.ceil(capFt / cell));
+      for (k = 0; k < CD.length; k++) {
+        var Ck = CD[k];
+        cdIx[Ck.id] = k;
+        var ki = Math.round((Ck.ix - X0) / cell), kj = Math.round((Ck.iy - Y0) / cell);
+        for (var cjj = kj - crc; cjj <= kj + crc; cjj++) {
+          if (cjj < 0 || cjj >= h) continue;
+          for (var cii = ki - crc; cii <= ki + crc; cii++) {
+            if (cii < 0 || cii >= w) continue;
+            var kdx = X0 + cii * cell - Ck.ix, kdy = Y0 + cjj * cell - Ck.iy;
+            var kd = Math.sqrt(kdx * kdx + kdy * kdy);
+            if (kd > capFt) continue;
+            var kidx = cjj * w + cii;
+            if (isNaN(z[kidx])) continue;
+            var prevD = dmap.get(kidx);
+            if (prevD === undefined || kd < prevD) { dmap.set(kidx, kd); inletAt[kidx] = k; }
+          }
+        }
+      }
+      for (k = 0; k < CD.length; k++) {
+        var ni2 = Math.round((CD[k].ix - X0) / cell), nj2 = Math.round((CD[k].iy - Y0) / cell);
+        if (ni2 < 0 || nj2 < 0 || ni2 >= w || nj2 >= h) continue;
+        var nidx = nj2 * w + ni2;
+        if (isNaN(z[nidx]) || dmap.has(nidx)) continue;
+        dmap.set(nidx, 0); inletAt[nidx] = k;
+      }
+      seedSinks = [];
+      dmap.forEach(function (d, idx) {
+        var srim = CD[inletAt[idx]].rim;
+        seedSinks.push([idx, (srim == null || !isFinite(srim)) ? z[idx] : srim]);
+      });
+    }
+    function rimOf(kk, atIdx) {
+      var r = CD[kk].rim;
+      return (r == null || !isFinite(r)) ? z[atIdx] : r;
+    }
+
+    var parent = new Int32Array(n);
+    var F = fillDem(z, w, h, onProgress, p0, p0 + (p1 - p0) * 0.6, seedSinks, parent);
+
+    /* the ponds — the connected components of F > z, at the MINIMUM F over the
+       component (where two inlets seeded one depression the water leaves at the
+       lower of them), with the lowest conduit rim inside it as the via */
+    var pondId = new Int32Array(n);
+    var pcap = 4096, pn = 1;
+    var pLevel = new Float64Array(pcap), pVia = new Int32Array(pcap);
+    function pgrow2() {
+      var m = pcap * 2, a;
+      a = new Float64Array(m); a.set(pLevel); pLevel = a;
+      a = new Int32Array(m); a.set(pVia); pVia = a;
+      pcap = m;
+    }
+    var stk = new Int32Array(1 << 16);
+    function stkPush2(sp, v) {
+      if (sp === stk.length) { var q = new Int32Array(sp * 2); q.set(stk); stk = q; }
+      stk[sp] = v; return sp + 1;
+    }
+    var wet = function (idx) { return !isNaN(z[idx]) && F[idx] > z[idx] + ACC_POND_EPS; };
+    for (j = 0; j < h; j++) {
+      if ((j & 255) === 0 && onProgress)
+        onProgress(p0 + (p1 - p0) * (0.6 + 0.4 * (j / h)));
+      for (i = 0; i < w; i++) {
+        c = j * w + i;
+        if (pondId[c] || !wet(c)) continue;
+        if (pn + 1 > pcap) pgrow2();
+        var pid = pn++;
+        var sp = stkPush2(0, c);
+        pondId[c] = pid;
+        var level = F[c], viaK = -1, viaRim = Infinity, seedIn = -1;
+        while (sp > 0) {
+          var u = stk[--sp], ui = u % w, uj = (u - ui) / w;
+          if (F[u] < level) level = F[u];
+          if (CD && inletAt[u] >= 0) {
+            var ru = rimOf(inletAt[u], u);
+            if (ru < viaRim) { viaRim = ru; viaK = inletAt[u]; }
+          }
+          if (parent[u] < 0) seedIn = u;
+          for (t = 0; t < 8; t++) {
+            ni = ui + W_DI[t]; nj = uj + W_DJ[t];
+            if (ni < 0 || nj < 0 || ni >= w || nj >= h) continue;
+            vi = nj * w + ni;
+            if (pondId[vi] === pid || isNaN(z[vi])) continue;
+            if (!pondId[vi] && wet(vi)) { pondId[vi] = pid; sp = stkPush2(sp, vi); continue; }
+            if (CD && inletAt[vi] >= 0) {
+              var rv = rimOf(inletAt[vi], vi);
+              if (rv <= level + ACC_RIM_EPS && rv < viaRim) { viaRim = rv; viaK = inletAt[vi]; }
+            }
+          }
+        }
+        pLevel[pid] = level;
+        pVia[pid] = (CD && viaK >= 0 && (viaRim <= level + ACC_RIM_EPS || seedIn >= 0)) ? viaK : -1;
+      }
+    }
+    stk = null;
+
+    /* each conduit's chain resolved once: the cell the water reappears in, or
+       -1 where the chain leaves the model (an outfall, or an outlet off the
+       surveyed ground). Identical to drainage's §4 with the sink table dropped:
+       an accumulation that leaves the model is simply gone from it. */
+    var chainCell = null;
+    if (CD) {
+      chainCell = new Int32Array(CD.length);
+      var seenC = new Int32Array(CD.length); seenC.fill(-1);
+      for (k = 0; k < CD.length; k++) {
+        var cur2 = k, last = k;
+        for (;;) {
+          if (seenC[cur2] === k) break;
+          seenC[cur2] = k; last = cur2;
+          if (CD[cur2].outfall) break;
+          var nx = (CD[cur2].next != null && cdIx[CD[cur2].next] != null) ? cdIx[CD[cur2].next] : -1;
+          if (nx < 0) break;
+          cur2 = nx;
+        }
+        var CL = CD[last];
+        if (CL.outfall) chainCell[k] = -1;
+        else {
+          var oi = Math.round((CL.ox - X0) / cell), oj = Math.round((CL.oy - Y0) / cell);
+          chainCell[k] = (oi >= 0 && oj >= 0 && oi < w && oj < h && !isNaN(z[oj * w + oi]))
+            ? oj * w + oi : -1;
+        }
+      }
+    }
+    return { F: F, parent: parent, pondId: pondId, pLevel: pLevel, pVia: pVia,
+             pn: pn, CD: CD, inletAt: inletAt, chainCell: chainCell, capFt: capFt };
+  }
+
+  function accumJob(job, onProgress) {
+    var t0 = Date.now();
+    var g = job.grid, w = g.sw, h = g.sh, cell = g.cell, z = g.z, n = w * h;
+    var X0 = g.x0 + g.i0 * cell, Y0 = g.y0 + g.j0 * cell;
+    var stride = Math.max(1, (job.stride | 0) || 1);
+    var dinf = job.method !== "d8";
+    var a2 = cell * cell;
+    var thr = job.streamThreshold_ft2 == null ? 5 * 43560 : job.streamThreshold_ft2;
+    var prog = function (p) { if (onProgress) onProgress(p); };
+    var i, j, t, c, ni, nj, vi, k;
+
+    var FLD = accField(job, w, h, cell, X0, Y0, z, onProgress, 0, 0.34);
+    var F = FLD.F, parent = FLD.parent, pondId = FLD.pondId, pLevel = FLD.pLevel;
+    var CD = FLD.CD, inletAt = FLD.inletAt, chainCell = FLD.chainCell;
+    function chainTarget(kk) { return chainCell[kk]; }     /* -1 = leaves the model */
+    function effOfIdx(idx) { var pk = pondId[idx]; return pk ? pLevel[pk] : z[idx]; }
+
+    /* ---- the flow edges -------------------------------------------------
+       t1/t2 are the two receiving cells (-1 = the water leaves the model) and
+       f2 the share going to t2. `mode` records how the edge was decided so the
+       stream tracer can tell a pipe from a slope:
+         0 exits, 1 a single pointer step (pond, flat, capture), 2 D8/D-inf.  */
+    var t1 = new Int32Array(n), t2 = new Int32Array(n), f2 = new Float32Array(n);
+    var mode = new Uint8Array(n), viaPipe = new Uint8Array(n);
+    var flats = 0, pondSinks = 0, pipeCells = 0;
+    for (j = 0; j < h; j++) {
+      if ((j & 255) === 0) prog(0.34 + 0.20 * (j / h));
+      for (i = 0; i < w; i++) {
+        c = j * w + i;
+        t2[c] = -1; f2[c] = 0;
+        if (isNaN(z[c])) { t1[c] = -1; mode[c] = 0; continue; }
+        var pk = pondId[c], single = -2;
+        if (pk) {
+          if (CD && inletAt[c] >= 0 &&
+              (parent[c] < 0 || (function () {
+                var r = CD[inletAt[c]].rim;
+                return ((r == null || !isFinite(r)) ? z[c] : r) <= pLevel[pk] + ACC_RIM_EPS;
+              })())) {
+            t1[c] = chainTarget(inletAt[c]); mode[c] = t1[c] < 0 ? 0 : 1;
+            viaPipe[c] = 1; pipeCells++;
+            continue;
+          }
+          var pp0 = parent[c];
+          if (pp0 >= 0 && pp0 !== c && !isNaN(z[pp0])
+              && (pondId[pp0] === pk || z[pp0] <= pLevel[pk] + 1e-9)) single = pp0;
+        }
+        if (single === -2 && CD && inletAt[c] >= 0) {
+          t1[c] = chainTarget(inletAt[c]); mode[c] = t1[c] < 0 ? 0 : 1;
+          viaPipe[c] = 1; pipeCells++;
+          continue;
+        }
+        if (single >= 0) { t1[c] = single; mode[c] = 1; continue; }
+        if (i === 0 || j === 0 || i === w - 1 || j === h - 1) { t1[c] = -1; mode[c] = 0; continue; }
+        /* steepest descent on EFFECTIVE elevation, drainage's §4 exactly: a
+           NoData neighbour ends the run where it is found. */
+        var ze = pk ? pLevel[pk] : z[c], best = -1, bd = -1, nod = false;
+        for (t = 0; t < 8; t++) {
+          vi = (j + W_DJ[t]) * w + (i + W_DI[t]);
+          var zv = z[vi];
+          if (isNaN(zv)) { nod = true; break; }
+          var pv = pondId[vi];
+          var dr = (ze - (pv ? pLevel[pv] : zv)) / W_DD[t];
+          if (dr > 1e-9 && dr > bd) { bd = dr; best = vi; }
+        }
+        if (nod) { t1[c] = -1; mode[c] = 0; continue; }
+        if (best >= 0) {
+          t1[c] = best; mode[c] = 2;
+          if (dinf && !pk) dinfSplit(i, j, c, ze);
+          continue;
+        }
+        if (pk) { pondSinks++; t1[c] = -1; mode[c] = 0; continue; }
+        var pp = parent[c];
+        if (pp >= 0 && pp !== c && !isNaN(z[pp])) { t1[c] = pp; mode[c] = 1; continue; }
+        flats++; t1[c] = -1; mode[c] = 0;
+      }
+    }
+
+    /* Tarboton (1997) over the eight facets, on EFFECTIVE elevation so a pond
+       is a flat lid rather than a hole. A facet is used only where BOTH of its
+       receiving cells are strictly lower than this one — anything else keeps
+       the D8 answer, which is what makes the field acyclic by the same
+       argument. Written as a closure over the loop's own variables so the hot
+       path allocates nothing. */
+    function dinfSplit(i, j, c, e0) {
+      var bs = -1, br = 0, bi1 = -1, bi2 = -1, q;
+      for (q = 0; q < 8; q++) {
+        var fq = ACC_FACET[q];
+        var i1 = i + fq[0], j1 = j + fq[1], i2 = i + fq[2], j2 = j + fq[3];
+        if (i1 < 0 || j1 < 0 || i1 >= w || j1 >= h) continue;
+        if (i2 < 0 || j2 < 0 || i2 >= w || j2 >= h) continue;
+        var k1 = j1 * w + i1, k2 = j2 * w + i2;
+        if (isNaN(z[k1]) || isNaN(z[k2])) continue;
+        var e1 = effOfIdx(k1), e2 = effOfIdx(k2);
+        var s1 = (e0 - e1) / cell, s2 = (e1 - e2) / cell;
+        var r = Math.atan2(s2, s1), s = Math.sqrt(s1 * s1 + s2 * s2);
+        if (r < 0) { r = 0; s = s1; }
+        else if (r > ACC_QPI) { r = ACC_QPI; s = (e0 - e2) / (cell * W_SQ); }
+        if (s > bs) { bs = s; br = r; bi1 = k1; bi2 = k2; }
+      }
+      if (bs <= 0 || bi1 < 0) return;
+      var p2 = br / ACC_QPI, p1 = 1 - p2;
+      var lo1 = effOfIdx(bi1) < e0 - 1e-9, lo2 = effOfIdx(bi2) < e0 - 1e-9;
+      if (p2 > 1e-6 && p1 > 1e-6 && lo1 && lo2) { t1[c] = bi1; t2[c] = bi2; f2[c] = p2; }
+      else if (p2 >= 1 - 1e-6 && lo2) { t1[c] = bi2; }
+      else if (p1 >= 1 - 1e-6 && lo1) { t1[c] = bi1; }
+      /* otherwise the D8 answer already in t1 stands */
+    }
+    /* the fill's own arrays are 172 MB at 2 ft and nothing below reads them:
+       the edges ARE the pointer field now. `pondId`/`pLevel` stay for the
+       probes, which report the pond a point is standing in. */
+    F = null; parent = null; FLD.F = null; FLD.parent = null;
+    prog(0.56);
+
+    /* ---- the topological sweep (Kahn) ------------------------------------
+       Every edge either lowers `F` or is the flood's own parent step, so the
+       graph is acyclic — but a conduit may discharge uphill, so a cycle is
+       DETECTED rather than assumed: whatever is left unprocessed is reported
+       as `loops` and its accumulation is whatever reached it. */
+    var indeg = new Uint16Array(n);
+    var live = 0;
+    for (c = 0; c < n; c++) {
+      if (isNaN(z[c])) continue;
+      live++;
+      if (t1[c] >= 0) { if (indeg[t1[c]] === 65535) throw new Error("accum: in-degree overflow"); indeg[t1[c]]++; }
+      if (t2[c] >= 0) { if (indeg[t2[c]] === 65535) throw new Error("accum: in-degree overflow"); indeg[t2[c]]++; }
+    }
+    var acc = new Float64Array(n);
+    var stack = new Int32Array(live + 1), sp = 0;
+    for (c = 0; c < n; c++) {
+      if (isNaN(z[c])) continue;
+      acc[c] = a2;
+      if (indeg[c] === 0) stack[sp++] = c;
+    }
+    var order = new Int32Array(live), on2 = 0;
+    var exitTotal = 0, exitCells = 0;
+    var LAB = job.labels && job.labels.data ? job.labels : null;
+    var byLabel = {};
+    function labelAtIdx(idx) {
+      if (!LAB) return null;
+      var ii = idx % w, jj = (idx - ii) / w;
+      var lx = X0 + ii * cell, ly = Y0 + jj * cell;
+      var li = Math.round((lx - LAB.x0) / LAB.cell), lj = Math.round((ly - LAB.y0) / LAB.cell);
+      if (li < 0 || lj < 0 || li >= LAB.w || lj >= LAB.h) return null;
+      return LAB.data[lj * LAB.w + li];
+    }
+    while (sp > 0) {
+      c = stack[--sp];
+      order[on2++] = c;
+      var av = acc[c];
+      var b = t1[c], d = t2[c], p2f = f2[c];
+      if (b >= 0) {
+        acc[b] += d >= 0 ? av * (1 - p2f) : av;
+        if (--indeg[b] === 0) stack[sp++] = b;
+      }
+      if (d >= 0) {
+        acc[d] += av * p2f;
+        if (--indeg[d] === 0) stack[sp++] = d;
+      }
+      if (b < 0 && d < 0) {
+        exitTotal += av; exitCells++;
+        if (LAB) {
+          var lv = labelAtIdx(c);
+          if (lv != null && lv >= 0) {
+            var key = String(lv);
+            if (!byLabel[key]) byLabel[key] = { label: lv, area_ft2: 0, cells: 0 };
+            byLabel[key].area_ft2 += av;
+            byLabel[key].cells++;
+          }
+        }
+      }
+      if ((on2 & 1048575) === 0) prog(0.56 + 0.24 * (on2 / live));
+    }
+    var loops = live - on2;
+    indeg = null; stack = null;
+    prog(0.82);
+
+    /* ---- the streams ------------------------------------------------------
+       Every cell over the threshold, chained along the PRIMARY direction (the
+       larger of the two D-infinity shares), decomposed into links of constant
+       Strahler order. A link that ends at a conduit inlet says so and the
+       chain picks up again at the outlet — a pipe is not a stream. */
+    var primaryOf = function (idx) {
+      if (t2[idx] >= 0 && f2[idx] > 0.5) return t2[idx];
+      return t1[idx];
+    };
+    var isStream = function (idx) { return !isNaN(z[idx]) && acc[idx] >= thr; };
+    var sCells = [];
+    for (k = 0; k < on2; k++) { c = order[k]; if (isStream(c)) sCells.push(c); }
+    var sIdx = new Map();
+    for (k = 0; k < sCells.length; k++) sIdx.set(sCells[k], k);
+    var upCount = new Int32Array(sCells.length);
+    for (k = 0; k < sCells.length; k++) {
+      var tgt = primaryOf(sCells[k]);
+      if (tgt >= 0 && sIdx.has(tgt)) upCount[sIdx.get(tgt)]++;
+    }
+    /* Strahler in the sweep's own topological order: the upstream cells of a
+       stream cell are settled before it, because `order` is topological. */
+    var sOrder = new Int32Array(sCells.length);
+    var sMax = new Int32Array(sCells.length), sMaxN = new Int32Array(sCells.length);
+    for (k = 0; k < sCells.length; k++) {
+      var kk = sIdx.get(sCells[k]);
+      var o = upCount[kk] === 0 ? 1 : (sMaxN[kk] >= 2 ? sMax[kk] + 1 : sMax[kk]);
+      sOrder[kk] = o;
+      var tg = primaryOf(sCells[k]);
+      if (tg >= 0 && sIdx.has(tg)) {
+        var dk = sIdx.get(tg);
+        if (o > sMax[dk]) { sMax[dk] = o; sMaxN[dk] = 1; }
+        else if (o === sMax[dk]) sMaxN[dk]++;
+      }
+    }
+    var maxOrder = 0, orders = {};
+    for (k = 0; k < sOrder.length; k++) {
+      if (sOrder[k] > maxOrder) maxOrder = sOrder[k];
+      orders[String(sOrder[k])] = (orders[String(sOrder[k])] || 0) + 1;
+    }
+    /* a link starts at a head, at a junction, or where a pipe puts water back
+       on the ground */
+    var linkStart = new Uint8Array(sCells.length);
+    for (k = 0; k < sCells.length; k++) {
+      var kx = sIdx.get(sCells[k]);
+      if (upCount[kx] !== 1) linkStart[kx] = 1;
+      else if (viaPipe[sCells[k]]) linkStart[kx] = 1;   /* the inlet ends a link */
+    }
+    for (k = 0; k < sCells.length; k++) {
+      if (!viaPipe[sCells[k]]) continue;
+      var out = primaryOf(sCells[k]);
+      if (out >= 0 && sIdx.has(out)) linkStart[sIdx.get(out)] = 1;
+    }
+    var maxStreams = job.maxStreams == null ? 400 : job.maxStreams;
+    var streams = [], sLen = 0;
+    var seenLink = new Uint8Array(sCells.length);
+    for (k = 0; k < sCells.length; k++) {
+      var k0 = sIdx.get(sCells[k]);
+      if (!linkStart[k0] || seenLink[k0]) continue;
+      var cur = sCells[k], pts = [], accMin = acc[cur], accMax = acc[cur];
+      var ord = sOrder[k0], ends = "sink", guard = 0;
+      for (;;) {
+        var ci = cur % w;
+        pts.push([X0 + ci * cell, Y0 + ((cur - ci) / w) * cell]);
+        if (acc[cur] > accMax) accMax = acc[cur];
+        if (acc[cur] < accMin) accMin = acc[cur];
+        if (viaPipe[cur]) { ends = "conduit"; break; }
+        var nx = primaryOf(cur);
+        if (nx < 0) { ends = "sink"; break; }
+        if (!sIdx.has(nx)) { ends = "below threshold"; break; }
+        var nk = sIdx.get(nx);
+        if (guard++ > 400000) { ends = "guard"; break; }
+        var ci2 = nx % w;
+        if (linkStart[nk] && nx !== cur) {
+          pts.push([X0 + ci2 * cell, Y0 + ((nx - ci2) / w) * cell]);
+          /* the cell the link ends ON says what it ends in: a pipe mouth is a
+             conduit, anything else is the junction it flows into */
+          ends = viaPipe[nx] ? "conduit" : "junction";
+          break;
+        }
+        seenLink[nk] = 1;
+        cur = nx;
+      }
+      seenLink[k0] = 1;
+      if (pts.length < 2) continue;
+      var lf = 0;
+      for (var q = 1; q < pts.length; q++)
+        lf += Math.sqrt((pts[q][0] - pts[q - 1][0]) * (pts[q][0] - pts[q - 1][0])
+                      + (pts[q][1] - pts[q - 1][1]) * (pts[q][1] - pts[q - 1][1]));
+      sLen += lf;
+      streams.push({ pts: simplifyPath(pts, cell * 0.5), order: ord, ends: ends,
+                     length_ft: +lf.toFixed(1),
+                     accMin_ft2: accMin, accMax_ft2: accMax });
+    }
+    var streamLinks = streams.length;
+    /* biggest first, then the display budget — a link is dropped from the
+       DRAWING, never from the length or the order histogram above */
+    streams.sort(function (a, b) { return b.accMax_ft2 - a.accMax_ft2; });
+    if (streams.length > maxStreams) streams = streams.slice(0, maxStreams);
+    prog(0.9);
+
+    /* ---- the probes: FULL-resolution values where the host asked --------- */
+    var probes = [];
+    if (job.probes) for (k = 0; k < job.probes.length; k++) {
+      var px = job.probes[k][0], py = job.probes[k][1];
+      var pi = Math.round((px - X0) / cell), pj = Math.round((py - Y0) / cell);
+      if (pi < 0 || pj < 0 || pi >= w || pj >= h) { probes.push(null); continue; }
+      var pidx = pj * w + pi;
+      if (isNaN(z[pidx])) { probes.push(null); continue; }
+      probes.push({ x: X0 + pi * cell, y: Y0 + pj * cell,
+                    acc_ft2: acc[pidx], acc_ac: acc[pidx] / 43560,
+                    stream: acc[pidx] >= thr,
+                    order: sIdx.has(pidx) ? sOrder[sIdx.get(pidx)] : 0,
+                    pond: pondId[pidx] ? +pLevel[pondId[pidx]].toFixed(2) : null,
+                    conduit: (CD && inletAt && inletAt[pidx] >= 0) ? CD[inletAt[pidx]].id : null });
+    }
+
+    /* ---- the display rasters --------------------------------------------
+       decimated by the MAXIMUM over each block, never by sampling: a channel is
+       one cell wide and a sampled decimation loses it entirely, which would
+       draw a site with no streams on it. */
+    var dw = Math.max(1, Math.ceil(w / stride)), dh = Math.max(1, Math.ceil(h / stride));
+    var dAcc = new Float32Array(dw * dh), dChan = new Uint8Array(dw * dh);
+    var dSca = new Float32Array(dw * dh);
+    for (j = 0; j < dh; j++) {
+      for (i = 0; i < dw; i++) {
+        var bm = NaN, jj, ii2;
+        for (jj = j * stride; jj < Math.min(h, (j + 1) * stride); jj++)
+          for (ii2 = i * stride; ii2 < Math.min(w, (i + 1) * stride); ii2++) {
+            var sIdx2 = jj * w + ii2;
+            if (isNaN(z[sIdx2])) continue;
+            if (isNaN(bm) || acc[sIdx2] > bm) bm = acc[sIdx2];
+          }
+        dAcc[j * dw + i] = isNaN(bm) ? 0 : bm;
+        dSca[j * dw + i] = isNaN(bm) ? 0 : bm / cell;
+        dChan[j * dw + i] = (!isNaN(bm) && bm >= thr) ? 1 : 0;
+      }
+    }
+    var maxAcc = 0, surveyed = 0;
+    for (c = 0; c < n; c++) { if (isNaN(z[c])) continue; surveyed++; if (acc[c] > maxAcc) maxAcc = acc[c]; }
+    var bl = [];
+    for (var kk2 in byLabel) if (byLabel.hasOwnProperty(kk2)) bl.push(byLabel[kk2]);
+    bl.sort(function (a, b) { return b.area_ft2 - a.area_ft2; });
+
+    prog(1);
+    return {
+      result: {
+        method: dinf ? "dinf" : "d8", cell: cell, stride: stride,
+        w: dw, h: dh, dCell: cell * stride, x0: X0, y0: Y0, gw: w, gh: h,
+        acc: dAcc, sca: dSca, channelMask: dChan,
+        streams: streams, streamCount: streams.length, streamLinks: streamLinks,
+        streamCells: sCells.length, streamLength_ft: +sLen.toFixed(1),
+        maxOrder: maxOrder, orders: orders,
+        threshold_ft2: thr, threshold_ac: thr / 43560,
+        probes: probes, byLabel: bl,
+        maxAcc_ft2: maxAcc, maxAcc_ac: maxAcc / 43560,
+        surveyedCells: surveyed, surveyedArea_ft2: surveyed * a2,
+        exitTotal_ft2: exitTotal, exitCells: exitCells,
+        loops: loops, flats: flats, pondSinks: pondSinks,
+        pipeCells: pipeCells, conduits: CD ? CD.length : 0,
+        ms: Date.now() - t0
+      },
+      transfer: [dAcc.buffer, dSca.buffer, dChan.buffer]
+    };
+  }
+
+  /* ======================================================================
+     `hydraulics` — Manning, HEC-22 and a steady-state HGL/EGL pass
+     ======================================================================
+     PROVISIONAL UNTIL THE INVERT SURVEY ARRIVES, and everything it returns
+     says which of its inputs were surveyed and which were read off the lidar
+     rims. Nothing is invented: a conduit with no diameter has no capacity, a
+     grate with no size has no inlet capacity, and both are reported as
+     "unknown — survey pending" rather than filled in with a plausible number.
+
+     Pure arithmetic over a list — no terrain, no raster, no descent — so it
+     runs in a millisecond and the host can call it on every popup.
+
+       capacity   Manning full-flow, Q = (1.49/n) A R^(2/3) S^(1/2),
+                  A = pi D^2 / 4 and R = D/4 for a circular pipe flowing full.
+       inlet      HEC-22 grate inlets. IN A SAG the grate is a weir until it
+                  drowns and an orifice after, Qw = Cw P d^1.5 and
+                  Qo = Co A (2 g d)^0.5, and the capacity is the smaller;
+                  ON GRADE the interception is Qi = Q [Rf E0 + Rs (1 - E0)]
+                  with the frontal-flow factor Rf = 1 - 0.09 (V - V0) clamped
+                  to [0,1] and the side-flow factor Rs = 1 / (1 + 0.15 V^1.8 /
+                  (Sx L^2.3)).
+       HGL/EGL    node to node from the outfall upstream: the energy grade
+                  rises by the friction loss over the reach (the full-flow
+                  friction slope at the ACTUAL discharge, Sf = (Q n / (1.49 A
+                  R^(2/3)))^2) plus an entrance loss K V^2/2g, and the
+                  hydraulic grade is the energy grade less the velocity head.
+                  Surcharge is flagged where the hydraulic grade stands above
+                  the upstream node's rim. Steady state: no time, no storage,
+                  no unsteady routing (spec §6).                             */
+
+  var HYD_G = 32.174;
+
+  function manningFull(D_ft, n, S) {
+    if (!(D_ft > 0) || !(n > 0) || !(S > 0)) return null;
+    var A = Math.PI * D_ft * D_ft / 4, R = D_ft / 4;
+    return { A: A, R: R, Q: (1.49 / n) * A * Math.pow(R, 2 / 3) * Math.sqrt(S) };
+  }
+
+  function hydraulicsJob(job, onProgress) {
+    var t0 = Date.now();
+    var prog = function (p) { if (onProgress) onProgress(p); };
+    var CD = job.conduits || [], ND = job.nodes || [];
+    var K = job.entranceK == null ? 0.5 : job.entranceK;
+    var byNode = {}, i, k;
+    for (i = 0; i < ND.length; i++) byNode[ND[i].id] = ND[i];
+    var byId = {}, recById = {};
+    for (i = 0; i < CD.length; i++) byId[CD[i].id] = CD[i];
+
+    /* ---- 1. per-conduit capacity ---------------------------------------- */
+    var out = [], unknown = 0;
+    for (i = 0; i < CD.length; i++) {
+      var c = CD[i];
+      var D = (c.diameter_in != null && c.diameter_in > 0) ? c.diameter_in / 12 : null;
+      var n = (c.n != null && c.n > 0) ? c.n : null;
+      var S = (c.slope != null && isFinite(c.slope)) ? c.slope : null;
+      var why = [];
+      if (D == null) why.push("diameter");
+      if (n == null) why.push("roughness");
+      if (S == null) why.push("slope");
+      if (S != null && S <= 0) why.push("adverse or flat slope");
+      var m = (D != null && n != null && S != null && S > 0) ? manningFull(D, n, S) : null;
+      var Q = c.inflow_cfs == null ? null : +c.inflow_cfs;
+      var rec = {
+        id: c.id, from: c.from, to: c.to, length_ft: c.length_ft == null ? null : +c.length_ft,
+        diameter_in: c.diameter_in == null ? null : +c.diameter_in,
+        n: n, material: c.material || null,
+        slope: S, slope_source: c.slope_source || null,
+        slope_provisional: !!c.slope_provisional,
+        area_ft2: m ? +m.A.toFixed(4) : null,
+        capacity_cfs: m ? +m.Q.toFixed(2) : null,
+        vFull_fps: m ? +(m.Q / m.A).toFixed(2) : null,
+        Q_peak_cfs: Q == null ? null : +Q.toFixed(2),
+        ratio: (m && Q != null && m.Q > 0) ? +(Q / m.Q).toFixed(3) : null,
+        surcharged: false, hgl_up_ft: null, hgl_dn_ft: null,
+        egl_up_ft: null, egl_dn_ft: null,
+        hf_ft: null, minor_ft: null, v_fps: null,
+        unknown: why.length ? why.join(", ") : null,
+        provisional: !!c.slope_provisional || why.length > 0
+      };
+      if (why.length) unknown++;
+      out.push(rec);
+      recById[c.id] = rec;
+    }
+    prog(0.4);
+
+    /* ---- 2. the HGL / EGL pass ------------------------------------------
+       Every chain is walked from its terminal conduit upstream. The starting
+       energy grade is the tailwater where the host knows one (the free
+       outfall's own water level), else the downstream node's invert or rim —
+       and which of those it was is reported, because a tailwater nobody
+       surveyed is an assumption like any other. */
+    var nextOf = {}, hasPrev = {};
+    for (i = 0; i < CD.length; i++) {
+      var nx = CD[i].next;
+      if (nx != null && byId[nx]) { nextOf[CD[i].id] = nx; hasPrev[nx] = true; }
+    }
+    var chains = [], tails = [], upOf = {};
+    for (i = 0; i < CD.length; i++) if (!nextOf[CD[i].id]) tails.push(CD[i].id);
+    for (i = 0; i < CD.length; i++) {
+      var nx2 = nextOf[CD[i].id];
+      if (!nx2) continue;
+      if (!upOf[nx2]) upOf[nx2] = [];
+      upOf[nx2].push(CD[i].id);
+    }
+    var nodeOut = {}, energyChecks = [];
+    function startEnergy(cid) {
+      var c = byId[cid], dn = byNode[c.to] || {};
+      if (job.tailwater_ft != null && isFinite(job.tailwater_ft))
+        return { z: +job.tailwater_ft, src: "tailwater (given)" };
+      if (dn.invert_ft != null && isFinite(dn.invert_ft))
+        return { z: +dn.invert_ft, src: "the outlet's surveyed invert" };
+      if (dn.rim_ft != null && isFinite(dn.rim_ft))
+        return { z: +dn.rim_ft, src: "the outlet's lidar ground (assumed)" };
+      return { z: 0, src: "datum (no elevation at the outlet)" };
+    }
+    for (k = 0; k < tails.length; k++) {
+      var st = startEnergy(tails[k]);
+      /* walk the chain upstream: the conduits whose `next` is this one */
+      var egl = st.z, chain = [], guard = 0, cur = tails[k];
+      var queue = [[cur, egl]];
+      var seen = {};
+      while (queue.length) {
+        var it = queue.shift();
+        var id = it[0], e0 = it[1];
+        if (seen[id] || guard++ > 10000) continue;
+        seen[id] = 1;
+        var rec = recById[id];
+        var Q2 = rec.Q_peak_cfs, hf = null, minor = null, v = null;
+        var A2 = rec.area_ft2, D2 = rec.diameter_in != null ? rec.diameter_in / 12 : null;
+        if (Q2 != null && A2 && rec.n && D2) {
+          v = Q2 / A2;
+          var Rp = Math.pow(D2 / 4, 2 / 3);
+          var Sf = Math.pow(Q2 * rec.n / (1.49 * A2 * Rp), 2);
+          hf = Sf * (rec.length_ft || 0);
+          minor = K * v * v / (2 * HYD_G);
+        }
+        rec.egl_dn_ft = +e0.toFixed(4);
+        var e1 = (hf == null) ? e0 : e0 + hf + minor;
+        rec.egl_up_ft = +e1.toFixed(4);
+        rec.hf_ft = hf == null ? null : +hf.toFixed(4);
+        rec.minor_ft = minor == null ? null : +minor.toFixed(4);
+        rec.v_fps = v == null ? null : +v.toFixed(2);
+        var vh = v == null ? 0 : v * v / (2 * HYD_G);
+        rec.hgl_dn_ft = +(e0 - vh).toFixed(4);
+        rec.hgl_up_ft = +(e1 - vh).toFixed(4);
+        /* the identity the harness restates: the energy grade rises by exactly
+           the losses over the reach, and by nothing else */
+        energyChecks.push({ id: id,
+          dE: e1 - e0, losses: (hf == null ? 0 : hf + minor) });
+        var upN = byNode[byId[id].from] || {};
+        if (upN.rim_ft != null && isFinite(upN.rim_ft) && rec.hgl_up_ft > upN.rim_ft) {
+          rec.surcharged = true;
+          rec.surcharge_ft = +(rec.hgl_up_ft - upN.rim_ft).toFixed(2);
+        }
+        nodeOut[byId[id].from] = { id: byId[id].from, hgl_ft: rec.hgl_up_ft, egl_ft: rec.egl_up_ft,
+                                   rim_ft: upN.rim_ft == null ? null : upN.rim_ft,
+                                   surcharged: !!rec.surcharged, via: id };
+        if (!nodeOut[byId[id].to])
+          nodeOut[byId[id].to] = { id: byId[id].to, hgl_ft: rec.hgl_dn_ft, egl_ft: rec.egl_dn_ft,
+                                   rim_ft: (byNode[byId[id].to] || {}).rim_ft == null ? null : byNode[byId[id].to].rim_ft,
+                                   surcharged: false, via: id };
+        chain.push(id);
+        var ups = upOf[id] || [];
+        for (var uq = 0; uq < ups.length; uq++) queue.push([ups[uq], e1]);
+      }
+      chains.push({ tail: tails[k], start_ft: +st.z.toFixed(3), start_source: st.src,
+                    conduits: chain });
+    }
+    prog(0.8);
+
+    /* ---- 3. the inlets --------------------------------------------------- */
+    var inlets = [];
+    for (i = 0; i < (job.inlets || []).length; i++) {
+      var q = job.inlets[i];
+      var gr = q.grate || null;
+      var rec2 = { id: q.id, node: q.node || null, form: q.form || "sag",
+                   depth_ft: q.depth_ft == null ? null : +q.depth_ft,
+                   weir_cfs: null, orifice_cfs: null, capacity_cfs: null,
+                   mode: null, unknown: null, Q_approach_cfs: q.Q_cfs == null ? null : +q.Q_cfs,
+                   efficiency: null };
+      if (!gr || !(gr.P_ft > 0) || !(gr.A_ft2 > 0)) {
+        rec2.unknown = "grate size not surveyed";
+        inlets.push(rec2);
+        continue;
+      }
+      if (rec2.form === "sag") {
+        var d = rec2.depth_ft;
+        if (!(d > 0)) { rec2.unknown = "ponded depth unknown"; inlets.push(rec2); continue; }
+        var Cw = q.Cw == null ? 3.0 : q.Cw, Co = q.Co == null ? 0.67 : q.Co;
+        var Qw = Cw * gr.P_ft * Math.pow(d, 1.5);
+        var Qo = Co * gr.A_ft2 * Math.sqrt(2 * HYD_G * d);
+        rec2.weir_cfs = +Qw.toFixed(2);
+        rec2.orifice_cfs = +Qo.toFixed(2);
+        rec2.capacity_cfs = +Math.min(Qw, Qo).toFixed(2);
+        rec2.mode = Qw <= Qo ? "weir" : "orifice";
+      } else {
+        var V = q.V_fps, V0 = q.V0_fps == null ? 0 : q.V0_fps;
+        var Sx = q.Sx, Lg = gr.length_ft || q.L_ft, E0 = q.E0;
+        if (!(V > 0) || !(Sx > 0) || !(Lg > 0) || E0 == null || rec2.Q_approach_cfs == null) {
+          rec2.unknown = "gutter flow, cross slope or grate length unknown";
+          inlets.push(rec2); continue;
+        }
+        var Rf = 1 - 0.09 * (V - V0);
+        if (Rf > 1) Rf = 1; if (Rf < 0) Rf = 0;
+        var Rs = 1 / (1 + 0.15 * Math.pow(V, 1.8) / (Sx * Math.pow(Lg, 2.3)));
+        var eff = Rf * E0 + Rs * (1 - E0);
+        rec2.Rf = +Rf.toFixed(4); rec2.Rs = +Rs.toFixed(4);
+        rec2.efficiency = +eff.toFixed(4);
+        rec2.capacity_cfs = +(eff * rec2.Q_approach_cfs).toFixed(2);
+        rec2.mode = "on grade";
+      }
+      inlets.push(rec2);
+    }
+
+    var nodesOut = [];
+    for (var nk in nodeOut) if (nodeOut.hasOwnProperty(nk)) nodesOut.push(nodeOut[nk]);
+    nodesOut.sort(function (a, b) { return (b.hgl_ft || 0) - (a.hgl_ft || 0); });
+    var worst = null;
+    for (i = 0; i < out.length; i++)
+      if (out[i].ratio != null && (!worst || out[i].ratio > worst.ratio)) worst = out[i];
+
+    prog(1);
+    return {
+      result: {
+        conduits: out, nodes: nodesOut, inlets: inlets, chains: chains,
+        energyChecks: energyChecks,
+        entranceK: K, g: HYD_G,
+        unknownConduits: unknown, totalConduits: out.length,
+        surcharged: out.filter(function (r) { return r.surcharged; }).map(function (r) { return r.id; }),
+        worst: worst ? { id: worst.id, ratio: worst.ratio, capacity_cfs: worst.capacity_cfs,
+                         Q_peak_cfs: worst.Q_peak_cfs } : null,
         ms: Date.now() - t0
       },
       transfer: []
@@ -3750,6 +4545,8 @@ var SBMM_COMPUTE = (function SBMMComputeModule() {
     if (kind === "catchment") return catchment(job, onProgress);
     if (kind === "drainage") return drainage(job, onProgress);
     if (kind === "runoff") return runoffJob(job, onProgress);
+    if (kind === "accum") return accumJob(job, onProgress);
+    if (kind === "hydraulics") return hydraulicsJob(job, onProgress);
     throw new Error("unknown compute job: " + kind);
   }
 
@@ -3776,7 +4573,7 @@ var SBMM_COMPUTE = (function SBMMComputeModule() {
   }
 
   var api = {
-    VERSION: 9,
+    VERSION: 10,
     runJob: runJob,
     volumeGrid: volumeGrid,
     isopachGrid: isopachGrid,
@@ -3796,6 +4593,9 @@ var SBMM_COMPUTE = (function SBMMComputeModule() {
     catchment: catchment,
     drainage: drainage,
     runoff: runoffJob,
+    accum: accumJob,
+    hydraulics: hydraulicsJob,
+    manningFull: manningFull,
     fillDem: fillDem,
     topHatResidual: topHatResidual,
     discExt: discExt,

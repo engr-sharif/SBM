@@ -1978,3 +1978,14 @@ table.dspop.runoffT td.v{font-family:var(--mono)}
 /* the provisional-rainfall warning: red, and it stays red until the Atlas 14
    export replaces the baked table */
 .res .note.bad,.rnProv{color:var(--red);border-left:2px solid var(--red);padding-left:7px}
+
+/* v19 §4: the scenario picker and the comparison table on the Scenarios card.
+   Nothing new in the stacking band — these are ordinary rows inside a results
+   card. `table.dspop` is width:100%, which is right for a two-column popup and
+   wrong for a 2-4 way comparison: the columns squeeze, the numbers wrap and the
+   last scenario is clipped at the card's edge. The comparison keeps its natural
+   width and `.dspopwrap`'s own overflow scrolls it instead. */
+table.dspop.scnCmp{width:auto;min-width:100%}
+table.dspop.scnCmp td{white-space:nowrap;padding-right:12px}
+.scnPick{display:inline-flex;align-items:center;gap:4px;white-space:nowrap;margin-right:8px}
+.scnPick input{margin:0}
