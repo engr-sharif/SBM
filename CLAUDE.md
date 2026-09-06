@@ -1933,6 +1933,28 @@ difference posts `{type:"stale"}` to every client, which becomes one toast and a
 icon `<link>`s from both single-file builds — beside a lone HTML file they are
 guaranteed 404s — and keeps the apple/theme meta tags, which carry no URL.
 
+**Until an offline copy exists the worker answers NO request** (v9.21). Its
+fetch handler used to `respondWith(cache-miss → fetch())` for every same-origin
+GET, which routed the 14 MB DEM payload through the worker on every visit for
+no cache hit it could ever serve — and a large body through `respondWith` is a
+known way to lose it on iOS. `haveCopy` is read from the meta record at
+activate (and set by `precache` / `clearAll`), and while it is false the
+handler returns without `respondWith`, so the browser fetches natively. The
+tablet harness's offline block still proves the cached path once a copy exists.
+
+**And a `<script src>` that fails to load is retried at boot.** The engineer's
+phone opened Pages on a weak signal and got "Couldn't start — missing data
+payload: dem_site_png" with nothing wrong on the server: one 14 MB tag failed
+once, and a tag has no retry. `js/gate.js` (the first script) records every
+failed script in the capture phase on `window` — a resource `error` does not
+bubble — and `js/boot.js` re-injects each recorded file up to twice, in order,
+with a `?retry=` query (`sw.js` matches with `ignoreSearch`), BEFORE the
+payload checks. `SBMM.retriedScripts` says what was recovered. The phone
+harness's own http server answers the first request for `datajs/d_dus.js`
+with a 503 and block 1 asserts the retry — a 503 rather than a dropped socket,
+because Chromium quietly re-sends a GET whose connection closed before any
+response and the page never sees that one.
+
 ## v19.1 — the FOLDER build on a PHONE (two field reports, one gap)
 
 *(v9.19 in `RELEASE_NOTES_v9.md`; the code and this file tag it v19.1.)*
