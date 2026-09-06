@@ -1,6 +1,6 @@
 # SBMM Site Explorer — v14 Phase 2: a design storm on the site (authoritative)
 
-Owner/decider: Fable (planner). Executor: one Opus agent (R). Phase 2 of
+Owner/decider: the planner. Executor: one agent (R). Phase 2 of
 `docs/V14_CATCHMENT_PROPOSAL.md`, built on the Phase 1 drainage map. Decided by
 the engineer 2026-09-05: "go with your best assumptions and make the best
 choices possible". Every assumption below is therefore a ruling, printed on the
