@@ -464,7 +464,21 @@ SBMM.terrain3d = (function () {
       const t1 = performance.now();
       const built = new Map();
       const L = SBMM.tiles.layerInfo("dem") || {};
+      /* YIELD BETWEEN TILES. Building 24 tiles of 257 x 257 in one loop blocks
+         the main thread for most of a second, and a blocked main thread is not
+         merely a stutter: js/touch.js's recogniser classifies a tap by the
+         WALL-CLOCK gap between the first pointerdown and the last pointerup
+         (tapMs 300, and the long-press timer at 500), so a gesture delivered
+         across the block is not a tap any more. That is how a rebuild after a
+         double-tap ate the two-finger tap that followed it — deterministically,
+         with the same numbers every run (e2e_tablet block 3). One tile at a
+         time, with a macrotask between, keeps the longest block to one tile. */
+      let nb = 0;
       for (const [k, t, rec] of loaded) {
+        if (nb++ && (nb & 1) === 0) {
+          await new Promise(r => setTimeout(r, 0));
+          if (myGen !== generation) { for (const r of built.values()) dispose(r); return false; }
+        }
         if (!rec || !rec.z32) continue;
         const g = buildGeometry(rec.z32, t[0], t[1], t[2], step);
         if (!g) continue;
