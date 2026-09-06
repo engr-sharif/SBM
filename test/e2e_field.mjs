@@ -1034,6 +1034,89 @@ if (compareTo) {
 });
 
 /* ===================================================================== */
+/* v19 Phase 3 on a phone (docs/V19_HYDRO3_SPEC.md §5): the two accumulation
+   rows exist, the job runs on the field build's own 4-ft grid and says so, and
+   the scenario card opens and works under a thumb. The pipe capacity is here
+   too because it is the one card that has to keep saying "unknown, survey
+   pending" wherever it cannot answer — a phone in the field is exactly where
+   somebody would otherwise read a blank as a zero.                           */
+await block("15. accumulation, pipes and scenarios (v19)", async () => {
+  const t0 = Date.now();
+  const A = await page.evaluate(async () => {
+    const rows = ["accum_raster", "accum_streams"]
+      .map(id => !!document.querySelector(`.lyr[data-lid="${id}"]`));
+    if (!SBMM.accum) return { rows, missing: true };
+    const R = await SBMM.accum.run();
+    if (!R) return { rows, failed: true };
+    SBMM.accum.paint();
+    SBMM.accum.showCard();
+    const card = [...document.querySelectorAll("#resBody .res")]
+      .find(el => /Flow accumulation/.test(el.querySelector("h4").textContent));
+    return { rows, grid: R.gridFt, method: R.method,
+             loops: R.loops, flats: R.flats,
+             streams: R.streamCount, order: R.maxOrder,
+             acres: +(R.surveyedArea_ft2 / 43560).toFixed(1),
+             exit: +(R.exitTotal_ft2 / 43560).toFixed(1),
+             card: !!card,
+             cardSays: card ? card.textContent.replace(/\s+/g, " ") : null };
+  });
+  console.log(`\nflow accumulation (field): ${JSON.stringify(A)} in ${((Date.now() - t0) / 1000).toFixed(1)} s`);
+  if (A.missing) fail("the field build has no flow accumulation", A);
+  if (A.failed) fail("the field build could not compute the accumulation", A);
+  if (!A.rows.every(Boolean)) fail("the accumulation rows are missing in field mode", A.rows);
+  if (A.grid !== 4) fail("the field build did not run the accumulation at 4 ft", A);
+  if (!/4-ft lidar grid/.test(A.cardSays || "")) fail("the field card does not name the 4-ft grid", A.cardSays);
+  if (A.loops || A.flats) fail("the 4-ft flow field left cells unresolved", A);
+  if (Math.abs(A.exit - A.acres) > 0.1) fail("what leaves the model is not the surveyed area", A);
+  if (!A.streams) fail("the 4-ft run found no streams", A);
+
+  /* the pipe capacity, and the words it must keep */
+  const P = await page.evaluate(async () => {
+    if (!SBMM.pipes) return { missing: true };
+    const R = await SBMM.pipes.run();
+    if (!R) return { failed: true };
+    SBMM.pipes.showCard();
+    const card = [...document.querySelectorAll("#resBody .res")]
+      .find(el => /Pipe capacity/.test(el.querySelector("h4").textContent));
+    return { total: R.totalConduits, unknown: R.unknownConduits,
+             everySaysWhy: R.conduits.every(c => c.capacity_cfs != null || !!c.unknown),
+             card: !!card,
+             pending: card ? /survey pending/i.test(card.textContent) : false };
+  });
+  console.log("pipe capacity (field):", JSON.stringify(P));
+  if (P.missing) fail("the field build has no pipe hydraulics", P);
+  if (P.failed) fail("the field build could not rate the pipes", P);
+  if (!P.card) fail("no Pipe capacity card in field mode", P);
+  if (!P.everySaysWhy) fail("a conduit has no capacity and no reason", P);
+  if (P.unknown && !P.pending) fail("the field card does not say the survey is pending", P);
+
+  /* the scenario card, under a thumb */
+  const S = await page.evaluate(async () => {
+    if (!SBMM.scenarios) return { missing: true };
+    SBMM.cmd.run("SCENARIO");
+    const card = [...document.querySelectorAll("#resBody .res")]
+      .find(el => /Scenarios/.test(el.querySelector("h4").textContent));
+    if (!card) return { noCard: true };
+    const btns = [...card.querySelectorAll(".minib")];
+    const small = btns.filter(b => b.getBoundingClientRect().height < 24).length;
+    const s = SBMM.scenarios.add("Field check");
+    const ran = await SBMM.scenarios.run(s.id);
+    const card2 = [...document.querySelectorAll("#resBody .res")]
+      .find(el => /Scenarios/.test(el.querySelector("h4").textContent));
+    return { n: SBMM.scenarios.list().length, buttons: btns.length, small,
+             ran: !!(ran && ran.last),
+             volume: ran && ran.last ? +ran.last.site.volume_acft.toFixed(1) : null,
+             rows: card2 ? card2.querySelectorAll("table.dspop tr").length : 0 };
+  });
+  console.log("scenarios (field):", JSON.stringify(S));
+  if (S.missing) fail("the field build has no scenarios", S);
+  if (S.noCard) fail("SCENARIO opened no card in field mode", S);
+  if (!S.buttons) fail("the scenario card has no actions", S);
+  if (!S.ran) fail("a scenario would not run on the field build", S);
+  if (!S.rows) fail("the scenario card lists nothing", S);
+});
+
+/* ===================================================================== */
 console.log("\npage errors:", errors.length ? errors.slice(0, 8) : "none");
 await browser.close();
 if (errors.some(e => !e.includes("favicon"))) { console.log("RESULT: errors present"); process.exit(2); }

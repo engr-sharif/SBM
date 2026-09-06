@@ -200,6 +200,13 @@ SBMM.store = {
          wants an acknowledgement once per session and a restored checkbox would
          put protected geometry on the map before anyone was asked. */
       layers: SBMM.layerState ? SBMM.layerState.serialize() : {},
+      /* v19 §4 adds the scenarios (js/scenarios.js). Additive like every key
+         before it: an older build ignores it, a file without it restores
+         exactly as before, and the session integer does not move — nothing
+         reads it to decide anything. Only the SWITCHES travel, never a run's
+         results: a stale result loaded beside newer terrain or a newer network
+         would be a number nobody can trace. */
+      scenarios: SBMM.scenarios ? SBMM.scenarios.serialize() : [],
       /* EA's reference design surfaces are NOT serialised: they ship with the
          app and are re-created on boot, so a stale copy inside a session file
          must never win (the same rule the baked datasets follow). */
@@ -226,6 +233,7 @@ SBMM.store = {
     }
     if (obj.datasets && SBMM.datasets) SBMM.datasets.restoreUser(obj.datasets);
     if (obj.layers && SBMM.layerState) SBMM.layerState.restore(obj.layers);
+    if (obj.scenarios && SBMM.scenarios) SBMM.scenarios.restore(obj.scenarios);
     this.emit();
   },
   autosave() {
