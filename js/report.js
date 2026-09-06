@@ -772,6 +772,91 @@ table.qt tfoot td{border:1px solid #999;background:#f0f0f0}
     return html;
   }
 
+  /* ------------------------------------------------------------------ */
+  /* the scenario comparison sheet (v19 §4)                              */
+  /* ------------------------------------------------------------------ */
+  /* One sheet, one table per scenario's assumptions and one comparison table
+     across them. Every caveat the design-storm sheet carries carries here: the
+     rainfall may be provisional, the pipe slopes may be provisional, and the
+     catchments are terrain only. A scenario cannot produce a number the dialogs
+     could not, so the sheet does not need a method section of its own — it
+     names which dialogs produced each column instead. */
+  function scenariosHTML(sel, rows) {
+    const today = new Date().toISOString().slice(0, 10);
+    const names = sel.map(s => esc2(s.name));
+    const prov = sel.some(s => s.last && s.last.provisional)
+      ? `<p class="warn"><b>Provisional rainfall depths.</b> At least one scenario was run before
+         the NOAA Atlas 14 point precipitation frequency export for 39.003&nbsp;N,
+         122.663&nbsp;W was baked in. Replace <b>data/atlas14_sbmm.csv</b> and re-run every
+         scenario before issuing this sheet.</p>`
+      : "";
+    const cmp = `<table class="qt"><thead><tr><th></th>${names.map(n => `<th>${n}</th>`).join("")}</tr></thead>
+      <tbody>${rows.map(r => `<tr><td>${esc2(r[0])}</td>`
+        + r[1].map(v => `<td class="num">${esc2(String(v).replace(/<[^>]*>/g, ""))}</td>`).join("")
+        + `</tr>`).join("")}</tbody></table>`;
+    const assume = sel.map(s => `<h3>${esc2(s.name)}</h3>${table(["assumption", "value"], [
+      ["Storm", s.storm === "custom" ? fmt(s.customP, 2) + " in in " + fmt(s.customD, 2) + " h"
+                                     : String(s.storm).replace(":", "-year, ") + "-hour"],
+      ["Temporal distribution", s.dist],
+      ["Hydrologic soil group", s.hsg === "ruling"
+        ? "D for mine waste, C elsewhere (the ruling)" : s.hsg + " everywhere"],
+      ["Curve-number overrides", Object.keys(s.cn || {}).length
+        ? Object.keys(s.cn).length + " class(es)" : "none"],
+      ["Storm drains", s.drains ? "assumed working" : "off — ground only"],
+      ["Broken conduits", (s.broken || []).length ? s.broken.join(", ") : "none"],
+      ["Blocked (what-if)", (s.blocked || []).length ? s.blocked.join(", ") : "none"],
+      ["Surveyed stages", s.survey ? "applied (Aug 2026)" : "lidar only"],
+      ["Proposed surface", s.surface || "none delivered — existing grade only"],
+      ["Last run", s.last ? s.last.when.slice(0, 16).replace("T", " ") : "not run"]
+    ])}`).join("");
+    return `<!doctype html><html><head><meta charset="utf-8">
+<title>Scenarios — SBMM OU1</title><style>${SHEET_CSS}
+.warn{border:1.5pt solid #b00;padding:6pt 8pt;color:#900;font-weight:600}
+table.qt td.num{text-align:right;font-family:ui-monospace,Consolas,monospace;white-space:nowrap}
+</style></head><body>
+<div class="sheet">
+  <div class="tblock">
+    <div class="row1">
+      <div class="who">
+        <h1>Scenarios — ${names.join(" &middot; ")}</h1>
+        <div class="sub">Design storm, storm-drain state and pond stages compared &middot; ${esc2(PROJECT)}</div>
+      </div>
+      <div class="stamp">
+        <div><span>Prepared by</span><b>${esc2(AUTHOR)}</b></div>
+        <div><span>Date</span><b>${today}</b></div>
+        <div><span>Task</span><b>2.1.5</b></div>
+        <div><span>Sheet</span><b>1 of 1</b></div>
+      </div>
+    </div>
+    <div class="row2">
+      <div><b>Coordinate system</b><br>EPSG:6418 &middot; CA SP Zone 2 &middot; ftUS</div>
+      <div><b>Catchments</b><br>Drainage map, lidar bare earth, storm conduits as shortcuts</div>
+      <div><b>Source</b><br>30 Jan 2024 lidar &middot; Aug 2026 Jacobs survey &middot; EA CAD/GIS</div>
+    </div>
+  </div>
+  ${prov}
+  <h2>Comparison</h2>
+  ${cmp}
+  <h2>What each scenario assumes</h2>
+  ${assume}
+  <p class="note">A scenario is a named set of the assumptions the app's own dialogs offer, and
+  running one calls the same kernels they call: the drainage map (terrain only), the design storm
+  (NRCS curve number, TR-55 time of concentration over the real flow accumulation, an SCS unit
+  hydrograph, level-pool routing) and the pipe capacity (Manning full flow, steady-state hydraulic
+  grade). Pipe capacity is provisional wherever a diameter or an invert has not been surveyed, and
+  is reported as unknown rather than guessed.</p>
+  <div class="foot">${esc2(AUTHOR)} &middot; Jacobs &middot; ${today}</div>
+</div></body></html>`;
+  }
+  function openScenarios(sel, rows) {
+    if (!sel || !sel.length) { toast("run a scenario first (SCENARIO)"); return null; }
+    let html;
+    try { html = scenariosHTML(sel, rows); }
+    catch (e) { console.error(e); toast("the scenario sheet failed: " + e.message); return null; }
+    return present("Scenarios — " + sel.map(s => s.name).join(", "), html,
+      "sbmm_scenarios_" + sel.map(s => String(s.name).replace(/\W+/g, "_")).join("_") + ".html");
+  }
+
   function openRunoff(R) {
     if (!R) { toast("run a design storm first (RAIN)"); return null; }
     let html;
@@ -781,5 +866,5 @@ table.qt tfoot td{border:1px solid #999;background:#f0f0f0}
       "sbmm_design_storm_" + String(R.storm.name).replace(/\W+/g, "_") + ".html");
   }
 
-  return { open, openRunoff, runoffHTML, present, buildHTML, composeFigure, sectionSheet, lastHTML: () => lastHTML, AUTHOR };
+  return { open, openRunoff, runoffHTML, openScenarios, scenariosHTML, present, buildHTML, composeFigure, sectionSheet, lastHTML: () => lastHTML, AUTHOR };
 })();
