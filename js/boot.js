@@ -127,6 +127,9 @@ function wireWasmSwitch() {
     SBMM.water.wire();
     if (SBMM.drainage) SBMM.drainage.wire();
     if (SBMM.runoff) SBMM.runoff.wire();
+    if (SBMM.accum) SBMM.accum.wire();
+    if (SBMM.pipes) SBMM.pipes.wire();
+    if (SBMM.scenarios) SBMM.scenarios.wire();
     /* EA's recovered design surfaces become read-only surface features (§5) —
        after SBMM.design.wire() so the surfaces list exists, and before
        refSurf.wire() so the first render has something to show. */

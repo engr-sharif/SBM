@@ -1066,7 +1066,11 @@ SBMM.viewer3d = (function () {
        so in 3D it is a drape rather than an overlay — and it carries a `layer`
        tag, because a drape is added to the scene rather than to overlayGroup
        and an untagged one reads as "that row draws nothing in 3D" (§3.1). */
-    ["cover", () => SBMM.runoff && SBMM.runoff.drapeSpec && SBMM.runoff.drapeSpec()]
+    ["cover", () => SBMM.runoff && SBMM.runoff.drapeSpec && SBMM.runoff.drapeSpec()],
+    /* v19 §2: the flow-accumulation raster. Same reasoning as the cover class
+       raster — it IS a raster over the ground — and it carries the same `layer`
+       tag so the 3D-parity table can see the row draws something. */
+    ["accum", () => SBMM.accum && SBMM.accum.drapeSpec && SBMM.accum.drapeSpec()]
   ];
   const drapeMesh = {}, drapeKey = {};
   function refreshDrapes() { return Promise.all(DRAPES.map(d => syncDrape(d[0], d[1]))); }
@@ -1385,6 +1389,18 @@ SBMM.viewer3d = (function () {
         const o = drapedLine(r.ring, new THREE.Color(r.color).getHex(), false, r.width || 2);
         o.userData.pick = { kind: "gis", props: r.props, geom: r.geom };
         tag(addShadow(SHW, o), "framework", "drain_paths");
+        overlayGroup.add(o);
+      }
+    }
+    /* v19 §2: the stream network, draped like every other overlay line. A
+       stream follows the ground by construction, but a link that ends at the
+       survey limit still has its last vertex out over the water, so it goes
+       through js/drainage.js groundRuns() like the catchment boundaries do. */
+    if (SBMM.accum && SBMM.accum.lines3d) {
+      for (const r of SBMM.accum.lines3d()) {
+        const o = drapedLine(r.ring, new THREE.Color(r.color).getHex(), false, r.width || 3);
+        o.userData.pick = { kind: "gis", props: r.props, geom: r.geom };
+        tag(addShadow(SHW, o), "framework", "accum_streams");
         overlayGroup.add(o);
       }
     }

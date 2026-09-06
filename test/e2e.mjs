@@ -5874,6 +5874,341 @@ await page.evaluate(() => {
 });
 
 /* ==================================================================== */
+let errBeforeAcc, accRun, accHover, accIdent, accStreams, acc3d, pipeRun, pipePop,
+    pipeColor, scnRun, scnCmp, scnDiff, scnSess;   /* hoisted — v18 §3 */
+await block("9ab. accumulation + pipes", async () => {
+/* 9ab. flow accumulation, pipe capacity and scenarios                  */
+/*      (v19 Phase 3, docs/V19_HYDRO3_SPEC.md §5)                       */
+/* ==================================================================== */
+/* The arithmetic is proved in node: the accumulation's conservation and its
+   D-infinity proportions in test/kernels.mjs §13, Manning / HEC-22 / the energy
+   balance in §14, and THE IDENTITY — what leaves the model at each cell, summed
+   by the drainage map's own label, is that outlet's Phase 1 area — in §11.8,
+   where it is exact to 0.000 %. What is proved HERE is that the app wires it up:
+   ACCUM builds the rows, the raster, the streams and the card; the status bar
+   reads the upstream acres under the pointer; the card's own cross-check against
+   the drainage map agrees; PIPES rates what can be rated and says "survey
+   pending" for the rest, on the card and in the conduit popup; and a pair of
+   scenarios runs, compares, diffs and round-trips a session without recomputing
+   anything.
+
+   It runs AFTER 9aa and BEFORE 9y on purpose. 9aa's design storm already asks
+   js/accum.js for the D8 raster (that is what Phase 2's channel test reads), so
+   the accumulation is cached by the time this block opens; and 9y turns every
+   row on and requires each to draw something in 3D, which the two new rows can
+   only do once the job has run. */
+errBeforeAcc = errors.length;
+
+accRun = await page.evaluate(async () => {
+  const imgs0 = document.querySelectorAll("#map img.leaflet-image-layer").length;
+  SBMM.cmd.run("ACCUM");
+  const t0 = performance.now();
+  const R = await SBMM.accum.run();
+  if (!R) return { failed: true };
+  SBMM.accum.paint();
+  SBMM.accum.showCard();
+  await new Promise(r => setTimeout(r, 400));
+  let lines = 0;
+  SBMM.map.eachLayer(l => { if (l instanceof L.Polyline && !(l instanceof L.Polygon)
+    && l.options && l.options.color === "#3FB9B0") lines++; });
+  return {
+    ms: Math.round(performance.now() - t0),
+    method: R.method, grid: R.gridFt, dCell: R.dCell,
+    maxAcc_ac: +R.maxAcc_ac.toFixed(2),
+    streams: R.streamCount, links: R.streamLinks, order: R.maxOrder,
+    lengthMi: +(R.streamLength_ft / 5280).toFixed(2),
+    loops: R.loops, flats: R.flats,
+    surveyed_ac: +(R.surveyedArea_ft2 / 43560).toFixed(2),
+    exit_ac: +(R.exitTotal_ft2 / 43560).toFixed(2),
+    imgs: document.querySelectorAll("#map img.leaflet-image-layer").length - imgs0,
+    lines,
+    rows: ["accum_raster", "accum_streams"].map(id => !!document.querySelector(`.lyr[data-lid="${id}"]`)),
+    legend: document.querySelectorAll(".rnLegend .rnLeg").length > 0,
+    card: [...document.querySelectorAll("#resBody .res h4")].some(h => /Flow accumulation/.test(h.textContent))
+  };
+});
+console.log("flow accumulation:", JSON.stringify(accRun));
+if (accRun.failed) { console.log("FAIL: ACCUM produced no accumulation"); process.exit(1); }
+if (!accRun.rows.every(Boolean)) { console.log("FAIL: the two accumulation rows are not in the tree"); process.exit(1); }
+if (!accRun.card) { console.log("FAIL: no Flow accumulation results card"); process.exit(1); }
+if (accRun.imgs < 1) { console.log("FAIL: the accumulation raster did not reach the map"); process.exit(1); }
+if (accRun.lines < 20) { console.log("FAIL: the stream layer drew", accRun.lines, "lines"); process.exit(1); }
+if (accRun.loops || accRun.flats) { console.log("FAIL: the flow field left cells unresolved"); process.exit(1); }
+/* the conservation identity, in the app: every square foot leaves exactly once */
+if (Math.abs(accRun.exit_ac - accRun.surveyed_ac) > 0.01) {
+  console.log("FAIL: what leaves the model is not the surveyed area",
+              accRun.exit_ac, accRun.surveyed_ac); process.exit(1); }
+if (accRun.order < 2) { console.log("FAIL: the stream network has no order-2 link"); process.exit(1); }
+
+/* THE CARD'S OWN CROSS-CHECK against the drainage map (§2). The app compares
+   against the map's DECIMATED label raster, so this is a fraction of a percent
+   rather than the harness's exact zero, and the card says so in those words. */
+accIdent = await page.evaluate(() => {
+  const R = SBMM.accum.result(), D = SBMM.drainage.result();
+  if (!R || !D || !R.byLabel) return { none: true };
+  const out = [];
+  for (const b of R.byLabel) {
+    const rec = SBMM.drainage.recOf(b.label);
+    if (!rec || rec.t !== "sink" || rec.r.area_ft2 < 43560) continue;
+    out.push({ id: rec.r.id, kind: rec.r.kind,
+               acc: +(b.area_ft2 / 43560).toFixed(2),
+               want: +(rec.r.area_ft2 / 43560).toFixed(2),
+               d: +(100 * (b.area_ft2 - rec.r.area_ft2) / rec.r.area_ft2).toFixed(3) });
+  }
+  const card = [...document.querySelectorAll("#resBody .res")]
+    .find(el => /Flow accumulation/.test(el.querySelector("h4").textContent));
+  return { rows: out, checked: R.checked,
+           saysBoundary: card ? /not attributable at/.test(card.textContent) : false,
+           saysHarness: card ? /full resolution/.test(card.textContent) : false,
+           total: +(R.exitTotal_ft2 / 43560).toFixed(3),
+           surveyed: +(R.surveyedArea_ft2 / 43560).toFixed(3) };
+});
+console.log("accumulation vs the drainage map:", JSON.stringify(accIdent));
+if (accIdent.none || !accIdent.rows.length) { console.log("FAIL: the card has no cross-check to print"); process.exit(1); }
+/* WHAT THE APP CAN AND CANNOT CHECK, and the card has to say which is which.
+   Summing what leaves the model by catchment needs a label AT THE EXIT CELL, and
+   the label raster the app keeps is decimated for drawing. An outlet that leaves
+   through a PIPE is attributed exactly — its exits are the pipe's own capture
+   cells, in the middle of the survey. An outlet that leaves along the survey
+   BOUNDARY cannot be: a boundary exit cell falls in an 8-ft label cell that may
+   belong to its neighbour, which is why the field build read Clear Lake at
+   -60 % while the storm outfall read 0.01 %. The exact identity is run at full
+   resolution in test/kernels.mjs §11.8 (0.000 % on all three outlets over an
+   acre); here the contract is that the pipe outlets agree and the card SAYS the
+   boundary ones are not comparable rather than printing a wrong number. */
+if (Math.abs(accIdent.total - accIdent.surveyed) > 0.01) {
+  console.log("FAIL: what leaves the model is not the surveyed area", accIdent); process.exit(1); }
+for (const r of accIdent.rows) if (r.kind === "outfall" && Math.abs(r.d) > 1) {
+  console.log("FAIL: a piped outlet's accumulation disagrees with its catchment:", JSON.stringify(r));
+  process.exit(1);
+}
+if (!accIdent.rows.some(r => r.kind === "outfall")) {
+  console.log("FAIL: no piped outlet to compare — the cross-check proves nothing"); process.exit(1); }
+if (!accIdent.saysBoundary || !accIdent.saysHarness) {
+  console.log("FAIL: the card does not say which outlets it cannot attribute, or where the exact identity lives");
+  process.exit(1);
+}
+
+/* the status bar reads the upstream acres under the pointer (§2) */
+accHover = await page.evaluate(() => {
+  const R = SBMM.accum.result();
+  /* the cell the whole site funnels through: the biggest accumulation there is */
+  let best = -1, bi = 0, bj = 0;
+  for (let j = 0; j < R.h; j++) for (let i = 0; i < R.w; i++) {
+    const v = R.acc[j * R.w + i];
+    if (v > best) { best = v; bi = i; bj = j; }
+  }
+  const x = R.x0 + bi * R.dCell, y = R.y0 + bj * R.dCell;
+  SBMM.status.at(x, y);
+  return { text: document.getElementById("sDem").textContent,
+           acres: +(best / 43560).toFixed(2), x: Math.round(x), y: Math.round(y),
+           probe: +(SBMM.accum.accAt(x, y) / 43560).toFixed(2) };
+});
+console.log("status bar over the biggest accumulation:", JSON.stringify(accHover));
+if (!/upstream/.test(accHover.text)) { console.log("FAIL: the status bar does not read the upstream area"); process.exit(1); }
+if (!/ac$/.test(accHover.text.trim())) { console.log("FAIL: the upstream area is not reported in acres"); process.exit(1); }
+if (Math.abs(accHover.probe - accHover.acres) > 0.01) { console.log("FAIL: accAt disagrees with the raster"); process.exit(1); }
+
+/* the streams: every link ends somewhere, and the popup is the app's own */
+accStreams = await page.evaluate(() => {
+  const R = SBMM.accum.result();
+  const ends = {};
+  for (const s of R.streams) ends[s.ends] = (ends[s.ends] || 0) + 1;
+  const pop = SBMM.popups.forStream(R.streams[0], R);
+  return { ends, orders: R.orders,
+           popup: /Strahler order/.test(pop) && /Upstream area/.test(pop),
+           popupCaveat: /never discharge/.test(pop),
+           gj: SBMM.accum.geoFeatures(p => p).length,
+           dxf: SBMM.accum.dxfEntities().length,
+           csv: SBMM.accum.csv().split("\n")[0] };
+});
+console.log("streams:", JSON.stringify(accStreams));
+if (Object.keys(accStreams.ends).some(k => !["sink", "conduit", "junction"].includes(k))) {
+  console.log("FAIL: a stream link ends nowhere:", accStreams.ends); process.exit(1); }
+if (!accStreams.popup) { console.log("FAIL: the stream popup does not name its numbers"); process.exit(1); }
+if (!accStreams.popupCaveat) { console.log("FAIL: the stream popup does not say it is an area, not a flow"); process.exit(1); }
+if (!accStreams.gj || !accStreams.dxf) { console.log("FAIL: the streams do not export"); process.exit(1); }
+
+/* 3D: the raster is a drape and the streams are draped lines (§3.1's rule) */
+acc3d = await page.evaluate(() => {
+  const d = SBMM.accum.drapeSpec();
+  return { drape: !!(d && d.url && d.layer && d.layer.l === "accum_raster"),
+           lines: SBMM.accum.lines3d().length };
+});
+console.log("accumulation in 3D:", JSON.stringify(acc3d));
+if (!acc3d.drape) { console.log("FAIL: the accumulation raster has no 3D drape"); process.exit(1); }
+if (!acc3d.lines) { console.log("FAIL: the streams draw nothing in 3D"); process.exit(1); }
+
+/* ---- pipe capacity (§3) --------------------------------------------- */
+/* WHAT THIS SITE CAN ACTUALLY ANSWER, and it is the point of the module: only
+   the two Jacobs pipes have a surveyed invert and only five conduits carry a
+   size in EA's CAD, and a slope needs two elevations of the SAME kind — so
+   every conduit comes back "unknown, survey pending" WITH ITS REASON, and none
+   is guessed. The spec's "a capacity ratio appears on a pipe popup" is proved
+   where a rateable pipe exists to prove it on: test/kernels.mjs §14.1/§14.3,
+   against Manning's own equation. Here the contract is that the popup and the
+   card SAY SO rather than showing a blank. */
+pipeRun = await page.evaluate(async () => {
+  const R = await SBMM.pipes.run();
+  if (!R) return { failed: true };
+  SBMM.pipes.showCard();
+  const rated = R.conduits.filter(c => c.capacity_cfs != null);
+  return {
+    total: R.totalConduits, unknown: R.unknownConduits, rated: rated.length,
+    reasons: [...new Set(R.conduits.map(c => c.unknown).filter(Boolean))],
+    everyUnknownSaysWhy: R.conduits.every(c => c.capacity_cfs != null || !!c.unknown),
+    surcharged: R.surcharged.length,
+    hasFlows: R.hasFlows,
+    withQ: R.conduits.filter(c => c.Q_peak_cfs != null).length,
+    hgl: R.nodes.filter(n => n.hgl_ft != null).length,
+    inlets: R.inlets.length,
+    inletsUnknown: R.inlets.filter(i => i.unknown).length,
+    card: [...document.querySelectorAll("#resBody .res h4")].some(h => /Pipe capacity/.test(h.textContent)),
+    warn: [...document.querySelectorAll("#resBody .res .note.bad")].some(el => /survey/i.test(el.textContent))
+  };
+});
+console.log("pipe capacity:", JSON.stringify(pipeRun));
+if (pipeRun.failed) { console.log("FAIL: PIPES produced nothing"); process.exit(1); }
+if (!pipeRun.card) { console.log("FAIL: no Pipe capacity results card"); process.exit(1); }
+if (!pipeRun.warn) { console.log("FAIL: the card does not carry the provisional warning"); process.exit(1); }
+if (!pipeRun.everyUnknownSaysWhy) { console.log("FAIL: a conduit has no capacity and no reason"); process.exit(1); }
+if (pipeRun.inlets && pipeRun.inletsUnknown !== pipeRun.inlets) {
+  console.log("FAIL: a grate reported an inlet capacity without a surveyed size"); process.exit(1); }
+
+pipePop = await page.evaluate(() => {
+  const c = SBMM.storm.conduit("herman_pipe_s") || SBMM.storm.data().conduits[0];
+  const h = SBMM.popups.forStorm(null, c);
+  const n = SBMM.storm.node("outfall");
+  return { conduit: c.id, hasRow: /Capacity|Full-flow capacity/.test(h),
+           saysPending: /survey pending/.test(h),
+           method: /Manning|topological shortcut/.test(h),
+           node: /Hydraulic grade/.test(SBMM.popups.forStorm(n, null)) };
+});
+console.log("the conduit popup:", JSON.stringify(pipePop));
+if (!pipePop.hasRow) { console.log("FAIL: the conduit popup carries no capacity row"); process.exit(1); }
+if (!pipePop.saysPending) { console.log("FAIL: an unrated conduit does not say survey pending"); process.exit(1); }
+
+pipeColor = await page.evaluate(async () => {
+  await SBMM.pipes.setColorBy(true);
+  const on = SBMM.pipes.colorBy();
+  const t1 = (document.getElementById("toast") || {}).textContent || "";
+  await SBMM.pipes.setColorBy(false);
+  return { on, off: !SBMM.pipes.colorBy(), toast: t1 };
+});
+console.log("colour by capacity ratio:", JSON.stringify(pipeColor));
+if (!pipeColor.on || !pipeColor.off) { console.log("FAIL: the capacity colouring does not toggle"); process.exit(1); }
+if (!pipeColor.toast) { console.log("FAIL: the capacity colouring said nothing"); process.exit(1); }
+
+/* ---- scenarios (§4) -------------------------------------------------- */
+/* Two scenarios that differ only in the STORM, so the drainage map and the
+   accumulation are reused rather than recomputed (js/scenarios.js run()). */
+scnRun = await page.evaluate(async () => {
+  const a = SBMM.scenarios.add("25-year");
+  a.storm = "25:24";
+  const b = SBMM.scenarios.add("10-year");
+  b.storm = "10:24";
+  const jobs0 = SBMM.compute.stats.workerJobs + SBMM.compute.stats.syncJobs;
+  await SBMM.scenarios.run(a.id);
+  await SBMM.scenarios.run(b.id);
+  const jobs1 = SBMM.compute.stats.workerJobs + SBMM.compute.stats.syncJobs;
+  const L = SBMM.scenarios.list();
+  return {
+    n: L.length, jobs: jobs1 - jobs0,
+    ran: L.map(s => !!s.last),
+    storms: L.map(s => s.last ? s.last.storm : null),
+    vols: L.map(s => s.last ? +s.last.site.volume_acft.toFixed(1) : null),
+    peaks: L.map(s => s.last ? Math.round(s.last.site.peak_cfs) : null),
+    ponds: L.map(s => s.last ? s.last.ponds.length : 0),
+    over: L.map(s => s.last ? s.last.ponds.filter(p => p.overtops).length : null),
+    pipes: L.map(s => s.last && s.last.pipes ? s.last.pipes.rated + "/" + s.last.pipes.total : null)
+  };
+});
+console.log("scenarios:", JSON.stringify(scnRun));
+if (scnRun.n !== 2 || !scnRun.ran.every(Boolean)) { console.log("FAIL: the two scenarios did not run"); process.exit(1); }
+if (scnRun.vols[0] <= scnRun.vols[1]) {
+  console.log("FAIL: the 25-year storm must produce more runoff than the 10-year",
+              scnRun.vols); process.exit(1); }
+
+scnCmp = await page.evaluate(() => {
+  const L = SBMM.scenarios.list();
+  SBMM.scenarios.pick(L.map(s => s.id));
+  const rows = SBMM.scenarios.compareRows(L);
+  const csv = SBMM.scenarios.csv();
+  const card = [...document.querySelectorAll("#resBody .res")]
+    .find(el => /Scenarios/.test(el.querySelector("h4").textContent));
+  return {
+    rows: rows.length,
+    labels: rows.map(r => r[0]).slice(0, 6),
+    hasPond: rows.some(r => /peak stage/.test(r[0])),
+    hasOutfall: rows.some(r => /Outfall peak/.test(r[0])),
+    hasPipe: rows.some(r => /Worst pipe ratio/.test(r[0])),
+    csvLines: csv.split("\n").length,
+    card: !!card,
+    table: card ? card.querySelectorAll("table.runoffT").length : 0
+  };
+});
+console.log("the comparison:", JSON.stringify(scnCmp));
+if (scnCmp.rows < 6) { console.log("FAIL: the comparison has too few rows"); process.exit(1); }
+if (!scnCmp.hasPond || !scnCmp.hasOutfall || !scnCmp.hasPipe) {
+  console.log("FAIL: the comparison is missing one of the spec's columns"); process.exit(1); }
+if (!scnCmp.card || !scnCmp.table) { console.log("FAIL: the Scenarios card has no comparison table"); process.exit(1); }
+
+scnDiff = await page.evaluate(() => {
+  const L = SBMM.scenarios.list();
+  const d = SBMM.scenarios.diff(L[0].id, L[1].id);
+  if (!d) return { none: true };
+  const out = { outlets: d.outlets.length, ponds: d.ponds.length,
+                pondNames: d.ponds.map(p => p.name) };
+  SBMM.scenarios.showDiff(L[0].id, L[1].id);
+  let hi = 0;
+  SBMM.map.eachLayer(l => { if (l.options && l.options.color === "#FFD34D") hi++; });
+  SBMM.scenarios.clearDiff();
+  out.highlighted = hi;
+  return out;
+});
+console.log("the map diff:", JSON.stringify(scnDiff),
+            "(the same storm network in both, so the catchments are the same ground —",
+            "what moves between a 25-year and a 10-year storm is the pond stages)");
+if (scnDiff.none) { console.log("FAIL: the diff refused two scenarios that both ran"); process.exit(1); }
+if (!scnDiff.ponds) { console.log("FAIL: a smaller storm moved no pond stage at all"); process.exit(1); }
+
+/* the session: the switches ride, the results do not, and loading one does not
+   re-run anything */
+scnSess = await page.evaluate(async () => {
+  const wait = ms => new Promise(r => setTimeout(r, ms));
+  const ser = JSON.parse(JSON.stringify(SBMM.store.serialize()));
+  const txt = JSON.stringify(ser.scenarios || []);
+  const jobs0 = SBMM.compute.stats.workerJobs + SBMM.compute.stats.syncJobs;
+  const beforeAcc = SBMM.accum.result(), beforeRun = SBMM.runoff.result();
+  SBMM.store.restore(JSON.parse(JSON.stringify(ser)));
+  await wait(600);
+  const jobs1 = SBMM.compute.stats.workerJobs + SBMM.compute.stats.syncJobs;
+  const L = SBMM.scenarios.list();
+  return {
+    inFile: (ser.scenarios || []).length,
+    names: (ser.scenarios || []).map(s => s.name),
+    results: /"last"|volume_acft|peak_cfs/.test(txt),
+    back: L.length, backNames: L.map(s => s.name),
+    backStorms: L.map(s => s.storm),
+    jobs: jobs1 - jobs0,
+    sameAcc: SBMM.accum.result() === beforeAcc,
+    sameRun: SBMM.runoff.result() === beforeRun
+  };
+});
+console.log("scenarios in a session:", JSON.stringify(scnSess),
+            "(the jobs are the store's own volume features recomputing on restore)");
+if (scnSess.inFile !== 2) { console.log("FAIL: the scenarios did not serialise"); process.exit(1); }
+if (scnSess.results) { console.log("FAIL: a scenario's RESULTS leaked into the session"); process.exit(1); }
+if (scnSess.back !== 2) { console.log("FAIL: the scenarios did not come back"); process.exit(1); }
+if (!scnSess.sameAcc || !scnSess.sameRun) { console.log("FAIL: loading a session re-ran an analysis"); process.exit(1); }
+
+if (errors.length !== errBeforeAcc) {
+  console.log("FAIL: v19 raised page errors:", errors.slice(errBeforeAcc, errBeforeAcc + 4));
+  process.exit(1);
+}
+});
+
+/* ==================================================================== */
 let errBeforeParity, parity, rowsOn, classesLive, CAD_BASEMAP, exemptReason, parityTable, parityMissing, parityNamed, chrome3d, lbl3d, hasTxt;   /* hoisted — v18 §3 */
 await block("9y. 3D parity", async () => {
 /* 9y. 3D parity — everything that works in 2D works in 3D (v15 §3.1)   */
@@ -6266,8 +6601,8 @@ await page.screenshot({ path: "/tmp/shot_props_" + label.replace(/\W+/g, "_") + 
 
 /* ==================================================================== */
 let errBeforeTree, treeBase, tree, treeKeys, treeMissing, treeNew, treeUnexplained, treeSearch, treeSolo, treeActs, gripBox, treeOrder, grip2, treeOrder2, treePreset, treeSess, kbBefore, kbAfter, kbMoved, treeLegend, errBeforeReload, treeReload;   /* hoisted — v18 §3 */
-await block("9ab. the compute core", async () => {
-/* 9ab. the compute core — v21, docs/V21_WASM_SPEC.md §3/§5             */
+await block("9ac. the compute core", async () => {
+/* 9ac. the compute core — v21, docs/V21_WASM_SPEC.md §3/§5             */
 /* ==================================================================== */
 /* The identity between the two cores is proved in node, kernel by kernel and
    bit by bit (test/kernels.mjs, `wasm` section). What is proved HERE is that
@@ -6418,13 +6753,21 @@ treeMissing = treeBase.keys.filter(k => !treeKeys.has(k));
        sheet gets one per-sheet raster row under "Sheets (draped)", and those
        two sheets were placed from EA's native geometry after the baseline was
        taken — so this is the twelve rows the fixture already carries becoming
-       fourteen, not an invented row. */
+       fourteen, not an invented row.
+     · the two flow-accumulation rows (v19 Phase 3): "Flow accumulation" and
+       "Streams (>= 5 ac)", which join the same *Drainage (lidar + storm
+       drains)* sub-group the Phase 1 catchment rows are in. Same reason as the
+       design-storm pair above — the app grew them after this baseline was
+       dumped, and they are registered through SBMM.addLayerRow like every
+       other row rather than being drawn into the tree by hand. */
 treeNew = tree.keys.filter(k => treeBase.keys.indexOf(k) < 0);
 treeUnexplained = treeNew.filter(k => !/^invest\//.test(k) && !/^base\/contours_/.test(k)
                                          && k !== "framework/runoff_cover"
                                          && k !== "framework/runoff_depth"
                                          && k !== "design/c_102_staging_area"
-                                         && k !== "design/c_203_borrow_source_demonstration_area");
+                                         && k !== "design/c_203_borrow_source_demonstration_area"
+                                         && k !== "framework/accum_raster"
+                                         && k !== "framework/accum_streams");
 console.log("layer tree:", tree.rows.length, "rows in the state,", tree.domRows, "in the DOM,",
             tree.subs.length, "sub-groups |", tree.swatches, "symbology swatches |",
             "baseline", treeBase.keys.length, "rows — missing", treeMissing.length,
