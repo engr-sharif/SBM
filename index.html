@@ -867,6 +867,13 @@ window.SBMM_BUILD="full";
      is never on screen unlocked. It covers and blocks; boot carries on under it. -->
 <script src="js/gate.js"></script>
 
+<!-- v19.1: js/touch.js is loaded HERE, ahead of the vendor bundles and the
+     payloads, because the heavy-payload loader below has to ask it whether this
+     is a phone before a single one of them is parsed. It only needs `SBMM` to
+     exist, which js/gate.js above has just done; everything else it touches it
+     touches inside wire(), which boot still calls in its old place. -->
+<script src="js/touch.js"></script>
+
 <script src="vendor/leaflet.js"></script>
 <script src="vendor/d3-delaunay.min.js"></script>
 <script src="vendor/three.bundle.js"></script>
@@ -876,7 +883,6 @@ window.SBMM_BUILD="full";
 <script src="datajs/d_dem_site.js"></script>
 <script src="datajs/d_dem_abp.js"></script>
 <script src="datajs/d_dem_res.js"></script>
-<script src="datajs/d_chm.js"></script>
 <script src="datajs/d_contours_site.js"></script>
 <script src="datajs/d_contours_abp.js"></script>
 <script src="datajs/d_dus.js"></script>
@@ -893,8 +899,6 @@ window.SBMM_BUILD="full";
 <script src="datajs/d_rainfall.js"></script>
 <script src="datajs/d_cover.js"></script>
 <script src="datajs/i_cover_png.js"></script>
-<script src="datajs/d_cad_native.js"></script>
-<script src="datajs/d_cad_surfaces.js"></script>
 <script src="datajs/d_ortho_abp.js"></script>
 <script src="datajs/d_ortho_mine.js"></script>
 <script src="datajs/d_ortho_site.js"></script>
@@ -902,7 +906,6 @@ window.SBMM_BUILD="full";
 <script src="datajs/i_dem_site_png.js"></script>
 <script src="datajs/i_dem_abp_png.js"></script>
 <script src="datajs/i_dem_res_png.js"></script>
-<script src="datajs/i_chm_png.js"></script>
 <script src="datajs/i_hs_site_jpg.js"></script>
 <script src="datajs/i_hs_abp_jpg.js"></script>
 <script src="datajs/i_ortho_abp_jpg.js"></script>
@@ -924,26 +927,79 @@ window.SBMM_BUILD="full";
 <script src="datajs/i_design_C202_png.js"></script>
 <script src="datajs/i_design_C203_png.js"></script>
 <script>SBMM_PERF.mark("data-design-png")</script>
-<script src="datajs/i_sheet_full_C101_jpg.js"></script>
-<script src="datajs/i_sheet_full_C102_jpg.js"></script>
-<script src="datajs/i_sheet_full_C103_jpg.js"></script>
-<script src="datajs/i_sheet_full_C104_jpg.js"></script>
-<script src="datajs/i_sheet_full_C105_jpg.js"></script>
-<script src="datajs/i_sheet_full_C106_jpg.js"></script>
-<script src="datajs/i_sheet_full_C107_jpg.js"></script>
-<script src="datajs/i_sheet_full_C108_jpg.js"></script>
-<script src="datajs/i_sheet_full_C109_jpg.js"></script>
-<script src="datajs/i_sheet_full_C110_jpg.js"></script>
-<script src="datajs/i_sheet_full_C111_jpg.js"></script>
-<script src="datajs/i_sheet_full_C112_jpg.js"></script>
-<script src="datajs/i_sheet_full_C201_jpg.js"></script>
-<script src="datajs/i_sheet_full_C202_jpg.js"></script>
-<script src="datajs/i_sheet_full_C203_jpg.js"></script>
-<script src="datajs/i_sheet_full_C501_jpg.js"></script>
-<script src="datajs/i_sheet_full_C502_jpg.js"></script>
-<script src="datajs/i_sheet_full_C503_jpg.js"></script>
-<script src="datajs/i_sheet_full_G001_jpg.js"></script>
-<script src="datajs/i_sheet_full_G002_jpg.js"></script>
+<!-- ===================================================================
+     THE HEAVY PAYLOADS — parsed only when this is not a phone (v19.1).
+
+     ONE LIST, three readers: this loader writes the tags, tools/build_dist.py
+     inlines the same list (minus FIELD_EXCLUDE in the field build), and sw.js
+     precaches it. Keep the SBMM_HEAVY_BEGIN/END markers — both of those read
+     the array out of this file by regex, exactly as sw.js already reads the
+     static <script src> tags, so a fourth copy can never go stale.
+
+     WHY: the folder build is what the team opens from GitHub Pages, and on an
+     iPhone it was parsing ~50 MB of base64 the field dist deliberately leaves
+     out — 27 MB of full-sheet renders, the canopy model, EA's 21 MB native CAD
+     and the recovered design surfaces — before the 3D mesh and its drape
+     textures came on top. iOS kills a tab at roughly 1-1.5 GB. Every module
+     that reads one of these already degrades with a row, a note or a toast
+     (CLAUDE.md's payload-tolerance rule), so a phone simply gets the field
+     build's behaviour out of the folder build.
+
+     document.write, deliberately: it is the only injection that is SYNCHRONOUS
+     and ORDERED during parsing, and it works over file:// where nothing may be
+     fetched. Dynamically appended <script> elements would race js/boot.js.
+     ================================================================== -->
+<script>
+/* SBMM_HEAVY_BEGIN */
+window.SBMM_HEAVY = [
+  "datajs/d_chm.js",
+  "datajs/i_chm_png.js",
+  "datajs/d_cad_native.js",
+  "datajs/d_cad_surfaces.js",
+  "datajs/i_sheet_full_C101_jpg.js",
+  "datajs/i_sheet_full_C102_jpg.js",
+  "datajs/i_sheet_full_C103_jpg.js",
+  "datajs/i_sheet_full_C104_jpg.js",
+  "datajs/i_sheet_full_C105_jpg.js",
+  "datajs/i_sheet_full_C106_jpg.js",
+  "datajs/i_sheet_full_C107_jpg.js",
+  "datajs/i_sheet_full_C108_jpg.js",
+  "datajs/i_sheet_full_C109_jpg.js",
+  "datajs/i_sheet_full_C110_jpg.js",
+  "datajs/i_sheet_full_C111_jpg.js",
+  "datajs/i_sheet_full_C112_jpg.js",
+  "datajs/i_sheet_full_C201_jpg.js",
+  "datajs/i_sheet_full_C202_jpg.js",
+  "datajs/i_sheet_full_C203_jpg.js",
+  "datajs/i_sheet_full_C501_jpg.js",
+  "datajs/i_sheet_full_C502_jpg.js",
+  "datajs/i_sheet_full_C503_jpg.js",
+  "datajs/i_sheet_full_G001_jpg.js",
+  "datajs/i_sheet_full_G002_jpg.js"
+];
+/* SBMM_HEAVY_END */
+(function () {
+  /* a single-file build has them inlined already (or deliberately dropped) */
+  if (window.SBMM_SINGLE_FILE) { window.SBMM_HEAVY_SKIPPED = false; return; }
+  var phone = false;
+  try { phone = !!(window.SBMM && SBMM.touch && SBMM.touch.phoneAtBoot()); } catch (e) {}
+  window.SBMM_HEAVY_SKIPPED = phone;
+  if (phone) return;
+  /* The tag is spelled in PIECES on purpose, and this comment must not spell it
+     either. sw.js builds the offline precache list by running a deliberately
+     loose opening-script-tag-with-a-src regex over THIS FILE'S OWN TEXT, so an
+     ordinary-looking tag written inside a JS string is picked up as a URL: the
+     first version of this loop put `' + window.SBMM_HEAVY[i] + ` into the list,
+     that 404s, and the precache aborts on its first failure — test/e2e_tablet's
+     offline block failed with "the precache did not complete" and nothing else
+     to go on. test/check.mjs now runs the same loose regex and fails on any
+     match that is not a real file. The split also keeps a closing script tag
+     out of the source, which is the older rule (js_safe in build_dist.py). */
+  var A = '<scr' + 'ipt src="', B = '"></scr' + 'ipt>';
+  for (var i = 0; i < window.SBMM_HEAVY.length; i++)
+    document.write(A + window.SBMM_HEAVY[i] + B);
+})();
+</script>
 <script>SBMM_PERF.mark("data-sheet-jpg")</script>
 <script src="datajs/d_sheets_full.js"></script>
 <script src="datajs/d_datasets.js"></script>
@@ -956,11 +1012,6 @@ window.SBMM_BUILD="full";
 <script src="js/proj.js"></script>
 <script src="js/state.js"></script>
 <script src="js/layerstate.js"></script>
-<!-- v17: the three touch profiles, the ONE gesture recogniser, the loupe, the
-     Done bar and the (opt-in, http-only) offline copy. After js/layerstate.js
-     because it emits on SBMM.events; before everything that asks it what the
-     profile is. -->
-<script src="js/touch.js"></script>
 <script src="js/view.js"></script>
 <script src="js/popups.js"></script>
 <script src="js/watermark.js"></script>

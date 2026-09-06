@@ -1,6 +1,6 @@
 # The test matrix on GitHub's runners (v18 §4).
 #
-# Five jobs in parallel put the whole matrix at roughly the length of its
+# Seven jobs in parallel put the whole matrix at roughly the length of its
 # slowest step, instead of the 40-70 minutes it takes queued behind ONE
 # browser on the two-core cloud box. Each job runs the same runner an agent
 # runs locally — test/run.mjs --only <step> — so there is one definition of
@@ -43,6 +43,8 @@ jobs:
             also: ""
           - step: tablet:file
             also: tablet:http
+          - step: phone:http
+            also: ""
           - step: perf
             also: audit,audit2
           - step: kernels

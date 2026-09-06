@@ -123,6 +123,38 @@ const bad  = (n, msg, rows = []) => { fails++; console.log(`FAIL ${n} — ${msg}
     bad("scripts", `${unlisted.length} js file(s) not in index.html, ${missing.length} listed file(s) missing`,
         [...unlisted.map(f => "not listed: " + f), ...missing.map(f => "listed but absent: " + f)]);
   else ok("scripts", `${jsFiles.length} js files all listed, ${listed.length} script tags all exist`);
+
+  /* v19.1 — the heavy payloads are NOT <script src> tags: index.html carries
+     them as one array its own loader document.writes when the profile is not a
+     phone, and tools/build_dist.py and sw.js read that same array. A typo there
+     is a payload silently missing from BOTH dists AND from the offline copy,
+     with no error anywhere, so it is checked the same way the tag list is. */
+  const heavyBlock = /SBMM_HEAVY_BEGIN\s*\*\/\s*window\.SBMM_HEAVY\s*=\s*\[([\s\S]*?)\]/.exec(html);
+  if (!heavyBlock) bad("heavy", "index.html has no SBMM_HEAVY block", []);
+  else {
+    const heavy = [...heavyBlock[1].matchAll(/"([^"]+)"/g)].map(m => m[1]);
+    const gone = heavy.filter(f => !existsSync(R(f)));
+    const dup = heavy.filter((f, i) => heavy.indexOf(f) !== i);
+    const alsoStatic = heavy.filter(f => listed.includes(f));
+    if (!heavy.length || gone.length || dup.length || alsoStatic.length)
+      bad("heavy", `${heavy.length} heavy payload(s), ${gone.length} missing, ${dup.length} duplicated, ${alsoStatic.length} also a static tag`,
+          [...gone.map(f => "missing: " + f), ...dup.map(f => "duplicated: " + f),
+           ...alsoStatic.map(f => "listed twice: " + f)]);
+    else ok("heavy", `${heavy.length} deferred payloads all exist and none is also a static tag`);
+  }
+
+  /* v19.1 — sw.js builds the offline precache list by running a LOOSE
+     opening-script-tag regex over index.html's own text, so anything that looks
+     like one inside a JS string or a comment becomes a URL it tries to fetch,
+     404s on, and aborts the whole precache over. That is exactly what happened
+     to the heavy-payload loader's document.write, and the only symptom was
+     "the precache did not complete". Run sw.js's own regex here. */
+  const loose = new RegExp("<" + "script[^>]+src=\"([^\"]+)\"", "g");
+  const junk = [...html.matchAll(loose)].map(m => m[1]).filter(u => !existsSync(R(u)));
+  if (junk.length)
+    bad("swurls", `${junk.length} thing(s) look like a script src to sw.js but are not files`,
+        junk.map(u => "not a file: " + JSON.stringify(u)));
+  else ok("swurls", "every loose script-src match in index.html is a real file");
 }
 
 /* 6. no model name in the docs ------------------------------------------ */
