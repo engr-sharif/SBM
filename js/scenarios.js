@@ -324,7 +324,7 @@ SBMM.scenarios = (function () {
   function compareHtml(sel) {
     if (sel.length < 2) return "";
     const rows = compareRows(sel);
-    return `<div class="note">Compare</div><div class="dspopwrap"><table class="dspop runoffT">
+    return `<div class="note">Compare</div><div class="dspopwrap"><table class="dspop runoffT scnCmp">
       <tr><td class="k"><b></b></td>${sel.map(s => `<td class="v"><b>${esc(s.name)}</b></td>`).join("")}</tr>
       ${rows.map(r => `<tr><td class="k">${esc(r[0])}</td>`
         + r[1].map(v => `<td class="v mono">${v}</td>`).join("") + `</tr>`).join("")}
