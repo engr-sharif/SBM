@@ -905,18 +905,27 @@ SBMM.layerTree = (function () {
   /* ------------------------------------------------------------------ */
   let legendTimer = null;
   function legendSoon() {
-    if (legendTimer) return;
+    /* Trailing-edge: a burst of layer adds (boot, a session restore, a group
+       switch) runs this ONCE, after the last of them, so the draw-order pass
+       below always sees every layer the burst put on the map. */
+    if (legendTimer) clearTimeout(legendTimer);
     legendTimer = setTimeout(() => {
       legendTimer = null;
-      paintLegend(); paintRecent(); paintCounts();
-      /* And re-assert the draw order. Adding a layer to a canvas renderer puts
-         it at the END of that renderer's draw list — so switching a layer off
-         and on again would jump it in front of everything the user had ordered
-         above it, and the session restore at the end of boot re-adds every
-         layer that was on. Cheap: applyDrawOrder returns immediately for a
-         group the user has never reordered, which is every group until he
-         drags something. */
-      for (const g of SBMM.layerState.GROUP_ORDER) applyDrawOrder(g[0]);
+      /* Re-assert the draw order FIRST, on its own try. Adding a layer to a
+         canvas renderer puts it at the END of that renderer's draw list — so
+         switching a layer off and on again would jump it in front of everything
+         the user had ordered above it, and the session restore at the end of
+         boot re-adds every layer that was on. Cheap: applyDrawOrder returns
+         immediately for a group the user has never reordered, which is every
+         group until he drags something. It runs before the paints because a
+         paint that throws must never cost the map its order — that was the
+         one way block 9z's post-reload assertion could see insertion order
+         with the stored order present. */
+      try { for (const g of SBMM.layerState.GROUP_ORDER) applyDrawOrder(g[0]); }
+      catch (e) { console.error("layer tree draw order", e); }
+      try { paintLegend(); } catch (e) { console.error("layer tree legend", e); }
+      try { paintRecent(); } catch (e) { console.error("layer tree recent", e); }
+      try { paintCounts(); } catch (e) { console.error("layer tree counts", e); }
     }, 80);
   }
 
@@ -1203,6 +1212,10 @@ SBMM.layerTree = (function () {
        zoom gate, the sheet-tab footprint borrow, the boot session restore).
        Only armed once the user has actually ordered something. */
     if (SBMM.map) SBMM.map.on("layeradd", () => { if (Object.keys(S.order).length) legendSoon(); });
+    /* and once more when boot has finished: every row is registered and every
+       remembered layer is on the map by then, whatever order the payloads and
+       the workers landed in, so this is the one pass that cannot be early */
+    if (SBMM.events.on) SBMM.events.on("boot", () => { if (Object.keys(S.order).length) { try { applyStoredOrder(); } catch (e) {} } });
     legendEl();
     legendSoon();
   }

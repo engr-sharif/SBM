@@ -226,6 +226,9 @@ function wireWasmSwitch() {
     SBMM_PERF.mark("boot-done");
     if (/[?&]perf/.test(location.search)) console.table(SBMM_PERF.report());
     $("loading").style.display = "none";
+    /* the one signal that every row is registered and every remembered layer
+       is on the map (js/layertree.js re-applies the stored draw order on it) */
+    try { if (SBMM.events && SBMM.events.emit) SBMM.events.emit("boot", {}); } catch (e) { console.error(e); }
   } catch (e) {
     console.error(e);
     fail(e.message, e.stack ? String(e.stack).split("\n").slice(0, 4).join("\n") : "");
