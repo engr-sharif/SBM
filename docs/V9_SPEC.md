@@ -1,6 +1,6 @@
 # SBMM Site Explorer — v9 design specification (authoritative)
 
-Owner/decider: Fable (planner). Executors: Opus agents A, B, C. This document is the
+Owner/decider: the planner. Executors: agents A, B, C. This document is the
 contract: agents implement what is written here and do not re-decide it. Where
 something is not specified, choose the simplest option consistent with CLAUDE.md
 and note it in your final report.

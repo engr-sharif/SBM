@@ -1,6 +1,6 @@
 # SBMM Site Explorer — v11 specification: hygiene and the field (authoritative)
 
-Owner/decider: Fable (planner). Executors: Opus agents R (redo), K (kernel
+Owner/decider: the planner. Executors: agents R (redo), K (kernel
 harness), D (worker-side terrain decode), F (field mode and the field build).
 This document is the contract: agents implement what is written here and do
 not re-decide it. Where it is silent, choose the simplest option consistent

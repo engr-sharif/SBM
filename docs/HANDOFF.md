@@ -354,6 +354,16 @@ table at the end. Read the table, not the scrollback.
    deleted by the tool.
 6. Bump `RELEASE_NOTES_v<N>.md`, update CLAUDE.md / this file where behaviour changed.
 
+**Rust is a build dependency of the kernels payload only; the app never needs it.**
+v21 compiles `wasm/sbmm-kernels/` to a ~100 kB WebAssembly module and ships it as base64
+in `datajs/w_kernels.js`, exactly like every other payload — nothing is fetched, and the
+dists inline it as they inline everything else. Only someone who CHANGES a kernel needs
+`rustup` and `rustup target add wasm32-unknown-unknown`, and then one command
+(`python tools/build_wasm.py`) rebuilds the payload; `test/check.mjs` fails the preflight
+if the committed payload no longer matches the crate source, so a forgotten rebuild is
+caught in three seconds. A checkout with no Rust toolchain builds, tests and ships
+normally — the JavaScript kernels are still there and are still the reference.
+
 ## Source data that is NOT in this repo (on the user's machine)
 
 - `SBMM\LiDAR and Aerial Survey Data\_staging\master_1ft.f32` (+ CHM) — the master rasters

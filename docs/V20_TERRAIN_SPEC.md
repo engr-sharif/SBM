@@ -1,6 +1,6 @@
 # SBMM Site Explorer — v20: tiled terrain, on-demand payloads, GPU rendering (authoritative)
 
-Owner/decider: Fable (planner). Executor: one Opus agent (P2). Decided by the
+Owner/decider: the planner. Executor: one agent (P2). Decided by the
 engineer 2026-09-05. Hard constraints as in CLAUDE.md, and one of them is the
 whole difficulty here: **everything must open from a folder over `file://`
 and from a single HTML file** — so "on demand" means injecting `<script src>`

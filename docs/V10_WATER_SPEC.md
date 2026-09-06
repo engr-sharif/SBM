@@ -1,6 +1,6 @@
 # SBMM Site Explorer — v10 water specification (authoritative)
 
-Owner/decider: Fable (planner). Executors: Opus agents A (compute kernels) and
+Owner/decider: the planner. Executors: agents A (compute kernels) and
 B (application). This document is the contract: agents implement what is
 written here and do not re-decide it. Where something is not specified, choose
 the simplest option consistent with CLAUDE.md and note it in your final report.
