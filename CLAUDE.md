@@ -2487,7 +2487,7 @@ pass-fail — look at them.
 
 Contract: `docs/V21_WASM_SPEC.md`. Crate `wasm/sbmm-kernels/` (Rust, `cdylib`),
 builder `tools/build_wasm.py`, payload `datajs/w_kernels.js`, host in
-`js/jobs.js`, dispatch in `js/compute.js`. `VERSION` stays **9** — this changes
+`js/jobs.js`, dispatch in `js/compute.js`. `VERSION` stays **10** — this changes
 who computes, never what.
 
 **The JavaScript kernels are the reference and the fallback, and their bodies
