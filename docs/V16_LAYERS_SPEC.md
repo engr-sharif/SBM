@@ -1,6 +1,6 @@
 # SBMM Site Explorer — v16: the layers system (authoritative)
 
-Owner/decider: Fable (planner). Executor: one Opus agent (L). This is the
+Owner/decider: the planner. Executor: one agent (L). This is the
 contract. Hard constraints as in CLAUDE.md (file:// only, plain scripts, three
 builds, every harness, browser harnesses one at a time, every refusal toasts,
 no model names). `SBMM.layerState` stays the ONE model of "is this layer on";

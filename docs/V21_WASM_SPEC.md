@@ -1,6 +1,6 @@
 # SBMM Site Explorer — v21: the WASM compute core (authoritative)
 
-Owner/decider: Fable (planner). Executor: one Opus agent (W). Decided by the
+Owner/decider: the planner. Executor: one agent (W). Decided by the
 engineer 2026-09-05. Hard constraints as in CLAUDE.md: `file://`, no `fetch`
 — the module bytes ship as a base64 `<script>` payload and are instantiated
 from bytes; the Blob-URL worker contract stands; every golden stays; the

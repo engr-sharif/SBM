@@ -43,12 +43,21 @@ const AC = 43560;
 
 /* ------------------------------------------------------------------ argv -- */
 const argv = process.argv.slice(2);
-let only = null, listOnly = false;
+let only = null, listOnly = false, backendArg = "both";
 for (let i = 0; i < argv.length; i++) {
   const a = argv[i];
   if (a === "--only") only = (only || []).concat(String(argv[++i]).split(","));
   else if (a === "--list") listOnly = true;
+  /* v21 (docs/V21_WASM_SPEC.md §5): every section runs on BOTH backends by
+     default, so a golden is a golden whichever core computed it. SBMM_WASM=0
+     is the environment's way of saying the same thing the Help switch says. */
+  else if (a === "--backend") backendArg = String(argv[++i]);
   else if (a.startsWith("--")) argv[++i];        // tolerate (and ignore) legacy flags
+}
+if (process.env.SBMM_WASM === "0") backendArg = "js";
+if (!["js", "wasm", "both"].includes(backendArg)) {
+  console.error("--backend takes js | wasm | both");
+  process.exit(2);
 }
 
 /* --------------------------------------------------- load js/compute.js ---- */
@@ -71,6 +80,50 @@ function loadCompute() {
   if (!ctx2.SBMM_COMPUTE || ctx2.SBMM_COMPUTE.VERSION !== api.VERSION)
     throw new Error("moduleSource round-trip does not rebuild the module");
   return api;
+}
+
+/* --------------------------------------------- the WASM core (v21) -------- */
+/* The payload the app ships, read the way the app reads it: bytes, never a
+   file path, because over file:// nothing can be fetched (CLAUDE.md). Node has
+   no 4 kB synchronous-compile limit, so this is the worker's own path. */
+function loadWasm(api) {
+  const f = path.join(REPO, "datajs", "w_kernels.js");
+  if (!fs.existsSync(f)) return { ok: false, why: "datajs/w_kernels.js is not in this checkout" };
+  const txt = fs.readFileSync(f, "utf8");
+  const mb = txt.match(/SBMM_DATA\["wasm_kernels_meta"\]=(\{.*?\});/);
+  const bb = txt.match(/SBMM_DATA\["wasm_kernels"\]="([A-Za-z0-9+/=]*)"/);
+  if (!bb) return { ok: false, why: "datajs/w_kernels.js carries no wasm_kernels payload" };
+  const meta = mb ? JSON.parse(mb[1]) : null;
+  const bytes = Buffer.from(bb[1], "base64");
+  const ok = api.wasmInitSync ? api.wasmInitSync(bytes, meta) : false;
+  return { ok, meta, bytes: bytes.length, why: ok ? null : "the module did not instantiate" };
+}
+
+/* bitwise identity between two typed arrays, NaN counted as equal to NaN --
+   which is what "the same raster" means for a grid whose NoData IS NaN */
+function sameArray(a, b) {
+  if (!a || !b || a.length !== b.length) return { ok: false, n: -1, at: -1 };
+  let bad = 0, at = -1;
+  for (let i = 0; i < a.length; i++) {
+    const x = a[i], y = b[i];
+    if (x === y) continue;
+    if (Number.isNaN(x) && Number.isNaN(y)) continue;
+    if (bad === 0) at = i;
+    bad++;
+  }
+  return { ok: bad === 0, n: bad, at };
+}
+/* the largest relative difference, for the kernels whose summation order moves */
+function maxRel(a, b) {
+  if (!a || !b || a.length !== b.length) return Infinity;
+  let m = 0;
+  for (let i = 0; i < a.length; i++) {
+    const x = a[i], y = b[i];
+    if (x === y || (Number.isNaN(x) && Number.isNaN(y))) continue;
+    const d = Math.abs(x - y) / Math.max(1e-12, Math.abs(y));
+    if (d > m) m = d;
+  }
+  return m;
 }
 /* vendor/d3-delaunay.min.js — the volume job's perimeter TIN is triangulated by
    the HOST, not the kernel (js/tools.js buildVolumeJob), so the harness has to
@@ -2774,6 +2827,311 @@ function secRunoff() {
   }
 }
 
+/* ====================== 14. THE WASM CORE (v21) =========================== */
+/* docs/V21_WASM_SPEC.md §2: identity is the acceptance. Every ported kernel is
+   run TWICE on one job -- once with the module forced off, once with it on --
+   and the two outputs are compared field by field. Where the arithmetic is a
+   copy, an integer or an order-independent comparison the requirement is
+   BIT-IDENTICAL and this section says so; where a floating summation order
+   moves it is <= 1e-6 relative, and the row names which and why.
+
+   The speed-up printed beside each is this box, node, warm cache. */
+const WASM_REC = {};   /* filled as the section runs, printed as a table */
+
+function ab(name, fn, warm) {
+  /* Run `fn()` on each backend and return [jsOut, wasmOut, jsMs, wasmMs].
+     Both get a warm-up run first unless the caller says otherwise: V8 needs
+     one to JIT the kernel and wasm needs one to grow linear memory, so a
+     first-run comparison flatters whichever went second. */
+  const one = (js) => { C.wasmForce(js); if (warm !== false) fn(); const t = Date.now(); const r = fn(); return [r, Date.now() - t]; };
+  const [j, jms] = one(true);
+  const [wo, wms] = one(false);
+  C.wasmForce(false);
+  WASM_REC[name] = { jms, wms };
+  return [j, wo, jms, wms];
+}
+function speed(name, jms, wms) {
+  const x = wms > 0 ? jms / wms : Infinity;
+  console.log("        " + name.padEnd(28) + ("js " + jms + " ms").padStart(14) +
+              ("   wasm " + wms + " ms").padStart(18) + "   " +
+              (x >= 1 ? x.toFixed(2) + "x faster" : (1 / x).toFixed(2) + "x SLOWER"));
+  return x;
+}
+function identical(name, a, b, what) {
+  const r = sameArray(a, b);
+  row(name, r.ok ? "identical (" + (a ? a.length : 0) + ")" : r.n + " cells differ (first at " + r.at + ")",
+      "bit-identical", r.ok, "exact", what || "");
+}
+
+function secWasm() {
+  console.log("\nwasm — the v21 compute core, identity against the JavaScript kernels");
+  if (!WASM.ok) {
+    row("the module instantiates", WASM.why || "no", "instantiated", false, "exact",
+        "build it with `python tools/build_wasm.py`");
+    return;
+  }
+  const info = C.wasmInfo();
+  row("the module instantiates", "v" + (info.version || "?") + ", " + WASM.bytes + " b64 bytes",
+      "instantiated", true, "exact", "api " + C.VERSION);
+  atMost("payload size", WASM.bytes, 400 * 1024, " bytes (field build)");
+  row("wasmForce(true) is the JavaScript path", C.wasmForce(true), "js", C.wasmBackend() === "js", "exact");
+  row("wasmForce(false) is the wasm path", C.wasmForce(false), "wasm", C.wasmBackend() === "wasm", "exact");
+
+  /* ---- fillDem: shared by flowpath, overtop and drainage ------------------
+     Driven exactly as js/water.js drives it, through the Herman window the
+     water section cuts, and again with the storm network's capture cells as
+     sinks and the parent forest asked for -- the two things v12 and v14 added. */
+  {
+    const g = hermanWindow();
+    const [a, b, jms, wms] = ab("fillDem", () => {
+      const par = new Int32Array(g.sw * g.sh);
+      const F = C.fillDem(g.z, g.sw, g.sh, null, 0, 1, null, par);
+      return { F, par };
+    });
+    speed("fillDem " + g.sw + "x" + g.sh, jms, wms);
+    identical("fillDem F", a.F, b.F, "no arithmetic: F is a copy of z or of a level");
+    identical("fillDem parent forest", a.par, b.par, "the heap tie-break fixes the order");
+
+    const sk = fillSinks(g);
+    const [a2, b2, jms2, wms2] = ab("fillDem+sinks", () => {
+      const par = new Int32Array(g.sw * g.sh);
+      const F = C.fillDem(g.z, g.sw, g.sh, null, 0, 1, sk, par);
+      return { F, par };
+    });
+    speed("fillDem, " + sk.length + " conduit sinks", jms2, wms2);
+    identical("fillDem F (seeded)", a2.F, b2.F, "the v12 conduit seeding");
+    identical("fillDem parent (seeded)", a2.par, b2.par, "");
+    row("the seeding changes F", sameArray(a.F, a2.F).n + " cells", "> 0",
+        sameArray(a.F, a2.F).n > 0, "identity", "so the seeded case is really exercised");
+  }
+
+  /* ---- flowpath: the descent, the fill-spill flood and the conduit chain --
+     Three jobs, because three different halves of the kernel run in each: the
+     section-9.1 raindrop is pure v10 descent, the Herman drop with the network
+     on takes the pond rule and a conduit chain, and the overflow route adds
+     the blocked ring (whose mask and plateau level stay in JavaScript). */
+  {
+    const D = T.readJSON(path.join(FIX, "drop_ref.json")).swale.drop;
+    const abp = T.loadDem("dem_abp");
+    const swale = T.gridSpec(abp, [D[0] - 700, D[1] - 700, D[0] + 700, D[1] + 700], 0);
+    const sc = swale.cell;
+    const [a, b, jms, wms] = ab("flowpath", () =>
+      C.runJob("flowpath", { grid: swale, x: D[0] - sc / 2, y: D[1] - sc / 2 }).result);
+    speed("flowpath, section 9.1 drop", jms, wms);
+    identicalResult("flowpath (no conduits)", a, b, a.n + " vertices, " + a.ponds.length + " ponds");
+
+    /* The section-6.8 run whole: the surveyed Herman water-level shot with the
+       network on, chained window by window the way js/water.js traceRun chains
+       it. That is the run that takes the pond rule AND a conduit chain, and
+       comparing the WHOLE chained result is the only way to see the legs. */
+    const M = stormModel();
+    const WL = [6372119.56, 2127446.20];
+    const ring = hermanRing().map(q => [q[0], q[1]]);
+    const [a2, b2, jms2, wms2] = ab("flowpath+storm", () => hostRun(M, WL[0], WL[1], true));
+    speed("flowpath, chained + storm", jms2, wms2);
+    identicalResult("flowpath (conduits, chained)", a2, b2,
+      a2.legs.length + " legs, " + a2.ponds.length + " ponds, " + a2.hops + " hops, reason " + a2.reason);
+    row("the chained run really used the network", a2.legs.map(l => l.id).join(","),
+        "a conduit chain", a2.legs.length > 0, "identity");
+
+    /* and the blocked ring, whose mask and plateau level stay in JavaScript */
+    const hg = hermanWindow();
+    const seed = ringCentroid(ring);
+    const [a3, b3, jms3, wms3] = ab("flowpath+block", () =>
+      C.runJob("flowpath", { grid: hg, x: seed[0], y: seed[1], blockRing: ring }).result);
+    speed("flowpath, blocked ring", jms3, wms3);
+    identicalResult("flowpath (blocked ring)", a3, b3, "reason " + a3.reason);
+  }
+
+  /* ---- marchOne, through the kernels that run it -------------------------
+     `marchOne` is not a runJob kind, so it is exercised the way the app runs
+     it: the overtopping analysis (42 stage rings and a rim band through
+     traceMask/maskRings), and CBOUND, which is one contour of the terrain
+     followed by the ring-aware simplify. */
+  {
+    const g = hermanWindow();
+    const ring = hermanRing().map(q => [q[0], q[1]]);
+    const [a, b, jms, wms] = ab("overtop", () =>
+      C.runJob("overtop", { grid: g, seedRing: ring }).result, false);
+    speed("overtop, Herman", jms, wms);
+    identicalResult("overtop (rim, 42 stage rows)", a, b,
+      a.stage.length + " stage rows, " + a.clusters.length + " rim lows");
+
+    const M = stormModel();
+    const X0 = g.x0 + g.i0 * g.cell, Y0 = g.y0 + g.j0 * g.cell;
+    const win = [X0, Y0, X0 + (g.sw - 1) * g.cell, Y0 + (g.sh - 1) * g.cell];
+    const cds = M.conduitsFor(win);
+    const [a2, b2, jms2, wms2] = ab("overtop+conduits", () =>
+      C.runJob("overtop", { grid: g, seedRing: ring, conduits: cds, captureFt: 3 }).result, false);
+    speed("overtop, " + cds.length + " conduits", jms2, wms2);
+    identicalResult("overtop (conduit spill)", a2, b2,
+      a2.conduitSpill ? "spills through " + a2.conduitSpill.id : "no conduit spill");
+    row("the conduit spill is really found", a2.conduitSpill ? a2.conduitSpill.id : "none",
+        "a conduit", !!a2.conduitSpill, "identity");
+  }
+
+  /* ---- contoursFromGrid ---------------------------------------------------
+     The same two jobs the `contours` section runs: the analytic cone (where a
+     ring's length is 2*pi*r and the identity is arithmetic) and the real 10-ft
+     site window, which is the set the v9.7 stub rule was written for. */
+  {
+    const cone = T.synthGrid(0, 0, 2, 400, 400, (x, y) => {
+      const r = Math.hypot(x - 400, y - 400);
+      return r > 380 ? NaN : 100 - r * 0.25;
+    });
+    const [a, b, jms, wms] = ab("contours", () =>
+      C.runJob("contours", { grid: cone, interval: 5, stride: 1, maxPts: 500000 }).result);
+    speed("contours, 400x400 cone", jms, wms);
+    identicalResult("contours (cone)", a, b, a.levels.length + " polylines");
+
+    const site = T.loadDem("dem_site");
+    const win = T.gridSpec(site, [6371000, 2127000, 6373000, 2129000], 0);
+    const [a2, b2, jms2, wms2] = ab("contours+site", () =>
+      C.runJob("contours", { grid: win, interval: 10, stride: 5, maxPts: 500000 }).result);
+    speed("contours, " + win.sw + "x" + win.sh + " at 10 ft", jms2, wms2);
+    identicalResult("contours (real terrain)", a2, b2,
+      a2.levels.length + " polylines, " + (a2.coords.length / 2) + " vertices");
+  }
+
+  /* ---- drainage -----------------------------------------------------------
+     The whole map, both cores, on the FIELD build's 4-ft grid: it is the same
+     kernel over the same site (the section-11 run is the 2-ft one and takes
+     five minutes a side), it exercises the two rules the 4-ft grid is the only
+     one to hit -- an inlet's own nearest cell counting as a capture cell, and
+     the uphill-parent one-cell component -- and it asks for the polygons and
+     the flow paths, which the 2-ft section switches off. */
+  {
+    const site = T.loadDem("dem_site");
+    const M = stormModel();
+    const LR = clearLakeRing();
+    const g4 = decimateGrid(T.gridSpec(site, null, 0), 2);
+    const cds = drainConduits(M, g4);
+    const [a, b, jms, wms] = ab("drainage", () =>
+      C.runJob("drainage", { grid: g4, conduits: cds, captureFt: 3, lakeRing: LR,
+                             stride: 4 }).result, false);
+    speed("drainage, " + a.gw + "x" + a.gh + " at " + a.cell + " ft", jms, wms);
+    /* `ms` is the kernel's own wall clock and differs by construction */
+    const strip = r => { const c = { ...r }; delete c.ms; return c; };
+    identicalResult("drainage (whole site, 4 ft)", strip(a), strip(b),
+      a.sinks.length + " outlets, " + a.ponds.length + " ponds, " + a.inlets.length +
+      " inlets, " + a.pondsTotal + " depressions");
+    row("the map really has polygons and paths",
+        a.sinks.reduce((n, s) => n + s.rings.length, 0) + " rings, " +
+        a.sinks.reduce((n, s) => n + (s.path ? 1 : 0), 0) + " paths",
+        "> 0 rings", a.sinks.reduce((n, s) => n + s.rings.length, 0) > 0, "identity");
+    exact("no unresolved loops on either core", a.loops + "/" + b.loops, "0/0");
+  }
+
+  /* ---- volumeGrid ---------------------------------------------------------
+     THE golden number goes through this one, so it is checked on the ring the
+     golden is measured on and on two of the other bases: the perimeter TIN
+     (the memo method), and a fixed base at the ring's lowest perimeter point,
+     which takes the `fixed` branch and the plane-free path. */
+  {
+    const piles = T.readJSON("data/piles.json");
+    const p1 = piles.find(p => (p.name || "") === "Pile 1 (Fig 2)");
+    const jt = buildVolumeJob(p1.ring.map(p => p.slice()), { baseMode: "tin" });
+    const [a, b, jms, wms] = ab("volume", () => C.runJob("volume", jt.job).result);
+    speed("volume, Pile 1 TIN " + jt.job.nx + "x" + jt.job.ny, jms, wms);
+    identicalResult("volume (perimeter TIN)", a, b,
+      "fill " + (a.fill / 27).toFixed(1) + " yd3 over " + a.n + " cells");
+    /* and it really is the golden, on the core that just computed it */
+    near("the golden through the core", +(b.fill / 27).toFixed(1), 278.4, 10, " yd3");
+
+    const jl = buildVolumeJob(p1.ring.map(p => p.slice()), { baseMode: "lowest" });
+    const [a2, b2, jms2, wms2] = ab("volume+fixed", () => C.runJob("volume", jl.job).result);
+    speed("volume, fixed base", jms2, wms2);
+    identicalResult("volume (fixed base)", a2, b2, "fill " + (a2.fill / 27).toFixed(1) + " yd3");
+
+    const jp = buildVolumeJob(p1.ring.map(p => p.slice()), { baseMode: "plane" });
+    const [a3, b3, jms3, wms3] = ab("volume+plane", () => C.runJob("volume", jp.job).result);
+    speed("volume, least-squares plane", jms3, wms3);
+    identicalResult("volume (plane base)", a3, b3, "fill " + (a3.fill / 27).toFixed(1) + " yd3");
+  }
+}
+
+/* the Herman ring's bbox +/- 800 ft, the window js/water.js cuts for the
+   overtopping analysis -- a standalone grid spec */
+let _hw = null;
+function hermanWindow() {
+  if (_hw) return _hw;
+  const ring = hermanRing();
+  const xs = ring.map(p => p[0]), ys = ring.map(p => p[1]);
+  const bb = [Math.min(...xs) - 800, Math.min(...ys) - 800, Math.max(...xs) + 800, Math.max(...ys) + 800];
+  _hw = T.gridSpec(T.demForBox(bb) || T.loadDem("dem_site"), bb);
+  return _hw;
+}
+/* every capture cell of the storm network inside that window, at its rim --
+   js/water.js conduitsFor + the kernel's own inlet index (v12 section 2) */
+function fillSinks(g) {
+  const M = stormModel();
+  const X0 = g.x0 + g.i0 * g.cell, Y0 = g.y0 + g.j0 * g.cell;
+  const win = [X0, Y0, X0 + (g.sw - 1) * g.cell, Y0 + (g.sh - 1) * g.cell];
+  const out = [], seen = new Set();
+  for (const cd of M.conduitsFor(win)) {
+    const ki = Math.round((cd.ix - X0) / g.cell), kj = Math.round((cd.iy - Y0) / g.cell);
+    const rc = Math.max(0, Math.ceil(3 / g.cell));
+    for (let j = kj - rc; j <= kj + rc; j++) {
+      if (j < 0 || j >= g.sh) continue;
+      for (let i = ki - rc; i <= ki + rc; i++) {
+        if (i < 0 || i >= g.sw) continue;
+        if (Math.hypot(X0 + i * g.cell - cd.ix, Y0 + j * g.cell - cd.iy) > 3) continue;
+        const k = j * g.sw + i;
+        if (Number.isNaN(g.z[k]) || seen.has(k)) continue;
+        seen.add(k);
+        out.push([k, (cd.rim == null || !isFinite(cd.rim)) ? g.z[k] : cd.rim]);
+      }
+    }
+  }
+  return out;
+}
+
+/* a deep structural comparison of two kernel results -- what "identity" means
+   for a kernel whose output is an object graph rather than one raster */
+function deepDiff(a, b, path, out) {
+  path = path || "";
+  out = out || [];
+  if (a === b) return out;
+  if (a == null || b == null) { out.push(path + ": " + a + " vs " + b); return out; }
+  if (ArrayBuffer.isView(a) || ArrayBuffer.isView(b)) {
+    const r = sameArray(a, b);
+    if (!r.ok) out.push(path + ": " + (r.n < 0 ? "length " + a.length + " vs " + b.length
+                                               : r.n + " of " + a.length + " differ, first at " + r.at));
+    return out;
+  }
+  if (Array.isArray(a) || Array.isArray(b)) {
+    if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) {
+      out.push(path + ": array " + (a && a.length) + " vs " + (b && b.length));
+      return out;
+    }
+    for (let i = 0; i < a.length && out.length < 8; i++) deepDiff(a[i], b[i], path + "[" + i + "]", out);
+    return out;
+  }
+  const ta = typeof a, tb = typeof b;
+  if (ta === "number" && tb === "number") {
+    if (Number.isNaN(a) && Number.isNaN(b)) return out;
+    out.push(path + ": " + a + " vs " + b);
+    return out;
+  }
+  if (ta === "object" && tb === "object") {
+    const ks = [...new Set([...Object.keys(a), ...Object.keys(b)])];
+    for (const k of ks) { if (out.length >= 8) break; deepDiff(a[k], b[k], path ? path + "." + k : k, out); }
+    return out;
+  }
+  out.push(path + ": " + String(a) + " vs " + String(b));
+  return out;
+}
+function identicalResult(name, a, b, what) {
+  const d = deepDiff(a, b, "");
+  row(name, d.length ? d.length + " field(s) differ" : "identical", "bit-identical", d.length === 0, "exact",
+      d.length ? d.slice(0, 3).join(" | ") : (what || ""));
+}
+
+function ringCentroid(r) {
+  let x = 0, y = 0;
+  for (const p of r) { x += p[0]; y += p[1]; }
+  return [x / r.length, y / r.length];
+}
 /* ============================ 13. ACCUM ================================== */
 /* docs/V19_HYDRO3_SPEC.md §2. Flow accumulation — D-infinity (Tarboton 1997)
    over the filled DEM with the drainage map's own pointer field as the
@@ -3188,7 +3546,8 @@ const SECTIONS = [
   { key: "drainage", run: secDrainage },
   { key: "runoff", run: secRunoff },
   { key: "accum", run: secAccum },
-  { key: "hydraulics", run: secHydraulics }
+  { key: "hydraulics", run: secHydraulics },
+  { key: "wasm", run: secWasm }
 ];
 
 if (listOnly) {
@@ -3198,9 +3557,17 @@ if (listOnly) {
 
 const C = loadCompute();
 const Delaunay = loadDelaunay();
+const WASM = loadWasm(C);
 console.log("SBMM kernel harness — js/compute.js VERSION " + C.VERSION +
             (C.VERSION === 10 ? "" : "  (!! expected 10)"));
 if (C.VERSION !== 10) { fails++; checks++; }
+console.log("wasm core: " + (WASM.ok
+  ? "v" + (WASM.meta && WASM.meta.version) + ", " + WASM.bytes + " bytes"
+  : "NOT LOADED (" + WASM.why + ")"));
+if (!WASM.ok && backendArg !== "js") {
+  console.error("--backend " + backendArg + " needs the module; run `python tools/build_wasm.py`");
+  process.exit(2);
+}
 
 /* every kernel runJob dispatches must have a section here (V11 spec §2.4) */
 const COVERED = ["volume", "isopach", "raster", "contours", "design", "balance", "sections",
@@ -3218,12 +3585,24 @@ const COVERED = ["volume", "isopach", "raster", "contours", "design", "balance",
 const wanted = SECTIONS.filter(s => !only || only.includes(s.key));
 if (!wanted.length) { console.log("no section matches --only " + only.join(",")); process.exit(2); }
 
+/* v21 §5: every section on both backends -- a golden is a golden whichever
+   core computed it. The `wasm` section drives both itself and is run once. */
+const backends = backendArg === "both" ? ["js", "wasm"] : [backendArg];
 const t0 = Date.now();
-for (const s of wanted) {
-  const st = Date.now();
-  s.run();
-  console.log("  ---- " + s.key + " section: " + ((Date.now() - st) / 1000).toFixed(1) + " s");
+for (const be of backends) {
+  C.wasmForce(be === "js");
+  if (backends.length > 1 || backendArg !== "js")
+    console.log("\n================== backend: " + C.wasmBackend().toUpperCase() +
+                " ==================");
+  const first = be === backends[0];
+  for (const s of wanted) {
+    if (s.key === "wasm" && !first) continue;      // it is the A/B itself
+    const st = Date.now();
+    s.run();
+    console.log("  ---- " + s.key + " section: " + ((Date.now() - st) / 1000).toFixed(1) + " s");
+  }
 }
+C.wasmForce(false);
 console.log("\nterrain: decoded [" + T.loadStats.decoded.join(" ") + "] cached [" +
             T.loadStats.cached.join(" ") + "] in " + (T.loadStats.ms / 1000).toFixed(1) + " s");
 console.log((fails ? "FAILED " + fails + " of " + checks : "PASSED all " + checks) +

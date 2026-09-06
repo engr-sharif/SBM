@@ -853,6 +853,12 @@ window.SBMM_BUILD="full";
   feature — it exports to GeoJSON and to DXF on a <span class="mono">REDLINE</span> layer, drapes
   in 3D and prints in the report. In 3D, a pen drag orbits and a pen drag with a finger held down
   pans.<br>
+  <b>Compute core</b> — the heavy analyses (the drainage map, the overtopping flood, volumes,
+  contours) run in a small compiled <b>WebAssembly</b> core when the browser has one; the
+  JavaScript kernels stay in the app as the reference and the fallback, and every result card
+  says which computed it. <label class="chk" style="display:inline-flex;gap:6px;align-items:center;margin-left:4px">
+  <input type="checkbox" id="wasmSwitch"> Force JavaScript kernels</label>
+  <span class="mono" id="wasmStatus"></span><br>
   <b>This device</b> — <span class="mono" id="touchDiag" title="Click to copy the whole diagnostic record"></span><br>
   <br>
   There is also a <b>field build</b> — <span class="mono">SBMM_Site_Explorer_field.html</span> —
@@ -899,6 +905,14 @@ window.SBMM_BUILD="full";
 <script src="datajs/d_rainfall.js"></script>
 <script src="datajs/d_cover.js"></script>
 <script src="datajs/i_cover_png.js"></script>
+<!-- v21: the WASM compute core (docs/V21_WASM_SPEC.md). Base64, like every
+     other payload, because nothing can be fetched over file://; js/jobs.js
+     decodes it once and hands the BYTES to each worker. Small, and in the
+     field build -- a phone is exactly where the kernels are slowest, so it
+     stays a STATIC tag and is NOT in v19.1's SBMM_HEAVY list. -->
+<script src="datajs/w_kernels.js"></script>
+<!-- v19.1: datajs/d_cad_native.js and datajs/d_cad_surfaces.js used to be here.
+     They are in window.SBMM_HEAVY below now — a phone never parses them. -->
 <script src="datajs/d_ortho_abp.js"></script>
 <script src="datajs/d_ortho_mine.js"></script>
 <script src="datajs/d_ortho_site.js"></script>

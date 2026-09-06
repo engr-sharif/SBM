@@ -1,6 +1,6 @@
 # SBMM Site Explorer — v15: the 3D view, labels, and the overflow rule (authoritative)
 
-Owner/decider: Fable (planner). Executor: one Opus agent (P). This is the contract;
+Owner/decider: the planner. Executor: one agent (P). This is the contract;
 the agent implements it and does not re-decide it. Hard constraints as in
 CLAUDE.md (file:// only, plain scripts, context-free kernels, three builds, every
 harness, golden Pile 1, browser harnesses one at a time, every refusal toasts, no

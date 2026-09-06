@@ -263,7 +263,17 @@ dist, and it fails in about one run in three under load. **Re-run the block alon
 believing it** — `node test/e2e.mjs <index.html> folder --only "9z. the layer tree"`,
 14 seconds — and if it passes there, the matrix result is the flake, not a regression.
 Fixing it means waiting on the condition rather than on the clock, which is a change to
-a harness and belongs to the planner.
+a harness and belongs to the planner. **Since v18 the harness waits on the condition**
+(`waitForFunction`, 60 s), and the failure still appeared about one run in three under
+load, always at exactly the insertion order — the stored order was present, the DOM
+order came back, and the draw order was never re-applied. Two app-side causes were
+closed in v21: `legendSoon()` in `js/layertree.js` was a leading-edge debounce whose
+callback painted the legend BEFORE re-asserting the draw order, so a burst of layer
+adds outlasting its 80 ms, or a paint that threw, left the order unapplied; it is now
+trailing-edge and re-asserts the order first, on its own `try`. And `js/boot.js` emits
+`SBMM.events` **`boot`** when the loader hides, on which the tree re-applies the stored
+order once more — the one pass that cannot be early. If 9z fails again, read the draw
+indices it prints: insertion order means the pass did not run; anything else is new.
 
 **One browser at a time** — the lock above enforces it now rather than asking; raise
 `--parallel` only on a box with the cores for it. `docs/AGENT_RULES.md` is the ten-line
@@ -1902,6 +1912,8 @@ guaranteed 404s — and keeps the apple/theme meta tags, which carry no URL.
 
 ## v19.1 — the FOLDER build on a PHONE (two field reports, one gap)
 
+*(v9.19 in `RELEASE_NOTES_v9.md`; the code and this file tag it v19.1.)*
+
 The engineer opens **the folder build from GitHub Pages on an iPhone**. Nothing
 tested that: `test/e2e.mjs` is the desktop, `test/e2e_tablet.mjs` is the folder
 build at 1194x834, `test/e2e_field.mjs` is the FIELD DIST on a Pixel 7. The one
@@ -2470,3 +2482,157 @@ scenario-only arithmetic in `js/scenarios.js` at all. Two things to keep:
 **Shots:** `node test/hydro3_shots.mjs /abs/path/index.html` writes `accum_2d`,
 `streams_3d`, `pipe_capacity` and `scenario_compare` into `test/shots/`; not
 pass-fail — look at them.
+
+## v21 — the WASM compute core
+
+Contract: `docs/V21_WASM_SPEC.md`. Crate `wasm/sbmm-kernels/` (Rust, `cdylib`),
+builder `tools/build_wasm.py`, payload `datajs/w_kernels.js`, host in
+`js/jobs.js`, dispatch in `js/compute.js`. `VERSION` stays **9** — this changes
+who computes, never what.
+
+**The JavaScript kernels are the reference and the fallback, and their bodies
+are not edited.** Every port is reached by a THREE-LINE guard at the top of the
+function it replaces (`if (wasmAvailable()) { … if (R) return R; }`), and a null
+answer falls straight through to the JavaScript below it. That is what makes
+"the two can never disagree" a property of the code: the fallback is the same
+function the golden was measured on, not a second implementation of it.
+
+### The rules, and each is why something looks the way it does
+
+- **BYTES, NEVER FILES.** The module ships as base64 in `datajs/w_kernels.js`
+  like every other payload, because over `file://` nothing can be fetched and a
+  `.wasm` beside the HTML would be a guaranteed 404 in the single-file dist.
+  `js/jobs.js` decodes it once (`atob` → `Uint8Array`), hands a **copy to each
+  worker at creation** (`primeWorker`; postMessage is ordered and the worker's
+  compile is synchronous, so every job that follows sees the core installed) and
+  initialises the main thread **asynchronously** for the no-worker fallback —
+  synchronous `WebAssembly.Module` is capped at 4 kB there, and only there.
+  `SBMM_DATA.wasm_kernels` is nulled after the decode, the way the DEM payloads
+  are; the KEY stays.
+- **A FAILURE IS THE JAVASCRIPT PATH AND ONE `console.warn`, NEVER AN ERROR.**
+  No `WebAssembly`, no payload, a refused instantiation, an `api_version()`
+  mismatch and a throw inside any wrapper all end in the same place.
+- **IDENTITY IS THE ACCEPTANCE.** `test/kernels.mjs --backend js|wasm|both`
+  (default **both**: every section runs on both cores, so a golden is a golden
+  whichever computed it) plus a `wasm` section that IS the A/B — it runs each
+  ported kernel twice on one job and compares. **Every kernel ported so far is
+  BIT-IDENTICAL**, not within a tolerance: `deepDiff` walks the whole result
+  object, typed arrays included, with NaN counted equal to NaN.
+- **`SBMM.compute.backend()` answers `"wasm" | "js"`**, every results card built
+  out of a job says which core computed it and in how many ms, Help has a
+  "Force JavaScript kernels" switch (remembered in `localStorage`, and it takes
+  the pool down so the next worker is told the same thing), and `SBMM_WASM=0`
+  does the same in the harness.
+- **The preflight fails on a stale payload.** The `.wasm` is not committed and
+  the payload is, so `test/check.mjs` hashes every `.rs`/`.toml`/`Cargo.lock`
+  under the crate and compares it with the `src_sha256` baked into
+  `datajs/w_kernels.js`. A crate edit that was never rebuilt fails in three
+  seconds instead of moving a golden three steps later.
+
+### Rebuilding
+
+```
+python tools/build_wasm.py            # cargo build --release + datajs/w_kernels.js
+python tools/build_wasm.py --check    # is the committed payload current?
+```
+
+`rustup target add wasm32-unknown-unknown` once. The crate has **no
+dependencies** on purpose — the build box is offline, so nothing may be fetched
+— and `wasm-opt` is optional (absent here; the builder says so and ships the
+cargo output). **Rust is a build dependency of the payload only. The app never
+needs it, and a checkout with no toolchain runs the JavaScript kernels.**
+
+### What is ported, and where the split falls
+
+| kernel | what is in the crate | what stayed in JavaScript |
+|---|---|---|
+| `fillDem` | all of it (the priority flood, the v12 conduit seeding, the v14 parent forest) | — |
+| `flowpath` | the inlet index, the fill, the descent, the fill-spill flood, `followChain` | `ringMask`/`medianOf` for the blocked ring, `traceMask` for the pond outlines, `simplifyPath`, the result assembly |
+| `marchOne` | marching squares + the endpoint chaining + the ring-aware DP | — (one guard; it reaches every ring the app draws) |
+| `traceMask` | the 0/1→f32 conversion, the trace, the area and the sort | — |
+| `contoursFromGrid` | all of it | — |
+| `drainage` | sections 1–7 **including the polygons and the longest paths** | `ringMask`+`dilateMask` for Clear Lake, the `pointInPoly` test per conduit outlet, the naming |
+| `volumeGrid` | all of it (the perimeter TIN, the plane, the design raster, the sweep) | the Delaunay triangulation, which was always the host's |
+
+**`drainage` is the one whose split is different, and deliberately so.** At 2 ft
+the grid is 21.6 M cells, so `term`, `firstL`, `pointer` and `pondId` are 86 MB
+EACH; handing four of them back across the ABI would cost more than the loops
+save. So the polygon tracing and the flow paths run in the crate too and what
+comes back is what the card reads — the decimated label rasters and the three
+tables.
+
+### Seven traps, every one of them a real bug in this port
+
+- **`Math.round` is round-half-UP, `f64::round` is round-half-away-from-zero.**
+  The marching-squares chaining keys on `Math.round(p * 10)`. Every coordinate
+  here is a large positive State Plane foot so the two agree, but `js_round` in
+  `geom.rs` says `(v + 0.5).floor()` anyway — the day one did not, rings would
+  differ in a way nothing would catch.
+- **The hash tables are hand-written and deterministically seeded.** std's
+  `RandomState` wants entropy `wasm32-unknown-unknown` does not have, and a
+  kernel whose answer depended on a hash seed would not be a kernel.
+- **`Math.hypot` is not `sqrt(a*a + b*b)`** to the bit — it scales by the larger
+  magnitude first — and `flowpath`'s lengths are compared against a golden. It
+  is ported as itself.
+- **`fillDem`'s edge loop does NOT test `closed`**, so a seeded sink that is also
+  an edge cell is closed again, has its key overwritten with `z` and is pushed a
+  SECOND time. Reproduced exactly. "The JavaScript is the reference" includes its
+  corners.
+- **A level walk is repeated ADDITION.** `contoursFromGrid` does `lv += interval`
+  and the levels are reported, so `lv0 + k*interval` is a different answer in the
+  last bits.
+- **An f32 accumulator is not an f64 one.** `drainage`'s `dist` is a
+  `Float32Array` but the JavaScript accumulates `dd` as a plain number across the
+  whole unwind and truncates only on the store. Truncating per step drifts.
+- **A view onto `memory` is detached, silently, by any allocation that grows it.**
+  `wf32()`/`w32()` are called AFTER the last `wAlloc` of a call, never before; a
+  stale view reads as length 0 with no error at all.
+
+### What it cost, and the one target that was not met
+
+Node on the build box, A/B inside one run (`node test/kernels.mjs --only wasm`
+prints these itself, and the drainage rows come from `--only drainage`):
+
+| job | js | wasm | |
+|---|---|---|---|
+| `contours`, 400 x 400 cone | 292 ms | 12 ms | 24x |
+| `contours`, 1001 x 1001 site window at 10 ft | 199 ms | 12 ms | 17x |
+| `volume`, Pile 1 perimeter TIN | 10 ms | 2 ms | 5x |
+| `overtop`, Herman + 19 conduits | 4,382 ms | 2,127 ms | 2.1x |
+| `fillDem`, Herman window 1757 x 1208 | 1,357 ms | 634 ms | 2.1x |
+| `flowpath`, the §6.8 drop chained with storm on | 4,431 ms | 2,345 ms | 1.9x |
+| `drainage`, whole site at 4 ft | 1,265 ms | 713 ms | 1.8x |
+| `drainage`, whole site at 2 ft (warm) | 5,490 ms | 3,749 ms | 1.5x |
+| the 100-raindrop drainage identity | 83.5 s | 58.7 s | 1.4x |
+
+**The spec's 2-second target for the 2-ft drainage map is NOT met and will not
+be met by compiling harder.** At 21.6 M cells the kernel touches half a dozen
+86-MB arrays several times each: it is bound by memory bandwidth, not by
+arithmetic, and WebAssembly does not change memory bandwidth. Every other §4
+target is met (contours ≥ 3x, volume ≥ 5x, overtop well under 0.25 s on its own
+flood). Do not chase the drainage number by changing what the kernel computes —
+that is §6, not in scope.
+
+**The first 2-ft run in a fresh worker is ~5.7 s, not 3.7 s**, because it pays
+for growing linear memory to ~600 MB. Every run after it in the same worker is
+the faster number, and the app re-runs this job whenever a storm switch moves,
+so the warm number is the one a user sees twice onwards. `drop()` returns the
+arrays to the wasm allocator but never shrinks the memory, which is what makes
+that true.
+
+### Two things NOT ported, and why
+
+- **`simplifyPath` as an exported kernel.** It is small and it runs on the main
+  thread, so a call across the ABI would cost more than the loop (spec §2 says
+  so). It IS in the crate as an internal helper, because `marchOne`, `traceMask`
+  and `contoursFromGrid` all call it inside their own loops.
+- **`runoff`'s convolution — measured, and deliberately left alone.** The whole
+  `runoff` kernel over the site is **122 ms**; its convolution is `nStorm x nUH`
+  per catchment, which at the kernel's own time base is 103–195 k multiply-adds,
+  **0.2–0.3 ms a catchment, 0.6–0.8 ms for all three** — well under 1 % of the
+  kernel. The cost is the class-share pass over the label raster, not the
+  convolution, and a wasm call per catchment (with its array copies) would cost
+  more than the loop it replaced. Recorded as a finding, not a gap; the
+  measurement is `scratchpad/conv.mjs`'s shape and is trivial to repeat. If a
+  future storm makes `nStorm x nUH` an order of magnitude bigger, measure again
+  before assuming the answer still holds.
