@@ -2792,7 +2792,11 @@ SBMM.viewer3d = (function () {
              else, and openAt() over the mine window otherwise sat at 64 ft for
              the whole descent */
           if (nowL - lodLast > 700) { lodLast = nowL; SBMM.terrain3d.update(); }
-        } else if (lodDirty && nowL - lodMoveAt > LOD_SETTLE_MS) {
+        } else if (lodDirty && nowL - lodMoveAt > LOD_SETTLE_MS
+                   && !(nav.touchCount && nav.touchCount() > 0)) {
+          /* never rebuild under the user's fingers: a gesture in progress is
+             timed in wall clock by the recogniser, and a rebuild inside it
+             changes what the gesture was */
           lodDirty = false; lodLast = nowL;
           SBMM.terrain3d.update();
         }
