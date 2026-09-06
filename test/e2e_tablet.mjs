@@ -131,11 +131,21 @@ const cdp = await page.context().newCDPSession(page);
 const touch = (type, pts) => cdp.send("Input.dispatchTouchEvent", {
   type, touchPoints: pts.map(p => ({ x: p.x, y: p.y, id: p.id, radiusX: 6, radiusY: 6, force: 1 }))
 });
-const tap = async (x, y, ms = 60) => {
-  await touch("touchStart", [{ x, y, id: 1 }]);
+/* A HOLD is timed by the glass, not by the renderer's acknowledgement. A CDP
+   touch event is stamped when the browser RECEIVES it, and the recogniser
+   reads that stamp (v20: `e.timeStamp`, the moment the finger really moved).
+   `await touch("touchStart")` resolves only once the renderer has HANDLED the
+   event, so on a stalled frame the "finger" stayed down for the stall plus
+   `ms` — a 50 ms tap measured 240-450 ms under software GL and stopped being
+   a tap, which is exactly what a real finger would not do. So the end is sent
+   `ms` after the start was SENT (CDP delivers a session's messages in order),
+   and both acknowledgements are awaited afterwards. */
+const hold = async (pts, ms) => {
+  const a = touch("touchStart", pts);
   await wait(ms);
-  await touch("touchEnd", []);
+  await Promise.all([a, touch("touchEnd", [])]);
 };
+const tap = (x, y, ms = 60) => hold([{ x, y, id: 1 }], ms);
 const longPress = async (x, y) => {
   await touch("touchStart", [{ x, y, id: 1 }]);
   await wait(720);
@@ -432,9 +442,7 @@ orbit = () => page.evaluate(() => SBMM.viewer3d.stats().orbit);
   console.log(`3D double-tap: r ${Math.round(a.r)} -> ${Math.round(b.r)} ft`);
   if (!(b.r < a.r * 0.95)) fail("a double-tap did not dolly in", { a, b });
 
-  await touch("touchStart", [{ x: box.cx - 50, y: box.cy, id: 1 }, { x: box.cx + 50, y: box.cy, id: 2 }]);
-  await wait(60);
-  await touch("touchEnd", []);
+  await hold([{ x: box.cx - 50, y: box.cy, id: 1 }, { x: box.cx + 50, y: box.cy, id: 2 }], 60);
   await wait(1800);
   const c = await orbit();
   console.log(`3D two-finger tap: r ${Math.round(b.r)} -> ${Math.round(c.r)} ft`);
@@ -449,11 +457,28 @@ orbit = () => page.evaluate(() => SBMM.viewer3d.stats().orbit);
   await touch("touchEnd", []);
   await wait(180);
   const n1 = await page.evaluate(() => SBMM.viewer3d.stats().renderCount);
-  await wait(4000);
-  const n2 = await page.evaluate(() => SBMM.viewer3d.stats().renderCount);
+  /* "settled" is a CONDITION, not a clock — the same rule test/e2e.mjs block
+     9e applies: software GL runs at a couple of frames a second, and since v20
+     a flick also leaves the quadtree fetching the tiles the camera flew to,
+     each of which asks for one frame when it lands. So wait until a whole
+     second passes with at most one render AND the tile queue is empty, and
+     only then measure the idle window — the assertion itself is unchanged. */
+  const settled = await page.evaluate(async () => {
+    const wait = ms => new Promise(r => setTimeout(r, ms));
+    let prev = SBMM.viewer3d.stats().renderCount, tries = 0;
+    for (; tries < 40; tries++) {
+      await wait(1000);
+      const now = SBMM.viewer3d.stats().renderCount;
+      const q = SBMM.tiles && SBMM.tiles.stats ? SBMM.tiles.stats() : { queued: 0, running: 0 };
+      if (now - prev <= 1 && !(q.queued + q.running)) break;
+      prev = now;
+    }
+    return { tries, renders: SBMM.viewer3d.stats().renderCount };
+  });
+  const n2 = settled.renders;
   await wait(2500);
   const n3 = await page.evaluate(() => SBMM.viewer3d.stats().renderCount);
-  console.log(`3D flick: renders ${n0} -> ${n1} (during) -> ${n2} (settled) -> ${n3} (idle)`);
+  console.log(`3D flick: renders ${n0} -> ${n1} (during) -> ${n2} (settled after ${settled.tries} s) -> ${n3} (idle)`);
   if (n1 - n0 < 3) fail("a flick did not keep the camera moving for 3 frames", { n0, n1 });
   if (n3 !== n2) fail("the view is still rendering after the momentum settled — perf idle-0 is broken", { n2, n3 });
 }

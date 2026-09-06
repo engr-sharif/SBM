@@ -451,19 +451,49 @@ SBMM.touch = (function () {
   /* Wire a real element to a recogniser. `touch-action: none` is set here as
      well as in CSS: without it the browser claims a two-finger drag for a page
      scroll before the rig ever sees it. */
+  /* THE RECOGNISER MUST BE TIMED BY THE GLASS, NOT BY THE MAIN THREAD.
+
+     A tap is "pointerdown to pointerup inside tapMs", and `o.now()` used to
+     answer at HANDLING time — so a long task between the two turned a 60 ms
+     two-finger tap into a 503 ms one and it silently stopped being a tap.
+     That is not a test artefact: on a phone, a tap that lands while the app is
+     busy is exactly the tap a user is most annoyed to lose.
+
+     `e.timeStamp` on a trusted pointer event is a DOMHighResTimeStamp on the
+     same time origin as performance.now(), set when the browser CREATED the
+     event — i.e. when the finger actually moved. Feeding that to the
+     recogniser makes every duration the real one whatever the thread was
+     doing. A synthetic event with no usable timeStamp falls back to the clock,
+     and test/touch_unit.mjs injects its own `now` and is untouched. */
+  function eventClock(opts) {
+    let evT = 0;
+    const o = Object.assign({}, opts || {});
+    if (!o.now) o.now = () => evT || DEF.now();
+    return {
+      opts: o,
+      /* wrap a handler so the recogniser's clock reads THIS event's timestamp */
+      at(e, fn) {
+        const t = e && typeof e.timeStamp === "number" && e.timeStamp > 0 ? e.timeStamp : 0;
+        evT = t;
+        try { return fn(); } finally { evT = 0; }
+      }
+    };
+  }
+
   function gestures(el, h, opts) {
-    const rec = recognizer(h, opts);
+    const clk = eventClock(opts);
+    const rec = recognizer(h, clk.opts);
     const note = e => { if (e.pointerType !== "mouse") lastTouch = DEF.now(); };
     el.style.touchAction = "none";
     el.addEventListener("pointerdown", e => {
       note(e);
       if (e.pointerType === "mouse") return;
       try { el.setPointerCapture(e.pointerId); } catch (err) {}
-      rec.down(e);
+      clk.at(e, () => rec.down(e));
     });
-    el.addEventListener("pointermove", e => { note(e); if (e.pointerType !== "mouse") rec.move(e); });
-    el.addEventListener("pointerup", e => { note(e); if (e.pointerType !== "mouse") rec.up(e); });
-    el.addEventListener("pointercancel", e => { note(e); if (e.pointerType !== "mouse") rec.cancel(e); });
+    el.addEventListener("pointermove", e => { note(e); if (e.pointerType !== "mouse") clk.at(e, () => rec.move(e)); });
+    el.addEventListener("pointerup", e => { note(e); if (e.pointerType !== "mouse") clk.at(e, () => rec.up(e)); });
+    el.addEventListener("pointercancel", e => { note(e); if (e.pointerType !== "mouse") clk.at(e, () => rec.cancel(e)); });
     return rec;
   }
 
@@ -786,9 +816,9 @@ SBMM.touch = (function () {
       try { const s = await ask({ type: "status" }); return Object.assign({ supported: true }, s); }
       catch (e) { return { supported: true, ready: false, error: e.message }; }
     }
-    async function precache(onProgress) {
+    async function precache(onProgress, withTiles) {
       if (!possible()) { toast(why(), 5200); return null; }
-      try { return await ask({ type: "precache" }, onProgress); }
+      try { return await ask({ type: "precache", tiles: !!withTiles }, onProgress); }
       catch (e) { toast("the offline copy failed: " + e.message, 5200); return null; }
     }
     async function remove() {
@@ -951,9 +981,13 @@ SBMM.touch = (function () {
       btn.onclick = async () => {
         const line = document.getElementById("offlineStatus");
         btn.disabled = true;
+        /* v20: the terrain tiles are injected on demand, so index.html names
+           only the 30 kB tile index and the offline copy would otherwise have
+           no pyramid at all. Opting in adds the whole 52 MB of it. */
+        const tk = document.getElementById("offlineTiles");
         const r = await offline.precache(p => {
           if (line) line.textContent = `offline copy: ${p.done} of ${p.total} files · ${(p.bytes / 1e6).toFixed(0)} MB…`;
-        });
+        }, !!(tk && tk.checked));
         btn.disabled = false;
         if (r) toast(`offline copy ready — ${r.count} files, ${(r.bytes / 1e6).toFixed(0)} MB`, 4200);
         refreshOfflineUI();
@@ -1069,6 +1103,8 @@ SBMM.touch = (function () {
        vertex handle is a draggable marker; it would stop dragging by finger
        the moment the container captured the pointer. Same gesture semantics,
        no capture. */
+    /* the same event clock gestures() uses — see eventClock() */
+    const mapClk = eventClock();
     const rec = recognizer({
       panstart(g) {
         /* §5a: a PEN is a precise pointer — its tap places a vertex
@@ -1113,16 +1149,16 @@ SBMM.touch = (function () {
            this arms it for the same reason. */
         swallowUntil = DEF.now() + 700;
       }
-    });
+    }, mapClk.opts);
     host.addEventListener("pointerdown", e => {
       if (e.pointerType === "mouse") return;
       lastTouch = DEF.now();
       if (e.pointerType === "touch" && penRecent()) return;     // palm
-      rec.down(e);
+      mapClk.at(e, () => rec.down(e));
     }, true);
-    host.addEventListener("pointermove", e => { if (e.pointerType !== "mouse") rec.move(e); }, true);
-    host.addEventListener("pointerup", e => { if (e.pointerType !== "mouse") rec.up(e); }, true);
-    host.addEventListener("pointercancel", e => { if (e.pointerType !== "mouse") rec.cancel(e); }, true);
+    host.addEventListener("pointermove", e => { if (e.pointerType !== "mouse") mapClk.at(e, () => rec.move(e)); }, true);
+    host.addEventListener("pointerup", e => { if (e.pointerType !== "mouse") mapClk.at(e, () => rec.up(e)); }, true);
+    host.addEventListener("pointercancel", e => { if (e.pointerType !== "mouse") mapClk.at(e, () => rec.cancel(e)); }, true);
 
     /* The synthetic click a touch produces has to be swallowed twice over: it
        would place a second vertex on top of the one the lift just placed, and
