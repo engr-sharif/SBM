@@ -353,7 +353,13 @@ SBMM.terrain3d = (function () {
     const cam = ctx.camera, zx = ctx.exag();
     const { CX, CY, ZMID } = ctx.center();
     const zr = ctx.zRange();
-    const H = ctx.renderer.domElement.height || 600;
+    /* A canvas that has not been laid out yet reports 0 or a few pixels, and
+       every tile then satisfies the error bound: the selection comes back as
+       the 64-ft root and the view opens on it until the settle timer refines
+       it. Clamped, because a selection against a canvas that does not exist
+       yet is a guess either way and the useful guess is the one that shows
+       terrain. */
+    const H = Math.max(240, ctx.renderer.domElement.height || 0);
     const halfTan = Math.tan(cam.fov * Math.PI / 360);
     cam.updateMatrixWorld();
     _frustum.setFromProjectionMatrix(_m4.multiplyMatrices(cam.projectionMatrix, cam.matrixWorldInverse));
