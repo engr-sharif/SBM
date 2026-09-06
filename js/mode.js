@@ -470,7 +470,11 @@ SBMM.status = (function () {
     const zz = (zIn == null || isNaN(zIn)) ? z : zIn;
     document.getElementById("sZ").textContent = isNaN(zz) ? "—" : fmt(zz, 1) + " ft";
     const ch = SBMM.chm ? SBMM.canopy(x, y) : NaN;
-    document.getElementById("sDem").textContent = src + (ch > 0.5 ? ` · veg ${fmt(ch, 0)} ft` : "");
+    /* v19 §2: "upstream area 12.4 ac" while the flow-accumulation row is on.
+       One string from the module that owns the raster — it answers "" when the
+       row is off, when there is no result and when the cell has none. */
+    const up = (SBMM.accum && SBMM.accum.hoverText) ? SBMM.accum.hoverText(x, y) : "";
+    document.getElementById("sDem").textContent = src + (ch > 0.5 ? ` · veg ${fmt(ch, 0)} ft` : "") + up;
   }
   function scale() {
     const el = document.getElementById("sScale");

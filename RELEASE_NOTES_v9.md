@@ -17,6 +17,62 @@ All three are offline-only by design. Nothing in this app calls out to the inter
 
 ---
 
+## v19 — where the water gathers, what the pipes can carry, and what-ifs
+
+Three things, and one of them changes numbers you have already seen.
+
+**Flow accumulation and the stream network.** Type `ACCUM` (or `STREAMS`). Every cell on
+the site now carries the number of acres draining through it, drawn as a log-scaled
+raster with a legend in acres, and every flow path with more than 5 acres above it is
+drawn as a stream, weighted by how many streams have joined it. Hover anywhere and the
+status bar reads `upstream 12.4 ac`; click a stream and you get its order, its upstream
+acres, its length and what it ends in. **12.1 miles of stream over 5 acres, to Strahler
+order 4, and up to 197.8 acres through one cell** — the last cell before the impoundment
+leaves through the surveyed south pipe. It is the drainage map's own physics asked a
+different question, and it agrees with that map exactly: what leaves the model at each
+cell, summed by the catchment that cell belongs to, is that catchment's area to 0.000 %.
+
+**It is area, never flow.** The design storm is what turns an area into a flow — and
+that is the number that moved.
+
+**The design storm's times of concentration and peaks have changed, and the volumes have
+not.** TR-55 puts a flow path into channel flow once more than 5 acres drain to it. Until
+now the app had no accumulation raster to ask, so it approximated the upstream area from
+how far along the path you were, said so on the card, and flagged the real raster as the
+next thing to build. It is now built, and it says the top of a long path carries a few
+acres rather than a proportional share of a 400-acre catchment — so the water takes
+longer to arrive and the peak is lower: Clear Lake 21.2 → 54.6 minutes and 565 → 439 cfs,
+the outfall 17.1 → 27.8 minutes and 425 → 393 cfs, the site 1,396 → 1,035 cfs. **Runoff
+volumes, curve numbers and every pond outcome are unchanged** — they do not depend on the
+time of concentration. The impoundment still peaks 4.3 ft below its discharge pipes.
+
+**Pipe capacity — and what it cannot tell you yet.** Type `PIPES`. Manning full-flow
+capacity, HEC-22 grate-inlet capacity, and a hydraulic and energy grade line from the
+outfall upstream for the design storm's own peaks, with surcharge flagged wherever the
+water would stand above a rim. The conduit layer can be coloured green / amber / red by
+how full each pipe is.
+
+On this network it can rate **none of the 26 conduits**, and it says so on every one of
+them with the reason. Two structures have a surveyed invert; five conduits have a size in
+EA's drawings; and a slope needs two elevations of the same kind — at the sandbag wall,
+the surveyed pipe invert against the lidar ground is the pipe against the top of the
+sandbags, which comes out running uphill. Nothing is guessed to fill the gap. **The
+survey is the whole of the fix, and the sheet to fill in is in the repo**
+(`data/storm_survey.csv.example`): invert, rim, diameter and material per structure, run
+one tool, rebuild, and every pipe with two inverts gets a capacity, a ratio and a
+hydraulic grade.
+
+**Scenarios.** Type `SCENARIO`. Name a set of assumptions — the storm, the soil group,
+whether the drains work, which pipes are broken or blocked — run it, and compare two to
+four of them side by side: site volume and peak, the outfall's peak, every pond's peak
+stage and freeboard and whether it overtops, and the worst pipe. **map diff** picks out
+the catchments that changed and names the ponds whose peak stage moved by more than a
+tenth of a foot; **report** prints the comparison with each scenario's assumptions under
+it. A scenario is only ever the switches the dialogs already offer, run through the same
+calculations — it can never produce a number you could not have got by hand.
+
+---
+
 ## v9.17 — both discharge pipes, and the water stays in them
 
 You said it plainly: *"for the Herman impoundment you are using the culvert discharge
