@@ -137,10 +137,14 @@ await page.evaluate(() => {
 const toasts = () => page.evaluate(() => window.__toasts.slice());
 
 const cdp = await page.context().newCDPSession(page);
+/* the end is sent `ms` after the start was SENT, not after it was handled: a
+   CDP touch is stamped on receipt and the recogniser reads that stamp, so
+   awaiting the start's acknowledgement on a stalled renderer lengthens the
+   hold past the tap limit (see `hold` in test/e2e_tablet.mjs) */
 const tap = async (x, y, ms = 60) => {
-  await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x, y, id: 1, radiusX: 6, radiusY: 6, force: 1 }] });
+  const a = cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x, y, id: 1, radiusX: 6, radiusY: 6, force: 1 }] });
   await wait(ms);
-  await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+  await Promise.all([a, cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] })]);
 };
 
 /* the one measurement every layout block makes */
