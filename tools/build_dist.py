@@ -126,6 +126,30 @@ def build(field=False):
         return "<script>\n" + js_safe(read(src)) + "\n</script>"
     html = re.sub(r'<script src="([^"]+)"></script>', js_repl, html)
 
+    # v19.1 — the heavy payloads.
+    #
+    # index.html does not carry them as <script src> tags any more: a phone must
+    # not parse ~50 MB of base64 it will never use, so they live in ONE array
+    # between the SBMM_HEAVY markers and the page's own loader document.writes
+    # them when the profile is not a phone. A single-file build has no loader to
+    # run (window.SBMM_SINGLE_FILE short-circuits it), so the whole block is
+    # replaced here by the payloads themselves -- inlined verbatim, in list
+    # order, honouring FIELD_EXCLUDE exactly as the static tags do.
+    m = re.search(r'<script>\n/\* SBMM_HEAVY_BEGIN \*/(.*?)</script>', html, re.S)
+    if not m:
+        raise SystemExit("build_dist: the SBMM_HEAVY block is gone from index.html")
+    heavy = re.findall(r'"([^"]+)"', re.search(r'\[(.*?)\]', m.group(1), re.S).group(1))
+    if not heavy:
+        raise SystemExit("build_dist: the SBMM_HEAVY list is empty")
+    parts = []
+    for src in heavy:
+        if excluded(src, field):
+            dropped.append(src)
+            parts.append(f"<!-- {src} - not in the field build -->")
+        else:
+            parts.append("<script>\n" + js_safe(read(src)) + "\n</script>")
+    html = html[:m.start()] + "\n".join(parts) + html[m.end():]
+
     name = "SBMM_Site_Explorer_field.html" if field else "SBMM_Site_Explorer.html"
     out = os.path.join(ROOT, "dist", name)
     os.makedirs(os.path.dirname(out), exist_ok=True)

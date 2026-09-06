@@ -1,0 +1,15 @@
+[package]
+name    = "sbmm-kernels"
+version = "0.1.0"
+edition = "2021"
+# No dependencies, on purpose: the box builds offline and nothing may be fetched.
+
+[lib]
+crate-type = ["cdylib"]
+
+[profile.release]
+opt-level     = 3      # this is a compute core; size is checked, speed is the point
+lto           = true
+codegen-units = 1
+panic         = "abort"
+strip         = true

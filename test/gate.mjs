@@ -30,12 +30,23 @@ export function gateHash(repoRoot) {
   return m[1];
 }
 
-/* Seed the remembered unlock. Must be called before the page navigates. */
+/* Seed the remembered unlock. Must be called before the page navigates.
+
+   v21: this is also where SBMM_WASM=0 lands, and it lives here for the same
+   reason the browser launcher owns CHROME_BIN — `unlock()` is the ONE call
+   every harness already makes before `page.goto`, so a preference seeded here
+   reaches every build and every harness without a line in any of them. The app
+   reads the force-JavaScript switch out of localStorage (js/jobs.js FORCE_KEY),
+   so an environment variable cannot reach the page any other way. */
+const WASM_KEY = "sbmm.wasm.v1";
+export const FORCE_JS = process.env.SBMM_WASM === "0";
+
 export async function unlock(page, repoRoot) {
   const hash = gateHash(repoRoot);
-  await page.addInitScript(([key, h]) => {
+  await page.addInitScript(([key, h, wkey, forceJs]) => {
     try { localStorage.setItem(key, JSON.stringify({ h, t: Date.now() })); } catch (e) {}
-  }, [GATE_KEY, hash]);
+    try { if (forceJs) localStorage.setItem(wkey, "js"); else localStorage.removeItem(wkey); } catch (e) {}
+  }, [GATE_KEY, hash, WASM_KEY, FORCE_JS]);
   return hash;
 }
 

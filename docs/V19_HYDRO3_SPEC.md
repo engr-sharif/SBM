@@ -1,6 +1,6 @@
 # SBMM Site Explorer — v19: hydrology Phase 3 (authoritative)
 
-Owner/decider: Fable (planner). Executor: one Opus agent (A3). Phase 3 of
+Owner/decider: the planner. Executor: one agent (A3). Phase 3 of
 `docs/V14_CATCHMENT_PROPOSAL.md`, on top of Phase 1 (the drainage map,
 `docs/V14_DRAINAGE_SPEC.md`) and Phase 2 (the design storm,
 `docs/V14_PHASE2_RUNOFF_SPEC.md`). Decided by the engineer 2026-09-05

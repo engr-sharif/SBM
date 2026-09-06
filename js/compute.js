@@ -146,6 +146,607 @@ var SBMM_COMPUTE = (function SBMMComputeModule() {
     return [slope, aspect];
   }
 
+  /* ======================= the WASM core (v21) ============================
+     docs/V21_WASM_SPEC.md. The kernels below stay exactly as they are — they
+     are the reference and the fallback, and every golden is measured on them.
+     What this section adds is a second implementation of the hot loops, built
+     from wasm/sbmm-kernels/ and shipped as base64 in datajs/w_kernels.js, and
+     a thin guard at the top of each ported kernel that uses it when it is
+     there.
+
+     THREE RULES, and each of them is why something below looks the way it does.
+
+     * NOTHING IS FETCHED. The module arrives as BYTES — the host decodes the
+       payload once and hands a copy to each worker at creation (js/jobs.js), so
+       this works over file:// exactly as it works over http, and in the folder
+       build exactly as in the single-file dist. There is no URL anywhere here.
+     * A FAILURE IS THE JAVASCRIPT PATH, NEVER AN ERROR. Instantiation is
+       feature-detected and wrapped; a refusal warns once on the console and
+       leaves `W` null, and every guard below then falls through to the JS.
+     * VIEWS ARE MADE AFTER THE ALLOCATION, NEVER BEFORE. Growing linear memory
+       detaches every existing typed-array view onto it with no error at all —
+       the array simply reads as length 0. So `w32()` and friends are called
+       after the last `wAlloc` of a call, and re-called after any later one. */
+
+  var W = null;              /* the instantiated exports, or null */
+  var wForce = false;        /* the Help switch / SBMM_WASM=0 */
+  var wWarned = false;
+  var wMeta = null;
+
+  function wasmAvailable() { return !!W && !wForce; }
+  function wasmBackend() { return wasmAvailable() ? "wasm" : "js"; }
+  function wasmForce(v) { wForce = !!v; return wasmBackend(); }
+  function wasmInfo() {
+    return { backend: wasmBackend(), loaded: !!W, forcedJs: wForce,
+             version: wMeta && wMeta.version || null,
+             bytes: wMeta && wMeta.wasm_bytes || 0 };
+  }
+
+  function wasmAccept(inst, meta) {
+    var e = inst && inst.exports;
+    if (!e || !e.memory || typeof e.alloc !== "function" || typeof e.api_version !== "function") return false;
+    if (e.api_version() !== 10) {                      /* must equal VERSION */
+      if (typeof console !== "undefined") console.warn("SBMM wasm kernels: api " + e.api_version() + " != 10 — using the JavaScript kernels");
+      return false;
+    }
+    W = e; wMeta = meta || null;
+    return true;
+  }
+  function wasmFail(err) {
+    W = null;
+    if (!wWarned && typeof console !== "undefined") {
+      wWarned = true;
+      console.warn("SBMM wasm kernels unavailable — using the JavaScript kernels:", (err && err.message) || err);
+    }
+    return false;
+  }
+  /* Synchronous compile: legal in a Worker and in node at any size, and the 4 kB
+     main-thread limit is exactly why the async form below exists beside it. */
+  function wasmInitSync(bytes, meta) {
+    try {
+      if (typeof WebAssembly === "undefined" || !WebAssembly.Module) return wasmFail("no WebAssembly");
+      return wasmAccept(new WebAssembly.Instance(new WebAssembly.Module(bytes), {}), meta) || wasmFail("rejected");
+    } catch (e) { return wasmFail(e); }
+  }
+  function wasmInit(bytes, meta) {
+    try {
+      if (typeof WebAssembly === "undefined" || !WebAssembly.instantiate) return Promise.resolve(wasmFail("no WebAssembly"));
+      return WebAssembly.instantiate(bytes, {}).then(function (r) {
+        return wasmAccept(r.instance, meta) || wasmFail("rejected");
+      }, function (e) { return wasmFail(e); });
+    } catch (e) { return Promise.resolve(wasmFail(e)); }
+  }
+
+  /* ---- linear-memory helpers -------------------------------------------- */
+  var wHeld = [];            /* [ptr, bytes] to give back at the end of a call */
+  function wAlloc(bytes) {
+    var p = W.alloc(bytes >>> 0);
+    if (!p) throw new Error("wasm alloc failed");
+    wHeld.push([p, bytes >>> 0]);
+    return p;
+  }
+  function wRelease() {
+    for (var i = wHeld.length - 1; i >= 0; i--) W.free(wHeld[i][0], wHeld[i][1]);
+    wHeld.length = 0;
+  }
+  function w8(p, n) { return new Uint8Array(W.memory.buffer, p, n); }
+  function w32(p, n) { return new Int32Array(W.memory.buffer, p, n); }
+  function wf32(p, n) { return new Float32Array(W.memory.buffer, p, n); }
+  function wf64(p, n) { return new Float64Array(W.memory.buffer, p, n); }
+  /* copy a typed array in and answer its pointer */
+  function wPutF32(a) { var p = wAlloc(a.length * 4 || 4); if (a.length) wf32(p, a.length).set(a); return p; }
+  function wPutF64(a) { var p = wAlloc(a.length * 8 || 8); if (a.length) wf64(p, a.length).set(a); return p; }
+  function wPutI32(a) { var p = wAlloc(a.length * 4 || 4); if (a.length) w32(p, a.length).set(a); return p; }
+  function wPutU8(a)  { var p = wAlloc(a.length || 1);     if (a.length) w8(p, a.length).set(a); return p; }
+  function wPutU32(a) { var p = wAlloc(a.length * 4 || 4); if (a.length) new Uint32Array(W.memory.buffer, p, a.length).set(a); return p; }
+  /* the variable-length output arena, as a DataView-free byte copy */
+  function wOut() {
+    var n = W.out_len();
+    return new Uint8Array(W.memory.buffer, W.out_ptr(), n).slice();
+  }
+
+  /* ---- fillDem ------------------------------------------------------------
+     The one ported piece three kernels share (flowpath, overtop, drainage), and
+     the only value it writes is a copy of a z, a copy of a level or an f32 of a
+     caller's f64 sink key — no arithmetic — so the port is bit-identical to the
+     JavaScript by construction, NaN cells included. */
+  function wasmFillDem(z, w, h, sinks, parentOut) {
+    try {
+      var n = w * h, ns = sinks ? sinks.length : 0, k;
+      var si = new Int32Array(ns), sk = new Float64Array(ns);
+      for (k = 0; k < ns; k++) { si[k] = sinks[k][0]; sk[k] = sinks[k][1]; }
+      var pz = wPutF32(z), pi = wPutI32(si), pk = wPutF64(sk);
+      var pf = wAlloc(n * 4), pp = parentOut ? wAlloc(n * 4) : 0;
+      W.fill_dem(pz, w, h, pi, pk, ns, pf, pp);
+      var F = new Float32Array(wf32(pf, n));            /* copy out */
+      if (parentOut) parentOut.set(w32(pp, n));
+      wRelease();
+      return F;
+    } catch (e) { wRelease(); return wasmFail(e), null; }
+  }
+
+  /* ---- marchOne -----------------------------------------------------------
+     The highest-leverage export in the crate: `marchOne` is what `traceMask`
+     runs, and `traceMask` draws every pond outline, every stage-table ring of
+     the overtopping analysis, every catchment polygon of the drainage map and
+     the smart-boundary tools' rings. One guard at the top of `marchOne` reaches
+     all of them without a single other line moving. */
+  function wasmMarchOne(z, nx, ny, cell, x0, y0, lv) {
+    try {
+      var pz = wPutF32(z);
+      W.march_one_f32(pz, nx, ny, cell, x0, y0, lv, cell * 0.35);
+      var buf = wOut();
+      wRelease();
+      var dv = new DataView(buf.buffer), o = 0, lines = [], k, q, np;
+      var nl = dv.getInt32(o, true); o += 4;
+      for (k = 0; k < nl; k++) {
+        np = dv.getInt32(o, true); o += 4;
+        var line = new Array(np);
+        for (q = 0; q < np; q++) {
+          line[q] = [dv.getFloat64(o, true), dv.getFloat64(o + 8, true)];
+          o += 16;
+        }
+        lines.push(line);
+      }
+      return lines;
+    } catch (e) { wRelease(); wasmFail(e); return null; }
+  }
+
+  /* ---- volumeGrid ---------------------------------------------------------
+     THE GOLDEN NUMBER runs through here (Pile 1 = 278.4 yd3 fill / -48.1 net),
+     so the port keeps the JavaScript's own order of operations: the row-major
+     sweep, the 32 x 32 triangle index built in the same insertion order, and
+     pointInPoly's half-open crossing rule. The Delaunay triangulation is still
+     the host's — js/tools.js buildVolumeJob does it and hands the index in. */
+  var W_BASE = { tin: 0, plane: 1, design: 3 };
+
+  function wasmVolume(job) {
+    /* a design base whose raster is not Float32 would have to be converted, and
+       converting f64 nodes to f32 is a change to the surface — refuse, and the
+       JavaScript below runs instead */
+    if (job.baseMode === "design" &&
+        !(job.dgrid && job.dgrid.z && job.dgrid.z.BYTES_PER_ELEMENT === 4)) return null;
+    var mode = W_BASE[job.baseMode];
+    if (mode === undefined) mode = 2;                     /* fixed, and "lowest" */
+    var grids = job.grids || [], ng = grids.length, k, tot = 0;
+    var gx0 = new Float64Array(ng), gy0 = new Float64Array(ng), gce = new Float64Array(ng);
+    var gw = new Int32Array(ng), gh = new Int32Array(ng), gi0 = new Int32Array(ng),
+        gj0 = new Int32Array(ng), gsw = new Int32Array(ng), gsh = new Int32Array(ng),
+        gof = new Int32Array(ng);
+    for (k = 0; k < ng; k++) {
+      var g = grids[k];
+      gx0[k] = g.x0; gy0[k] = g.y0; gce[k] = g.cell;
+      gw[k] = g.w; gh[k] = g.h; gi0[k] = g.i0; gj0[k] = g.j0;
+      gsw[k] = g.sw; gsh[k] = g.sh; gof[k] = tot;
+      tot += g.sw * g.sh;
+    }
+    var gz = new Float32Array(tot);
+    for (k = 0; k < ng; k++) gz.set(grids[k].z, gof[k]);
+
+    var nx = job.nx, ny = job.ny;
+    try {
+      var pp = wPutF64(job.poly), pm = wPutF64(job.perim);
+      var pt = wPutU32(job.tri || new Uint32Array(0));
+      var dg = job.dgrid || null;
+      var pd = dg ? wPutF32(dg.z) : 0;
+      var a1 = wPutF64(gx0), a2 = wPutF64(gy0), a3 = wPutF64(gce);
+      var b1 = wPutI32(gw), b2 = wPutI32(gh), b3 = wPutI32(gi0), b4 = wPutI32(gj0),
+          b5 = wPutI32(gsw), b6 = wPutI32(gsh), b7 = wPutI32(gof);
+      var pgz = wPutF32(gz);
+      var ph = wAlloc(nx * ny * 4), po = wAlloc(64);
+      W.volume_grid(pp, job.poly.length / 2, pm, job.perim.length / 3,
+                    pt, job.tri ? job.tri.length : 0,
+                    mode, job.fixedZ == null ? NaN : job.fixedZ,
+                    pd, dg ? dg.x0 : 0, dg ? dg.y0 : 0, dg ? dg.cell : 1,
+                    dg ? dg.nx : 0, dg ? dg.ny : 0,
+                    a1, a2, a3, b1, b2, b3, b4, b5, b6, b7, pgz, ng, tot,
+                    job.step, job.bx0, job.by0, nx, ny, ph, po);
+      var hGrid = new Float32Array(wf32(ph, nx * ny));
+      var o = new Float64Array(wf64(po, 8));
+      wRelease();
+      return {
+        result: { fill: o[0], cut: o[1], n: o[2], hmax: o[3], hmin: o[4], hsum: o[5],
+                  zmin: o[6], zmax: o[7], hGrid: hGrid, nx: nx, ny: ny },
+        transfer: [hGrid.buffer]
+      };
+    } catch (e) { wRelease(); wasmFail(e); return null; }
+  }
+
+  /* ---- traceMask ----------------------------------------------------------
+     A second guard beside marchOne's, and it earns its place: the overtopping
+     analysis calls this 42 times over the impoundment's own bounding box, and
+     the 0/1-to-Float32 conversion alone is a million cells a call. */
+  function wasmTraceMask(mask, w, h, cell, X0, Y0, tol) {
+    try {
+      var pm = wPutU8(mask);
+      W.trace_mask(pm, w, h, cell, X0, Y0, tol || 0);
+      var buf = wOut();
+      wRelease();
+      var dv = new DataView(buf.buffer), o = 0, k, q;
+      var nr = dv.getInt32(o, true); o += 4;
+      var rings = new Array(nr);
+      for (k = 0; k < nr; k++) {
+        var np = dv.getInt32(o, true); o += 4;
+        var area = dv.getFloat64(o, true); o += 8;
+        var closed = !!dv.getInt32(o, true); o += 4;
+        var pts = new Array(np);
+        for (q = 0; q < np; q++) {
+          pts[q] = [dv.getFloat64(o, true), dv.getFloat64(o + 8, true)];
+          o += 16;
+        }
+        rings[k] = { pts: pts, area: area, closed: closed };
+      }
+      return rings;
+    } catch (e) { wRelease(); wasmFail(e); return null; }
+  }
+
+  /* ---- contoursFromGrid --------------------------------------------------- */
+  function wasmContours(job) {
+    try {
+      var g = job.grid, cell = g.cell;
+      var X0 = g.x0 + g.i0 * cell, Y0 = g.y0 + g.j0 * cell;
+      var pz = wPutF32(g.z);
+      W.contours_from_grid(pz, g.sw, g.sh, cell, X0, Y0, job.interval, job.stride,
+                           job.maxPts || 500000);
+      var buf = wOut();
+      wRelease();
+      var dv = new DataView(buf.buffer);
+      var nl = dv.getInt32(0, true), trunc = !!dv.getInt32(4, true), nco = dv.getInt32(8, true);
+      var o = 12, k;
+      var levels = new Float64Array(nl);
+      for (k = 0; k < nl; k++) { levels[k] = dv.getFloat64(o, true); o += 8; }
+      var offsets = new Uint32Array(nl + 1);
+      for (k = 0; k <= nl; k++) { offsets[k] = dv.getUint32(o, true); o += 4; }
+      var coords = new Float64Array(nco);
+      for (k = 0; k < nco; k++) { coords[k] = dv.getFloat64(o, true); o += 8; }
+      var out = { levels: levels, offsets: offsets, coords: coords, truncated: trunc };
+      return { result: out, transfer: [out.levels.buffer, out.offsets.buffer, out.coords.buffer] };
+    } catch (e) { wRelease(); wasmFail(e); return null; }
+  }
+
+  /* ---- drainage -----------------------------------------------------------
+     v14 Phase 1, ported WHOLE — sections 1 to 7, the polygon tracing and the
+     longest flow paths included. That is deliberate and it is the one place
+     the split is different from the other kernels: at 2 ft the grid is 21.6
+     million cells, so `term`, `firstL`, `pointer` and `pondId` are 86 MB
+     EACH, and handing four of them back across the ABI would cost more than
+     the loops save. What comes back is what the card reads — the decimated
+     label rasters and the three tables, with their rings and their paths.
+
+     What stays here: `ringMask` + `dilateMask` for Clear Lake (a mask the
+     kernel is handed), the `pointInPoly` test for each conduit outlet, and
+     the naming — the kernel answers in indices and this turns them into the
+     ids, the toFixed strings and the shape js/drainage.js expects. */
+  function wasmDrainage(job, onProgress) {
+    var t0 = Date.now();
+    var g = job.grid, w = g.sw, h = g.sh, cell = g.cell, z = g.z, n = w * h;
+    var X0 = g.x0 + g.i0 * cell, Y0 = g.y0 + g.j0 * cell;
+    var CD = (job.conduits && job.conduits.length) ? job.conduits : null;
+    var nc = CD ? CD.length : 0, k, i;
+    var stride = Math.max(1, (job.stride | 0) || 1);
+    var dw = Math.max(1, Math.ceil(w / stride)), dh = Math.max(1, Math.ceil(h / stride));
+
+    /* Clear Lake, so a run that leaves the survey can say WHICH way it left */
+    var lake = null;
+    if (job.lakeRing && job.lakeRing.length >= 3) {
+      lake = ringMask(job.lakeRing, w, h, cell, X0, Y0);
+      lake = dilateMask(lake, w, h, Math.round((job.lakeBuffer == null ? 10 : job.lakeBuffer) / cell));
+    }
+
+    var cix = new Float64Array(nc), ciy = new Float64Array(nc), crim = new Float64Array(nc);
+    var cox = new Float64Array(nc), coy = new Float64Array(nc), cnext = new Int32Array(nc);
+    var coutf = new Uint8Array(nc), clake = new Uint8Array(nc), cdIx = {};
+    for (k = 0; k < nc; k++) cdIx[CD[k].id] = k;
+    for (k = 0; k < nc; k++) {
+      var C1 = CD[k];
+      cix[k] = C1.ix; ciy[k] = C1.iy;
+      crim[k] = (C1.rim == null || !isFinite(C1.rim)) ? NaN : C1.rim;
+      cox[k] = C1.ox; coy[k] = C1.oy;
+      cnext[k] = (C1.next != null && cdIx[C1.next] != null) ? cdIx[C1.next] : -1;
+      coutf[k] = C1.outfall ? 1 : 0;
+      clake[k] = (job.lakeRing && job.lakeRing.length >= 3 &&
+                  pointInPoly(C1.ox, C1.oy, job.lakeRing)) ? 1 : 0;
+    }
+
+    var dTerm, dFirst, buf;
+    try {
+      var pz = wPutF32(z);
+      var pix = wPutF64(cix), piy = wPutF64(ciy), prim = wPutF64(crim);
+      var pox = wPutF64(cox), poy = wPutF64(coy), pnx = wPutI32(cnext);
+      var pof = wPutU8(coutf), plk = wPutU8(clake);
+      var plake = lake ? wPutU8(lake) : 0;
+      var pdt = wAlloc(dw * dh * 4), pdf = wAlloc(dw * dh * 4);
+      var rc = W.drainage(pz, w, h, cell, X0, Y0,
+                          job.minPondDepth == null ? 0.25 : job.minPondDepth,
+                          stride, job.longest === false ? 0 : 1,
+                          pix, piy, prim, pox, poy, pnx, pof, plk, nc,
+                          job.captureFt == null ? 3 : job.captureFt,
+                          plake,
+                          job.outlineTol == null ? cell * stride : job.outlineTol,
+                          job.minPolyCells == null ? 8 : job.minPolyCells,
+                          job.maxPolys == null ? 240 : job.maxPolys,
+                          job.maxPonds == null ? 60 : job.maxPonds,
+                          pdt, pdf);
+      if (rc !== 0) throw new Error("drainage refused (" + rc + ")");
+      dTerm = new Int32Array(w32(pdt, dw * dh));
+      dFirst = new Int32Array(w32(pdf, dw * dh));
+      buf = wOut();
+      wRelease();
+    } catch (e) { wRelease(); wasmFail(e); return null; }
+
+    var dv = new DataView(buf.buffer), o = 0;
+    var gi = function () { var v = dv.getInt32(o, true); o += 4; return v; };
+    var gf = function () { var v = dv.getFloat64(o, true); o += 8; return v; };
+    var gRings = function () {
+      var nr = gi(), out = new Array(nr), r, q, np;
+      for (r = 0; r < nr; r++) {
+        np = gi();
+        var pts = new Array(np);
+        for (q = 0; q < np; q++) { pts[q] = [dv.getFloat64(o, true), dv.getFloat64(o + 8, true)]; o += 16; }
+        out[r] = pts;
+      }
+      return out;
+    };
+    var gPath = function () {
+      var np = gi(), pts = new Array(np), q;
+      for (q = 0; q < np; q++) { pts[q] = [dv.getFloat64(o, true), dv.getFloat64(o + 8, true)]; o += 16; }
+      return pts;
+    };
+
+    var dwR = gi(), dhR = gi(), pn = gi();
+    var loops = gi(), flats = gi(), pondSinks = gi(), surveyed = gi(), nSinks = gi();
+    var nLS = gi(), loopSample = [];
+    for (k = 0; k < nLS; k++) {
+      var lx = gf(), ly = gf(), lz = gf(), lp = gi(), llv = gf(), lin = gi();
+      loopSample.push({ x: lx, y: ly, z: lz, pond: lp,
+                        level: isNaN(llv) ? null : +llv.toFixed(2),
+                        inlet: lin >= 0 && CD ? CD[lin].id : null });
+    }
+    var a2 = cell * cell;
+    var KIND = ["lake", "off", "loop", "flat", "outfall", "pond"];
+
+    var nS = gi(), outSinks = [];
+    for (k = 0; k < nS; k++) {
+      var lab = gi(), kind = gi(), param = gi(), sx = gf(), sy = gf();
+      var cells = gi(), slong = gf(), sslope = gf();
+      var rings = gRings(), path = gPath();
+      var id = kind === 4 ? "outfall:" + CD[param].id : (kind === 5 ? "pond:" + param : KIND[kind]);
+      outSinks.push({ label: lab, id: id, kind: KIND[kind],
+                      via: kind === 4 ? CD[param].id : null,
+                      x: sx, y: sy, cells: cells, area_ft2: cells * a2,
+                      rings: rings, path: path,
+                      longest_ft: +slong.toFixed(1),
+                      meanSlope_pct: cells ? +(sslope / cells).toFixed(2) : 0 });
+    }
+
+    var nP = gi(), pondOut = [];
+    for (k = 0; k < nP; k++) {
+      var pl = gi(), pid = gi(), lvl = gf(), zmin = gf(), pc = gi(), sumZ = gf();
+      var via = gi(), outIdx = gi(), ox = gf(), oy = gf(), ex = gf(), ey = gf();
+      var termAt = gi(), fc = gi(), flg = gf(), fsl = gf();
+      var prings = gRings(), crings = gRings();
+      pondOut.push({ label: pl, id: "pond:" + pid, level: +lvl.toFixed(2),
+                     depth_ft: +(lvl - zmin).toFixed(2),
+                     cells: pc, area_ft2: pc * a2,
+                     volume_ft3: (lvl * pc - sumZ) * a2,
+                     rings: prings,
+                     entry: [ex, ey],
+                     outlet: outIdx < 0 ? null : [ox, oy],
+                     via: (CD && via >= 0) ? CD[via].id : null,
+                     terminal: termAt,
+                     contributing_cells: fc, contributing_area_ft2: fc * a2,
+                     contributing_rings: crings,
+                     longest_ft: +flg.toFixed(1),
+                     meanSlope_pct: fc ? +(fsl / fc).toFixed(2) : 0 });
+    }
+
+    var nI = gi(), inletOut = [];
+    for (k = 0; k < nI; k++) {
+      var il = gi(), icd = gi(), iterm = gi(), ic = gi(), ilg = gf(), isl = gf(), ivia = gi();
+      var irings = gRings();
+      inletOut.push({ label: il, id: CD[icd].id, x: CD[icd].ix, y: CD[icd].iy, rim: CD[icd].rim,
+                      outfall: !!CD[icd].outfall,
+                      terminal: iterm,
+                      cells: ic, area_ft2: ic * a2,
+                      through_cells: ic + ivia, through_area_ft2: (ic + ivia) * a2,
+                      rings: irings,
+                      longest_ft: +ilg.toFixed(1),
+                      meanSlope_pct: ic ? +(isl / ic).toFixed(2) : 0 });
+    }
+    inletOut.sort(function (a, b) { return b.through_cells - a.through_cells; });
+
+    if (onProgress) onProgress(1);
+    return {
+      result: {
+        cell: cell, stride: stride, w: dwR, h: dhR, x0: X0, y0: Y0, dCell: cell * stride,
+        gw: w, gh: h,
+        sinks: outSinks, ponds: pondOut, inlets: inletOut,
+        firstBase: { sinks: 0, ponds: nSinks, inlets: nSinks + pn },
+        labels: dTerm, first: dFirst,
+        surveyedCells: surveyed, surveyedArea_ft2: surveyed * a2,
+        pondsTotal: pn - 1, loops: loops, loopSample: loopSample,
+        flats: flats, pondSinks: pondSinks,
+        conduits: nc,
+        ms: Date.now() - t0
+      },
+      transfer: [dTerm.buffer, dFirst.buffer]
+    };
+  }
+
+  /* ---- flowpath -----------------------------------------------------------
+     The WALK is in the crate (the inlet index, the fill, the descent, the
+     fill-spill flood, the escape test, the conduit chain); everything that is
+     not a loop over the grid stayed in js/compute.js and is called from here —
+     ringMask/medianOf for the blocked ring, traceMask for the pond outlines,
+     simplifyPath, and the assembly below.
+
+     The assembly IS a second copy of the JavaScript tail, and it is allowed to
+     be one for exactly one reason: test/kernels.mjs compares the two paths'
+     WHOLE result objects field by field on every run, so a copy that drifts
+     fails the harness rather than shipping. Do not "simplify" one of them
+     without the other. */
+  var W_REASON = ["", "window", "nodata", "pond", "conduit", "steps"];
+
+  function wasmFlowpath(job, onProgress) {
+    var g = job.grid, w = g.sw, h = g.sh, cell = g.cell, z = g.z, n = w * h;
+    var X0 = g.x0 + g.i0 * cell, Y0 = g.y0 + g.j0 * cell;
+    var minDepth = job.minPondDepth == null ? 0.25 : job.minPondDepth;
+    var maxSteps = job.maxSteps == null ? 4e6 : job.maxSteps;
+    var CD = (job.conduits && job.conduits.length) ? job.conduits : null;
+    var i, j, k, t;
+
+    /* the blocked ring, exactly as the JS does it: the water SURFACE (inside
+       the ring AND on the plateau), never merely inside the ring */
+    var bmaskFlat = null, bz0 = 0;
+    if (job.blockRing && job.blockRing.length >= 3) {
+      var bmask = ringMask(job.blockRing, w, h, cell, X0, Y0);
+      var vals = new Float64Array(n), m = 0;
+      for (i = 0; i < n; i++) if (bmask[i] && !isNaN(z[i])) vals[m++] = z[i];
+      if (m) {
+        bz0 = job.blockLevel == null ? medianOf(vals, m) : job.blockLevel;
+        var btol = job.plateauTol == null ? 0.3 : job.plateauTol;
+        for (i = 0; i < n; i++)
+          if (bmask[i] && !(isNaN(z[i]) || Math.abs(z[i] - bz0) > btol)) bmask[i] = 1; else bmask[i] = 0;
+        bmaskFlat = bmask;
+      }
+    }
+
+    var nc = CD ? CD.length : 0;
+    var cix = new Float64Array(nc), ciy = new Float64Array(nc), crim = new Float64Array(nc);
+    var cox = new Float64Array(nc), coy = new Float64Array(nc), clen = new Float64Array(nc),
+        cnext = new Int32Array(nc), cdIx = {};
+    for (k = 0; k < nc; k++) cdIx[CD[k].id] = k;
+    for (k = 0; k < nc; k++) {
+      var C1 = CD[k];
+      cix[k] = C1.ix; ciy[k] = C1.iy;
+      crim[k] = (C1.rim == null || !isFinite(C1.rim)) ? NaN : C1.rim;
+      cox[k] = C1.ox; coy[k] = C1.oy;
+      clen[k] = (C1.len != null && isFinite(C1.len)) ? C1.len : NaN;
+      cnext[k] = (C1.next != null && cdIx[C1.next] != null) ? cdIx[C1.next] : -1;
+    }
+
+    var si = Math.round((job.x - X0) / cell), sj = Math.round((job.y - Y0) / cell);
+    if (si < 0 || sj < 0 || si >= w || sj >= h) throw new Error("the drop is outside the terrain window");
+    if (isNaN(z[sj * w + si])) throw new Error("no surveyed terrain under that point");
+
+    var pondId, segs = [], legs = [], ponds = [null], reason, steps, exitIdx = -1, exitXY = null;
+    try {
+      var pz = wPutF32(z);
+      var pix = wPutF64(cix), piy = wPutF64(ciy), prim = wPutF64(crim);
+      var pox = wPutF64(cox), poy = wPutF64(coy), plen = wPutF64(clen), pnx = wPutI32(cnext);
+      var pbm = bmaskFlat ? wPutU8(bmaskFlat) : 0;
+      var ppid = wAlloc(n * 4);
+      var rc = W.flowpath(pz, w, h, cell, X0, Y0, si, sj, maxSteps,
+                          pix, piy, prim, pox, poy, plen, pnx, nc,
+                          job.captureFt == null ? 3 : job.captureFt,
+                          pbm, bz0, ppid);
+      if (rc !== 0) throw new Error("flowpath refused (" + rc + ")");
+      pondId = new Int32Array(w32(ppid, n));
+      var buf = wOut();
+      wRelease();
+      var dv = new DataView(buf.buffer), o = 0;
+      var gi = function () { var v = dv.getInt32(o, true); o += 4; return v; };
+      var gf = function () { var v = dv.getFloat64(o, true); o += 8; return v; };
+      reason = W_REASON[gi()];
+      steps = gi();
+      exitIdx = gi();
+      var hasXY = gi(), ex = gf(), ey = gf();
+      if (hasXY) exitXY = [ex, ey];
+      var nSeg = gi();
+      for (k = 0; k < nSeg; k++) {
+        var cnt = gi(), s = new Array(cnt);
+        for (i = 0; i < cnt; i++) s[i] = gi();
+        segs.push(s);
+      }
+      var nLeg = gi();
+      for (k = 0; k < nLeg; k++) {
+        var cd = gi(), sg = gi(), L = gf();
+        var fx = gf(), fy = gf(), fz = gf(), oxx = gf(), oyy = gf(), ozz = gf();
+        legs.push({ id: CD[cd].id, seg: sg, at: -1, length_ft: L,
+                    from: [fx, fy, isNaN(fz) ? null : fz],
+                    to: [oxx, oyy, isNaN(ozz) ? null : ozz] });
+      }
+      var nP = gi();
+      for (k = 0; k < nP; k++) {
+        var P = { level: gf(), outlet: gi(), entry: gi(), zmin: gf(),
+                  count: gi(), sumZ: gf(), bb: [gi(), gi(), gi(), gi()],
+                  blocked: !!gi(), viaConduit: null };
+        var vk = gi();
+        if (vk >= 0) P.viaConduit = CD[vk].id;
+        if (k) ponds.push(P);
+      }
+    } catch (e) { wRelease(); wasmFail(e); return null; }
+
+    if (onProgress) onProgress(0.92);
+
+    /* ---- the tail: identical to the JavaScript body's, and asserted so ---- */
+    var pipeFt = 0;
+    for (k = 0; k < legs.length; k++) pipeFt += legs[k].length_ft;
+    var tol = job.simplifyFt == null ? 0.6 * cell : job.simplifyFt;
+    var raw = [], rawLen = 0, zEnd = NaN, sIx, sK;
+    var sp = [], segLen = [];
+    for (sIx = 0; sIx < segs.length; sIx++) {
+      var segCells = segs[sIx], rawSeg = [];
+      for (k = 0; k < segCells.length; k++) {
+        i = segCells[k] % w; j = (segCells[k] - i) / w;
+        var pzv = z[segCells[k]];
+        rawSeg.push([X0 + i * cell, Y0 + j * cell, pzv]);
+        if (!isNaN(pzv)) zEnd = pzv;
+        if (k) rawLen += Math.hypot(rawSeg[k][0] - rawSeg[k - 1][0], rawSeg[k][1] - rawSeg[k - 1][1]);
+      }
+      for (k = 0; k < rawSeg.length; k++) raw.push(rawSeg[k]);
+      var spSeg = tol > 0 ? simplifyPath(rawSeg, tol) : rawSeg;
+      segLen.push(spSeg.length);
+      for (k = 0; k < spSeg.length; k++) sp.push(spSeg[k]);
+    }
+    for (k = 0; k < legs.length; k++) {
+      var end = 0;
+      for (sIx = 0; sIx <= legs[k].seg && sIx < segLen.length; sIx++) end += segLen[sIx];
+      legs[k].at = end - 1;
+    }
+    var pts = new Float64Array(sp.length * 3), len = 0;
+    for (sIx = 0, k = 0; sIx < segLen.length; sIx++) {
+      for (sK = 0; sK < segLen[sIx]; sK++, k++) {
+        pts[k * 3] = sp[k][0]; pts[k * 3 + 1] = sp[k][1]; pts[k * 3 + 2] = sp[k][2];
+        if (sK) len += Math.hypot(sp[k][0] - sp[k - 1][0], sp[k][1] - sp[k - 1][1]);
+      }
+    }
+    var out = [];
+    for (k = 1; k < ponds.length; k++) {
+      var Q = ponds[k];
+      if (Q.blocked || !Q.count) continue;
+      var depth = Q.level - Q.zmin;
+      if (depth < minDepth) continue;
+      var ei = Q.entry % w, ej = (Q.entry - ei) / w;
+      out.push({
+        level: Q.level, depth_ft: depth, cells: Q.count,
+        area_ft2: Q.count * cell * cell,
+        volume_ft3: (Q.level * Q.count - Q.sumZ) * cell * cell,
+        rings: pondRings(pondId, k, w, h, cell, X0, Y0, Q.bb),
+        entry: [X0 + ei * cell, Y0 + ej * cell],
+        outlet: Q.outlet < 0 ? null : [X0 + (Q.outlet % w) * cell, Y0 + (((Q.outlet - Q.outlet % w) / w)) * cell],
+        via: Q.viaConduit || null
+      });
+    }
+    var last = raw[raw.length - 1];
+    if (onProgress) onProgress(1);
+    return {
+      result: {
+        pts: pts, n: sp.length,
+        length_ft: len, lengthRaw_ft: rawLen,
+        fall_ft: raw[0][2] - zEnd,
+        reason: reason,
+        end: [last[0], last[1], last[2]],
+        zEnd_ft: zEnd,
+        exit: exitXY ? exitXY
+          : (exitIdx < 0 ? null : [X0 + (exitIdx % w) * cell, Y0 + (((exitIdx - exitIdx % w) / w)) * cell]),
+        ponds: out, cell: cell, steps: steps,
+        legs: legs, pipe_ft: pipeFt
+      },
+      transfer: [pts.buffer]
+    };
+  }
+
   /* ============================ base surfaces ============================= */
   /* Perimeter TIN with a uniform grid index — the ABP memo Attachment E method.
      The Delaunay triangulation itself is done by the host (d3-delaunay lives in
@@ -230,6 +831,11 @@ var SBMM_COMPUTE = (function SBMMComputeModule() {
             dgrid: {x0,y0,cell,nx,ny,z} (baseMode "design" only),
             step, bx0, by0, nx, ny, grids: [gspec, ...] }                      */
   function volumeGrid(job, onProgress) {
+    /* v21 dispatch (docs/V21_WASM_SPEC.md) — the port of everything below. */
+    if (wasmAvailable()) {
+      var Vw = wasmVolume(job);
+      if (Vw) { if (onProgress) onProgress(1); return Vw; }
+    }
     var pts = [], i;
     for (i = 0; i < job.poly.length; i += 2) pts.push([job.poly[i], job.poly[i + 1]]);
     var perim = [];
@@ -475,6 +1081,11 @@ var SBMM_COMPUTE = (function SBMMComputeModule() {
      Returns flat arrays (levels + offsets + coords) — much cheaper to structured-clone
      than a few hundred thousand two-element arrays. */
   function contoursFromGrid(job, onProgress) {
+    /* v21 dispatch (docs/V21_WASM_SPEC.md) — the port of everything below. */
+    if (wasmAvailable()) {
+      var Cw = wasmContours(job);
+      if (Cw) { if (onProgress) onProgress(1); return Cw; }
+    }
     var g = job.grid, interval = job.interval, s = job.stride;
     /* z is the WINDOW's array (sw x sh, row-major), so the sweep runs over the
        window and its origin is the window's south-west corner. For a whole-grid
@@ -695,6 +1306,8 @@ var SBMM_COMPUTE = (function SBMMComputeModule() {
      Deliberately separate from contoursFromGrid(), whose validated behaviour over
      the terrain DEM is not worth risking for a bit of shared code. */
   function marchOne(z, nx, ny, cell, x0, y0, lv) {
+    /* v21 dispatch (docs/V21_WASM_SPEC.md) — the port of everything below. */
+    if (wasmAvailable()) { var Lw = wasmMarchOne(z, nx, ny, cell, x0, y0, lv); if (Lw) return Lw; }
     var segList = [];
     for (var j = 0; j + 1 < ny; j++) {
       for (var i = 0; i + 1 < nx; i++) {
@@ -1124,6 +1737,8 @@ var SBMM_COMPUTE = (function SBMMComputeModule() {
 
   /* trace a 0/1 mask into rings via marching squares at 0.5, largest ring first */
   function traceMask(mask, w, h, cell, X0, Y0, tol) {
+    /* v21 dispatch (docs/V21_WASM_SPEC.md) — the port of everything below. */
+    if (wasmAvailable()) { var Rw = wasmTraceMask(mask, w, h, cell, X0, Y0, tol); if (Rw) return Rw; }
     var f = new Float32Array(w * h);
     for (var i = 0; i < w * h; i++) f[i] = mask[i] ? 1 : 0;
     var lines = marchOne(f, w, h, cell, X0, Y0, 0.5);
@@ -1733,6 +2348,12 @@ var SBMM_COMPUTE = (function SBMMComputeModule() {
      else; absent, not one value below changes and not one extra byte is
      touched, which is what keeps every v10/v12/v13 water golden where it is. */
   function fillDem(z, w, h, onProgress, p0, p1, sinks, parentOut) {
+    /* v21 dispatch — the WASM port of everything below (docs/V21_WASM_SPEC.md).
+       A null answer means the module refused and the JavaScript runs. */
+    if (wasmAvailable()) {
+      var Fw = wasmFillDem(z, w, h, sinks, parentOut);
+      if (Fw) { if (onProgress) onProgress(p1); return Fw; }
+    }
     var n = w * h, F = new Float32Array(n), closed = new Uint8Array(n);
     var H = heapNew(1 << 15), q = new Int32Array(n), qh = 0, qt = 0;
     var i, j, k, t, ni, nj, vi, edge;
@@ -1859,6 +2480,8 @@ var SBMM_COMPUTE = (function SBMMComputeModule() {
      the v10 kernel to the bit — test/kernels.mjs's `storm` section proves that
      on the §9.1 raindrop.                                                      */
   function flowpath(job, onProgress) {
+    /* v21 dispatch (docs/V21_WASM_SPEC.md) — the port of the walk below. */
+    if (wasmAvailable()) { var Rw = wasmFlowpath(job, onProgress); if (Rw) return Rw; }
     var g = job.grid, w = g.sw, h = g.sh, cell = g.cell, z = g.z, n = w * h;
     var X0 = g.x0 + g.i0 * cell, Y0 = g.y0 + g.j0 * cell;
     var minDepth = job.minPondDepth == null ? 0.25 : job.minPondDepth;
@@ -2747,6 +3370,8 @@ var SBMM_COMPUTE = (function SBMMComputeModule() {
   }
 
   function drainage(job, onProgress) {
+    /* v21 dispatch (docs/V21_WASM_SPEC.md) — the port of everything below. */
+    if (wasmAvailable()) { var Dw = wasmDrainage(job, onProgress); if (Dw) return Dw; }
     var t0 = Date.now();
     var g = job.grid, w = g.sw, h = g.sh, cell = g.cell, z = g.z, n = w * h;
     var X0 = g.x0 + g.i0 * cell, Y0 = g.y0 + g.j0 * cell;
@@ -4555,7 +5180,16 @@ var SBMM_COMPUTE = (function SBMMComputeModule() {
     scope.onmessage = function (ev) {
       var msg = ev.data || {};
       var id = msg.id;
-      if (msg.type === "ping") { scope.postMessage({ id: id, type: "pong" }); return; }
+      if (msg.type === "ping") { scope.postMessage({ id: id, type: "pong", backend: wasmBackend() }); return; }
+      /* v21: the module BYTES, handed over at worker creation. Compiling here
+         is synchronous, which a Worker allows at any size, so every job that
+         arrives after this message sees the core already installed. */
+      if (msg.type === "wasm") {
+        var ok = msg.bytes ? wasmInitSync(msg.bytes, msg.meta) : false;
+        if (msg.forceJs) wasmForce(true);
+        scope.postMessage({ id: id, type: "wasmok", ok: !!ok, backend: wasmBackend() });
+        return;
+      }
       var last = -1;
       var onProgress = function (p) {
         var q = Math.round(p * 20);
@@ -4575,6 +5209,15 @@ var SBMM_COMPUTE = (function SBMMComputeModule() {
   var api = {
     VERSION: 10,
     runJob: runJob,
+    /* v21: the WASM core. `wasmInit` is the main thread's (async compile),
+       `wasmInitSync` the worker's and node's; `wasmForce(true)` is the Help
+       switch and SBMM_WASM=0, and it is the ONE way to get the JavaScript
+       path on a build that has the module. */
+    wasmInit: wasmInit,
+    wasmInitSync: wasmInitSync,
+    wasmForce: wasmForce,
+    wasmBackend: wasmBackend,
+    wasmInfo: wasmInfo,
     volumeGrid: volumeGrid,
     isopachGrid: isopachGrid,
     demRasterRGBA: demRasterRGBA,

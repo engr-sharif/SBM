@@ -62,8 +62,18 @@ SBMM.tiles = (function () {
   const stat = { hits: 0, injected: 0, synth: 0, evicted: 0, failed: 0, cancelled: 0,
                  decodeMs: 0, requests: 0 };
 
+  /* The cache budget by profile. A phone is not a small tablet — v19.1's
+     SBMM.lowMem() is the one answer to that question and this asks it rather
+     than inventing a second test.
+
+     The DRAPE side needs no budget of its own: a tile texture is 256 x 256,
+     an order below js/viewer3d.js's texBudget() phone cap of 2,048 px, so the
+     quadtree cannot breach it however many tiles are drawn — and a phone at
+     the standard quality draws ~9 of them, about a megabyte of texture where
+     the whole-DEM drape was a single 2,048-square one. */
   function budgetBytes() {
     if (SBMM.tiles._budget) return SBMM.tiles._budget;
+    if (SBMM.lowMem && SBMM.lowMem()) return 48e6;
     return document.body.classList.contains("touch") ? 96e6 : 256e6;
   }
 

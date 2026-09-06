@@ -156,6 +156,23 @@ SBMM.touch = (function () {
     return (shortEdge() <= PHONE_SHORT || edge() <= PHONE_LONG) ? "phone" : "tablet";
   }
 
+  /* "WILL THIS SESSION RUN AS A PHONE?" — asked by the heavy-payload loader in
+     index.html, which runs before js/field.js exists and has to answer before a
+     single payload is parsed. Same two inputs js/field.js `autoDetect` uses and
+     in the same order (a stored field preference beats the sniff in BOTH
+     directions), which is what keeps the loader and the layout agreeing about
+     one machine. FIELD_STORE must stay equal to STORE in js/field.js; the
+     e2e asserts the two answer the same. */
+  const FIELD_STORE = "sbmm_field_v1";
+  function phoneAtBoot() {
+    try {
+      const v = localStorage.getItem(FIELD_STORE);
+      if (v === "1") return true;
+      if (v === "0") return false;
+    } catch (e) {}
+    return sniff() === "phone";
+  }
+
   /* What the APP is running as. Field mode wins the phone half, because a
      stored field preference is a decision someone made and the viewport is
      only a guess — someone who turned field mode on at a desk meant it. */
@@ -845,6 +862,15 @@ SBMM.touch = (function () {
       anisotropy: v.anisotropy || null,
       memoryMB: (performance && performance.memory)
         ? Math.round(performance.memory.usedJSHeapSize / 1e6) : null,
+      /* v19.1 — the two numbers the next "it crashed on my phone" report needs
+         to arrive with, and the one switch that explains them */
+      heapLimitMB: (performance && performance.memory)
+        ? Math.round(performance.memory.jsHeapSizeLimit / 1e6) : null,
+      gpuTextures: v.gpuTextures == null ? null : v.gpuTextures,
+      gpuGeometries: v.gpuGeometries == null ? null : v.gpuGeometries,
+      texMP: v.texMP == null ? null : v.texMP,
+      heavyPayloads: window.SBMM_HEAVY_SKIPPED ? "skipped (phone)"
+        : ((SBMM.isField && SBMM.isField()) ? "not in this build" : "loaded"),
       standalone: standalone(),
       offlineCapable: offline.possible()
     };
@@ -859,7 +885,10 @@ SBMM.touch = (function () {
       d.webgl2 == null ? null : (d.webgl2 ? "WebGL2" : "WebGL1"),
       d.gpu ? d.gpu.slice(0, 52) : null,
       d.anisotropy ? d.anisotropy + "x aniso" : null,
-      d.memoryMB ? d.memoryMB + " MB heap" : null,
+      d.memoryMB ? (d.memoryMB + (d.heapLimitMB ? "/" + d.heapLimitMB : "") + " MB heap") : null,
+      d.gpuTextures == null ? null : (d.gpuTextures + " tex / " + d.gpuGeometries + " geom"
+        + (d.texMP ? ", " + d.texMP + " MP drape" : "")),
+      d.heavyPayloads === "loaded" ? null : ("heavy payloads " + d.heavyPayloads),
       d.standalone ? "home-screen app" : null
     ].filter(Boolean).join(" · ");
   }
@@ -1145,6 +1174,29 @@ SBMM.touch = (function () {
     });
   }
 
+  /* THE PAGE IS NEVER SCROLLED (v19.1 — the iPhone layout report).
+
+     css/app.css makes html/body `overflow:clip` so there is nothing to scroll;
+     this is the guard for a browser that only understands `overflow:hidden`
+     (iOS 15 and earlier), where the document still IS a scroll container and
+     the browser — not the user — moves it: iOS lifts a focused input above the
+     on-screen keyboard, and the field-mode docks parked at translateY(105%)
+     give it 450 px of invisible overflow to move into. Every piece of chrome is
+     positioned against the initial containing block, so a scrolled page takes
+     the whole app with it and never puts it back.
+
+     It is a listener, not a poll: on a page that cannot scroll it never fires,
+     which is why it costs the desktop nothing. */
+  function wireScrollGuard() {
+    const reset = () => {
+      if (window.scrollY || window.scrollX) window.scrollTo(0, 0);
+      if (document.documentElement.scrollTop) document.documentElement.scrollTop = 0;
+      if (document.body.scrollTop) document.body.scrollTop = 0;
+    };
+    window.addEventListener("scroll", reset, { passive: true });
+    reset();
+  }
+
   /* ================================================================== */
   function wire() {
     if (wired) return;
@@ -1153,6 +1205,7 @@ SBMM.touch = (function () {
     syncViewport();
     wirePointerKind();
     wireLongPress();
+    wireScrollGuard();
 
     window.addEventListener("resize", onResize);
     window.addEventListener("orientationchange", onResize);
@@ -1194,7 +1247,7 @@ SBMM.touch = (function () {
   }
 
   return {
-    wire, autoDetect, apply, profile, sniff, on, override, touchCapable, standalone,
+    wire, autoDetect, apply, profile, sniff, phoneAtBoot, on, override, touchCapable, standalone,
     /* §5a — the per-EVENT hook the chrome sizes from, and the palm clock */
     lastPointer, precise, penDown, penRecent,
     gestures, recognizer, momentum, angDelta, sketchBar, edge, shortEdge, glass,

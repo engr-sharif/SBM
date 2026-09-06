@@ -193,8 +193,8 @@ SBMM.drainage = (function () {
     if (!SBMM.demSite) { toast("the drainage map needs the site terrain, which did not load"); return null; }
     const key = signature();
     if (R && runKey === key && !opts.force) return R;
-    /* the field build runs at 4 ft and the card says so (§4) */
-    let strideCells = SBMM.isField() ? 2 : 1;
+    /* the field build AND any phone run at 4 ft, and the card says so (§4) */
+    let strideCells = SBMM.lowMem() ? 2 : 1;
     running = (async () => {
       for (;;) {
         const job = jobFor(strideCells);
