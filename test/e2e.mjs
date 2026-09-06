@@ -6657,13 +6657,21 @@ treeMissing = treeBase.keys.filter(k => !treeKeys.has(k));
        sheet gets one per-sheet raster row under "Sheets (draped)", and those
        two sheets were placed from EA's native geometry after the baseline was
        taken — so this is the twelve rows the fixture already carries becoming
-       fourteen, not an invented row. */
+       fourteen, not an invented row.
+     · the two flow-accumulation rows (v19 Phase 3): "Flow accumulation" and
+       "Streams (>= 5 ac)", which join the same *Drainage (lidar + storm
+       drains)* sub-group the Phase 1 catchment rows are in. Same reason as the
+       design-storm pair above — the app grew them after this baseline was
+       dumped, and they are registered through SBMM.addLayerRow like every
+       other row rather than being drawn into the tree by hand. */
 treeNew = tree.keys.filter(k => treeBase.keys.indexOf(k) < 0);
 treeUnexplained = treeNew.filter(k => !/^invest\//.test(k) && !/^base\/contours_/.test(k)
                                          && k !== "framework/runoff_cover"
                                          && k !== "framework/runoff_depth"
                                          && k !== "design/c_102_staging_area"
-                                         && k !== "design/c_203_borrow_source_demonstration_area");
+                                         && k !== "design/c_203_borrow_source_demonstration_area"
+                                         && k !== "framework/accum_raster"
+                                         && k !== "framework/accum_streams");
 console.log("layer tree:", tree.rows.length, "rows in the state,", tree.domRows, "in the DOM,",
             tree.subs.length, "sub-groups |", tree.swatches, "symbology swatches |",
             "baseline", treeBase.keys.length, "rows — missing", treeMissing.length,
