@@ -48,7 +48,9 @@ jobs:
           - step: perf
             also: audit,audit2
           - step: kernels
-            also: touch_unit
+            also: touch_unit,tiles
+          - step: terrain3d:folder
+            also: terrain3d:dist
     steps:
       - uses: actions/checkout@v4
 
