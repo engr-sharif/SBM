@@ -1771,6 +1771,19 @@ and mouse-sized for a pen or a mouse on the same screen a second later.
 
 Seven things here will be walked into again:
 
+- **THE RECOGNISER IS TIMED BY THE GLASS, NOT BY THE MAIN THREAD (v20).** A tap
+  is "pointerdown to pointerup inside `tapMs`", and the clock used to read at
+  HANDLING time — so a long task between the two changed what the gesture WAS:
+  a 60 ms two-finger tap measured 503 ms and silently stopped being a tap. On
+  software GL at a horizon-on pose ONE frame is ~500 ms, so any frame landing in
+  the window busts a 300 ms budget however little work is queued; on a phone it
+  is the tap a user is most annoyed to lose. `eventClock()` feeds `e.timeStamp`
+  — a DOMHighResTimeStamp on `performance.now()`'s own time origin, set when the
+  browser CREATED the event — into the recogniser's injectable `now` for the
+  duration of that call. **Both feeds go through it**: `gestures()` and
+  `wireMap()`'s capture-phase listeners. A synthetic event with no usable
+  timeStamp falls back to the clock, and `test/touch_unit.mjs` injects its own
+  `now` and is untouched.
 - **The recogniser is ONE implementation and it is DOM-free.**
   `SBMM.touch.recognizer(handlers, opts)` takes pointer-shaped records and calls
   handlers; `gestures(el, h)` is the thin part that wires real events to it.
