@@ -37,6 +37,7 @@ in code, and what comes next. It replaces re-reading the chat history that built
 | No proposed-grade surface is synthesised from breaklines | It would invent the pad; ask EA for LandXML instead |
 | Residential excavation surfaces are derived from EA's written depths | EA's design is depth-based (1 ft default, 6-in call-outs), so this *is* the design |
 | Geodatabase polygons own "Limits of excavation"; CAD exc linework off by default (R1) | Avoids duplicate answers to one click |
+| A sheet is registered only where **two independent lines of evidence agree**, and a symmetric control gets an **ambiguity table** rather than an argument (v9.16, C-102 / C-203) | A wrong affine is far worse than none. The accepted rotation must win every column — fit, the features that took no part in the fit, and the orthophoto — and the ortho check is calibrated on the twelve sheets whose answer is already known (`register_sheet_native.py --calibrate`) |
 | One layer state for 2D/3D/sheets/exports; no 3D checkboxes | §1 of the spec |
 | **The iPad keeps the DESKTOP layout** (`body.touch`), not the phone one | He said the app already "looks good" on his iPad and he likes it. v17 adds touch affordances to that layout rather than replacing it; field mode (`body.field`) is untouched and still the phone's |
 | Touch capability is detected, never sniffed from the user agent | iPadOS reports a desktop UA. `(any-pointer: coarse)` OR `maxTouchPoints > 1`, re-evaluated on resize and rotation |
@@ -84,6 +85,7 @@ in code, and what comes next. It replaces re-reading the chat history that built
 | **Water in 3D is animation, not a new analysis** (v13): particles ~20 ft apart at ~40 ft/s along the flow, the stage surface at the slider's level | He asked for the 2D flow animation in 3D. It draws what is already computed; it does not add a number anyone could quote |
 | The 3D render loop asks for frames **only while a visible flow exists and "animate water" is on** | The on-demand loop is why an idle 3D view costs nothing, and `test/perf.mjs` asserts 0 idle renders. An animation that always runs would have quietly thrown that away |
 | **Conduits first (v15): when a conduit spills below the rim, the conduit IS the overflow and the rim route is not traced** | His words: *"we have to assume that if the frog pond does overflow it will flow into green pond first not out and up north … thats how the system was intended to be designed we will keep it that way for the purposes of this simulation"*. The rim spill stays on the card as a fact and the rim band stays drawn — the analysis is unchanged and every §9/§10 number is unchanged — but nothing claims the water goes over the rim. Generic: Herman's conduit spill is the surveyed pipes, so its rim route moved to the button too |
+| **Both 24-in barrels are the impoundment's discharge, and the discharge route is the conduit CHAIN, not a raindrop** (ruling, 5 Sep 2026) | His words: *"for the Herman impoundment you are using the culvert discharge pipes but there are 2 pipes and you only used one … make sure the system knows that the water flows through the pipes and out to Clear Lake; right now I think it shows that it goes directly and makes its own path"*. Two faults: the payload connected only the NORTH barrel to EA's drawn storm line, so the SOUTH one — the lower invert, the one the water leaves through — ended 13 ft short of anything; and the card's route was a raindrop dropped at the north pipe's plotted west end, which is a terrain analysis that happens to meet a pipe. Now `pipe_to_main` + `pipe_to_main_s` (one inferred link per barrel, 44 nodes / 27 conduits) and `js/water.js` `pipeChainRoute()` walks the network from the sandbag wall to the Clear Lake outfall: **812.8 ft of pipe and zero ground** before the outfall, then 137 ft overland into the lake. One link per barrel rather than a manifold node because a manifold would move `pipe_to_main`'s inlet and every golden measured on it. Every Herman stage, the drainage identity and every catchment acreage are unchanged; the one number that moved is the raindrop's pipe length, 813.3 → 812.8 ft |
 | The rim overflow is available as a **what-if**, one button, named for what it assumes and drawn dashed in a muted slate | "Not traced" must not mean "unanswerable". The button says *what-if: pond culvert blocked*; the route is owned by the analysis and goes when it does, so a stale hypothesis cannot end up in a report |
 | **One label engine per view, and a label is a fact shown once** (v15) | His words: *"when i use the overtopping of the pond feature, it puts the text inside like multiple times, i think you need to review why this is happening not just here but also as we work to clean up this site"*. Three flows over one pond drew three identical labels on one pixel and nothing anywhere handled collisions. Dedupe by key, then a greedy pass by priority, in 2D and in 3D |
 | **The 3D stage labels are rebuilt from the slider's level on every step** | His words: *"when i view the overflow in 3d the labels for the rim labels are not adjusting to the level im looking at"*. They now say "+0.39 ft to go" / "overtopped" / "discharging", and the viewer diffs them by text so a drag rebuilds only what changed |
@@ -181,9 +183,19 @@ in code, and what comes next. It replaces re-reading the chat history that built
    Consolidating them into the payload is a good small refactor.
 6. ~~`index.html` help prose still says "Residential remedy design"; `test/perf.mjs` still
    references the removed 3D checkboxes.~~ **Done (v9.7).**
-7. **C-102 and C-203 could be placed the way C-202 was** (`tools/register_sheet_native.py`,
+7. ~~**C-102 and C-203 could be placed the way C-202 was** (`tools/register_sheet_native.py`,
    native polygon fitted to the plan linework + ortho confirmation). C-203's rectangle is
-   symmetric, so watch the ambiguity.
+   symmetric, so watch the ambiguity.~~ **Done (v9.16).** Both are placed, so **14 of the 20
+   sheets are now on the map** and C-101 — a site index sheet with no unique geometry — is
+   the one plan sheet still unplaced. C-102 came from FIVE native polygons fitted together as
+   one rigid transform (127 vertices; the sheet prints no coordinate table at all), at
+   +40.000°, residual median 0.52 / max 1.45 ft, ortho agreement 2.24 ft. C-203 came from
+   the borrow rectangle plus the 15 ft cell grid its own work sequence specifies inside it,
+   at −30.000°, printed nodes 83–86 to 0.00 ft, ortho 2.24 ft — and the symmetry was broken
+   by an ambiguity table in which the accepted rotation wins every column, decisively on the
+   two features that took no part in the fit and on the orthophoto. The `--calibrate` switch
+   reruns the ortho check over the twelve sheets whose answer is already known (0.00–3.16 ft),
+   which is what makes "2.24 ft" mean something. Shots: `node test/sheets_shots.mjs`.
 8. **The pipes' capacity is not modelled.** The overtopping card says the pipes discharge
    from 1341.55 ft; how much they can pass, and whether the pond keeps rising with them
    flowing, is hydraulics (see the next item).
@@ -223,12 +235,13 @@ in code, and what comes next. It replaces re-reading the chat history that built
    two-pointer pinch `js/viewer3d.js` now has, applied to `wireWindow`'s pointer handlers —
    an hour, and it needs a real tablet to judge.
 13. **Storm drainage — BUILT (v12, Sep 2026); what is left is the invert survey.**
-   `docs/V12_STORM_SPEC.md` is the contract, `data/storm_network.json` the data (43 nodes,
-   25 conduits, ~27 kB, in the field build too), `tools/build_storm_network.py` the builder,
+   `docs/V12_STORM_SPEC.md` is the contract, `data/storm_network.json` the data (44 nodes,
+   27 conduits, ~29 kB, in the field build too), `tools/build_storm_network.py` the builder,
    `js/storm.js` the host and `flowpath`'s `conduits` the kernel. A raindrop that reaches
    within 3 ft of an inlet now goes down the pipe, a depression that fills to an inlet's rim
    drains through it, and the Herman pipe discharge route runs down EA's storm main to the
-   Clear Lake outfall (934 ft, 797 of it in pipe). The `STORM` switch and a per-conduit
+   Clear Lake outfall (950 ft, 813 of it in pipe — and since the 5 Sep 2026 ruling it is the
+   conduit chain itself through BOTH barrels, with no ground before the outfall). The `STORM` switch and a per-conduit
    broken/working toggle turn any of it off, and off is exactly the v11 ground-only answer.
    **What is still missing is elevations.** EA's CAD has no inverts, no diameters and no
    materials anywhere on this system; the only surveyed inverts in existence are Jacobs' two
@@ -263,8 +276,8 @@ in code, and what comes next. It replaces re-reading the chat history that built
    unchanged. It fires exactly twice today: the North pipe moves 25.6 ft and the South
    27.1 ft, both onto the channel floor at E 6,372,065 N ~2,127,496, z 1341.50–1341.54.
    Result: a drop inside the impoundment ponds to 1,341.54 ft and leaves through
-   `herman_pipe_s` → `pipe_to_main` → `storm_main_upper` → `storm_main_lower` → the outfall
-   (813.3 ft in pipe), against the overtopping card's first discharge at 1,341.55 — the two
+   `herman_pipe_s` → `pipe_to_main_s` → `storm_main_upper` → `storm_main_lower` → the outfall
+   (812.8 ft in pipe), against the overtopping card's first discharge at 1,341.55 — the two
    tools now agree. With the drains off it fills 2.30 ft higher and spills over the rim, and
    the e2e prints both numbers side by side. **What would still be worth having** is a survey
    shot at each pipe mouth on the water side of the wall: it would replace a nearest-cell

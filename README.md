@@ -901,11 +901,11 @@ invert and **trace discharge** — where water leaving the pipe runs.
 
 The site has a drainage system, and until v12 the app did not know about it: a raindrop that
 reached a grate walked past it. The **storm network** is now in the app as read-only project
-data — 43 structures and 25 conduits assembled by `tools/build_storm_network.py` from EA's
+data — 44 structures and 27 conduits assembled by `tools/build_storm_network.py` from EA's
 V-Base drawing, the geodatabase's storm structures, Jacobs' August-2026 survey and the
 project engineer's identification of the south-road drain. Three rows under **Site framework
-→ Storm drainage**, on by default: *Storm structures* (43), *Storm conduits — drawn in CAD /
-surveyed* (15) and *Storm conduits — inferred* (10). Click a structure or a pipe for what it
+→ Storm drainage**, on by default: *Storm structures* (44), *Storm conduits — drawn in CAD /
+surveyed* (15) and *Storm conduits — inferred* (12). Click a structure or a pipe for what it
 is, where it came from, its ground and its invert, its length and its fall.
 
 | conduit | from → to | source | note |
@@ -917,7 +917,8 @@ is, where it came from, its ground and its invert, its length and its fall.
 | `road_drain_15_branch` | grate Spot 15 → the branch start (a bend, no structure) | inferred straight | 155 ft |
 | `branch` | the branch start → the junction grate | CAD line `E943F` | 149 ft |
 | `herman_pipe_n` / `herman_pipe_s` | the surveyed inverts at the sandbag wall (**1341.57 / 1341.53 ft**) → the plotted west ends | Jacobs survey, Aug 2026 | the two 24-in corrugated HDPE barrels |
-| `pipe_to_main` | the North pipe's plotted west end → the east end of EA's drawn storm line | **inferred**: EA's line starts 13 ft west of the plotted pipe end | the connection he asked for |
+| `pipe_to_main` | the **North** pipe's plotted west end → the east end of EA's drawn storm line | **inferred**: EA's line starts 13 ft west of the plotted pipe end | the connection he asked for |
+| `pipe_to_main_s` | the **South** pipe's plotted west end → the same point on EA's storm line | **inferred**, same reason | the engineer's ruling of 5 Sep 2026: *both* barrels are the impoundment's discharge. Until then the South pipe — the lower invert, the one the water leaves through — ended 13 ft short of anything |
 | `storm_main_upper` | the storm line's east end → the junction grate | CAD `E943C` | 195 ft |
 | `storm_main_lower` | the junction grate → the **Clear Lake outfall** | CAD `E943C` | 589 ft |
 | `south_culvert` | `STRM FES` → `STRM FES` | CAD mark `E5D2E` | 40 ft under the south road, into Herman; not part of the grate chain |
@@ -958,9 +959,19 @@ Two answers worth having in front of you:
   the drains off it never leaves the north-east corner: it spills off the survey.
 - **Naming.** EA's geodatabase `water` layer has it right, and the engineer confirmed it (Sep 2026): **Frog Pond is the east pond** (E 6,374,450–6,374,726, floor 1,415 ft) and **Green Pond the west pond** (E 6,373,925–6,374,152, floor 1,391.6 ft). The storm network uses those names.
 
-The **Herman pipe discharge route** (on the overtopping card) now reads *"934 ft · 797 ft in
-pipe · Clear Lake outfall"*: what leaves the surveyed 24-in pipes goes down EA's drawn storm
-main to the lake rather than stopping at a stub of overland flow.
+The **Herman pipe discharge route** (on the overtopping card) reads *"950 ft · 813 ft in
+pipe · Clear Lake outfall"*, and since the ruling of 5 September 2026 it is **the conduit
+chain itself, not a raindrop**: the sandbag wall → both 24-in barrels → both links → EA's
+storm main → the junction → the Clear Lake outfall, with *no ground at all* between the wall
+and the outfall. Ordinary descent resumes at the outfall, where the pipe ends, and runs the
+last 137 ft into the lake. The card says which system carries it — *"discharging through the
+two 24-in pipes → pipe to main → storm main → Clear Lake outfall"* — and 3D draws both
+barrels as pipes with the moving water running through both.
+
+Before that ruling the route was traced by dropping a raindrop at the North pipe's plotted
+west end and letting it find its own way, which is a terrain analysis that happens to meet a
+pipe: it could only ever show one barrel, and it was the reason the engineer reported that
+the water *"goes directly and makes its own path"*.
 
 **A sunken pipe mouth.** The lidar is the January-2024 flight; the sandbag wall and the two
 24-inch discharge pipes were surveyed in August 2026 and were built into a regraded channel
@@ -976,7 +987,8 @@ inlet cell was moved and by how far. If nothing low enough is found within 30 ft
 stays exactly where it was surveyed and the popup says so.
 
 The consequence: **a drop inside the Herman Impoundment now ponds to 1,341.54 ft and leaves
-through the surveyed South pipe**, the storm main and the outfall — 813 ft in pipe — instead
+through the surveyed South pipe**, its own link, the storm main and the outfall — 813 ft in
+pipe (812.8 since both barrels were connected) — instead
 of filling 2.30 ft higher and spilling over the rim. That is the same first discharge the
 overtopping card has reported since v10 (1,341.55 ft, the surveyed invert), so the raindrop
 and the overtopping analysis now give the same answer about the impoundment. Switch the
@@ -1546,10 +1558,12 @@ is not one: its PDF-extracted polygon is a *larger enclosing* feature than the n
 polygon sits on **its own printed survey nodes to 0.37 ft**. Different feature, correct
 registration.
 
-**The four unregisterable sheets are now covered.** C-102 (staging area), C-202 (North
-Lobe) and C-203 (borrow area) all have exact native geometry; C-101 is a site *index* sheet
-and has no unique geometry to carry. The geometry was the point — and for C-202 the native
-geometry then went on to place the raster too (see *Registering from native geometry* below).
+**The four unregisterable sheets are now covered, and three of them are now placed.**
+C-102 (staging area), C-202 (North Lobe) and C-203 (borrow area) all have exact native
+geometry; C-101 is a site *index* sheet and has no unique geometry to carry. The geometry
+was the point — and for all three of those sheets the native geometry then went on to place
+the raster too (C-202 in v9.1, C-102 and C-203 in v9.16; see *Registering from native
+geometry* below). C-101 is the one plan sheet still unplaced.
 
 **Excluded on purpose.** The geodatabase also contains `T22_0762_IsolateCurrent` and
 `T22_0762_ResourceCurrentPly` — an archaeological survey of the Elem Indian Colony.
@@ -1571,7 +1585,9 @@ proposed-grade raster**, which Civil 3D produces in one step.
 ### Sheet overlays and the PDF extraction
 
 The design drawings are also integrated as georeferenced sheet overlays plus extracted
-vector boundaries. **Eleven sheets** are registered. This is still how the sheet rasters and
+vector boundaries. **Eleven sheets** were registered by this PDF method (three more have
+since been placed from EA's native geometry, for **fourteen** in all). This is still how
+the sheet rasters and
 the floating sheet viewer are placed, and it remains the method to use for a future sheet
 set that arrives without native files — but its **boundary layer now defaults off**, and
 each boundary the native geometry supersedes is labelled as such in its popup, with the
@@ -1596,7 +1612,7 @@ starts at 54), which is independent evidence the sheet was dropped rather than r
 |---|---|---|---|
 | G-001 / G-002 | title, notes, legend | 1–2 | no — not plans |
 | C-101 | site index (1 in = 200 ft) | 3 | **no** — see below |
-| C-102 | staging area | 4 | **no** — no printed control at all |
+| C-102 | staging area | 4 | **yes** — from EA's five native staging polygons (v9.16) |
 | C-103 | Lot 13 | 5 | **yes** (added in this phase) |
 | C-104 | Lot 15 | 6 | **yes** |
 | C-105 | Lot 19 | 7 | **yes** |
@@ -1609,7 +1625,7 @@ starts at 54), which is independent evidence the sheet was dropped rather than r
 | C-112 | Lot 17 | 13 | **yes** |
 | C-201 | East Temporary Stockpile | 14 | **yes** |
 | C-202 | North Lobe grading | 15 | **yes** — from EA's native polygon, both plan viewports (v9.1) |
-| C-203 | Borrow Source Demonstration Area | 16 | **no** — see below |
+| C-203 | Borrow Source Demonstration Area | 16 | **yes** — from the native borrow rectangle + its cell grid (v9.16) |
 | C-501/502/503 | typical details and sections | 17–19 | no — not plan views |
 
 Sheet subjects are read from the drawings' own title blocks (the 90% set titles every lot
@@ -1706,17 +1722,109 @@ with its pixel rectangle, a mark is placed through whichever plan it is made on,
 click on the title block or the notes is refused rather than placed 290 ft off.
 `tools/build_sheet_affine.py` leaves a record marked `affine_source: "native"` alone.
 
-C-102 and C-203 are the obvious next candidates for the same method — both have exact
-native polygons (the staging-area set and the 90 × 120 ft borrow rectangle). C-203's
-rectangle is symmetric, so the ortho confirmation would have to break the four-fold
-ambiguity rather than merely confirm; that is the one thing to watch.
+#### Registering from native geometry — C-102 and C-203 (v9.16)
 
-#### Why three sheets are still not registered
+The same tool, extended. Two things had to be added, and both are recorded in
+`tools/register_sheet_native.py`:
+
+* **A fit takes as many native features as the plan draws.** C-202 was solved from one
+  polygon; C-102's control is *five* — the staging area, the two borrow-soil staging areas,
+  the gravel area and the construction entrance — fitted together as ONE rigid transform.
+  127 vertices against four unknowns is far more redundancy than any printed node table on
+  this set, and five shapes of five different sizes cannot all land by accident.
+* **A null, and an ambiguity table.** These two sheets are drawn over an aerial photograph,
+  so "mean ink under the outline" is high everywhere and an absolute threshold means
+  different things on different sheets. The tool now measures 400 random placements of the
+  same control inside the same plan viewport and reports the fit as a z-score against them;
+  and where the control has a symmetry it refines every rival rotation and scores it in the
+  same table.
+
+Both sheets are also outside `data/ortho_mine.jpg` (which starts at N 2,127,238; the staging
+area is at N 2,126,354–2,126,731 and the borrow area at N 2,126,340–2,126,460), so the
+independent confirmation runs against the 1.5 ft site orthophoto. That is coarser, so the
+check was **calibrated on the twelve sheets whose answer is already known** —
+`python tools/register_sheet_native.py --calibrate` reprints it. Those twelve agree to
+**0.00–3.16 ft** (median 2.0, peaks 0.46–0.75, ratios 10.9–28.6). Both new sheets land at
+**2.24 ft**, squarely inside that class, with the two highest ratios in the set.
+
+**C-102 (Staging Area, 1 in = 20 ft).** The sheet prints **no coordinate table at all**,
+which is exactly why the PDF method could never place it: there was one method available
+(imagery) and one method cannot meet the bar. EA's native geometry is the ground control it
+never had.
+
+| | |
+|---|---|
+| coarse rotation | **+40.000°**, rank 1 of 360, outline-on-ink 0.185 against 0.091 for the runner-up |
+| free fit | rot +39.9999°, scale 0.171431 ft/px = **−0.020 %** of the sheet's 1 in = 20 ft |
+| fit darkness | 0.616, against a null of 0.257 ± 0.049 over 400 random placements (max 0.368) — **z = 7.4** |
+| per-vertex residual | **median 0.52 / max 1.45 ft** over 127 vertices |
+| … Borrow Soil Staging Area (25 v) | 0.00 / 0.09 ft |
+| … Construction Entrance (59 v) | 0.48 / 1.40 ft |
+| … Gravel Area (18 v) | 0.71 / 1.45 ft |
+| … Staging Area (25 v) | 1.03 / 1.45 ft |
+| ortho confirmation | ncc 0.489 at the fit, **peak 0.657 (ratio 29.3)**, imagery moves the plan **2.24 ft** |
+| map raster | `design_C102.png`, 0.75 ft/px, E 6,370,813–6,371,586 N 2,126,159–2,126,912 |
+
+The staging-area limit is drafted as a silt-fence line and the gravel area as a hatch
+boundary, which is why their residuals are the loose ones; the two borrow-soil staging
+areas are solid boundaries and land to a hundredth of a foot. A fourth corroboration is
+visible rather than numeric, and it is in `test/shots/sheet_C102_map.png`: EA's **access
+haul route**, which took no part in the fit, runs down the middle of the drawn Sulphur Bank
+Mine Road. (It is not scored, because the road is drawn as a *white* band with hatch only at
+its edges, so "ink under the centreline" is not a statistic that would say so.)
+
+**C-203 (Borrow Source Demonstration Area, 1 in = 50 ft).** Its printed nodes 83–86 are the
+four corners of a 90 × 120 ft axis-aligned rectangle — and the previous attempt failed on
+exactly that: the vote stage emitted ~720,000 candidates, a targeted search for a drawn
+129.6 × 172.8 pt rectangle found none (the rectangle is not drafted as a simple closed
+4-vertex polyline), and ortho-first led to rotation +30.000° that least squares on the four
+nodes then pulled **5.85 ft** away from.
+
+Two things resolved it, and the native polygon is the arbiter as the rules require:
+
+1. **The sheet's own work sequence is control.** "ESTABLISH NUMBERED CELLS … MEASURING 15
+   FEET X 15 FEET WITHIN 90-FT X 120-FT BORROW AREA" — and the plan draws that 6 × 8 grid.
+   The bare rectangle peaks nowhere (its top rotations are just the sheet's own orthogonal
+   borders); the rectangle **plus** its grid peaks at exactly one rotation and its 180°
+   twin. That is 28 vertices of heavy ink deciding the translation instead of four, which is
+   what the 5.85 ft dispute was really about — and the recovered rotation is **−30.000°**,
+   the *same* angle the earlier ortho-first pass had led to (+30.000° in the sheet-affine
+   sign convention). The two methods did not disagree about rotation; they disagreed about
+   where to put it, and the native geometry settles that.
+2. **Every rival is scored, not argued away.** The accepted rotation must win every column
+   of this table, and the orthophoto — which knows nothing of any of this geometry — must
+   separate it by 1.5×:
+
+| rotation | | fit darkness | haul route ✝ | staging area ✝ | ortho peak | ortho agree |
+|---|---|---|---|---|---|---|
+| **−30.0°** | accepted | **0.8763** | **0.3780** | **0.4912** | **0.650** | **2.24 ft** |
+| +150.0° | rival (180°) | 0.6827 | 0.0865 | 0.1543 | 0.009 | 14.00 ft |
+| +60.0° | rival (90°) | 0.7702 | 0.2843 | 0.3754 | 0.013 | 19.24 ft |
+| −120.0° | rival (270°) | 0.7693 | 0.1777 | 0.0528 | 0.007 | 20.62 ft |
+
+✝ the access haul route and the staging area took **no part in the fit**. Note which
+columns do the work: the fit darkness barely separates the 90° rivals (0.876 vs 0.770),
+because the 15 ft grid matches itself under a quarter turn and only the 90 ≠ 120 outer
+rectangle disagrees. The confirmation geometry and the orthophoto are decisive, and they
+are decisive independently of each other.
+
+| | |
+|---|---|
+| free fit | rot −30.0123°, scale 0.428733 ft/px = **+0.016 %** of the sheet's 1 in = 50 ft |
+| fit darkness | 0.876, against a null of 0.344 ± 0.045 (max 0.495) — **z = 11.9** |
+| residual, printed nodes 83–86 | **0.00 / 0.00 ft** (all four are native vertices to 0.00 ft) |
+| residual, the drawn 15 ft grid | median 1.25 / max 2.98 ft — that is the drafting of the cells, not the registration |
+| ortho confirmation | ncc 0.467 at the fit, **peak 0.650 (ratio 27.7)**, imagery moves the plan **2.24 ft** |
+| map raster | `design_C203.png`, 1.0 ft/px, E 6,370,879–6,372,481 N 2,125,831–2,127,422 — the whole plan, haul route included |
+
+#### Why one sheet is still not registered
 
 Recorded so the work is not repeated:
 
-* **C-102 (staging area)** — the sheet prints **no coordinate table at all**. With no ground
-  control there is only one method available (imagery), and one method cannot meet the bar.
+* **C-102 (staging area)** — *now registered from native geometry, above; the record of why
+  the PDF methods failed is kept.* The sheet prints **no coordinate table at all**. With no
+  ground control there was only one method available (imagery), and one method cannot meet
+  the bar. EA's June-2026 geodatabase supplied the control the sheet never printed.
 * **C-101 (site index, 1 in = 200 ft)** — ortho correlation returns **ratio 1.02**, i.e. a
   plateau with no peak, and at that placement the six printed nodes miss drawn vertices by
   2.85–280.94 ft. An index sheet is mostly sheet-boundary rectangles and text, so there is
@@ -1733,8 +1841,9 @@ Recorded so the work is not repeated:
   density the chance of a node landing within 1.5 ft of *some* drawn vertex is **0.78**.
   Splitting it into its two viewports and solving each against the native polygon is what
   worked.
-* **C-203 (Borrow Source Demonstration Area)** — the closest of the three to being solved,
-  and the one to pick up first next time. Its printed nodes are a plain **90 × 120 ft
+* **C-203 (Borrow Source Demonstration Area)** — *now registered from native geometry,
+  above; the record of why the PDF methods failed is kept.* It was the closest of the three
+  to being solved. Its printed nodes are a plain **90 × 120 ft
   axis-aligned rectangle**: so unspecific that the vote stage emits ~720,000 candidates and
   still had not converged after an hour, and a targeted search for a drawn 129.6 × 172.8 pt
   rectangle finds **none** — the rectangle is not drafted as a simple closed 4-vertex
@@ -1743,9 +1852,13 @@ Recorded so the work is not repeated:
   0.37–1.23 ft of drawn vertices (≈1.6% by chance at this sheet's linework density).
   **But the two methods do not converge**: least-squares refinement on those nodes pulls the
   sheet 5.85 ft and drops the ortho peak from 0.258 to 0.156. A ~6 ft disagreement is not the
-  ~1 ft agreement required, so the sheet is excluded. The overlay looks plausible by eye, but
+  ~1 ft agreement required, so the sheet was excluded. The overlay looked plausible by eye, but
   it is a contour sheet over wooded ground where the eye cannot resolve a foot — which is
-  exactly the situation the two-method rule exists for.
+  exactly the situation the two-method rule exists for. **What settled it (v9.16):** the two
+  methods never disagreed about the rotation — +30.000° is what both found — only about where
+  to put it, and four corners of a symmetric rectangle are too little to decide that. The
+  sheet's own 15 ft cell grid, drawn inside the rectangle, gives 28 vertices of heavy ink
+  instead of four, and the orthophoto then agrees to 2.24 ft.
 
 ### What was extracted
 
@@ -1762,7 +1875,7 @@ Recorded so the work is not repeated:
   chain is drawn as a polygon only where its own area reproduces a printed area; otherwise the
   nodes are published as points, which is all that is actually known about them.
 
-Eleven sheet rasters (`data/design/design_C*.png`, 8.4 MB) are rendered north-up in State
+Fourteen sheet rasters (`data/design/design_C*.png`, 13 MB) are rendered north-up in State
 Plane at 0.5–1.0 ft/px with the paper background knocked out to transparency. The rotation is
 baked in because `L.imageOverlay` cannot rotate. The printed coordinate table and any
 detail/section viewport drawn at a scale other than the plan scale are blanked so the overlay

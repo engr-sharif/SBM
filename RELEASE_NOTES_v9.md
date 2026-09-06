@@ -17,7 +17,7 @@ All three are offline-only by design. Nothing in this app calls out to the inter
 
 ---
 
-## v9.16 — the heavy analyses run in a compiled core
+## v9.18 — the heavy analyses run in a compiled core
 
 The drainage map, the overtopping flood, the raindrop, volumes and contours are loops
 over millions of grid cells, and they were the slowest thing in the app. They now run in
@@ -55,6 +55,100 @@ you can see it for yourself; Help has a **Force JavaScript kernels** switch if y
 want to compare. It works in all three copies of the app — the folder, the single file and
 the field build — because the core ships inside the file the same way the terrain and the
 imagery do. Nothing is downloaded, and the app still makes no network calls at all.
+
+---
+
+## v9.17 — both discharge pipes, and the water stays in them
+
+You said it plainly: *"for the Herman impoundment you are using the culvert discharge
+pipes but there are 2 pipes and you only used one, so make sure you account for that and
+the flow goes to the two discharge pipes; make sure the system knows that the water flows
+through the pipes and out to Clear Lake; right now I think it shows that it goes directly
+and makes its own path."*
+
+Two separate things were wrong, and both are fixed.
+
+**The network only connected one barrel.** Jacobs surveyed two 24-in HDPE pipes through
+the sandbag wall in August 2026, inverts 1,341.53 (South) and 1,341.57 (North). EA's drawn
+storm line starts 13 ft west of where the survey plots the pipes' west ends, and the app
+carried one inferred link across that gap — from the **North** pipe only. So the South
+barrel, which has the **lower** invert and is therefore the one the water actually leaves
+through, ended 13 ft short of anything, and the analysis had to put its water back on the
+ground to find the storm line again. There are now two links, one per barrel
+(`pipe_to_main`, `pipe_to_main_s`), both inferred and both recorded as such: 44 structures
+and **27** conduits.
+
+**The discharge route was a raindrop, not the pipe.** The overtopping card's "pipe
+discharge route" was traced by dropping a raindrop at the North pipe's plotted west end
+and letting it find its own way — a terrain analysis that happens to meet a pipe, which is
+exactly the "makes its own path" you saw. It is now built from the **conduit chain
+itself**: the sandbag wall → both 24-in barrels → both links → EA's storm main → the
+junction → the Clear Lake outfall. **812.8 ft of it is pipe and none of it is ground** —
+ordinary descent resumes at the outfall, where the pipe ends, and runs the last 137 ft
+into Clear Lake. The card says so in those words: *"discharging through the two 24-in
+pipes → pipe to main → storm main → Clear Lake outfall"*, with *"no ground between the
+sandbag wall and the outfall"* under it. In 3D both barrels are drawn as pipes and the
+moving water runs through both.
+
+A **raindrop** dropped inside the impoundment still takes the lower invert first — that is
+what one drop does, and it is right — but its card now says the outlet has two barrels and
+which one that drop took.
+
+**Nothing else moved.** Herman's surveyed stages are unchanged (first discharge 1,341.55
+ft / 109.16 ac-ft, sandbag crest 1,343.54, lidar rim spill 1,343.84, freeboard 7.39 ft, 44
+stage rows); the drainage map's 100-out-of-100 identity and every catchment acreage are
+unchanged (Clear Lake 403.05 ac, off-survey 293.45, the outfall 282.00). The one number
+that moved is the raindrop's pipe length out of the impoundment, 813.3 → **812.8 ft**,
+because the South barrel now goes straight into the main instead of stepping across three
+feet of ground to the North one.
+
+## v9.16 — the staging area and the borrow area go on the map
+
+The two plan sheets you asked for are now placed. **Fourteen of the twenty drawings are on
+the map**, up from twelve:
+
+- **C-102 — Staging Area.** The contractor's yard, the two borrow-soil staging areas, the
+  gravel area, the construction entrance and the silt-fence limits, laid over the
+  orthophoto and drapeable on the 3D terrain, with a footprint you can click on the map to
+  open the drawing — and marks you make inside the sheet window now come out on the map,
+  which they could not before.
+- **C-203 — Borrow Source Demonstration Area.** The 90 × 120 ft borrow area with its 15 ft
+  demonstration cells, and the whole haul route from the borrow area to the stockpile,
+  placed the same way.
+
+**How, and why you can rely on it.** This sheet set carries no georeferencing, and both of
+these sheets defeated every earlier attempt: C-102 prints no coordinate table at all, and
+C-203's four printed corners are a plain rectangle so symmetric that a fit to them is
+ambiguous under a half turn. EA's June-2026 geodatabase is what changed that — a native
+polygon is a node table with every vertex surveyed. C-102 is fitted from **five** of them at
+once (the staging area, both borrow-soil staging areas, the gravel area and the construction
+entrance — 127 vertices deciding four unknowns); C-203 from the borrow rectangle plus the
+15 ft cell grid its own work sequence specifies inside it.
+
+The rule this repository has always used for a sheet still holds: **two independent lines of
+evidence, or it does not get placed.** Rotation is swept with the scale locked to the
+sheet's own plan scale; the free scale then came back **0.02 %** from that nominal on both
+sheets, which is a check rather than a knob. The independent confirmation is the app's own
+orthophoto, which knows nothing about the drawings: it moves each sheet **2.24 ft**, against
+**0.00–3.16 ft** for the twelve sheets whose answer was already known and 60–130 ft for a
+wrong placement. Per-vertex agreement with the drawn linework is a median of **0.52 ft** on
+C-102 (its solid boundaries land at 0.00 ft; the silt fence and the gravel hatch are the
+loose ones) and **0.00 ft** on all four of C-203's printed corners.
+
+For C-203 the half-turn ambiguity is not argued away, it is scored: the accepted rotation
+has to win a table against every rival, and it does — decisively on the two features that
+took **no** part in the fit (the access haul route and the staging area) and, separately, on
+the orthophoto, where the runner-up scores 0.009 against 0.650. The table is printed in the
+README and stored in the drawing's own record.
+
+The two new overlays are 1.2 MB and 3.3 MB of PNG (0.75 ft/px and 1.0 ft/px; C-203's
+covers the whole 1,600 ft plan, haul route included), so both downloads grow by about
+6 MB — the single-file build is now ~141 MB and the field build ~73 MB.
+
+**C-101, the site index sheet, is still not placed** and probably never will be: it is
+mostly sheet-boundary rectangles and text, it has no unique geometry of its own in EA's
+files, and there is nothing on it that imagery can lock onto. It is still fully readable in
+the sheet viewer, like every other drawing in the set.
 
 ---
 
