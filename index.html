@@ -419,6 +419,7 @@ window.SBMM_BUILD="full";
         <select id="v3dDetail">
           <option value="std">standard</option>
           <option value="high" selected>high</option>
+          <option value="ultra">ultra</option>
         </select>
       </span>
       <button class="minib" id="v3dSnap" title="Save a PNG of the current view"><svg class="ic16"><use href="#i-camera"/></svg><span class="tlbl">snapshot</span> </button>
@@ -844,6 +845,8 @@ window.SBMM_BUILD="full";
   <b>Offline</b> — <span class="mono" id="offlineStatus">offline copy: none</span>
   <button class="minib" id="offlineBtn">Make available offline</button>
   <button class="minib" id="offlineRm" hidden>Remove offline copy</button>
+  <label class="chk" style="display:inline-flex;gap:5px;align-items:center;margin-left:4px"
+         title="The terrain tiles are fetched as you look at the site (v20). Include them and the whole pyramid is downloaded now — about 52 MB on top of the app — so the 3D view is complete with no signal."><input type="checkbox" id="offlineTiles"> terrain tiles (52 MB)</label>
   <button class="minib" id="reloadApp" title="A home-screen app has no address bar — this is its refresh">Reload app</button><br>
   <b>Apple Pencil</b> — a pen tap places a vertex exactly where the tip is (no loupe, mouse-size
   snapping), a pen hover moves the osnap glyph and the 3D highlight, and your palm is ignored while
@@ -886,6 +889,10 @@ window.SBMM_BUILD="full";
 
 <script>SBMM_PERF.mark("vendor-js")</script>
 <script src="datajs/d_affine.js"></script>
+<!-- v20 §2: the tile pyramid INDEX only. The tiles themselves are injected
+     on demand by js/tiles.js (a <script src>, never a fetch), and in the
+     single-file builds they are cut from the resident rasters instead. -->
+<script src="datajs/tiles/index.js"></script>
 <script src="datajs/d_dem_site.js"></script>
 <script src="datajs/d_dem_abp.js"></script>
 <script src="datajs/d_dem_res.js"></script>
@@ -1023,6 +1030,7 @@ window.SBMM_HEAVY = [
 <script src="js/util.js"></script>
 <script src="js/jobs.js"></script>
 <script src="js/dem.js"></script>
+<script src="js/tiles.js"></script>
 <script src="js/proj.js"></script>
 <script src="js/state.js"></script>
 <script src="js/layerstate.js"></script>
@@ -1059,6 +1067,7 @@ window.SBMM_HEAVY = [
 <script src="js/features.js"></script>
 <script src="js/io.js"></script>
 <script src="js/table.js"></script>
+<script src="js/terrain3d.js"></script>
 <script src="js/viewer3d.js"></script>
 <script src="js/pick3d.js"></script>
 <script src="js/sheetmarks.js"></script>

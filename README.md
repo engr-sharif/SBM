@@ -1223,6 +1223,54 @@ Python implementation of the same definitions over the same PNG-decoded grids:
 `test/water_kernels.mjs` reproduces all 37 reference numbers in `docs/V10_WATER_SPEC.md` §9
 in node, without a browser, and is the fast loop for anyone touching them.
 
+## Tiled terrain (v20)
+
+> **The 3D view draws the 1-ft survey at 1 ft.** Until v20 it built one mesh per DEM,
+> decimated so the whole thing fitted on screen at once: the 1-ft mine-area grid was
+> sampled every 4th foot, and there was no way to get closer. Now the terrain is a
+> quadtree of 256 x 256 tiles, and the view picks a level per tile from how big a DEM
+> cell would be on screen — so a tile under your nose is drawn at 1 ft and the far side
+> of the lake costs a few hundred triangles.
+
+**Where the tiles come from.** `python tools/build_tiles.py` cuts five pyramids out of
+the site rasters — terrain, orthophoto, hillshade, canopy and land cover — 2,311 tiles
+and 52 MB, each one a 256 x 256 image at a cell size of 1, 2, 4, 8, 16, 32 or 64 ft.
+Terrain tiles are the same terrain-RGB encoding everything else in this app uses, and a
+tile pixel sits exactly on a survey grid node: **a tile is a decimation of the survey,
+never a resample of it.**
+
+**Two sources, and only one of them is a number.** The whole-site grids are still the
+analysis source — every volume, every isopach, every raindrop, every contour you export
+reads them and nothing here touches them. The pyramid is the display source. They have
+to agree, so the test suite samples a thousand random surveyed points through both and
+requires them to be equal; the worst difference is **0.000000000 ft**.
+
+**Detail is a pixel budget now.** The 3D toolbar's *detail* picker is how big a terrain
+cell is allowed to be on screen — **standard** 4 px, **high** 2 px, **ultra** 1 px —
+and it is remembered. On a 1440 x 900 window over the mine area: standard draws 9 tiles
+and 0.84 M triangles, high draws 24 tiles and 2.69 M with 1-ft tiles under the camera,
+ultra draws 30 and 3.49 M. The old build drew 1.98 M vertices and never got below 4 ft.
+Phones and the field build stay on standard.
+
+**Nothing is fetched.** A tile arrives as a `<script>` tag injected into the page, which
+is the only thing that loads when you have double-clicked an HTML file — the same reason
+every other payload in this app is a script. The single-file builds carry no tiles at
+all: they already hold the whole rasters, so a tile is simply cut out of them in memory,
+and inlining the pyramid would have taken the single file from 133 MB to about 206 MB
+for information it already had. Tiles are cached with a memory budget (256 MB on a
+desktop, 96 MB on a tablet) and the ones furthest from where you are looking are dropped
+first.
+
+**Hillshade, slope and aspect now run on the graphics card.** They are computed from the
+terrain tile itself in a shader, so the sun control in *View settings* relights the whole
+model as you drag it instead of recomputing a raster — and the contours you export are
+still computed on the CPU, from the survey grid, exactly as before. Without WebGL2 the
+old rasters answer instead and the view says so.
+
+**Offline.** Beside *Make available offline* there is a **terrain tiles (52 MB)** tick.
+Without it the offline copy has the app but fetches tiles as you look around; with it the
+whole pyramid comes down and the 3D view is complete with no signal.
+
 ## Drainage map — where every acre goes
 
 > **The whole site, 978.5 surveyed acres, coloured by the outlet each square foot

@@ -1771,6 +1771,19 @@ and mouse-sized for a pen or a mouse on the same screen a second later.
 
 Seven things here will be walked into again:
 
+- **THE RECOGNISER IS TIMED BY THE GLASS, NOT BY THE MAIN THREAD (v20).** A tap
+  is "pointerdown to pointerup inside `tapMs`", and the clock used to read at
+  HANDLING time — so a long task between the two changed what the gesture WAS:
+  a 60 ms two-finger tap measured 503 ms and silently stopped being a tap. On
+  software GL at a horizon-on pose ONE frame is ~500 ms, so any frame landing in
+  the window busts a 300 ms budget however little work is queued; on a phone it
+  is the tap a user is most annoyed to lose. `eventClock()` feeds `e.timeStamp`
+  — a DOMHighResTimeStamp on `performance.now()`'s own time origin, set when the
+  browser CREATED the event — into the recogniser's injectable `now` for the
+  duration of that call. **Both feeds go through it**: `gestures()` and
+  `wireMap()`'s capture-phase listeners. A synthetic event with no usable
+  timeStamp falls back to the clock, and `test/touch_unit.mjs` injects its own
+  `now` and is untouched.
 - **The recogniser is ONE implementation and it is DOM-free.**
   `SBMM.touch.recognizer(handlers, opts)` takes pointer-shaped records and calls
   handlers; `gestures(el, h)` is the thin part that wires real events to it.
@@ -2636,3 +2649,220 @@ that true.
   measurement is `scratchpad/conv.mjs`'s shape and is trivial to repeat. If a
   future storm makes `nStorm x nUH` an order of magnitude bigger, measure again
   before assuming the answer still holds.
+
+## v20 — tiled terrain, on-demand payloads, and the GPU rasters
+
+Contract: `docs/V20_TERRAIN_SPEC.md`. No kernel work (`js/compute.js` is not
+touched). New files `tools/build_tiles.py`, `datajs/tiles/` (2,311 tiles +
+`index.js`), `js/tiles.js` (`SBMM.tiles`), `js/terrain3d.js`
+(`SBMM.terrain3d`); the rest is `js/dem.js` (a pooled tile decoder),
+`js/viewer3d.js` (which terrain builder owns the meshes), `sw.js` +
+`js/touch.js` (the opt-in tile precache) and `index.html`. Harnesses
+`test/tiles.mjs` (node) and `test/terrain3d.mjs` (browser, folder + dist);
+shots `test/terrain_shots.mjs`; probe `test/webgpu_probe.mjs`.
+
+### TWO SOURCES, AND THE RULE IS NOT NEGOTIABLE
+
+**The three whole-site grids are the ANALYSIS source; the tile pyramid is the
+DISPLAY and 3D source.** `SBMM.elev / demAt / demForBox / dems`, `drapeZ`,
+every kernel, every golden and every quantity someone digs from go on reading
+the same grids they always did, unchanged and unmoved. Nothing in `js/tiles.js`
+or `js/terrain3d.js` may become an input to a number.
+
+The two agree by construction rather than by assertion. The tile scheme is
+anchored at the site DEM's SW corner with `cell = 2**z` feet and 256 x 256
+tiles, so a tile pixel lands EXACTLY on a source grid node at every level:
+`tools/build_tiles.py` samples the nearest node and never averages, and a
+coarse tile is a decimation, the same way `strideFor` decimated before it.
+`test/tiles.mjs` samples 1,000 pseudo-random surveyed points through both at
+the finest level each has (189 on 1-ft tiles, 811 on 2-ft) and requires
+equality: **worst difference 0.000000000 ft**.
+
+**The comparison is node against node, and that is not a weakening.** Comparing
+a tile against the bilinear `SBMM.elev` at an arbitrary point compares a sample
+with an interpolation between samples — on the 2-ft grid that is legitimately
+up to half a cell of relief (1.17 ft was the worst of the first thousand
+tried), and it says nothing about whether the sources agree. The harness prints
+the bilinear spread beside the result so nobody has to rediscover this.
+
+### The pyramid, and where the tiles actually come from
+
+`python tools/build_tiles.py` cuts five quadtrees from the repo's own rasters —
+the masters are on the user's machine, and `SBMM_TILES.index.source` says so in
+those words. 2,311 tiles, 52.0 MB, largest tile 119 kB (the spec's cap is 200):
+
+| layer | tiles | payload | levels |
+|---|---|---|---|
+| dem | 422 | 25.9 MB | z0 (1 ft) over the two 1-ft windows, z1..z6 site-wide |
+| ortho | 739 | 8.5 MB | z0 over the 6-in/3-in imagery, z1..z6 site-wide |
+| hillshade | 471 | 3.6 MB | z1..z6 |
+| chm | 213 | 10.4 MB | z0..z4, the mine window only |
+| cover | 466 | 3.6 MB | z1..z4, PNG (the palette IS the legend) |
+
+`python tools/build_tiles.py --reindex` rebuilds `index.js` from the tiles
+already on disk in seconds. The index is 30 kB of bookkeeping over 52 MB of
+payload, and it is the part that changes when the RENDERER learns something
+about the pyramid; re-cutting 2,311 PNGs to rewrite a manifest is 35 minutes
+for nothing.
+
+### `SBMM.tiles` — three ways a tile arrives, in this order
+
+1. already in `window.SBMM_TILES` (inlined, or injected by an earlier `get`);
+2. a **`<script src="datajs/tiles/…">` injected into the head** — the one
+   technique that works over `file://`, over http and inside the offline copy.
+   **There is still no `fetch()` in this app** and there will not be one;
+3. **SYNTHESISED from the resident whole rasters.**
+
+The third is a deviation from the spec's "in the single-file builds every tile
+is already inlined", taken deliberately and measured: inlining the pyramid
+takes the full dist from 133 MB to ~206 MB **for information it already
+carries**. So the dists ship the 30 kB index and no tile payloads, and `get()`
+cuts the tile out of the grids and imagery already in memory — bit-identical
+for a DEM tile, because both paths are the same grid nodes through the same
+terrain-RGB step, and `test/terrain3d.mjs` runs against the dist to prove it.
+The field build works for exactly the same reason.
+
+An LRU with a byte budget (256 MB desktop, 96 MB under `body.touch`) evicts by
+distance from the focus point first and recency second — a tile behind the
+camera is worth less than an old one under it — and drops its payload string
+with it. The request queue is priority-ordered and cancellable; a dropped
+request rejects with `{cancelled:true}`, which every caller reads as "not an
+error".
+
+`js/dem.js` gained a **pooled** tile decoder over the same worker source as the
+per-payload path (`demDecodeWorkerMain`, the same terrain-RGB loop, so a tile
+and a payload cannot disagree about what a pixel means). Pooled because one
+worker per 256 x 256 decode costs more in construction than the decode.
+
+### `SBMM.terrain3d` — the quadtree, and six traps in it
+
+Levels are selected per **settled** view by screen-space error and each tile
+carries its own drape from the ortho pyramid. The whole-DEM build is still
+there and is what a build with no tile index gets; `terrainMeshes` holds the
+same `{mesh, nx, ny, dem}` records either way, so the raycast, the relief
+slider and `stats()` do not branch. `stats().terrainLod` says which one is on.
+
+- **A tile's pixels do not reach its edge.** Pixel i sits at `x0 + i*cell`, so
+  pixel 255 is one cell short of the east edge and two abutting tiles would
+  leave a cell-wide **HOLE**, not a crack. The mesh is 257 x 257 with the extra
+  row and column ON the edge, taking the last pixel's value; the skirts (a
+  border ring dropped `max(8, 3*cell)` ft) cover the one cell of relief left.
+- **The descent rule needs the `partial` flag, and getting it wrong is silent.**
+  On a NOT-partial level an absent child means the ground there is absent too
+  (the parent is the same samples, coarser), so descend as soon as ONE child
+  exists and skip the empty quadrants. On a **partial** level — `dem` z0, which
+  `build_tiles.py` writes only where the 1-ft windows cover the whole square —
+  an absent child means the FINE data does not reach while the parent still has
+  ground, so all four are required. "All four everywhere" was tried first and
+  the quadtree drew nothing but its 64-ft root: **level 5 has three tiles, not
+  four**, because the fourth is entirely off the survey.
+- **The screen-space error is measured at the tile's CENTRE, not its nearest
+  corner.** The nearest corner gives a guaranteed bound and costs eight times
+  the geometry for it — 2.58 M vertices at 2 px against ~0.32 M ideal for the
+  viewport, because a 2,048-ft tile whose near corner is 300 ft away is
+  subdivided although its far end is 2,000 ft away. At the centre the near edge
+  is under-refined by one level at most, which is what the skirts are for.
+- **The drawn set is swapped WHOLE.** A half-loaded set either draws a coarse
+  tile over its own children (z-fighting) or leaves a hole, so the new set is
+  built beside the old one and swapped once every tile of it is in hand.
+- **Selection runs on a settled camera, never per frame**, and `update()`
+  returns without asking for a frame when the drawn set has not changed. A
+  per-frame reselect makes an idle view render for ever and block **9e** fails
+  exactly that (its contract is at most one render over four idle seconds). A
+  long camera flight refines as it goes, at most every 700 ms, because the view
+  is already redrawing.
+- **The frustum box uses the whole site's elevation range.** It culls less than
+  a per-tile range would and can never cull something visible, which is the
+  only property that matters; and a frustum that misses every root tile falls
+  back to the roots rather than blanking the view.
+
+The detail picker is a screen-space error budget now — **std 4 px, high 2 px,
+and a new ultra at 1 px**. The two old values keep their names and their
+meaning (std coarser than high) because they are a remembered preference and
+three harnesses read them; field mode still opens at `std`.
+
+Measured on the folder build at 1440x900 under software GL
+(`node test/terrain3d.mjs`):
+
+| quality | tiles | levels drawn | vertices | triangles | geometry | frame |
+|---|---|---|---|---|---|---|
+| std 4 px | 9 | 2/4/8/32 ft | 594,441 | 840,178 | 7.2 MB | 1,008 ms |
+| high 2 px | 24 | 1/2/4/8 ft | 1,585,176 | 2,691,496 | 19.3 MB | 3,299 ms |
+| ultra 1 px | 30 | 1/2/4/8 ft | 1,981,470 | 3,490,216 | 24.2 MB | 4,162 ms |
+
+against the whole-DEM build's **1,979,518 vertices that never drew the 1-ft
+data below 4 ft**. High is a fifth fewer vertices AND draws 1-ft tiles at 1 ft.
+
+### §4 — the GPU rasters, and what stays on the CPU
+
+Hillshade, slope, aspect and **display** contours are computed in one fragment
+shader from the tile's own DEM, so the v15 sun control relights the whole
+terrain live instead of recomputing a raster (moving it rebuilds no tile — the
+harness asserts that). **The analytic contours (`contoursFromGrid`, what goes
+into a DXF) and every kernel stay on the CPU and are the source of truth.**
+Without WebGL2 the CPU pyramid answers instead and `stats().tiles.gpuRaster`
+says so.
+
+**The DEM reaches the GPU as terrain-RGB BYTES, not as a float texture.** A
+float texture needs WebGL2 plus a filtering extension and buys nothing at
+NEAREST; the two bytes the app already encodes decode exactly in the shader, so
+the same path works without float support and cannot disagree with `js/dem.js`
+about what a pixel means. `SBMM.terrain3d.renderRasterTile()` draws one tile
+through that shader into an offscreen target and `cpuHillshade()` is the same
+formula in JS: **mean absolute difference 0.013 of 255** (the spec's bar is 2).
+
+### The offline copy
+
+`index.html` names only the 30 kB tile index, so the offline copy would
+otherwise have no pyramid. **"terrain tiles (52 MB)"** beside the offline button
+is the opt-in: `{type:"precache", tiles:true}` makes `sw.js` read the tile index
+out of the payload it just cached and add every tile it names — one list, not
+two, the same rule the script list follows. A tile that will not cache is a hole
+in the pyramid (the loader falls back to a coarser level, or to synthesis) and
+is skipped; anything else failing still stops the copy, because that one would
+not open.
+
+### What was NOT achieved, and why — the boot budget
+
+**The spec's §6 line "boot parses < 12 MB of payload before the loader hides"
+is not met and cannot be while the whole-site grids are the analysis source.**
+`SBMM.elev` has to answer the moment a tool is armed, so the three DEM payloads
+(24.4 MB of base64) are parsed and decoded inside the loader exactly as before;
+the tile pyramid is additive to the display path and takes nothing off the boot.
+Reaching the budget means letting the app become interactive BEFORE the analysis
+grids land — a `SBMM.demReady` gate through roughly fifteen modules — which is a
+change to the analysis contract and belongs to the planner, not to this round.
+The stage table is unchanged within noise (`test/boot_time.mjs`), and the tile
+index adds 30 kB to it.
+
+### WebGPU (§5) — the finding, measured
+
+`node test/webgpu_probe.mjs` answers it rather than arguing it: it launches its
+own Chromium with `--enable-unsafe-webgpu --use-webgpu-adapter=swiftshader` and
+loads one page over `file://` AND over http.
+
+| | file:// | http |
+|---|---|---|
+| `navigator.gpu`, adapter, device, a WGSL pipeline compiling | yes (SwiftShader) | yes |
+| inline `<script type="module">` | **yes** | yes |
+| `<script type="module" src="sibling.js">` | **NO** — CORS refuses a module fetch from an opaque origin | yes |
+| `import(blobURL)` | **yes** | yes |
+| an import map whose specifier is a blob: URL, imported from another blob module | **yes** | yes |
+
+**So the constraint everyone assumes is fatal is not.** An ES-module library CAN
+be loaded in both shipping shapes of this app — inline the sources, hand each to
+`URL.createObjectURL`, name them in an import map and `import()` the entry. That
+is the finding, and it is the useful half: it applies to any future ES-only
+dependency, not only to WebGPU.
+
+**WebGPU was still not adopted, for a reason that is about this repo rather than
+about the browser.** `vendor/three.bundle.js` is three r160's classic WebGL
+build and contains no WebGPU renderer at all — only an `isWebGPURenderer`
+duck-type check. Adopting one means vendoring the entire node-material ES module
+graph (hundreds of files in r160, and the renderer was still experimental there),
+generating an import map for it at build time, and carrying a second renderer
+path through every harness — against a WebGL2 path that already delivers what §3
+and §4 asked for. **So the renderer switch was NOT built,
+`SBMM.view.pref("renderer")` does not exist, and every harness runs on WebGL2.**
+The probe is committed so the next person can re-measure in one command rather
+than re-derive it.

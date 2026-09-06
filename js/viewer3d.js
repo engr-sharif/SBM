@@ -108,6 +108,10 @@ SBMM.viewer3d = (function () {
                           Math.max(0.08, Math.sin(el)) * d);
     const lab = $("v3dSunVal");
     if (lab) lab.textContent = Math.round(sunAz) + "° / " + Math.round(sunEl) + "°";
+    /* v20 §4: the shader rasters carry the sun as a uniform, so moving it
+       relights the whole terrain without recomputing a single raster — which
+       is what v15 asked for and what a CPU raster could never do */
+    if (SBMM.terrain3d) SBMM.terrain3d.setSun(sunAz, sunEl);
     requestRender();
   }
   function setSun(az, el, remember) {
@@ -121,6 +125,40 @@ SBMM.viewer3d = (function () {
   const exag = () => parseFloat($("v3dExag").value);
 
   function strideFor(dem, maxDim) { return Math.max(1, Math.ceil(Math.max(dem.m.w, dem.m.h) / maxDim)); }
+
+  /* v20 §3 — the quadtree terrain. `lodOn` says which of the two terrain
+     builders owns the meshes: the tile quadtree in js/terrain3d.js, or the
+     whole-DEM meshes below (still the fallback, and still what a build with no
+     tile index gets). `terrainMeshes` holds the same {mesh, nx, ny, dem} shape
+     either way, so the raycast, the relief slider and stats() do not branch. */
+  let lodOn = false, lodDirty = false, lodMoveAt = 0, lodLast = 0;
+  const LOD_SETTLE_MS = 140;
+  /* the detail picker is a screen-space error budget now: 4 px / 2 px / 1 px.
+     The two old values keep their names and their meaning (std is coarser than
+     high) because they are a remembered preference and three harnesses read
+     them. */
+  function qualityPx() {
+    const d = $("v3dDetail"), v = d ? d.value : "high";
+    return v === "std" ? 4 : v === "ultra" ? 1 : 2;
+  }
+  function lodAvailable() {
+    if (!SBMM.terrain3d || !SBMM.terrain3d.available()) return false;
+    if (SBMM.view && SBMM.view.pref && SBMM.view.pref("terrainTiles") === false) return false;
+    return true;
+  }
+  function lodContext() {
+    return {
+      scene, camera, renderer,
+      center: () => ({ CX, CY, ZMID }),
+      exag, requestRender, maxAniso,
+      quality: qualityPx,
+      zRange: () => SBMM._zrSite || SBMM.demSite.zRange(),
+      onSwap: () => {
+        terrainMeshes = SBMM.terrain3d.records();
+        SBMM._v3dVerts = terrainMeshes.reduce((n, t) => n + t.nx * t.ny, 0);
+      }
+    };
+  }
 
   /* The rectangle a finer DEM occupies, in State Plane feet — a coarser mesh
      punches a hole here so the two do not z-fight. */
@@ -332,6 +370,13 @@ SBMM.viewer3d = (function () {
   }
 
   async function setStyle(kind) {
+    if (lodOn) {
+      await SBMM.terrain3d.setStyle(kind);
+      terrainMeshes = SBMM.terrain3d.records();
+      SBMM._v3dVerts = terrainMeshes.reduce((n, t) => n + t.nx * t.ny, 0);
+      requestRender();
+      return;
+    }
     for (const t of terrainMeshes) {
       const which = whichFor(t.dem);
       const { tex, bounds } = await texture(kind, which);
@@ -1922,12 +1967,27 @@ SBMM.viewer3d = (function () {
   }
 
   async function rebuildTerrain(style) {
-    for (const t of terrainMeshes) {
+    /* the quadtree owns its own geometry — disposing it from here would pull
+       the meshes out from under it */
+    if (lodOn) { SBMM.terrain3d.detach(); lodOn = false; }
+    else for (const t of terrainMeshes) {
       scene.remove(t.mesh);
       t.mesh.geometry.dispose();
       t.mesh.material.dispose();
     }
     terrainMeshes = [];
+    if (lodAvailable()) {
+      lodOn = true;
+      SBMM.terrain3d.attach(lodContext());
+      SBMM.terrain3d.setSun(sunAz, sunEl);
+      await SBMM.terrain3d.setStyle(style || $("v3dStyle").value);
+      await SBMM.terrain3d.update(true);
+      terrainMeshes = SBMM.terrain3d.records();
+      SBMM._v3dVerts = terrainMeshes.reduce((n, t) => n + t.nx * t.ny, 0);
+      lodDirty = false;
+      requestRender();
+      return;
+    }
     const maxDim = detailMaxDim();
     /* One mesh per DEM, coarsest first, each one holed by every finer window
        ahead of it in SBMM.dems. Built in reverse stack order so the loop below
@@ -2222,6 +2282,22 @@ SBMM.viewer3d = (function () {
       const ev = (x, y) => ({ clientX: x, clientY: y, button: 0, pointerId: 1,
                               stopPropagation() {}, preventDefault() {} });
 
+      /* A FINGER ON THE GLASS SUSPENDS TILE WORK (v20 §3).
+
+         js/touch.js's recogniser decides what a gesture WAS from wall clock —
+         a tap is pointerdown to pointerup within 300 ms — so any main-thread
+         work running across a gesture can turn it into something else. The
+         settle guard stops a rebuild STARTING under a finger; this stops one
+         that started before the finger landed, which is the case that actually
+         bit: test/e2e_tablet block 3's two-finger tap came 1.8 s after a
+         double-tap, straight into the rebuild the double-tap's camera move had
+         asked for, and measured 503 ms against a 300 ms window. It is on the
+         canvas in the CAPTURE phase so it runs before the recogniser sees the
+         event, and only for touch — a mouse cannot be mistimed this way. */
+      dom.addEventListener("pointerdown", e => {
+        if (e.pointerType === "touch" && lodOn && SBMM.terrain3d.suspend) SBMM.terrain3d.suspend();
+      }, true);
+
       navRec = SBMM.touch.gestures(dom, {
         panstart() { stopGlide(); vtxDrag = false; },
 
@@ -2305,6 +2381,13 @@ SBMM.viewer3d = (function () {
         twofingertap() {
           st.dst.r = clamp(st.dst.r * 1.6, MINR, MAXR);
           requestRender();
+        },
+
+        end() {
+          /* the gesture is over: let the tiles catch up with wherever it left
+             the camera */
+          if (lodOn && SBMM.terrain3d.resume) SBMM.terrain3d.resume();
+          lodDirty = true; lodMoveAt = performance.now();
         },
 
         longpress(g) {
@@ -2450,6 +2533,48 @@ SBMM.viewer3d = (function () {
      its own and a TAP has to reach exactly the same code a click does. */
   let canvasClick = null;
 
+  /* THE QUADTREE HAS TO MAKE PICKING CHEAPER, NOT DEARER (v20 §3).
+
+     three tests every triangle of every mesh whose bounding sphere the ray
+     touches. Thrown at all thirty tiles that is ~3 M triangle tests and about
+     400 ms of BLOCKED MAIN THREAD — and that is not merely a stutter, because
+     js/touch.js's recogniser classifies a tap by wall clock: the pinch pivot
+     raycast happens on the second finger's `pointerdown`, so the 60 ms
+     two-finger tap in test/e2e_tablet.mjs block 3 arrived at `up` measuring
+     469 ms, past the 300 ms tap window, and silently stopped being a tap.
+     (The whole-DEM build got away with three meshes.)
+
+     So the tiles are ordered by where the ray ENTERS their bounding sphere and
+     raycast one at a time, stopping as soon as the best hit so far is nearer
+     than the next candidate's sphere. That is exact — a mesh whose bounds
+     start beyond a hit cannot contain a nearer one — and it usually stops at
+     the first tile. This is the pick the tiles were supposed to buy. */
+  const _pickSph = new THREE.Sphere(), _pickPt = new THREE.Vector3();
+  function raycastTerrain() {
+    const list = [];
+    for (const t of terrainMeshes) {
+      const m = t.mesh, g = m.geometry;
+      if (!g.boundingSphere) g.computeBoundingSphere();
+      if (!g.boundingSphere) continue;
+      m.updateMatrixWorld();
+      _pickSph.copy(g.boundingSphere).applyMatrix4(m.matrixWorld);
+      if (!raycaster.ray.intersectsSphere(_pickSph)) continue;
+      /* distance to where the ray enters the sphere; 0 when the camera is
+         inside it, which is the conservative answer */
+      const d = raycaster.ray.intersectSphere(_pickSph, _pickPt)
+        ? raycaster.ray.origin.distanceTo(_pickPt) : 0;
+      list.push([d, m]);
+    }
+    list.sort((a, b) => a[0] - b[0]);
+    let best = null;
+    for (const [d, m] of list) {
+      if (best && best.distance <= d) break;
+      const hits = raycaster.intersectObject(m, false);
+      if (hits.length && (!best || hits[0].distance < best.distance)) best = hits[0];
+    }
+    return best;
+  }
+
   /* raycast the terrain under a mouse/pointer event; returns a scene-space Vector3 */
   function pickScene(e) {
     if (!raycaster || !terrainMeshes.length) return null;
@@ -2457,8 +2582,8 @@ SBMM.viewer3d = (function () {
     const r = dom.getBoundingClientRect();
     const p = new THREE.Vector2(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
     raycaster.setFromCamera(p, camera);
-    const hits = raycaster.intersectObjects(terrainMeshes.map(t => t.mesh));
-    const out = hits.length ? hits[0].point.clone() : null;
+    const hit = raycastTerrain();
+    const out = hit ? hit.point.clone() : null;
     lastPick = { x: e.clientX, y: e.clientY, p: out, t: performance.now() };
     return out;
   }
@@ -2609,6 +2734,11 @@ SBMM.viewer3d = (function () {
     camera = new THREE.PerspectiveCamera(55, 1, 5, 90000);
     camera.up.set(0, 0, 1);
     camera.position.set(0, -4000, 3200);
+    /* the quadtree selects against the frustum, and the frustum is nonsense
+       until the camera has been aimed once. nav overrides this on its first
+       update; without it the opening selection sees an identity view matrix. */
+    camera.lookAt(0, 0, 0);
+    camera.updateMatrixWorld();
 
     hemiLight = new THREE.HemisphereLight(0xC9E2F0, 0x2B3238, 0.85);
     scene.add(hemiLight);
@@ -2627,11 +2757,13 @@ SBMM.viewer3d = (function () {
     envGroup.scale.z = exag();
     scene.add(envGroup);
 
-    await rebuildTerrain("ortho");
-
     raycaster = new THREE.Raycaster();
     nav = makeNav(renderer.domElement);
     nav.setFromCamera();
+    /* the terrain is built AFTER the rig (v20 §3): the quadtree picks its
+       levels from the frustum, so it needs the camera the user will actually
+       be looking through, not the one three.js constructed */
+    await rebuildTerrain("ortho");
     /* Hand the scene to the pick registry BEFORE the first rebuildOverlays, so
        the objects that rebuild makes are registered as it makes them (§8). */
     if (SBMM.pick3d) SBMM.pick3d.attach({
@@ -2753,6 +2885,27 @@ SBMM.viewer3d = (function () {
         }
       }
       const moved = nav.update();
+      /* v20 §3, trap 4: the quadtree re-selects on a SETTLED camera, never per
+         frame. update() returns without asking for a frame when the drawn set
+         has not changed, which is what keeps an idle view at zero renders. */
+      if (lodOn) {
+        const nowL = performance.now();
+        if (moved) {
+          lodMoveAt = nowL; lodDirty = true;
+          /* a long flight refines as it goes rather than only on arrival — the
+             view is already redrawing, so this costs a selection and nothing
+             else, and openAt() over the mine window otherwise sat at 64 ft for
+             the whole descent */
+          if (nowL - lodLast > 700) { lodLast = nowL; SBMM.terrain3d.update(); }
+        } else if (lodDirty && nowL - lodMoveAt > LOD_SETTLE_MS
+                   && !(nav.touchCount && nav.touchCount() > 0)) {
+          /* never rebuild under the user's fingers: a gesture in progress is
+             timed in wall clock by the recogniser, and a rebuild inside it
+             changes what the gesture was */
+          lodDirty = false; lodLast = nowL;
+          SBMM.terrain3d.update();
+        }
+      }
       if (moved || needsRender) {
         needsRender = false;
         renderCount++;
@@ -2774,6 +2927,7 @@ SBMM.viewer3d = (function () {
     $("v3dExag").oninput = () => {
       const zx = exag();
       terrainMeshes.forEach(t => t.mesh.scale.z = zx);
+      if (lodOn) SBMM.terrain3d.setExag(zx);
       if (canopyMesh) canopyMesh.scale.z = zx;
       if (overlayGroup) overlayGroup.scale.z = zx;
       if (contourGroup) contourGroup.scale.z = zx;
@@ -2918,6 +3072,7 @@ SBMM.viewer3d = (function () {
       $("v3dStatus").textContent = "rebuilding terrain…";
       await new Promise(r => setTimeout(r, 30));
       await rebuildTerrain();
+      await refreshTerrainForCamera();
       $("v3dStatus").textContent = "";
     };
 
@@ -3199,6 +3354,24 @@ SBMM.viewer3d = (function () {
     scene.add(sketchObj);
     requestRender();
   }
+  /* v20 §3: the quadtree picks its levels from the camera, and nav.place()
+     only sets the DESIRED state — the camera itself is written in the render
+     loop. So opening the view has to step the rig once and re-select before it
+     says it is ready, or the terrain that greets the user is the 64-ft root
+     built against three.js's constructor camera and it refines a few seconds
+     later. That was visible as e2e block 9a-2 reading 66,049 vertices for
+     "high" and 1,585,176 for the same setting a moment afterwards. */
+  async function refreshTerrainForCamera() {
+    if (!lodOn || !nav || !camera) return;
+    nav.update();
+    camera.updateMatrixWorld();
+    await SBMM.terrain3d.update(true);
+    terrainMeshes = SBMM.terrain3d.records();
+    SBMM._v3dVerts = terrainMeshes.reduce((n, t) => n + t.nx * t.ny, 0);
+    lodDirty = false;
+    requestRender();
+  }
+
   async function toggle() {
     if (open) close();
     else {
@@ -3208,6 +3381,7 @@ SBMM.viewer3d = (function () {
       /* where the camera was last time, if it is still a sane place to stand
          (F11); otherwise frame whatever the 2D map is looking at, as before */
       if (!restoreCamera()) flyTo(c.lng, c.lat);
+      await refreshTerrainForCamera();
     }
   }
   /* ---- camera persistence (F11) ----
@@ -3243,6 +3417,7 @@ SBMM.viewer3d = (function () {
   async function openAt(x, y) {
     $("view3dBtn").classList.add("active");
     await show(); flyTo(x, y);
+    await refreshTerrainForCamera();
   }
   /* camera position in survey terms: State Plane feet + true elevation (un-exaggerated) */
   function cameraWorld() {
@@ -3255,6 +3430,12 @@ SBMM.viewer3d = (function () {
     return {
       detail: $("v3dDetail") ? $("v3dDetail").value : null,
       terrainVerts: terrainMeshes.reduce((n, t) => n + t.nx * t.ny, 0),
+      /* v20 §3: which terrain builder owns the meshes, and what the quadtree
+         is drawing — tiles, the finest level reached, triangles and bytes */
+      terrainLod: lodOn,
+      terrainQualityPx: qualityPx(),
+      tiles: lodOn ? SBMM.terrain3d.stats() : null,
+      tileCache: SBMM.tiles && SBMM.tiles.ready() ? SBMM.tiles.stats() : null,
       sceneObjects: scene ? scene.children.length : 0,
       /* v19.1 — what the GPU is actually holding, and the cap that decided it.
          `texPx` is the largest drape texture in megapixels: the number that
