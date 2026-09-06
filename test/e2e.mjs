@@ -4,7 +4,7 @@ import { launch, TIMEOUT } from "./lib/browser.mjs";
 import { pathToFileURL as __furl } from "node:url";
 import { resolve as __res } from "node:path";
 import { existsSync as __ex, readFileSync as __read } from "node:fs";
-import { unlock, gatePassword } from "./gate.mjs";
+import { unlock, gatePassword, FORCE_JS } from "./gate.mjs";
 import { block, S } from "./lib/blocks.mjs";
 
 const target = process.argv[2]; // path to index.html or dist html
@@ -6601,6 +6601,102 @@ await page.screenshot({ path: "/tmp/shot_props_" + label.replace(/\W+/g, "_") + 
 
 /* ==================================================================== */
 let errBeforeTree, treeBase, tree, treeKeys, treeMissing, treeNew, treeUnexplained, treeSearch, treeSolo, treeActs, gripBox, treeOrder, grip2, treeOrder2, treePreset, treeSess, kbBefore, kbAfter, kbMoved, treeLegend, errBeforeReload, treeReload;   /* hoisted — v18 §3 */
+await block("9ac. the compute core", async () => {
+/* 9ac. the compute core — v21, docs/V21_WASM_SPEC.md §3/§5             */
+/* ==================================================================== */
+/* The identity between the two cores is proved in node, kernel by kernel and
+   bit by bit (test/kernels.mjs, `wasm` section). What is proved HERE is that
+   the APP wires it up: the payload really decodes in this build, the workers
+   really got it, the Help switch really forces the JavaScript path, and THE
+   GOLDEN comes out the same either way — which is the one thing a user would
+   never forgive being different.
+
+   It runs on all three builds and must pass on a build with no core at all:
+   `wasmInfo().loaded` false is a legitimate answer (an older payload, a
+   browser without WebAssembly), and then the block asserts the JavaScript path
+   is reported honestly rather than claiming a core that is not there. */
+const coreBefore = errors.length;
+const core = await page.evaluate(() => {
+  const i = SBMM.compute.wasmInfo();
+  return { backend: SBMM.compute.backend(), loaded: i.loaded, forced: i.forcedJs,
+           bytes: i.bytes, version: i.version };
+});
+console.log("compute core:", core.loaded
+  ? `wasm v${core.version}, ${core.bytes} bytes, backend ${core.backend}`
+  : `not loaded — backend ${core.backend}`,
+  FORCE_JS ? "(SBMM_WASM=0)" : "");
+/* SBMM_WASM=0 seeds the switch through test/gate.mjs, so under it the app is
+   SUPPOSED to start forced — and the whole matrix has to be green that way
+   (v21 §5). Everything below then asserts the JavaScript path instead. */
+if (core.forced !== FORCE_JS) {
+  console.log("FAIL: forcedJs is", core.forced, "with SBMM_WASM=0 =", FORCE_JS); process.exit(1); }
+const wantWasm = core.loaded && !FORCE_JS;
+if (wantWasm && core.backend !== "wasm") {
+  console.log("FAIL: the core loaded but backend() says", core.backend); process.exit(1); }
+if (!wantWasm && core.backend !== "js") {
+  console.log("FAIL: expected the JavaScript path, backend() says", core.backend); process.exit(1); }
+
+/* the golden, on whichever core this build has */
+const goldWasm = await page.evaluate(async () => {
+  SBMM.tools.volumeOfPile("Pile 1 (Fig 2)");
+  const f = SBMM.store.features[SBMM.store.features.length - 1];
+  for (let i = 0; i < 200 && f.props.fill_yd3 == null; i++) await new Promise(r => setTimeout(r, 100));
+  const r = { fill: f.props.fill_yd3, net: f.props.net_yd3,
+              backend: SBMM.compute.stats.lastBackend };
+  SBMM.tools.deleteFeature(f);
+  return r;
+});
+
+/* the Help switch: force the JavaScript kernels, and run it again */
+const forced = await page.evaluate(() => SBMM.compute.forceJs(true));
+if (forced !== "js") { console.log("FAIL: forceJs(true) reported", forced); process.exit(1); }
+const goldJs = await page.evaluate(async () => {
+  SBMM.tools.volumeOfPile("Pile 1 (Fig 2)");
+  const f = SBMM.store.features[SBMM.store.features.length - 1];
+  for (let i = 0; i < 200 && f.props.fill_yd3 == null; i++) await new Promise(r => setTimeout(r, 100));
+  const r = { fill: f.props.fill_yd3, net: f.props.net_yd3,
+              backend: SBMM.compute.stats.lastBackend };
+  SBMM.tools.deleteFeature(f);
+  return r;
+});
+await page.evaluate(() => SBMM.compute.forceJs(false));
+
+console.log(`Pile 1 on ${goldWasm.backend}: ${goldWasm.fill} yd³ | on ${goldJs.backend}: ${goldJs.fill} yd³`);
+if (goldJs.backend !== "js") {
+  console.log("FAIL: the forced run still reported backend", goldJs.backend); process.exit(1); }
+if (wantWasm && goldWasm.backend !== "wasm") {
+  console.log("FAIL: the first run did not use the core:", goldWasm.backend); process.exit(1); }
+/* the two cores must AGREE — this is the contract, and it is exact here
+   because `volume` is one of the bit-identical ports */
+if (goldWasm.fill !== goldJs.fill || goldWasm.net !== goldJs.net) {
+  console.log("FAIL: the two cores disagree about Pile 1",
+              goldWasm.fill, goldJs.fill, goldWasm.net, goldJs.net); process.exit(1); }
+if (Math.abs(goldJs.fill - 278.4) > 10) {
+  console.log("FAIL: the golden moved", goldJs.fill); process.exit(1); }
+
+/* the switch is remembered, and the Help checkbox is a view onto it */
+const sw = await page.evaluate(() => {
+  const cb = document.getElementById("wasmSwitch");
+  if (!cb) return { missing: true };
+  cb.checked = true; cb.onchange();
+  const stored = (() => { try { return localStorage.getItem("sbmm.wasm.v1"); } catch (e) { return null; } })();
+  cb.checked = false; cb.onchange();
+  const cleared = (() => { try { return localStorage.getItem("sbmm.wasm.v1"); } catch (e) { return null; } })();
+  return { stored, cleared, backend: SBMM.compute.backend(), text: document.getElementById("wasmStatus").textContent };
+});
+if (sw.missing) { console.log("FAIL: Help has no compute-core switch"); process.exit(1); }
+if (sw.stored !== "js" || sw.cleared !== null) {
+  console.log("FAIL: the switch is not remembered", sw); process.exit(1); }
+/* the block just cleared the seeded preference — put it back so the rest of
+   the run is on the core the runner asked for */
+if (FORCE_JS) await page.evaluate(() => SBMM.compute.forceJs(true));
+if (!sw.text) { console.log("FAIL: the Help line says nothing about the core"); process.exit(1); }
+console.log("core switch:", sw.text);
+if (errors.length !== coreBefore) {
+  console.log("FAIL: the compute-core block raised page errors:",
+              errors.slice(coreBefore, coreBefore + 4)); process.exit(1); }
+});
+
 await block("9z. the layer tree", async () => {
 /* 9z. the layer tree (v16, docs/V16_LAYERS_SPEC.md §3)                  */
 /* ==================================================================== */
