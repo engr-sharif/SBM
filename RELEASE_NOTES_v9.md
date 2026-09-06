@@ -17,6 +17,51 @@ All three are offline-only by design. Nothing in this app calls out to the inter
 
 ---
 
+## v9.19 — the app on a phone
+
+Two things were reported from an iPhone, on the folder build served from GitHub
+Pages, and both are fixed.
+
+**The screen came apart.** The map filled about 60 % of the screen; under it sat
+the desktop command hint strip, the desktop status bar, the field action bar and
+then the right-hand Inspector panel, cut off at the bottom. None of that is the
+field layout. What was happening: field mode parks the two panels *below* the
+screen, and a browser counts that parked panel as page you could scroll to —
+about 450 px of it. The app is not meant to scroll at all, and a finger cannot
+scroll it, but iOS itself scrolls the page to lift a text field above the
+on-screen keyboard, and the password box is the first thing anyone types into.
+The page stayed scrolled, and because every bar is pinned to the screen rather
+than to the document, the whole app came up a quarter of a screen too high. The
+page is now not scrollable at all, by anyone or anything, and there is a guard
+in the app that puts it back if a browser ever tries.
+
+**The command hint strip is gone from the phone.** It was opening itself on a
+first visit so it would be discoverable — which is right at a desk and wrong
+under a thumb: there is no backtick key on a phone, and it was teaching AutoCAD
+chords ("MI · RO · M · CO · J · X") in a 32-px strip taken out of the map.
+Commands are still one tap away in **More**.
+
+**3D stopped crashing the tab.** The folder build was loading everything the
+phone build deliberately leaves out — the twenty full-sheet drawings, the canopy
+model, EA's native CAD and the recovered design surfaces, about 50 MB of it —
+and then 3D drew its aerial drape at 178 megapixels on top. iOS kills a tab that
+grows past roughly a gigabyte. Now the folder build asks what it is running on:
+**on a phone it loads exactly what the phone build loads**, and 3D caps its drape
+at 2,048 px. Measured on an iPhone-sized browser: **484 MB of memory after
+loading and 532 MB after opening 3D, down to 326 MB and 367 MB** — and the
+picture the 3D view drapes over the mine area went from 178 million pixels to
+3.8 million, which the memory figure does not even count. Everything
+that needed one of those payloads already says so — the sheet list still shows
+all twenty drawings and tells you the render is not in this copy — and a tablet
+or a desktop is completely unaffected.
+
+**Nothing tested this before, which is why it shipped.** The test suite ran the
+desktop, the iPad and the phone *build* — never the folder build at phone size,
+which is exactly what the team opens. There is a new test that does, and it runs
+on every change.
+
+---
+
 ## v19 — where the water gathers, what the pipes can carry, and what-ifs
 
 Three things, and one of them changes numbers you have already seen.

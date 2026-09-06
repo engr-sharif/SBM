@@ -82,8 +82,12 @@ SBMM_GPU=1 node test/run.mjs       # render on a real GPU (§2 below)
   broke the Pages build); no `</script` inside either Blob-worker function
   (`installWorker`, `demDecodeWorkerMain` — `js_safe` would mangle it); **no duplicate
   command alias**, read statically out of `js/cmdline.js`'s own table; every `js/*.js`
-  in `index.html`'s script list and every listed script present; no model name in the
-  docs. A preflight failure stops the matrix before a browser opens.
+  in `index.html`'s script list and every listed script present; **every entry of
+  `window.SBMM_HEAVY` present and not also a static tag** (v19.1); **every LOOSE
+  script-src match in `index.html` a real file** — sw.js builds its precache list
+  with a loose regex over the page's own text, so a script tag written inside a JS
+  string becomes a URL it 404s on and aborts the whole precache over (v19.1); no
+  model name in the docs. A preflight failure stops the matrix before a browser opens.
 
 **The browser lock — `test/lib/lock.mjs`.** Two software-GL renderers on a two-core box
 crash the compositor ("Target crashed"), which looks like a test failure and is not one.
@@ -125,6 +129,7 @@ node test/split3d.mjs /abs/path/index.html                folder
 node test/split3d.mjs /abs/path/dist/SBMM_Site_Explorer.html dist
 node test/e2e_field.mjs /abs/path/dist/SBMM_Site_Explorer_field.html field
 node test/e2e_tablet.mjs /abs/path/index.html                tablet
+node test/e2e_phone.mjs  /abs/path/index.html                phone
 ```
 `test/e2e_tablet.mjs` is the v17 harness: Playwright's **`iPad Pro 11 landscape`**
 descriptor (1194x834, DPR 2, touch) against the FOLDER build, served BOTH ways —
@@ -136,6 +141,19 @@ viewer, the map + the Pencil + the chrome, and the offline copy.
 **`test/touch_unit.mjs` is the fast loop for it** — node, no browser, ~1 s, 56
 checks over the gesture recogniser's arithmetic; run it after any change to
 `js/touch.js` before you start a browser.
+**`test/e2e_phone.mjs` is the v19.1 harness — the FOLDER build on a PHONE**
+(runner step `phone:http`, ~2 min): Playwright's `iPhone 14 Pro` descriptor
+(393x659, DPR 3, touch) against the folder build, served over the same kind of
+local http server `test/e2e_tablet.mjs` starts and again over `file://`. It is
+the corner of the matrix nothing covered and the one the team actually uses —
+GitHub Pages on a phone. Seven blocks: the profile, the layout invariant (the
+document can never be taller than the viewport and a programmatic scroll must
+not move it), a bottom sheet opening and closing without making it scrollable,
+the heavy payloads being absent AND their refusals toasting, 3D inside a 600 MB
+heap budget at a capped pixel ratio and drape size, the same page on the iPad
+descriptor still carrying every payload, and the same layout over `file://`.
+`node test/phone_shots.mjs` writes `phone_map.png` / `phone_layers.png`; not
+pass-fail — look at them.
 `test/e2e_field.mjs` is the third build's harness (v11 §4.5): Playwright's **`Pixel 7`**
 descriptor (touch, 412x839, DPR 2.625) against the FIELD dist. It re-states the six
 sections §4.5 names — boot, the gate (unlocked by TAP), terrain, the golden Pile 1 volume,
@@ -1892,6 +1910,143 @@ difference posts `{type:"stale"}` to every client, which becomes one toast and a
 icon `<link>`s from both single-file builds — beside a lone HTML file they are
 guaranteed 404s — and keeps the apple/theme meta tags, which carry no URL.
 
+## v19.1 — the FOLDER build on a PHONE (two field reports, one gap)
+
+*(v9.19 in `RELEASE_NOTES_v9.md`; the code and this file tag it v19.1.)*
+
+The engineer opens **the folder build from GitHub Pages on an iPhone**. Nothing
+tested that: `test/e2e.mjs` is the desktop, `test/e2e_tablet.mjs` is the folder
+build at 1194x834, `test/e2e_field.mjs` is the FIELD DIST on a Pixel 7. The one
+corner of the matrix nobody ran is the one the team actually uses, and two
+defects lived in it. `test/e2e_phone.mjs` (runner step **`phone:http`**) is that
+corner: the folder build, Playwright's `iPhone 14 Pro` descriptor, over the same
+local http server the tablet harness starts AND over `file://`.
+
+### Trap 1 — the page was a scroll container, and `overflow:hidden` does not stop a BROWSER
+
+`body.field` parks the two docks below the viewport with `transform:
+translateY(105%)`, and **a transformed box still counts towards the document's
+scrollable overflow**: on a Pixel 7 the folder build's `scrollHeight` was 1292
+against an `innerHeight` of 839 — 453 px of page nobody can see. This repo
+already knows that `overflow:hidden` stops a *user* scrolling and not a
+programmatic one (see the `scrollIntoPane` gotcha), and the browser is the
+programme here: **iOS scrolls the layout viewport to lift a focused input above
+the on-screen keyboard, and the gate's password field is the first thing anyone
+touches.** The page then stays scrolled ~250 px, and because every piece of
+chrome is positioned against the initial containing block the WHOLE app moves
+with it — the slim top bar off the top, the desktop command hint strip and
+status bar into the middle of the screen, and the parked right dock up from
+under the fold. That is exactly the screenshot that was reported.
+
+**The fix is `body{position:relative}`, with `overflow:clip` beside it** — and
+`overflow:clip` on its own is NOT the fix, which is worth knowing because it is
+the obvious answer. Measured on the iPhone descriptor:
+
+| | document | `scrollTo(0,400)` | `body.scrollTop = 400` |
+|---|---|---|---|
+| body static, `html,body{overflow:clip}` | 1000 / 660 | **340** | 0 |
+| `body{position:relative}` + `overflow:hidden` | 660 / 660 | 0 | **340** |
+| `body{position:relative}` + `overflow:clip` | 660 / 660 | 0 | 0 |
+
+Root `overflow:clip` computes (Chromium reports `clip` on the root) and still
+lets the viewport scroll — it behaves as `hidden` does there. What removes the
+overflow is making BODY the containing block: the docks were positioned against
+the initial containing block, which nothing can clip, and `position:relative`
+hands them to body, whose own overflow then applies. `clip` beside it stops body
+itself becoming the scroll container `hidden` would make it. **Every box is
+unchanged** — body is `margin:0;padding:0` at `height:100dvh`, so its padding box
+IS the initial containing block, and the top bar, stage, action bar and parked
+dock measure identically in all three rows. `wireScrollGuard()` in `js/touch.js`
+is the runtime belt for a browser with no `overflow:clip` (iOS 15 and earlier),
+where the middle row applies: a `scroll` listener that resets to 0 — on a page
+that cannot scroll it never fires, which is why it costs the desktop nothing.
+**Do not reintroduce document-level scrollable overflow**, and if you must, the
+two assertions in block 2 of `test/e2e_phone.mjs` are what will tell you:
+`scrollHeight === innerHeight` and `scrollTo(0, 400)` leaving `scrollY` at 0.
+
+**And the command bar no longer opens itself on a phone.** `js/cmdline.js`'s
+first-visit `open(true)` is right at a desk and wrong under a thumb: there is no
+backtick and no Ctrl+K, the placeholder teaches desktop chords, and it takes a
+32-px row out of a map that is the whole screen. `SBMM.touch.profile() ===
+"phone"` suppresses it; the More sheet is how field mode reaches the commands.
+
+### Trap 2 — the folder build carried the payloads the field build exists to drop
+
+`tools/build_dist.py`'s `FIELD_EXCLUDE` is the list of what a phone must not
+parse — the 20 full-sheet renders (~27 MB), the CHM, EA's 21 MB native CAD, the
+recovered design surfaces — and it only ever applied to the single-file build.
+The folder build parsed all of it on the phone, and then 3D drew its drape on
+top. iOS kills a tab at roughly 1-1.5 GB. Measured on the `iPhone 14 Pro`
+descriptor, folder build over http, before and after: **484 -> 326 MB of JS heap
+after boot, 532 -> 367 MB after opening 3D** (Pixel 7: 520 -> 351 and 535 ->
+393). And the heap is the SMALLER half of it — `performance.memory` does not
+count a canvas or a GPU texture, and the drape went from **178.4 MP to 3.8 MP**
+(Trap 3), which is where the gigabyte was.
+
+So the folder build is field-aware, with no build step:
+
+- **ONE LIST, three readers.** `index.html` carries the 24 payloads as
+  `window.SBMM_HEAVY` between the `SBMM_HEAVY_BEGIN` / `SBMM_HEAVY_END` markers.
+  The page's own inline loader `document.write`s the tags when
+  `SBMM.touch.phoneAtBoot()` is false; `tools/build_dist.py` replaces the whole
+  block with the payloads inlined (honouring `FIELD_EXCLUDE`, so both dists are
+  byte-for-byte what they were); `sw.js` reads the same array so a tablet's
+  offline copy is still complete; `test/check.mjs` fails on a missing or
+  duplicated entry. **A new heavy payload goes in that array, not in a
+  `<script src>` tag** — and one that belongs on a phone goes in a tag as before.
+- **`document.write`, deliberately.** It is the only injection that is
+  SYNCHRONOUS and ORDERED during parsing and it works over `file://`, where
+  nothing may be fetched. Appended `<script>` elements would race `js/boot.js`.
+- **And the tag it writes is spelled in PIECES** (`'<scr' + 'ipt src="'`), for a
+  reason worth its own line: **`sw.js` builds the offline precache list with a
+  LOOSE opening-script-tag regex over `index.html`'s own text**, so a tag written
+  inside a JS string — or quoted in a comment, which is how this recurred once
+  within the hour — is read as a URL. `' + window.SBMM_HEAVY[i] + ` went into the
+  list, 404'd, and `precache()` aborts on its first failure: `tablet:http` failed
+  with "the precache did not complete" and no other clue. `test/check.mjs`'s
+  **`swurls`** check runs the same loose regex and fails on any match that is not
+  a file. The split keeps `</script` out of the source too, which is the older
+  rule (`js_safe` in `tools/build_dist.py`).
+- **`js/touch.js` moved to the FIRST script position, right after `js/gate.js`.**
+  The loader has to ask the profile before a payload is parsed, and the profile
+  has exactly one implementation. `js/touch.js` only needs `SBMM` to exist, which
+  `js/gate.js` has just done; everything it touches beyond that it touches inside
+  `wire()`, which boot still calls in its old place.
+- **`SBMM.touch.phoneAtBoot()` is that question**, and it uses the same two
+  inputs in the same order as `js/field.js` `autoDetect` — the stored field
+  preference beats the sniff in BOTH directions. `FIELD_STORE` in `js/touch.js`
+  must stay equal to `STORE` in `js/field.js`; block 1 of the phone harness
+  asserts the two answer the same machine.
+- Every module that reads one of these already degrades with a row, a note or a
+  toast (the payload-tolerance rule), so a phone simply gets the field build's
+  behaviour out of the folder build. Block 4 asserts the keys are absent, that
+  the ones a phone KEEPS are present, and that `SBMM.sheets.open` refuses with a
+  toast rather than throwing.
+- **`SBMM.lowMem()` (js/util.js), NOT `SBMM.isField()`, is now the memory
+  question.** Four places branched on the BUILD to protect memory — the 4-ft
+  drainage grid (`js/drainage.js`), the 4-ft accumulation grid and its cache
+  signature (`js/accum.js`), and the "that payload is not in this build" wording
+  in `js/sheets.js` and `js/refsurf.js`. A phone running the FOLDER build is a
+  phone: `lowMem()` is `isField() || profile() === "phone"`. `isField()` still
+  means exactly what it always meant — which build this is — and the two wordings
+  stay distinct, because "not in the field build" is a lie on a folder build.
+
+### Trap 3 — a 178-megapixel drape texture
+
+`compositeAbpOrtho` builds the mine-area ortho at 4 px/ft over a 2,872 x 3,882 ft
+window: **11,488 x 15,528 px = 178 MP**, a ~713 MB canvas and the same again on
+the GPU. A desktop absorbs it; a phone does not. `texBudget()` in
+`js/viewer3d.js` caps every drape texture at **2,048 px on its longest side in
+the phone profile only** (`fitToBudget` redraws an over-budget image, and the
+composite picks its px/ft from the budget) — 4 MP, still ~0.5 ft/px over that
+window, finer than the 1.5-ft site ortho it is mostly made of. Scoped to the
+phone deliberately: the desktop and the iPad get byte-identical textures, which
+is what keeps `test/e2e.mjs` and `test/e2e_tablet.mjs` unchanged.
+`SBMM.viewer3d.stats()` reports `pixelRatio`, `texBudgetPx`, `texMP`,
+`gpuTextures` and `gpuGeometries`, and `SBMM.touch.diagnostics()` puts the heap,
+the heap limit, the GPU counts and "heavy payloads skipped (phone)" on the Help
+line — so the next report arrives with numbers.
+
 ## Undo and redo (v9.4) — the both-closures rule and `readd`
 
 `SBMM.undo` is two stacks of `{ desc, undo, redo }`, 100 deep each way:
@@ -2332,7 +2487,7 @@ pass-fail — look at them.
 
 Contract: `docs/V21_WASM_SPEC.md`. Crate `wasm/sbmm-kernels/` (Rust, `cdylib`),
 builder `tools/build_wasm.py`, payload `datajs/w_kernels.js`, host in
-`js/jobs.js`, dispatch in `js/compute.js`. `VERSION` stays **9** — this changes
+`js/jobs.js`, dispatch in `js/compute.js`. `VERSION` stays **10** — this changes
 who computes, never what.
 
 **The JavaScript kernels are the reference and the fallback, and their bodies

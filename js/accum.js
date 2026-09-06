@@ -62,7 +62,7 @@ SBMM.accum = (function () {
   /* ------------------------------------------------------------------ */
   function stormOn() { return !!(SBMM.storm && SBMM.storm.data() && SBMM.storm.enabled()); }
   function signature(m) {
-    const base = (m || method) + "|" + (SBMM.isField() ? "4" : "2");
+    const base = (m || method) + "|" + (SBMM.lowMem() ? "4" : "2");
     if (!stormOn()) return base + "|off";
     return base + "|on|" + SBMM.storm.data().conduits
       .map(c => c.id + ":" + SBMM.storm.statusOf(c.id)).join(",");
@@ -109,7 +109,7 @@ SBMM.accum = (function () {
     const key = signature(method);
     const cached = byMethod[method];
     if (cached && cached.key === key && !opts.force) { R = cached; return R; }
-    let strideCells = SBMM.isField() ? 2 : 1;
+    let strideCells = SBMM.lowMem() ? 2 : 1;
     running = (async () => {
       for (;;) {
         const job = jobFor(strideCells);

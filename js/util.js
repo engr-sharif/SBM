@@ -15,6 +15,15 @@ SBMM.perf = window.SBMM_PERF;
 if (window.SBMM_DATA) SBMM_DATA.build = window.SBMM_BUILD || "full";
 SBMM.build = () => (window.SBMM_DATA && SBMM_DATA.build) || window.SBMM_BUILD || "full";
 SBMM.isField = () => SBMM.build() === "field";
+/* v19.1 — "is this a small machine?", which is NOT the same question as "is this
+   the field build". Since v19.1 the FOLDER build drops the same payloads on a
+   phone that the field build drops at build time (index.html's SBMM_HEAVY
+   loader), so everything that used to branch on the BUILD to protect memory —
+   the 4-ft drainage and accumulation grids, the drape-texture budget, the "that
+   payload is not here" wording — has to branch on this instead. A phone running
+   the folder build is a phone. */
+SBMM.lowMem = () => SBMM.isField()
+  || !!(SBMM.touch && SBMM.touch.profile && SBMM.touch.profile() === "phone");
 
 const $ = id => document.getElementById(id);
 const fmt = (v, d = 1) => v == null || isNaN(v) ? "—" :
