@@ -29,6 +29,31 @@ function wireWasmSwitch() {
       The single-file build (dist) has no such dependency.</p></div>`;
   };
   try {
+    /* Retry every <script src> that failed to load (js/gate.js recorded them),
+       twice each and in page order, BEFORE the checks below decide the app is
+       broken. Over GitHub Pages on a phone a 14 MB payload drops once on a weak
+       signal and the symptom was "missing data payload: dem_site_png" with
+       nothing wrong on the server; over file:// a missing file fails again in a
+       millisecond and the message below is the one it always was. The query
+       string defeats a cached failure; sw.js matches with ignoreSearch. */
+    const failed = (SBMM.failedScripts || []).splice(0);
+    SBMM.retriedScripts = [];
+    for (const src of failed) {
+      const name = src.split("/").pop().split("?")[0];
+      let ok = false;
+      for (let attempt = 1; attempt <= 2 && !ok; attempt++) {
+        lp.textContent = `retrying ${name} (${attempt} of 2)…`;
+        ok = await new Promise(res => {
+          const s = document.createElement("script");
+          s.src = src.split("?")[0] + "?retry=" + attempt + "-" + Date.now();
+          s.onload = () => res(true);
+          s.onerror = () => res(false);
+          document.head.appendChild(s);
+        });
+      }
+      if (ok) SBMM.retriedScripts.push(name);
+      else console.warn("could not load " + src + " after two retries");
+    }
     lp.textContent = "checking data payloads…";
     if (!window.SBMM_DATA) throw new Error("data payloads did not load (SBMM_DATA missing) — datajs/*.js absent or blocked");
     for (const k of ["affine", "dem_site", "dem_abp", "dem_site_png", "dem_abp_png", "dus", "piles", "points"])

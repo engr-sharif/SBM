@@ -58,6 +58,7 @@ async function writeMeta(m) {
 async function clearAll() {
   await caches.delete(CACHE);
   await caches.delete(META);
+  haveCopy = false;
   return { type: "cleared" };
 }
 
@@ -176,6 +177,7 @@ async function precache(port, withTiles) {
   }
   const meta = { count: done, bytes, tiles: !!withTiles, at: new Date().toISOString(), hash: hashOf(html) };
   await writeMeta(meta);
+  haveCopy = true;
   say(Object.assign({ type: "done", ready: true }, meta));
 }
 
@@ -188,8 +190,21 @@ async function status() {
 /* --------------------------------------------------------------- */
 /* lifecycle                                                        */
 /* --------------------------------------------------------------- */
+/* Whether an offline copy exists, cached in memory so the fetch handler can
+   decide SYNCHRONOUSLY. Until one does, the worker does not answer a request
+   at all: the browser fetches natively, with its own streaming and memory
+   handling. Routing a 14 MB payload through respondWith() + fetch() inside
+   the worker is a known way to lose it on iOS, and it bought nothing — with
+   no copy there was never a cache hit to serve. null = not read yet. */
+let haveCopy = null;
+async function refreshHaveCopy() {
+  const m = await readMeta();
+  haveCopy = !!(m && m.count);
+  return haveCopy;
+}
+
 self.addEventListener("install", e => { self.skipWaiting(); });
-self.addEventListener("activate", e => { e.waitUntil(self.clients.claim()); });
+self.addEventListener("activate", e => { e.waitUntil(Promise.all([self.clients.claim(), refreshHaveCopy()])); });
 
 self.addEventListener("message", e => {
   const d = e.data || {};
@@ -210,6 +225,19 @@ self.addEventListener("fetch", e => {
   let url;
   try { url = new URL(req.url); } catch (err) { return; }
   if (url.origin !== self.location.origin) return;             // never off-origin
+  if (haveCopy === false) return;                              // no offline copy: the browser fetches natively
+  if (haveCopy === null) {
+    /* a fresh worker instance: read the record once, and answer THIS request
+       the slow way rather than guess */
+    e.respondWith((async () => {
+      await refreshHaveCopy();
+      if (!haveCopy) return fetch(req);
+      const c = await caches.open(CACHE);
+      const hit = await c.match(req, { ignoreSearch: true });
+      return hit || fetch(req);
+    })());
+    return;
+  }
 
   const isIndex = url.href === INDEX || url.pathname.endsWith("/") || url.pathname.endsWith("/index.html");
 
