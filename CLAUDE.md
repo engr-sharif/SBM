@@ -245,7 +245,17 @@ dist, and it fails in about one run in three under load. **Re-run the block alon
 believing it** — `node test/e2e.mjs <index.html> folder --only "9z. the layer tree"`,
 14 seconds — and if it passes there, the matrix result is the flake, not a regression.
 Fixing it means waiting on the condition rather than on the clock, which is a change to
-a harness and belongs to the planner.
+a harness and belongs to the planner. **Since v18 the harness waits on the condition**
+(`waitForFunction`, 60 s), and the failure still appeared about one run in three under
+load, always at exactly the insertion order — the stored order was present, the DOM
+order came back, and the draw order was never re-applied. Two app-side causes were
+closed in v21: `legendSoon()` in `js/layertree.js` was a leading-edge debounce whose
+callback painted the legend BEFORE re-asserting the draw order, so a burst of layer
+adds outlasting its 80 ms, or a paint that threw, left the order unapplied; it is now
+trailing-edge and re-asserts the order first, on its own `try`. And `js/boot.js` emits
+`SBMM.events` **`boot`** when the loader hides, on which the tree re-applies the stored
+order once more — the one pass that cannot be early. If 9z fails again, read the draw
+indices it prints: insertion order means the pass did not run; anything else is new.
 
 **One browser at a time** — the lock above enforces it now rather than asking; raise
 `--parallel` only on a box with the cores for it. `docs/AGENT_RULES.md` is the ten-line
