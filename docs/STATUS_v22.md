@@ -25,6 +25,17 @@ left, so the round stopped after the spec, with nothing half-built: no worktree,
 open agent, branch = main + these two docs (PR #21, draft, docs only — merge it or
 leave it; the code work goes on the same PR).
 
+## Known flake still open — block 9z (the layer tree's draw order after a reload)
+
+The docs-only matrix on this PR failed `e2e:folder` once with the recorded
+signature (`{ dus: 456, piles: 467 }`, insertion order — the re-apply pass did not
+run). v21's two app-side changes (trailing-edge `legendSoon`, the `boot` re-apply) did
+NOT close it; it still fails about one run in three on the Actions runner. Not this
+round's scope, but the next agent that touches `js/layertree.js` should instrument
+WHEN the last `applyDrawOrder` ran relative to the last `layeradd` after the reload,
+rather than add another debounce. The fixed re-run on this PR is the flake's own
+re-run; a second failure on unchanged code is still the flake, not the docs.
+
 ## How to resume
 
 1. `git status` / `git worktree list` — a worktree with commits is an agent's partial
