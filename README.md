@@ -905,7 +905,7 @@ data — 44 structures and 27 conduits assembled by `tools/build_storm_network.p
 V-Base drawing, the geodatabase's storm structures, Jacobs' August-2026 survey and the
 project engineer's identification of the south-road drain. Three rows under **Site framework
 → Storm drainage**, on by default: *Storm structures* (44), *Storm conduits — drawn in CAD /
-surveyed* (15) and *Storm conduits — inferred* (12). Click a structure or a pipe for what it
+surveyed* (17) and *Storm conduits — inferred* (10). Click a structure or a pipe for what it
 is, where it came from, its ground and its invert, its length and its fall.
 
 | conduit | from → to | source | note |
@@ -917,10 +917,10 @@ is, where it came from, its ground and its invert, its length and its fall.
 | `road_drain_15_branch` | grate Spot 15 → the branch start (a bend, no structure) | inferred straight | 155 ft |
 | `branch` | the branch start → the junction grate | CAD line `E943F` | 149 ft |
 | `herman_pipe_n` / `herman_pipe_s` | the surveyed inverts at the sandbag wall (**1341.57 / 1341.53 ft**) → the plotted west ends | Jacobs survey, Aug 2026 | the two 24-in corrugated HDPE barrels |
-| `pipe_to_main` | the **North** pipe's plotted west end → the east end of EA's drawn storm line | **inferred**: EA's line starts 13 ft west of the plotted pipe end | the connection he asked for |
-| `pipe_to_main_s` | the **South** pipe's plotted west end → the same point on EA's storm line | **inferred**, same reason | the engineer's ruling of 5 Sep 2026: *both* barrels are the impoundment's discharge. Until then the South pipe — the lower invert, the one the water leaves through — ended 13 ft short of anything |
-| `storm_main_upper` | the storm line's east end → the junction grate | CAD `E943C` | 195 ft |
-| `storm_main_lower` | the junction grate → the **Clear Lake outfall** | CAD `E943C` | 589 ft |
+| `herman_main_n` | the **North** pipe's plotted west end → the **Clear Lake outfall** | CAD `E943E`, reached by a 12.8 ft **inferred** gap | 797 ft. The North barrel's own pipe to the lake |
+| `herman_main_s` | the **South** pipe's plotted west end → the **Clear Lake outfall** | CAD `E943C`, reached by a 12.7 ft **inferred** gap | 796 ft. The South barrel's own pipe — the lower invert, the one the water leaves through |
+| `storm_main_upper` | the south line's east end → the junction grate | CAD `E943D` | 196 ft; **nothing feeds it** — the barrels run in E943E and E943C, and the road drain joins at the junction |
+| `storm_main_lower` | the junction grate → the **Clear Lake outfall** | CAD `E943D` | 586 ft; the road drain's pipe, and the Frog/Green pond overflow's |
 | `south_culvert` | `STRM FES` → `STRM FES` | CAD mark `E5D2E` | 40 ft under the south road, into Herman; not part of the grate chain |
 | `culvert_*` | FES → FES | the other four `V-STRM-MRKG` marks, and every pair of flared ends within 40 ft with no mark | direction from the lidar ground at the two ends |
 | `lot25_yard` | the Lot 25 catch basin → the pipe's west end | CAD `C-STRM-MAIN-PIPE` | 171 ft; the residential yard drain, unrelated to Herman |
@@ -948,25 +948,54 @@ at all.
 
 Two answers worth having in front of you:
 
-- A drop on the **Spot 8 grate**: 137 ft overland and **2,789 ft in pipe** — the seven
+**Three pipes in one trench (the engineer, 6 Sep 2026).** *"The two overflow outlets that
+you have merging into one, that's not the case, we have two pipes that run in parallel with
+each other that take the overflow from the two overflow pipes out to Clear Lake … there are
+three pipes that flow along that channel, the two for the Herman impoundment and one that is
+used by the Frog and Green pond overflow — that's the far south one."* The drawing says the
+same thing and the builder had misread it: `V-STRM-STRC` carries **three** 783-ft polylines
+between the sandbag wall and the shore — `E943E` (north), `E943C` (middle) and `E943D`
+(south) — **2.35 ft apart**, which is the outside diameter of 24-in corrugated HDPE. A 24-in
+double line with a centreline, which is what they had been taken for, would be 2.0 ft wide
+in total; this trench is 4.7 ft wide. Which is which comes off the survey: the North
+barrel's plotted west end is 12.8 ft from E943E's east end and the South barrel's 12.7 ft
+from E943C's, which leaves E943D — the far south one — for the road drain, exactly as he
+said. So each barrel now runs to Clear Lake in **its own pipe**, `pipe_to_main` and
+`pipe_to_main_s` are gone, and the three lines meet only at **one shared `outfall` node** at
+the shore (their west ends are within 2.9 ft of each other, and one outfall is what keeps
+*Clear Lake outfall (storm network)* one 282-acre catchment on the drainage map). The
+dog-leg `E9441`/`E9442` → `E9443`/`E9444` that leaves the junction and comes back to the
+shore is drawn but has no structure at either end and no established purpose; it stays out
+of the network and the builder says so — **ask EA**.
+
+- A drop on the **Spot 8 grate**: 137 ft overland and **2,786 ft in pipe** — the seven
   road-drain conduits, the branch and EA's storm main — ending in Clear Lake at the outfall.
   With the drains off, the same drop runs 2,268 ft overland into the Herman Impoundment,
   fills it to 1,343.84 ft and spills over its rim.
 - A drop at **Frog Pond's low** (the east pond): it takes the culvert under the paved road
   into Green Pond, which fills 3.1 ft to the FES on its west shore (1,394.50 ft), takes the
   pipe to the Spot 8 grate and the whole road drain to the Clear Lake outfall — **630 ft
-  overland, 2,969 ft in pipe** through twelve conduits, never touching the impoundment. With
+  overland, 2,967 ft in pipe** through twelve conduits, never touching the impoundment. With
   the drains off it never leaves the north-east corner: it spills off the survey.
 - **Naming.** EA's geodatabase `water` layer has it right, and the engineer confirmed it (Sep 2026): **Frog Pond is the east pond** (E 6,374,450–6,374,726, floor 1,415 ft) and **Green Pond the west pond** (E 6,373,925–6,374,152, floor 1,391.6 ft). The storm network uses those names.
 
-The **Herman pipe discharge route** (on the overtopping card) reads *"950 ft · 813 ft in
+The **Herman pipe discharge route** (on the overtopping card) reads *"949 ft · 812 ft in
 pipe · Clear Lake outfall"*, and since the ruling of 5 September 2026 it is **the conduit
-chain itself, not a raindrop**: the sandbag wall → both 24-in barrels → both links → EA's
-storm main → the junction → the Clear Lake outfall, with *no ground at all* between the wall
-and the outfall. Ordinary descent resumes at the outfall, where the pipe ends, and runs the
-last 137 ft into the lake. The card says which system carries it — *"discharging through the
-two 24-in pipes → pipe to main → storm main → Clear Lake outfall"* — and 3D draws both
-barrels as pipes with the moving water running through both.
+chain itself, not a raindrop**: the sandbag wall → both 24-in barrels → each barrel's own
+drawn line → the Clear Lake outfall, with *no ground at all* between the wall and the
+outfall. The **South** chain is the spine (the lower invert, 16.5 + 795.7 = **812.2 ft** of
+pipe) and the North chain runs beside it as a parallel branch for its whole length — since
+6 September 2026 that is 797 ft of parallel pipe rather than 13 ft of parallel link.
+Ordinary descent resumes at the outfall, where the pipe ends, and runs the last 137 ft into
+the lake. The card says which system carries it — *"discharging through the two 24-in pipes
+→ two 24-in pipes → Clear Lake outfall"* — and 3D draws both barrels as pipes with the
+moving water running through both.
+
+Every conduit leg — on the map, as the un-draped tube in 3D and as the track the animated
+particles run along — **follows the conduit's own polyline**, EA's drawn line, start to end.
+Until 6 September 2026 a leg was a straight line between its two nodes, so the route left
+the drawn pipe wherever the CAD bends and read as a flow finding its own way across the
+ground; the "in pipe · N ft" label sits at the polyline's midpoint by length.
 
 Before that ruling the route was traced by dropping a raindrop at the North pipe's plotted
 west end and letting it find its own way, which is a terrain analysis that happens to meet a
@@ -987,8 +1016,9 @@ inlet cell was moved and by how far. If nothing low enough is found within 30 ft
 stays exactly where it was surveyed and the popup says so.
 
 The consequence: **a drop inside the Herman Impoundment now ponds to 1,341.54 ft and leaves
-through the surveyed South pipe**, its own link, the storm main and the outfall — 813 ft in
-pipe (812.8 since both barrels were connected) — instead
+through the surveyed South pipe** and its own drawn line to the outfall — **812.2 ft** in
+pipe (813.3 before both barrels were connected, 812.8 before the three pipes were separated)
+— instead
 of filling 2.30 ft higher and spilling over the rim. That is the same first discharge the
 overtopping card has reported since v10 (1,341.55 ft, the surveyed invert), so the raindrop
 and the overtopping analysis now give the same answer about the impoundment. Switch the
@@ -1075,30 +1105,39 @@ Frog Pond is the case that prompted it. Its natural rim spill is ten feet from t
 inlet on its west shore and 0.30 ft above it, so the overflow route used to run *north* over
 the ground. Now the first-discharge route takes the culvert under the paved road into Green
 Pond, leaves through Green Pond's own FES, and runs the road drain to the Clear Lake
-outfall — 2,969 ft of it in pipe. On Herman the conduit spill *is* the surveyed pipe
+outfall — 2,967 ft of it in pipe. On Herman the conduit spill *is* the surveyed pipe
 (1,341.53 against the survey's 1,341.55), so the surveyed row simply gains `via
 herman_pipe_s`: one row, one marker, one route, no double-counting.
 
-#### Conduits first — the rim overflow is a what-if (v15)
+#### Conduits first, and the rim overflow when the slider reaches the rim (v15, v22)
 
-**When the water finds a conduit below the rim, the conduit IS the overflow.** Since v15 the
-first-discharge route is the only route traced and drawn by default. The rim spill stays on
-the card as a fact — *"Rim spill (lidar) 1,416.04 ft · +0.30 ft above pond culvert — not
-traced; the drains are assumed to handle it"* — the rim band and the ranked rim lows are
-drawn exactly as before, and the "Overflow route" row says **"not traced — the drains are
-assumed to carry it"** rather than claiming water goes that way.
+**When the water finds a conduit below the rim, the conduit IS the overflow.** Below the rim
+spill the first-discharge route is the only route drawn: the rim spill stays on the card as
+a fact — *"Rim spill (lidar) 1,416.04 ft · +0.30 ft above pond culvert — the drains handle
+it below this; from here up the overflow is traced too"* — and the rim band and the ranked
+rim lows are drawn exactly as before.
 
-A **trace the rim overflow** button on the card traces it on demand. It is named for what
-it assumes — *"Frog Pond rim overflow — what-if: pond culvert blocked"* — and drawn as a
-hypothesis: dashed, in a muted slate (`#93A6B3`) that is neither the water blue nor the
-storm blue, with no glow and no animation. It belongs to the analysis: pressing the button
-again removes it, and so does closing the analysis. Above the rim the slider reads *"above
-the rim · the drains are assumed to carry it (trace the rim overflow to see the what-if)"*.
+**From the rim spill up, the rim overflow is traced automatically and shown beside the pipe
+route** (the engineer, 6 Sep 2026). At that level the water really is going over, so it is
+an ordinary flow — solid, animated, the water colour — captioned *"Frog Pond overflow — over
+the rim at 1,416.04 ft"*, traced from the rim spill cell on the analysis's own grid and
+window, blocked from running back into the water body, with the storm network on (a drop
+over the rim may well meet the road drain). It is traced once and cached, it hides again
+when the slider drops below the rim, and it goes when the analysis is closed. The slider
+then reads *"OVERFLOWS the rim at ① · and still discharging through the 24-in pipes"*, and
+3D shows the stage surface and both routes with particles running on both.
+
+A **trace the rim overflow** button on the card still answers the different question — what
+if the drains were blocked. It is named for what it assumes — *"Frog Pond rim overflow —
+what-if: pond culvert blocked"* — and drawn as a hypothesis: dashed, in a muted slate
+(`#93A6B3`) that is neither the water blue nor the storm blue, with no glow and no
+animation. It belongs to the analysis: pressing the button again removes it, and so does
+closing the analysis.
 
 The rule is generic — any water body with a conduit spill below its rim. On **Herman** the
-conduit spill *is* the surveyed 24-in pipes, so the pipe route is the overflow and the rim
-route becomes the what-if; every §10 number is unchanged, only the default visibility of the
-rim route moved.
+conduit spill *is* the surveyed 24-in pipes, so below 1,343.84 ft the pipe route is the
+overflow and above it the rim route joins it; every §10 number is unchanged, only which
+routes are drawn at which level.
 
 The chain reads back as a sentence, built from the route's own legs and the ponds it filled
 on the way. Frog Pond's card says:

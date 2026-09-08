@@ -147,6 +147,58 @@ SBMM.water = (function () {
      style or the selection changes — the same shape js/tools.js already uses for
      dim and text, and the reason `flow` is special-cased in applyStyle/redraw
      rather than fighting setStyle over six sub-layers. */
+  /* v22 §R.1 — A CONDUIT LEG FOLLOWS THE CONDUIT'S OWN POLYLINE. Until this
+     ruling a leg was drawn as a straight line between its two nodes, so the
+     route left EA's drawn pipe wherever the CAD bends and read as "its own
+     flow" — which is exactly what the engineer reported of the Herman
+     discharge. The KERNEL's leg record does not change: it carries ids, and
+     the geometry is looked up here, in one place, which js/viewer3d.js also
+     asks (the tube and the particle track must not be able to disagree with
+     the 2D line).
+
+     The ends are the LEG's own, not the conduit's: a sunken pipe mouth sits up
+     to 30 ft from its node (v12), and since §S two of the three drawn lines in
+     the Clear Lake trench end 2.4 ft from the shared outfall node. So the CAD
+     polyline is stitched between the leg's own two ends rather than left
+     hanging half a pipe-width away from them. */
+  const LEG_SNAP_FT = 0.5;
+  function legPolyline(lg) {
+    const a = lg && lg.from, b = lg && lg.to;
+    if (!a || !b) return null;
+    const c = (SBMM.storm && SBMM.storm.conduit) ? SBMM.storm.conduit(lg.id) : null;
+    let mid = (c && c.pts && c.pts.length > 1) ? c.pts.map(q => [q[0], q[1]]) : null;
+    /* the payload stores a conduit from its inlet to its outlet, but a leg is
+       the only thing that knows which way this run went through it */
+    if (mid && Math.hypot(mid[mid.length - 1][0] - a[0], mid[mid.length - 1][1] - a[1])
+             < Math.hypot(mid[0][0] - a[0], mid[0][1] - a[1])) mid.reverse();
+    const out = [[a[0], a[1]]];
+    const push = q => {
+      const t = out[out.length - 1];
+      if (Math.hypot(q[0] - t[0], q[1] - t[1]) > LEG_SNAP_FT) out.push([q[0], q[1]]);
+    };
+    for (const q of (mid || [])) push(q);
+    push([b[0], b[1]]);
+    return out.length > 1 ? out : [[a[0], a[1]], [b[0], b[1]]];
+  }
+  /* the point half way along a polyline BY LENGTH — where the "in pipe · N ft"
+     label belongs once the pipe is a bent line rather than a chord */
+  function polyMidpoint(pts) {
+    const cum = [0];
+    for (let i = 1; i < pts.length; i++)
+      cum.push(cum[i - 1] + Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]));
+    const tot = cum[cum.length - 1];
+    if (!(tot > 0)) return [pts[0][0], pts[0][1]];
+    const half = tot / 2;
+    for (let i = 1; i < pts.length; i++) {
+      if (cum[i] < half) continue;
+      const d = cum[i] - cum[i - 1];
+      const t = d > 0 ? (half - cum[i - 1]) / d : 0;
+      return [pts[i - 1][0] + (pts[i][0] - pts[i - 1][0]) * t,
+              pts[i - 1][1] + (pts[i][1] - pts[i - 1][1]) * t];
+    }
+    return [pts[pts.length - 1][0], pts[pts.length - 1][1]];
+  }
+
   function buildFlow(f) {
     const g = f.layer;
     if (!g || !g.clearLayers) return;
@@ -232,17 +284,20 @@ SBMM.water = (function () {
                          color: C.anim, weight: 1.6, dashArray: "5 11", opacity: .95,
                          className: "flowanim" }).addTo(g);
 
-    /* (c2) the conduit legs — the pipe, drawn as a pipe: straight, dashed, in the
-       storm colour, with a hollow ring where the water left the ground and an
-       "in pipe" label at the midpoint once there is room for it. */
+    /* (c2) the conduit legs — the pipe, drawn as a pipe: EA's own polyline
+       (v22 §R.1), dashed, in the storm colour, with a hollow ring where the
+       water left the ground and an "in pipe" label at the polyline's length
+       midpoint once there is room for it. */
     for (const lg of legs) {
       const a = lg.from, b = lg.to;
       if (!a || !b) continue;
-      L.polyline([[a[1], a[0]], [b[1], b[0]]], {
+      const poly = legPolyline(lg);
+      L.polyline(poly.map(q => [q[1], q[0]]), {
         pane: "drawings", color: STORM_COL, weight: 2.4, opacity: .95,
         dashArray: "8 5", lineCap: "butt", interactive: false
       }).addTo(g);
-      const lab = L.marker([(a[1] + b[1]) / 2, (a[0] + b[0]) / 2], {
+      const pm = polyMidpoint(poly);
+      const lab = L.marker([pm[1], pm[0]], {
         pane: "drawings", interactive: false,
         icon: L.divIcon({ className: "", iconSize: [0, 0],
           html: `<span class="flowpipe">in pipe · ${fmt0(lg.length_ft)} ft</span>` })
@@ -542,17 +597,21 @@ SBMM.water = (function () {
      now I think it shows that it goes directly and makes its own path."
 
      Two things were wrong and this is the second of them. The first was in the
-     NETWORK: only the North barrel reached EA's drawn storm line, so the South
-     barrel — the LOWER invert, the one the water actually leaves through —
-     ended 13 ft short of anything and its water left the pipe on to the ground.
-     data/storm_network.json now carries `pipe_to_main` AND `pipe_to_main_s`.
+     NETWORK, and it was corrected twice. v12 connected the South barrel, which
+     had ended 13 ft short of anything and put its water back on the ground.
+     v22 §S separated the barrels altogether — the engineer, 2026-09-06: "the
+     two overflow outlets that you have merging into one, that's not the case,
+     we have two pipes that run in parallel with each other ... out to Clear
+     Lake" — so each barrel now runs to the lake in its own drawn pipe
+     (`herman_main_n` on EA's line E943E, `herman_main_s` on E943C) and they
+     meet only at the shared `outfall` node.
 
      The second was here. The card's "pipe discharge route" was a RAINDROP
      dropped at the plotted west end of the NORTH pipe: a terrain analysis that
      happens to find a pipe, which is exactly "it makes its own path", and which
      could only ever show one barrel. It is now the CONDUIT CHAIN itself, walked
      node by node from the sandbag wall to the Clear Lake outfall — both barrels
-     in parallel, then the links, then EA's storm main — so there is no ground
+     in parallel, each in its own drawn line — so there is no ground
      between the wall and the lake for it to wander over. Its overland
      `length_ft` is what happens AFTER the outfall, and nothing else.
 
@@ -615,14 +674,35 @@ SBMM.water = (function () {
     if (!head(cid)) return [];
     const c = st.conduit(cid), a = st.node(c.from);
     if (!a) return [];
-    const mine = new Set(conduitChain(cid, null));
+    const mineChain = conduitChain(cid, null);
+    const mine = new Set(mineChain);
+    /* where a chain ENDS. Since v22 §S the two Herman barrels no longer share
+       a conduit — each runs to Clear Lake in its own drawn pipe — so "the
+       chains converge" has to mean the outlet they converge ON as well as a
+       pipe they both use. Both readings are convergence; only the second one
+       existed before, and with it `parallelBarrels` answered "one pipe" on an
+       outlet the engineer had just told us has two. */
+    const endsAt = ch => {
+      const last = ch.length ? st.conduit(ch[ch.length - 1]) : null;
+      return last ? last.to : null;
+    };
+    const myEnd = endsAt(mineChain);
     const out = [];
     for (const q of st.data().conduits) {
       if (q.id === cid || st.statusOf(q.id) !== "assumed_working") continue;
       if (q.size_in !== c.size_in || !head(q.id)) continue;
       const b = st.node(q.from);
       if (!b || Math.hypot(b.x - a.x, b.y - a.y) > PARALLEL_FT) continue;
-      if (!conduitChain(q.id, null).some(k => mine.has(k))) continue;
+      /* two barrels of ONE crossing are the same crossing, so they are the
+         same length. Without this the third pipe in the Clear Lake trench —
+         a head since §S, 24-in, its east end 29 ft from the sandbag wall and
+         ending at the same outfall — would be counted as a third barrel of
+         the impoundment's discharge, and the card would say three pipes where
+         the impoundment has two. It is 196 ft long against the barrels' 16.5. */
+      const lo = Math.min(q.length_ft, c.length_ft), hi = Math.max(q.length_ft, c.length_ft);
+      if (!(hi > 0) || lo / hi < 0.75) continue;
+      const ch = conduitChain(q.id, null);
+      if (!ch.some(k => mine.has(k)) && !(myEnd && endsAt(ch) === myEnd)) continue;
       out.push(q);
     }
     return out;
@@ -666,7 +746,9 @@ SBMM.water = (function () {
     /* the parallel barrels, drawn beside the spine: they carry the `at` of the
        stretch they parallel, so buildFlow and the 3D tracks cut the ground
        exactly as they do for the spine, and `parallel` so nothing counts their
-       length twice — the water goes 813 ft down this system, not 843. */
+       length twice — the water goes 812.2 ft down this system, not 1,624.5
+       (v22 §S: the North barrel is a parallel leg for its WHOLE length now,
+       not for 13 ft). */
     for (const br of branches)
       br.forEach((id, i) => { const lg = legOf(id, i); lg.parallel = true; legs.push(lg); });
 
@@ -1340,6 +1422,46 @@ SBMM.water = (function () {
                                     owner: "overtop", latlng: m._lbl.latlng });
   }
 
+  /* v22 §R.2 — THE RIM OVERFLOW APPEARS WHEN THE SLIDER REACHES THE RIM.
+     v15's ruling (conduits first) still decides what the analysis OPENS
+     saying and it still suppresses any claim that the water goes over the rim
+     below the rim. What it no longer decides is what happens at and above the
+     rim spill: there the water really is going over, so the rim overflow is
+     traced automatically and shown BESIDE the pipe route rather than waiting
+     for a button. It is an ordinary flow — solid, animated, the water colour —
+     because it is not a hypothesis at that level; the dashed what-if button
+     stays for the different question ("what if the drains were blocked").
+
+     Owned by the analysis, like the what-if: traced ONCE and cached (a slider
+     drag fires applyLevel per pixel), hidden again below the rim, and removed
+     with the analysis. Created with `noUndo` for the v15 reason — an undo entry
+     pointing at a feature the analysis has since taken away is worse than none,
+     and raising a slider is not an action anybody expects to undo. */
+  async function ensureRimAuto() {
+    if (!ov || ov.rimAuto || ov.rimAutoBusy) return null;
+    if (!ov.rimSuppressed || !ov.rimSeed) return null;
+    const mine = ov, lvl = ov.R && ov.R.primary ? ov.R.primary.level : null;
+    ov.rimAutoBusy = true;
+    let r = null;
+    try {
+      r = await dropAt(ov.rimSeed[0], ov.rimSeed[1], {
+        name: `${ov.name} overflow — over the rim at ${fmt(lvl, 2)} ft`,
+        group: "Water", quiet: true, noUndo: true,
+        dem: ov.rimDem, window: ov.rimWindow, plateauTol: PLATEAU_TOL, blockRing: ov.rimBlock
+      });
+    } catch (e) { r = null; }
+    /* the analysis may have been closed or replaced while the job ran */
+    if (mine !== ov) { if (r) SBMM.store.remove(r); return null; }
+    ov.rimAutoBusy = false;
+    if (!r) return null;
+    r.props.blockRing = null;
+    ov.rimAuto = r;
+    SBMM.store.setVisible(r, !!(ov.R && ov.level != null
+                                && ov.level >= ov.R.primary.level - 1e-6));
+    if (SBMM.viewer3d.isOpen()) SBMM.viewer3d.refreshOverlays();
+    return r;
+  }
+
   /* v15 §1 — the what-if. The rim overflow is NOT the answer when a conduit
      carries the water first, so it is traced only on request, named for what it
      assumes, and drawn as a hypothesis (dashed, muted, no animation). It belongs
@@ -1465,6 +1587,10 @@ SBMM.water = (function () {
     if (ov.route) SBMM.store.setVisible(ov.route, spilling);
     if (ov.pipeRoute) SBMM.store.setVisible(ov.pipeRoute, piping);
     if (ov.conduitRoute) SBMM.store.setVisible(ov.conduitRoute, draining);
+    /* v22 §R.2: at and above the rim spill the rim overflow is traced and shown
+       BESIDE whatever the drains are carrying; below it, it is hidden again */
+    if (ov.rimAuto) SBMM.store.setVisible(ov.rimAuto, spilling);
+    else if (spilling && ov.rimSuppressed) ensureRimAuto();
     /* the what-if is shown from the moment it is asked for: it answers "what if
        the conduit were blocked", which is a question about the rim, not about
        where this slider happens to sit */
@@ -1475,8 +1601,12 @@ SBMM.water = (function () {
       /* v15 §1: above the rim, with a conduit carrying the water below it, the
          honest sentence is not "OVERFLOWS" — it is that the drains are assumed
          to take it and the rim route is a what-if one button away. */
+      /* v22 §R.2: at and above the rim the water goes BOTH ways — over the rim
+         and on down the drains — and the sentence says so. Below the rim it is
+         the drains alone, which is v15's ruling and is unchanged. */
+      const carrier = ov.csIsPipe ? "the 24-in pipes" : ov.conduitLabel;
       let state = (spilling && ov.rimSuppressed)
-          ? "above the rim · the drains are assumed to carry it (trace the rim overflow to see the what-if)"
+          ? "OVERFLOWS the rim at ① · and still discharging through " + carrier
         : spilling ? "OVERFLOWS the rim at ①"
         : overCrest ? "above the sandbag crest · discharging through the pipes"
         : piping ? "discharging through the 24-in pipes"
@@ -1584,11 +1714,13 @@ SBMM.water = (function () {
        "→ Green Pond (fills to 1,394.50) → green outlet → storm main lower →
         Clear Lake outfall". */
   /* the FAMILY a leg belongs to — what a run of legs collapses into. The
-     label's first two words, or three when the second is a preposition, so
-     `pipe_to_main` and `pipe_to_main_s` are one thing ("pipe to main") rather
-     than the dangling "pipe to". Eight runs of one road drain, the two halves
-     of the storm main and the two barrels of one crossing each collapse the
-     same way. */
+     label's first two words, or three when the second is a preposition: eight
+     runs of one road drain, the two halves of the storm main and the two
+     barrels of one crossing each collapse the same way, and `herman_main_n`
+     and `herman_main_s` are one thing ("herman main"). The preposition clause
+     is v13's, for `pipe_to_main`/`pipe_to_main_s` (gone since v22 §S), which
+     would otherwise have collapsed to the dangling "pipe to"; it is kept
+     because the next inferred link will be named the same way. */
   const CHAIN_STOPW = { to: 1, of: 1, the: 1, at: 1, in: 1, on: 1, and: 1 };
   function legFamily(id) {
     const w = conduitLabel(id).split(/\s+/);
@@ -1617,8 +1749,13 @@ SBMM.water = (function () {
       /* a chain of eight road-drain runs between two grates is ONE thing to a
          reader — collapse consecutive legs of the same family (the label's
          first two words) into that family's name */
+      /* a family carried by PARALLEL BARRELS is those barrels, in words — since
+         v22 §S the impoundment's two pipes run the whole way to the lake, so
+         the sentence would otherwise read "herman main" where the reader wants
+         "two 24-in pipes" */
       const fam = legFamily(legs[i].id);
-      if (parts[parts.length - 1] !== fam) parts.push(fam);
+      const phrase = barrelWords(legs, fam, legs[i].at || 0) || fam;
+      if (parts[parts.length - 1] !== phrase) parts.push(phrase);
     }
     parts.push(p.outfall ? "Clear Lake outfall" : endShort(p));
     return parts.length < 2 ? "" : "→ " + parts.join(" → ");
@@ -1629,16 +1766,23 @@ SBMM.water = (function () {
      legs of the first family that leave at the same vertex — a fact about the
      network, not a sentence about Herman written into the code. */
   const CHAIN_NUM = ["no", "one", "two", "three", "four", "five", "six"];
+  /* the legs of one family leaving the SAME vertex are parallel barrels, and
+     they are named by their count and their size — "two 24-in pipes". One leg
+     is not a set of barrels and answers null, so the caller falls back to the
+     family's own name. */
+  function barrelWords(legs, fam, at0) {
+    const grp = legs.filter(l => (l.at || 0) === at0 && legFamily(l.id) === fam);
+    if (grp.length < 2) return null;
+    const c = SBMM.storm && SBMM.storm.conduit(grp[0].id);
+    const size = c && c.size_in ? fmt0(c.size_in) + "-in " : "";
+    return `${CHAIN_NUM[grp.length] || grp.length} ${size}pipes`;
+  }
   function firstDischargeWords(f) {
     const legs = ((f && f.props && f.props.legs) || []).slice()
       .sort((a, b) => (a.at || 0) - (b.at || 0));
     if (!legs.length) return "";
-    const fam = legFamily(legs[0].id), at0 = legs[0].at || 0;
-    const n = legs.filter(l => (l.at || 0) === at0 && legFamily(l.id) === fam).length;
-    if (n < 2) return "through the " + conduitLabel(legs[0].id);
-    const c = SBMM.storm && SBMM.storm.conduit(legs[0].id);
-    const size = c && c.size_in ? fmt0(c.size_in) + "-in " : "";
-    return `through the ${CHAIN_NUM[n] || n} ${size}pipes`;
+    const w = barrelWords(legs, legFamily(legs[0].id), legs[0].at || 0);
+    return "through the " + (w || conduitLabel(legs[0].id));
   }
   function pondCentre(pd) {
     const r = (pd.rings || [])[0];
@@ -1706,9 +1850,10 @@ SBMM.water = (function () {
       rows.push(["Sandbag wall crest", `${fmt(F.wallCrest, 2)} ft · +${fmt(F.wallCrest - R.z0, 2)} ft`
         + (st ? ` · ${fmt(acft(st.storage_ft3), 1)} ac-ft` : "")]);
     }
-    /* v15 §1: with a conduit carrying the water first, the rim spill is a FACT
-       on this card and not a route on the map. Say so in the row itself, and say
-       what carries it instead, so nobody reads the number as a prediction. */
+    /* v15 §1 + v22 §R.2: with a conduit carrying the water first, the rim spill
+       is not a route BELOW the rim — say what carries it instead, so nobody
+       reads the number as a prediction. At and above the rim it is a route
+       again: the slider traces it and shows it beside the drains' own. */
     const carrier = ov.csIsPipe ? "the 24-in pipes" : ov.conduitLabel;
     rows.push(
       /* "Rim spill" rather than "Spill elevation" the moment there is something
@@ -1717,7 +1862,7 @@ SBMM.water = (function () {
         fmt(R.primary.level, 2) + " ft"
         + (ov.rimSuppressed
             ? ` · +${fmt(R.primary.level - ov.conduitLevel, 2)} ft above ${carrier}`
-              + " — not traced; the drains are assumed to handle it"
+              + " — the drains handle it below this; from here up the overflow is traced too"
             : "")],
       ["Freeboard to the rim", fmt(R.freeboard_ft, 2) + " ft"],
       ["Spills at", `${fmt0(R.primary.x)} E, ${fmt0(R.primary.y)} N`],
@@ -1725,7 +1870,7 @@ SBMM.water = (function () {
       ["", fmt0(R.storage_ft3) + " ft³"],
       ["Area at spill", fmt(acft(R.area_ft2), 2) + " ac"],
       ["Overflow route", ov.rimSuppressed
-        ? "not traced — the drains are assumed to carry it"
+        ? `traced at and above the rim (${fmt(R.primary.level, 2)} ft) — below it the drains carry the water`
         : (rt ? `${fmt0(rt.length_ft)} ft · ${endShort(rt)}` : "—")],
       ["Grid", grid + " · " + fmt0(R.seedCells) + " cells of water surface"]
     );
@@ -1890,6 +2035,8 @@ SBMM.water = (function () {
     /* the what-if belongs to the analysis (v15 §1) and goes with it; the real
        routes are the user's features and stay, as they always have */
     if (ov.rimRoute) { SBMM.store.remove(ov.rimRoute); ov.rimRoute = null; }
+    /* the automatic rim overflow (v22 §R.2) belongs to the analysis too */
+    if (ov.rimAuto) { SBMM.store.remove(ov.rimAuto); ov.rimAuto = null; }
     if (ov.card) ov.card.remove();
     ov = null;
     SBMM.results.checkEmpty();
@@ -1969,6 +2116,9 @@ SBMM.water = (function () {
   function routes() {
     if (!ov) return null;
     return { rim: !!ov.route, rimWhatIf: !!ov.rimRoute, rimSuppressed: !!ov.rimSuppressed,
+             /* v22 §R.2 — the rim overflow this analysis traced by itself once
+                the slider reached the rim spill */
+             rimAuto: !!ov.rimAuto, rimAutoVisible: !!(ov.rimAuto && ov.rimAuto.visible),
              conduit: !!ov.conduitRoute, pipe: !!ov.pipeRoute,
              /* 2026-09-05: the discharge route is the conduit CHAIN, and these
                 two say so — `pipeChain` that it was assembled from the network
@@ -1983,6 +2133,7 @@ SBMM.water = (function () {
   }
 
   return { surveyFacts, stageSpec, stageTable, routes, traceRimWhatIf, chainSentence,
+    legPolyline, polyMidpoint,
     firstDischargeWords, parallelBarrels, pipeChainRoute,
     wire, dropAt, mkFlow, buildFlow, retrace, catchment, makeProfile,
     overtop, overtopHerman, overtopAt, clearOvertop, drapeSpec, active,
