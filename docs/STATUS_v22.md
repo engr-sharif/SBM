@@ -83,6 +83,15 @@ lengths (and so `herman_main_*.length_ft` and the raindrop's 812.2 ft by about
 the same amount); it changes nothing else in §S, because the rest of each
 conduit is EA's polyline verbatim.
 
+**A worktree trap worth the line**: `test/storm_shots.mjs` defaulted BOTH its
+target and its output directory to a hard-coded `/home/user/SBM`, so run from a
+worktree it photographed the planner's checkout and wrote into the planner's
+`test/shots`. It now resolves both from the script's own location, the way
+`test/hydro3_shots.mjs` has since v19 (which is where this was found the first
+time). Six shots scripts still carry the constant — `drainage_shots`,
+`gate_shots`, `runoff_shots`, `v15_shots`, `v15_smoke`, `water_shots` — and the
+rule is now written down in CLAUDE.md's testing section.
+
 **One local failure that is NOT this round's**: `e2e:folder` block *9a-2. detail
 setting rebuilds the terrain at a different density* fails on this box, twice,
 with `high: 66049 | standard: 0 | back to high: 0` — 66,049 is one 257x257 tile,
