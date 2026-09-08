@@ -6380,6 +6380,11 @@ parity = await page.evaluate(async () => {
   /* the drainage rows run their job on the first tick; it is cached from block
      9x, but wait for it rather than racing it */
   for (let i = 0; i < 120 && SBMM.drainage && !SBMM.drainage.hasResult(); i++) await wait(500);
+  /* v22 §C: "Where the water goes" runs its own pass of the same kernel on its
+     first tick, and the group switch above is that tick. Wait for it rather
+     than racing it, exactly as for the drainage map — its 3D drape is what the
+     framework/where_water row of the table below is about. */
+  for (let i = 0; i < 120 && SBMM.whereWater && !SBMM.whereWater.hasResult(); i++) await wait(500);
   /* the CAD groups parse their geometry lazily on first enable */
   await wait(4000);
   const wasOpen = SBMM.viewer3d.isOpen();
@@ -6824,6 +6829,216 @@ if (errors.length !== coreBefore) {
               errors.slice(coreBefore, coreBefore + 4)); process.exit(1); }
 });
 
+/* ==================================================================== */
+let errBeforeWW, wwRun, wwIdent, ww3d, wwExp, wwPop, wwStorm;   /* hoisted — v18 §3 */
+await block("9ac2. where the water goes", async () => {
+/* 9ac2. where the water goes — the four areas (v22 §C,                  */
+/*       docs/V22_SPEC.md)                                               */
+/* ==================================================================== */
+/* Phase 1 says which OUTLET every square foot drains to. This says which of the
+   four things a person standing on the site can point at, and it does it by
+   running the SAME `drainage` kernel over the SAME ground with one difference:
+   the conduit list is not trunk-merged (v22 §S, js/storm.js mapConduits), so
+   each discharge pipe terminates its own chain and the kernel reports one
+   outlet per pipe instead of one per outfall POINT.
+
+   What is proved here is the arithmetic that makes that legitimate:
+
+     * the four classes partition the surveyed ground exactly — their acres sum
+       to the run's own surveyed area, and no outlet is in two classes;
+     * the two runs are the same analysis — the surveyed ground is identical to
+       the drainage map's, and the two classes that leave through the storm
+       network add up to the map's ONE outfall catchment to the square foot;
+     * the impoundment's DIRECT first capture is still the drainage card's own
+       `through_area` for the surveyed south barrel (the 37.90 ac number), and
+       the class is bigger than it, because a catchment includes the ground that
+       fills two puddles on the way.
+
+   The 84-ac catchment itself is checked against an INDEPENDENT method in node
+   (test/kernels.mjs §11.9: the v19 accumulation at the same pipe mouth). */
+errBeforeWW = errors.length;
+wwRun = await page.evaluate(async () => {
+  /* the drainage map is what the identity is against; it is cached from block
+     9x, but a --only run has to build it */
+  const D = await SBMM.drainage.run();
+  const W = await SBMM.whereWater.run();
+  if (!W || !D) return { failed: true };
+  SBMM.layerState.set("framework", "where_water", { on: true });
+  SBMM.whereWater.paint();
+  SBMM.whereWater.showCard();
+  const cls = SBMM.whereWater.classes();
+  return {
+    grid: W.gridFt, storm: W.storm,
+    surveyed: +(W.surveyedArea_ft2 / 43560).toFixed(3),
+    drainSurveyed: +(D.surveyedArea_ft2 / 43560).toFixed(3),
+    outfallAc: +((D.sinks.find(s => s.kind === "outfall") || {}).area_ft2 / 43560).toFixed(3),
+    classes: cls.map(c => ({ id: c.id, label: c.label, acres: c.acres,
+                             share: c.share_pct, outlets: c.outlets,
+                             says: c.sentence, polys: c.sinks.length })),
+    barrels: SBMM.whereWater.barrels(),
+    terminals: [...SBMM.whereWater.hermanTerminals()],
+    direct: +(SBMM.whereWater.directIntoImpoundment() / 43560).toFixed(3),
+    through: +(((D.inlets.find(q => q.id === "herman_pipe_s") || {}).through_area_ft2 || 0) / 43560).toFixed(3),
+    row: !!document.querySelector('.lyr[data-lid="where_water"]'),
+    legend: document.querySelectorAll("#projLayers .wwLegend .rnLeg").length,
+    card: [...document.querySelectorAll("#resBody .res h4")]
+      .some(h => /Where the water goes/.test(h.textContent)),
+    polys: (() => { let n = 0; SBMM.map.eachLayer(l => { if (l.feature === undefined && l.getLatLngs && l._path === undefined) n++; }); return n; })()
+  };
+});
+console.log("where the water goes:", JSON.stringify(wwRun, null, 1));
+if (wwRun.failed) { console.log("FAIL: the four areas did not compute"); process.exit(1); }
+if (!wwRun.row) { console.log("FAIL: the 'Where the water goes' row is not in the tree"); process.exit(1); }
+if (!wwRun.card) { console.log("FAIL: no 'Where the water goes' results card"); process.exit(1); }
+if (wwRun.classes.length !== 4) { console.log("FAIL: there are not four classes"); process.exit(1); }
+if (wwRun.legend < 4) { console.log("FAIL: the legend does not carry the four classes"); process.exit(1); }
+if (!wwRun.classes.every(c => c.says && c.says.length > 40))
+  { console.log("FAIL: a class has no plain-language sentence"); process.exit(1); }
+
+/* THE PARTITION. The four classes are built out of the run's own outlets, so
+   the identity is exact rather than approximate: every outlet is in exactly one
+   class and every square foot of the surveyed ground is in exactly one outlet. */
+wwIdent = {
+  sum: +wwRun.classes.reduce((a, c) => a + c.acres, 0).toFixed(3),
+  dupOutlets: (() => {
+    const all = wwRun.classes.flatMap(c => c.outlets);
+    return all.filter((k, i) => all.indexOf(k) !== i);
+  })(),
+  network: +(wwRun.classes.find(c => c.id === "impound").acres
+           + wwRun.classes.find(c => c.id === "ponds").acres).toFixed(3),
+  impound: wwRun.classes.find(c => c.id === "impound").acres,
+  lake: wwRun.classes.find(c => c.id === "lake").acres,
+  off: wwRun.classes.find(c => c.id === "off").acres
+};
+console.log("the partition:", JSON.stringify(wwIdent));
+if (Math.abs(wwIdent.sum - wwRun.surveyed) > 0.01) {
+  console.log("FAIL: the four classes do not sum to the surveyed ground",
+              wwIdent.sum, "vs", wwRun.surveyed); process.exit(1); }
+if (wwIdent.dupOutlets.length) {
+  console.log("FAIL: an outlet is in two classes:", wwIdent.dupOutlets); process.exit(1); }
+if (Math.abs(wwRun.surveyed - wwRun.drainSurveyed) > 0.01) {
+  console.log("FAIL: the two runs disagree about the surveyed ground"); process.exit(1); }
+/* the two runs are the same analysis: what leaves through the storm network is
+   the drainage map's ONE outfall catchment, split in two and no more */
+if (Math.abs(wwIdent.network - wwRun.outfallAc) > 0.01) {
+  console.log("FAIL: the two storm-network classes do not add up to the outfall catchment",
+              wwIdent.network, "vs", wwRun.outfallAc); process.exit(1); }
+/* the class rule is derived from the network, not from a list of acreages */
+if (wwRun.barrels.length !== 2 || !wwRun.barrels.every(id => /^herman_pipe_/.test(id))) {
+  console.log("FAIL: the impoundment's discharge pipes were not derived:", wwRun.barrels); process.exit(1); }
+if (!wwRun.terminals.length) { console.log("FAIL: the barrels reach no terminal conduit"); process.exit(1); }
+/* THE HERMAN IDENTITY. `through_area` on the surveyed south barrel is what the
+   drainage card calls "what drains into it" — the ground whose FIRST capture is
+   the impoundment. It is not the catchment, and the class must be bigger. */
+if (Math.abs(wwRun.direct - wwRun.through) > 0.01) {
+  console.log("FAIL: the direct first-capture area is not the drainage map's through_area",
+              wwRun.direct, "vs", wwRun.through); process.exit(1); }
+if (!(wwIdent.impound > wwRun.direct)) {
+  console.log("FAIL: the impoundment's catchment is not bigger than its direct capture",
+              wwIdent.impound, wwRun.direct); process.exit(1); }
+if (!(wwIdent.lake > 100 && wwIdent.off > 100 && wwIdent.impound > 10)) {
+  console.log("FAIL: an area is implausibly small", wwIdent); process.exit(1); }
+
+/* the popup is the same fact, and a class that does not exist is refused
+   rather than thrown */
+wwPop = await page.evaluate(() => ({
+  impound: SBMM.popups.forWhereWater("impound"),
+  bogus: SBMM.popups.forWhereWater("not-a-class")
+}));
+if (!/Herman impoundment/.test(wwPop.impound) || !/ac/.test(wwPop.impound))
+  { console.log("FAIL: the class popup does not name the class and its acres"); process.exit(1); }
+if (!/no longer in the map/.test(wwPop.bogus))
+  { console.log("FAIL: an unknown class is not refused politely"); process.exit(1); }
+
+/* 3D: the four areas are draped, tagged for the pick registry, and the row
+   really has objects in the scene (block 9y's own test, made here by name) */
+ww3d = await page.evaluate(async () => {
+  const wait = ms => new Promise(r => setTimeout(r, ms));
+  const r = SBMM.whereWater.rings3d();
+  const wasOpen = SBMM.viewer3d.isOpen();
+  if (!wasOpen) { await SBMM.viewer3d.toggle(); await wait(3500); }
+  else { SBMM.viewer3d.refreshOverlays(); await wait(2500); }
+  const drawn = SBMM.viewer3d.stats().layersDrawn;
+  const out = { rings: r.length,
+                tagged: r.every(q => q.props && q.props.layer === "WATER-GOES" && q.geom),
+                classes: [...new Set(r.map(q => q.cls))].sort(),
+                objects: drawn["framework/where_water"] || 0, wasOpen };
+  if (!wasOpen) { await SBMM.viewer3d.toggle(); await wait(600); }
+  return out;
+});
+console.log("the four areas in 3D:", JSON.stringify(ww3d));
+if (ww3d.rings < 8 || !ww3d.tagged)
+  { console.log("FAIL: the four areas are not drapeable/pickable in 3D"); process.exit(1); }
+if (!ww3d.objects) { console.log("FAIL: framework/where_water draws nothing in 3D"); process.exit(1); }
+
+/* the exports, and the design storm's own class rows */
+wwExp = await page.evaluate(() => {
+  const P = p => [p[0], p[1]];
+  const gj = SBMM.whereWater.geoFeatures(P);
+  const dxf = SBMM.whereWater.dxfEntities();
+  const csv = SBMM.whereWater.csv();
+  const rows = SBMM.runoff && SBMM.runoff.hasResult() ? SBMM.runoff.classRows() : null;
+  return {
+    gj: gj.length,
+    layers: [...new Set(gj.map(f => f.properties.layer))],
+    classes: [...new Set(gj.map(f => f.properties.class))].sort(),
+    everySays: gj.every(f => typeof f.properties.what_happens === "string"
+                          && f.properties.what_happens.length > 20),
+    dxfLayers: [...new Set(dxf.map(d => d.layer))],
+    csvLines: csv.trim().split("\n").length,
+    csvHasAll: SBMM.whereWater.classes().every(c => csv.indexOf(c.label) >= 0),
+    rainRows: rows ? rows.length : null,
+    rainVol: rows ? +rows.reduce((a, r) => a + r.volume_acft, 0).toFixed(1) : null,
+    rainTotal: SBMM.runoff && SBMM.runoff.hasResult()
+      ? +(SBMM.runoff.result().totals.volume_acft).toFixed(1) : null,
+    rainLine: rows ? SBMM.runoff.impoundLine(rows) : null
+  };
+});
+console.log("the four areas, exported:", JSON.stringify(wwExp));
+if (wwExp.gj < 4 || wwExp.layers.join() !== "WATER-GOES" || !wwExp.everySays)
+  { console.log("FAIL: the GeoJSON is not four classes on WATER-GOES with their sentences"); process.exit(1); }
+if (wwExp.classes.length !== 4) { console.log("FAIL: the GeoJSON does not carry all four classes"); process.exit(1); }
+if (wwExp.dxfLayers.join() !== "WATER-GOES") { console.log("FAIL: the DXF layer is wrong"); process.exit(1); }
+if (wwExp.csvLines < 8 || !wwExp.csvHasAll) { console.log("FAIL: the CSV does not carry the four classes"); process.exit(1); }
+/* the design storm's card carries a line per class, and the four lines are the
+   storm's own total volume apportioned — not a second hydrology */
+if (wwExp.rainRows != null) {
+  if (wwExp.rainRows !== 4) { console.log("FAIL: the design storm has not four class rows"); process.exit(1); }
+  if (Math.abs(wwExp.rainVol - wwExp.rainTotal) > 0.2) {
+    console.log("FAIL: the class volumes do not sum to the storm's own volume",
+                wwExp.rainVol, "vs", wwExp.rainTotal); process.exit(1); }
+  if (!/impoundment receives/.test(wwExp.rainLine || "")) {
+    console.log("FAIL: the design storm does not say what the impoundment receives"); process.exit(1); }
+  console.log("the design storm, by class:", wwExp.rainLine);
+}
+
+/* the storm switch invalidates it, exactly as it invalidates the map */
+wwStorm = await page.evaluate(async () => {
+  SBMM.storm.setEnabled(false, true);
+  const off = await SBMM.whereWater.run({ force: true });
+  const offCls = SBMM.whereWater.classes();
+  SBMM.storm.setEnabled(true, true);
+  const back = await SBMM.whereWater.run({ force: true });
+  SBMM.whereWater.paint();
+  return {
+    offImpound: (offCls.find(c => c.id === "impound") || {}).acres,
+    offConduits: off.conduits,
+    backImpound: (SBMM.whereWater.classes().find(c => c.id === "impound") || {}).acres,
+    sameGround: off.surveyedCells === back.surveyedCells
+  };
+});
+console.log("with the storm drains off:", JSON.stringify(wwStorm));
+if (wwStorm.offConduits !== 0 || wwStorm.offImpound !== 0)
+  { console.log("FAIL: with the drains off the impoundment still has a piped catchment"); process.exit(1); }
+if (!wwStorm.sameGround) { console.log("FAIL: the surveyed ground changed with the switch"); process.exit(1); }
+if (!(wwStorm.backImpound > 10)) { console.log("FAIL: switching the drains back on lost the impoundment"); process.exit(1); }
+
+if (errors.length !== errBeforeWW) {
+  console.log("FAIL: 'where the water goes' raised page errors:",
+              errors.slice(errBeforeWW, errBeforeWW + 4)); process.exit(1); }
+await page.evaluate(() => SBMM.layerState.set("framework", "where_water", { on: false }));
+});
+
 await block("9z. the layer tree", async () => {
 /* 9z. the layer tree (v16, docs/V16_LAYERS_SPEC.md §3)                  */
 /* ==================================================================== */
@@ -6886,7 +7101,10 @@ treeMissing = treeBase.keys.filter(k => !treeKeys.has(k));
        drains)* sub-group the Phase 1 catchment rows are in. Same reason as the
        design-storm pair above — the app grew them after this baseline was
        dumped, and they are registered through SBMM.addLayerRow like every
-       other row rather than being drawn into the tree by hand. */
+       other row rather than being drawn into the tree by hand.
+     · the "Where the water goes" row (v22 §C), in that same Drainage
+       sub-group. Same reason again, and the same mechanism: it is registered
+       through SBMM.addLayerRow with `sub:` like the five rows beside it. */
 treeNew = tree.keys.filter(k => treeBase.keys.indexOf(k) < 0);
 treeUnexplained = treeNew.filter(k => !/^invest\//.test(k) && !/^base\/contours_/.test(k)
                                          && k !== "framework/runoff_cover"
@@ -6894,7 +7112,8 @@ treeUnexplained = treeNew.filter(k => !/^invest\//.test(k) && !/^base\/contours_
                                          && k !== "design/c_102_staging_area"
                                          && k !== "design/c_203_borrow_source_demonstration_area"
                                          && k !== "framework/accum_raster"
-                                         && k !== "framework/accum_streams");
+                                         && k !== "framework/accum_streams"
+                                         && k !== "framework/where_water");
 console.log("layer tree:", tree.rows.length, "rows in the state,", tree.domRows, "in the DOM,",
             tree.subs.length, "sub-groups |", tree.swatches, "symbology swatches |",
             "baseline", treeBase.keys.length, "rows — missing", treeMissing.length,
