@@ -3585,11 +3585,20 @@ SBMM.viewer3d = (function () {
       texBudgetPx: isFinite(texBudget()) ? texBudget() : null,
       gpuGeometries: (renderer && renderer.info) ? renderer.info.memory.geometries : null,
       gpuTextures: (renderer && renderer.info) ? renderer.info.memory.textures : null,
+      /* the largest drape texture in megapixels — the number that killed the
+         tab on an iPhone was 178. Since v22 §G it counts the QUADTREE's own
+         tile drapes as well as the whole-DEM cache, because with the tile
+         terrain on there is nothing in texCache at all and the phone harness
+         was asserting against an empty set. */
       texMP: (() => {
         let mp = 0;
         for (const k in texCache) {
           const im = texCache[k] && texCache[k].tex && texCache[k].tex.image;
           if (im && im.width) mp = Math.max(mp, (im.width * im.height) / 1e6);
+        }
+        if (lodOn && SBMM.terrain3d) {
+          const t = SBMM.terrain3d.stats();
+          if (t.drapeTexPx) mp = Math.max(mp, (t.drapeTexPx * t.drapeTexPx) / 1e6);
         }
         return +mp.toFixed(1);
       })(),

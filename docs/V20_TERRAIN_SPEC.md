@@ -57,6 +57,17 @@ we have, and an app that grows with the next survey.
   the mine and residential windows. Each tile mesh carries its own drape
   texture from the ortho pyramid (anisotropy as v17); the "drape" selector
   (ortho / hillshade / slope / cover) switches the pyramid, not the mesh.
+  **AMENDED BY v22 §G: the drape level is a TEXTURE budget, not the mesh
+  level.** As written and as shipped in v20, `orthoRef()` took the ortho
+  tile at the terrain tile's own `z`, so a 4-ft mesh tile carried a 256 px
+  image over 1,024 ft — four feet per texel, and that is what was reported
+  as "the topo looks pixelated when zooming in". Since v22 §G a tile takes
+  the ortho `k` levels FINER and composites the 4^k sub-tiles into one
+  `256·2^k` px image over the coarse ancestor; `k` is per profile (desktop
+  2, tablet 1, phone 0 — v20's own behaviour, which is why the phone and
+  field harnesses did not move) and is capped again by the levels the ortho
+  pyramid actually has. See CLAUDE.md's v22 §G section for the measured
+  table and for why k = 2 was kept.
 - NoData handling exactly as today (skip cells touching NoData; the
   coverage rule for the 1-ft holes in the 2-ft mesh becomes a per-tile
   rule: a coarse tile is not drawn where finer tiles cover it entirely).

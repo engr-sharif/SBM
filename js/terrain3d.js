@@ -641,9 +641,9 @@ SBMM.terrain3d = (function () {
             const rec2 = Object.assign({ key: gk, used: ++geomClock, live: false }, g);
             geomCache.set(gk, rec2);
             geomBytes += rec2.allBytes;
+            geomTrim();
             return rec2;
           });
-          geomTrim();
         }
         const got = drapeP.has(k) ? await drapeP.get(k) : null;
         if (myGen !== generation) { for (const r of built.values()) dispose(r); return false; }
