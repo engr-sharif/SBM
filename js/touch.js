@@ -889,6 +889,11 @@ SBMM.touch = (function () {
       workers: SBMM.compute && SBMM.compute.poolSize ? SBMM.compute.poolSize() : null,
       webgl2: v.webgl2 == null ? null : !!v.webgl2,
       gpu: v.gpuName || null,
+      /* v22 §G — "is the desktop using the GPU" answered rather than guessed:
+         a software rasteriser is named as one on the Help line */
+      gpuHardware: v.gpuHardware == null ? null : !!v.gpuHardware,
+      drapeFtPerPx: (v.tiles && v.tiles.drapeFtPerPx) ? v.tiles.drapeFtPerPx : null,
+      drapeTexMB: (v.tiles && v.tiles.texMB != null) ? v.tiles.texMB : null,
       anisotropy: v.anisotropy || null,
       memoryMB: (performance && performance.memory)
         ? Math.round(performance.memory.usedJSHeapSize / 1e6) : null,
@@ -913,8 +918,10 @@ SBMM.touch = (function () {
       d.build + " build", d.profile, d.viewport + " @" + (+d.dpr).toFixed(1) + "x",
       d.cores ? d.cores + " cores" : null, d.workers ? d.workers + " workers" : null,
       d.webgl2 == null ? null : (d.webgl2 ? "WebGL2" : "WebGL1"),
-      d.gpu ? d.gpu.slice(0, 52) : null,
+      d.gpu ? (d.gpu.slice(0, 52) + (d.gpuHardware === false ? " (software)" : "")) : null,
       d.anisotropy ? d.anisotropy + "x aniso" : null,
+      d.drapeFtPerPx ? ("drape " + d.drapeFtPerPx[0] + "-" + d.drapeFtPerPx[1]
+        + " ft/px" + (d.drapeTexMB ? ", " + d.drapeTexMB + " MB" : "")) : null,
       d.memoryMB ? (d.memoryMB + (d.heapLimitMB ? "/" + d.heapLimitMB : "") + " MB heap") : null,
       d.gpuTextures == null ? null : (d.gpuTextures + " tex / " + d.gpuGeometries + " geom"
         + (d.texMP ? ", " + d.texMP + " MP drape" : "")),
@@ -1273,7 +1280,9 @@ SBMM.touch = (function () {
     const det = document.getElementById("v3dDetail");
     if (det) {
       const rem = SBMM.view && SBMM.view.pref ? SBMM.view.pref("detail") : undefined;
-      if (rem === "std" || rem === "high") det.value = rem;
+      /* "ultra" is a remembered choice too (v22 §G): it was dropped here, so a
+         desktop user who picked it got `high` back on the next boot */
+      if (rem === "std" || rem === "high" || rem === "ultra") det.value = rem;
       else if (on()) det.value = "std";
     }
   }
