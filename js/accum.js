@@ -70,13 +70,9 @@ SBMM.accum = (function () {
   function conduitsForSite(dem) {
     if (!stormOn()) return [];
     const m = dem.m;
-    const cds = SBMM.storm.conduitsFor([m.x0, m.y0, m.x0 + m.w * m.cell, m.y0 + m.h * m.cell]);
-    for (const c of cds) {
-      const rec = SBMM.storm.conduit(c.id);
-      const to = rec ? SBMM.storm.node(rec.to) : null;
-      c.outfall = !!(to && to.kind === "outfall");
-    }
-    return cds;
+    /* the same list the drainage map is handed, through the same rule (v22 §S) */
+    return SBMM.storm.mapConduits(
+      SBMM.storm.conduitsFor([m.x0, m.y0, m.x0 + m.w * m.cell, m.y0 + m.h * m.cell]));
   }
   function jobFor(strideCells, m) {
     const dem = SBMM.demSite;

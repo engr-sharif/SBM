@@ -411,13 +411,31 @@ SBMM.viewer3d = (function () {
      NOT draped — the water is under the ground there. Each track carries its own
      cumulative arc length so the render loop can place a particle by a single
      binary search. */
+  /* v22 §R.1 — the geometry of a conduit leg comes from js/water.js, the same
+     one place the 2D line asks, so the tube, the particle track and the map
+     cannot disagree about where EA drew the pipe. A build with no water module
+     (or a leg whose conduit is not in the payload) falls back to the chord. */
+  function legPts(lg) {
+    const w = SBMM.water && SBMM.water.legPolyline ? SBMM.water.legPolyline(lg) : null;
+    return (w && w.length > 1) ? w : [lg.from, lg.to];
+  }
+
   function makeTrack(pts, pipe, zA, zB) {
     const xs = [], ys = [], zs = [];
     if (pipe) {
-      xs.push(pts[0][0] - CX, pts[1][0] - CX);
-      ys.push(pts[0][1] - CY, pts[1][1] - CY);
-      zs.push((zA == null ? drapeZ(pts[0][0], pts[0][1], 0) : zA - ZMID) + 1,
-              (zB == null ? drapeZ(pts[1][0], pts[1][1], 0) : zB - ZMID) + 1);
+      /* v22 §R.1: a pipe track follows the CONDUIT'S OWN polyline, and its
+         elevation is interpolated along that polyline's length between the two
+         ends — still un-draped, because the water is under the ground here. */
+      const cum = [0];
+      for (let i = 1; i < pts.length; i++)
+        cum.push(cum[i - 1] + dist2d(pts[i - 1], pts[i]));
+      const tot = cum[cum.length - 1] || 1;
+      const za = (zA == null ? drapeZ(pts[0][0], pts[0][1], 0) : zA - ZMID) + 1;
+      const zb = (zB == null ? drapeZ(pts[pts.length - 1][0], pts[pts.length - 1][1], 0) : zB - ZMID) + 1;
+      for (let i = 0; i < pts.length; i++) {
+        xs.push(pts[i][0] - CX); ys.push(pts[i][1] - CY);
+        zs.push(za + (zb - za) * (cum[i] / tot));
+      }
     } else {
       for (let i = 1; i < pts.length; i++) {
         const a = pts[i - 1], b = pts[i], d = dist2d(a, b), n = Math.max(1, Math.ceil(d / 10));
@@ -439,23 +457,28 @@ SBMM.viewer3d = (function () {
 
   /* the stretches of a run, split at each conduit leg exactly the way
      js/water.js buildFlow splits them for the 2D map */
-  function flowTracks(f) {
-    const p = f.props || {};
-    const legs = (p.legs || []).filter(lg => lg.at != null && lg.at >= 0);
+  /* the overland stretches of a run, split at each conduit leg — the same cut
+     js/water.js buildFlow makes for the 2D map */
+  function flowStretches(f) {
+    const legs = ((f.props || {}).legs || []).filter(lg => lg.at != null && lg.at >= 0);
     const cuts = [...new Set(legs.map(lg => lg.at))].sort((a, b) => a - b);
     const out = [];
     let st = 0;
     for (const cut of cuts) {
-      if (cut >= st && cut + 1 - st > 1) {
-        const t = makeTrack(f.pts.slice(st, cut + 1), false);
-        if (t) out.push(t);
-      }
+      if (cut >= st && cut + 1 - st > 1) out.push(f.pts.slice(st, cut + 1));
       st = cut + 1;
     }
-    if (f.pts.length - st > 1) { const t = makeTrack(f.pts.slice(st), false); if (t) out.push(t); }
+    if (f.pts.length - st > 1) out.push(f.pts.slice(st));
+    return out;
+  }
+  function flowTracks(f) {
+    const p = f.props || {};
+    const legs = (p.legs || []).filter(lg => lg.at != null && lg.at >= 0);
+    const out = [];
+    for (const sq of flowStretches(f)) { const t = makeTrack(sq, false); if (t) out.push(t); }
     for (const lg of legs) {
       if (!lg.from || !lg.to) continue;
-      const t = makeTrack([lg.from, lg.to], true, lg.from_z, lg.to_z);
+      const t = makeTrack(legPts(lg), true, lg.from_z, lg.to_z);
       if (t) out.push(t);
     }
     return out;
@@ -1642,9 +1665,19 @@ SBMM.viewer3d = (function () {
           const pr = f.props || {};
           /* v15 §1: a what-if rim overflow is drawn as a hypothesis in 3D too */
           const wcol = pr.whatif ? 0x93A6B3 : col;
-          const fl = own(addShadow(SHW, drapedLine(f.pts, wcol, false, sel ? 4.5 : 3)), f);
-          overlayGroup.add(fl);
-          if (sel) halo(fl);
+          /* v22 §R.1: the GROUND line is drawn per stretch, split at each
+             conduit leg exactly the way js/water.js buildFlow splits it for the
+             map. One draped polyline through the whole run would drape the pipe
+             on the hill it passes beneath — a 796-ft line of water running over
+             the ground beside the pipe that actually carries it, which is the
+             one thing this must not say. */
+          let fl = null;
+          for (const sq of flowStretches(f)) {
+            const o = own(addShadow(SHW, drapedLine(sq, wcol, false, sel ? 4.5 : 3)), f);
+            overlayGroup.add(o);
+            if (!fl) fl = o;
+          }
+          if (sel && fl) halo(fl);
           for (const pd of (pr.ponds || []))
             for (const ring of (pd.rings || []))
               if (ring && ring.length > 2) {
@@ -1664,11 +1697,16 @@ SBMM.viewer3d = (function () {
              passes beneath. */
           for (const lg of (pr.legs || [])) {
             if (!lg.from || !lg.to) continue;
-            const za = lg.from_z == null ? drapeZ(lg.from[0], lg.from[1], 0) : lg.from_z - ZMID;
-            const zb = lg.to_z == null ? drapeZ(lg.to[0], lg.to[1], 0) : lg.to_z - ZMID;
-            const gg = new THREE.BufferGeometry().setFromPoints([
-              new THREE.Vector3(lg.from[0] - CX, lg.from[1] - CY, za + 1),
-              new THREE.Vector3(lg.to[0] - CX, lg.to[1] - CY, zb + 1)]);
+            /* v22 §R.1: along EA's own polyline, with the elevation interpolated
+               by length between the two ends */
+            const P = legPts(lg);
+            const za = lg.from_z == null ? drapeZ(P[0][0], P[0][1], 0) : lg.from_z - ZMID;
+            const zb = lg.to_z == null ? drapeZ(P[P.length - 1][0], P[P.length - 1][1], 0) : lg.to_z - ZMID;
+            const cum = [0];
+            for (let i = 1; i < P.length; i++) cum.push(cum[i - 1] + dist2d(P[i - 1], P[i]));
+            const tot = cum[cum.length - 1] || 1;
+            const gg = new THREE.BufferGeometry().setFromPoints(P.map((q, i) =>
+              new THREE.Vector3(q[0] - CX, q[1] - CY, za + (zb - za) * (cum[i] / tot) + 1)));
             overlayGroup.add(own(new THREE.Line(gg, new THREE.LineBasicMaterial(
               { color: 0x7FA7C9, transparent: true, opacity: .95 })), f));
           }

@@ -224,6 +224,17 @@ a PNG and it misses. `test/fixtures/` holds the water references (`drop_ref.json
 (`waterref.py`, `survey_stage_ref.py`), which are the tie-breakers when a definition is
 unclear; the water windows are now cut from the real PNGs with `gridSpec` and the harness
 asserts their shape before it asserts anything measured in them.
+**A shots script resolves BOTH its defaults from its own location**, never from
+a hard-coded `/home/user/SBM` — in an agent worktree that constant opens the
+planner's `index.html` and writes the pictures into the planner's tree, which is
+exactly what happened twice (v19's `hydro3_shots.mjs` and v22's
+`storm_shots.mjs`). The pattern is `const HERE = resolve(fileURLToPath(new
+URL(".", import.meta.url)))`, then `argv[2] || resolve(HERE, "..",
+"index.html")` and `argv[3] || resolve(HERE, "shots")`. The other six shots
+scripts still carry the constant and should get the same two lines when they are
+next touched: `drainage_shots`, `gate_shots`, `runoff_shots`, `v15_shots`,
+`v15_smoke`, `water_shots`.
+
 `test/water_shots.mjs` writes the four v10 water shots (raindrop 2D/3D, Herman
 overtopping 2D/3D) into `test/shots/` and `test/storm_shots.mjs` the two v12 storm shots
 (the south-road grate chain with a Frog Pond raindrop on it, and the network draped in 3D);
@@ -1148,23 +1159,46 @@ Four things here are traps:
   would draw water running over the ground along the pipe, which is the one
   thing this must not say.
 
-**BOTH 24-in barrels are the impoundment's discharge (ruling, 2026-09-05, the
-engineer: "there are 2 pipes and you only used one ... make sure the system
-knows that the water flows through the pipes and out to Clear Lake; right now I
-think it shows that it goes directly and makes its own path").** EA's drawn
-storm line starts 13 ft west of where the survey plots the pipes' west ends, and
-until this ruling ONE inferred conduit crossed that gap — `pipe_to_main`, from
-the **North** barrel. So `herman_pipe_s` — the LOWER invert, and therefore the
-one the water actually leaves through — ended 13 ft short of anything, and its
-water left the pipe on to the ground for the three feet to the North link's
-capture disc. The payload now carries `pipe_to_main` AND `pipe_to_main_s`, one
-per barrel, both `source: "inferred"`, and the counts are **44 nodes / 27
-conduits** (`storm_inferred` 12). One conduit per barrel rather than a shared
-manifold node **because a manifold would have to move `pipe_to_main`'s inlet and
-re-cut its geometry**, and every golden that names that conduit, its 13.2 ft and
-the drainage map's per-inlet areas is measured on it as it stands. The only
-number that moved is the raindrop's pipe length out of the impoundment, 813.3 →
-**812.8 ft** (16.5 + 12.7 + 194.7 + 588.9).
+**BOTH 24-in barrels are the impoundment's discharge AND THEY DO NOT MERGE —
+THREE PIPES LIE IN ONE TRENCH** (ruling, 2026-09-05, restated 2026-09-06; v22
+§S). The engineer, first: *"there are 2 pipes and you only used one ... make
+sure the system knows that the water flows through the pipes and out to Clear
+Lake; right now I think it shows that it goes directly and makes its own
+path"*; then: *"the two overflow outlets that you have merging into one, that's
+not the case, we have two pipes that run in parallel with each other that take
+the overflow from the two overflow pipes out to Clear Lake ... there are three
+pipes that flow along that channel, the two for the Herman impoundment and one
+that is used by the Frog and Green pond overflow — that's the far south one."*
+
+**The CAD says the same thing and the builder misread it.** `V-STRM-STRC`
+carries THREE 783-ft polylines between the sandbag wall and the shore — `E943E`
+(north), `E943C` (middle), `E943D` (south) — **2.35 ft apart**, which is the
+outside diameter of 24-in corrugated HDPE. `tools/build_storm_network.py` took
+them for one 24-in double line with a centreline: a double line would be 2.0 ft
+wide in total, and this trench is 4.7 ft. Which is which comes off the survey —
+the North barrel's plotted west end is 12.8 ft from E943E's east end, the
+South's 12.7 ft from E943C's — which leaves E943D, the far south one, for the
+road drain, exactly as he said.
+
+So the payload carries `herman_main_n` (E943E) and `herman_main_s` (E943C), each
+the barrel's plotted west end plus its own drawn line verbatim (`size_in: 24`,
+`source: "cad_line"`, only the ~12.8/12.7 ft gap inferred); `storm_main_upper` /
+`storm_main_lower` move to **E943D**; and `pipe_to_main`, `pipe_to_main_s` and
+the `storm_main_east` node are **gone** (`storm_main_d_east` takes the node's
+place at E943D's east end — nothing feeds it, and its note says so). Counts stay
+**44 nodes / 27 conduits**, but `storm_cad` is 17 and `storm_inferred` 10 where
+they were 15 and 12. The dog-leg `E9441`/`E9442` → `E9443`/`E9444` is still out
+of the network, recorded in the builder as *drawn, purpose not established — ask
+EA*.
+
+**ONE `outfall` node, and that is a decision.** The three west ends are within
+2.9 ft of each other and the node stays where it was, at E943C's west end. The
+drainage map labels a cell by the OUTLET it drains to, so one outfall keeps
+*Clear Lake outfall (storm network)* one 282-acre catchment; three would split a
+number the engineer already reads. The raindrop's pipe length out of the
+impoundment moved 812.8 → **812.2 ft** (16.5 + 795.7), and that plus 0.01 ac
+between the lake and the outfall (the v22 section says why) is everything the
+rebuild moved.
 
 Two things about the ponds east of the impoundment (ruling, 2026-09-04, the
 engineer's own reading of the site):
@@ -1192,7 +1226,7 @@ engineer's own reading of the site):
 **The raindrop and the overtopping tool now agree about Herman**, which they did
 not before the sunken-inlet rule: a drop inside the impoundment ponds to 1,341.54
 (the lower surveyed invert is 1,341.53) and leaves through `herman_pipe_s` →
-`pipe_to_main_s` → `storm_main_upper` → `storm_main_lower` → the outfall, 812.8 ft
+`herman_main_s` → the outfall, **812.2 ft**
 in pipe, against the overtopping card's first discharge at 1,341.55. With the
 drains off the same drop fills to the lidar rim at 1,343.84 and spills over it —
 2.30 ft higher — which is exactly what the rule buys and what the e2e prints.
@@ -1245,14 +1279,19 @@ Four things here are traps:
   `buildFlow`, the 3D tubes and the particle stream take it unchanged. **`props.length_ft`
   is what happens AFTER the outfall and nothing else** — the e2e walks the stretches and
   requires zero ground before it — and `pipe_ft` is the SPINE only, because the water
-  travels 812.8 ft down this system, not 843. The old raindrop is kept as the fallback for
-  a build with no network, the drains switched off, or a water body whose discharge
-  conduits are not in the payload.
+  travels **812.2 ft** down this system, not 1,624.5: since v22 §S the spine is
+  `herman_pipe_s` → `herman_main_s` and the North chain (`herman_pipe_n` →
+  `herman_main_n`) is a parallel leg for its WHOLE length rather than for 13 ft. The old
+  raindrop is kept as the fallback for a build with no network, the drains switched off, or
+  a water body whose discharge conduits are not in the payload.
 - **A card that names one barrel is the bug.** `firstDischargeWords()` counts the legs of
   the first family leaving the same vertex ("through the two 24-in pipes"), `chainSentence`
   skips that whole leading family rather than one leg, and its family key is the label's
   first two words **or three when the second is a preposition** — otherwise
-  `pipe_to_main`/`pipe_to_main_s` collapse to the dangling "pipe to". A RAINDROP still takes
+  `herman_main_n`/`herman_main_s` would collapse to "herman main" (before §S it was
+  `pipe_to_main`/`pipe_to_main_s` collapsing to the dangling "pipe to"), and since §S a
+  family whose legs leave the SAME vertex is rendered by `barrelWords()` instead, so
+  `chainSentence` reads "→ two 24-in pipes → Clear Lake outfall". A RAINDROP still takes
   the lower invert first (the kernel's rule, and right for one drop) and `parallelNote()`
   puts the other barrel on its card. `parallelBarrels(id)` is that fact read off the
   network — same size, inlets within 30 ft, chains that converge — and **both must be HEADS
@@ -2681,6 +2720,103 @@ that true.
   measurement is `scratchpad/conv.mjs`'s shape and is trivial to repeat. If a
   future storm makes `nStorm x nUH` an order of magnitude bigger, measure again
   before assuming the answer still holds.
+
+## v22 §S/§R — three pipes, and the overflow that follows them
+
+Contract: `docs/V22_SPEC.md` §S and §R. No kernel work (`js/compute.js` is not
+touched; `VERSION` stays 10). Data `tools/build_storm_network.py` →
+`data/storm_network.json` → `datajs/d_storm_network.js`; hosts `js/storm.js`,
+`js/water.js`, `js/viewer3d.js`, `js/drainage.js`, `js/accum.js`. Harness
+sections `storm` (§6.7–6.9) and `drainage` (§11.1) in `test/kernels.mjs`; e2e
+blocks **9s**, **9t** and **9v**.
+
+The network rebuild is in the v12 section above (the two-barrel paragraph). What
+follows is what will be walked into again.
+
+- **ONE OUTFALL NODE IS NOT ONE OUTLET, AND THE KERNEL DECIDES THAT, NOT THE
+  DATA.** The spec's reason for keeping one `outfall` node was to keep *Clear
+  Lake outfall (storm network)* one 282-acre catchment — and one node was not
+  enough. `drainage` names an outlet sink after the **last CONDUIT** of the chain
+  that reaches it (`"outfall:" + CL.id`), so the moment three conduits ended at
+  that node the map came back with **three outlets of the same name** and the
+  282 ac split three ways (197.87 + two). The kernel is not editable this round,
+  so the rule is the HOST's: `SBMM.storm.mapConduits(cds)` sets `outfall` and,
+  where several conduits discharge at one node, names the **TRUNK** (the
+  candidate the most chains terminate at, which is `storm_main_lower` here) and
+  points the others at it through `next`. That is safe because the kernel follows
+  `next` only to find where a chain ENDS — it measures no length along it and
+  reports no leg for it. `js/drainage.js` and `js/accum.js` both call it, because
+  the §11.8 accumulation identity is an identity only if the two are handed the
+  same list, and `test/kernels.mjs` `drainConduits` mirrors it.
+- **A harness that reads `lastLeg.outfall` is reading the wrong thing after
+  that.** The 100-raindrop identity classifies a drop by its last leg; with the
+  trunk rule in place the South barrel's own line is no longer flagged, so four
+  drops that really did reach the outfall were read as "left the survey into the
+  lake" and the identity fell to 96/100. It follows `next` to the terminal now,
+  exactly as the kernel does, and is back at **100/100**.
+- **`parallelBarrels()` needed two barrels that no longer share a conduit.** Its
+  convergence test was "the two chains use a common conduit", which was true
+  while both barrels fed one storm main and is false now — they converge on the
+  outfall NODE. Widening it to accept that is not enough on its own: the third
+  pipe in the trench (`storm_main_upper`, 24-in, a head since §S, its east end
+  **29.4 ft** from the sandbag wall — inside `PARALLEL_FT`) then qualifies too
+  and the card announces three barrels. The discriminator is that **two barrels
+  of one crossing are the same crossing and therefore the same length**: 16.5
+  against 16.6 ft for the two barrels, 196.0 for the storm line. Keep both tests.
+- **A conduit leg follows the conduit's own polyline** (§R.1). `js/water.js`
+  `legPolyline(lg)` is the ONE lookup — the kernel's leg record still carries
+  only ids — and `js/viewer3d.js` asks it for both the un-draped tube and the
+  particle track, so the map, the tube and the animation cannot disagree about
+  where EA drew the pipe. It is stitched between the LEG's own two ends rather
+  than the conduit's: a sunken pipe mouth sits up to 30 ft from its node (v12),
+  and two of the three drawn lines end 2.4 ft from the shared outfall node. The
+  "in pipe · N ft" label sits at the polyline's **length** midpoint.
+- **And the 3D ground line had to be split at the same cuts.** `drapedLine` was
+  handed the whole `f.pts`, which draped a straight line across every conduit
+  jump. That was invisible while a leg WAS a straight line, and the moment the
+  legs became 796-ft polylines it drew water running over the hill beside the
+  pipe that carries it — the exact thing the 2D `buildFlow` has split since v12.
+  `flowStretches(f)` is that cut, and `flowTracks` uses it too.
+- **The card opens AT the rim spill row, so §R.2's automatic rim overflow runs
+  on every suppressed analysis.** The slider's default is the first stage row at
+  or above the spill, which is at the rim — so opening Frog Pond, Green Pond or
+  Herman now costs one extra `flowpath` job. It is traced ONCE and cached
+  (`ov.rimAuto`; a slider drag fires `applyLevel` per pixel), hidden below the
+  rim rather than removed, and taken away with the analysis like the what-if. It
+  is created with `noUndo` for v15's reason — an undo entry pointing at a feature
+  the analysis has since removed is worse than none — and `ensureRimAuto()`
+  re-checks that the analysis it started under is still the open one before it
+  keeps the result.
+- **A harness block that closes the analysis it shares breaks the next one.**
+  9t's new slider section ended with `clearOvertop()`, which took the stage
+  surface the 3D sub-block measures with it (`stageAtDefault: null`, and a
+  failure that looks like a 3D bug). The analysis stays open; "the automatic rim
+  route goes with the analysis" is asserted after the 3D block, which is what
+  closes it.
+
+- **THE GAP IS MEASURED, NEVER A CONSTANT, AND SO IS THE PAIRING.** A parallel
+  round found that the August-2026 survey as delivered may sit ~13 ft WSW of the
+  lidar and the ortho (probably international feet on a US-survey-foot grid; the
+  surveyor is being asked). If it is re-placed, both barrels' plotted west ends
+  move and both inferred gaps change with them — so
+  `tools/build_storm_network.py` computes each gap from the two coordinates on
+  every run and prints it as "measured at N ft as the survey is plotted today",
+  and it **raises** if a barrel's plotted west end stops being nearest the line
+  it is paired with. The survey data itself is left exactly as delivered. The
+  rest of each conduit is EA's polyline verbatim and does not depend on the
+  survey at all.
+
+Recorded, and re-recorded with the reason where §S moved them: the raindrop out
+of the impoundment is `herman_pipe_s` → `herman_main_s`, **812.2 ft** of pipe
+(812.8 before); the discharge route's legs are
+`herman_pipe_s,herman_main_s,herman_pipe_n,herman_main_n`; the layer counts are
+`storm_cad` 17 / `storm_inferred` 10. **Unchanged, and that is the proof the
+rebuild is right**: the drainage map's three outlet areas (403.03 / 293.45 /
+282.01 ac — 0.01 ac moved between the lake and the outfall because
+`storm_main_east` was replaced by `storm_main_d_east` 2.4 ft south of it, so one
+3-ft capture disc covers 109 cells of different ground), `herman_pipe_s`'s
+`through_area` **37.90 ac**, the 100/100 raindrop identity, and the §11.8
+accumulation identity at **0.000 %** on all three outlets.
 
 ## v20 — tiled terrain, on-demand payloads, and the GPU rasters
 
