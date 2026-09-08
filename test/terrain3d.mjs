@@ -137,13 +137,27 @@ if (want("onefoot")) {
 if (want("idle")) {
   console.log("\n== idle — a settled view renders nothing ==");
   const r = await page.evaluate(async () => {
-    await new Promise(r => setTimeout(r, 1200));      // let the selection settle
+    /* WAIT ON THE CONDITION, NOT ON THE CLOCK. The section before this one
+       flies the camera with frameBox(), and the orbit rig eases over about
+       thirty FRAMES — under software GL at `high` one frame costs a second or
+       more, so the flight can still be running half a minute later and a fixed
+       1.2 s wait measures the flight rather than the idle. That is the
+       "an idle view renders nothing … got 2" flake, and it is the same lesson
+       block 9z learned in v18. Poll until the render count has not moved for
+       three polls, then measure. */
+    let last = -1, same = 0, settled = false;
+    for (let i = 0; i < 50 && !settled; i++) {
+      const n = SBMM.viewer3d.stats().renderCount;
+      if (n === last) { if (++same >= 3) settled = true; } else { same = 0; last = n; }
+      if (!settled) await new Promise(r => setTimeout(r, 1200));
+    }
     const a = SBMM.viewer3d.stats().renderCount;
     await new Promise(r => setTimeout(r, 2500));
     const b = SBMM.viewer3d.stats().renderCount;
-    return { a, b, delta: b - a, queued: SBMM.tiles.stats().queued };
+    return { a, b, delta: b - a, settled, queued: SBMM.tiles.stats().queued };
   });
-  console.log("   renders over 2.5 idle seconds:", r.delta, "· queue:", r.queued);
+  console.log("   renders over 2.5 idle seconds:", r.delta, "· queue:", r.queued,
+    "· camera settled:", r.settled);
   ok("an idle view renders nothing (the e2e 9e contract: at most one)", r.delta <= 1, r.delta);
 }
 

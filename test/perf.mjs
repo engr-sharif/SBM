@@ -199,12 +199,22 @@ const heavy = await page.evaluate(async () => {
   const d = document.getElementById("v3dDetail"); if (d) { d.value = "high"; d.onchange && d.onchange(); }
   await new Promise(r => setTimeout(r, 6000));
   const a = SBMM.viewer3d.stats();
+  /* THE FIRST FRAME IS NOT THE FRAME COST. Everything was just switched on,
+     so frame 1 pays for uploading every new geometry and every new drape
+     texture (and generating its mipmaps) — with the v22 §G drape that is 20+
+     textures at up to 1,024 px. Averaging it into ten frames reads as a
+     steady-state regression that is not one, so it is reported on its own. */
   const t = performance.now();
-  for (let i = 0; i < 10; i++) { SBMM.viewer3d.requestRender(); await new Promise(r => requestAnimationFrame(r)); }
-  const ms = (performance.now() - t) / 10;
-  return { msPerFrame: +ms.toFixed(1), stats: a };
+  SBMM.viewer3d.requestRender();
+  await new Promise(r => requestAnimationFrame(r));
+  const first = performance.now() - t;
+  const t2 = performance.now();
+  for (let i = 0; i < 9; i++) { SBMM.viewer3d.requestRender(); await new Promise(r => requestAnimationFrame(r)); }
+  const ms = (performance.now() - t2) / 9;
+  return { msPerFrame: +ms.toFixed(1), firstFrameMs: +first.toFixed(1), stats: a };
 });
-console.log("3D everything-on frame cost:", heavy.msPerFrame, "ms | gpu:", JSON.stringify(heavy.stats.gpu),
+console.log("3D everything-on frame cost:", heavy.msPerFrame, "ms  (first frame after the switch-on, which pays for every upload:",
+            heavy.firstFrameMs, "ms) | gpu:", JSON.stringify(heavy.stats.gpu),
             "| sheetDrapes:", (heavy.stats.sheetDrapes || []).length, "| contourVerts:", heavy.stats.contourVerts);
 
 /* leak check: 10 toggle cycles of the lazily-built things */
