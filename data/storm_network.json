@@ -1,7 +1,7 @@
 {
  "source": "EA Final Design CAD (V-STRM-STRC / V-STRM-MRKG / C-STRM-MAIN-PIPE) + the geodatabase storm structures + Jacobs Aug-2026 survey + the project engineer's identification of the south-road drain",
  "crs": "EPSG:6418 (NAD83(2011) CA zone 2, US survey ft)",
- "built": "2026-09-05",
+ "built": "2026-09-08",
  "spec": "docs/V12_STORM_SPEC.md",
  "nodes": [
   {
@@ -252,30 +252,30 @@
    "note": "The plotted extent of the pipe on the survey sheet, not a surveyed point."
   },
   {
-   "id": "storm_main_east",
-   "kind": "bend",
-   "x": 6372013.4,
-   "y": 2127476.07,
-   "name": "Storm main \u2014 east end of the drawn line",
-   "invert_ft": null,
-   "size_in": null,
-   "cad_block": null,
-   "cad_handle": "E943C",
-   "provenance": "EA Final Design CAD (V-Base.dwg / C-BASE.dwg, DWG->DXF via libredwg master)",
-   "note": "Where EA's storm line begins, 13 ft west of the surveyed pipe's plotted end."
-  },
-  {
    "id": "outfall",
    "kind": "outfall",
    "x": 6371273.02,
    "y": 2127487.87,
-   "name": "Clear Lake outfall (end of the drawn line)",
+   "name": "Clear Lake outfall (end of the drawn lines)",
    "invert_ft": null,
    "size_in": null,
    "cad_block": null,
    "cad_handle": "E943C",
    "provenance": "EA Final Design CAD (V-Base.dwg / C-BASE.dwg, DWG->DXF via libredwg master)",
-   "note": "The west end of EA's storm line at the Clear Lake shore. No headwall or FES drawn."
+   "note": "The west end of EA's three storm lines at the Clear Lake shore. E943E ends 2.4 ft north of this point and E943D 2.4 ft south of it; one node, because all three discharge at the same place. No headwall or FES drawn."
+  },
+  {
+   "id": "storm_main_d_east",
+   "kind": "bend",
+   "x": 6372013.95,
+   "y": 2127473.71,
+   "name": "South storm line \u2014 east end of the drawn line",
+   "invert_ft": null,
+   "size_in": null,
+   "cad_block": null,
+   "cad_handle": "E943D",
+   "provenance": "EA Final Design CAD (V-Base.dwg / C-BASE.dwg, DWG->DXF via libredwg master)",
+   "note": "The east end of E943D, the southernmost of the three pipes in the trench. NOTHING FEEDS IT: the two surveyed barrels run in E943E and E943C, and the road drain joins this line at the junction grate 190 ft west. It is kept because EA draws it \u2014 what the stretch east of the junction connects to is not established."
   },
   {
    "id": "south_culvert_a",
@@ -910,56 +910,123 @@
    "status": "assumed_working"
   },
   {
-   "id": "pipe_to_main",
+   "id": "herman_main_n",
    "from": "herman_pipe_n_end",
-   "to": "storm_main_east",
+   "to": "outfall",
    "pts": [
     [
      6372025.33,
      2127481.72
     ],
     [
-     6372013.4,
-     2127476.07
+     6372012.86,
+     2127478.43
+    ],
+    [
+     6371996.56,
+     2127474.66
+    ],
+    [
+     6371977.14,
+     2127471.11
+    ],
+    [
+     6371957.37,
+     2127468.31
+    ],
+    [
+     6371934.51,
+     2127466.62
+    ],
+    [
+     6371916.37,
+     2127466.65
+    ],
+    [
+     6371896.15,
+     2127468.51
+    ],
+    [
+     6371886.78,
+     2127473.24
+    ],
+    [
+     6371869.31,
+     2127483.79
+    ],
+    [
+     6371775.77,
+     2127524.98
+    ],
+    [
+     6371673.76,
+     2127559.3
+    ],
+    [
+     6371654.95,
+     2127567.42
+    ],
+    [
+     6371600.4,
+     2127584.8
+    ],
+    [
+     6371560.02,
+     2127585.85
+    ],
+    [
+     6371542.38,
+     2127580.6
+    ],
+    [
+     6371504.14,
+     2127565.75
+    ],
+    [
+     6371489.31,
+     2127560.19
+    ],
+    [
+     6371464.31,
+     2127551.38
+    ],
+    [
+     6371436.15,
+     2127544.12
+    ],
+    [
+     6371389.99,
+     2127533.64
+    ],
+    [
+     6371311.27,
+     2127518.42
+    ],
+    [
+     6371271.61,
+     2127489.83
     ]
    ],
-   "length_ft": 13.2,
+   "length_ft": 796.8,
    "size_in": 24,
-   "material": null,
-   "source": "inferred",
-   "cad_handles": [],
-   "provenance": "Identified by the project engineer (Sep 2026) from EA's CAD structures; alignment not drawn in the CAD",
-   "note": "The connection between the North barrel and EA's drawn storm line (user, Sep 2026): the drawn line starts 13 ft west of the plotted pipe end.",
+   "material": "HDPE",
+   "source": "cad_line",
+   "cad_handles": [
+    "E943E"
+   ],
+   "provenance": "EA Final Design CAD (V-Base.dwg / C-BASE.dwg, DWG->DXF via libredwg master)",
+   "note": "The North barrel's own pipe to Clear Lake: EA's drawn line E943E verbatim, reached by a 12.9 ft gap between the surveyed pipe's plotted west end and the line's east end (that gap is INFERRED - EA drew the line, the survey plotted the barrel, and nothing joins them on paper). Its west end is 2.4 ft from the shared outfall node.",
    "status": "assumed_working"
   },
   {
-   "id": "pipe_to_main_s",
+   "id": "herman_main_s",
    "from": "herman_pipe_s_end",
-   "to": "storm_main_east",
+   "to": "outfall",
    "pts": [
     [
      6372025.85,
      2127478.79
     ],
-    [
-     6372013.4,
-     2127476.07
-    ]
-   ],
-   "length_ft": 12.7,
-   "size_in": 24,
-   "material": null,
-   "source": "inferred",
-   "cad_handles": [],
-   "provenance": "Identified by the project engineer (Sep 2026) from EA's CAD structures; alignment not drawn in the CAD",
-   "note": "The same connection for the South barrel (engineer, 2026-09-05: the impoundment discharges through BOTH 24-in pipes). Not drawn in the CAD; inverts unknown. Before this the South barrel ended 13 ft short of the storm line and its water left the pipe on to the ground.",
-   "status": "assumed_working"
-  },
-  {
-   "id": "storm_main_upper",
-   "from": "storm_main_east",
-   "to": "junction",
-   "pts": [
     [
      6372013.4,
      2127476.07
@@ -995,35 +1062,6 @@
     [
      6371868.05,
      2127481.72
-    ],
-    [
-     6371825.76,
-     2127494.21
-    ]
-   ],
-   "length_ft": 194.7,
-   "size_in": 24,
-   "material": null,
-   "source": "cad_line",
-   "cad_handles": [
-    "E943C",
-    "E943D",
-    "E943E",
-    "E9441",
-    "E9442"
-   ],
-   "provenance": "EA Final Design CAD (V-Base.dwg / C-BASE.dwg, DWG->DXF via libredwg master)",
-   "note": "EA's storm main, drawn as a 24-in double line with a centreline; the junction grate sits 5.6 ft off the centreline.",
-   "status": "assumed_working"
-  },
-  {
-   "id": "storm_main_lower",
-   "from": "junction",
-   "to": "outfall",
-   "pts": [
-    [
-     6371825.76,
-     2127494.21
     ],
     [
      6371775.1,
@@ -1078,19 +1116,145 @@
      2127487.87
     ]
    ],
-   "length_ft": 588.9,
+   "length_ft": 795.7,
+   "size_in": 24,
+   "material": "HDPE",
+   "source": "cad_line",
+   "cad_handles": [
+    "E943C"
+   ],
+   "provenance": "EA Final Design CAD (V-Base.dwg / C-BASE.dwg, DWG->DXF via libredwg master)",
+   "note": "The South barrel's own pipe to Clear Lake: EA's drawn line E943C verbatim, reached by a 12.7 ft gap between the surveyed pipe's plotted west end and the line's east end (that gap is INFERRED - EA drew the line, the survey plotted the barrel, and nothing joins them on paper).",
+   "status": "assumed_working"
+  },
+  {
+   "id": "storm_main_upper",
+   "from": "storm_main_d_east",
+   "to": "junction",
+   "pts": [
+    [
+     6372013.95,
+     2127473.71
+    ],
+    [
+     6371997.54,
+     2127469.91
+    ],
+    [
+     6371977.92,
+     2127466.32
+    ],
+    [
+     6371957.89,
+     2127463.49
+    ],
+    [
+     6371934.68,
+     2127461.77
+    ],
+    [
+     6371916.15,
+     2127461.81
+    ],
+    [
+     6371894.79,
+     2127463.76
+    ],
+    [
+     6371884.43,
+     2127468.99
+    ],
+    [
+     6371866.78,
+     2127479.65
+    ],
+    [
+     6371825.76,
+     2127494.21
+    ]
+   ],
+   "length_ft": 196.0,
    "size_in": 24,
    "material": null,
    "source": "cad_line",
    "cad_handles": [
-    "E943C",
-    "E943D",
-    "E943E",
-    "E9443",
-    "E9444"
+    "E943D"
    ],
    "provenance": "EA Final Design CAD (V-Base.dwg / C-BASE.dwg, DWG->DXF via libredwg master)",
-   "note": "EA's storm main from the junction to the lake.",
+   "note": "EA's south storm line east of the junction grate, which sits 3.2 ft off it. Nothing discharges into it in this network (see the node's own note).",
+   "status": "assumed_working"
+  },
+  {
+   "id": "storm_main_lower",
+   "from": "junction",
+   "to": "outfall",
+   "pts": [
+    [
+     6371825.76,
+     2127494.21
+    ],
+    [
+     6371774.44,
+     2127520.32
+    ],
+    [
+     6371672.0,
+     2127554.78
+    ],
+    [
+     6371652.87,
+     2127563.04
+    ],
+    [
+     6371599.56,
+     2127580.02
+    ],
+    [
+     6371560.61,
+     2127581.04
+    ],
+    [
+     6371544.52,
+     2127576.25
+    ],
+    [
+     6371505.5,
+     2127561.09
+    ],
+    [
+     6371491.35,
+     2127555.79
+    ],
+    [
+     6371465.48,
+     2127546.67
+    ],
+    [
+     6371437.4,
+     2127539.44
+    ],
+    [
+     6371390.89,
+     2127528.87
+    ],
+    [
+     6371313.25,
+     2127513.87
+    ],
+    [
+     6371274.44,
+     2127485.9
+    ]
+   ],
+   "length_ft": 586.2,
+   "size_in": 24,
+   "material": null,
+   "source": "cad_line",
+   "cad_handles": [
+    "E943D"
+   ],
+   "provenance": "EA Final Design CAD (V-Base.dwg / C-BASE.dwg, DWG->DXF via libredwg master)",
+   "note": "EA's south storm line from the junction grate to the lake \u2014 the road drain's pipe, and the Frog/Green pond overflow's (engineer, 2026-09-06).",
    "status": "assumed_working"
   },
   {
@@ -1346,7 +1510,7 @@
    "group": "storm",
    "color": "#7FA7C9",
    "kind": "line",
-   "count": 15,
+   "count": 17,
    "provenance": "EA Final Design CAD (V-Base.dwg / C-BASE.dwg, DWG->DXF via libredwg master)"
   },
   {
@@ -1355,7 +1519,7 @@
    "group": "storm",
    "color": "#7FA7C9",
    "kind": "line",
-   "count": 12,
+   "count": 10,
    "provenance": "Identified by the project engineer (Sep 2026) from EA's CAD structures; alignment not drawn in the CAD"
   }
  ]
