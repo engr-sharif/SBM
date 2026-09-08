@@ -3629,6 +3629,12 @@ SBMM.viewer3d = (function () {
          killed the tab on an iPhone was 178. */
       pixelRatio: renderer ? renderer.getPixelRatio() : null,
       texBudgetPx: isFinite(texBudget()) ? texBudget() : null,
+      /* v22 §G at the top level, where someone at the console will look for
+         it: how sharp the picture on the terrain is and what it costs. The
+         per-tile table is SBMM.terrain3d.drawnTiles(). */
+      drapeK: drapeK(),
+      drapeFtPerPx: (lodOn && SBMM.terrain3d) ? SBMM.terrain3d.stats().drapeFtPerPx : null,
+      drapeTexMB: (lodOn && SBMM.terrain3d) ? SBMM.terrain3d.stats().texMB : null,
       gpuGeometries: (renderer && renderer.info) ? renderer.info.memory.geometries : null,
       gpuTextures: (renderer && renderer.info) ? renderer.info.memory.textures : null,
       /* the largest drape texture in megapixels — the number that killed the

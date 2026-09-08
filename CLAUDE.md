@@ -3238,10 +3238,10 @@ largest) and `lastBuildCpuMs` (their sum). Wall time is not the hitch: a build
 that yields can take a second and never block a gesture. Four camera moves on
 the folder build, software GL, before and after:
 
-| | before | after |
+| | before | after (three runs) |
 |---|---|---|
-| main-thread CPU per rebuild | 44.8–130.6 ms | **30.6–77.9 ms** |
-| longest single block | 7.1–12.4 ms | **6.6–11.4 ms**, one 42.3 ms outlier |
+| main-thread CPU per rebuild | 44.8–130.6 ms | **18.8–57.6 ms** |
+| longest single block | 7.1–12.4 ms | **2.4–14.9 ms**, median 6.0–8.6 |
 | geometry cache on a return | — | **16 of 16 tiles hit, 0 rebuilt** |
 
 **And the honest half: on THIS box the longest main-thread task after a camera
