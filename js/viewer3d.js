@@ -151,7 +151,7 @@ SBMM.viewer3d = (function () {
       scene, camera, renderer,
       center: () => ({ CX, CY, ZMID }),
       exag, requestRender, maxAniso,
-      quality: qualityPx,
+      quality: qualityPx, drapeK,
       zRange: () => SBMM._zrSite || SBMM.demSite.zRange(),
       onSwap: () => {
         terrainMeshes = SBMM.terrain3d.records();
@@ -279,6 +279,38 @@ SBMM.viewer3d = (function () {
   function texBudget() {
     return (SBMM.touch && SBMM.touch.profile && SBMM.touch.profile() === "phone")
       ? PHONE_TEX_PX : Infinity;
+  }
+
+  /* v22 §G — THE DRAPE LEVEL IS A TEXTURE BUDGET, NOT THE MESH LEVEL.
+
+     Until v22 js/terrain3d.js draped each terrain tile with the ortho tile at
+     the SAME quadtree level, so a 4-ft mesh tile carried a 256 px image over
+     1,024 ft — 4 ft per texel. At the default `std` quality most of the view
+     is 4-8 ft tiles, so most of the site was drawn at 4-8 ft per texel where
+     the pre-v20 whole-DEM drape had been 0.25 ft/px over the mine window. That
+     is the pixelation the engineer reported, and it is a drape rule rather
+     than a mesh one: the mesh is right, the picture on it is not.
+
+     So the drape is taken `k` levels FINER than the DEM tile — a 256-cell tile
+     carries a 256 * 2^k px image — and `k` is a per-profile texture budget,
+     beside texBudget() because it answers the same question about the same
+     memory:
+
+       desktop  k = 2   1,024 px a tile   4.2 MB, ~100 MB over a 24-tile set
+       tablet   k = 1     512 px a tile   1.0 MB
+       phone    k = 0     256 px a tile   0.26 MB — exactly what v20 shipped,
+                                          which is why the phone harness is
+                                          unchanged by this round
+
+     `k` is capped again by what the ortho pyramid actually HAS: z0 (1 ft/px)
+     exists only over the 6-in / 3-in imagery, and the rest of the site stops
+     at z1 (the 1.5-ft site ortho resampled to 2 ft/px). So over the mine
+     window every tile at level 2 or finer drapes at 1 ft/px, and outside it at
+     2 ft/px — measured and asserted per tile in test/terrain3d.mjs. */
+  const DRAPE_K = { desktop: 2, tablet: 1, phone: 0 };
+  function drapeK() {
+    const p = (SBMM.touch && SBMM.touch.profile) ? SBMM.touch.profile() : "desktop";
+    return DRAPE_K[p] == null ? DRAPE_K.desktop : DRAPE_K[p];
   }
 
   /* Redraw an already-decoded image into a canvas no larger than the budget.
@@ -2570,6 +2602,44 @@ SBMM.viewer3d = (function () {
      texture bandwidth. Safe before the renderer exists — it returns the old
      constant, and every texture is built after init(). */
   let ctxLost = false;
+
+  /* v22 §G — IS THERE A REAL GPU BEHIND THIS CANVAS?
+
+     The engineer's report was "the desktop isn't taking full advantage of the
+     GPU", and the app had no way to answer that: three picks WebGL2 where it
+     can and says nothing about who is drawing. WEBGL_debug_renderer_info names
+     the renderer, and everything in the list below is a SOFTWARE rasteriser —
+     Chromium's SwiftShader (which is what every harness on this box runs on),
+     Mesa's llvmpipe / softpipe / "Mesa OffScreen", and Windows' own basic
+     renderer. Anything else is hardware.
+
+     What it is allowed to change is narrow on purpose: the detail default on
+     a desktop the FIRST time (a remembered choice still wins, in both
+     directions), and what the Help line and stats() report. It must NOT change
+     the drape budget or the pixel ratio, because those are per-profile and
+     per-device decisions that have to stay identical between a GPU box and
+     this software-GL build box — otherwise test/e2e.mjs and
+     test/terrain3d.mjs would be measuring a different app from the one that
+     ships. */
+  const SOFT_RE = /swiftshader|llvmpipe|softpipe|software|basic render|mesa offscreen|microsoft basic/i;
+  let gpuInfo = null;
+  function rendererInfo() {
+    if (gpuInfo) return gpuInfo;
+    let name = null, vendor = null;
+    try {
+      const gl = renderer && renderer.getContext();
+      if (gl) {
+        const ext = gl.getExtension("WEBGL_debug_renderer_info");
+        name = ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER);
+        vendor = ext ? gl.getParameter(ext.UNMASKED_VENDOR_WEBGL) : gl.getParameter(gl.VENDOR);
+      }
+    } catch (e) { /* a lost context, or an extension the browser withholds */ }
+    if (!renderer) return { name: null, vendor: null, hardware: false, known: false };
+    gpuInfo = { name: name || null, vendor: vendor || null,
+                known: !!name, hardware: !!name && !SOFT_RE.test(name) };
+    return gpuInfo;
+  }
+
   function maxAniso() {
     try {
       const m = renderer && renderer.capabilities && renderer.capabilities.getMaxAnisotropy
@@ -3114,6 +3184,23 @@ SBMM.viewer3d = (function () {
     }
 
     const detSel = $("v3dDetail");
+    /* v22 §G — the detail default, decided ONCE, here, where the renderer is
+       finally known. Three rules and they are in this order:
+         1. a remembered choice wins, whatever it is (v17 §3 — only the owner
+            knows which machine this is). "ultra" was silently dropped before
+            this round: js/touch.js's restore accepted std and high only, so a
+            desktop user who picked ultra got high back on the next boot.
+         2. otherwise, on a DESKTOP with a real GPU, `high`, which is also the
+            markup's default — stated rather than inherited, because the point
+            of the rule is that it stays true if the markup changes.
+         3. otherwise leave it alone: js/touch.js has already put a tablet and
+            a phone on `std`, and a software rasteriser is not a GPU. */
+    if (detSel) {
+      const rem = SBMM.view && SBMM.view.pref ? SBMM.view.pref("detail") : undefined;
+      const prof = SBMM.touch && SBMM.touch.profile ? SBMM.touch.profile() : "desktop";
+      if (rem === "std" || rem === "high" || rem === "ultra") detSel.value = rem;
+      else if (prof === "desktop" && rendererInfo().hardware) detSel.value = "high";
+    }
     if (detSel) detSel.onchange = async () => {
       /* v17 §3: remembered, in the same store the camera and the sun use. A
          remembered choice beats a guess — an M-series iPad handles the 1.5 M
@@ -3561,13 +3648,13 @@ SBMM.viewer3d = (function () {
       webgl2: !!(renderer && renderer.capabilities && renderer.capabilities.isWebGL2),
       pixelRatio: renderer ? renderer.getPixelRatio() : null,
       anisotropy: renderer ? maxAniso() : null,
-      gpuName: (function () {
-        try {
-          const gl = renderer && renderer.getContext();
-          const ext = gl && gl.getExtension("WEBGL_debug_renderer_info");
-          return ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : null;
-        } catch (e) { return null; }
-      })(),
+      gpuName: rendererInfo().name,
+      /* v22 §G — the answer to "is the desktop using the GPU": the renderer's
+         own name, and whether it is hardware or one of the software
+         rasterisers. `false` here with a fast machine underneath means the
+         browser fell back, which is a browser setting and not an app one. */
+      gpuHardware: rendererInfo().hardware,
+      gpuVendor: rendererInfo().vendor,
       /* GPU resource counters — used by the leak check in test/perf.mjs */
       gpu: renderer ? {
         geometries: renderer.info.memory.geometries,
