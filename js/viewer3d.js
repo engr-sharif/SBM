@@ -309,6 +309,10 @@ SBMM.viewer3d = (function () {
      2 ft/px — measured and asserted per tile in test/terrain3d.mjs. */
   const DRAPE_K = { desktop: 2, tablet: 1, phone: 0 };
   function drapeK() {
+    /* an explicit preference wins, so the number can be measured and lowered
+       without a build (0 is v20's own behaviour) */
+    const pref = SBMM.view && SBMM.view.pref ? SBMM.view.pref("drapeK") : undefined;
+    if (pref === 0 || pref === 1 || pref === 2) return pref;
     const p = (SBMM.touch && SBMM.touch.profile) ? SBMM.touch.profile() : "desktop";
     return DRAPE_K[p] == null ? DRAPE_K.desktop : DRAPE_K[p];
   }

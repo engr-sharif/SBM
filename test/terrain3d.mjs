@@ -362,7 +362,13 @@ if (want("geomcache")) {
                builtTiles: s.lastBuildTiles, cacheTiles: s.geomCacheTiles,
                cacheMB: s.geomCacheMB, evicted: s.geomEvicted };
     };
-    SBMM.terrain3d.clearGeomCache();
+    /* A DIFFERENT CAMERA FIRST, and no clearGeomCache(). A tile that is still
+       DRAWN is never rebuilt at all — `need` filters the drawn set out before
+       anything is asked for — so "go to A" from A measures nothing, and
+       clearing the cache under the drawn set leaves those tiles in neither
+       place. Starting somewhere else makes A a real build, B evicts A's tiles
+       from the drawn set into the cache, and the return to A is the question. */
+    await go(6372250, 2128350);
     const a = await go(6371700, 2128900);
     const b = await go(6371150, 2129650);
     const c = await go(6371700, 2128900);
