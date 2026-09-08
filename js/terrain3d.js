@@ -78,7 +78,7 @@ SBMM.terrain3d = (function () {
   let style = "ortho";
   let sunAz = 315, sunEl = 35;
   const drawn = new Map();          // key -> record, what is in the scene now
-  let generation = 0, busy = false, again = false;
+  let generation = 0, busy = false, again = false, inflight = null;
   let lastSig = "";
   let webgl2 = false, gpuRaster = false, gpuNoted = false;
   let rampTex = {};
@@ -553,11 +553,28 @@ SBMM.terrain3d = (function () {
 
   /* Build (or re-use) the drawn set for the current camera. Resolves when the
      set is on screen; never rejects. */
-  async function update(force) {
+  async function update(force, depth) {
     if (!ctx || !available()) return false;
     if (suspended) { again = true; return false; }
-    if (busy) { again = true; return false; }
+    if (busy) {
+      /* A NON-FORCED call coalesces: the render loop asks on every settle and
+         one rebuild is enough. A FORCED one must NOT be dropped — it is a
+         rebuild somebody asked for (a detail change, a style change, opening
+         the view) and its caller awaits it and then MEASURES what is drawn.
+         Returning false there is how e2e block 9a-2 came back with
+         "high: 66049 | standard: 0 | back to high: 0": rebuildTerrain() had
+         detached the scene, its update(true) found the previous update still
+         in flight, returned immediately, and the harness measured an empty
+         terrain. So wait for the running one and go again. The depth guard is
+         belt: two forced rebuilds racing each other would otherwise recurse. */
+      again = true;
+      if (!force || (depth || 0) > 4) return false;
+      try { await inflight; } catch (e) { /* it never rejects */ }
+      return update(force, (depth || 0) + 1);
+    }
     busy = true;
+    let settle = null;
+    inflight = new Promise(r => { settle = r; });
     const myGen = ++generation;
     try {
       let targetPx = ctx.quality();
@@ -697,6 +714,8 @@ SBMM.terrain3d = (function () {
       return false;
     } finally {
       busy = false;
+      if (settle) settle();
+      inflight = null;
       if (again) { again = false; setTimeout(() => update(), 0); }
     }
   }
