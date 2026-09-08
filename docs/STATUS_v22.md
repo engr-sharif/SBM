@@ -73,6 +73,26 @@ Commits on `worktree-agent-S`, oldest first:
    moved between the lake and the outfall: the node sits 2.4 ft south of the old one,
    so one 3-ft capture disc covers 109 different 2-ft cells.
 
+**One more thing, from agent A's parallel finding**: the Aug-2026 survey may be
+displaced ~13 ft WSW (international vs US survey feet). Nothing in §S hard-codes
+the 12.8/12.7 ft gaps — the builder measures each from the two coordinates on
+every run, says "measured at N ft as the survey is plotted today" in the note,
+and raises if a barrel's plotted west end stops being nearest the CAD line it is
+paired with. The survey data is untouched. A re-placement changes the two gap
+lengths (and so `herman_main_*.length_ft` and the raindrop's 812.2 ft by about
+the same amount); it changes nothing else in §S, because the rest of each
+conduit is EA's polyline verbatim.
+
+**One local failure that is NOT this round's**: `e2e:folder` block *9a-2. detail
+setting rebuilds the terrain at a different density* fails on this box, twice,
+with `high: 66049 | standard: 0 | back to high: 0` — 66,049 is one 257x257 tile,
+i.e. the v20 tile quadtree had only its root drawn by the time block 9a
+measured. Run ALONE (`--only "9. 3D viewer,9a-2"`) the same block passes with
+`high: 1,585,176 | standard: 166,410 | back: 1,585,176`. No flow feature exists
+at that point in the run, so none of §R.1's viewer3d code has executed; it is
+the v20 terrain LOD, which is agent G's section. The blocks this round touches
+(9s, 9v, 9t) were run and pass.
+
 Local runs (from the logs): `node test/run.mjs --quick` 4/4 PASS; `--only
 e2e:folder,field,phone:http --wait` — `check` PASS, `build:field` PASS, `phone:http`
 PASS 26.8 s, `field` PASS 128 s, `e2e:folder` see `test/.logs/e2e-folder.log`;

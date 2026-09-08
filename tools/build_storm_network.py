@@ -38,10 +38,17 @@ What is inferred, and says so on the feature (`source`):
   green_outlet     the west pond's FES piped to the Spot 8 grate; EA drew the FES, not the pipe
   road_drain_*    EA drew the nine grates but no line between them; straight
                   segments between consecutive structures
-  herman_main_n/s the 12.8 ft / 12.7 ft between each surveyed barrel's plotted
-                  west end and the east end of ITS OWN drawn line (E943E for the
-                  North barrel, E943C for the South). Only that gap is inferred;
-                  the rest of each conduit is EA's polyline verbatim.
+  herman_main_n/s the gap between each surveyed barrel's plotted west end and
+                  the east end of ITS OWN drawn line (E943E for the North
+                  barrel, E943C for the South). Only that gap is inferred; the
+                  rest of each conduit is EA's polyline verbatim. The gap is
+                  MEASURED from the two coordinates every time this tool runs
+                  and is never a constant, because the survey's own placement is
+                  under review (Sep 2026: the Aug-2026 plot may sit ~13 ft WSW
+                  of the lidar and the ortho — international vs US survey feet —
+                  and if it is re-placed both plotted ends move and both gaps
+                  change with them). Nothing else about these two conduits
+                  depends on it: the line is EA's, verbatim.
 Not built, and recorded rather than guessed:
   E9441/E9442 -> E9443/E9444, a double line that leaves the junction north-west
                   and comes back south-west to the shore: drawn, purpose not
@@ -233,9 +240,11 @@ def main():
     # The drawing agrees: E943E / E943C / E943D are 2.35 ft apart - the outside
     # diameter of 24-in corrugated HDPE - so the trench is 4.7 ft wide, where a
     # 24-in double line would be 2.0 ft wide in total. Which is which comes off
-    # the survey: the North barrel's plotted west end is 12.8 ft from E943E's
-    # east end and the South barrel's 12.7 ft from E943C's, which leaves E943D
-    # (the far south one) for the road drain.
+    # the survey: the North barrel's plotted west end is nearest E943E's east
+    # end and the South barrel's nearest E943C's (about 12.8 and 12.7 ft as the
+    # survey is plotted today — MEASURED below, never assumed, because the
+    # survey's placement is under review), which leaves E943D (the far south
+    # one) for the road drain.
     # So `pipe_to_main`, `pipe_to_main_s` and `storm_main_east` are gone: each
     # barrel runs to the lake in its own pipe.
     e943c = byHandle["E943C"]["coords"]
@@ -247,19 +256,34 @@ def main():
     # to, so one outfall keeps "Clear Lake outfall (storm network)" one
     # catchment and leaves the accumulation identity alone. Three outfall nodes
     # would split a number the engineer already reads.
-    outfall = node("outfall", "outfall", e943c[-1][0], e943c[-1][1], "Clear Lake outfall (end of the drawn lines)",
+    ofxy = (e943c[-1][0], e943c[-1][1])
+    dn = dist(tuple(e943e[-1][:2]), ofxy); dd = dist(tuple(e943d[-1][:2]), ofxy)
+    outfall = node("outfall", "outfall", ofxy[0], ofxy[1], "Clear Lake outfall (end of the drawn lines)",
                    cad_handle="E943C",
-                   note="The west end of EA's three storm lines at the Clear Lake shore. E943E ends 2.4 ft north of this point and E943D 2.4 ft south of it; one node, because all three discharge at the same place. No headwall or FES drawn.")
+                   note=f"The west end of EA's three storm lines at the Clear Lake shore. E943E ends {dn:.1f} ft "
+                        f"and E943D {dd:.1f} ft from this point; one node, because all three discharge at the same "
+                        f"place. No headwall or FES drawn.")
+    # WHICH BARREL BELONGS TO WHICH LINE IS MEASURED, NOT ASSUMED. The survey's
+    # own placement is under review (Sep 2026: the Aug-2026 plot may sit ~13 ft
+    # WSW of the lidar and the ortho), so if it is ever re-placed the pairing is
+    # re-derived here and this assertion fails loudly rather than the pipes
+    # quietly swapping.
     for side, barrel, handle, line in (("n", pipe_end_n, "E943E", e943e),
                                        ("s", pipe_end_s, "E943C", e943c)):
+        near = min((("E943E", e943e), ("E943C", e943c), ("E943D", e943d)),
+                   key=lambda q: dist(xy(barrel), tuple(q[1][0][:2])))[0]
+        if near != handle:
+            raise SystemExit(f"the {side} barrel's plotted west end is now nearest {near}, not {handle} — "
+                             "the survey has moved; re-derive the pairing before rebuilding")
         gap = dist(xy(barrel), tuple(line[0][:2]))
         pts = [xy(barrel)] + [tuple(p[:2]) for p in line]
-        tail = dist(tuple(line[-1][:2]), xy(outfall))
+        tail = dist(tuple(line[-1][:2]), ofxy)
         conduit(f"herman_main_{side}", barrel["id"], "outfall", pts, "cad_line", [handle],
                 size_in=24, material="HDPE",
                 note=f"The {'North' if side == 'n' else 'South'} barrel's own pipe to Clear Lake: EA's drawn line {handle} verbatim, "
-                     f"reached by a {gap:.1f} ft gap between the surveyed pipe's plotted west end and the line's east end "
-                     f"(that gap is INFERRED - EA drew the line, the survey plotted the barrel, and nothing joins them on paper)."
+                     f"reached from the surveyed pipe's plotted west end across a short gap (measured at {gap:.1f} ft as the "
+                     "survey is plotted today; that gap is the only INFERRED part - EA drew the line, the survey plotted "
+                     "the barrel, and nothing joins them on paper)."
                      + (f" Its west end is {tail:.1f} ft from the shared outfall node." if tail > 0.05 else ""))
     # the south line E943D is the road drain's, split at the junction grate: the
     # vertex run up to the closest point, then on

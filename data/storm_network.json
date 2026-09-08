@@ -262,7 +262,7 @@
    "cad_block": null,
    "cad_handle": "E943C",
    "provenance": "EA Final Design CAD (V-Base.dwg / C-BASE.dwg, DWG->DXF via libredwg master)",
-   "note": "The west end of EA's three storm lines at the Clear Lake shore. E943E ends 2.4 ft north of this point and E943D 2.4 ft south of it; one node, because all three discharge at the same place. No headwall or FES drawn."
+   "note": "The west end of EA's three storm lines at the Clear Lake shore. E943E ends 2.4 ft and E943D 2.4 ft from this point; one node, because all three discharge at the same place. No headwall or FES drawn."
   },
   {
    "id": "storm_main_d_east",
@@ -1015,7 +1015,7 @@
     "E943E"
    ],
    "provenance": "EA Final Design CAD (V-Base.dwg / C-BASE.dwg, DWG->DXF via libredwg master)",
-   "note": "The North barrel's own pipe to Clear Lake: EA's drawn line E943E verbatim, reached by a 12.9 ft gap between the surveyed pipe's plotted west end and the line's east end (that gap is INFERRED - EA drew the line, the survey plotted the barrel, and nothing joins them on paper). Its west end is 2.4 ft from the shared outfall node.",
+   "note": "The North barrel's own pipe to Clear Lake: EA's drawn line E943E verbatim, reached from the surveyed pipe's plotted west end across a short gap (measured at 12.9 ft as the survey is plotted today; that gap is the only INFERRED part - EA drew the line, the survey plotted the barrel, and nothing joins them on paper). Its west end is 2.4 ft from the shared outfall node.",
    "status": "assumed_working"
   },
   {
@@ -1124,7 +1124,7 @@
     "E943C"
    ],
    "provenance": "EA Final Design CAD (V-Base.dwg / C-BASE.dwg, DWG->DXF via libredwg master)",
-   "note": "The South barrel's own pipe to Clear Lake: EA's drawn line E943C verbatim, reached by a 12.7 ft gap between the surveyed pipe's plotted west end and the line's east end (that gap is INFERRED - EA drew the line, the survey plotted the barrel, and nothing joins them on paper).",
+   "note": "The South barrel's own pipe to Clear Lake: EA's drawn line E943C verbatim, reached from the surveyed pipe's plotted west end across a short gap (measured at 12.7 ft as the survey is plotted today; that gap is the only INFERRED part - EA drew the line, the survey plotted the barrel, and nothing joins them on paper).",
    "status": "assumed_working"
   },
   {
