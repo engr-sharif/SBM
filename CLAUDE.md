@@ -1174,7 +1174,11 @@ that is used by the Frog and Green pond overflow — that's the far south one."*
 **The CAD says the same thing and the builder misread it.** `V-STRM-STRC`
 carries THREE 783-ft polylines between the sandbag wall and the shore — `E943E`
 (north), `E943C` (middle), `E943D` (south) — **2.35 ft apart**, which is the
-outside diameter of 24-in corrugated HDPE. `tools/build_storm_network.py` took
+outside diameter of 24-in corrugated HDPE (drafting, not a measurement: the
+field team says the south one is the **30-in HDPE that conveys Green Pond**,
+in good condition, and the dual 24-in are the ones in disrepair — J. Lucero
+after walking it with Carter, 3–4 Sep 2026; `storm_main_upper/lower` carry
+`size_in: 30` since 2026-09-08). `tools/build_storm_network.py` took
 them for one 24-in double line with a centreline: a double line would be 2.0 ft
 wide in total, and this trench is 4.7 ft. Which is which comes off the survey —
 the North barrel's plotted west end is 12.8 ft from E943E's east end, the
@@ -2818,6 +2822,30 @@ rebuild is right**: the drainage map's three outlet areas (403.03 / 293.45 /
 3-ft capture disc covers 109 cells of different ground), `herman_pipe_s`'s
 `through_area` **37.90 ac**, the 100/100 raindrop identity, and the §11.8
 accumulation identity at **0.000 %** on all three outlets.
+
+### 2026-09-08 follow-ups — clear water overlays, the info page, the 30-in pipe
+
+- **`SBMM.water.clearWater()` is "Clear water overlays"** (the Water ▾ menu, `WATERCLEAR`):
+  the open analysis, every route it traced (`ov.pipeRoute`, `ov.conduitRoute`, `ov.route`,
+  which v15 §1 deliberately left on the map as the user's features) and every `flow`
+  feature, removed as ONE undo entry through `removeAll()`. `clearAnalysis()` is the
+  card's ✕ and its own **clear** button: the analysis and its routes only. `clearOvertop()`
+  is unchanged and still owns the band, the markers, the stage surface and the
+  analysis-owned `rimAuto` / `rimRoute` (which have no undo entry, by the v15 rule) —
+  block **9t** still calls it directly. Block **9t2** is the contract: nothing left, one
+  undo label, the ✕ path. A generic results card with no feature only removes its own
+  element; the overtop card overrides that handler — a card that disappears while its
+  overlays stay is the bug the engineer reported as "nothing really happens".
+- **The info page (`#help`) is a short note up top and two `<details>`** — the manual and
+  the settings. Every control the harnesses read (`fieldSwitch`, `touchSwitch`,
+  `offlineBtn`, `wasmSwitch`, `touchDiag`, `homeHint`, `reloadApp`) is inside the closed
+  settings `<details>`: the DOM is there and `.click()` / `.checked` work, but a Playwright
+  `page.click()` on one would time out on visibility. The harnesses all go through
+  `evaluate`. The note is written in the engineer's own voice; nothing in the app may name
+  a tool, a vendor or an assistant as its author.
+- **E943D is the 30-in HDPE that conveys Green Pond** (the field team, 3–4 Sep 2026), not
+  a third 24-in; `size_in: 30` on `storm_main_upper/lower`. The 2.35-ft drafted spacing is
+  not a pipe size. `parallelBarrels()` already excludes it by size and by length.
 
 ## v22 §C — "where does the water go": the four areas
 

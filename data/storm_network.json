@@ -1174,14 +1174,14 @@
     ]
    ],
    "length_ft": 196.0,
-   "size_in": 24,
+   "size_in": 30,
    "material": null,
    "source": "cad_line",
    "cad_handles": [
     "E943D"
    ],
    "provenance": "EA Final Design CAD (V-Base.dwg / C-BASE.dwg, DWG->DXF via libredwg master)",
-   "note": "EA's south storm line east of the junction grate, which sits 3.2 ft off it. Nothing discharges into it in this network (see the node's own note).",
+   "note": "EA's south storm line east of the junction grate, which sits 3.2 ft off it. Nothing discharges into it in this network (see the node's own note). 30-in HDPE per the field team (J. Lucero, Sep 2026); no invert surveyed.",
    "status": "assumed_working"
   },
   {
@@ -1247,14 +1247,14 @@
     ]
    ],
    "length_ft": 586.2,
-   "size_in": 24,
+   "size_in": 30,
    "material": null,
    "source": "cad_line",
    "cad_handles": [
     "E943D"
    ],
    "provenance": "EA Final Design CAD (V-Base.dwg / C-BASE.dwg, DWG->DXF via libredwg master)",
-   "note": "EA's south storm line from the junction grate to the lake \u2014 the road drain's pipe, and the Frog/Green pond overflow's (engineer, 2026-09-06).",
+   "note": "EA's south storm line from the junction grate to the lake \u2014 the road drain's pipe, and the Frog/Green pond overflow's (engineer, 2026-09-06). 30-in HDPE, in good condition, per the field team (J. Lucero after walking it with Carter, Sep 2026); the dual 24-in are the ones in disrepair.",
    "status": "assumed_working"
   },
   {

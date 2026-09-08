@@ -695,7 +695,7 @@ SBMM.water = (function () {
       if (!b || Math.hypot(b.x - a.x, b.y - a.y) > PARALLEL_FT) continue;
       /* two barrels of ONE crossing are the same crossing, so they are the
          same length. Without this the third pipe in the Clear Lake trench —
-         a head since §S, 24-in, its east end 29 ft from the sandbag wall and
+         a head since §S, 30-in, its east end 29 ft from the sandbag wall and
          ending at the same outfall — would be counted as a third barrel of
          the impoundment's discharge, and the card would say three pipes where
          the impoundment has two. It is 196 ft long against the barrels' 16.5. */
@@ -1876,6 +1876,12 @@ SBMM.water = (function () {
     );
     const el = SBMM.results.card(null, "Overtopping — " + ov.name, rows);
     ov.card = el;
+    /* the card's ✕ is the analysis's ✕ (2026-09-08): a generic card with no
+       feature only removed its own element and left the rim band, the markers,
+       the stage surface and every traced route on the map with nothing left to
+       clear them from */
+    const x = el.querySelector('[data-a="del"]');
+    if (x) x.onclick = () => clearAnalysis();
 
     /* the rim lows, ranked */
     const tbl = document.createElement("table");
@@ -1945,7 +1951,7 @@ SBMM.water = (function () {
       if (w === "hide") toggleOverlay(ev.target);
       if (w === "rimwhatif") traceRimWhatIf(ev.target);
       if (w === "3d") SBMM.viewer3d.openAt(R.primary.x, R.primary.y);
-      if (w === "clear") { clearOvertop(); toast("water overlays cleared"); }
+      if (w === "clear") clearAnalysis();
     });
     el.appendChild(btns);
 
@@ -2044,6 +2050,53 @@ SBMM.water = (function () {
     if (SBMM.viewer3d.setWaterStage) SBMM.viewer3d.setWaterStage(null);
   }
 
+  /* ONE undoable removal of a list of features: the same shape
+     SBMM.tools.deleteFeature has for one, for several. */
+  function removeAll(list, desc) {
+    const gone = list.filter(f => f && SBMM.store.features.indexOf(f) >= 0);
+    for (const f of gone) SBMM.store.remove(f);
+    if (gone.length)
+      SBMM.undo.push(desc, () => { for (const f of gone) SBMM.store.readd(f); },
+                           () => { for (const f of gone) SBMM.store.remove(f); });
+    return gone.length;
+  }
+
+  /* The analysis AND everything it traced (2026-09-08, the engineer: "after I
+     use the HI overflow or the pond overflow and hit Clear water overlays,
+     nothing really happens"). Before this, clearOvertop() took the band, the
+     markers and the analysis-owned what-if/auto routes down and deliberately
+     LEFT the pipe discharge route, the conduit spill route and the rim route on
+     the map as the user's features — which is exactly what he saw as nothing
+     happening. Now the routes go with the analysis, as one undo entry. */
+  function clearAnalysis() {
+    if (!ov) return 0;
+    const name = ov.name;
+    const routes = [ov.pipeRoute, ov.conduitRoute, ov.route].filter(Boolean);
+    ov.pipeRoute = ov.conduitRoute = ov.route = null;
+    clearOvertop();
+    const n = removeAll(routes, "clear overtopping — " + name);
+    if (SBMM.viewer3d.isOpen()) SBMM.viewer3d.refreshOverlays();
+    toast("overtopping analysis cleared" + (n ? " with its " + n + " route" + (n === 1 ? "" : "s") + " (Ctrl+Z restores the routes)" : ""));
+    return n;
+  }
+
+  /* "Clear water overlays": EVERYTHING the water tools put on the map — the
+     open analysis with its routes, and every raindrop — as one undo entry. The
+     drainage rows are layers and stay; switch them off in Layers. */
+  function clearWater() {
+    const hadOv = !!ov;
+    const routes = ov ? [ov.pipeRoute, ov.conduitRoute, ov.route].filter(Boolean) : [];
+    if (ov) { ov.pipeRoute = ov.conduitRoute = ov.route = null; clearOvertop(); }
+    const flows = SBMM.store.features.filter(f => f.type === "flow" && !(f.props && f.props.ref));
+    const all = routes.concat(flows.filter(f => routes.indexOf(f) < 0));
+    const n = removeAll(all, "clear water overlays");
+    if (SBMM.viewer3d.isOpen()) SBMM.viewer3d.refreshOverlays();
+    if (!hadOv && !n) { toast("nothing to clear — no overtopping analysis and no raindrop on the map"); return 0; }
+    toast("cleared " + (hadOv ? "the overtopping analysis" : "") + (hadOv && n ? " and " : "")
+      + (n ? n + " water feature" + (n === 1 ? "" : "s") + " (Ctrl+Z puts them back)" : ""));
+    return n;
+  }
+
   /* what js/viewer3d.js drapes on the terrain — the same picture as 2D, so
      there is one rim band and one legend rather than two */
   function drapeSpec() {
@@ -2104,11 +2157,7 @@ SBMM.water = (function () {
         if (!SBMM.storm || !SBMM.storm.data()) toast("this build has no storm-drainage network");
         else SBMM.storm.toggle();
       }
-      else if (a === "water-clear") {
-        const had = !!ov;
-        clearOvertop();
-        toast(had ? "water overlays cleared" : "no water overlay to clear");
-      }
+      else if (a === "water-clear") clearWater();
     });
     document.addEventListener("click", e => {
       if (!menu.contains(e.target) && e.target !== btn) menu.style.display = "none";
@@ -2140,7 +2189,7 @@ SBMM.water = (function () {
     legPolyline, polyMidpoint,
     firstDischargeWords, parallelBarrels, pipeChainRoute,
     wire, dropAt, mkFlow, buildFlow, retrace, catchment, makeProfile,
-    overtop, overtopHerman, overtopAt, clearOvertop, drapeSpec, active,
+    overtop, overtopHerman, overtopAt, clearOvertop, clearAnalysis, clearWater, drapeSpec, active,
     refreshLabels, fillFlowCard, endSentence, endShort, pickPond,
     COLORS: C, MIN_POND, RIM_RANGE
   };
