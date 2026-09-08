@@ -3731,8 +3731,12 @@ console.log("storm raindrop:", JSON.stringify({ legs: stormDrop.legs, pipe: stor
 if (stormDrop.err) { console.log("FAIL:", stormDrop.err); process.exit(1); }
 if (stormDrop.legs.join(",") !== "pond_culvert,green_outlet,road_drain_8_9,road_drain_9_10,road_drain_10_11,road_drain_11_12,road_drain_12_13,road_drain_13_14,road_drain_14_15,road_drain_15_branch,branch,storm_main_lower")
   { console.log("FAIL: the Frog Pond chain is wrong, got", stormDrop.legs); process.exit(1); }
-if (Math.abs(stormDrop.pipe - 2969.4) > 0.5)
-  { console.log("FAIL: pipe_ft", stormDrop.pipe, "vs 2969.4"); process.exit(1); }
+/* RE-RECORDED, v22 §S: 2969.4 -> 2966.7. The chain is the same twelve conduits;
+   only its last one moved, from EA's middle line E943C (588.9 ft) to the south
+   line E943D (586.2 ft), which is the road drain's — the two lines are the same
+   pipe run drawn 4.7 ft apart, so the 2.7 ft is the difference between them. */
+if (Math.abs(stormDrop.pipe - 2966.7) > 0.5)
+  { console.log("FAIL: pipe_ft", stormDrop.pipe, "vs 2966.7"); process.exit(1); }
 if (!stormDrop.outfall)
   { console.log("FAIL: the Frog Pond drop should reach the Clear Lake outfall"); process.exit(1); }
 if (Math.abs(stormDrop.total - (stormDrop.len + stormDrop.pipe)) > 0.2)

@@ -968,14 +968,14 @@ dog-leg `E9441`/`E9442` → `E9443`/`E9444` that leaves the junction and comes b
 shore is drawn but has no structure at either end and no established purpose; it stays out
 of the network and the builder says so — **ask EA**.
 
-- A drop on the **Spot 8 grate**: 137 ft overland and **2,789 ft in pipe** — the seven
+- A drop on the **Spot 8 grate**: 137 ft overland and **2,786 ft in pipe** — the seven
   road-drain conduits, the branch and EA's storm main — ending in Clear Lake at the outfall.
   With the drains off, the same drop runs 2,268 ft overland into the Herman Impoundment,
   fills it to 1,343.84 ft and spills over its rim.
 - A drop at **Frog Pond's low** (the east pond): it takes the culvert under the paved road
   into Green Pond, which fills 3.1 ft to the FES on its west shore (1,394.50 ft), takes the
   pipe to the Spot 8 grate and the whole road drain to the Clear Lake outfall — **630 ft
-  overland, 2,969 ft in pipe** through twelve conduits, never touching the impoundment. With
+  overland, 2,967 ft in pipe** through twelve conduits, never touching the impoundment. With
   the drains off it never leaves the north-east corner: it spills off the survey.
 - **Naming.** EA's geodatabase `water` layer has it right, and the engineer confirmed it (Sep 2026): **Frog Pond is the east pond** (E 6,374,450–6,374,726, floor 1,415 ft) and **Green Pond the west pond** (E 6,373,925–6,374,152, floor 1,391.6 ft). The storm network uses those names.
 
@@ -1105,7 +1105,7 @@ Frog Pond is the case that prompted it. Its natural rim spill is ten feet from t
 inlet on its west shore and 0.30 ft above it, so the overflow route used to run *north* over
 the ground. Now the first-discharge route takes the culvert under the paved road into Green
 Pond, leaves through Green Pond's own FES, and runs the road drain to the Clear Lake
-outfall — 2,969 ft of it in pipe. On Herman the conduit spill *is* the surveyed pipe
+outfall — 2,967 ft of it in pipe. On Herman the conduit spill *is* the surveyed pipe
 (1,341.53 against the survey's 1,341.55), so the surveyed row simply gains `via
 herman_pipe_s`: one row, one marker, one route, no double-counting.
 
