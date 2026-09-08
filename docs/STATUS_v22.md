@@ -14,7 +14,7 @@ branch to main.
 |---|---|---|
 | spec written (`docs/V22_SPEC.md`) | done | evidence for §S is in the spec |
 | S — three pipes + overflow follows them + slider rule | **done** (2026-09-08, worktree `agent-S`, branch `worktree-agent-S`) | 44 nodes / 27 conduits (17 CAD/survey, 10 inferred). Re-recorded: the raindrop's pipe_ft 812.8 → **812.2**, its chain `herman_pipe_s,herman_main_s`, the discharge route's legs `herman_pipe_s,herman_main_s,herman_pipe_n,herman_main_n`, the layer counts 15/12 → 17/10. UNCHANGED, which is the proof: `herman_pipe_s`'s through_area **37.90 ac**, the 100/100 raindrop identity, the §11.8 accumulation identity at 0.000 % on all three outlets, and the outlet areas 403.03 / 293.45 / 282.01 ac (0.01 ac moved between the lake and the outfall — see below). Commit list below |
-| C — where the water goes | **in progress** (2026-09-08, worktree `agent-C`, branch `worktree-agent-C`) | after S |
+| C — where the water goes | **done** (2026-09-08, worktree `agent-C`, branch `worktree-agent-C`) | The four areas at 2 ft: Clear Lake **403.03 ac**, the Herman impoundment **84.14**, Frog/Green **197.87**, off the survey **293.45** — sum **978.49**, the map's own site. The impoundment's catchment is 84.14 ac and NOT the drainage card's 37.90 (see below); the v19 accumulation at the same two barrels says 84.09 independently. Commit list below |
 | G — desktop 3D drape / hitch / GPU | not started | after C; droppable |
 
 ## Why it stopped here (2026-09-06)
