@@ -159,13 +159,11 @@ SBMM.drainage = (function () {
     if (!stormOn()) return [];
     const m = dem.m;
     const bbox = [m.x0, m.y0, m.x0 + m.w * m.cell, m.y0 + m.h * m.cell];
-    const cds = SBMM.storm.conduitsFor(bbox);
-    for (const c of cds) {
-      const rec = SBMM.storm.conduit(c.id);
-      const to = rec ? SBMM.storm.node(rec.to) : null;
-      c.outfall = !!(to && to.kind === "outfall");
-    }
-    return cds;
+    /* v22 §S: `outfall`, and the one-outfall-one-outlet rule, both live in
+       js/storm.js `mapConduits` so the drainage map and the accumulation cannot
+       be handed different lists — the §11.8 identity depends on their being the
+       same analysis. */
+    return SBMM.storm.mapConduits(SBMM.storm.conduitsFor(bbox));
   }
 
   function jobFor(strideCells) {

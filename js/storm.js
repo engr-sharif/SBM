@@ -9,12 +9,16 @@
    into data/storm_network.json (44 nodes, 27 conduits); this module renders it
    and answers ONE question for the raindrop: which conduits are in play.
 
-   RULING (project engineer, 2026-09-05): the impoundment discharges through
-   BOTH 24-in HDPE barrels, in parallel, and both reach EA's drawn storm line —
-   `pipe_to_main` (North) and `pipe_to_main_s` (South). Before that the South
-   barrel, which carries the LOWER surveyed invert and is therefore the one the
-   water leaves through, ended 13 ft short of anything and its water left the
-   pipe on to the ground.
+   RULING (project engineer, 2026-09-05, restated 2026-09-06): the impoundment
+   discharges through BOTH 24-in HDPE barrels, in parallel, AND THEY DO NOT
+   MERGE. Three pipes lie side by side in the trench to Clear Lake — the two
+   barrels (`herman_main_n` on EA's line E943E, `herman_main_s` on E943C) and
+   the road drain's (`storm_main_upper` / `storm_main_lower` on E943D, the far
+   south one). They are 2.35 ft apart, the outside diameter of 24-in
+   corrugated HDPE, which is how the drawing says so. Each barrel runs to the
+   lake in its own pipe and they meet only at the shared `outfall` node.
+   v22 §S is that rebuild; `pipe_to_main` / `pipe_to_main_s` / `storm_main_east`
+   are gone with it.
 
    Three things about it are the whole design:
 
@@ -235,6 +239,63 @@ SBMM.storm = (function () {
     return out;
   }
   function captureFt() { return CAPTURE_FT; }
+
+  /* ------------------------------------------------------------------ */
+  /* what the whole-SITE map kernels are handed (v14 §2, v19 §2, v22 §S)  */
+  /* ------------------------------------------------------------------ */
+  /* `conduitsFor` answers what a raindrop needs. The drainage map and the flow
+     accumulation need one field more — `outfall`, true when the conduit
+     discharges where water leaves the model — and one RULE, which v22 §S
+     forced:
+
+     SEVERAL CONDUITS MAY DISCHARGE AT ONE OUTFALL, AND A MAP MUST NOT SPLIT
+     THAT INTO SEVERAL OUTLETS. Since the three pipes in the Clear Lake trench
+     were separated (§S) three conduits end at the `outfall` node — the two
+     Herman barrels and the road drain's line. The kernel names an outlet sink
+     after the LAST CONDUIT of the chain that reaches it (`outfall:<conduit
+     id>`), so it reported THREE outlets with the same name and split the
+     281.99 ac the engineer already reads into three rows. They discharge at one
+     point, so the host names one of them the terminal — the TRUNK, the one the
+     most conduits drain through — and routes the others into it.
+
+     This is safe because the kernel follows `next` only to find where a chain
+     ENDS: it measures no length along it and reports no leg for it (that is
+     `flowpath`, which is handed the untouched `conduitsFor` list). So the rule
+     decides which id the ONE outlet is named after, and nothing else. */
+  function mapConduits(cds) {
+    const rec = id => conduitById[id] || null;
+    for (const c of cds) {
+      const r = rec(c.id), to = r ? byId[r.to] : null;
+      c.outfall = !!(to && to.kind === "outfall");
+    }
+    const at = {};
+    for (const c of cds) {
+      if (!c.outfall) continue;
+      const to = rec(c.id).to;
+      (at[to] = at[to] || []).push(c.id);
+    }
+    const byC = {};
+    for (const c of cds) byC[c.id] = c;
+    for (const to of Object.keys(at)) {
+      const ids = at[to];
+      if (ids.length < 2) continue;
+      /* how many chains in this list terminate at each candidate */
+      const tally = {};
+      for (const c of cds) {
+        let k = c.id; const seen = {};
+        while (k && !seen[k] && byC[k]) { seen[k] = 1; if (byC[k].outfall) break; k = byC[k].next; }
+        if (k && ids.indexOf(k) >= 0) tally[k] = (tally[k] || 0) + 1;
+      }
+      let best = ids[0];
+      for (const id of ids) if ((tally[id] || 0) > (tally[best] || 0)) best = id;
+      for (const id of ids) {
+        if (id === best) continue;
+        byC[id].outfall = false;
+        byC[id].next = best;
+      }
+    }
+    return cds;
+  }
 
   /* a human name for a leg the kernel reports back by id */
   function labelOf(id) {
@@ -479,6 +540,7 @@ SBMM.storm = (function () {
   }
 
   return { build, wire, data, enabled, setEnabled, toggle, statusOf, setStatus,
+           mapConduits,
            rebuildConduits,
            conduitsFor, captureFt, rimFor, fallOf, labelOf, shortLabel, isOutfall,
            mouthOf, mouthOfConduit, mouths: () => mouths, MOUTH_SEARCH_FT,
