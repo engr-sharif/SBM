@@ -659,7 +659,18 @@ window.SBMM_BUILD="full";
 
 <div id="help"><div class="box">
   <span class="close" onclick="document.getElementById('help').style.display='none'">✕</span>
-  <h2>SBMM Site Explorer</h2>
+  <h2>SBMM Site Explorer <span class="beta">beta</span></h2>
+  <p class="intro">A weekends project. I put this together to have the OU1 site in one place I
+  could measure, draft and ask water questions of — the January-2024 lidar and orthos, EA's
+  design files and sheets, the storm drains, the August survey and the sample results — from a
+  single file that opens anywhere and sends nothing anywhere.</p>
+  <p class="intro">It is in <b>beta</b>: expect some things not to work properly, and treat every
+  number as planning-level. If something breaks, or there is a feature or a dataset you want in
+  here, let me know and I will do my best to add it.</p>
+  <p class="intro"><b>Quick keys</b> — <kbd>Esc</kbd> back to navigate · <kbd>I</kbd> inspect ·
+  <kbd>M</kbd> distance · <kbd>A</kbd> area · <kbd>V</kbd> volume · <kbd>R</kbd> raindrop ·
+  <kbd>3</kbd> 3D · <kbd>/</kbd> command line. The rest is under the two headings below.</p>
+  <details><summary>The manual — every tool, layer, analysis and key</summary>
   The daily digital twin for the residential remedy and Phase 1 construction. Everything is
   organised by <i>what you are doing</i> — navigating, inspecting, measuring, designing,
   reviewing drawings — not by which file the data came from.<br><br>
@@ -817,8 +828,9 @@ window.SBMM_BUILD="full";
 
   <b>Export</b> — GeoJSON in WGS84 or State Plane (EPSG:6418), DXF R12 in raw State Plane feet
   for AutoCAD and Civil 3D, session files you can reload or share, and CSVs of results, samples
-  and datasets. Drag-drop a GeoJSON, DXF or CSV onto the map to import it.<br><br>
-
+  and datasets. Drag-drop a GeoJSON, DXF or CSV onto the map to import it.
+  </details>
+  <details><summary>Settings — field mode, touch, the offline copy, the compute core, this device</summary>
   <b>In the field</b> — <label class="chk" style="display:inline-flex;gap:6px;align-items:center">
   <input type="checkbox" id="fieldSwitch"> <b>Field mode</b></label> (also the
   <span class="mono">FIELD</span> command) lays the whole app out for a phone: a bottom bar with
@@ -870,6 +882,7 @@ window.SBMM_BUILD="full";
   canopy height model, EA's recovered design surfaces and EA's native CAD; everything that reads
   them says so rather than failing. The terrain, the imagery, the design geometry, the datasets,
   the survey and every tool are all still there.
+  </details>
 </div></div>
 
 <!-- The password gate is deliberately the FIRST script: it paints before the

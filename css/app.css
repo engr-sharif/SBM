@@ -493,6 +493,12 @@ table.navhelp td:first-child{color:var(--mut);white-space:nowrap;padding-right:1
 #help kbd{background:var(--panel2);border:1px solid var(--line);padding:1px 5px;font-size:10.5px}
 #help .close{float:right;cursor:pointer;color:var(--mut);font-size:18px}
 #help .close:hover{color:var(--ink)}
+/* the info page (2026-09-08): a short note up top, the manual and the settings folded away */
+#help .beta{font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--warn,#FFA23E);border:1px solid currentColor;border-radius:4px;padding:1px 6px;vertical-align:middle;margin-left:6px}
+#help p.intro{margin:0 0 10px}
+#help details{margin:12px 0 0;border-top:1px solid var(--line);padding-top:8px}
+#help summary{cursor:pointer;color:var(--acc2);font-weight:600;padding:4px 0;user-select:none}
+#help summary:hover{color:var(--ink)}
 
 .loading{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
   background:var(--bg);z-index:3000;flex-direction:column;gap:14px;color:var(--mut)}

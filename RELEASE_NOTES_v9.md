@@ -17,6 +17,31 @@ All three are offline-only by design. Nothing in this app calls out to the inter
 
 ---
 
+## v9.23 — clear water overlays, the info page, and the 30-in pipe (2026-09-08)
+
+You said: *"after I use an aspect of the water feature, whether it be the HI overflow or the
+pond overflow, and I hit Clear water overlays, nothing really happens — it doesn't remove
+any of these features."* It did not: the button took down the rim band, the markers and the
+stage surface and deliberately LEFT every route the analysis had traced (the pipe discharge
+route, the conduit spill route, the rim overflow) on the map as your features. Now:
+
+- **Clear water overlays** (the Water ▾ menu, `WATERCLEAR` / `CLEARWATER`) removes the
+  open analysis, every route it traced and every raindrop — as ONE undo entry, so
+  `Ctrl+Z` puts every feature back. It says what it removed.
+- The overtopping card's **✕** closes the analysis WITH its routes (before, it only removed
+  the card and left everything on the map with nothing to clear it from); its own **clear**
+  button does the same.
+- The **info page** (the ⓘ button) is a short note now — what this is, that it is in beta,
+  how to send feedback and the eight keys you use most — with the manual and the settings
+  folded away under two headings.
+- The road drain's pipe in the Clear Lake trench (E943D) is the **30-in HDPE that conveys
+  Green Pond**, per the field team (J. Lucero after walking the line with Carter, 3–4 Sep
+  2026: the 30-in is in good condition, the dual 24-in are in disrepair). The network
+  carried it as 24 in since v9.22; it is 30 now. No number moves: nothing in the app
+  computes with that size until its inverts are surveyed.
+- `docs/BMP_NOTES_2026-09.md` and `docs/bmp/bmp_sites_2026-09.jpg` — the 3–4 Sep 2026 BMP
+  thread read against what the app knows about the impoundment, the pipes and the valley.
+
 ## v9.22 — three pipes in the trench, and the overflow that follows them
 
 You said: *"the two overflow outlets that you have merging into one, that's not the case,
