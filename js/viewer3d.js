@@ -3512,14 +3512,46 @@ SBMM.viewer3d = (function () {
        under load the first build can still run against a canvas that has not
        been laid out. So: size the canvas, step the rig, select — and if the
        quadtree drew a single tile, give the layout a frame and go again. */
-    for (let i = 0; i < 3; i++) {
-      resize();
-      nav.update();
-      camera.updateMatrixWorld();
-      await SBMM.terrain3d.update(true);
-      const s = SBMM.terrain3d.stats();
-      if (!s.on || s.tiles > 1) break;
-      await new Promise(r => requestAnimationFrame(r));
+    /* AND THE VIEW IS NOT READY UNTIL THIS HAS FINISHED. init() clears the
+       status when the SCENE is built; the terrain the view opens on is not on
+       screen until the re-select below has swapped, and everything that waits
+       for the 3D view — the harnesses included — waits on that status. Under
+       load the gap is over a second, and what is drawn in it is the quadtree's
+       64-ft root: e2e block 9a-2's "high: 66049". The status is set here in
+       the same task init() cleared it in, so there is no window between them
+       for anything to observe. */
+    const stEl = $("v3dStatus");
+    const MSG = "drawing the terrain…";
+    /* AND IT HAS TO STAY SAID. show() replays the layer state on its own async
+       paths — the survey contours and the canopy each build and then CLEAR
+       this status when they finish — so a message written here is wiped a
+       moment later and everything waiting on it carries on with the root tile
+       drawn. A MutationObserver re-asserts it for the duration, and writes
+       only when the value has actually changed, which is the rule the layer
+       count badges learned and the reason it cannot spin. */
+    let guard = null;
+    if (stEl) {
+      stEl.textContent = MSG;
+      try {
+        guard = new MutationObserver(() => {
+          if (stEl.textContent !== MSG) stEl.textContent = MSG;
+        });
+        guard.observe(stEl, { childList: true, characterData: true, subtree: true });
+      } catch (e) { guard = null; }
+    }
+    try {
+      for (let i = 0; i < 3; i++) {
+        resize();
+        nav.update();
+        camera.updateMatrixWorld();
+        await SBMM.terrain3d.update(true);
+        const s = SBMM.terrain3d.stats();
+        if (!s.on || s.tiles > 1) break;
+        await new Promise(r => requestAnimationFrame(r));
+      }
+    } finally {
+      if (guard) guard.disconnect();
+      if (stEl && stEl.textContent === MSG) stEl.textContent = "";
     }
     terrainMeshes = SBMM.terrain3d.records();
     SBMM._v3dVerts = terrainMeshes.reduce((n, t) => n + t.nx * t.ny, 0);
