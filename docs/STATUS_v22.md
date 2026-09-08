@@ -13,7 +13,7 @@ branch to main.
 | step | state | notes |
 |---|---|---|
 | spec written (`docs/V22_SPEC.md`) | done | evidence for §S is in the spec |
-| S — three pipes + overflow follows them + slider rule | not started | agent S — **start here Monday after the 7 PM reset**; one agent in a worktree, spec §S + §R, addendum: never push, report with the re-recorded numbers |
+| S — three pipes + overflow follows them + slider rule | in progress (started 2026-09-08, worktree agent-S) | agent S — **start here Monday after the 7 PM reset**; one agent in a worktree, spec §S + §R, addendum: never push, report with the re-recorded numbers |
 | C — where the water goes | not started | after S |
 | G — desktop 3D drape / hitch / GPU | not started | after C; droppable |
 
