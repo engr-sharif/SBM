@@ -4379,6 +4379,64 @@ if (errors.length !== errBeforeW13) {
 });
 
 /* ==================================================================== */
+await block("9t2. clear water overlays (2026-09-08)", async () => {
+/* "Clear water overlays" takes down the open analysis, EVERY route it traced
+   and every raindrop, as ONE undo entry; the card's own ✕ takes the analysis
+   and its routes. Before this the pipe-discharge and conduit routes stayed on
+   the map by design (v15 §1) and the engineer reported the button as dead. */
+/* ==================================================================== */
+const cw = await page.evaluate(async () => {
+  const out = {};
+  const flows = () => SBMM.store.features.filter(f => f.type === "flow").length;
+  out.flows0 = flows();
+  const R = await SBMM.water.overtopHerman();
+  out.opened = !!(R && SBMM.water.active());
+  const r = SBMM.water.routes();
+  out.pipeRoute = !!(r && r.pipe);
+  await SBMM.water.dropAt(6373000, 2127600, { quiet: true });
+  out.flowsWith = flows();
+  out.names = SBMM.store.features.filter(f => f.type === "flow").map(f => f.name);
+  out.removed = SBMM.water.clearWater();
+  out.activeAfter = !!SBMM.water.active();
+  out.flowsAfter = flows();
+  out.overtopLabels = SBMM.labels.count("overtop");
+  out.undoLabel = SBMM.undo.labels().undo;
+  SBMM.undo.pop();
+  out.flowsBack = flows();
+  out.activeAfterUndo = !!SBMM.water.active();
+  SBMM.undo.redo();
+  out.flowsRedone = flows();
+  SBMM.undo.pop();                 /* leave the features as they were */
+  out.flowsFinal = flows();
+  /* the card's ✕ closes the analysis WITH its routes */
+  const R2 = await SBMM.water.overtopHerman();
+  const n2 = flows();
+  const x = SBMM.water.active() && document.querySelector('#resBody .res [data-a="del"]');
+  if (x) x.click();
+  out.xClosed = !SBMM.water.active();
+  out.xRoutesGone = n2 - flows();
+  SBMM.undo.pop();                 /* and those come back too */
+  out.xRoutesBack = flows() === n2;
+  return out;
+});
+console.log("clear water overlays:", JSON.stringify(cw));
+if (!cw.opened || !cw.pipeRoute) { console.log("FAIL: the Herman analysis did not open with its pipe route"); process.exit(1); }
+if (cw.flowsWith < cw.flows0 + 2) { console.log("FAIL: expected the routes and a raindrop to be on the map"); process.exit(1); }
+/* `removed` counts the UNDOABLE removals — the user's routes and raindrops. A
+   route the analysis owns (the automatic rim overflow, the what-if) goes with
+   the analysis and never had an undo entry (v15 §1), so it is in flowsWith
+   and not in removed; what matters is that nothing is left. */
+if (cw.activeAfter || cw.flowsAfter !== 0 || cw.overtopLabels !== 0 || cw.removed < 2)
+  { console.log("FAIL: clear water overlays left something behind:", JSON.stringify(cw)); process.exit(1); }
+if (cw.undoLabel !== "clear water overlays" || cw.flowsBack !== cw.flows0 + cw.removed || cw.activeAfterUndo)
+  { console.log("FAIL: one undo entry must put every feature back (and not reopen the analysis):", JSON.stringify(cw)); process.exit(1); }
+if (cw.flowsRedone !== 0 || cw.flowsFinal !== cw.flowsBack)
+  { console.log("FAIL: redo/undo of the clear:", JSON.stringify(cw)); process.exit(1); }
+if (!cw.xClosed || cw.xRoutesGone < 1 || !cw.xRoutesBack)
+  { console.log("FAIL: the card's ✕ must close the analysis with its routes, undoably:", JSON.stringify(cw)); process.exit(1); }
+});
+
+/* ==================================================================== */
 let errBeforeRedo, undoBtns, rdraw, b1, rvert, rdel, rdel2, rflow, rpad, rfork, rkeys, rclean;   /* hoisted — v18 §3 */
 await block("9u. redo (docs/V11_SPEC.md §1)", async () => {
 /* 9u. redo (docs/V11_SPEC.md §1)                                       */

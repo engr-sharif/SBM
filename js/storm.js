@@ -14,9 +14,11 @@
    MERGE. Three pipes lie side by side in the trench to Clear Lake — the two
    barrels (`herman_main_n` on EA's line E943E, `herman_main_s` on E943C) and
    the road drain's (`storm_main_upper` / `storm_main_lower` on E943D, the far
-   south one). They are 2.35 ft apart, the outside diameter of 24-in
-   corrugated HDPE, which is how the drawing says so. Each barrel runs to the
-   lake in its own pipe and they meet only at the shared `outfall` node.
+   south one). They are drawn 2.35 ft apart, the outside diameter of 24-in
+   corrugated HDPE, which is how the drawing says so; the field team says the
+   south one is the 30-in HDPE that conveys Green Pond (J. Lucero, Sep 2026),
+   and the payload carries that size. Each barrel runs to the lake in its own
+   pipe and they meet only at the shared `outfall` node.
    v22 §S is that rebuild; `pipe_to_main` / `pipe_to_main_s` / `storm_main_east`
    are gone with it.
 
