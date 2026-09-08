@@ -164,7 +164,8 @@ choose, the compute workers scale with the number of cores, a lost graphics cont
 rebuilt instead of going black, the screen stays awake while Position or a long
 calculation is running, exports go to the iPad **share sheet** (Files, AirDrop, Mail), and
 a CSV, GeoJSON, DXF or session file dragged in from the Files app in Split View imports.
-**Help** shows the build, the profile, the pixel ratio, the GPU and the worker count in one
+**Help** shows the build, the profile, the pixel ratio, the GPU (and whether it is a real
+one), the drape's resolution in feet per pixel and its memory, and the worker count in one
 line — read that back if anything is slow.
 
 ## What it does
@@ -1289,7 +1290,16 @@ cell is allowed to be on screen — **standard** 4 px, **high** 2 px, **ultra** 
 and it is remembered. On a 1440 x 900 window over the mine area: standard draws 9 tiles
 and 0.84 M triangles, high draws 24 tiles and 2.69 M with 1-ft tiles under the camera,
 ultra draws 30 and 3.49 M. The old build drew 1.98 M vertices and never got below 4 ft.
-Phones and the field build stay on standard.
+Phones and the field build stay on standard, and on a desktop with a real graphics card
+**high** is the first-time default — whatever you choose is remembered and wins after that.
+The app names the renderer it was given on the **Help** line and says "(software)" when the
+browser has fallen back to one; if the 3D view is slow and that word is there, the problem
+is a browser setting rather than the model.
+
+**The terrain mesh is built off the main thread.** A camera move used to spend 45-130 ms of
+the main thread rebuilding tile geometry; it now spends 20-80 ms, the geometry itself is
+built in a worker, and returning to a view you were just at rebuilds nothing at all — the
+tiles are cached, and a move away and back hit 16 of 16.
 
 **Nothing is fetched.** A tile arrives as a `<script>` tag injected into the page, which
 is the only thing that loads when you have double-clicked an HTML file — the same reason
@@ -1299,6 +1309,16 @@ and inlining the pyramid would have taken the single file from 133 MB to about 2
 for information it already had. Tiles are cached with a memory budget (256 MB on a
 desktop, 96 MB on a tablet) and the ones furthest from where you are looking are dropped
 first.
+
+**The picture on the terrain is chosen by a texture budget, not by the mesh.**
+Until v9.22 each terrain tile carried an aerial image at its own level, so the
+4-ft tiles that make up most of a wide view were drawn at four feet per pixel —
+which is what "the topo looks pixelated when I zoom in" was. Each tile now takes
+its imagery two levels finer and stitches it into one picture: over the mine area
+**every tile is drawn at a foot per pixel or better**, over the rest of the site at
+two, and the whole visible set costs 22-50 MB of graphics memory. It is capped by
+the imagery that exists rather than by wishful thinking, and a tablet takes one
+level and a phone none — a phone gets exactly what it got before.
 
 **Hillshade, slope and aspect now run on the graphics card.** They are computed from the
 terrain tile itself in a shader, so the sun control in *View settings* relights the whole
@@ -2297,7 +2317,11 @@ after every edit (preflight + the gesture unit harness + every compute kernel bu
 runs independent steps in parallel up to the browser slots, and writes a log per step
 under `test/.logs/` ending in `EXIT=<code>` plus a summary table. One Chromium at a time
 is enforced by a lock rather than asked for, `SBMM_GPU=1` renders on a real GPU where
-there is one, and a failing block is re-run on its own with
+there is one — **`SBMM_GPU=1 node test/run.mjs --only terrain3d:folder,perf` is what to run
+on a machine with a graphics card**, and it is the only place the 3D numbers mean what they
+say (under the software rasteriser on the build box a single frame is over a second, so the
+frame and long-task readings there are the renderer and not the app) — and a failing block
+is re-run on its own with
 `node test/e2e.mjs index.html folder --only 9t` (~48 s) instead of eleven minutes.
 `.github/workflows/matrix.yml` runs the same steps on GitHub's runners, five jobs in
 parallel, on every pull request.

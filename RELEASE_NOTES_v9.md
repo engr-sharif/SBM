@@ -112,6 +112,39 @@ Nothing in the drainage map moved: the four areas are the same analysis at a fin
 and the two that leave through the storm drains add back up to its 282.01-acre outfall
 catchment to the square foot.
 
+### The 3D view: a sharp drape, a smoother camera, and the graphics card named
+
+You said: *"graphics are rendering a bit slow when I move around … the entire site topo
+looks a bit pixelated when zooming in … seems like the desktop isn't taking full advantage
+of the GPU."* Three answers.
+
+**The pixelation was the aerial image, not the ground.** Since the terrain became tiled,
+each tile carried its imagery at its own size — so a 4-ft terrain tile was draped with a
+picture at four feet per pixel, and most of a wide view is 4- and 8-ft tiles. Each tile now
+takes its imagery **two levels finer** and stitches four or sixteen pieces into one picture.
+Over the mine area every tile is now drawn at **a foot per pixel or better** where it was
+one, two, four and eight; over the rest of the site it is two. It costs 21 MB of graphics
+memory and, measured, **no frame time at all** — the whole visible model is 22-50 MB of
+imagery against a 150 MB budget.
+
+**The camera move got quieter.** The terrain tile geometry is built in a background worker
+now instead of on the thread that draws, and geometry you have already seen is kept, so
+moving away and coming back rebuilds nothing (16 tiles out of 16 came from the cache). The
+main-thread cost of a rebuild fell from 45-130 ms to 20-80 ms.
+
+**And the app now says which graphics card it was given.** The **Help** line names the
+renderer and adds "(software)" when the browser has fallen back to a software one — which
+is worth checking first if 3D is slow, because it is a browser setting rather than
+anything in the workbook. On a desktop with a real card the mesh detail now starts at
+**high**; whatever you pick is remembered and wins after that, "ultra" included (it was
+being forgotten).
+
+**The 2D map was checked too, and it is right**: at high zoom over the mine area the 3-inch
+aerial is on top, then the 6-inch, then the 1-ft hillshade, then the 2-ft one — nothing
+coarse is drawn over anything fine, and no basemap is switched off by zoom. What you see
+past a certain zoom is the 3-inch photograph magnified beyond its own resolution, which is
+the imagery's limit.
+
 ---
 
 ## v9.19 — the app on a phone
