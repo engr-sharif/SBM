@@ -13,7 +13,7 @@ branch to main.
 | step | state | notes |
 |---|---|---|
 | spec written (`docs/V22_SPEC.md`) | done | evidence for §S is in the spec |
-| S — three pipes + overflow follows them + slider rule | in progress (started 2026-09-08, worktree agent-S) | agent S — **start here Monday after the 7 PM reset**; one agent in a worktree, spec §S + §R, addendum: never push, report with the re-recorded numbers |
+| S — three pipes + overflow follows them + slider rule | **done** (2026-09-08, worktree `agent-S`, branch `worktree-agent-S`) | 44 nodes / 27 conduits (17 CAD/survey, 10 inferred). Re-recorded: the raindrop's pipe_ft 812.8 → **812.2**, its chain `herman_pipe_s,herman_main_s`, the discharge route's legs `herman_pipe_s,herman_main_s,herman_pipe_n,herman_main_n`, the layer counts 15/12 → 17/10. UNCHANGED, which is the proof: `herman_pipe_s`'s through_area **37.90 ac**, the 100/100 raindrop identity, the §11.8 accumulation identity at 0.000 % on all three outlets, and the outlet areas 403.03 / 293.45 / 282.01 ac (0.01 ac moved between the lake and the outfall — see below). Commit list below |
 | C — where the water goes | not started | after S |
 | G — desktop 3D drape / hitch / GPU | not started | after C; droppable |
 
@@ -44,3 +44,37 @@ re-run; a second failure on unchanged code is still the flake, not the docs.
    is green (`--quick`, then the steps its files touch), or restart the agent with the
    spec section and "continue from the worktree".
 3. The Actions matrix is the gate for every PR; local full matrices are optional.
+
+## S — what shipped, and the two things the spec did not foresee (2026-09-08)
+
+Commits on `worktree-agent-S`, oldest first:
+
+| commit | what |
+|---|---|
+| `855f36e` | §S — the network rebuild in `tools/build_storm_network.py` → `data/storm_network.json` → `datajs/d_storm_network.js`: `herman_main_n` (E943E) and `herman_main_s` (E943C), `storm_main_upper/lower` on E943D, `pipe_to_main` / `pipe_to_main_s` / `storm_main_east` gone, one shared `outfall`, the dog-leg recorded as *drawn, purpose not established — ask EA*. The builder writes the payload itself, byte-identical to what `tools/build_data.py` would write from the JSON (checked) |
+| `563190d` | §R.1 — `js/water.js` `legPolyline()`, the one lookup the 2D line, the un-draped 3D tube and the particle track all use; the 3D ground line split per stretch. §R.2 — the automatic rim overflow, `routes().rimAuto`, the card and slider wordings. Plus `parallelBarrels()` learning that two barrels can converge on an outlet NODE, with a same-length test |
+| `fd5a36b` | §S — `js/storm.js` `mapConduits()`; `js/drainage.js` / `js/accum.js` share it; `test/kernels.mjs` §6.7/§6.8/§6.9 re-recorded, the identity classifier follows `next`, §11.1 asserts one outlet at the shared outfall |
+| `c25e19f` | the e2e's storm and survey numbers re-recorded (blocks 9s, 9v) |
+| `b0f7c76` | block 9t: the automatic rim overflow on Frog Pond, the three slider states on Herman |
+| `b0832ab` | 9t leaves the analysis open for the 3D sub-block; the slider label names "the 24-in pipes" |
+| (this one) | CLAUDE.md v12/v13 rewrite + a v22 section, README, HANDOFF, RELEASE_NOTES v9.22, V12_STORM_SPEC, this file |
+
+**Two things the spec did not foresee, both recorded in CLAUDE.md's v22 section:**
+
+1. **One `outfall` NODE is not one outlet.** The `drainage` kernel names an outlet
+   sink after the LAST CONDUIT of the chain that reaches it (`"outfall:" + id`), so
+   three conduits ending at the node gave three outlets with the same name and split
+   the 282 ac three ways. `js/compute.js` was not editable this round, so the rule is
+   the host's: `SBMM.storm.mapConduits()` names the TRUNK and points the others at it
+   through `next`, which the kernel follows only to find where a chain ends.
+2. **The counts are 44 nodes, not 42.** `storm_main_upper` is kept (the spec asks for
+   that) and it needs a from-node, so `storm_main_east` is replaced by
+   `storm_main_d_east` at E943D's east end. That is also the whole of the 0.01 ac that
+   moved between the lake and the outfall: the node sits 2.4 ft south of the old one,
+   so one 3-ft capture disc covers 109 different 2-ft cells.
+
+Local runs (from the logs): `node test/run.mjs --quick` 4/4 PASS; `--only
+e2e:folder,field,phone:http --wait` — `check` PASS, `build:field` PASS, `phone:http`
+PASS 26.8 s, `field` PASS 128 s, `e2e:folder` see `test/.logs/e2e-folder.log`;
+`node test/kernels.mjs --only drainage` 59 checks PASS (100/100 identity, §11.8
+identity 0.000 %), `--only storm` 101 checks PASS, `--only water3d` 76 checks PASS.
