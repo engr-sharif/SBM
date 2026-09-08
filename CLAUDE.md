@@ -3238,11 +3238,20 @@ largest) and `lastBuildCpuMs` (their sum). Wall time is not the hitch: a build
 that yields can take a second and never block a gesture. Four camera moves on
 the folder build, software GL, before and after:
 
-| | before | after (three runs) |
+| | before | after (four runs) |
 |---|---|---|
 | main-thread CPU per rebuild | 44.8–130.6 ms | **18.8–57.6 ms** |
-| longest single block | 7.1–12.4 ms | **2.4–14.9 ms**, median 6.0–8.6 |
+| longest single synchronous block | 7.1–12.4 ms | 2.4–18.9 ms, run medians 6.0–15.4 |
 | geometry cache on a return | — | **16 of 16 tiles hit, 0 rebuilt** |
+
+**Say what fell and what did not.** The CPU a rebuild spends on the main
+thread falls by well over half and is the number the geometry moving to a
+worker was for. The LONGEST SINGLE BLOCK does not: v20 had already yielded the
+build into per-tile pieces, and what is in a piece changed rather than shrank —
+the geometry loop left it and the drape composite (up to seventeen `drawImage`
+calls into a 1,024 px canvas) arrived. Both are far inside the 300 ms tap
+window that the yielding exists to protect, and the run-to-run spread on this
+box is wider than the difference.
 
 **And the honest half: on THIS box the longest main-thread task after a camera
 move is the RENDER, not the terrain.** A `PerformanceObserver` sees 1.2–4.0 s

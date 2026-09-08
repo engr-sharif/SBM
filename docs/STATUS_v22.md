@@ -251,11 +251,20 @@ sharp drape is texture memory and nothing else.
 | | before | after |
 |---|---|---|
 | main-thread CPU per rebuild | 44.8-130.6 ms | **18.8-57.6 ms** |
-| longest single synchronous block | 7.1-12.4 ms | **2.4-14.9 ms**, median 8.6 |
+| longest single synchronous block | 7.1-12.4 ms | 2.4-18.9 ms, run medians 6.0-15.4 — **it did not fall**, see below |
 | geometry cache on a return to a view | — | **16 of 16 tiles hit, 0 rebuilt** |
 | longtask after a camera move | 1.2-2.2 s | 2.4-4.4 s |
 
-That last row is the RENDERER, not the terrain: one frame at `high` under
+**The block did not fall, and that is worth stating rather than dressing
+up.** v20 had already yielded the build into per-tile pieces; what is IN a
+piece changed rather than shrank — the geometry loop left it for the worker
+and the drape composite (up to seventeen `drawImage` calls into a 1,024 px
+canvas) arrived. Both are far inside the 300 ms tap window the yielding
+exists to protect, and the run-to-run spread on this box is wider than the
+difference. What the round actually bought is the CPU row above (over half),
+and the cache row (a return to a view costs nothing at all).
+
+The longtask row is the RENDERER, not the terrain: one frame at `high` under
 SwiftShader costs a second or more, and the terrain build has yielded into
 ~10 ms pieces since v20. `SBMM_GPU=1 node test/run.mjs --only
 terrain3d:folder,perf` is where that reading means something, and README says
