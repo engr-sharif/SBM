@@ -15,7 +15,7 @@ branch to main.
 | spec written (`docs/V22_SPEC.md`) | done | evidence for §S is in the spec |
 | S — three pipes + overflow follows them + slider rule | **done** (2026-09-08, worktree `agent-S`, branch `worktree-agent-S`) | 44 nodes / 27 conduits (17 CAD/survey, 10 inferred). Re-recorded: the raindrop's pipe_ft 812.8 → **812.2**, its chain `herman_pipe_s,herman_main_s`, the discharge route's legs `herman_pipe_s,herman_main_s,herman_pipe_n,herman_main_n`, the layer counts 15/12 → 17/10. UNCHANGED, which is the proof: `herman_pipe_s`'s through_area **37.90 ac**, the 100/100 raindrop identity, the §11.8 accumulation identity at 0.000 % on all three outlets, and the outlet areas 403.03 / 293.45 / 282.01 ac (0.01 ac moved between the lake and the outfall — see below). Commit list below |
 | C — where the water goes | **done** (2026-09-08, worktree `agent-C`, branch `worktree-agent-C`) | The four areas at 2 ft: Clear Lake **403.03 ac**, the Herman impoundment **84.14**, Frog/Green **197.87**, off the survey **293.45** — sum **978.49**, the map's own site. The impoundment's catchment is 84.14 ac and NOT the drainage card's 37.90 (see below); the v19 accumulation at the same two barrels says 84.09 independently. Commit list below |
-| G — desktop 3D drape / hitch / GPU | **in progress** (2026-09-08, worktree `agent-G`, branch `worktree-agent-G`) | the drape by texture budget, the mesh build off the main thread with a geometry cache, GPU detection, and the 2D hillshade check |
+| G — desktop 3D drape / hitch / GPU | **done** (2026-09-08, worktree `agent-G`, branch `worktree-agent-G`) | The drape is 1 ft/px over the mine window where it was 1/2/4/8, for 21-36 MB of texture and **no frame time** (k swept 0/1/2 twice). The tile mesh is built in the pooled decode worker from ONE function; a geometry cache makes a return to a view free. Rebuild CPU 45-130 ms to 20-55 ms. The renderer is named and “software” is said. Three recorded flakes closed at the root, one of them a user-visible bug. Commit list and numbers below |
 
 ## Why it stopped here (2026-09-06)
 
@@ -208,3 +208,108 @@ Also run on their own during the round: `node test/run.mjs --quick` 4/4 PASS
 (112 s); `node test/kernels.mjs --only drainage` **155 checks PASS in 296.7 s**
 on both backends (§11.9's 20 checks included); `node test/e2e.mjs … --only
 "9ac2"` and `--from "9w. water"` (19 blocks) both PASS.
+
+## G — what shipped, the numbers, and the three flakes that were bugs (2026-09-08)
+
+Commits on `worktree-agent-G`, oldest first:
+
+| commit | what |
+|---|---|
+| `717a333` | marked G in progress in this file |
+| `ccb7aaf` | `js/dem.js` `demTileMeshMain` — the tile mesh as ONE function, stringified into the same Blob worker the terrain-RGB decode already ships in; `Dem.tileMesh` / `Dem.tileMeshAsync` / `Dem._poolSend`; the pool answers two kinds of message; `test/check.mjs` scans the new function too |
+| `fe1d61a` | **the feature.** `drapePlan` / `drapeFetch` / `drapeCompose` and `drapeK()` in `js/viewer3d.js`; the mesh build moved into the pool; the geometry cache with its byte budget and the never-evict-what-is-drawn rule; `blk()` measuring the synchronous spans; `rendererInfo()` and the detail default on a GPU; "ultra" remembered; the Help line |
+| `06fe832` | `test/terrain3d.mjs` gains **drape / meshport / geomcache / map2d**; `test/perf.mjs` gains the hitch probe; the three v20 shots re-taken |
+| `143bd3f` | `SBMM.view.pref` read its own pending write (it answered stale for 900 ms); `SBMM.view.pref("drapeK")`; the k sweep; `geomClear()` leaves a geometry that is on screen alone; the geomcache section starts from a different camera |
+| `646385a` | the docs, and `stats().texMP` counts the quadtree's tile drapes (with the tile terrain on there is nothing in `texCache`, so the phone harness was asserting against an empty set) |
+| `b175a88` | a FORCED `update()` awaits the in-flight one instead of returning false |
+| `a3359ed` | the terrain3d idle section waits on the camera settling, not on a clock; `perf` reports the first frame separately |
+| `46e6a84` | `refreshTerrainForCamera()` resizes and retries; `select()` records the height it was given; the tablet harness's twist assertion folds the azimuth wrap |
+| `a77ff0f` | **the 3D view is not ready until the terrain it opens on is drawn** — the status is held, and guarded, across the open-time re-select |
+| `12d0fd1` | the everything-on k sweep in CLAUDE.md |
+| (this one) | this file |
+
+### The numbers
+
+**The drape**, at `high` over the mine window (`test/terrain3d.mjs --only
+drape`, identical on the folder build and on the dist):
+
+| DEM tile | before | now | texture |
+|---|---|---|---|
+| z0 (1 ft cell) | 1 ft/px | 1 ft/px | 256 px |
+| z1 (2 ft cell) | 2 ft/px | **1 ft/px** | 512 px |
+| z2 (4 ft cell) | 4 ft/px | **1 ft/px** | 1,024 px |
+| z3 (8 ft cell) | 8 ft/px | **2 ft/px** | 1,024 px |
+
+22-50 MB of texture for the drawn set against the ~150 MB the section allows.
+Swept twice through `SBMM.view.pref("drapeK")` — terrain only, and with every
+layer switched on — the **frame cost does not move with k** (1,366-1,548 ms
+across k = 0/1/2, with a repeat of k = 2 inside that spread). The price of the
+sharp drape is texture memory and nothing else.
+
+**The hitch**, four camera moves, folder build, software GL:
+
+| | before | after |
+|---|---|---|
+| main-thread CPU per rebuild | 44.8-130.6 ms | **18.8-57.6 ms** |
+| longest single synchronous block | 7.1-12.4 ms | **2.4-14.9 ms**, median 8.6 |
+| geometry cache on a return to a view | — | **16 of 16 tiles hit, 0 rebuilt** |
+| longtask after a camera move | 1.2-2.2 s | 2.4-4.4 s |
+
+That last row is the RENDERER, not the terrain: one frame at `high` under
+SwiftShader costs a second or more, and the terrain build has yielded into
+~10 ms pieces since v20. `SBMM_GPU=1 node test/run.mjs --only
+terrain3d:folder,perf` is where that reading means something, and README says
+so.
+
+**The dist**: all 225 tiles of the first drawn set are SYNTHESISED rather than
+injected, the drape table is identical to the folder build's, and
+`terrain3d:dist` took 111.9 s against `terrain3d:folder`'s 109.8 s in the same
+matrix — the extra ortho synthesis is inside the noise, and the per-tile
+priority queue is still what orders it.
+
+**The 2D map** (`--only map2d`): the stack over the mine window at zoom 3, by
+each overlay's own feet per image pixel, is 2 ft then 1 ft then 0.5 ft then
+0.25 ft bottom to top, and nothing is zoom-gated. **Nothing coarse is drawn
+over anything fine and the pixelation is not there** — past zoom 4 it is the
+3-inch photograph magnified beyond its own resolution. The one real 2D finding
+is `docs/ALIGNMENT_REPORT.md`'s half-cell hillshade offset, deliberately left
+alone: it is two lines in `js/layers.js` and belongs in its own commit.
+
+### THREE RECORDED "FLAKES" THAT WERE BUGS
+
+All three were in this file as load flakes. All three are closed at the root,
+and the first was user-visible:
+
+1. **The 3D view reported itself ready before the terrain was drawn.**
+   `init()` clears `#v3dStatus` when the SCENE is built, but the terrain the
+   view opens on is not on screen until `refreshTerrainForCamera()` has
+   re-selected against the placed camera and swapped. Everything waits on that
+   status, so the wait ended with the quadtree's **64-ft root** drawn — which
+   is e2e 9a-2's `high: 66049` (one 257 x 257 tile), and which a user saw as a
+   coarse site for a second or more after opening 3D. The status is held across
+   the re-select now, and GUARDED with a MutationObserver because the contour
+   and canopy replays each clear it when they finish. Measured with the
+   harness's own sequence: at the moment the status goes empty the drawn set is
+   **24 tiles / 1,585,176 vertices** where it was 1 tile / 66,049.
+2. **A forced `update()` was dropped while another was in flight**, so a detail
+   or style change that had just detached the scene could measure — and draw —
+   nothing. That is 9a-2's `standard: 0 | back to high: 0`.
+3. **`test/e2e_tablet.mjs`'s twist assertion took an unsigned difference of two
+   AZIMUTHS**, so a 40-degree turn that crossed the wrap read as 320.
+
+Plus the `terrain3d` idle section, which waited a fixed 1.2 s for a camera
+eased over thirty FRAMES — at a second a frame it was measuring the flight.
+
+### The runs (2026-09-08, this box, software GL)
+
+| run | result |
+|---|---|
+| `node test/run.mjs` — matrix 1, 24.6 min | 16/19. `e2e:folder` on 9a-2, `terrain3d:folder` and `terrain3d:dist` on the idle wait. **`e2e:dist` PASSED, 1,179 s** |
+| `node test/run.mjs` — matrix 2, 24.8 min | 17/19. `e2e:folder` on 9a-2 and `tablet:file` on the twist, both fixed after it had started. **`e2e:dist` PASSED again, 1,374 s**; `terrain3d:folder`, `terrain3d:dist`, `split3d` x2, `field`, `phone:http`, `tablet:http`, `perf`, `audit`, `audit2`, `kernels` all PASS |
+| `--only e2e:folder,tablet:file,field,phone:http` after the fixes, 21.8 min | **6 of 6 PASS.** `e2e:folder` 1,305.6 s with `detail vertex counts — high: 1585176 / standard: 166410 / back to high: 1585176`; `tablet:file` 237.8 s with the twist at 40.0 deg; `field` 128.2 s; `phone:http` 25.0 s |
+| `node test/terrain3d.mjs … folder` alone | 28 checks PASS |
+| `node test/check.mjs`, `--only tiles,touch_unit`, `kernels` | PASS throughout |
+
+`node test/terrain_shots.mjs` re-taken into this worktree's own `test/shots/`.
+`tiles_abp_1ft.png` is the one to look at: same registration, visibly sharper
+ground.
