@@ -3113,3 +3113,166 @@ and §4 asked for. **So the renderer switch was NOT built,
 `SBMM.view.pref("renderer")` does not exist, and every harness runs on WebGL2.**
 The probe is committed so the next person can re-measure in one command rather
 than re-derive it.
+
+## v22 §G — the desktop 3D: the drape, the hitch, and the GPU
+
+Contract: `docs/V22_SPEC.md` §G. No kernel work (`js/compute.js` is not touched;
+`VERSION` stays 10). `js/terrain3d.js`, `js/dem.js`, `js/viewer3d.js`,
+`js/view.js`, `js/touch.js`; harness sections `drape` / `meshport` /
+`geomcache` / `map2d` in `test/terrain3d.mjs` and the hitch probe in
+`test/perf.mjs`.
+
+The engineer: *"graphics are rendering a bit slow when I move around … the
+entire site topo looks a bit pixelated when zooming in … seems like the desktop
+isn't taking full advantage of the GPU."* Three answers, and the third one is
+partly "it is, and here is the number".
+
+### THE DRAPE LEVEL IS A TEXTURE BUDGET, NOT THE MESH LEVEL
+
+v20's `orthoRef()` took the ortho tile at the terrain tile's **own** level, so a
+4-ft mesh tile carried a 256 px image over 1,024 ft — **4 ft per texel**, where
+the pre-v20 whole-DEM drape had been 0.25 ft/px over the mine window. That is
+the pixelation, and it is a drape rule rather than a mesh one: the mesh was
+right and the picture on it was not.
+
+`drapePlan(z, x, y)` now takes the ortho **`k` levels finer** and
+`drapeCompose()` composites the 4^k sub-tiles into one `256·2^k` px canvas over
+the coarse ancestor — the ancestor first, stretched, so a tile at the edge of
+the fine imagery has no hole in it. `k` comes from `drapeK()` in
+`js/viewer3d.js`, beside `texBudget()` because it answers the same question
+about the same memory: **desktop 2, tablet 1, phone 0** — and 0 is exactly what
+v20 shipped, which is why `test/e2e_phone.mjs` and `test/e2e_field.mjs` are
+untouched by this round. It is capped again by what the pyramid HAS: ortho z0
+(1 ft/px) exists only over the 6-in/3-in imagery and the rest of the site stops
+at z1 (2 ft/px).
+
+Measured at `high` over the mine window (`test/terrain3d.mjs --only drape`):
+
+| DEM tile | drape before | drape now | texture |
+|---|---|---|---|
+| z0 (1 ft cell) | 1 ft/px | **1 ft/px** | 256 px |
+| z1 (2 ft cell) | 2 ft/px | **1 ft/px** | 512 px |
+| z2 (4 ft cell) | 4 ft/px | **1 ft/px** | 1,024 px |
+| z3 (8 ft cell) | 8 ft/px | **2 ft/px** | 1,024 px |
+
+The whole drawn set costs **22–50 MB** of texture depending on the camera,
+against the ~150 MB §G allows. `SBMM.terrain3d.drawnTiles()` is the per-tile
+table (rect, cell, texture px, ft/px) the harness reads; `stats().drapeK`,
+`drapeFtPerPx`, `drapeTexPx`, `drapeComposed` and `texMB` summarise it, and the
+Help line carries the ft/px range and the MB.
+
+**k = 2 was kept because the cost was measured, not assumed.** `drapeK()`
+honours `SBMM.view.pref("drapeK")` (0, 1, 2) so it can be swept without a
+build. One drawn set of 25 tiles, folder build at 1500 x 940, software GL:
+
+| k | texture | ft/px | frame | rebuild CPU | longest block |
+|---|---|---|---|---|---|
+| 0 | 6.6 MB | 1–8 | 1,472 ms | 50.1 ms | 9.2 ms |
+| 1 | 15.2 MB | 1–4 | 1,383 ms | 53.1 ms | 10.9 ms |
+| 2 | 27.8 MB | 1–2 | 1,431 ms | 53.3 ms | 9.4 ms |
+
+**The frame cost does not move with k** — even under a software rasteriser,
+where texture bandwidth is the thing most likely to show. So the whole price of
+the sharp drape is 21 MB, and the shots
+(`test/shots/tiles_abp_1ft.png`, and `/tmp/k0.png` vs `/tmp/k2.png` if you
+re-run the sweep) show what it buys.
+
+### THE MESH IS BUILT IN THE POOLED DECODE WORKER
+
+`buildGeometry`'s loop is **`demTileMeshMain` in `js/dem.js`** now — the
+positions, uvs, normals, index and skirt, over plain numbers and typed arrays,
+DOM-free and SBMM-free and THREE-free. `Dem.workerSource()` stringifies it into
+the same Blob worker `demDecodeWorkerMain` already ships in, so **the same
+source runs on both threads and there is no second implementation to drift**;
+`Dem.tileMesh` is it called inline (the fallback, and a browser with no Worker),
+`Dem.tileMeshAsync` is the pooled path. Four things about it:
+
+- **The tile's Float32Array must NOT be transferred.** It belongs to
+  `SBMM.tiles`' cache, and transferring detaches it — the cached tile silently
+  becomes a zero-length array and every later reader sees an empty tile with no
+  error. `tileMeshAsync` copies it (256 kB, about a twentieth of a millisecond)
+  and transfers the copy.
+- **The pool answers two kinds of message now**, so its `onmessage` hands the
+  whole reply to the waiter rather than `d.z`; `Dem._poolSend` is the one
+  multiplexed request both callers make, and `d.op === "mesh"` is the only new
+  branch in the worker. Every decode message has no `op` at all, so that path is
+  byte-for-byte what it was.
+- **`</scr`+`ipt` stays out of it** and `test/check.mjs` scans it, exactly as it
+  scans the other two Blob-worker functions.
+- Every mesh of a set is requested BEFORE the build loop starts, so the pool
+  pipelines while the main thread waits, and the drape's images are fetched the
+  same way so the canvas composite has nothing to await.
+
+### THE GEOMETRY CACHE, AND WHAT THE HITCH ACTUALLY WAS
+
+Geometry is cached by **(z, x, y, vertex stride)** and nothing else — not the
+style, not the drape, not the camera — with a byte budget (220 MB desktop,
+80 MB touch, 40 MB low-memory) and **an entry in the drawn set is never
+evicted**, because disposing a geometry out from under a mesh on screen makes
+three re-upload it on the next frame. `dispose()` therefore leaves a cached
+geometry alone and the cache owns the disposal; `detach()` clears it outright
+(the geometry carries the scene's own centring constants).
+
+**The hitch is the longest SYNCHRONOUS SPAN, and it is measured where it
+happens.** `blk()` in `js/terrain3d.js` wraps each span between two awaits — the
+per-tile build, each drape, the swap — and reports `lastBuildBlockMs` (the
+largest) and `lastBuildCpuMs` (their sum). Wall time is not the hitch: a build
+that yields can take a second and never block a gesture. Four camera moves on
+the folder build, software GL, before and after:
+
+| | before | after |
+|---|---|---|
+| main-thread CPU per rebuild | 44.8–130.6 ms | **30.6–77.9 ms** |
+| longest single block | 7.1–12.4 ms | **6.6–11.4 ms**, one 42.3 ms outlier |
+| geometry cache on a return | — | **16 of 16 tiles hit, 0 rebuilt** |
+
+**And the honest half: on THIS box the longest main-thread task after a camera
+move is the RENDER, not the terrain.** A `PerformanceObserver` sees 1.2–4.0 s
+tasks under SwiftShader because one frame at `high` costs that much; the terrain
+build was already yielding into ~10 ms pieces before this round (v20 put the
+yield in), so the number that fell by half is the CPU per rebuild, not the
+longtask. `test/perf.mjs` prints both and says which is which. On a GPU
+(`SBMM_GPU=1`) the longtask reading becomes the honest one.
+
+### THE RENDERER IS NAMED
+
+`rendererInfo()` in `js/viewer3d.js` reads `WEBGL_debug_renderer_info` and calls
+**SwiftShader, llvmpipe, softpipe, Mesa OffScreen and Microsoft's basic
+renderer** software; anything else is hardware. It decides exactly one thing —
+`high` detail the first time on a **desktop** with a real GPU, a remembered
+choice still winning in both directions — and is otherwise reported:
+`stats().gpuHardware` / `gpuName` / `gpuVendor`, and the Help line, which says
+"(software)" after the name. It must NOT reach the drape budget or the pixel
+ratio: those are per-profile decisions and they have to stay identical between a
+GPU box and this software-GL build box, or every browser harness would be
+measuring a different app from the one that ships.
+
+`js/touch.js`'s remembered-detail restore accepts **"ultra"** now; it took only
+"std" and "high", so a desktop user who picked ultra got `high` back on the next
+boot.
+
+### THE 2D MAP AT HIGH ZOOM — the finding
+
+**The 2D stack is correct and the pixelation is not there.** `test/terrain3d.mjs
+--only map2d` reads the raster pane's paint order and each overlay's own feet
+per image pixel at zoom 3 over the mine window:
+
+```
+  dom 0  z-index 1 · 4850 px over 9700 ft = 2    ft/px   hillshade — site
+  dom 1  z-index 1 · 2872 px over 2872 ft = 1    ft/px   hillshade — mine area
+  dom 3  z-index 2 · 5744 px over 2872 ft = 0.5  ft/px   ortho — mine area (6 in)
+  dom 2  z-index 3 · 2400 px over  600 ft = 0.25 ft/px   ortho — ABP (3 in)
+```
+
+Nothing coarser is painted over anything finer, and no basemap is zoom-gated
+(`SBMM.zoomGate` is used for the 2-ft contour set and for nothing else). The
+1-ft mine hillshade sits above the 2-ft site one by DOM order — Leaflet's
+`ImageOverlay` defaults to `zIndex: 1`, so the two hillshades tie and insertion
+order decides, which is why `js/layers.js` adds them in that order. What a user
+sees at zoom 4-6 over the mine window is the 3-in ortho magnified past its own
+resolution, which is the imagery's limit and not a layer bug. **The one real
+2D finding is not this round's**: `docs/ALIGNMENT_REPORT.md` records that the
+hillshade JPEGs are drawn over `Dem.bounds()`, an AREA rectangle, while the DEM
+is a NODE grid — a display-only half-cell north-east offset in two lines of
+`js/layers.js`. It was left alone here, deliberately, because it is not what §G
+asked about and it belongs in its own commit.
