@@ -412,7 +412,15 @@ orbit = () => page.evaluate(() => SBMM.viewer3d.stats().orbit);
   await touch("touchEnd", []);
   await wait(1500);
   const b = await orbit();
-  const dth = Math.abs(b.theta - a.theta) * 180 / Math.PI;
+  /* THE AZIMUTH WRAPS. theta is an angle, so a 40-degree turn that happens to
+     cross +/- pi reads as 320 the other way round — which is what the run
+     that started at theta 3.098 reported. Where the previous gestures leave
+     theta is timing-dependent, so this is a real failure about once in a few
+     runs and is arithmetic, not the rig. Fold the difference into
+     (-180, 180] before comparing it. */
+  let dsigned = (b.theta - a.theta) * 180 / Math.PI;
+  dsigned = ((dsigned % 360) + 540) % 360 - 180;
+  const dth = Math.abs(dsigned);
   console.log(`3D twist: 40 deg of finger twist moved the azimuth ${dth.toFixed(1)} deg`);
   if (Math.abs(dth - 40) > 5) fail("the twist did not turn the azimuth by the twist angle", { a, b, dth });
 }

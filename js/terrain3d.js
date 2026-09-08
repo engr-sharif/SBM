@@ -78,11 +78,20 @@ SBMM.terrain3d = (function () {
   let style = "ortho";
   let sunAz = 315, sunEl = 35;
   const drawn = new Map();          // key -> record, what is in the scene now
-  let generation = 0, busy = false, again = false;
+  let generation = 0, busy = false, again = false, inflight = null;
   let lastSig = "";
   let webgl2 = false, gpuRaster = false, gpuNoted = false;
   let rampTex = {};
+  /* `lastBuildMs` is WALL time across the whole build — it includes the yields
+     between tiles and every await, so it is not the hitch. THE HITCH IS THE
+     LONGEST SYNCHRONOUS SPAN, because that is what blocks a gesture and what a
+     longtask observer sees, and it is measured here rather than inferred: the
+     build yields between tiles, so each tile's own work is one span.
+     `lastBuildBlockMs` is the largest of them and `lastBuildCpuMs` their sum
+     (v22 §G — test/perf.mjs reports both before and after). */
   const stat = { selects: 0, swaps: 0, lastSelectMs: 0, lastBuildMs: 0, lastLoadMs: 0,
+                 lastBuildBlockMs: 0, lastBuildCpuMs: 0, lastBuildTiles: 0,
+                 lastDrapeMs: 0, geomHits: 0, geomMisses: 0, geomEvicted: 0,
                  raisedFor: 0, cpuFallbacks: 0 };
 
   const available = () => !!(SBMM.tiles && SBMM.tiles.ready() && SBMM.tiles.layerInfo("dem"));
@@ -240,7 +249,8 @@ SBMM.terrain3d = (function () {
   /* The tile's own ortho, or the nearest coarser ancestor with the sub-window
      picked out through offset/repeat. Walking up rather than giving up is what
      lets the ortho pyramid stop at 2 ft over most of the site while the DEM
-     goes to 1 ft. */
+     goes to 1 ft. This is the FLOOR of the drape — whatever else happens there
+     is imagery here — and drapePlan() below is what makes it sharp. */
   function orthoRef(z, x, y) {
     for (let k = 0; k <= 6; k++) {
       const za = z + k, xa = x >> k, ya = y >> k;
@@ -249,6 +259,84 @@ SBMM.terrain3d = (function () {
       /* only the site-wide levels are guaranteed; a missing one means no imagery */
     }
     return null;
+  }
+
+  /* v22 §G — the FINER ortho tiles that cover this terrain tile.
+
+     `k` levels down means 4^k ortho tiles composited into one 256*2^k px
+     image. k comes from the profile (js/viewer3d.js drapeK), and is then
+     capped by the pyramid: the deepest level that exists AND has at least one
+     tile over this square wins, so the mine window drapes from the 1-ft ortho
+     and the rest of the site from the 2-ft one without either being asked for.
+     Returns null when nothing finer than the tile's own level exists, and the
+     single-texture path above answers instead. */
+  function drapePlan(z, x, y) {
+    if (!SBMM.tiles.levels("ortho").length) return null;
+    const kMax = Math.min(ctx.drapeK ? ctx.drapeK() : 0, z);
+    for (let k = kMax; k >= 1; k--) {
+      const zf = z - k;
+      if (!SBMM.tiles.levelInfo("ortho", zf)) continue;
+      const n = 1 << k, list = [];
+      for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) {
+        const fx = x * n + i, fy = y * n + j;
+        if (SBMM.tiles.has("ortho", zf, fx, fy)) list.push([fx, fy, i, j]);
+      }
+      if (list.length) return { z: zf, k, n, list };
+    }
+    return null;
+  }
+
+  /* Fetch every image a drape needs. Async and started for the whole set at
+     once, so the composite below is pure canvas work with nothing to wait for
+     — the drawImage calls then land inside the build loop, which yields
+     between tiles, instead of in one block after it. */
+  async function drapeFetch(z, x, y) {
+    if (style !== "ortho") return null;
+    const plan = drapePlan(z, x, y), ref = orthoRef(z, x, y);
+    const g = (zz, xx, yy) => SBMM.tiles.get("ortho", zz, xx, yy, { priority: 1 }).catch(() => null);
+    const baseP = ref ? g(ref.z, ref.x, ref.y) : Promise.resolve(null);
+    const fineP = plan ? Promise.all(plan.list.map(t => g(plan.z, t[0], t[1]))) : Promise.resolve([]);
+    const [base, fine] = await Promise.all([baseP, fineP]);
+    return { plan, ref, base, fine };
+  }
+
+  /* Compose one drape. SYNCHRONOUS on purpose — it is measured as one block.
+     Canvas row 0 is the tile's NORTH edge, which is how the tile payloads are
+     written and what texFromImage's flipY expects; tile y increases north, so
+     a sub-tile at row j of the plan lands at canvas row (n - 1 - j). */
+  function drapeCompose(z, x, y, got) {
+    if (!got) return null;
+    const { plan, ref, base, fine } = got;
+    if (!plan || !fine.some(Boolean)) {
+      /* nothing finer exists — the v20 path, one shared tile texture with the
+         sub-window picked out, and no canvas allocated at all */
+      if (!base || !base.img) return null;
+      if (!base.tex) base.tex = texFromImage(base.img);
+      const tex = base.tex.clone();
+      tex.needsUpdate = true;
+      const s = 1 / Math.pow(2, ref.k);
+      tex.repeat.set(s, s);
+      tex.offset.set((x - ref.x * Math.pow(2, ref.k)) * s, (y - ref.y * Math.pow(2, ref.k)) * s);
+      return { tex, px: N, ftPerPx: SBMM.tiles.cellOf(ref.z), composed: false };
+    }
+    const side = N * plan.n;
+    const cv = document.createElement("canvas");
+    cv.width = cv.height = side;
+    const g2 = cv.getContext("2d");
+    /* the coarse ancestor first, stretched over the whole square, so a tile at
+       the edge of the fine imagery has no hole in it */
+    if (base && base.img) {
+      const s = Math.pow(2, ref.k), sw = N / s;
+      const sx = (x - ref.x * s) * sw;
+      const sy = ((ref.y * s + s - 1) - y) * sw;
+      try { g2.drawImage(base.img, sx, sy, sw, sw, 0, 0, side, side); } catch (e) { /* rounding */ }
+    }
+    for (let i = 0; i < plan.list.length; i++) {
+      const t = plan.list[i], im = fine[i];
+      if (!im || !im.img) continue;
+      try { g2.drawImage(im.img, t[2] * N, (plan.n - 1 - t[3]) * N, N, N); } catch (e) { /* rounding */ }
+    }
+    return { tex: texFromImage(cv), px: side, ftPerPx: SBMM.tiles.cellOf(plan.z), composed: true };
   }
 
   function texFromImage(img) {
@@ -264,124 +352,83 @@ SBMM.terrain3d = (function () {
   /* ------------------------------------------------------------ geometry -- */
   /* 257 x 257 (trap 1) plus a skirt: a copy of the border ring dropped below
      the surface, so the seam between two levels is covered by geometry rather
-     than by luck. */
-  function buildGeometry(z32, z, x, y, step) {
+     than by luck.
+
+     THE LOOP ITSELF MOVED OUT IN v22 §G. It is `demTileMeshMain` in js/dem.js
+     now — ONE function, stringified into the tile-decode worker beside the
+     terrain-RGB loop and called inline when there is no worker — so a tile's
+     geometry is built off the main thread and there is no second
+     implementation to drift from. What is left here is the part that has to be
+     on the main thread: wrapping the typed arrays in a BufferGeometry (which
+     copies nothing) and the cache. */
+  function meshArgs(z, x, y, step) {
     const cell = SBMM.tiles.cellOf(z);
     const r = SBMM.tiles.rect(z, x, y);
     const { CX, CY, ZMID } = ctx.center();
-    const V = vertsPerSide(step);
-    /* the extra row and column sit ON the tile edge and repeat the last
-       sample, so two tiles at the same level abut exactly (trap 1) */
-    const zAt = (i, j) => z32[Math.min(N - 1, j * step) * N + Math.min(N - 1, i * step)];
-    const nv = V * V;
-    const pos = new Float32Array((nv + 4 * V) * 3);
-    const uv = new Float32Array((nv + 4 * V) * 2);
-    let lo = Infinity, hi = -Infinity, good = 0;
-    for (let j = 0; j < V; j++) {
-      for (let i = 0; i < V; i++) {
-        const k = j * V + i;
-        const zz = zAt(i, j);
-        const px = r[0] + i * step * cell, py = r[1] + j * step * cell;
-        pos[k * 3] = px - CX; pos[k * 3 + 1] = py - CY;
-        pos[k * 3 + 2] = (isNaN(zz) ? ZMID : zz) - ZMID;
-        uv[k * 2] = i / (V - 1); uv[k * 2 + 1] = j / (V - 1);
-        if (!isNaN(zz)) { good++; if (zz < lo) lo = zz; if (zz > hi) hi = zz; }
-      }
-    }
-    if (!good) return null;
-    /* THE INDEX IS A TYPED ARRAY, NOT A PUSHED JS ARRAY, and the normals are
-       computed from the height field rather than by traversing the triangles.
-       Both are the same numbers; both were costing ~320 ms PER TILE, and a
-       tile build is not a background job — it lands between a user's fingers.
-       That is not a figure of speech: the two-finger tap in test/e2e_tablet
-       block 3 measured 503 ms from pointerdown to pointerup against a 300 ms
-       tap window, and a long-task observer showed seven back-to-back tasks of
-       625-674 ms, which is this loop in 2-tile chunks. */
-    const maxTri = (V - 1) * (V - 1) * 2 + 4 * (V - 1) * 2;
-    const idx = new Uint32Array(maxTri * 3);
-    let ni = 0;
-    for (let j = 0; j < V - 1; j++) {
-      for (let i = 0; i < V - 1; i++) {
-        /* skip any quad touching NoData — the rule the whole-DEM meshes used,
-           and the reason the survey limit is an edge rather than a cliff wall */
-        if (isNaN(zAt(i, j)) || isNaN(zAt(i + 1, j)) ||
-            isNaN(zAt(i, j + 1)) || isNaN(zAt(i + 1, j + 1))) continue;
-        const a = j * V + i, b = a + 1, c = a + V, d = c + 1;
-        idx[ni++] = a; idx[ni++] = b; idx[ni++] = d;
-        idx[ni++] = a; idx[ni++] = d; idx[ni++] = c;
-      }
-    }
-    if (!ni) return null;
-    /* the skirt: four strips, each vertex a copy of its border neighbour
-       dropped by a few cells */
-    const drop = Math.max(8, cell * step * 3);
-    let s = nv;
-    const edge = [
-      { get: i => i, step: 1 },                    // south, j = 0
-      { get: i => (V - 1) * V + i, step: 1 },      // north
-      { get: j => j * V, step: 1 },                // west
-      { get: j => j * V + (V - 1), step: 1 }       // east
-    ];
-    for (let e = 0; e < 4; e++) {
-      const base = s;
-      for (let i = 0; i < V; i++) {
-        const src = edge[e].get(i);
-        pos[(base + i) * 3] = pos[src * 3];
-        pos[(base + i) * 3 + 1] = pos[src * 3 + 1];
-        pos[(base + i) * 3 + 2] = pos[src * 3 + 2] - drop;
-        uv[(base + i) * 2] = uv[src * 2];
-        uv[(base + i) * 2 + 1] = uv[src * 2 + 1];
-      }
-      for (let i = 0; i < V - 1; i++) {
-        const a = edge[e].get(i), b = edge[e].get(i + 1);
-        if (isNaN(zAt(a % V, (a / V) | 0)) || isNaN(zAt(b % V, (b / V) | 0))) continue;
-        const c = base + i, d = base + i + 1;
-        if (e === 0 || e === 3) { idx[ni++] = a; idx[ni++] = c; idx[ni++] = d; idx[ni++] = a; idx[ni++] = d; idx[ni++] = b; }
-        else { idx[ni++] = a; idx[ni++] = d; idx[ni++] = c; idx[ni++] = a; idx[ni++] = b; idx[ni++] = d; }
-      }
-      s += V;
-    }
-    /* Normals straight off the height field: a heightfield vertex's normal is
-       (-dz/dx, -dz/dy, 1) normalised, by central differences over the same
-       samples the positions came from. That is 66 k iterations against
-       computeVertexNormals' 131 k triangle cross-products plus a second
-       normalising pass over every vertex, and it needs no triangle traversal
-       at all. The z scale is applied to the OBJECT, and three transforms
-       normals by the normal matrix, so these are computed unscaled exactly as
-       computeVertexNormals did. */
-    const nrm = new Float32Array((nv + 4 * V) * 3);
-    const sx = step * cell;
-    for (let j = 0; j < V; j++) {
-      for (let i = 0; i < V; i++) {
-        const k = j * V + i;
-        const zc = zAt(i, j);
-        if (isNaN(zc)) { nrm[k * 3 + 2] = 1; continue; }
-        let zl = zAt(Math.max(0, i - 1), j), zr = zAt(Math.min(V - 1, i + 1), j);
-        let zd = zAt(i, Math.max(0, j - 1)), zu = zAt(i, Math.min(V - 1, j + 1));
-        if (isNaN(zl)) zl = zc; if (isNaN(zr)) zr = zc;
-        if (isNaN(zd)) zd = zc; if (isNaN(zu)) zu = zc;
-        const dx = (zr - zl) / (2 * sx), dy = (zu - zd) / (2 * sx);
-        const inv = 1 / Math.hypot(dx, dy, 1);
-        nrm[k * 3] = -dx * inv; nrm[k * 3 + 1] = -dy * inv; nrm[k * 3 + 2] = inv;
-      }
-    }
-    /* the skirt copies its border neighbour's normal — it is a curtain, and a
-       curtain lit differently from the edge it hangs off is a visible seam */
-    for (let e = 0, sbase = nv; e < 4; e++, sbase += V) {
-      for (let i = 0; i < V; i++) {
-        const src = edge[e].get(i), dst = sbase + i;
-        nrm[dst * 3] = nrm[src * 3];
-        nrm[dst * 3 + 1] = nrm[src * 3 + 1];
-        nrm[dst * 3 + 2] = nrm[src * 3 + 2];
-      }
-    }
+    return { N, V: vertsPerSide(step), step, cell,
+             x0: r[0] - CX, y0: r[1] - CY, zmid: ZMID,
+             drop: Math.max(8, cell * step * 3) };
+  }
+  function geomFromMesh(m) {
     const g = new THREE.BufferGeometry();
-    g.setAttribute("position", new THREE.BufferAttribute(pos, 3));
-    g.setAttribute("uv", new THREE.BufferAttribute(uv, 2));
-    g.setAttribute("normal", new THREE.BufferAttribute(nrm, 3));
-    g.setIndex(new THREE.BufferAttribute(idx.subarray(0, ni), 1));
+    g.setAttribute("position", new THREE.BufferAttribute(m.pos, 3));
+    g.setAttribute("uv", new THREE.BufferAttribute(m.uv, 2));
+    g.setAttribute("normal", new THREE.BufferAttribute(m.nrm, 3));
+    g.setIndex(new THREE.BufferAttribute(m.idx.subarray(0, m.ni), 1));
     g.computeBoundingSphere();
-    return { geom: g, verts: nv, side: V, tris: ni / 3, zlo: lo, zhi: hi };
+    return { geom: g, verts: m.verts, side: m.side, tris: m.ni / 3, zlo: m.zlo, zhi: m.zhi,
+             bytes: m.pos.byteLength, allBytes: m.pos.byteLength + m.uv.byteLength
+                                               + m.nrm.byteLength + m.idx.byteLength };
+  }
+  /* the main-thread reference, kept for the harness and for a browser with no
+     worker at all — the same function the worker runs */
+  function buildGeometrySync(z32, z, x, y, step) {
+    const m = Dem.tileMesh(Object.assign(meshArgs(z, x, y, step), { z32 }));
+    return m ? geomFromMesh(m) : null;
+  }
+
+  /* THE GEOMETRY CACHE (v22 §G). A tile's geometry depends on the tile, the
+     vertex stride and nothing else — not on the style, not on the drape, not
+     on the camera — so returning to a view a moment later must rebuild
+     nothing. Keyed by (z, x, y, step), evicted least-recently-used against a
+     byte budget, and an entry that is IN THE DRAWN SET is never evicted (that
+     would pull the geometry out from under a mesh on screen).
+
+     It holds the BufferGeometry itself rather than the arrays, so a return
+     costs neither the loop nor a re-upload to the GPU; the cache owns the
+     disposal, which is why dispose() below leaves a cached geometry alone. */
+  const geomCache = new Map();
+  let geomBytes = 0, geomClock = 0, geomBudgetOverride = 0;
+  function geomBudget() {
+    if (geomBudgetOverride) return geomBudgetOverride;
+    if (SBMM.lowMem && SBMM.lowMem()) return 40e6;
+    return document.body.classList.contains("touch") ? 80e6 : 220e6;
+  }
+  function geomTrim() {
+    const budget = geomBudget();
+    if (geomBytes <= budget) return;
+    const all = [...geomCache.values()].sort((a, b) => a.used - b.used);
+    for (const r of all) {
+      if (geomBytes <= budget * 0.85) break;
+      if (r.live) continue;
+      geomCache.delete(r.key);
+      geomBytes -= r.allBytes;
+      stat.geomEvicted++;
+      r.geom.dispose();
+    }
+  }
+  /* `all` is detach()'s: the scene is going away, so every geometry goes with
+     it. Without it a geometry that is ON SCREEN is left alone — disposing one
+     out from under a drawn mesh makes three re-upload it on the next frame,
+     which is not a crash and is not a cleared cache either. */
+  function geomClear(all) {
+    for (const [k, r] of geomCache) {
+      if (!all && r.live) continue;
+      r.geom.dispose();
+      geomCache.delete(k);
+      geomBytes -= r.allBytes;
+    }
+    if (all) { geomCache.clear(); geomBytes = 0; }
   }
 
   /* ----------------------------------------------------------- selection -- */
@@ -469,45 +516,75 @@ SBMM.terrain3d = (function () {
     if (!out.length) for (const [x, y] of root.tiles) out.push([zMax, x, y]);
     const vs = vertsPerSide(meshStep(targetPx));
     if (out.length * vs * vs > MAX_VERTS) overflow = true;
+    /* WHAT THE SELECTION WAS GIVEN, because a selection that comes back as one
+       root tile is otherwise unreadable. `H` is the clamp above: a canvas that
+       has not been laid out reports a few pixels, and at 240 px the 64-ft root
+       already meets a 2-px budget — so the view opens on the root and stays
+       there until the next camera move. e2e block 9a-2's "high: 66049" (one
+       257 x 257 tile) is exactly that, and js/viewer3d.js
+       refreshTerrainForCamera() resizes and retries because of it. */
+    stat.lastSelectH = H;
+    stat.lastSelectTargetPx = +targetPx.toFixed(2);
+    stat.lastSelectTiles = out.length;
     return { list: out, overflow };
   }
 
   /* -------------------------------------------------------------- update -- */
+  /* THE HITCH IS THE LONGEST SYNCHRONOUS SPAN (v22 §G). update() is a chain of
+     awaits, so every span between two of them is one main-thread block and
+     `blk()` measures exactly those: the per-tile build, each drape, and the
+     swap. Wall time is not the hitch — a build that yields can take a second
+     and never block a gesture — and the sum is not either. test/perf.mjs reads
+     both, and test/terrain3d.mjs asserts the maximum. */
+  let _blkMax = 0, _blkSum = 0;
+  function blkReset() { _blkMax = 0; _blkSum = 0; }
+  function blk(fn) {
+    const t = performance.now();
+    const v = fn();
+    const d = performance.now() - t;
+    _blkSum += d; if (d > _blkMax) _blkMax = d;
+    return v;
+  }
+
   async function loadTile(z, x, y, prio) {
     const rec = await SBMM.tiles.get("dem", z, x, y, { priority: prio })
       .catch(e => (e && e.cancelled ? null : null));
     return rec;
   }
 
-  async function drapeFor(z, x, y) {
-    if (style !== "ortho") return null;
-    const ref = orthoRef(z, x, y);
-    if (!ref) return null;
-    const t = await SBMM.tiles.get("ortho", ref.z, ref.x, ref.y, { priority: 1 })
-      .catch(() => null);
-    if (!t || !t.img) return null;
-    if (!t.tex) t.tex = texFromImage(t.img);
-    return { tex: t.tex, k: ref.k, x, y, rx: ref.x, ry: ref.y };
-  }
-
-  function applyDrape(mat, d, z, x, y) {
+  function applyDrape(r, d) {
     if (!d) return;
-    const tex = d.tex.clone();
-    tex.needsUpdate = true;
-    const s = 1 / Math.pow(2, d.k);
-    tex.repeat.set(s, s);
-    tex.offset.set((x - d.rx * Math.pow(2, d.k)) * s, (y - d.ry * Math.pow(2, d.k)) * s);
-    mat.map = tex;
-    mat.needsUpdate = true;
+    r.mat.map = d.tex;
+    r.mat.needsUpdate = true;
+    r.texPx = d.px;
+    r.ftPerPx = d.ftPerPx;
+    r.texBytes = d.px * d.px * 4;
   }
 
   /* Build (or re-use) the drawn set for the current camera. Resolves when the
      set is on screen; never rejects. */
-  async function update(force) {
+  async function update(force, depth) {
     if (!ctx || !available()) return false;
     if (suspended) { again = true; return false; }
-    if (busy) { again = true; return false; }
+    if (busy) {
+      /* A NON-FORCED call coalesces: the render loop asks on every settle and
+         one rebuild is enough. A FORCED one must NOT be dropped — it is a
+         rebuild somebody asked for (a detail change, a style change, opening
+         the view) and its caller awaits it and then MEASURES what is drawn.
+         Returning false there is how e2e block 9a-2 came back with
+         "high: 66049 | standard: 0 | back to high: 0": rebuildTerrain() had
+         detached the scene, its update(true) found the previous update still
+         in flight, returned immediately, and the harness measured an empty
+         terrain. So wait for the running one and go again. The depth guard is
+         belt: two forced rebuilds racing each other would otherwise recurse. */
+      again = true;
+      if (!force || (depth || 0) > 4) return false;
+      try { await inflight; } catch (e) { /* it never rejects */ }
+      return update(force, (depth || 0) + 1);
+    }
     busy = true;
+    let settle = null;
+    inflight = new Promise(r => { settle = r; });
     const myGen = ++generation;
     try {
       let targetPx = ctx.quality();
@@ -532,6 +609,33 @@ SBMM.terrain3d = (function () {
       const t1 = performance.now();
       const built = new Map();
       const L = SBMM.tiles.layerInfo("dem") || {};
+      blkReset();
+
+      /* EVERYTHING THAT CAN BE ASKED FOR AT ONCE IS ASKED FOR AT ONCE, and
+         only then is anything done with it (v22 §G):
+
+           - the mesh for every tile that is not already in the geometry cache
+             goes to the tile-decode worker pool, all of them started here so
+             the pool pipelines while the main thread waits;
+           - every image the drapes need is requested here too, so the canvas
+             work below has nothing to await.
+
+         The tile's Float32Array is NOT transferred — it belongs to
+         SBMM.tiles' cache and transferring it would silently empty it;
+         Dem.tileMeshAsync copies it (256 kB) and transfers the copy. */
+      const meshP = new Map(), drapeP = new Map();
+      blk(() => {
+        for (const [k, t, rec] of loaded) {
+          if (!rec || !rec.z32) continue;
+          const gk = k + "|" + step;
+          if (!geomCache.has(gk)) {
+            meshP.set(k, Dem.tileMeshAsync(Object.assign(meshArgs(t[0], t[1], t[2], step),
+                                                         { z32: rec.z32 })));
+          }
+          if (style === "ortho" || !gpuRaster) drapeP.set(k, drapeFetch(t[0], t[1], t[2]));
+        }
+      });
+
       /* YIELD BETWEEN TILES. Building 24 tiles of 257 x 257 in one loop blocks
          the main thread for most of a second, and a blocked main thread is not
          merely a stutter: js/touch.js's recogniser classifies a tap by the
@@ -540,48 +644,76 @@ SBMM.terrain3d = (function () {
          across the block is not a tap any more. That is how a rebuild after a
          double-tap ate the two-finger tap that followed it — deterministically,
          with the same numbers every run (e2e_tablet block 3). One tile at a
-         time, with a macrotask between, keeps the longest block to one tile. */
+         time, with a macrotask between, keeps the longest block to one tile —
+         and since v22 a tile's own block is the wrapping and the drape
+         composite, not the loop that made it. */
       let nb = 0;
+      const td0 = performance.now();
       for (const [k, t, rec] of loaded) {
         if (nb++) {
           await new Promise(r => setTimeout(r, 0));
           if (myGen !== generation) { for (const r of built.values()) dispose(r); return false; }
         }
         if (!rec || !rec.z32) continue;
-        const g = buildGeometry(rec.z32, t[0], t[1], t[2], step);
-        if (!g) continue;
-        const r = { key: k, z: t[0], x: t[1], y: t[2], geom: g.geom, verts: g.verts,
-                    side: g.side, step, tris: g.tris, zlo: g.zlo, zhi: g.zhi,
-                    bytes: g.geom.getAttribute("position").array.byteLength };
-        if (style === "ortho" || !gpuRaster) {
-          r.mat = new THREE.MeshLambertMaterial({ color: 0xffffff });
-        } else {
-          r.demTex = demTexture(rec.z32, L.zmin != null ? L.zmin : 1325,
-                                L.step != null ? L.step : 0.02);
-          r.mat = rasterMaterial(r, style);
+        const gk = k + "|" + step;
+        let gc = geomCache.get(gk);
+        if (gc) { gc.used = ++geomClock; stat.geomHits++; }
+        else {
+          const m = await (meshP.get(k) || Promise.resolve(null));
+          if (myGen !== generation) { for (const r of built.values()) dispose(r); return false; }
+          if (!m) continue;
+          stat.geomMisses++;
+          gc = blk(() => {
+            const g = geomFromMesh(m);
+            const rec2 = Object.assign({ key: gk, used: ++geomClock, live: false }, g);
+            geomCache.set(gk, rec2);
+            geomBytes += rec2.allBytes;
+            geomTrim();
+            return rec2;
+          });
         }
-        r.mesh = new THREE.Mesh(g.geom, r.mat);
-        r.mesh.scale.z = ctx.exag();
-        built.set(k, r);
+        const got = drapeP.has(k) ? await drapeP.get(k) : null;
+        if (myGen !== generation) { for (const r of built.values()) dispose(r); return false; }
+        const r = blk(() => {
+          const o = { key: k, z: t[0], x: t[1], y: t[2], geom: gc.geom, verts: gc.verts,
+                      side: gc.side, step, tris: gc.tris, zlo: gc.zlo, zhi: gc.zhi,
+                      bytes: gc.bytes, gkey: gk, texPx: 0, ftPerPx: null, texBytes: 0 };
+          if (style === "ortho" || !gpuRaster) {
+            o.mat = new THREE.MeshLambertMaterial({ color: 0xffffff });
+          } else {
+            o.demTex = demTexture(rec.z32, L.zmin != null ? L.zmin : 1325,
+                                  L.step != null ? L.step : 0.02);
+            o.mat = rasterMaterial(o, style);
+          }
+          o.mesh = new THREE.Mesh(gc.geom, o.mat);
+          o.mesh.scale.z = ctx.exag();
+          /* whatever the ortho pyramid has for this tile; a missing drape
+             leaves the mesh white rather than leaving the tile out */
+          if (got) applyDrape(o, drapeCompose(t[0], t[1], t[2], got));
+          return o;
+        });
+        if (r) built.set(k, r);
       }
-      /* whatever the ortho pyramid has for these tiles; a missing drape leaves
-         the mesh white rather than leaving the tile out */
-      if (style === "ortho" || !gpuRaster) {
-        await Promise.all([...built.values()].map(async r => {
-          const d = await drapeFor(r.z, r.x, r.y);
-          applyDrape(r.mat, d, r.z, r.x, r.y);
-        }));
-      } else {
+      stat.lastDrapeMs = +(performance.now() - td0).toFixed(1);
+      if (!(style === "ortho" || !gpuRaster)) {
         for (const r of drawn.values()) if (r.mat.uniforms) setRasterStyle(r);
       }
       if (myGen !== generation) { for (const r of built.values()) dispose(r); return false; }
-      stat.lastBuildMs = +(performance.now() - t1).toFixed(1);
 
       /* THE SWAP, whole (trap 3) */
-      for (const [k, r] of drawn) {
-        if (!wanted.has(k)) { ctx.scene.remove(r.mesh); dispose(r); drawn.delete(k); }
-      }
-      for (const [k, r] of built) { ctx.scene.add(r.mesh); drawn.set(k, r); }
+      blk(() => {
+        for (const [k, r] of drawn) {
+          if (!wanted.has(k)) { ctx.scene.remove(r.mesh); dispose(r); drawn.delete(k); }
+        }
+        for (const [k, r] of built) { ctx.scene.add(r.mesh); drawn.set(k, r); }
+        /* a geometry on screen is never evicted; everything else is fair game */
+        for (const g of geomCache.values()) g.live = false;
+        for (const r of drawn.values()) { const g = geomCache.get(r.gkey); if (g) g.live = true; }
+      });
+      stat.lastBuildMs = +(performance.now() - t1).toFixed(1);
+      stat.lastBuildBlockMs = +_blkMax.toFixed(1);
+      stat.lastBuildCpuMs = +_blkSum.toFixed(1);
+      stat.lastBuildTiles = built.size;
       lastSig = sig;
       stat.swaps++;
       ctx.onSwap && ctx.onSwap();
@@ -592,12 +724,18 @@ SBMM.terrain3d = (function () {
       return false;
     } finally {
       busy = false;
+      if (settle) settle();
+      inflight = null;
       if (again) { again = false; setTimeout(() => update(), 0); }
     }
   }
 
+  /* The GEOMETRY IS NOT DISPOSED HERE since v22: it belongs to the cache above,
+     which is the whole point of the cache — a tile that leaves the drawn set
+     and comes back a second later must cost nothing. Everything a record owns
+     outright (its material, its drape texture, its DEM texture) is disposed. */
   function dispose(r) {
-    if (r.geom) r.geom.dispose();
+    if (r.geom && !r.gkey) r.geom.dispose();
     if (r.mat) { if (r.mat.map) r.mat.map.dispose(); r.mat.dispose(); }
     if (r.demTex) r.demTex.dispose();
   }
@@ -625,6 +763,9 @@ SBMM.terrain3d = (function () {
   function detach() {
     for (const r of drawn.values()) { if (ctx) ctx.scene.remove(r.mesh); dispose(r); }
     drawn.clear(); lastSig = ""; generation++;
+    /* the cached geometry is expressed in SCENE coordinates (it carries CX/CY
+       and the elevation datum), so it does not outlive a detach */
+    geomClear(true);
   }
 
   async function setStyle(kind) {
@@ -669,11 +810,16 @@ SBMM.terrain3d = (function () {
     webgl2: () => webgl2,
     stats() {
       let verts = 0, tris = 0, bytes = 0, finest = 99, coarsest = -99;
+      let texBytes = 0, texPxMax = 0, ftMin = Infinity, ftMax = 0, composed = 0;
       const byLevel = {};
       for (const r of drawn.values()) {
         verts += r.verts; tris += r.tris; bytes += r.bytes;
         finest = Math.min(finest, r.z); coarsest = Math.max(coarsest, r.z);
         byLevel[r.z] = (byLevel[r.z] || 0) + 1;
+        texBytes += r.texBytes || 0;
+        if (r.texPx > texPxMax) texPxMax = r.texPx;
+        if (r.texPx > N) composed++;
+        if (r.ftPerPx != null) { ftMin = Math.min(ftMin, r.ftPerPx); ftMax = Math.max(ftMax, r.ftPerPx); }
       }
       return {
         on: drawn.size > 0, tiles: drawn.size, verts, triangles: tris, bytes,
@@ -681,9 +827,37 @@ SBMM.terrain3d = (function () {
         coarsestLevel: drawn.size ? coarsest : null, byLevel,
         style, targetPx: ctx ? ctx.quality() : null,
         meshStep: ctx ? meshStep(ctx.quality()) : null,
+        /* v22 §G — the drape, and what it costs. `texMB` is the raw drawn-set
+           texture memory (a GPU adds about a third again for mipmaps);
+           `drapeFtPerPx` is the picture's resolution on the ground, which is
+           the number the pixelation complaint was about. */
+        drapeK: ctx && ctx.drapeK ? ctx.drapeK() : 0,
+        drapeTexPx: texPxMax, drapeComposed: composed,
+        drapeFtPerPx: drawn.size && ftMax ? [ftMin, ftMax] : null,
+        texBytes, texMB: +(texBytes / 1e6).toFixed(1),
+        geomCacheTiles: geomCache.size, geomCacheMB: +(geomBytes / 1e6).toFixed(1),
+        geomBudgetMB: +(geomBudget() / 1e6).toFixed(0),
+        meshWorker: Dem.meshStats ? Dem.meshStats.worker : 0,
+        meshMain: Dem.meshStats ? Dem.meshStats.main : 0,
         gpuRaster, webgl2, maxTiles: MAX_TILES, ...stat
       };
     },
+    /* one row per drawn tile — its rectangle in State Plane feet, the DEM cell
+       it was selected at and the ground resolution of the picture on it. The
+       harness reads this to assert the drape over the mine window (v22 §G);
+       there is no other way to ask "how sharp is the imagery there". */
+    drawnTiles() {
+      return [...drawn.values()].map(r => ({
+        z: r.z, x: r.x, y: r.y, cellFt: SBMM.tiles.cellOf(r.z),
+        rect: SBMM.tiles.rect(r.z, r.x, r.y),
+        texPx: r.texPx, ftPerPx: r.ftPerPx, texBytes: r.texBytes,
+        verts: r.verts, tris: r.tris
+      }));
+    },
+    /* the harness sets a small budget to prove the cache evicts, and clears it
+       to prove a cold rebuild still works */
+    setGeomBudget(b) { geomBudgetOverride = b || 0; geomTrim(); },
+    clearGeomCache() { geomClear(false); },
     /* ---- the harness hooks (spec §4, §6) ------------------------------
        renderRasterTile() draws ONE tile through the same fragment shader into
        an offscreen target and reads it back; cpuHillshade() is the same
