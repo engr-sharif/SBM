@@ -2096,6 +2096,10 @@ SBMM.water = (function () {
         if (!SBMM.drainage) toast("this build has no drainage map");
         else SBMM.drainage.cmd();
       }
+      else if (a === "wherewater") {
+        if (!SBMM.whereWater) toast("this build has no 'where the water goes'");
+        else SBMM.whereWater.cmd();
+      }
       else if (a === "storm-toggle") {
         if (!SBMM.storm || !SBMM.storm.data()) toast("this build has no storm-drainage network");
         else SBMM.storm.toggle();

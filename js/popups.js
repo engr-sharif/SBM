@@ -442,6 +442,37 @@ SBMM.popups = (function () {
   /* ---------------------------------------------------------------- */
   /* the drainage map (v14 §4)                                         */
   /* ---------------------------------------------------------------- */
+  /* v22 §C: one of the four "where does the water go" areas. The class is a
+     fact about the whole area, not about the polygon that was clicked, so the
+     popup answers with the class and its own sentence rather than with the
+     outlet under the cursor. */
+  function forWhereWater(id) {
+    const W = SBMM.whereWater;
+    if (!W || !W.hasResult())
+      return "<b>Where the water goes</b><br><span style=\"opacity:.7\">not computed yet — type WHEREWATER</span>";
+    const c = W.classRec(id);
+    if (!c) return "<b>Where the water goes</b><br><span style=\"opacity:.7\">that area is no longer in the map</span>";
+    const R = W.result();
+    const pairs = [
+      ["Area", fmt(c.acres, c.acres < 1 ? 3 : 2) + " ac"],
+      ["Share of the surveyed site", fmt(c.share_pct, 1) + " %"],
+      ["Outlets it drains to", c.outlets.length ? c.outlets.join(", ") : null],
+      ["Grid", R.gridFt + "-ft lidar grid"],
+      ["Storm drains", R.storm ? "assumed working" : "off — ground only"]
+    ];
+    let h = `<b>${esc(c.label)}</b><br><span style="opacity:.7">where the water goes (v22)</span><br>`
+      + attrTable(pairs)
+      + `<div class="note">${esc(c.sentence)}</div>`;
+    h += actions([
+      btn("show the four areas", () => SBMM.whereWater.showCard(),
+          "The card with all four areas, their acres and what happens to each"),
+      btn("show in 3D", () => SBMM.whereWater.show3d(),
+          "Drape the four areas on the terrain")
+    ].join(""));
+    h += `<br><span style="opacity:.6;font-size:11px">${esc(SBMM.whereWater.NOTE)}</span>`;
+    return h;
+  }
+
   function forDrainage(label) {
     const D = SBMM.drainage;
     if (!D || !D.hasResult()) return "<b>Drainage</b><br><span style=\"opacity:.7\">the map has not been computed — type DRAIN</span>";
@@ -584,6 +615,6 @@ SBMM.popups = (function () {
   }
 
   return { forDataset, forGis, forCad, forSample, forTree, forFeature, forTerrain, forStorm,
-           forDrainage, forRunoff, forStream,
+           forDrainage, forWhereWater, forRunoff, forStream,
            attrTable, coordLine, action, run, btn, actions, copyText };
 })();

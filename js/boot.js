@@ -153,6 +153,7 @@ function wireWasmSwitch() {
     if (SBMM.drainage) SBMM.drainage.wire();
     if (SBMM.runoff) SBMM.runoff.wire();
     if (SBMM.accum) SBMM.accum.wire();
+    if (SBMM.whereWater) SBMM.whereWater.wire();
     if (SBMM.pipes) SBMM.pipes.wire();
     if (SBMM.scenarios) SBMM.scenarios.wire();
     /* EA's recovered design surfaces become read-only surface features (§5) —

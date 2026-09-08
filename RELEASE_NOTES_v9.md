@@ -72,6 +72,46 @@ further south than it did. The one number that moved is the raindrop's pipe leng
 the impoundment, 812.8 → **812.2 ft**, because the South barrel now runs the whole way in
 its own pipe.
 
+### Where does the water go — the four areas
+
+You said: *"I don't quite understand how the rainfall system works … we basically need an
+area that overland-flows right into Clear Lake, then the area whose flow goes into the
+Herman impoundment, and another area that flows away from the site elsewhere, so we can
+understand the catchment for the Herman impoundment."*
+
+There is now a layer and a card that say exactly that. Tick **Where the water goes** under
+*Drainage* in the Layers tab, type `WHEREWATER`, or pick it from the Water ▾ menu. The
+whole 978.5 surveyed acres come back in four colours, and every square foot is in exactly
+one of them:
+
+| | | |
+|---|---|---|
+| **Straight into Clear Lake** | **403.0 ac** | it runs overland into the lake — never a pipe, never off the survey |
+| **Into the Herman impoundment** | **84.1 ac** | it ends up in the impoundment and leaves through your two 24-in pipes to the Clear Lake outfall |
+| **Into Frog Pond / Green Pond** | **197.9 ac** | Frog Pond spills through the road culvert into Green Pond, and Green Pond leaves through the FES and the road drain to the same outfall |
+| **Off the surveyed ground** | **293.5 ac** | it leaves the survey somewhere else, and the lidar stops there |
+
+**The catchment of the impoundment is 84.1 acres.** The drainage card also prints 37.9 ac
+and both numbers are right: 37.9 is the ground that reaches the impoundment *directly*,
+and the rest arrives having filled one or two of the site's smaller hollows first — there
+are about 1,900 of those deeper than the lidar can be trusted on. The 84.1 is checked a
+second way, by a completely different calculation: the flow accumulation at your surveyed
+south barrel reads 84.09 acres.
+
+The card gives you a sentence for each area, *show in 3D* drapes the four on the terrain,
+and *copy CSV* / *GeoJSON* hand them to Excel or to GIS.
+
+**The design storm card now explains itself.** It opens with a paragraph saying what a
+design storm is and where each number comes from, and above the catchment table it now
+carries one line per area — including the one you were looking for: *the Herman
+impoundment receives N ac-ft in this storm, and rises 0.82 ft.* Those four lines are the
+storm's own volume split between the four areas by acreage; no curve number is recomputed,
+and the card says so.
+
+Nothing in the drainage map moved: the four areas are the same analysis at a finer naming,
+and the two that leave through the storm drains add back up to its 282.01-acre outfall
+catchment to the square foot.
+
 ---
 
 ## v9.19 — the app on a phone

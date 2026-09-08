@@ -723,6 +723,10 @@ SBMM.drainage = (function () {
   return {
     build, wire, cmd, run, paint, showCard, showInto, markStale,
     geoFeatures, dxfEntities, rings3d, lines3d, groundRuns, exportGeoJSON, exportDXF,
+    /* v22 §C: js/wherewater.js runs the same kernel over the same ground and
+       must be handed the SAME Clear Lake polygon, or the two would disagree
+       about which way a run left the survey. */
+    lakeRing,
     result: () => R, hasResult: () => !!R, isStale: () => stale,
     labelAt, firstAt, outletAt, recOf, nameOf, areaOf, sinkName, pondName, inletName,
     paintChip, COLORS: COL, NOTE

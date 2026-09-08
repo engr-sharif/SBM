@@ -84,6 +84,7 @@ SBMM.storm = (function () {
     /* v14: the drainage map is an answer about this network, so it goes stale */
     if (SBMM.drainage) SBMM.drainage.markStale();
     if (SBMM.accum) SBMM.accum.markStale();
+    if (SBMM.whereWater) SBMM.whereWater.markStale();
     if (!quiet)
       toast(on ? "storm drains assumed working — a raindrop reaching a grate goes down the pipe"
                : "storm drains off — every analysis is ground only");
@@ -105,6 +106,7 @@ SBMM.storm = (function () {
     rebuildConduits();
     if (SBMM.drainage) SBMM.drainage.markStale();
     if (SBMM.accum) SBMM.accum.markStale();
+    if (SBMM.whereWater) SBMM.whereWater.markStale();
     toast(conduitById[id].id + " marked " + (st === "broken" ? "broken — water stays on the ground here"
                                                             : "working"));
     if (SBMM.viewer3d.isOpen()) SBMM.viewer3d.refreshOverlays();
@@ -261,13 +263,23 @@ SBMM.storm = (function () {
      This is safe because the kernel follows `next` only to find where a chain
      ENDS: it measures no length along it and reports no leg for it (that is
      `flowpath`, which is handed the untouched `conduitsFor` list). So the rule
-     decides which id the ONE outlet is named after, and nothing else. */
-  function mapConduits(cds) {
+     decides which id the ONE outlet is named after, and nothing else.
+
+     v22 §C: `{ mergeOutfalls: false }` sets the `outfall` flag and STOPS — every
+     conduit that discharges at an outfall node stays its own terminal, so the
+     kernel reports one outlet per discharge pipe instead of one per outfall
+     point. That is exactly what "where does the water go" needs and exactly
+     what the drainage map must not have: same physics, same filled DEM, same
+     ponds, same first-capture labels — only the outlet NAMING differs, and the
+     class layer's outlets sum to the map's one outfall catchment to the square
+     foot (js/wherewater.js, and test/kernels.mjs §11.9 asserts it). */
+  function mapConduits(cds, opts) {
     const rec = id => conduitById[id] || null;
     for (const c of cds) {
       const r = rec(c.id), to = r ? byId[r.to] : null;
       c.outfall = !!(to && to.kind === "outfall");
     }
+    if (opts && opts.mergeOutfalls === false) return cds;
     const at = {};
     for (const c of cds) {
       if (!c.outfall) continue;
