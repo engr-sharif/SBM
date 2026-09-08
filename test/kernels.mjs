@@ -2014,6 +2014,13 @@ function secDrainage() {
      cell as before the rebuild, so they must not move. */
   exact("exactly one outlet at the shared outfall (v22 §S)",
         R.sinks.filter(s => s.kind === "outfall").length, 1);
+  note("v22 §S moved 0.01 ac between the lake and the outfall (403.04 -> 403.03, "
+     + "282.00 -> 282.01) and nothing else: `storm_main_east` was replaced by "
+     + "`storm_main_d_east` 2.4 ft south of it — the east end of E943D rather than "
+     + "of E943C — so that one inlet's 3-ft capture disc covers 109 cells of "
+     + "different ground. Every other number in this section is bit for bit what "
+     + "it was, which is the point: the rebuild changed which pipes the water is "
+     + "in, not where the water goes.");
   for (const [id, ref] of [["lake", DRAIN_REC.lake_ac], ["off", DRAIN_REC.off_ac],
                            ["outfall:storm_main_lower", DRAIN_REC.outfall_ac]]) {
     const s = sinkOf(id);

@@ -3527,21 +3527,28 @@ if (survey.pipeRoute.length !== 1 || !(survey.pipeRoute[0].len > 50)) { console.
 /* v12 §5.2: with the storm network on, what leaves the surveyed pipes goes down
    EA's drawn storm main to the Clear Lake outfall, and the row says how far of
    it is in pipe rather than reporting the overland stub alone. */
-/* RULING (project engineer, 2026-09-05): both 24-in barrels are the
-   impoundment's discharge and the route is the CONDUIT CHAIN, not a raindrop
-   dropped at a pipe end — "right now I think it shows that it goes directly and
-   makes its own path". So it names BOTH pipes, both links and both halves of the
-   storm main, and it touches no ground at all between the wall and the outfall. */
+/* RULING (project engineer, 2026-09-05, restated 2026-09-06): both 24-in
+   barrels are the impoundment's discharge and the route is the CONDUIT CHAIN,
+   not a raindrop dropped at a pipe end — "right now I think it shows that it
+   goes directly and makes its own path". It touches no ground at all between
+   the wall and the outfall.
+   RE-RECORDED, v22 §S: the two barrels do NOT merge into a shared storm main.
+   Each runs to Clear Lake in its own drawn pipe, so the chain is the South
+   barrel and its line (the spine, lowest invert first) with the North barrel
+   and its line beside it as a parallel branch — `herman_pipe_s,herman_main_s,
+   herman_pipe_n,herman_main_n` where it was `herman_pipe_s,pipe_to_main_s,
+   storm_main_upper,storm_main_lower,herman_pipe_n,pipe_to_main`. The spine is
+   16.5 + 795.7 = 812.2 ft of pipe, from 812.8. */
 if (!survey.pipeRoute[0].chain)
   { console.log("FAIL: the pipe discharge route is not the conduit chain:", JSON.stringify(survey.pipeRoute[0])); process.exit(1); }
 if (!survey.pipeRoute[0].outfall || survey.pipeRoute[0].legs.join(",")
-      !== "herman_pipe_s,pipe_to_main_s,storm_main_upper,storm_main_lower,herman_pipe_n,pipe_to_main")
-  { console.log("FAIL: the pipe discharge route did not follow both pipes into the storm main:", JSON.stringify(survey.pipeRoute[0])); process.exit(1); }
+      !== "herman_pipe_s,herman_main_s,herman_pipe_n,herman_main_n")
+  { console.log("FAIL: the pipe discharge route did not follow both pipes to the outfall:", JSON.stringify(survey.pipeRoute[0])); process.exit(1); }
 if (survey.pipeRoute[0].groundBeforeOutfall !== 0)
   { console.log("FAIL: the discharge route runs over the ground before the outfall:",
                 survey.pipeRoute[0].groundBeforeOutfall, "ft"); process.exit(1); }
-if (Math.abs(survey.pipeRoute[0].pipe - 812.8) > 0.5)
-  { console.log("FAIL: pipe length of the discharge route", survey.pipeRoute[0].pipe, "vs 812.8"); process.exit(1); }
+if (Math.abs(survey.pipeRoute[0].pipe - 812.2) > 0.5)
+  { console.log("FAIL: pipe length of the discharge route", survey.pipeRoute[0].pipe, "vs 812.2"); process.exit(1); }
 if (!/discharging through the two 24-in pipes/.test(survey.cardText))
   { console.log("FAIL: the card must say the water discharges through both barrels"); process.exit(1); }
 if (!/no ground between the sandbag wall and the outfall/.test(survey.cardText))
@@ -3624,12 +3631,17 @@ console.log("storm network:", JSON.stringify({ nodes: stormBase.nodes, conduits:
   glyphs: stormBase.glyphs, arrows: stormBase.arrows, rim: stormBase.rim, invert: stormBase.invert,
   inBox: stormBase.inBox.length, snap: stormBase.snap, dxf: stormBase.dxfLayers, cmd: stormBase.cmd }));
 if (stormBase.err) { console.log("FAIL:", stormBase.err); process.exit(1); }
-/* 2026-09-05 ruling: BOTH 24-in barrels reach the storm main, so the network
-   carries `pipe_to_main` (North) and `pipe_to_main_s` (South) — one inferred
-   conduit more than v13's, and no other change to the payload. */
+/* 2026-09-06 ruling (v22 §S): the three V-STRM-STRC lines between the sandbag
+   wall and the shore are THREE PIPES, so the network carries `herman_main_n`
+   (E943E) and `herman_main_s` (E943C) — EA's own lines, hence CAD rather than
+   inferred — and `storm_main_upper/lower` move to E943D. `pipe_to_main`,
+   `pipe_to_main_s` and the `storm_main_east` node are gone and
+   `storm_main_d_east` takes the node's place, so the totals do not move: still
+   44 nodes / 27 conduits, but 17 CAD/survey and 10 inferred where it was
+   15 and 12. */
 if (stormBase.nodes !== 44 || stormBase.conduits !== 27)
   { console.log("FAIL: the payload is not 44 nodes / 27 conduits"); process.exit(1); }
-if (stormBase.layers.map(l => l.join(":")).join(",") !== "storm_nodes:44,storm_cad:15,storm_inferred:12")
+if (stormBase.layers.map(l => l.join(":")).join(",") !== "storm_nodes:44,storm_cad:17,storm_inferred:10")
   { console.log("FAIL: the three layers' counts:", JSON.stringify(stormBase.layers)); process.exit(1); }
 if (stormBase.rowsOn !== 3 || !stormBase.subHeader || stormBase.rowLabels.length !== 3)
   { console.log("FAIL: the three rows are not on under the Storm drainage sub-header",
@@ -3808,14 +3820,16 @@ if (!stormWater.pond || !/^herman_pipe_[ns]$/.test(stormWater.pond.via))
 if (Math.abs(stormWater.pond.level - 1341.5) > 0.05)
   { console.log("FAIL: the pond must stop at the lower surveyed invert, got", stormWater.pond.level); process.exit(1); }
 /* the drop takes the LOWER invert first — the kernel's rule, and right for one
-   drop — and since 2026-09-05 that barrel reaches the storm main by its own
-   link instead of leaving the pipe on to the ground for the 3 ft to the other */
+   drop — and it stays in pipe from there.
+   RE-RECORDED, v22 §S: that barrel now runs to Clear Lake in its OWN drawn
+   line rather than joining a shared storm main through a 12.7-ft inferred
+   link, so the chain is two conduits instead of four and the pipe length is
+   16.5 + 795.7 = 812.2 ft, from 812.8. */
 if (stormWater.legs.join(",") !== stormWater.pond.via
-      + (stormWater.pond.via === "herman_pipe_s" ? ",pipe_to_main_s" : ",pipe_to_main")
-      + ",storm_main_upper,storm_main_lower")
+      + (stormWater.pond.via === "herman_pipe_s" ? ",herman_main_s" : ",herman_main_n"))
   { console.log("FAIL: the chain out of the impoundment:", stormWater.legs); process.exit(1); }
-if (Math.abs(stormWater.pipe - 812.8) > 1 || !stormWater.outfall)
-  { console.log("FAIL: pipe_ft", stormWater.pipe, "vs 812.8, outfall", stormWater.outfall); process.exit(1); }
+if (Math.abs(stormWater.pipe - 812.2) > 1 || !stormWater.outfall)
+  { console.log("FAIL: pipe_ft", stormWater.pipe, "vs 812.2, outfall", stormWater.outfall); process.exit(1); }
 if (!/two 24-in pipes in parallel/.test(stormWater.card || ""))
   { console.log("FAIL: the raindrop card must name both barrels:", stormWater.card); process.exit(1); }
 if (wdist(stormWater.end, [6371177, 2127474]) > 5)
