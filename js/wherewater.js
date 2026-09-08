@@ -56,6 +56,7 @@ SBMM.whereWater = (function () {
     + "how much — the design storm (RAIN) is the volume question.";
 
   let R = null;                       // the last kernel result (outlets un-merged)
+  let lastCds = null;                 // the conduit list THAT run was given
   let runKey = null, running = null;
   let card = null, group = null, row = null, legendEl = null, built = false;
   let classOfSink = new Map();        // sink label -> class id
@@ -90,17 +91,28 @@ SBMM.whereWater = (function () {
       && BARREL_IDS.every(id => surveyed.indexOf(id) >= 0);
     return ok ? surveyed : BARREL_IDS.filter(id => SBMM.storm.conduit(id));
   }
-  /* the id the kernel names an outlet after is the LAST conduit of the chain,
-     so walk `next` forward from each barrel and collect the terminals */
+  /* the id the kernel names an outlet after is the LAST conduit of the chain, so
+     walk `next` forward from each barrel and collect the terminals.
+
+     IT WALKS THE LIST THE RUN WAS GIVEN, not the raw network. `conduitsFor`
+     drops a conduit marked broken and NULLS a `next` that points at one, so a
+     chain ends earlier than the network says the moment somebody marks a pipe
+     broken — and the kernel names the sink after that earlier conduit. Reading
+     `SBMM.storm.nextOf` here instead would name a terminal the kernel never
+     used and put the impoundment's acres in the wrong class. */
   function hermanTerminals() {
     const out = new Set();
     if (!SBMM.storm) return out;
+    const byC = {};
+    for (const c of (lastCds || [])) byC[c.id] = c;
+    const nextOf = id => (lastCds ? (byC[id] ? byC[id].next : null) : SBMM.storm.nextOf(id));
     for (const id of barrels()) {
+      if (lastCds && !byC[id]) continue;            // a broken barrel is not in play
       let k = id;
       const seen = new Set();
       while (k && !seen.has(k)) {
         seen.add(k);
-        const nx = SBMM.storm.nextOf(k);
+        const nx = nextOf(k);
         if (!nx || nx === k) break;
         k = nx;
       }
@@ -167,6 +179,7 @@ SBMM.whereWater = (function () {
         if (!job) { toast("where the water goes needs the site terrain, which did not load"); return null; }
         try {
           const t0 = performance.now();
+          lastCds = job.conduits;
           const res = await SBMM.compute.run("drainage", job,
             { transfer: [job.grid.z.buffer], label: "Where the water goes" }).promise;
           res.ms_wall = Math.round(performance.now() - t0);
@@ -599,8 +612,11 @@ SBMM.whereWater = (function () {
   function wire() {
     if (SBMM.events) {
       SBMM.events.on("layers", ({ group: g, layer }) => {
-        if (g !== "framework") return;
-        if (layer === "where_water") paint();
+        if (g !== "framework" || layer !== "where_water") return;
+        /* off: drop the polygons AND their labels rather than repainting into a
+           group that is no longer on the map (js/labels.js drops a record whose
+           element is detached, but only on its next pass) */
+        if (on()) paint(); else clearLayers();
       });
     }
   }

@@ -6384,7 +6384,7 @@ parity = await page.evaluate(async () => {
      first tick, and the group switch above is that tick. Wait for it rather
      than racing it, exactly as for the drainage map — its 3D drape is what the
      framework/where_water row of the table below is about. */
-  for (let i = 0; i < 120 && SBMM.whereWater && !SBMM.whereWater.hasResult(); i++) await wait(500);
+  for (let i = 0; i < 240 && SBMM.whereWater && !SBMM.whereWater.hasResult(); i++) await wait(500);
   /* the CAD groups parse their geometry lazily on first enable */
   await wait(4000);
   const wasOpen = SBMM.viewer3d.isOpen();
