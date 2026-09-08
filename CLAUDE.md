@@ -3171,11 +3171,29 @@ build. One drawn set of 25 tiles, folder build at 1500 x 940, software GL:
 | 1 | 15.2 MB | 1–4 | 1,383 ms | 53.1 ms | 10.9 ms |
 | 2 | 27.8 MB | 1–2 | 1,431 ms | 53.3 ms | 9.4 ms |
 
-**The frame cost does not move with k** — even under a software rasteriser,
-where texture bandwidth is the thing most likely to show. So the whole price of
-the sharp drape is 21 MB, and the shots
+And again with EVERY layer switched on (the `test/perf.mjs` scene), same
+camera, same 24-tile drawn set, two warm-up frames then nine measured — k
+swept 2, 0, 1, 2 so the repeat says what the noise is:
+
+| k | 2 | 0 | 1 | 2 |
+|---|---|---|---|---|
+| texture | 42.5 MB | 6.3 MB | 17.3 MB | 42.5 MB |
+| ft/px | 1–2 | 1–8 | 1–4 | 1–2 |
+| frame | 1,548 ms | 1,366 ms | 1,387 ms | **1,372 ms** |
+
+**The frame cost does not move with k** — not even under a software
+rasteriser, where texture bandwidth is the thing most likely to show; the
+1,548 is the first measurement of the run and the second k = 2 reads 1,372.
+So the whole price of the sharp drape is 21-36 MB of texture, and the shots
 (`test/shots/tiles_abp_1ft.png`, and `/tmp/k0.png` vs `/tmp/k2.png` if you
 re-run the sweep) show what it buys.
+
+**`test/perf.mjs`'s "everything-on frame cost" is NOT that measurement** and
+moved from ~1.2 s to ~2.0-2.3 s across this round. It renders nine frames
+immediately after switching thirty-odd layers on, in whatever order the
+uploads land, and its spread on this box is wide; the controlled sweep above
+is the one that holds k as the only variable. Do not read the perf number as
+a drape cost.
 
 ### THE MESH IS BUILT IN THE POOLED DECODE WORKER
 
