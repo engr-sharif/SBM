@@ -17,6 +17,63 @@ All three are offline-only by design. Nothing in this app calls out to the inter
 
 ---
 
+## v9.22 — three pipes in the trench, and the overflow that follows them
+
+You said: *"the two overflow outlets that you have merging into one, that's not the case,
+we have two pipes that run in parallel with each other that take the overflow from the two
+overflow pipes out to Clear Lake … there are three pipes that flow along that channel, the
+two for the Herman impoundment and one that is used by the Frog and Green pond overflow —
+that's the far south one, which you have solved."*
+
+**The drawing says exactly that, and the app had misread it.** Between the sandbag wall
+and the Clear Lake shore EA draws **three** 783-ft lines, not one: they sit **2.35 ft
+apart**, which is the outside diameter of a 24-in corrugated HDPE pipe, so the trench is
+4.7 ft wide. The tool that builds the network had taken them for a single 24-in pipe drawn
+as a double line with a centreline — which would be 2.0 ft wide in total — and had joined
+both surveyed barrels into it through two short inferred links.
+
+Which line is which comes off your own survey: the North barrel's plotted west end is
+12.8 ft from the northern line's east end and the South barrel's is 12.7 ft from the
+middle line's, which leaves the southern line — your "far south one" — for the road drain.
+So each barrel now runs to Clear Lake **in its own pipe**, and the road drain's storm main
+runs beside them in the third. The two inferred links are gone. The network is still 44
+structures and 27 conduits, but 17 of them are now drawn in the CAD or surveyed where 15
+were, and 10 are inferred where 12 were. All three discharge at **one outfall** at the
+shore, which is where they really do meet — and which keeps *Clear Lake outfall* one
+282-acre catchment on the drainage map rather than three rows with the same name.
+
+One line the CAD draws is still **not** in the network: a double line that leaves the
+junction to the north-west and comes back to the shore. It has no structure at either end
+and nothing describes what it is for, so it is recorded as *drawn, purpose not established
+— ask EA* rather than guessed at.
+
+**The water now follows the pipe that is drawn.** A leg of a flow used to be a straight
+line between its two ends, so wherever EA's pipe bends the blue line left it and looked
+like water finding its own way across the ground. On the map, as the tube in 3D and as the
+moving particles, a leg now follows the pipe's own drawn line from end to end, and the
+"in pipe · N ft" label sits half way along it.
+
+**And the overflow appears when you raise the water to the rim.** Below the rim the drains
+carry the water and only the discharge route is drawn, which is the rule you set in v9.11.
+From the rim spill upward the water really is going over, so the rim overflow is now traced
+for you and drawn **beside** the pipe route — a normal animated blue flow captioned *"over
+the rim at 1,343.84 ft"* — and it disappears again when you lower the slider. The slider
+reads *"OVERFLOWS the rim at ① · and still discharging through the 24-in pipes"*. The
+*trace the rim overflow* button is still there for the other question: what if the drains
+were blocked. That one stays dashed and grey, because it is a hypothesis.
+
+**Nothing else moved, and that is the point.** Herman's surveyed stages are unchanged
+(first discharge 1,341.55 ft / 109.16 ac-ft, sandbag crest 1,343.54, lidar rim spill
+1,343.84, freeboard 7.39 ft, 44 stage rows); the drainage map's 100-out-of-100 identity
+holds; what drains into the impoundment is still 37.90 acres; and the three catchments are
+Clear Lake 403.03 ac, off-survey 293.45 and the outfall 282.01 — one hundredth of an acre
+moved between the first and the third, because one inlet's 3-ft capture disc sits 2.4 ft
+further south than it did. The one number that moved is the raindrop's pipe length out of
+the impoundment, 812.8 → **812.2 ft**, because the South barrel now runs the whole way in
+its own pipe.
+
+---
+
 ## v9.19 — the app on a phone
 
 Two things were reported from an iPhone, on the folder build served from GitHub
@@ -231,10 +288,10 @@ exactly the "makes its own path" you saw. It is now built from the **conduit cha
 itself**: the sandbag wall → both 24-in barrels → both links → EA's storm main → the
 junction → the Clear Lake outfall. **812.8 ft of it is pipe and none of it is ground** —
 ordinary descent resumes at the outfall, where the pipe ends, and runs the last 137 ft
-into Clear Lake. The card says so in those words: *"discharging through the two 24-in
-pipes → pipe to main → storm main → Clear Lake outfall"*, with *"no ground between the
-sandbag wall and the outfall"* under it. In 3D both barrels are drawn as pipes and the
-moving water runs through both.
+into Clear Lake. The card says so in those words, with *"no ground between the sandbag
+wall and the outfall"* under it. In 3D both barrels are drawn as pipes and the moving
+water runs through both. (The two links this note describes were superseded the next day
+— see v9.22 above, where each barrel got its own pipe and the number became 812.2 ft.)
 
 A **raindrop** dropped inside the impoundment still takes the lower invert first — that is
 what one drop does, and it is right — but its card now says the outlet has two barrels and
