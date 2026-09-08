@@ -157,9 +157,155 @@ class Dem {
    because the release only happens once a Float32Array exists. The two paths
    run the SAME terrain-RGB loop — it was moved, not rewritten — and the e2e
    decodes a payload both ways and compares the arrays element by element. */
+/* ---- the tile MESH, built once and used on both threads (v22 §G) --------
+   Until v22 js/terrain3d.js built a tile's positions, uvs, normals, index and
+   skirt on the MAIN THREAD when the camera settled. Measured on the build box
+   that is ~9 ms a tile and ~140 ms for a 24-tile set — small enough to be
+   invisible in wall time and large enough to matter, because js/touch.js's
+   recogniser classifies a gesture by WALL CLOCK and anything that lands
+   between a pointerdown and a pointerup changes what the gesture was.
+
+   So the loop lives here, as ONE function, and the SAME SOURCE runs in both
+   places: Dem.workerSource() stringifies this function into the Blob worker
+   beside demDecodeWorkerMain, and Dem.tileMesh is this same function called
+   inline when there is no worker. There is no second implementation to drift
+   — which is the one thing the DEM decode path (two loops kept deliberately
+   equal, and an e2e comparing them element by element) has to pay for.
+
+   It is DOM-free, SBMM-free and THREE-free by construction: it takes numbers
+   and typed arrays and hands typed arrays back, and js/terrain3d.js wraps them
+   in a BufferGeometry. Keep `</scr` + `ipt` out of it — tools/build_dist.py's
+   js_safe would mangle the source text this is generated from.
+
+   d = { z32, N, V, step, cell, x0, y0, zmid, drop }
+        z32   the tile's Float32 heights, row 0 = SOUTH, N x N
+        V     vertices per side (N / step + 1) — the extra row and column sit
+              ON the tile edge and repeat the last sample (terrain3d trap 1)
+        x0/y0 the tile's south-west corner in SCENE coordinates (already
+              centred: State Plane feet minus CX / CY)
+        zmid  the scene's elevation datum
+        drop  how far the skirt hangs below the border ring
+   -> { pos, uv, nrm, idx, ni, verts, side, zlo, zhi } or null for an empty tile */
+function demTileMeshMain(d) {
+  var z32 = d.z32, N = d.N, V = d.V, step = d.step, cell = d.cell;
+  var x0 = d.x0, y0 = d.y0, zmid = d.zmid, drop = d.drop;
+  var i, j, k, e;
+  var zAt = function (ii, jj) {
+    var a = jj * step, b = ii * step;
+    if (a > N - 1) a = N - 1;
+    if (b > N - 1) b = N - 1;
+    return z32[a * N + b];
+  };
+  var nv = V * V;
+  var pos = new Float32Array((nv + 4 * V) * 3);
+  var uv = new Float32Array((nv + 4 * V) * 2);
+  var lo = Infinity, hi = -Infinity, good = 0;
+  for (j = 0; j < V; j++) {
+    for (i = 0; i < V; i++) {
+      k = j * V + i;
+      var zz = zAt(i, j);
+      pos[k * 3] = x0 + i * step * cell;
+      pos[k * 3 + 1] = y0 + j * step * cell;
+      pos[k * 3 + 2] = (isNaN(zz) ? zmid : zz) - zmid;
+      uv[k * 2] = i / (V - 1); uv[k * 2 + 1] = j / (V - 1);
+      if (!isNaN(zz)) { good++; if (zz < lo) lo = zz; if (zz > hi) hi = zz; }
+    }
+  }
+  if (!good) return null;
+  /* THE INDEX IS A TYPED ARRAY, NOT A PUSHED JS ARRAY, and the normals come
+     from the height field rather than from traversing the triangles. Both were
+     costing ~320 ms per tile before v20 measured them. */
+  var maxTri = (V - 1) * (V - 1) * 2 + 4 * (V - 1) * 2;
+  var idx = new Uint32Array(maxTri * 3);
+  var ni = 0;
+  for (j = 0; j < V - 1; j++) {
+    for (i = 0; i < V - 1; i++) {
+      /* skip any quad touching NoData — the rule the whole-DEM meshes used,
+         and the reason the survey limit is an edge rather than a cliff wall */
+      if (isNaN(zAt(i, j)) || isNaN(zAt(i + 1, j)) ||
+          isNaN(zAt(i, j + 1)) || isNaN(zAt(i + 1, j + 1))) continue;
+      var a = j * V + i, b = a + 1, c = a + V, dd = c + 1;
+      idx[ni++] = a; idx[ni++] = b; idx[ni++] = dd;
+      idx[ni++] = a; idx[ni++] = dd; idx[ni++] = c;
+    }
+  }
+  if (!ni) return null;
+  /* the skirt: four strips, each vertex a copy of its border neighbour
+     dropped by a few cells */
+  var edge = [
+    function (t) { return t; },                   // south, j = 0
+    function (t) { return (V - 1) * V + t; },     // north
+    function (t) { return t * V; },               // west
+    function (t) { return t * V + (V - 1); }      // east
+  ];
+  var s = nv;
+  for (e = 0; e < 4; e++) {
+    var base = s;
+    for (i = 0; i < V; i++) {
+      var src = edge[e](i);
+      pos[(base + i) * 3] = pos[src * 3];
+      pos[(base + i) * 3 + 1] = pos[src * 3 + 1];
+      pos[(base + i) * 3 + 2] = pos[src * 3 + 2] - drop;
+      uv[(base + i) * 2] = uv[src * 2];
+      uv[(base + i) * 2 + 1] = uv[src * 2 + 1];
+    }
+    for (i = 0; i < V - 1; i++) {
+      var ea = edge[e](i), eb = edge[e](i + 1);
+      if (isNaN(zAt(ea % V, (ea / V) | 0)) || isNaN(zAt(eb % V, (eb / V) | 0))) continue;
+      var ec = base + i, ed = base + i + 1;
+      if (e === 0 || e === 3) { idx[ni++] = ea; idx[ni++] = ec; idx[ni++] = ed; idx[ni++] = ea; idx[ni++] = ed; idx[ni++] = eb; }
+      else { idx[ni++] = ea; idx[ni++] = ed; idx[ni++] = ec; idx[ni++] = ea; idx[ni++] = eb; idx[ni++] = ed; }
+    }
+    s += V;
+  }
+  /* Normals straight off the height field: a heightfield vertex's normal is
+     (-dz/dx, -dz/dy, 1) normalised, by central differences over the same
+     samples the positions came from. The z scale is applied to the OBJECT and
+     three transforms normals by the normal matrix, so these are computed
+     unscaled exactly as computeVertexNormals did. */
+  var nrm = new Float32Array((nv + 4 * V) * 3);
+  var sx = step * cell;
+  for (j = 0; j < V; j++) {
+    for (i = 0; i < V; i++) {
+      k = j * V + i;
+      var zc = zAt(i, j);
+      if (isNaN(zc)) { nrm[k * 3 + 2] = 1; continue; }
+      var zl = zAt(i - 1 < 0 ? 0 : i - 1, j), zr = zAt(i + 1 > V - 1 ? V - 1 : i + 1, j);
+      var zd = zAt(i, j - 1 < 0 ? 0 : j - 1), zu = zAt(i, j + 1 > V - 1 ? V - 1 : j + 1);
+      if (isNaN(zl)) zl = zc; if (isNaN(zr)) zr = zc;
+      if (isNaN(zd)) zd = zc; if (isNaN(zu)) zu = zc;
+      var gx = (zr - zl) / (2 * sx), gy = (zu - zd) / (2 * sx);
+      var inv = 1 / Math.hypot(gx, gy, 1);
+      nrm[k * 3] = -gx * inv; nrm[k * 3 + 1] = -gy * inv; nrm[k * 3 + 2] = inv;
+    }
+  }
+  /* the skirt copies its border neighbour's normal — a curtain lit differently
+     from the edge it hangs off is a visible seam */
+  for (e = 0, s = nv; e < 4; e++, s += V) {
+    for (i = 0; i < V; i++) {
+      var ns = edge[e](i), nd = s + i;
+      nrm[nd * 3] = nrm[ns * 3];
+      nrm[nd * 3 + 1] = nrm[ns * 3 + 1];
+      nrm[nd * 3 + 2] = nrm[ns * 3 + 2];
+    }
+  }
+  return { pos: pos, uv: uv, nrm: nrm, idx: idx, ni: ni, verts: nv, side: V, zlo: lo, zhi: hi };
+}
+
 function demDecodeWorkerMain() {
   self.onmessage = function (ev) {
     var d = ev.data, id = d.id;
+    /* v22 §G — the SECOND kind of message this worker answers: build a tile's
+       geometry and transfer the buffers back. `op` is absent on every decode
+       message this worker has ever been sent, so the payload path below is
+       byte-for-byte what it was. */
+    if (d.op === "mesh") {
+      var m = demTileMeshMain(d);
+      if (!m) { self.postMessage({ id: id, empty: true }); return; }
+      self.postMessage({ id: id, mesh: m },
+        [m.pos.buffer, m.uv.buffer, m.nrm.buffer, m.idx.buffer]);
+      return;
+    }
     /* feature-detect INSIDE the worker: a browser can have Worker and still
        lack OffscreenCanvas, and the host cannot see the worker's globals */
     if (typeof createImageBitmap !== "function" || typeof OffscreenCanvas !== "function") {
@@ -192,9 +338,14 @@ Dem._workerUrl = null;
 /* how many payloads actually decoded in a worker this boot — 4 on a healthy
    browser, 0 where the fallback took over. The e2e asserts it. */
 SBMM.perf.demWorkers = 0;
+/* The worker carries BOTH functions: demTileMeshMain as a top-level
+   declaration (v22 §G — one implementation, two threads) and the message pump
+   that calls it. Neither may contain the closing script tag; test/check.mjs
+   scans both. */
 Dem.workerSource = function () {
   return "/* SBMM DEM decode worker — generated at runtime from js/dem.js */\n" +
-    '"use strict";\n(' + demDecodeWorkerMain.toString() + ")();\n";
+    '"use strict";\n' + demTileMeshMain.toString() + "\n(" +
+    demDecodeWorkerMain.toString() + ")();\n";
 };
 Dem.workerUrl = function () {
   if (!Dem._workerUrl) Dem._workerUrl = URL.createObjectURL(new Blob([Dem.workerSource()], { type: "text/javascript" }));
@@ -282,11 +433,14 @@ Dem.tilePool = function () {
     let w;
     try { w = new Worker(Dem.workerUrl()); }
     catch (e) { break; }
+    /* the whole reply is handed over, not just `z`: since v22 this pool answers
+       two kinds of message (a decode and a mesh build) and each caller picks
+       what it asked for */
     w.onmessage = ev => {
       const d = ev.data || {}, f = Dem._poolWaiting.get(d.id);
       if (!f) return;
       Dem._poolWaiting.delete(d.id);
-      f(d.z && !d.unsupported ? d.z : null);
+      f(d);
     };
     w.onerror = () => { /* the request times out into the main-thread path */ };
     list.push(w);
@@ -294,6 +448,54 @@ Dem.tilePool = function () {
   Dem._pool = list;
   return list;
 };
+/* One request to the pool, multiplexed by id. Resolves to the worker's reply,
+   or to null on a timeout / a failed transfer — it never rejects, because both
+   callers have a main-thread path. */
+Dem._poolSend = function (msg, transfer) {
+  const pool = Dem.tilePool();
+  if (!pool.length) return Promise.resolve(null);
+  const id = "t" + (++Dem._poolSeq);
+  const wk = pool[Dem._poolSeq % pool.length];
+  return new Promise(res => {
+    const timer = setTimeout(() => { Dem._poolWaiting.delete(id); res(null); }, 30000);
+    Dem._poolWaiting.set(id, v => { clearTimeout(timer); res(v); });
+    try { wk.postMessage(Object.assign({ id }, msg), transfer || []); }
+    catch (e) { clearTimeout(timer); Dem._poolWaiting.delete(id); res(null); }
+  });
+};
+
+/* v22 §G — a tile's geometry, built in the pool where there is one.
+
+   The tile's Float32Array lives in SBMM.tiles' cache and MUST NOT be
+   transferred: transferring detaches it and the cached tile silently becomes a
+   zero-length array. A copy costs 256 kB and about a twentieth of a
+   millisecond, so the copy is transferred instead.
+
+   Resolves to the same object demTileMeshMain returns, or to null for an empty
+   tile. A pool that is absent, times out or throws falls through to the same
+   function called inline — the geometry is then identical by construction, not
+   by comparison. */
+Dem.tileMesh = demTileMeshMain;
+/* which path each mesh took — the e2e and test/terrain3d.mjs both assert that
+   a healthy browser really built them in the pool rather than inline */
+Dem.meshStats = { worker: 0, main: 0 };
+Dem.tileMeshAsync = async function (args) {
+  const pool = Dem.tilePool();
+  if (pool.length) {
+    let copy = null;
+    try { copy = args.z32.slice(); } catch (e) { copy = null; }
+    if (copy) {
+      const msg = Object.assign({}, args, { op: "mesh", z32: copy });
+      const r = await Dem._poolSend(msg, [copy.buffer]);
+      if (r && r.mesh) { Dem.meshStats.worker++; return r.mesh; }
+      if (r && r.empty) { Dem.meshStats.worker++; return null; }
+      /* anything else — no reply, a throw inside, an old worker — falls through */
+    }
+  }
+  Dem.meshStats.main++;
+  return demTileMeshMain(args);
+};
+
 /* Decode one terrain-RGB tile to a Float32Array, row 0 = SOUTH (the same way
    round as Dem's own array). `url` is a data: URL exactly as a payload is. */
 Dem.decodeTile = async function (url, w, h, zmin, step) {
@@ -302,15 +504,8 @@ Dem.decodeTile = async function (url, w, h, zmin, step) {
     let bytes;
     try { bytes = Dem.bytes(url); } catch (e) { bytes = null; }
     if (bytes) {
-      const id = "t" + (++Dem._poolSeq);
-      const wk = pool[Dem._poolSeq % pool.length];
-      const z = await new Promise(res => {
-        const timer = setTimeout(() => { Dem._poolWaiting.delete(id); res(null); }, 30000);
-        Dem._poolWaiting.set(id, v => { clearTimeout(timer); res(v); });
-        try { wk.postMessage({ id, bytes, w, h, zmin, step }, [bytes.buffer]); }
-        catch (e) { clearTimeout(timer); Dem._poolWaiting.delete(id); res(null); }
-      });
-      if (z) return z;
+      const r = await Dem._poolSend({ bytes, w, h, zmin, step }, [bytes.buffer]);
+      if (r && r.z && !r.unsupported) return r.z;
     }
   }
   /* main-thread fallback — byte-for-byte the loop in Dem.load */
