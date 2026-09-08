@@ -417,9 +417,18 @@ SBMM.terrain3d = (function () {
       r.geom.dispose();
     }
   }
-  function geomClear() {
-    for (const r of geomCache.values()) r.geom.dispose();
-    geomCache.clear(); geomBytes = 0;
+  /* `all` is detach()'s: the scene is going away, so every geometry goes with
+     it. Without it a geometry that is ON SCREEN is left alone — disposing one
+     out from under a drawn mesh makes three re-upload it on the next frame,
+     which is not a crash and is not a cleared cache either. */
+  function geomClear(all) {
+    for (const [k, r] of geomCache) {
+      if (!all && r.live) continue;
+      r.geom.dispose();
+      geomCache.delete(k);
+      geomBytes -= r.allBytes;
+    }
+    if (all) { geomCache.clear(); geomBytes = 0; }
   }
 
   /* ----------------------------------------------------------- selection -- */
@@ -727,7 +736,7 @@ SBMM.terrain3d = (function () {
     drawn.clear(); lastSig = ""; generation++;
     /* the cached geometry is expressed in SCENE coordinates (it carries CX/CY
        and the elevation datum), so it does not outlive a detach */
-    geomClear();
+    geomClear(true);
   }
 
   async function setStyle(kind) {
@@ -819,7 +828,7 @@ SBMM.terrain3d = (function () {
     /* the harness sets a small budget to prove the cache evicts, and clears it
        to prove a cold rebuild still works */
     setGeomBudget(b) { geomBudgetOverride = b || 0; geomTrim(); },
-    clearGeomCache() { geomClear(); },
+    clearGeomCache() { geomClear(false); },
     /* ---- the harness hooks (spec §4, §6) ------------------------------
        renderRasterTile() draws ONE tile through the same fragment shader into
        an offscreen target and reads it back; cpuHillshade() is the same
