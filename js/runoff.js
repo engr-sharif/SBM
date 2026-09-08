@@ -713,13 +713,13 @@ SBMM.runoff = (function () {
     if (!c) return "";
     const r = (R.routing || []).find(q => /impound|herman/i.test(q.name || ""));
     let s = `The Herman impoundment receives ${fmt(c.volume_acft, 1)} ac-ft off `
-      + `${fmt(c.acres, 1)} acres in the ${R.storm.name}`;
+      + `${fmt(c.acres, 1)} acres in the ${R.storm.name} storm`;
     if (r) {
       const rise = r.peakLevel - r.stage0;
-      s += `, and rises ${fmt(rise, 2)} ft to ${fmt(r.peakLevel, 2)} ft`;
-      s += r.overtops ? ` — it overtops at ${fmt(r.overtopT_h, 1)} h.`
-        : r.throughConduit ? ` — it discharges through ${esc(r.conduitId || "the surveyed pipes")}.`
-        : `, and is contained.`;
+      s += `, rises ${fmt(rise, 2)} ft to ${fmt(r.peakLevel, 2)} ft`;
+      s += r.overtops ? ` and OVERTOPS at ${fmt(r.overtopT_h, 1)} h.`
+        : r.throughConduit ? ` and discharges through ${esc(r.conduitId || "the surveyed pipes")}.`
+        : ` and is contained.`;
     } else s += ".";
     return s;
   }
