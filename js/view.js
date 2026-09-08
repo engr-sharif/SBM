@@ -96,7 +96,12 @@ SBMM.view = (function () {
      lives). `pref(k)` reads, `pref(k, v)` writes; both are silent on failure and
      a missing key reads as undefined so the caller keeps its own default. */
   function pref(key, val) {
-    const p = read().prefs;
+    /* READ THE PENDING WRITE FIRST. Writes are debounced by 900 ms, so
+       `pref(k)` immediately after `pref(k, v)` used to answer the value that
+       is still in localStorage — the old one. Nothing in the app happened to
+       do that, and the first thing that did (measuring the drape budget from
+       the console) got the previous answer with no error anywhere. */
+    const p = (pending && pending.prefs) || read().prefs;
     if (val === undefined) return (p && typeof p === "object") ? p[key] : undefined;
     const o = Object.assign({}, p || {});
     o[key] = val;
