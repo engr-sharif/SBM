@@ -15,6 +15,15 @@
                mean abs diff < 2/255 (§4)
      seams     SBMM.elev and the tile the 3D view is drawing agree, in the page
 
+   and four more from docs/V22_SPEC.md §G:
+
+     drape     the ground resolution of the picture on every drawn tile, and
+               the texture memory the drawn set costs
+     meshport  the tile mesh built in the worker against the same function
+               called inline, element for element
+     geomcache a camera move away and back rebuilds no geometry
+     map2d     the 2D basemap stack at high zoom over the mine window
+
    Slow under software GL on purpose — the timeouts come from test/lib/browser.mjs
    and SBMM_GPU=1 drops them. */
 import { launch, TIMEOUT } from "./lib/browser.mjs";
@@ -23,7 +32,8 @@ import { resolve } from "node:path";
 import { unlock } from "./gate.mjs";
 
 const target = process.argv[2], label = process.argv[3] || "folder";
-const SECTIONS = ["lod", "quality", "onefoot", "idle", "gpu", "seams"];
+const SECTIONS = ["lod", "quality", "onefoot", "idle", "gpu", "seams",
+                  "drape", "meshport", "geomcache", "map2d"];
 if (process.argv.includes("--list")) { console.log(SECTIONS.join(" ")); process.exit(0); }
 let only = null;
 if (process.argv.includes("--only")) only = new Set(process.argv[process.argv.indexOf("--only") + 1].split(","));
@@ -223,6 +233,202 @@ if (want("seams")) {
   });
   console.log("   ", r.n, "points ·  worst |tile − grid node| =", r.worst.toFixed(9), "ft", r.at ? "at " + r.at : "");
   ok("the display source equals the analysis source", r.n > 100 && r.worst < 1e-3, r.worst);
+}
+
+/* ----------------------------------------------------------------- drape -- */
+/* v22 §G. The complaint this section exists for is "the entire site topo looks
+   a bit pixelated when zooming in", and the measurable form of it is FEET PER
+   TEXEL on the ground. Until v22 the drape was the ortho tile at the terrain
+   tile's own level, so a 4-ft mesh tile carried 4-ft imagery; now it is `k`
+   levels finer, capped by what the ortho pyramid has (1 ft/px over the mine
+   window, 2 ft/px over the rest of the site).
+
+   Two things are asserted and they are different:
+     * the tile UNDER THE VIEW CENTRE over the mine window is <= 1 ft/px — the
+       ground the user is actually looking at;
+     * no drawn tile anywhere is coarser than `max(1, cellFt / 2^k)` — the rule
+       the code implements, so a tile that fell back further than the pyramid
+       required would be caught wherever it happened. */
+if (want("drape")) {
+  console.log("\n== drape — feet per texel on the ground (v22 §G) ==");
+  const r = await page.evaluate(async () => {
+    const sel = document.getElementById("v3dDetail");
+    sel.value = "high"; await sel.onchange();
+    SBMM.viewer3d.openAt(6371700, 2128900);
+    await new Promise(r => setTimeout(r, 600));
+    SBMM.viewer3d.frameBox(6371600, 2128800, 6371800, 2129000);
+    await new Promise(r => setTimeout(r, 3000));
+    const m = SBMM.demAbp.m;
+    const mine = [m.x0, m.y0, m.x0 + m.w * m.cell, m.y0 + m.h * m.cell];
+    const over = t => !(t.rect[2] <= mine[0] || t.rect[0] >= mine[2]
+                     || t.rect[3] <= mine[1] || t.rect[1] >= mine[3]);
+    const has = (t, x, y) => x >= t.rect[0] && x < t.rect[2] && y >= t.rect[1] && y < t.rect[3];
+    const tiles = SBMM.terrain3d.drawnTiles().map(t => Object.assign(t, { mine: over(t) }));
+    const under = tiles.filter(t => has(t, 6371700, 2128900)).sort((a, b) => a.z - b.z)[0] || null;
+    const s = SBMM.viewer3d.stats();
+    return { tiles, mine, under, drapeK: s.tiles.drapeK, texMB: s.tiles.texMB,
+             texPx: s.tiles.drapeTexPx, composed: s.tiles.drapeComposed,
+             range: s.tiles.drapeFtPerPx, gpuTextures: s.gpuTextures,
+             profile: SBMM.touch.profile() };
+  });
+  console.log("   profile", r.profile, "· drape k", r.drapeK, "· composed",
+    r.composed + "/" + r.tiles.length, "tiles · largest texture", r.texPx, "px");
+  const by = {};
+  for (const t of r.tiles) {
+    const k = `z${t.z} (${t.cellFt} ft cell)`;
+    (by[k] || (by[k] = [])).push(t);
+  }
+  for (const k of Object.keys(by).sort()) {
+    const g = by[k];
+    const ft = [...new Set(g.map(t => t.ftPerPx))].sort((a, b) => a - b);
+    console.log("   ", k.padEnd(20), String(g.length).padStart(2), "tiles ·",
+      "texture", [...new Set(g.map(t => t.texPx))].join("/"), "px ·",
+      ft.join("/"), "ft/px ·", g.filter(t => t.mine).length, "over the mine window");
+  }
+  console.log("   drawn-set texture memory:", r.texMB, "MB   (three reports",
+    r.gpuTextures, "textures)");
+  ok("the tile under the view centre draws the mine imagery at 1 ft/px or better",
+    !!r.under && r.under.ftPerPx <= 1, r.under ? `z${r.under.z} ${r.under.ftPerPx} ft/px` : "no tile");
+  const bad = r.tiles.filter(t => t.ftPerPx != null
+    && t.ftPerPx > Math.max(1, t.cellFt / Math.pow(2, r.drapeK)));
+  ok("no tile drapes coarser than its own budget allows", bad.length === 0,
+    bad.length ? JSON.stringify(bad.slice(0, 3)) : 0);
+  ok("every drawn tile got a drape", r.tiles.every(t => t.ftPerPx != null),
+    r.tiles.filter(t => t.ftPerPx == null).length + " without");
+  ok("the drawn set stays inside the 150 MB texture budget", r.texMB < 150, r.texMB);
+}
+
+/* -------------------------------------------------------------- meshport -- */
+/* v22 §G moved the tile mesh into the pooled decode worker. There is ONE
+   implementation — js/dem.js's demTileMeshMain, stringified into the worker
+   and called inline as the fallback — so this compares the two THREADS rather
+   than two loops, which is what makes "they cannot disagree" checkable. */
+if (want("meshport")) {
+  console.log("\n== meshport — the mesh built in the worker against the same call inline ==");
+  const r = await page.evaluate(async () => {
+    const T = SBMM.tiles;
+    const [tx, ty] = T.tileAt(1, 6371700, 2128900);
+    if (!T.has("dem", 1, tx, ty)) return { skip: "no tile" };
+    const rec = await T.get("dem", 1, tx, ty, { priority: 9999 });
+    if (!rec || !rec.z32) return { skip: "no data" };
+    const args = { N: 256, V: 257, step: 1, cell: 2, x0: -1000, y0: 2000, zmid: 1400, drop: 24 };
+    const a = Dem.tileMesh(Object.assign({}, args, { z32: rec.z32 }));
+    const before = Dem.meshStats.worker;
+    const b = await Dem.tileMeshAsync(Object.assign({}, args, { z32: rec.z32 }));
+    const eqf = (p, q) => {
+      if (p.length !== q.length) return -1;
+      for (let i = 0; i < p.length; i++) {
+        if (p[i] === q[i]) continue;
+        if (isNaN(p[i]) && isNaN(q[i])) continue;
+        return i;
+      }
+      return -2;
+    };
+    return {
+      ni: a.ni === b.ni, verts: a.verts, tris: a.ni / 3,
+      pos: eqf(a.pos, b.pos), uv: eqf(a.uv, b.uv), nrm: eqf(a.nrm, b.nrm),
+      idx: eqf(a.idx.subarray(0, a.ni), b.idx.subarray(0, b.ni)),
+      viaWorker: Dem.meshStats.worker > before,
+      pool: Dem.tilePool().length, stats: Object.assign({}, Dem.meshStats)
+    };
+  });
+  if (r.skip) { console.log("   skipped:", r.skip); ok("a tile was available", false, r.skip); }
+  else {
+    console.log("   pool", r.pool, "worker(s) ·", JSON.stringify(r.stats),
+      "·", r.verts, "vertices,", r.tris, "triangles");
+    ok("the mesh really came back from a worker", r.viaWorker === true, r.viaWorker);
+    ok("the triangle count agrees", r.ni === true, r.ni);
+    for (const k of ["pos", "uv", "nrm", "idx"])
+      ok(`${k} agrees element for element`, r[k] === -2, r[k]);
+  }
+}
+
+/* ------------------------------------------------------------- geomcache -- */
+/* v22 §G — "returning to a view rebuilds nothing". The cache is keyed by
+   (z, x, y, vertex stride) and nothing else, so a camera that leaves a tile
+   and comes back must hit it. The interesting number is not the hit count on
+   its own but `lastBuildCpuMs`: the main-thread cost of the rebuild, which is
+   what a gesture arriving during it would have to wait for. */
+if (want("geomcache")) {
+  console.log("\n== geomcache — a move away and back rebuilds no geometry ==");
+  const r = await page.evaluate(async () => {
+    const st = () => SBMM.viewer3d.stats().tiles;
+    const go = async (x, y) => {
+      SBMM.viewer3d.openAt(x, y);
+      await new Promise(r => setTimeout(r, 3500));
+      const s = st();
+      return { tiles: s.tiles, hits: s.geomHits, misses: s.geomMisses,
+               cpuMs: s.lastBuildCpuMs, blockMs: s.lastBuildBlockMs,
+               builtTiles: s.lastBuildTiles, cacheTiles: s.geomCacheTiles,
+               cacheMB: s.geomCacheMB, evicted: s.geomEvicted };
+    };
+    SBMM.terrain3d.clearGeomCache();
+    const a = await go(6371700, 2128900);
+    const b = await go(6371150, 2129650);
+    const c = await go(6371700, 2128900);
+    return { a, b, c, budget: st().geomBudgetMB };
+  });
+  console.log("   A      ", JSON.stringify(r.a));
+  console.log("   B      ", JSON.stringify(r.b));
+  console.log("   back A ", JSON.stringify(r.c));
+  console.log("   geometry cache budget:", r.budget, "MB");
+  ok("returning to A hits the cache", r.c.hits > r.b.hits, `${r.b.hits} -> ${r.c.hits}`);
+  ok("returning to A builds no new geometry", r.c.misses === r.b.misses,
+    `${r.b.misses} -> ${r.c.misses}`);
+  ok("the rebuild's main-thread cost stays small (recorded from this commit: < 60 ms)",
+    r.c.cpuMs < 60, r.c.cpuMs);
+}
+
+/* ----------------------------------------------------------------- map2d -- */
+/* v22 §G asked whether the pixelation is also visible in 2D — whether the
+   2-ft site hillshade shows through over the mine window where the 1-ft one
+   exists. It is a stacking question, so it is answered by reading the stack
+   rather than by looking at it: the raster pane's DOM order plus each
+   overlay's z-index IS the answer, and nothing here is zoom-gated. */
+if (want("map2d")) {
+  console.log("\n== map2d — the basemap stack over the mine window at zoom 3 ==");
+  const r = await page.evaluate(async () => {
+    if (SBMM.viewer3d.isOpen()) SBMM.viewer3d.toggle();
+    await new Promise(r => setTimeout(r, 400));
+    SBMM.map.setView([2128900, 6371700], 3, { animate: false });
+    await new Promise(r => setTimeout(r, 600));
+    const pane = SBMM.map.getPane("raster");
+    const imgs = [...pane.querySelectorAll("img")];
+    const out = [];
+    SBMM.map.eachLayer(l => {
+      if (!l._image || !l._bounds) return;
+      const b = l._bounds, el = l._image;
+      const wFt = b.getEast() - b.getWest();
+      out.push({
+        dom: imgs.indexOf(el),
+        z: el.style.zIndex === "" ? 0 : +el.style.zIndex,
+        px: el.naturalWidth, wFt: Math.round(wFt),
+        ftPerPx: +(wFt / Math.max(1, el.naturalWidth)).toFixed(3),
+        opacity: +getComputedStyle(el).opacity
+      });
+    });
+    /* which of them actually cover the point the camera is over */
+    const gated = [...document.querySelectorAll("#layers .lyr.gated")].map(e => e.textContent.trim());
+    return { list: out, zoom: SBMM.map.getZoom(), gated,
+             maxZoom: SBMM.map.getMaxZoom() };
+  });
+  const zOf = n => n.z || 0;
+  const painted = r.list.filter(n => n.dom >= 0).sort((a, b) => (zOf(a) - zOf(b)) || (a.dom - b.dom));
+  console.log("   zoom", r.zoom, "of", r.maxZoom, "· raster pane, in paint order (last is on top):");
+  for (const n of painted)
+    console.log("     dom", n.dom, "z-index", n.z, "·", n.px, "px over", n.wFt, "ft =",
+      n.ftPerPx, "ft/px · opacity", n.opacity);
+  /* THE QUESTION §G ASKS: does a coarser raster sit on top of a finer one over
+     the mine window? Resolution is feet per image pixel, not image size — the
+     3-in ABP ortho is the smallest image in the pane and the sharpest picture
+     in it. So the stack is right exactly when ft/px never increases up it. */
+  let inversions = [];
+  for (let i = 1; i < painted.length; i++)
+    if (painted[i].ftPerPx > painted[i - 1].ftPerPx)
+      inversions.push(`${painted[i - 1].ftPerPx} then ${painted[i].ftPerPx}`);
+  ok("nothing coarser is painted over something finer", inversions.length === 0,
+    inversions.join("; ") || 0);
+  ok("no basemap is zoom-gated off at zoom 3", r.gated.length === 0, JSON.stringify(r.gated));
 }
 
 await page.screenshot({ path: "/tmp/terrain3d.png" });

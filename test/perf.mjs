@@ -126,6 +126,67 @@ const idle = await page.evaluate(() => new Promise(res => {
 }));
 console.log("3D idle 2 s:", JSON.stringify(idle));
 
+/* ---- the hitch after a camera move (v22 §G) ----------------------------
+   THE NUMBER THAT MATTERS IS THE LONGEST SYNCHRONOUS SPAN, not the wall time
+   of the rebuild: a build that yields between tiles can take a second of wall
+   clock and never block anything, and a build that does not yield blocks a
+   gesture for as long as it runs. Two independent readings, because neither
+   alone is enough here:
+
+     buildBlockMs   the terrain module's own measurement of its longest
+                    synchronous span (js/terrain3d.js stat.lastBuildBlockMs) —
+                    the hitch this round exists to remove, and the one number
+                    that is comparable before and after.
+     longTaskMs     what a PerformanceObserver sees. Under SOFTWARE GL one
+                    rendered frame is itself a 0.5-1 s task, so this is
+                    dominated by the renderer on this box and is reported
+                    rather than compared; on a GPU (SBMM_GPU=1) it is the
+                    honest reading of the same thing.
+   Four camera moves over the mine window, the last one BACK to the first, so
+   the last row also says whether the geometry cache answered. */
+const hitch = await page.evaluate(async () => {
+  const tasks = [];
+  let po = null;
+  try {
+    po = new PerformanceObserver(l => { for (const e of l.getEntries()) tasks.push(e.duration); });
+    po.observe({ entryTypes: ["longtask"] });
+  } catch (e) { /* not every browser has it */ }
+  let gaps = [], last = performance.now(), stop = false;
+  const tick = () => { const t = performance.now(); gaps.push(t - last); last = t; if (!stop) requestAnimationFrame(tick); };
+  requestAnimationFrame(tick);
+  const spots = [[6371700, 2128900], [6371150, 2129650], [6372250, 2128350], [6371700, 2128900]];
+  const rows = [];
+  for (const [x, y] of spots) {
+    tasks.length = 0; gaps.length = 0; last = performance.now();
+    SBMM.viewer3d.openAt(x, y);
+    await new Promise(r => setTimeout(r, 6000));
+    const s = SBMM.viewer3d.stats();
+    const t = s.tiles || {};
+    rows.push({
+      at: [x, y],
+      buildBlockMs: t.lastBuildBlockMs == null ? null : t.lastBuildBlockMs,
+      buildCpuMs: t.lastBuildCpuMs == null ? null : t.lastBuildCpuMs,
+      buildWallMs: t.lastBuildMs == null ? null : t.lastBuildMs,
+      builtTiles: t.lastBuildTiles == null ? null : t.lastBuildTiles,
+      geomCache: t.geomHits == null ? null : { hits: t.geomHits, misses: t.geomMisses },
+      longTaskMs: tasks.length ? +Math.max.apply(null, tasks).toFixed(1) : 0,
+      tasksOver100: tasks.filter(v => v > 100).length,
+      frameGapMs: gaps.length ? +Math.max.apply(null, gaps).toFixed(1) : 0,
+      tiles: t.tiles, verts: t.verts
+    });
+  }
+  stop = true; if (po) po.disconnect();
+  return rows;
+});
+console.log("3D hitch after a camera move (v22 §G):");
+for (const r of hitch) console.log("  ", JSON.stringify(r));
+{
+  const bb = hitch.map(r => r.buildBlockMs || 0);
+  console.log("   longest synchronous terrain-build span over the four moves:",
+    Math.max.apply(null, bb).toFixed(1), "ms   (median",
+    bb.slice().sort((a, b) => a - b)[Math.floor(bb.length / 2)].toFixed(1) + " ms)");
+}
+
 /* everything on, then measure a forced render */
 const heavy = await page.evaluate(async () => {
   /* there are no 3D checkboxes any more (v9 §1/§4): SBMM.layerState is the one
