@@ -9,12 +9,16 @@
    into data/storm_network.json (44 nodes, 27 conduits); this module renders it
    and answers ONE question for the raindrop: which conduits are in play.
 
-   RULING (project engineer, 2026-09-05): the impoundment discharges through
-   BOTH 24-in HDPE barrels, in parallel, and both reach EA's drawn storm line —
-   `pipe_to_main` (North) and `pipe_to_main_s` (South). Before that the South
-   barrel, which carries the LOWER surveyed invert and is therefore the one the
-   water leaves through, ended 13 ft short of anything and its water left the
-   pipe on to the ground.
+   RULING (project engineer, 2026-09-05, restated 2026-09-06): the impoundment
+   discharges through BOTH 24-in HDPE barrels, in parallel, AND THEY DO NOT
+   MERGE. Three pipes lie side by side in the trench to Clear Lake — the two
+   barrels (`herman_main_n` on EA's line E943E, `herman_main_s` on E943C) and
+   the road drain's (`storm_main_upper` / `storm_main_lower` on E943D, the far
+   south one). They are 2.35 ft apart, the outside diameter of 24-in
+   corrugated HDPE, which is how the drawing says so. Each barrel runs to the
+   lake in its own pipe and they meet only at the shared `outfall` node.
+   v22 §S is that rebuild; `pipe_to_main` / `pipe_to_main_s` / `storm_main_east`
+   are gone with it.
 
    Three things about it are the whole design:
 
