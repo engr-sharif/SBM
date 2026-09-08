@@ -1964,9 +1964,21 @@ const DRAIN_REC = {
   green_level: 1394.50, green_depth: 3.08, green_contrib_ac: 2.62,
   herman_off_level: 1343.84,
   /* v19 §2, recorded from this commit: the 5-acre stream network the
-     accumulation draws, and the biggest accumulation on the site (the last
-     cell before the impoundment leaves through the surveyed south pipe). */
-  stream_mi: 12.10, stream_order: 4, max_acc_ac: 197.82
+     accumulation draws, and the biggest accumulation on the site. That maximum
+     is the ROAD DRAIN's trunk, not the impoundment's pipe: v22 §C measured the
+     accumulation at the surveyed south barrel's own mouth and it is 84.09 ac
+     (§11.9), while 197.82 ac is what `storm_main_lower` carries — the same
+     197.87 ac §11.9 reports for the Frog/Green class, to the decimation. */
+  stream_mi: 12.10, stream_order: 4, max_acc_ac: 197.82,
+  /* v22 §C, recorded from this commit: the four areas of "where does the water
+     go". They are the SAME analysis as the three outlets above, at a finer
+     outlet naming (js/wherewater.js): lake and off are those rows unchanged,
+     and the two storm-network classes add up to the outfall row to the square
+     foot. `impound_direct_ac` is the drainage card's own "what drains into it"
+     — the ground whose FIRST capture is the impoundment — and it is NOT the
+     catchment, which is why both numbers are recorded. */
+  ww_lake_ac: 403.03, ww_impound_ac: 84.14, ww_ponds_ac: 197.87, ww_off_ac: 293.45,
+  ww_impound_direct_ac: 37.90, ww_impound_accum_ac: 84.09
 };
 
 function secDrainage() {
@@ -2260,9 +2272,19 @@ function secDrainage() {
      would buy nothing. */
   console.log("\n§11.8  flow accumulation (v19) against this map");
   const labFull = { data: R.labels, w: R.w, h: R.h, cell: R.dCell, x0: R.x0, y0: R.y0 };
-  const accJob = m => ({ grid: full(), conduits: cds, captureFt: 3, method: m,
-                         stride: 4, labels: labFull, streamThreshold_ft2: 5 * AC });
-  const [A8, ams8] = timed(() => C.runJob("accum", accJob("d8")).result);
+  const accJob = (m, probes) => ({ grid: full(), conduits: cds, captureFt: 3, method: m,
+                         stride: 4, labels: labFull, streamThreshold_ft2: 5 * AC,
+                         probes: probes || undefined });
+  /* v22 §C: the mouths of the impoundment's two discharge barrels, so §11.9's
+     INDEPENDENT check of the impoundment's catchment (the accumulation at the
+     pipe it leaves through) rides on this run rather than costing another. */
+  const wwBarrels = cds.filter(c => {
+    const rec = M.NET.conduits.find(q => q.id === c.id);
+    const n = rec ? M.byId[rec.from] : null;
+    return !!(n && n.invert_ft != null);
+  });
+  const [A8, ams8] = timed(() => C.runJob("accum",
+    accJob("d8", wwBarrels.map(c => [c.ix, c.iy]))).result);
   budget("accum, D8, 2-ft site grid", ams8, 20000);
   exact("the D8 field is acyclic", A8.loops, 0);
   exact("  and complete", A8.flats, 0);
@@ -2330,6 +2352,124 @@ function secDrainage() {
       "dispersion across facets: the boundary is a gradient, not a line");
   near("  and it still conserves the site", Ad.exitTotal_ft2 / AC,
        Ad.surveyedArea_ft2 / AC, 0.001, " ac");
+
+  /* ---- v22 §C: where does the water go ---------------------------------
+     THE CALL SITE MIRRORED IS js/wherewater.js conduitsForSite() + jobFor() +
+     classOf(): the same whole-site job js/drainage.js builds, with the conduit
+     list handed through js/storm.js mapConduits({ mergeOutfalls: false }) —
+     which is `drainConduits` above WITHOUT its trunk-merge loop — and
+     `longest: false`, because the class layer draws no flow paths.
+
+     WHY IT IS HERE and not in a section of its own: it is an identity against
+     the map above, and that map is already in memory. A new section would run
+     the seven-second drainage job a second time inside `--quick` for nothing —
+     the same reason §11.8 lives here.
+
+     WHAT IT PROVES. Nothing new is computed: the four classes are built out of
+     this run's own outlets, so the partition is exact by construction and what
+     is actually checked is that the two runs are the SAME ANALYSIS —
+     identical surveyed ground, identical pond levels, and the two classes that
+     leave through the storm network adding up to the merged map's ONE outfall
+     catchment to the square foot. Then the one number that is not an identity
+     — the impoundment's 84-ac catchment — is checked against the v19
+     accumulation at the pipe it leaves through, which is a different kernel
+     over a different pointer field. */
+  console.log("\n§11.9  where does the water go — the four areas (v22 §C)");
+  /* js/wherewater.js conduitsForSite(): mapConduits({ mergeOutfalls: false }) */
+  const wwCds = M.conduitsFor([g2.x0, g2.y0, g2.x0 + g2.w * g2.cell, g2.y0 + g2.h * g2.cell])
+    .map(c => {
+      const rec = M.NET.conduits.find(q => q.id === c.id);
+      const to = M.byId[rec.to];
+      return { ...c, outfall: !!(to && to.kind === "outfall") };
+    });
+  const [W, wms] = timed(() => C.runJob("drainage",
+    { grid: full(), conduits: wwCds, captureFt: 3, lakeRing: LR, stride: 1,
+      maxPolys: 0, longest: false }).result);
+  budget("where the water goes, 2-ft site grid", wms, 20000);
+  /* js/wherewater.js barrels(): the impoundment's discharge pipes are the
+     conduits whose INLET NODE carries a surveyed invert — derived from the
+     data, not named, so a future invert survey cannot move it silently */
+  const wwB = wwCds.filter(c => {
+    const rec = M.NET.conduits.find(q => q.id === c.id);
+    const n = rec ? M.byId[rec.from] : null;
+    return !!(n && n.invert_ft != null);
+  }).map(c => c.id);
+  row("the discharge pipes are derived from the surveyed inverts", wwB.join(","),
+      "herman_pipe_n,herman_pipe_s",
+      wwB.length === 2 && wwB.indexOf("herman_pipe_n") >= 0 && wwB.indexOf("herman_pipe_s") >= 0,
+      "exact");
+  /* js/wherewater.js hermanTerminals(): walk `next` forward to the end */
+  const byW = Object.fromEntries(wwCds.map(c => [c.id, c]));
+  const wwTerm = new Set(wwB.map(id => {
+    let k = id, seen = new Set();
+    while (k && !seen.has(k)) { seen.add(k); const nx = byW[k] ? byW[k].next : null;
+      if (!nx || nx === k) break; k = nx; }
+    return k;
+  }));
+  /* js/wherewater.js classOf() */
+  const wwClassOf = s2 => s2.kind === "lake" ? "lake"
+    : s2.kind === "outfall" ? (wwTerm.has(s2.via) ? "impound" : "ponds") : "off";
+  const wwAc = {};
+  for (const s2 of W.sinks) {
+    const k = wwClassOf(s2);
+    wwAc[k] = (wwAc[k] || 0) + s2.area_ft2;
+  }
+  note("outlets: " + W.sinks.map(s2 => s2.id + " " + (s2.area_ft2 / AC).toFixed(3)
+     + " ac -> " + wwClassOf(s2)).join("; "));
+  /* THE PARTITION (§C's first acceptance): every outlet is in exactly one
+     class and the four classes are the whole of the surveyed ground */
+  const wwSum = Object.values(wwAc).reduce((a, b) => a + b, 0);
+  exact("every outlet is in exactly one class", W.sinks.length,
+        W.sinks.filter(s2 => ["lake", "impound", "ponds", "off"].includes(wwClassOf(s2))).length);
+  near("the four classes ARE the surveyed ground", wwSum / AC,
+       W.surveyedArea_ft2 / AC, 0.0001, " ac");
+  near("  and it is the drainage map's surveyed ground", W.surveyedArea_ft2 / AC,
+       R.surveyedArea_ft2 / AC, 0.0001, " ac");
+  exact("  cell for cell", W.surveyedCells, R.surveyedCells);
+  /* THE CROSS-RUN IDENTITY: un-merging the outfalls splits ONE catchment in two
+     and touches nothing else. This is what makes the class layer legitimate. */
+  const wwOutfall = R.sinks.find(s2 => s2.kind === "outfall");
+  near("the two piped classes = the map's ONE outfall catchment",
+       (wwAc.impound + wwAc.ponds) / AC, wwOutfall.area_ft2 / AC, 0.0001, " ac");
+  near("Clear Lake is the map's lake catchment, unmoved",
+       wwAc.lake / AC, sinkOf("lake").area_ft2 / AC, 0.0001, " ac");
+  exact("no unresolved loops in the un-merged run", W.loops, 0);
+  exact("  and no flats", W.flats, 0);
+  const wH = W.ponds.find(p => p.via === "herman_pipe_s" || p.via === "herman_pipe_n");
+  near("the impoundment's level is the same to the hundredth",
+       wH ? wH.level : NaN, herman ? herman.level : NaN, 0.005, " ft");
+  /* the four, recorded from this commit */
+  for (const [k, ref, label] of [["lake", DRAIN_REC.ww_lake_ac, "straight into Clear Lake"],
+                                 ["impound", DRAIN_REC.ww_impound_ac, "into the Herman impoundment"],
+                                 ["ponds", DRAIN_REC.ww_ponds_ac, "into Frog Pond / Green Pond"],
+                                 ["off", DRAIN_REC.ww_off_ac, "off the surveyed ground"]])
+    near(label + " (recorded)", (wwAc[k] || 0) / AC, ref, 0.5, " ac");
+  /* THE 37.90 ac, AND WHY IT IS NOT THE CATCHMENT. `through_area` on the
+     surveyed south barrel is the ground whose FIRST capture is the impoundment
+     — the number the drainage card prints. The site has 38,994 depressions, so
+     most of the water arrives having filled two or three of them on the way,
+     and the catchment is larger. Both are asserted; neither is the other. */
+  const wwDirect = W.ponds.filter(p => p.via && wwB.indexOf(p.via) >= 0)
+    .reduce((a, p) => a + p.contributing_area_ft2, 0);
+  near("what reaches the impoundment DIRECTLY = its through_area",
+       wwDirect / AC, (inl("herman_pipe_s") || {}).through_area_ft2 / AC, 0.01, " ac");
+  near("  which is the drainage card's own number (recorded)", wwDirect / AC,
+       DRAIN_REC.ww_impound_direct_ac, 0.3, " ac");
+  row("the catchment is bigger than the direct capture",
+      +(wwAc.impound / AC).toFixed(2), "> " + (wwDirect / AC).toFixed(2),
+      wwAc.impound > wwDirect * 1.5, "> 1.5x",
+      "a catchment includes the ground that fills a smaller depression first");
+  /* THE INDEPENDENT CHECK. The v19 accumulation is a different kernel over its
+     own pointer field, and the area draining THROUGH the surveyed south barrel
+     is the impoundment's catchment by a different route entirely. */
+  const wwProbe = (A8.probes || []).reduce((a, p) => a + (p ? p.acc_ft2 : 0), 0);
+  pct("the accumulation at the two barrels agrees", wwProbe / AC, wwAc.impound / AC, 0.5);
+  near("  and it is the recorded 84.09 ac", wwProbe / AC,
+       DRAIN_REC.ww_impound_accum_ac, 0.3, " ac");
+  note("the impoundment's catchment is " + (wwAc.impound / AC).toFixed(2) + " ac; the "
+     + "accumulation at its two surveyed barrels is " + (wwProbe / AC).toFixed(2) + " ac; "
+     + "what reaches it without pausing in a smaller depression first is "
+     + (wwDirect / AC).toFixed(2) + " ac");
 }
 
 /* ============================ 12. RUNOFF ================================= */

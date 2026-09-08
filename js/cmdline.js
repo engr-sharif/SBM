@@ -133,6 +133,16 @@ SBMM.cmd = (function () {
         if (!SBMM.drainage) { toast("this build has no drainage map"); return; }
         SBMM.drainage.cmd();
       } },
+    /* v22 §C. WHEREWATER is the engineer's own question; GOES and OUTFLOW are
+       the two words he used for it. Every alias is checked against the whole
+       flat table by test/check.mjs — a duplicate silently kills the later
+       command's. */
+    { n: "WHEREWATER", a: ["WHERE", "GOES", "OUTFLOW"],
+      d: "where the water goes — the four areas: Clear Lake, the impoundment, the ponds, off site (v22)",
+      f: () => {
+        if (!SBMM.whereWater) { toast("this build has no 'where the water goes'"); return; }
+        SBMM.whereWater.cmd();
+      } },
     /* v14 Phase 2. RAIN was an alias of DROP until v9.13; the raindrop keeps
        RAINDROP, and an alias can only belong to one command (a duplicate
        silently kills the later one, which the e2e fails on). */

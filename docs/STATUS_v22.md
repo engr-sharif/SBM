@@ -14,7 +14,7 @@ branch to main.
 |---|---|---|
 | spec written (`docs/V22_SPEC.md`) | done | evidence for §S is in the spec |
 | S — three pipes + overflow follows them + slider rule | **done** (2026-09-08, worktree `agent-S`, branch `worktree-agent-S`) | 44 nodes / 27 conduits (17 CAD/survey, 10 inferred). Re-recorded: the raindrop's pipe_ft 812.8 → **812.2**, its chain `herman_pipe_s,herman_main_s`, the discharge route's legs `herman_pipe_s,herman_main_s,herman_pipe_n,herman_main_n`, the layer counts 15/12 → 17/10. UNCHANGED, which is the proof: `herman_pipe_s`'s through_area **37.90 ac**, the 100/100 raindrop identity, the §11.8 accumulation identity at 0.000 % on all three outlets, and the outlet areas 403.03 / 293.45 / 282.01 ac (0.01 ac moved between the lake and the outfall — see below). Commit list below |
-| C — where the water goes | not started | after S |
+| C — where the water goes | **done** (2026-09-08, worktree `agent-C`, branch `worktree-agent-C`) | The four areas at 2 ft: Clear Lake **403.03 ac**, the Herman impoundment **84.14**, Frog/Green **197.87**, off the survey **293.45** — sum **978.49**, the map's own site. The impoundment's catchment is 84.14 ac and NOT the drainage card's 37.90 (see below); the v19 accumulation at the same two barrels says 84.09 independently. Commit list below |
 | G — desktop 3D drape / hitch / GPU | not started | after C; droppable |
 
 ## Why it stopped here (2026-09-06)
@@ -107,3 +107,104 @@ e2e:folder,field,phone:http --wait` — `check` PASS, `build:field` PASS, `phone
 PASS 26.8 s, `field` PASS 128 s, `e2e:folder` see `test/.logs/e2e-folder.log`;
 `node test/kernels.mjs --only drainage` 59 checks PASS (100/100 identity, §11.8
 identity 0.000 %), `--only storm` 101 checks PASS, `--only water3d` 76 checks PASS.
+
+## C — what shipped, and the one place the spec's arithmetic did not hold (2026-09-08)
+
+Commits on `worktree-agent-C`, oldest first:
+
+| commit | what |
+|---|---|
+| `9727bd7` | marked C in progress in this file |
+| `8b7463a` | **the feature.** New `js/wherewater.js` (`SBMM.whereWater`); `{ mergeOutfalls: false }` on `js/storm.js` `mapConduits`; `lakeRing` exported from `js/drainage.js`; the 3D drape in `js/viewer3d.js`; `SBMM.popups.forWhereWater`; the `WHEREWATER` command and the Water ▾ entry; the export fold-ins (`js/io.js`, `js/dxf.js`); the design-storm card's *what this is* paragraph and its four class rows (`js/runoff.js`); the CSS; e2e block **9ac2** plus the 9y wait and the 9z allow-list entry |
+| `4d17c10` | `test/kernels.mjs` **§11.9** inside the existing `drainage` section, and the docs (README's plain-language page, HANDOFF's two decision rows, CLAUDE.md's §C section and code-map row) |
+| `f316a0a` | the field (block 15) and phone (block 4) assertions, and the v9.22 release-notes entry |
+| `a8d168d` | `hermanTerminals()` walks the conduit list the run was given, not the raw network — a broken pipe shortens a chain and the kernel names the outlet after the earlier conduit |
+| `6d77ee3` | block 9w asserts the Water menu in full, so the new entry is stated there |
+| `27119bf` | the impoundment's one line reads as a sentence (the storm's own name ends in a comma) |
+
+**The four areas, at 2 ft** (recorded in `DRAIN_REC`, asserted in §11.9 and in
+block 9ac2): straight into Clear Lake **403.03 ac**, into the Herman impoundment
+**84.14**, into Frog Pond / Green Pond **197.87**, off the surveyed ground
+**293.45** — **978.49 ac**, which is the drainage map's own surveyed ground to
+0.0001 ac. At 4 ft (the field build and any phone): 399.80 / 86.83 / 198.94 /
+292.92 = 978.48.
+
+### THE ONE DEVIATION, and it is the spec's own acceptance criterion
+
+**The spec asks that "Herman's class area equals `through_area` of the
+impoundment's outlet (`herman_pipe_s`, 37.90 ac) within 0.01 ac". It cannot, and
+the same paragraph's other acceptance criterion is why.** `through_area` counts
+the ground whose FIRST CAPTURE is the impoundment — the cells that reach it
+without pausing in a smaller depression on the way. Measured on this site:
+
+- 1,975 distinct first-capture labels carry the 978 acres;
+- 38,994 lidar depressions, **1,945** of them deeper than the 0.25-ft noise
+  floor, and only **60** of those are in the kernel's reported pond list;
+- only **114 ac** of the site reaches a sink with no capture at all (29.9 into
+  the lake, 84.3 off the survey).
+
+So classing by first capture gives 29.9 + 37.9 + 17.1 + 84.3 ≈ 169 ac and leaves
+**809 ac unassigned** — it cannot partition anything, and the partition is the
+other half of the same acceptance paragraph. The two criteria are inconsistent on
+this terrain.
+
+**What shipped instead**: the class is the OUTLET, read at a finer naming, so the
+partition is exact by construction; the impoundment's class is its **catchment**,
+84.14 ac. Both numbers are printed — the card's impoundment sentence ends "of
+which 37.90 ac reach it directly, the rest through smaller depressions on the
+way" — and the spec's identity is asserted on the quantity it actually describes:
+§11.9 and block 9ac2 both require `directIntoImpoundment()` to equal
+`through_area("herman_pipe_s")` within 0.01 ac, and require the class to be
+larger. The 84.14 is then checked against an INDEPENDENT kernel: the v19 flow
+accumulation at the same two barrels is **84.09 ac** (0.05 %), which is the
+strongest evidence available that the catchment is the right answer.
+
+### Two more things the spec did not foresee
+
+1. **EA's water polygons do not contain Frog Pond's or Green Pond's lowest
+   lidar cell**, so `js/drainage.js` `pondName()` calls both "Depression · E …"
+   and the class sentence would have said "the eastern ponds". The names come
+   from the storm network's own node names ("Frog Pond outlet", "FES — Green Pond
+   outlet (west shore)") matched against EA's water-layer NAMES — both halves
+   data. `js/drainage.js` is left alone: fixing `pondName` would move rows on a
+   card this round did not touch, and it is worth a line in a later round.
+2. **`DRAIN_REC.max_acc_ac` (197.82) was described in a comment as "the last cell
+   before the impoundment leaves through the surveyed south pipe".** It is not —
+   the accumulation at that pipe is 84.09 ac. 197.82 is the ROAD DRAIN's trunk,
+   and it is the same 197.87 ac §11.9 reports for the Frog/Green class, to the
+   decimation. The comment is corrected; the recorded value is unchanged.
+
+### One decision worth restating
+
+**The class layer runs a second pass of the `drainage` kernel** (about 6 s in
+node, 5-25 s in a worker; 2.7 s on the 4-ft field build) rather than deriving the
+classes from the map's existing rasters. It was not a first choice: the map's own
+`first` raster is decimated for display and its per-label areas exist only for
+the 60 biggest ponds, so nothing exact can be assembled from it. The second pass
+is the SAME kernel over the SAME ground with one flag changed, it costs the
+kernel's own budget, and it buys an exact partition with the polygons traced for
+free. §11.9 asserts the two runs agree cell for cell on the surveyed ground and
+to 0.0001 ac on every outlet.
+
+### The runs (2026-09-08, this box, software GL)
+
+`node test/run.mjs` — the whole matrix, 19 steps, 21.2 min wall, **16 passed, 3
+failed**. All three failures re-ran ALONE and passed, and all three are the
+known load flakes rather than anything §C touched:
+
+| step | in the matrix | alone |
+|---|---|---|
+| `e2e:folder` | FAIL — *detail rebuild not reversible*, `high: 66049 \| standard: 0` | **PASS** 849.7 s (`high: 1585176 \| standard: 166410 \| back: 1585176`) — the v20 terrain-LOD flake this file already records under §S |
+| `terrain3d:folder` | FAIL — *an idle view renders nothing … got 2* | **PASS** 34.4 s |
+| `tablet:file` | FAIL — *a long press on the terrain opened no identify card* | **PASS** 190.8 s (and `tablet:http`, the same harness, passed in the matrix) |
+
+Everything else green first time, including **`e2e:dist` (1,173 s)** — block 9ac2
+runs on the single-file build too and reports the same four areas to the
+thousandth of an acre — `kernels` (456 s, every section on both cores),
+`field` (132.7 s), `phone:http` (26.2 s), `perf`, `audit`, `audit2`,
+`split3d:folder/dist`, `terrain3d:dist`, `tablet:http`.
+
+Also run on their own during the round: `node test/run.mjs --quick` 4/4 PASS
+(112 s); `node test/kernels.mjs --only drainage` **155 checks PASS in 296.7 s**
+on both backends (§11.9's 20 checks included); `node test/e2e.mjs … --only
+"9ac2"` and `--from "9w. water"` (19 blocks) both PASS.

@@ -200,6 +200,12 @@ SBMM.buildLayers = function () {
      runs the job. */
   if (SBMM.accum) SBMM.accum.build();
 
+  /* ---------- where the water goes (v22 §C) ----------
+     The same Drainage sub-header again: Phase 1 says which outlet, this says
+     which of the four things a person standing on the site can point at. Off
+     from boot; the first tick runs the job. */
+  if (SBMM.whereWater) SBMM.whereWater.build();
+
   /* ---------- sample points ----------
      Investigations (§4 group 4), not Site framework: a sample result is a
      measurement of the ground, not part of the ground. */
