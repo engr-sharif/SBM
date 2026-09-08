@@ -304,6 +304,7 @@ eased over thirty FRAMES — at a second a frame it was measuring the flight.
 
 | run | result |
 |---|---|
+| **`node test/run.mjs` — matrix 3, the finished tree, 38.8 min** | **19 of 19 PASS.** `e2e:folder` 1,930.4 s, `e2e:dist` 1,588.5 s, `terrain3d:folder` 108.8 s, `terrain3d:dist` 96.2 s, `tablet:file` 282.4 s, `tablet:http` 38.5 s, `phone:http` 23.2 s, `field` 139.4 s, `split3d` x2, `kernels` 444.1 s, `perf`, `audit`, `audit2`, `tiles`, `touch_unit`, both builds |
 | `node test/run.mjs` — matrix 1, 24.6 min | 16/19. `e2e:folder` on 9a-2, `terrain3d:folder` and `terrain3d:dist` on the idle wait. **`e2e:dist` PASSED, 1,179 s** |
 | `node test/run.mjs` — matrix 2, 24.8 min | 17/19. `e2e:folder` on 9a-2 and `tablet:file` on the twist, both fixed after it had started. **`e2e:dist` PASSED again, 1,374 s**; `terrain3d:folder`, `terrain3d:dist`, `split3d` x2, `field`, `phone:http`, `tablet:http`, `perf`, `audit`, `audit2`, `kernels` all PASS |
 | `--only e2e:folder,tablet:file,field,phone:http` after the fixes, 21.8 min | **6 of 6 PASS.** `e2e:folder` 1,305.6 s with `detail vertex counts — high: 1585176 / standard: 166410 / back to high: 1585176`; `tablet:file` 237.8 s with the twist at 40.0 deg; `field` 128.2 s; `phone:http` 25.0 s |
