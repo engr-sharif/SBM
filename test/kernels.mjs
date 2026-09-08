@@ -1535,12 +1535,19 @@ function secStorm() {
   near("with the drains off, overland (recorded)", froff.length, 1468.6, 3, " ft");
 
   console.log("\n§6.7  the Herman pipe discharge route (the plotted west end of the North pipe)");
+  /* RE-RECORDED, v22 §S (engineer, 2026-09-06): the North barrel no longer joins
+     a shared storm main. It runs to Clear Lake in its OWN drawn pipe, E943E, so
+     the chain is one conduit — `herman_main_n`, the 12.8-ft inferred gap plus
+     EA's 783.9-ft line — instead of `pipe_to_main` -> `storm_main_upper` ->
+     `storm_main_lower` (13.2 + 194.7 + 588.9 = 796.8 ft, which is the same
+     796.8 ft of pipe: the three lines in the trench are the same length). The
+     outfall cell is unchanged, so everything measured after it is too. */
   const pw = M.byId.herman_pipe_n_end;
   const hp = hostRun(M, pw.x, pw.y, true);
-  const hpChain = ["pipe_to_main", "storm_main_upper", "storm_main_lower"];
+  const hpChain = ["herman_main_n"];
   row("the chain it took", hp.legs.map(l => l.id).join(","), hpChain.join(","),
       hp.legs.map(l => l.id).join(",") === hpChain.join(","), "exact");
-  near("pipe_ft = 13.2 + 194.7 + 588.9", hp.pipeFt, chain(hpChain), 0.5, " ft");
+  near("pipe_ft = 12.8 + 783.9 (E943E)", hp.pipeFt, chain(hpChain), 0.5, " ft");
   dist("ends in Clear Lake", hp.end[0], hp.end[1], 6371177, 2127474, 3);
   near("overland length (recorded)", hp.length, 137.0, 1, " ft");
   note("Herman pipe discharge: " + hp.length.toFixed(1) + " ft overland + " +
@@ -1564,17 +1571,21 @@ function secStorm() {
       via === "herman_pipe_s" || via === "herman_pipe_n", "either");
   near("pond level = the lower surveyed invert", (hw.ponds.find(p => p.via) || {}).level,
        1341.5, 0.05, " ft");
-  /* RULING (project engineer, 2026-09-05): BOTH 24-in barrels discharge the
-     impoundment, so each one now reaches the storm main by its own inferred
-     link. A drop still takes the LOWER invert first — that is the kernel's rule
-     and it is right for one drop — and it now stays in pipe from there: before
-     the South barrel ended 13 ft short of the storm line and the drop left the
-     pipe on to the ground for the 3 ft to the North link's capture disc. */
-  const hwChain = [via, via === "herman_pipe_s" ? "pipe_to_main_s" : "pipe_to_main",
-                   "storm_main_upper", "storm_main_lower"];
+  /* RULING (project engineer, 2026-09-05, restated 2026-09-06): BOTH 24-in
+     barrels discharge the impoundment, and (v22 §S) THEY DO NOT MERGE — each
+     runs to Clear Lake in its own drawn pipe. A drop still takes the LOWER
+     invert first (the kernel's rule, and right for one drop) and stays in pipe
+     from there.
+     RE-RECORDED, v22 §S: the chain is `herman_pipe_s` -> `herman_main_s`
+     instead of `herman_pipe_s` -> `pipe_to_main_s` -> `storm_main_upper` ->
+     `storm_main_lower`, and the pipe length is 16.5 + 795.7 = 812.2 ft, from
+     812.8 (the old route ran 12.7 ft to the shared main and then 194.7 + 588.9
+     down it; the barrel's own line E943C is 783.0 ft, 0.6 ft shorter). */
+  const hwChain = [via, via === "herman_pipe_s" ? "herman_main_s" : "herman_main_n"];
   row("the chain it took", hw.legs.map(l => l.id).join(","), hwChain.join(","),
       hw.legs.map(l => l.id).join(",") === hwChain.join(","), "exact");
-  near("pipe_ft = 16.5 + 12.7 + 194.7 + 588.9", hw.pipeFt, chain(hwChain), 1, " ft");
+  near("pipe_ft = 16.5 + 795.7 (E943C) = 812.2", hw.pipeFt, chain(hwChain), 1, " ft");
+  near("and that is 812.2 ft, from 812.8 before v22 §S", hw.pipeFt, 812.2, 0.2, " ft");
   exact("it ends at the outfall",
         M.NET.conduits.find(c => c.id === hw.legs[hw.legs.length - 1].id).to, "outfall");
   exact("reason", hw.reason, "nodata");
@@ -1597,29 +1608,40 @@ function secStorm() {
   note("Herman water level, drains off: " + hwoff.length.toFixed(1) + " ft overland, spills over the " +
        "1,343.84-ft rim; the 2.30-ft difference from the pipe invert is what the sunken-inlet rule buys");
 
-  /* ---- both barrels reach the storm main (ruling, 2026-09-05) ---------- */
-  /* The engineer: "there are 2 pipes and you only used one ... make sure the
-     system knows that the water flows through the pipes and out to Clear Lake".
-     Before this the South barrel — the LOWER invert, the one the water leaves
-     through — ended 13 ft short of EA's drawn storm line and its water left the
-     pipe on to the ground. Each barrel now has its own inferred link, and a
-     drop entering EITHER of them stays in pipe all the way to the outfall. */
-  console.log("\n§6.9  both 24-in barrels reach the storm main");
+  /* ---- both barrels reach Clear Lake, and they do NOT merge ------------ */
+  /* The engineer, 2026-09-05: "there are 2 pipes and you only used one ... make
+     sure the system knows that the water flows through the pipes and out to
+     Clear Lake"; and 2026-09-06: "the two overflow outlets that you have
+     merging into one, that's not the case, we have two pipes that run in
+     parallel with each other that take the overflow ... out to Clear Lake".
+     RE-RECORDED, v22 §S: each barrel now continues into its OWN drawn line
+     (E943E for the North, E943C for the South) rather than into a shared main
+     through an inferred 13-ft link, and each is a two-conduit chain to the
+     outfall. The third pipe in the trench, E943D, is the road drain's. */
+  console.log("\n§6.9  both 24-in barrels run to Clear Lake in their own pipes");
   const nextIdOf = id => {
     const c = M.NET.conduits.find(q => q.id === id);
     const nx = c && M.NET.conduits.find(q => q.from === c.to && q.id !== c.id);
     return nx ? nx.id : null;
   };
-  for (const [barrel, link] of [["herman_pipe_n", "pipe_to_main"], ["herman_pipe_s", "pipe_to_main_s"]]) {
-    exact(barrel + " continues into the storm main", nextIdOf(barrel), link);
+  exact("the three lines are three conduits, not one",
+        ["herman_main_n", "herman_main_s", "storm_main_lower"]
+          .filter(id => M.NET.conduits.some(c => c.id === id)).length, 3);
+  exact("`pipe_to_main` / `pipe_to_main_s` / `storm_main_east` are gone",
+        M.NET.conduits.filter(c => /^pipe_to_main/.test(c.id)).length
+          + M.NET.nodes.filter(n => n.id === "storm_main_east").length, 0);
+  for (const [barrel, link, handle] of [["herman_pipe_n", "herman_main_n", "E943E"],
+                                        ["herman_pipe_s", "herman_main_s", "E943C"]]) {
+    exact(barrel + " continues into its own line " + handle, nextIdOf(barrel), link);
+    exact("  and " + link + " ends at the shared outfall",
+          M.NET.conduits.find(c => c.id === link).to, "outfall");
     const mo = M.mouths[M.NET.conduits.find(c => c.id === barrel).from];
     const d = hostRun(M, mo.x, mo.y, true);
     const ch = d.legs.map(l => l.id).join(",");
-    row("a drop at its mouth stays in pipe to the outfall", ch,
-        [barrel, link, "storm_main_upper", "storm_main_lower"].join(","),
-        ch === [barrel, link, "storm_main_upper", "storm_main_lower"].join(","), "exact");
-    near("  and " + barrel + "'s chain is " + chain([barrel, link, "storm_main_upper", "storm_main_lower"]).toFixed(1)
-         + " ft of pipe", d.pipeFt, chain([barrel, link, "storm_main_upper", "storm_main_lower"]), 0.5, " ft");
+    row("a drop at its mouth stays in pipe to the outfall", ch, [barrel, link].join(","),
+        ch === [barrel, link].join(","), "exact");
+    near("  and " + barrel + "'s chain is " + chain([barrel, link]).toFixed(1)
+         + " ft of pipe", d.pipeFt, chain([barrel, link]), 0.5, " ft");
   }
 
   /* ---- a broken conduit is simply not passed --------------------------- */
@@ -1837,16 +1859,45 @@ function secWater3d() {
    whole reason the map reuses the raindrop's physics is so that it cannot
    disagree, and a disagreement means the kernel is wrong. */
 
-/* js/drainage.js conduitsForSite(): js/storm.js conduitsFor() over the whole
-   site, plus `outfall` — true when the conduit discharges at an outfall node,
-   which is where water leaves the model (§2 "Sink / inlet"). */
+/* js/drainage.js conduitsForSite() -> js/storm.js mapConduits(): js/storm.js
+   conduitsFor() over the whole site, plus `outfall` — true when the conduit
+   discharges at an outfall node, which is where water leaves the model (§2
+   "Sink / inlet") — plus the v22 §S rule that several conduits discharging at
+   ONE outfall are one outlet. Since §S three conduits end at the `outfall`
+   node (the two Herman barrels and the road drain's line) and the kernel names
+   an outlet sink after the LAST CONDUIT of the chain that reaches it, so
+   without this the 281.99-ac outfall catchment came back as three rows with
+   the same name. The host names the TRUNK — the candidate the most chains
+   terminate at — and routes the others into it through `next`, which the
+   kernel follows only to find where a chain ENDS. */
 function drainConduits(M, grid) {
   const bbox = [grid.x0, grid.y0, grid.x0 + grid.w * grid.cell, grid.y0 + grid.h * grid.cell];
-  return M.conduitsFor(bbox).map(c => {
+  const cds = M.conduitsFor(bbox).map(c => {
     const rec = M.NET.conduits.find(q => q.id === c.id);
     const to = M.byId[rec.to];
     return { ...c, outfall: !!(to && to.kind === "outfall") };
   });
+  const byC = {}; for (const c of cds) byC[c.id] = c;
+  const at = {};
+  for (const c of cds) {
+    if (!c.outfall) continue;
+    const to = M.NET.conduits.find(q => q.id === c.id).to;
+    (at[to] = at[to] || []).push(c.id);
+  }
+  for (const to of Object.keys(at)) {
+    const ids = at[to];
+    if (ids.length < 2) continue;
+    const tally = {};
+    for (const c of cds) {
+      let k = c.id; const seen = {};
+      while (k && !seen[k] && byC[k]) { seen[k] = 1; if (byC[k].outfall) break; k = byC[k].next; }
+      if (k && ids.indexOf(k) >= 0) tally[k] = (tally[k] || 0) + 1;
+    }
+    let best = ids[0];
+    for (const id of ids) if ((tally[id] || 0) > (tally[best] || 0)) best = id;
+    for (const id of ids) if (id !== best) { byC[id].outfall = false; byC[id].next = best; }
+  }
+  return cds;
 }
 /* js/drainage.js lakeRing(): EA's own Clear Lake polygon, which is what splits
    "left the survey into the lake" from "left the survey somewhere else" */
@@ -1954,6 +2005,15 @@ function secDrainage() {
   const kinds = R.sinks.map(s => s.kind).join(",");
   row("the outlets are the lake, the survey edge and the storm outfall",
       kinds, "lake,off,outfall", ["lake", "off", "outfall"].every(k => kinds.includes(k)), "contains");
+  /* v22 §S — THE PROOF THAT THE REBUILD IS RIGHT. Three conduits now end at the
+     `outfall` node (the two Herman barrels and the road drain's line) where one
+     did before, and the whole point of keeping ONE outfall node is that the
+     map still reports ONE outlet there with the same acreage. The three outlet
+     areas below, `herman_pipe_s`'s through-area in §11.3, and the 100/100
+     identity in §11.4 are all measured on the same inlets and the same outfall
+     cell as before the rebuild, so they must not move. */
+  exact("exactly one outlet at the shared outfall (v22 §S)",
+        R.sinks.filter(s => s.kind === "outfall").length, 1);
   for (const [id, ref] of [["lake", DRAIN_REC.lake_ac], ["off", DRAIN_REC.off_ac],
                            ["outfall:storm_main_lower", DRAIN_REC.outfall_ac]]) {
     const s = sinkOf(id);
@@ -2043,7 +2103,16 @@ function secDrainage() {
     const D = hostRunOn(M, site, x, y, true);
     keep.push(D);
     const lastLeg = D.legs.length ? D.legs[D.legs.length - 1] : null;
-    const lastC = lastLeg ? cds.find(c => c.id === lastLeg.id) : null;
+    /* the sink a chain reaches is the kernel's own rule: follow `next` from the
+       last leg until a conduit that discharges at an outfall, and name the sink
+       after THAT one. Reading the last leg's own flag was the same thing until
+       v22 §S, when several conduits started to end at one outfall and the host
+       began routing all but the trunk into it (js/storm.js mapConduits) — after
+       which a drop that really did reach the outfall down the South barrel was
+       read as "left the survey into the lake". */
+    let lastC = lastLeg ? cds.find(c => c.id === lastLeg.id) : null;
+    for (let g = 0; lastC && !lastC.outfall && lastC.next && g < cds.length; g++)
+      lastC = cds.find(c => c.id === lastC.next) || null;
     let got;
     if (lastC && lastC.outfall) got = "outfall:" + lastC.id;
     else if (D.reason === "nodata" || D.reason === "window")
