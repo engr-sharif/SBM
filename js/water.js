@@ -597,17 +597,21 @@ SBMM.water = (function () {
      now I think it shows that it goes directly and makes its own path."
 
      Two things were wrong and this is the second of them. The first was in the
-     NETWORK: only the North barrel reached EA's drawn storm line, so the South
-     barrel — the LOWER invert, the one the water actually leaves through —
-     ended 13 ft short of anything and its water left the pipe on to the ground.
-     data/storm_network.json now carries `pipe_to_main` AND `pipe_to_main_s`.
+     NETWORK, and it was corrected twice. v12 connected the South barrel, which
+     had ended 13 ft short of anything and put its water back on the ground.
+     v22 §S separated the barrels altogether — the engineer, 2026-09-06: "the
+     two overflow outlets that you have merging into one, that's not the case,
+     we have two pipes that run in parallel with each other ... out to Clear
+     Lake" — so each barrel now runs to the lake in its own drawn pipe
+     (`herman_main_n` on EA's line E943E, `herman_main_s` on E943C) and they
+     meet only at the shared `outfall` node.
 
      The second was here. The card's "pipe discharge route" was a RAINDROP
      dropped at the plotted west end of the NORTH pipe: a terrain analysis that
      happens to find a pipe, which is exactly "it makes its own path", and which
      could only ever show one barrel. It is now the CONDUIT CHAIN itself, walked
      node by node from the sandbag wall to the Clear Lake outfall — both barrels
-     in parallel, then the links, then EA's storm main — so there is no ground
+     in parallel, each in its own drawn line — so there is no ground
      between the wall and the lake for it to wander over. Its overland
      `length_ft` is what happens AFTER the outfall, and nothing else.
 
@@ -1710,11 +1714,13 @@ SBMM.water = (function () {
        "→ Green Pond (fills to 1,394.50) → green outlet → storm main lower →
         Clear Lake outfall". */
   /* the FAMILY a leg belongs to — what a run of legs collapses into. The
-     label's first two words, or three when the second is a preposition, so
-     `pipe_to_main` and `pipe_to_main_s` are one thing ("pipe to main") rather
-     than the dangling "pipe to". Eight runs of one road drain, the two halves
-     of the storm main and the two barrels of one crossing each collapse the
-     same way. */
+     label's first two words, or three when the second is a preposition: eight
+     runs of one road drain, the two halves of the storm main and the two
+     barrels of one crossing each collapse the same way, and `herman_main_n`
+     and `herman_main_s` are one thing ("herman main"). The preposition clause
+     is v13's, for `pipe_to_main`/`pipe_to_main_s` (gone since v22 §S), which
+     would otherwise have collapsed to the dangling "pipe to"; it is kept
+     because the next inferred link will be named the same way. */
   const CHAIN_STOPW = { to: 1, of: 1, the: 1, at: 1, in: 1, on: 1, and: 1 };
   function legFamily(id) {
     const w = conduitLabel(id).split(/\s+/);
