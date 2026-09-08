@@ -120,6 +120,9 @@ SBMM.dxf = (function () {
        and only when the map has actually been computed */
     const ddrain = (SBMM.drainage && SBMM.drainage.hasResult()) ? SBMM.drainage.dxfEntities() : [];
     for (const d of ddrain) layers.set(d.layer, toACI(d.color));
+    /* the four "where the water goes" areas on WATER-GOES (v22 §C), same rule */
+    const dwhere = (SBMM.whereWater && SBMM.whereWater.hasResult()) ? SBMM.whereWater.dxfEntities() : [];
+    for (const d of dwhere) layers.set(d.layer, toACI(d.color));
 
     /* extents */
     let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
@@ -131,7 +134,7 @@ SBMM.dxf = (function () {
       if (p.x < x0) x0 = p.x; if (p.x > x1) x1 = p.x;
       if (p.y < y0) y0 = p.y; if (p.y > y1) y1 = p.y;
     }
-    for (const d of [...dgis, ...dsurv, ...dstorm, ...ddrain]) for (const p of (d.pts || [d.point])) {
+    for (const d of [...dgis, ...dsurv, ...dstorm, ...ddrain, ...dwhere]) for (const p of (d.pts || [d.point])) {
       if (p[0] < x0) x0 = p[0]; if (p[0] > x1) x1 = p[0];
       if (p[1] < y0) y0 = p[1]; if (p[1] > y1) y1 = p[1];
     }
@@ -162,7 +165,7 @@ SBMM.dxf = (function () {
       w(0, "POINT"); w(8, d.layer); w(10, N(p.x)); w(20, N(p.y)); w(30, "0.0");
       text(w, d.layer, [p.x + 3, p.y + 3], 6, p.id, 0);
     }
-    for (const d of [...dgis, ...dsurv, ...dstorm, ...ddrain]) {
+    for (const d of [...dgis, ...dsurv, ...dstorm, ...ddrain, ...dwhere]) {
       if (d.point) { w(0, "POINT"); w(8, d.layer); w(10, N(d.point[0])); w(20, N(d.point[1])); w(30, "0.0"); }
       else if (d.pts && d.pts.length > 1) polyline(w, d.layer, d.pts, !!d.closed);
     }

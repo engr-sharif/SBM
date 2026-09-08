@@ -377,6 +377,7 @@ terrain source, which needs an explicit decision + README/test update).
 | survey.js | the **August-2026 Jacobs survey** linework (`data/survey_2026.json`: the two 24-in HDPE discharge pipes, the sandbag wall, the NW Pit low) as read-only rows under Investigations; snap, 3D, export; `SBMM.survey` — the survey's 24 shots are a baked dataset, not this module |
 | storm.js | **v12 storm drainage** — EA's storm structures and storm line, the six CAD culvert marks, Jacobs' two surveyed 24-in pipes and the south-road grate chain, as read-only project data (`data/storm_network.json`): three layer rows under Site framework, rims from `SBMM.elev` on boot, the "storm drains work" switch, per-conduit broken/working, snap, 3D, exports, and `conduitsFor(bbox)` — the list `js/water.js` hands the kernel; `SBMM.storm` |
 | drainage.js | **v14 Phase 1 — the drainage map**: the `drainage` kernel run once over the whole site, three read-only layer rows under a *Drainage* sub-header in Site framework, the outlet table and its CSV/GeoJSON/DXF, "show what drains here" on any storm popup, the catchments draped in 3D; `SBMM.drainage` |
+| wherewater.js | **v22 §C — "where does the water go"**: the same `drainage` kernel over the same ground with the outfalls left un-merged (`SBMM.storm.mapConduits(cds, { mergeOutfalls: false })`), so each discharge pipe is its own outlet; four classes that partition the surveyed ground (Clear Lake overland / the Herman impoundment / Frog Pond–Green Pond / off the survey), one layer row with the acres in its legend, the card with a plain sentence per class, CSV/GeoJSON/DXF on `WATER-GOES`, the 3D drape and the `WHEREWATER` command; `SBMM.whereWater` |
 | accum.js | **v19 Phase 3 — flow accumulation**: the `accum` kernel over the whole site, two rows under the *Drainage* sub-header (the log-scaled raster with its acre legend, and the streams ≥ 5 ac weighted by Strahler order), the status-bar hover, the card's cross-check against the drainage map, CSV/GeoJSON, the 3D drape and the draped streams, and `rasterFor("d8")` — the raster `js/runoff.js` reads for TR-55's channel test; `SBMM.accum` |
 | pipes.js | **v19 Phase 3 — pipe hydraulics**: the `hydraulics` kernel over the storm network, Manning capacity, HEC-22 inlet capacity, the steady-state HGL/EGL pass, the *Pipe capacity* card, the rows the storm popups gained and the capacity-ratio colouring. Provisional and says so; nothing is invented; `SBMM.pipes` |
 | scenarios.js | **v19 Phase 3 — scenarios**: a named set of the assumptions the dialogs already offer, run through the same kernels they call, with the 2–4 way compare table, the map diff, the CSV, the report sheet and the additive session key `scenarios`; `SBMM.scenarios` |
@@ -2817,6 +2818,84 @@ rebuild is right**: the drainage map's three outlet areas (403.03 / 293.45 /
 3-ft capture disc covers 109 cells of different ground), `herman_pipe_s`'s
 `through_area` **37.90 ac**, the 100/100 raindrop identity, and the §11.8
 accumulation identity at **0.000 %** on all three outlets.
+
+## v22 §C — "where does the water go": the four areas
+
+Contract: `docs/V22_SPEC.md` §C. No kernel work (`js/compute.js` is not touched;
+`VERSION` stays 10). New file `js/wherewater.js` (`SBMM.whereWater`); the rest is
+one option on `js/storm.js` `mapConduits`, one export on `js/drainage.js`
+(`lakeRing`), a drape in `js/viewer3d.js`, `SBMM.popups.forWhereWater`, the
+`WHEREWATER` command, the Water ▾ entry, the two export fold-ins (`js/io.js`,
+`js/dxf.js`) and the design-storm card in `js/runoff.js`. Harness: `drainage`
+**§11.9** in `test/kernels.mjs`; e2e block **"9ac2. where the water goes"**.
+
+**THE ANSWER, at 2 ft**: straight into Clear Lake **403.03 ac**, into the Herman
+impoundment **84.14**, into Frog Pond / Green Pond **197.87**, off the surveyed
+ground **293.45** — 978.49 ac, which is the drainage map's own site to the square
+foot.
+
+### The rule, and the five things that will be walked into again
+
+- **THE CLASS IS THE OUTLET, READ AT A FINER NAMING — NOT THE FIRST CAPTURE.**
+  This is the whole design. `js/drainage.js` hands the kernel the conduit list
+  with v22 §S's trunk merge applied, so the three pipes in the Clear Lake trench
+  are ONE outlet (the 282.01 ac the engineer already reads). `js/wherewater.js`
+  hands the SAME kernel the SAME list with `{ mergeOutfalls: false }` (new option
+  on `SBMM.storm.mapConduits`), so each discharge pipe terminates its own chain
+  and the kernel reports one outlet per pipe. Same filled DEM, same conduit
+  seeding, same ponds, same first-capture labels, same surveyed ground cell for
+  cell — **only the outlet naming differs**, and §11.9 asserts exactly that: the
+  impoundment class plus the Frog/Green class IS the merged run's one outfall
+  catchment, and the lake and off-survey classes are its lake and off rows
+  unmoved.
+- **"FIRST CAPTURE IS THE IMPOUNDMENT" IS 37.90 AC AND IS NOT A CATCHMENT**, and
+  the spec's acceptance asked for that number. It is the ground that reaches the
+  impoundment *without pausing in a smaller depression first*: the site has
+  **38,994** lidar depressions and **1,945** of them are deeper than the 0.25-ft
+  noise floor, so 1,975 distinct first-capture labels carry the site's 978 acres
+  and only 114 ac of it reaches a sink with no capture at all. Classing by first
+  capture leaves ~800 ac unassigned and cannot partition anything. The catchment
+  is **84.14 ac**, the v19 accumulation at the same two barrels says **84.09**
+  (a different kernel over its own pointer field — §11.9 asserts it to 0.5 %),
+  and the card prints both numbers with a sentence saying which is which.
+- **THE CLASS OF AN OUTLET IS DERIVED FROM THE NETWORK.** `barrels()` = the
+  conduits whose **inlet node carries a surveyed invert**, which on this network
+  is exactly the two 24-in barrels the August-2026 survey plotted (the only two
+  nodes in `data/storm_network.json` with an `invert_ft`). `hermanTerminals()`
+  walks `next` forward from each to the end (`herman_main_n`, `herman_main_s`),
+  and an `outfall` sink is the impoundment's class when its `via` is one of them.
+  A future invert survey (`data/storm_survey.csv`) would add inverts, so the
+  derivation checks that it still names exactly those two and falls back to the
+  ids if it does not.
+- **EA's water polygons do not contain Frog Pond's or Green Pond's lowest cell.**
+  `js/drainage.js` `pondName()` asks which EA water polygon contains the pond's
+  lowest lidar cell; for the Herman impoundment it answers, and for those two it
+  does not — EA drew them at a water line the Jan-2024 lidar does not agree with,
+  so the drainage card calls both "Depression · E …". The sentence would have
+  read "the eastern ponds". The second source is the network's own node names
+  ("Frog Pond outlet", "FES — Green Pond outlet (west shore)") matched against
+  EA's water-layer NAMES: both halves are data. `js/drainage.js` is left alone —
+  changing `pondName` would move rows on a card this round did not touch.
+- **The group switch is the first tick, so `9y` has to wait for it.** `LS.setGroup
+  ("framework", true)` in the 3D-parity block turns this row on and starts a
+  second pass of a seven-second kernel; the block now waits on
+  `SBMM.whereWater.hasResult()` beside the drainage map's own wait, or the parity
+  table races it and reports the row as drawing nothing. Same reason the drainage
+  wait is there.
+- **The design storm apportions, it does not re-run.** `js/runoff.js`
+  `classRows()` splits each Phase 1 catchment's runoff volume between the classes
+  **by area**, because "where the water goes" splits the same catchments at a
+  finer naming — so a class carries its outlet's runoff depth and no curve number
+  is recomputed per class. The card says so in those words, and `impoundLine()`
+  is the one sentence the engineer asked for ("The Herman impoundment receives N
+  ac-ft … and rises 0.82 ft"). The card also gained a one-paragraph *what this
+  is* at the top, which is what he actually asked for first.
+
+**One stale comment fixed, not a number**: `DRAIN_REC.max_acc_ac` (197.82) was
+described as "the last cell before the impoundment leaves through the surveyed
+south pipe". It is not — the accumulation at that pipe is 84.09 ac. 197.82 is the
+road drain's trunk, and it is the same 197.87 ac §11.9 reports for the Frog/Green
+class, to the decimation. The recorded value is unchanged.
 
 ## v20 — tiled terrain, on-demand payloads, and the GPU rasters
 

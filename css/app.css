@@ -2028,3 +2028,14 @@ table.dspop.scnCmp{width:auto;min-width:100%}
 table.dspop.scnCmp td{white-space:nowrap;padding-right:12px}
 .scnPick{display:inline-flex;align-items:center;gap:4px;white-space:nowrap;margin-right:8px}
 .scnPick input{margin:0}
+
+/* v22 §C: "where does the water go" — the four areas. No new stacking band and
+   no new furniture: a colour chip inside a results-card table cell, and one
+   plain sentence per class under its row. The sentence row is what makes the
+   card readable by somebody who is not a hydrologist, which is the whole point
+   of §C, so it is styled as prose rather than as data. */
+.wwsw{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:6px;
+  border:1px solid #0006;vertical-align:-1px}
+table.dspop td.k.wwsay{color:var(--mut);font-size:10.5px;line-height:1.45;
+  padding:0 0 6px 15px;white-space:normal}
+.res .note.rnWhat{line-height:1.5;white-space:normal}
