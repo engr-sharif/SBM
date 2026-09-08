@@ -68,7 +68,7 @@ await page.evaluate(() => {
      surveyed pipes and the storm main all meet, and the one place a picture can
      show all four kinds of conduit at once */
   const ns = D.nodes.filter(n => ["grate_15", "branch_start", "junction",
-                                  "herman_pipe_n_inv", "storm_main_east"].includes(n.id));
+                                  "herman_pipe_n_inv", "storm_main_d_east"].includes(n.id));
   const xs = ns.map(n => n.x), ys = ns.map(n => n.y);
   SBMM.viewer3d.frameBox(Math.min(...xs) - 60, Math.min(...ys) - 60,
                          Math.max(...xs) + 60, Math.max(...ys) + 60);
