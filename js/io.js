@@ -92,6 +92,9 @@ SBMM.io = (function () {
        nothing here runs an analysis on the way out of an export (v14 §4) */
     if (SBMM.drainage && SBMM.drainage.hasResult())
       for (const d of SBMM.drainage.geoFeatures(P)) feats.push(d);
+    /* and the four "where the water goes" areas (v22 §C), on the same terms */
+    if (SBMM.whereWater && SBMM.whereWater.hasResult())
+      for (const d of SBMM.whereWater.geoFeatures(P)) feats.push(d);
     /* EA's reference design surfaces (§5) are store features so the volume
        engine can use them, but their geometry here is only a footprint bbox and
        the design itself already goes out through js/designgis.js — exporting

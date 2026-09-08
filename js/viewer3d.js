@@ -1500,6 +1500,18 @@ SBMM.viewer3d = (function () {
         overlayGroup.add(o);
       }
     }
+    /* v22 §C: the four areas of "where does the water go", draped like the
+       drainage catchments and through the same groundRuns rule, so a class
+       boundary that reaches the survey limit stops there instead of standing
+       up as a curtain over Clear Lake. */
+    if (SBMM.whereWater && SBMM.whereWater.hasResult()) {
+      for (const r of SBMM.whereWater.rings3d()) {
+        const o = drapedLine(r.ring, new THREE.Color(r.color).getHex(), false, r.width || 3);
+        o.userData.pick = { kind: "gis", props: r.props, geom: r.geom };
+        tag(addShadow(SHW, o), "framework", "where_water");
+        overlayGroup.add(o);
+      }
+    }
     /* v19 §2: the stream network, draped like every other overlay line. A
        stream follows the ground by construction, but a link that ends at the
        survey limit still has its last vertex out over the water, so it goes
