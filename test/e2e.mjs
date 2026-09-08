@@ -4088,11 +4088,10 @@ w13 = await page.evaluate(async () => {
                           whatif: !!ra.props.whatif, storm: !!ra.props.storm,
                           reason: ra.props.end.reason } : null;
     await set(Math.max(0, iP - 1)); await wait(150); out.hBackDown = vis();
+    /* the analysis stays OPEN — the 3D sub-block below needs its stage surface,
+       and it is the one that closes it, which is where "the automatic rim route
+       goes with the analysis" is asserted (out.rimAutoAfterClear) */
   }
-  SBMM.water.clearOvertop();
-  await wait(300);
-  out.hAfterClear = SBMM.store.features.filter(f => f.type === "flow"
-    && /over the rim at/.test(f.name)).length;
   return out;
 });
 console.log("v13 Frog Pond:", JSON.stringify({ spill: w13.frog.spill, cs: w13.frog.cs,
@@ -4231,8 +4230,7 @@ if (w13.hermanRoutes.rimWhatIf !== true)
 console.log("v22 slider on Herman:", JSON.stringify({ idx: w13.hSlider, below: w13.hBelow,
   atPipe: w13.hAtPipe, atRim: w13.hAtRim, backDown: w13.hBackDown,
   rimAuto: w13.hRimAuto && { name: w13.hRimAuto.name, len: w13.hRimAuto.len,
-                             reason: w13.hRimAuto.reason },
-  afterClear: w13.hAfterClear }));
+                             reason: w13.hRimAuto.reason } }));
 if (w13.hSlider.iP < 0 || w13.hSlider.iR <= w13.hSlider.iP)
   { console.log("FAIL: the pipe row must sit below the rim row in the stage table:",
                 JSON.stringify(w13.hSlider)); process.exit(1); }
@@ -4257,9 +4255,8 @@ if (w13.hRimAuto.storm !== true)
   { console.log("FAIL: the automatic rim route must be traced with the storm network on"); process.exit(1); }
 if (w13.hBackDown.auto !== false || w13.hBackDown.pipe !== false)
   { console.log("FAIL: below the rim again the overflow must hide:", JSON.stringify(w13.hBackDown)); process.exit(1); }
-if (w13.hAfterClear !== 0)
-  { console.log("FAIL: closing the analysis must take its automatic rim route with it, left",
-                w13.hAfterClear); process.exit(1); }
+/* "it goes with the analysis" is asserted after the 3D sub-block below, which
+   is what closes this analysis (w13d.rimAutoAfterClear) */
 
 /* --- water in 3D ----------------------------------------------------- */
 /* The particles: precomputed per rebuild, advanced in the render loop, and the
@@ -4329,6 +4326,9 @@ w13d = await page.evaluate(async () => {
   SBMM.water.clearOvertop();
   await wait(400);
   out.stageAfterClear = SBMM.viewer3d.stats().waterStage;
+  /* v22 §R.2: and the automatic rim overflow is owned by the analysis too */
+  out.rimAutoAfterClear = SBMM.store.features.filter(f => f.type === "flow"
+    && /over the rim at/.test(f.name)).length;
   for (const f of SBMM.store.features) if (f.type === "flow") SBMM.store.setVisible(f, true);
   SBMM.viewer3d.refreshOverlays();
   await wait(400);
@@ -4361,6 +4361,9 @@ if (!w13d.stageAtZero || Math.abs(w13d.stageAtZero.level - w13d.stageLevelZero) 
                 JSON.stringify(w13d.stageAtZero), JSON.stringify(w13d.stageAtDefault)); process.exit(1); }
 if (w13d.stageAfterClear !== null)
   { console.log("FAIL: closing the analysis must clear the stage surface"); process.exit(1); }
+if (w13d.rimAutoAfterClear !== 0)
+  { console.log("FAIL: closing the analysis must take its automatic rim overflow with it, left",
+                w13d.rimAutoAfterClear); process.exit(1); }
 if (errors.length !== errBeforeW13) {
   console.log("FAIL: page errors during the v13 water block:",
               errors.slice(errBeforeW13, errBeforeW13 + 6)); process.exit(1);

@@ -1600,8 +1600,9 @@ SBMM.water = (function () {
       /* v22 §R.2: at and above the rim the water goes BOTH ways — over the rim
          and on down the drains — and the sentence says so. Below the rim it is
          the drains alone, which is v15's ruling and is unchanged. */
+      const carrier = ov.csIsPipe ? "the 24-in pipes" : ov.conduitLabel;
       let state = (spilling && ov.rimSuppressed)
-          ? "OVERFLOWS the rim at ① · and still discharging through " + ov.conduitLabel
+          ? "OVERFLOWS the rim at ① · and still discharging through " + carrier
         : spilling ? "OVERFLOWS the rim at ①"
         : overCrest ? "above the sandbag crest · discharging through the pipes"
         : piping ? "discharging through the 24-in pipes"
