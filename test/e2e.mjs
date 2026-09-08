@@ -3939,7 +3939,21 @@ w13 = await page.evaluate(async () => {
     const cr = SBMM.store.features.filter(f => f.type === "flow" && /first-discharge route/.test(f.name)).pop();
     const rr = SBMM.store.features.filter(f => f.type === "flow"
       && f.name.indexOf(nm) === 0 && /overflow route/.test(f.name)).pop();
+    /* v22 §R.2: the card opens at the rim-spill row of the stage table, so the
+       rim overflow is traced by the analysis itself. Wait for the job. */
+    for (let i = 0; i < 80 && !SBMM.water.routes().rimAuto; i++) await wait(500);
+    const ra = SBMM.store.features.filter(f => f.type === "flow"
+      && f.name.indexOf(nm) === 0 && /over the rim at/.test(f.name)).pop();
+    const RA = SBMM.water.active();
     return {
+      rimAuto: ra ? { name: ra.name, first: ra.pts[0].slice(), len: ra.props.length_ft,
+                      whatif: !!ra.props.whatif, visible: ra.visible,
+                      end: [ra.props.end.x, ra.props.end.y], reason: ra.props.end.reason,
+                      dashed: !!(ra.layer && ra.layer.getLayers && ra.layer.getLayers()
+                        .some(l => l.options && l.options.dashArray === "7 6")),
+                      animated: !!(ra.layer && ra.layer.getLayers && ra.layer.getLayers()
+                        .some(l => l.options && l.options.className === "flowanim")) } : null,
+      spillNext: RA && RA.primary ? RA.primary.next : null,
       spill: R.primary.level, spillAt: [R.primary.x, R.primary.y],
       cs: R.conduitSpill && { id: R.conduitSpill.id, level: R.conduitSpill.level,
                               at: [R.conduitSpill.x, R.conduitSpill.y] },
@@ -3993,8 +4007,10 @@ w13 = await page.evaluate(async () => {
     const vis = () => {
       const cr = SBMM.store.features.filter(f => f.type === "flow" && /first-discharge route/.test(f.name)).pop();
       const rr = SBMM.store.features.filter(f => f.type === "flow" && /Frog Pond overflow route/.test(f.name)).pop();
+      const ra = SBMM.store.features.filter(f => f.type === "flow"
+        && /^Frog Pond overflow — over the rim at/.test(f.name)).pop();
       return { c: cr ? cr.visible : null, r: rr ? rr.visible : null,
-               rim: SBMM.water.routes().rim,
+               rim: SBMM.water.routes().rim, auto: ra ? ra.visible : null,
                label: (card.querySelector(".wslabel") || {}).textContent || "" };
     };
     const set = async i => { sl.value = String(i); sl.dispatchEvent(new Event("input")); await wait(120); };
@@ -4042,6 +4058,41 @@ w13 = await page.evaluate(async () => {
                               len: wf.props.length_ft, reason: wf.props.end.reason } : null;
     out.hermanRoutes = SBMM.water.routes();
   }
+  /* v22 §R.2 — THE THREE SLIDER STATES ON HERMAN. Below the surveyed pipe
+     invert nothing discharges; from it the pipe route (the §S chain, both
+     barrels) shows; from the rim spill the rim overflow shows BESIDE it and
+     disappears again on the way back down. */
+  {
+    const R = SBMM.water.active();
+    const sl = hcard.querySelector("#wsRange");
+    const iP = R.stage.findIndex(s => Math.abs(s.level - 1341.55) < 1e-6);
+    const iR = R.stage.findIndex(s => s.level >= R.primary.level - 1e-6);
+    const set = async i => { sl.value = String(i); sl.dispatchEvent(new Event("input")); await wait(150); };
+    const pick = re => SBMM.store.features.filter(f => f.type === "flow" && re.test(f.name)).pop();
+    const vis = () => {
+      const pr = pick(/^Herman Impoundment pipe discharge route/);
+      const ra = pick(/^Herman Impoundment overflow — over the rim at/);
+      return { pipe: pr ? pr.visible : null, auto: ra ? ra.visible : null,
+               rimAuto: SBMM.water.routes().rimAuto,
+               label: (hcard.querySelector(".wslabel") || {}).textContent || "" };
+    };
+    out.hSlider = { iP, iR, rim: R.primary.level, spillNext: R.primary.next };
+    await set(Math.max(0, iP - 1)); out.hBelow = vis();
+    await set(iP); out.hAtPipe = vis();
+    await set(iR);
+    for (let i = 0; i < 80 && !SBMM.water.routes().rimAuto; i++) await wait(500);
+    await wait(200);
+    out.hAtRim = vis();
+    const ra = pick(/^Herman Impoundment overflow — over the rim at/);
+    out.hRimAuto = ra ? { name: ra.name, first: ra.pts[0].slice(), len: ra.props.length_ft,
+                          whatif: !!ra.props.whatif, storm: !!ra.props.storm,
+                          reason: ra.props.end.reason } : null;
+    await set(Math.max(0, iP - 1)); await wait(150); out.hBackDown = vis();
+  }
+  SBMM.water.clearOvertop();
+  await wait(300);
+  out.hAfterClear = SBMM.store.features.filter(f => f.type === "flow"
+    && /over the rim at/.test(f.name)).length;
   return out;
 });
 console.log("v13 Frog Pond:", JSON.stringify({ spill: w13.frog.spill, cs: w13.frog.cs,
@@ -4081,11 +4132,29 @@ if (w13.frog.route.end[1] >= 2128000)
 if (w13.frog.routes.rim !== false || w13.frog.routes.rimSuppressed !== true)
   { console.log("FAIL: Frog Pond's rim route must not be traced by default:",
                 JSON.stringify(w13.frog.routes)); process.exit(1); }
+/* v22 §R.2 — but the card OPENS at the rim spill row, and from the rim up the
+   overflow is traced automatically and shown beside whatever the drains carry.
+   It is an ordinary flow: solid, animated, the water colour — not the dashed
+   what-if, which answers the different question of the drains being blocked. */
+if (w13.frog.routes.rimAuto !== true || !w13.frog.rimAuto)
+  { console.log("FAIL: at the rim the overflow must be traced automatically:",
+                JSON.stringify(w13.frog.routes)); process.exit(1); }
+if (w13.frog.rimAuto.whatif || w13.frog.rimAuto.dashed || !w13.frog.rimAuto.animated)
+  { console.log("FAIL: the automatic rim route must be a normal animated flow, not the what-if:",
+                JSON.stringify(w13.frog.rimAuto)); process.exit(1); }
+if (!/over the rim at 1,416.04 ft/.test(w13.frog.rimAuto.name))
+  { console.log("FAIL: the automatic rim route must be captioned with its level:",
+                w13.frog.rimAuto.name); process.exit(1); }
+/* it starts at the rim spill cell — the cell the sealed flood escapes to, which
+   is what `overtop` reports as primary.next and what the what-if uses too */
+if (!w13.frog.spillNext || wdist(w13.frog.rimAuto.first, w13.frog.spillNext) > 2)
+  { console.log("FAIL: the automatic rim route does not start at the rim spill cell:",
+                JSON.stringify(w13.frog.rimAuto.first), JSON.stringify(w13.frog.spillNext)); process.exit(1); }
 if (w13.frog.rim)
   { console.log("FAIL: a rim 'overflow route' feature was created anyway:", w13.frog.rim.name); process.exit(1); }
 if (!w13.frog.whatIfBtn) { console.log("FAIL: no 'trace the rim overflow' button on the card"); process.exit(1); }
-for (const t of ["not traced; the drains are assumed to handle it",
-                 "not traced — the drains are assumed to carry it",
+for (const t of ["the drains handle it below this; from here up the overflow is traced too",
+                 "traced at and above the rim (1,416.04 ft) — below it the drains carry the water",
                  "+0.30 ft above pond culvert",
                  "→ Green Pond (fills to 1,394.50) → green outlet"])
   if (!w13.frog.card.includes(t)) { console.log("FAIL: the Frog Pond card lacks '" + t + "'"); process.exit(1); }
@@ -4108,14 +4177,17 @@ if (w13.frog.viaRows.length !== 1 || w13.frog.viaRows[0][1] !== "pond_culvert")
 /* v15 §1: `r` is the rim OVERFLOW ROUTE feature, and there is no longer one to
    find — the conduit spills below the rim, so the rim route is not traced at
    all (`rim: false`) and only the what-if button can produce one. */
-if (w13.below.c !== false || w13.below.rim !== false || w13.below.r !== null)
+if (w13.below.c !== false || w13.below.rim !== false || w13.below.r !== null || w13.below.auto !== false)
   { console.log("FAIL: below the conduit level nothing may show:", JSON.stringify(w13.below)); process.exit(1); }
-if (w13.atConduit.c !== true || w13.atConduit.rim !== false || w13.atConduit.r !== null)
+if (w13.atConduit.c !== true || w13.atConduit.rim !== false || w13.atConduit.r !== null
+    || w13.atConduit.auto !== false)
   { console.log("FAIL: at the conduit level only the conduit route shows:", JSON.stringify(w13.atConduit)); process.exit(1); }
-if (w13.atTop.c !== true || w13.atTop.rim !== false)
-  { console.log("FAIL: above the rim the conduit route shows and no rim route is traced:",
+/* v22 §R.2: above the rim the conduit route STILL shows — the drains keep
+   carrying what they carried — and the rim overflow shows beside it */
+if (w13.atTop.c !== true || w13.atTop.rim !== false || w13.atTop.auto !== true)
+  { console.log("FAIL: above the rim both routes must show:",
                 JSON.stringify(w13.atTop)); process.exit(1); }
-if (!/the drains are assumed to carry it/.test(w13.atTop.label))
+if (!/OVERFLOWS the rim/.test(w13.atTop.label) || !/still discharging through pond culvert/.test(w13.atTop.label))
   { console.log("FAIL: the slider label above the rim:", w13.atTop.label); process.exit(1); }
 if (!/discharging through pond culvert/.test(w13.atConduit.label))
   { console.log("FAIL: the slider label at the conduit level:", w13.atConduit.label); process.exit(1); }
@@ -4148,12 +4220,46 @@ for (const t of ["24-in HDPE pipes", "via herman_pipe_s", "Rim spill"])
 if (w13.herman.routes.rim !== false || w13.herman.routes.pipe !== true
     || w13.herman.routes.rimSuppressed !== true || !w13.herman.whatIfBtn)
   { console.log("FAIL: Herman's default routes:", JSON.stringify(w13.herman.routes)); process.exit(1); }
-if (!w13.herman.card.includes("not traced; the drains are assumed to handle it"))
-  { console.log("FAIL: the Herman card does not say the rim spill is not traced"); process.exit(1); }
+if (!w13.herman.card.includes("the drains handle it below this; from here up the overflow is traced too"))
+  { console.log("FAIL: the Herman card does not say what happens at the rim"); process.exit(1); }
 if (!w13.hermanWhatIf || !w13.hermanWhatIf.whatif || !/24-in pipes blocked/.test(w13.hermanWhatIf.name))
   { console.log("FAIL: Herman's what-if rim overflow:", JSON.stringify(w13.hermanWhatIf)); process.exit(1); }
 if (w13.hermanRoutes.rimWhatIf !== true)
   { console.log("FAIL: Herman's what-if is not owned by the analysis"); process.exit(1); }
+
+/* --- v22 §R.2: the three slider states on Herman --------------------- */
+console.log("v22 slider on Herman:", JSON.stringify({ idx: w13.hSlider, below: w13.hBelow,
+  atPipe: w13.hAtPipe, atRim: w13.hAtRim, backDown: w13.hBackDown,
+  rimAuto: w13.hRimAuto && { name: w13.hRimAuto.name, len: w13.hRimAuto.len,
+                             reason: w13.hRimAuto.reason },
+  afterClear: w13.hAfterClear }));
+if (w13.hSlider.iP < 0 || w13.hSlider.iR <= w13.hSlider.iP)
+  { console.log("FAIL: the pipe row must sit below the rim row in the stage table:",
+                JSON.stringify(w13.hSlider)); process.exit(1); }
+if (w13.hBelow.pipe !== false || w13.hBelow.auto !== false)
+  { console.log("FAIL: below the surveyed invert nothing may show:", JSON.stringify(w13.hBelow)); process.exit(1); }
+if (w13.hAtPipe.pipe !== true || w13.hAtPipe.auto !== false)
+  { console.log("FAIL: at the invert only the pipe discharge route shows:", JSON.stringify(w13.hAtPipe)); process.exit(1); }
+if (!/discharging through the 24-in pipes/.test(w13.hAtPipe.label))
+  { console.log("FAIL: the label at the pipe stage:", w13.hAtPipe.label); process.exit(1); }
+if (w13.hAtRim.pipe !== true || w13.hAtRim.auto !== true || w13.hAtRim.rimAuto !== true)
+  { console.log("FAIL: above the rim BOTH routes must show:", JSON.stringify(w13.hAtRim)); process.exit(1); }
+if (!/OVERFLOWS the rim/.test(w13.hAtRim.label) || !/still discharging/.test(w13.hAtRim.label))
+  { console.log("FAIL: the label above the rim:", w13.hAtRim.label); process.exit(1); }
+if (!w13.hRimAuto || w13.hRimAuto.whatif || !/over the rim at 1,343.84 ft/.test(w13.hRimAuto.name))
+  { console.log("FAIL: Herman's automatic rim route:", JSON.stringify(w13.hRimAuto)); process.exit(1); }
+/* it starts at the rim spill cell, on the analysis's own grid, with the storm
+   network ON — a drop over the rim may well meet the road drain */
+if (wdist(w13.hRimAuto.first, w13.hSlider.spillNext) > 2)
+  { console.log("FAIL: the automatic rim route does not start at the rim spill cell:",
+                JSON.stringify(w13.hRimAuto.first), JSON.stringify(w13.hSlider.spillNext)); process.exit(1); }
+if (w13.hRimAuto.storm !== true)
+  { console.log("FAIL: the automatic rim route must be traced with the storm network on"); process.exit(1); }
+if (w13.hBackDown.auto !== false || w13.hBackDown.pipe !== false)
+  { console.log("FAIL: below the rim again the overflow must hide:", JSON.stringify(w13.hBackDown)); process.exit(1); }
+if (w13.hAfterClear !== 0)
+  { console.log("FAIL: closing the analysis must take its automatic rim route with it, left",
+                w13.hAfterClear); process.exit(1); }
 
 /* --- water in 3D ----------------------------------------------------- */
 /* The particles: precomputed per rebuild, advanced in the render loop, and the
