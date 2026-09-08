@@ -3038,7 +3038,11 @@ for (const [alias, cmd] of wmode.cmds)
   if (!cmd) { console.log("FAIL: water command missing:", alias); process.exit(1); }
 if (wmode.cmds[0][1] !== "DROP" || wmode.cmds[5][1] !== "OVERTOP" || wmode.cmds[8][1] !== "CATCH")
   { console.log("FAIL: a water alias resolves to the wrong command", wmode.cmds); process.exit(1); }
-if (wmode.menu.join(",") !== "raindrop,overtop,overtop-click,storm-toggle,drainage,water-clear")
+/* v22 §C added "where the water goes" between the drainage map and the clear
+   entry — the four areas are a water answer and belong beside the map they are
+   the same analysis as. The list is asserted in full, not by length, so the
+   next addition has to be stated here too. */
+if (wmode.menu.join(",") !== "raindrop,overtop,overtop-click,storm-toggle,drainage,wherewater,water-clear")
   { console.log("FAIL: the Water menu is wrong:", wmode.menu); process.exit(1); }
 if (wmode.pane.pe !== "none" || wmode.pane.canvas)
   { console.log("FAIL: the water pane must be an SVG pane that takes no pointer events"); process.exit(1); }
