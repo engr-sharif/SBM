@@ -516,6 +516,16 @@ SBMM.terrain3d = (function () {
     if (!out.length) for (const [x, y] of root.tiles) out.push([zMax, x, y]);
     const vs = vertsPerSide(meshStep(targetPx));
     if (out.length * vs * vs > MAX_VERTS) overflow = true;
+    /* WHAT THE SELECTION WAS GIVEN, because a selection that comes back as one
+       root tile is otherwise unreadable. `H` is the clamp above: a canvas that
+       has not been laid out reports a few pixels, and at 240 px the 64-ft root
+       already meets a 2-px budget — so the view opens on the root and stays
+       there until the next camera move. e2e block 9a-2's "high: 66049" (one
+       257 x 257 tile) is exactly that, and js/viewer3d.js
+       refreshTerrainForCamera() resizes and retries because of it. */
+    stat.lastSelectH = H;
+    stat.lastSelectTargetPx = +targetPx.toFixed(2);
+    stat.lastSelectTiles = out.length;
     return { list: out, overflow };
   }
 

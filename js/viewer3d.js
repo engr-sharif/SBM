@@ -3504,9 +3504,23 @@ SBMM.viewer3d = (function () {
      "high" and 1,585,176 for the same setting a moment afterwards. */
   async function refreshTerrainForCamera() {
     if (!lodOn || !nav || !camera) return;
-    nav.update();
-    camera.updateMatrixWorld();
-    await SBMM.terrain3d.update(true);
+    /* RESIZE FIRST, AND CHECK THE ANSWER (v22 §G). The quadtree's screen-space
+       error is measured against the canvas HEIGHT, and js/terrain3d.js clamps
+       an unlaid-out canvas to 240 px — at which the 64-ft root already meets a
+       2-px budget, so the selection comes back as one tile and the view opens
+       on the root until the next camera move. show() does call resize(), but
+       under load the first build can still run against a canvas that has not
+       been laid out. So: size the canvas, step the rig, select — and if the
+       quadtree drew a single tile, give the layout a frame and go again. */
+    for (let i = 0; i < 3; i++) {
+      resize();
+      nav.update();
+      camera.updateMatrixWorld();
+      await SBMM.terrain3d.update(true);
+      const s = SBMM.terrain3d.stats();
+      if (!s.on || s.tiles > 1) break;
+      await new Promise(r => requestAnimationFrame(r));
+    }
     terrainMeshes = SBMM.terrain3d.records();
     SBMM._v3dVerts = terrainMeshes.reduce((n, t) => n + t.nx * t.ny, 0);
     lodDirty = false;
