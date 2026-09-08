@@ -239,7 +239,11 @@ def main():
     # is used by the Frog and Green pond overflow - that's the far south one".
     # The drawing agrees: E943E / E943C / E943D are 2.35 ft apart - the outside
     # diameter of 24-in corrugated HDPE - so the trench is 4.7 ft wide, where a
-    # 24-in double line would be 2.0 ft wide in total. Which is which comes off
+    # 24-in double line would be 2.0 ft wide in total. (The spacing is drafting,
+    # not a measurement: the field team says the south pipe is the 30-in HDPE
+    # that conveys Green Pond - J. Lucero after walking it with Carter, 3-4 Sep
+    # 2026, "the 30 inch that conveys water from Green Pond is in good condition
+    # and the dual 24 inch are in disrepair" - so E943D carries size_in=30.) Which is which comes off
     # the survey: the North barrel's plotted west end is nearest E943E's east
     # end and the South barrel's nearest E943C's (about 12.8 and 12.7 ft as the
     # survey is plotted today — MEASURED below, never assumed, because the
@@ -301,9 +305,9 @@ def main():
                      "South storm line — east end of the drawn line", cad_handle="E943D",
                      note="The east end of E943D, the southernmost of the three pipes in the trench. NOTHING FEEDS IT: the two surveyed barrels run in E943E and E943C, and the road drain joins this line at the junction grate 190 ft west. It is kept because EA draws it — what the stretch east of the junction connects to is not established.")
     conduit("storm_main_upper", "storm_main_d_east", "junction", upper, "cad_line", ["E943D"],
-            size_in=24, note=f"EA's south storm line east of the junction grate, which sits {best_d:.1f} ft off it. Nothing discharges into it in this network (see the node's own note).")
+            size_in=30, note=f"EA's south storm line east of the junction grate, which sits {best_d:.1f} ft off it. Nothing discharges into it in this network (see the node's own note). 30-in HDPE per the field team (J. Lucero, Sep 2026); no invert surveyed.")
     conduit("storm_main_lower", "junction", "outfall", lower, "cad_line", ["E943D"],
-            size_in=24, note="EA's south storm line from the junction grate to the lake — the road drain's pipe, and the Frog/Green pond overflow's (engineer, 2026-09-06).")
+            size_in=30, note="EA's south storm line from the junction grate to the lake — the road drain's pipe, and the Frog/Green pond overflow's (engineer, 2026-09-06). 30-in HDPE, in good condition, per the field team (J. Lucero after walking it with Carter, Sep 2026); the dual 24-in are the ones in disrepair.")
     # NOT BUILT, and recorded rather than guessed: E9441/E9442 leave the junction
     # north-west and E9443/E9444 come back south-west to the shore — a double
     # line, 560 ft, drawn but with no structure at either end and no described

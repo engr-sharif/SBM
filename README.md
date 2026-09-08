@@ -956,7 +956,10 @@ three pipes that flow along that channel, the two for the Herman impoundment and
 used by the Frog and Green pond overflow — that's the far south one."* The drawing says the
 same thing and the builder had misread it: `V-STRM-STRC` carries **three** 783-ft polylines
 between the sandbag wall and the shore — `E943E` (north), `E943C` (middle) and `E943D`
-(south) — **2.35 ft apart**, which is the outside diameter of 24-in corrugated HDPE. A 24-in
+(south) — **2.35 ft apart**, which is the outside diameter of 24-in corrugated HDPE (the
+spacing is drafting: the field team says the south one is the **30-in HDPE** that conveys
+Green Pond, in good condition, and the dual 24-in are the ones in disrepair — J. Lucero, Sep
+2026 — so the road drain's pipe carries `size_in: 30`). A 24-in
 double line with a centreline, which is what they had been taken for, would be 2.0 ft wide
 in total; this trench is 4.7 ft wide. Which is which comes off the survey: the North
 barrel's plotted west end is 12.8 ft from E943E's east end and the South barrel's 12.7 ft

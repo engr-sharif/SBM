@@ -112,6 +112,9 @@ SBMM.cmd = (function () {
     { n: "OVERTOP", a: ["SPILL", "POUR"],
       d: "overtopping analysis of the Herman Impoundment — spill level, where, and where it goes",
       f: () => SBMM.water.overtopHerman() },
+    { n: "WATERCLEAR", a: ["CLEARWATER"],
+      d: "clear every water overlay — the overtopping analysis, its routes and every raindrop (one undo)",
+      f: () => SBMM.water.clearWater() },
     /* v17 §5a — freehand ink. MARKUP and INK are the two words a Civil 3D user
        reaches for; neither is taken (aliases resolve first-match over one flat
        table, so a duplicate would silently kill the later command's). */
