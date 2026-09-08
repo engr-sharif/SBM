@@ -38,15 +38,14 @@ What is inferred, and says so on the feature (`source`):
   green_outlet     the west pond's FES piped to the Spot 8 grate; EA drew the FES, not the pipe
   road_drain_*    EA drew the nine grates but no line between them; straight
                   segments between consecutive structures
-  pipe_to_main    EA's drawn storm line starts 13 ft west of the surveyed pipe's
-                  plotted end; the 13 ft is the connection the user asked for
-  pipe_to_main_s  the SAME connection for the South barrel (engineer, 2026-09-05:
-                  "there are 2 pipes and you only used one ... the flow goes to
-                  the two discharge pipes"). Both 24-in HDPE barrels through the
-                  sandbag wall are the impoundment's discharge, in parallel, and
-                  both end at EA's drawn storm line. Before this the South pipe
-                  stopped 13 ft short of anything and its water left the pipe on
-                  to the ground.
+  herman_main_n/s the 12.8 ft / 12.7 ft between each surveyed barrel's plotted
+                  west end and the east end of ITS OWN drawn line (E943E for the
+                  North barrel, E943C for the South). Only that gap is inferred;
+                  the rest of each conduit is EA's polyline verbatim.
+Not built, and recorded rather than guessed:
+  E9441/E9442 -> E9443/E9444, a double line that leaves the junction north-west
+                  and comes back south-west to the shore: drawn, purpose not
+                  established - ask EA. It is not in the network.
 Nothing here has an invert except the two surveyed pipe nodes. Nothing is
 shifted to make the drawing tidy.
 
@@ -222,38 +221,69 @@ def main():
                 note="One of the two 24-in corrugated HDPE barrels through the sandbag wall.")
         if side == "n": pipe_end_n = west
         else: pipe_end_s = west
+    # ---- the three pipes in one trench to Clear Lake ------------------------
+    # RULING (project engineer, 2026-09-06): the three V-STRM-STRC polylines
+    # between the sandbag wall and the Clear Lake shore are THREE PIPES, not
+    # one 24-in double line with a centreline. His words: "the two overflow
+    # outlets that you have merging into one, that's not the case, we have two
+    # pipes that run in parallel with each other that take the overflow from
+    # the two overflow pipes out to Clear Lake ... there are three pipes that
+    # flow along that channel, the two for the Herman impoundment and one that
+    # is used by the Frog and Green pond overflow - that's the far south one".
+    # The drawing agrees: E943E / E943C / E943D are 2.35 ft apart - the outside
+    # diameter of 24-in corrugated HDPE - so the trench is 4.7 ft wide, where a
+    # 24-in double line would be 2.0 ft wide in total. Which is which comes off
+    # the survey: the North barrel's plotted west end is 12.8 ft from E943E's
+    # east end and the South barrel's 12.7 ft from E943C's, which leaves E943D
+    # (the far south one) for the road drain.
+    # So `pipe_to_main`, `pipe_to_main_s` and `storm_main_east` are gone: each
+    # barrel runs to the lake in its own pipe.
     e943c = byHandle["E943C"]["coords"]
-    main_east = node("storm_main_east", "bend", e943c[0][0], e943c[0][1], "Storm main — east end of the drawn line",
-                     cad_handle="E943C", note="Where EA's storm line begins, 13 ft west of the surveyed pipe's plotted end.")
-    conduit("pipe_to_main", pipe_end_n["id"], "storm_main_east", [xy(pipe_end_n), xy(main_east)], "inferred",
-            size_in=24, provenance=USER_PROV,
-            note="The connection between the North barrel and EA's drawn storm line (user, Sep 2026): the drawn line starts 13 ft west of the plotted pipe end.")
-    # RULING (project engineer, 2026-09-05): BOTH 24-in barrels are the
-    # impoundment's discharge and both reach the storm main. One conduit per
-    # barrel, beside the North one rather than a shared manifold node, because a
-    # manifold would have to move `pipe_to_main`'s inlet and re-cut its geometry
-    # — and every golden that names that conduit, its 13.2-ft length and the
-    # drainage map's per-inlet areas are measured on it as it stands.
-    conduit("pipe_to_main_s", pipe_end_s["id"], "storm_main_east", [xy(pipe_end_s), xy(main_east)], "inferred",
-            size_in=24, provenance=USER_PROV,
-            note="The same connection for the South barrel (engineer, 2026-09-05: the impoundment discharges through BOTH 24-in pipes). Not drawn in the CAD; inverts unknown. Before this the South barrel ended 13 ft short of the storm line and its water left the pipe on to the ground.")
-    # split the main at the junction: the vertex run up to the closest point, then on
+    e943d = byHandle["E943D"]["coords"]
+    e943e = byHandle["E943E"]["coords"]
+    # ONE outfall node where the three west ends meet - they are within 2.9 ft
+    # of each other and it is kept at E943C's west end, where it has always
+    # been. Deliberate: the drainage map labels a cell by the OUTLET it drains
+    # to, so one outfall keeps "Clear Lake outfall (storm network)" one
+    # catchment and leaves the accumulation identity alone. Three outfall nodes
+    # would split a number the engineer already reads.
+    outfall = node("outfall", "outfall", e943c[-1][0], e943c[-1][1], "Clear Lake outfall (end of the drawn lines)",
+                   cad_handle="E943C",
+                   note="The west end of EA's three storm lines at the Clear Lake shore. E943E ends 2.4 ft north of this point and E943D 2.4 ft south of it; one node, because all three discharge at the same place. No headwall or FES drawn.")
+    for side, barrel, handle, line in (("n", pipe_end_n, "E943E", e943e),
+                                       ("s", pipe_end_s, "E943C", e943c)):
+        gap = dist(xy(barrel), tuple(line[0][:2]))
+        pts = [xy(barrel)] + [tuple(p[:2]) for p in line]
+        tail = dist(tuple(line[-1][:2]), xy(outfall))
+        conduit(f"herman_main_{side}", barrel["id"], "outfall", pts, "cad_line", [handle],
+                size_in=24, material="HDPE",
+                note=f"The {'North' if side == 'n' else 'South'} barrel's own pipe to Clear Lake: EA's drawn line {handle} verbatim, "
+                     f"reached by a {gap:.1f} ft gap between the surveyed pipe's plotted west end and the line's east end "
+                     f"(that gap is INFERRED - EA drew the line, the survey plotted the barrel, and nothing joins them on paper)."
+                     + (f" Its west end is {tail:.1f} ft from the shared outfall node." if tail > 0.05 else ""))
+    # the south line E943D is the road drain's, split at the junction grate: the
+    # vertex run up to the closest point, then on
     jx = xy(junction)
     best_i, best_d = 0, 1e9
-    for i in range(len(e943c) - 1):
-        a, b = e943c[i], e943c[i + 1]
+    for i in range(len(e943d) - 1):
+        a, b = e943d[i], e943d[i + 1]
         dx, dy = b[0] - a[0], b[1] - a[1]; L2 = dx * dx + dy * dy
         t = max(0, min(1, ((jx[0] - a[0]) * dx + (jx[1] - a[1]) * dy) / L2))
         d = dist(jx, (a[0] + t * dx, a[1] + t * dy))
         if d < best_d: best_d, best_i = d, i
-    upper = [tuple(p) for p in e943c[:best_i + 1]] + [jx]
-    lower = [jx] + [tuple(p) for p in e943c[best_i + 1:]]
-    outfall = node("outfall", "outfall", e943c[-1][0], e943c[-1][1], "Clear Lake outfall (end of the drawn line)",
-                   cad_handle="E943C", note="The west end of EA's storm line at the Clear Lake shore. No headwall or FES drawn.")
-    conduit("storm_main_upper", "storm_main_east", "junction", upper, "cad_line", ["E943C", "E943D", "E943E", "E9441", "E9442"],
-            size_in=24, note=f"EA's storm main, drawn as a 24-in double line with a centreline; the junction grate sits {best_d:.1f} ft off the centreline.")
-    conduit("storm_main_lower", "junction", "outfall", lower, "cad_line", ["E943C", "E943D", "E943E", "E9443", "E9444"],
-            size_in=24, note="EA's storm main from the junction to the lake.")
+    upper = [tuple(p[:2]) for p in e943d[:best_i + 1]] + [jx]
+    lower = [jx] + [tuple(p[:2]) for p in e943d[best_i + 1:]]
+    main_east = node("storm_main_d_east", "bend", e943d[0][0], e943d[0][1],
+                     "South storm line — east end of the drawn line", cad_handle="E943D",
+                     note="The east end of E943D, the southernmost of the three pipes in the trench. NOTHING FEEDS IT: the two surveyed barrels run in E943E and E943C, and the road drain joins this line at the junction grate 190 ft west. It is kept because EA draws it — what the stretch east of the junction connects to is not established.")
+    conduit("storm_main_upper", "storm_main_d_east", "junction", upper, "cad_line", ["E943D"],
+            size_in=24, note=f"EA's south storm line east of the junction grate, which sits {best_d:.1f} ft off it. Nothing discharges into it in this network (see the node's own note).")
+    conduit("storm_main_lower", "junction", "outfall", lower, "cad_line", ["E943D"],
+            size_in=24, note="EA's south storm line from the junction grate to the lake — the road drain's pipe, and the Frog/Green pond overflow's (engineer, 2026-09-06).")
+    # NOT BUILT, and recorded rather than guessed: E9441/E9442 leave the junction
+    # north-west and E9443/E9444 come back south-west to the shore — a double
+    # line, 560 ft, drawn but with no structure at either end and no described
+    # purpose. Drawn, purpose not established — ask EA.
 
     # ---- the culvert south of the road, and every other marked culvert ---------
     def fes_pair(mark_handle, cid, note, prefer=None):
