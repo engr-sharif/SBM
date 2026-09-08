@@ -2783,6 +2783,18 @@ follows is what will be walked into again.
   route goes with the analysis" is asserted after the 3D block, which is what
   closes it.
 
+- **THE GAP IS MEASURED, NEVER A CONSTANT, AND SO IS THE PAIRING.** A parallel
+  round found that the August-2026 survey as delivered may sit ~13 ft WSW of the
+  lidar and the ortho (probably international feet on a US-survey-foot grid; the
+  surveyor is being asked). If it is re-placed, both barrels' plotted west ends
+  move and both inferred gaps change with them — so
+  `tools/build_storm_network.py` computes each gap from the two coordinates on
+  every run and prints it as "measured at N ft as the survey is plotted today",
+  and it **raises** if a barrel's plotted west end stops being nearest the line
+  it is paired with. The survey data itself is left exactly as delivered. The
+  rest of each conduit is EA's polyline verbatim and does not depend on the
+  survey at all.
+
 Recorded, and re-recorded with the reason where §S moved them: the raindrop out
 of the impoundment is `herman_pipe_s` → `herman_main_s`, **812.2 ft** of pipe
 (812.8 before); the discharge route's legs are
