@@ -8,13 +8,19 @@
    Run it AFTER the e2e (never beside it): both drive a software-GL renderer and
    two of those on a two-core box crash the compositor. */
 import { launch, TIMEOUT } from "./lib/browser.mjs";
-import { pathToFileURL as __furl } from "node:url";
+import { pathToFileURL as __furl, fileURLToPath } from "node:url";
 import { resolve as __res } from "node:path";
 import { existsSync as __ex } from "node:fs";
 import { unlock } from "./gate.mjs";
 
-const target = process.argv[2] || "/home/user/SBM/index.html";
-const out = process.argv[3] || "/home/user/SBM/test/shots";
+/* Both default to THIS CHECKOUT, resolved from the script's own location rather
+   than from a hard-coded /home/user/SBM: in an agent worktree that constant
+   opens somebody else's index.html and writes the pictures into their tree,
+   which is exactly what it did on the v22 §S run. Same rule as
+   test/hydro3_shots.mjs. */
+const HERE = __res(fileURLToPath(new URL(".", import.meta.url)));
+const target = process.argv[2] || __res(HERE, "..", "index.html");
+const out = process.argv[3] || __res(HERE, "shots");
 const browser = await launch();
 const page = await browser.newPage({ viewport: { width: 1600, height: 1000 } });
 page.setDefaultTimeout(TIMEOUT);

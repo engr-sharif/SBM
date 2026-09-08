@@ -224,6 +224,17 @@ a PNG and it misses. `test/fixtures/` holds the water references (`drop_ref.json
 (`waterref.py`, `survey_stage_ref.py`), which are the tie-breakers when a definition is
 unclear; the water windows are now cut from the real PNGs with `gridSpec` and the harness
 asserts their shape before it asserts anything measured in them.
+**A shots script resolves BOTH its defaults from its own location**, never from
+a hard-coded `/home/user/SBM` — in an agent worktree that constant opens the
+planner's `index.html` and writes the pictures into the planner's tree, which is
+exactly what happened twice (v19's `hydro3_shots.mjs` and v22's
+`storm_shots.mjs`). The pattern is `const HERE = resolve(fileURLToPath(new
+URL(".", import.meta.url)))`, then `argv[2] || resolve(HERE, "..",
+"index.html")` and `argv[3] || resolve(HERE, "shots")`. The other six shots
+scripts still carry the constant and should get the same two lines when they are
+next touched: `drainage_shots`, `gate_shots`, `runoff_shots`, `v15_shots`,
+`v15_smoke`, `water_shots`.
+
 `test/water_shots.mjs` writes the four v10 water shots (raindrop 2D/3D, Herman
 overtopping 2D/3D) into `test/shots/` and `test/storm_shots.mjs` the two v12 storm shots
 (the south-road grate chain with a Frog Pond raindrop on it, and the network draped in 3D);
