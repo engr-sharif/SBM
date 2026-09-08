@@ -4428,7 +4428,10 @@ if (cw.flowsWith < cw.flows0 + 2) { console.log("FAIL: expected the routes and a
    and not in removed; what matters is that nothing is left. */
 if (cw.activeAfter || cw.flowsAfter !== 0 || cw.overtopLabels !== 0 || cw.removed < 2)
   { console.log("FAIL: clear water overlays left something behind:", JSON.stringify(cw)); process.exit(1); }
-if (cw.undoLabel !== "clear water overlays" || cw.flowsBack !== cw.flows0 + cw.removed || cw.activeAfterUndo)
+/* `removed` includes the flows that were already on the map before this block
+   (it clears EVERYTHING), so the restore count is `removed`, not flows0 + removed
+   — the block run alone has flows0 = 0 and could not tell the two apart. */
+if (cw.undoLabel !== "clear water overlays" || cw.flowsBack !== cw.removed || cw.activeAfterUndo)
   { console.log("FAIL: one undo entry must put every feature back (and not reopen the analysis):", JSON.stringify(cw)); process.exit(1); }
 if (cw.flowsRedone !== 0 || cw.flowsFinal !== cw.flowsBack)
   { console.log("FAIL: redo/undo of the clear:", JSON.stringify(cw)); process.exit(1); }
