@@ -14,7 +14,7 @@ branch to main.
 |---|---|---|
 | spec written (`docs/V22_SPEC.md`) | done | evidence for §S is in the spec |
 | S — three pipes + overflow follows them + slider rule | **done** (2026-09-08, worktree `agent-S`, branch `worktree-agent-S`) | 44 nodes / 27 conduits (17 CAD/survey, 10 inferred). Re-recorded: the raindrop's pipe_ft 812.8 → **812.2**, its chain `herman_pipe_s,herman_main_s`, the discharge route's legs `herman_pipe_s,herman_main_s,herman_pipe_n,herman_main_n`, the layer counts 15/12 → 17/10. UNCHANGED, which is the proof: `herman_pipe_s`'s through_area **37.90 ac**, the 100/100 raindrop identity, the §11.8 accumulation identity at 0.000 % on all three outlets, and the outlet areas 403.03 / 293.45 / 282.01 ac (0.01 ac moved between the lake and the outfall — see below). Commit list below |
-| C — where the water goes | not started | after S |
+| C — where the water goes | **in progress** (2026-09-08, worktree `agent-C`, branch `worktree-agent-C`) | after S |
 | G — desktop 3D drape / hitch / GPU | not started | after C; droppable |
 
 ## Why it stopped here (2026-09-06)
