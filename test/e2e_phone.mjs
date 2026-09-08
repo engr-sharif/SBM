@@ -343,6 +343,33 @@ const t = await toasts();
 if (t.length <= before) fail("opening a render-less sheet refused SILENTLY — no toast", t.slice(-3));
 console.log(`sheet refusal toast: "${t[t.length - 1].slice(0, 70)}"`);
 if (errors.length) fail("page errors after the sheet refusal", errors.slice(0, 4));
+
+/* v22 §C: the four areas exist on a phone, run at 4 ft like everything else
+   SBMM.lowMem() governs, and the card opens. It is the folder build here, so
+   this is the corner the team actually uses. */
+const ww = await page.evaluate(async () => {
+  const row = !!document.querySelector('.lyr[data-lid="where_water"]');
+  if (!SBMM.whereWater) return { row, missing: true };
+  const R = await SBMM.whereWater.run();
+  if (!R) return { row, failed: true };
+  SBMM.whereWater.showCard();
+  const cls = SBMM.whereWater.classes();
+  return { row, grid: R.gridFt,
+           sum: +cls.reduce((a, c) => a + c.acres, 0).toFixed(2),
+           surveyed: +(R.surveyedArea_ft2 / 43560).toFixed(2),
+           impound: (cls.find(c => c.id === "impound") || {}).acres,
+           card: [...document.querySelectorAll("#resBody .res h4")]
+             .some(h => /Where the water goes/.test(h.textContent)) };
+});
+console.log("where the water goes (phone):", JSON.stringify(ww));
+if (ww.missing) fail("the phone build has no 'where the water goes'", ww);
+if (ww.failed) fail("the phone could not compute the four areas", ww);
+if (!ww.row) fail("the 'Where the water goes' row is missing on a phone", ww);
+if (ww.grid !== 4) fail("a phone did not run the four areas at 4 ft", ww);
+if (!ww.card) fail("no 'Where the water goes' card on a phone", ww);
+if (Math.abs(ww.sum - ww.surveyed) > 0.02) fail("the four areas do not partition the phone grid", ww);
+if (!ww.impound) fail("the impoundment has no catchment on a phone", ww);
+if (errors.length) fail("page errors computing the four areas on a phone", errors.slice(0, 4));
 });
 
 /* ===================================================================== */

@@ -1132,6 +1132,39 @@ await block("15. accumulation, pipes and scenarios (v19)", async () => {
   if (!S.buttons) fail("the scenario card has no actions", S);
   if (!S.ran) fail("a scenario would not run on the field build", S);
   if (!S.rows) fail("the scenario card lists nothing", S);
+
+  /* v22 §C: "where does the water go" on the field build. Same kernel, same
+     4-ft rule as the drainage map and the accumulation (SBMM.lowMem), and the
+     card has to open under a thumb and name the grid it was drawn on. */
+  const W = await page.evaluate(async () => {
+    const row = !!document.querySelector('.lyr[data-lid="where_water"]');
+    if (!SBMM.whereWater) return { row, missing: true };
+    const R = await SBMM.whereWater.run();
+    if (!R) return { row, failed: true };
+    SBMM.whereWater.showCard();
+    const card = [...document.querySelectorAll("#resBody .res")]
+      .find(el => /Where the water goes/.test(el.querySelector("h4").textContent));
+    const cls = SBMM.whereWater.classes();
+    return { row, grid: R.gridFt,
+             classes: cls.map(c => ({ id: c.id, acres: c.acres })),
+             sum: +cls.reduce((a, c) => a + c.acres, 0).toFixed(2),
+             surveyed: +(R.surveyedArea_ft2 / 43560).toFixed(2),
+             says: cls.every(c => c.sentence && c.sentence.length > 40),
+             card: !!card,
+             cardSays: card ? card.textContent.replace(/\s+/g, " ") : null };
+  });
+  console.log("where the water goes (field):", JSON.stringify(W));
+  if (W.missing) fail("the field build has no 'where the water goes'", W);
+  if (W.failed) fail("the field build could not compute the four areas", W);
+  if (!W.row) fail("the 'Where the water goes' row is missing in field mode", W);
+  if (W.grid !== 4) fail("the field build did not run the four areas at 4 ft", W);
+  if (!W.card) fail("no 'Where the water goes' card in field mode", W);
+  if (!/4-ft lidar grid/.test(W.cardSays || "")) fail("the field card does not name the 4-ft grid", W.cardSays);
+  if (W.classes.length !== 4) fail("there are not four areas on the field build", W);
+  if (Math.abs(W.sum - W.surveyed) > 0.02) fail("the four areas do not partition the field grid", W);
+  if (!W.says) fail("a field class has no plain-language sentence", W);
+  if (!(W.classes.find(c => c.id === "impound") || {}).acres)
+    fail("the impoundment has no catchment on the 4-ft grid", W);
 });
 
 /* ===================================================================== */
