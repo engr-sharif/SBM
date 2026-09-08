@@ -1310,6 +1310,78 @@ old rasters answer instead and the view says so.
 Without it the offline copy has the app but fetches tiles as you look around; with it the
 whole pyramid comes down and the 3D view is complete with no signal.
 
+## Where does the water go — the plain-language page
+
+> *"I don't quite understand how the rainfall system works … we basically need an
+> area that overland-flows right into Clear Lake, then the area whose flow goes
+> into the Herman impoundment, and another area that flows away from the site
+> elsewhere, so we can understand the catchment for the Herman impoundment."*
+> — the project engineer, September 2026
+
+Here are the areas. The site is **978.5 surveyed acres**, and every square foot of
+it is in exactly one of these four:
+
+| | area | share | what happens to it |
+|---|---|---|---|
+| **Straight into Clear Lake** | **403.0 ac** | 41 % | It runs overland into the lake. It never enters a pipe and never leaves the survey. |
+| **Into the Herman impoundment** | **84.1 ac** | 9 % | It ends up in the impoundment and leaves through the two surveyed 24-in HDPE pipes to the Clear Lake outfall. **This is the catchment of the impoundment.** |
+| **Into Frog Pond / Green Pond** | **197.9 ac** | 20 % | It fills Frog Pond, which spills through the culvert under the road into Green Pond, which leaves through the FES on its west shore and down the road drain to the same Clear Lake outfall. |
+| **Off the surveyed ground** | **293.5 ac** | 30 % | It leaves the survey somewhere other than the lake. The lidar stops at the survey limit, so the map stops with it. |
+
+Tick **Where the water goes** under *Drainage (lidar + storm drains)* in the
+Layers tab, type `WHEREWATER`, or pick it from the Water ▾ menu. The card prints
+those four rows with a sentence each, *show in 3D* drapes them on the terrain, and
+*copy CSV* / *GeoJSON* hand them over.
+
+**Two numbers about the impoundment, and they are not the same number.** Its
+**catchment is 84.1 ac** — every acre whose water ends up in it. The drainage
+card also prints **37.9 ac**, which is the ground that reaches it *directly*,
+without pausing in a smaller depression on the way; the site has 38,994
+depressions in the lidar and about 1,900 of them are deeper than the noise floor,
+so most of the water arrives having filled two or three puddles first. Both are
+right and the app prints both. The 84.1 ac is checked independently: the flow
+accumulation (a different kernel, a different pointer field) says **84.09 ac**
+drain through the surveyed south barrel.
+
+### What each phase answers
+
+The hydrology is three questions asked in order, and each one is built on the one
+before it, so they cannot disagree about which ground drains where.
+
+| | question | what it gives you | where |
+|---|---|---|---|
+| **Phase 1** | *Where does the water go?* | Every square foot of the site labelled with the outlet it drains to, plus the pond or grate it reaches first, plus the four areas above. Terrain only — no rainfall, no volumes. | `DRAIN`, `WHEREWATER` |
+| **Phase 2** | *How much of it, in a design storm?* | Rain depth from NOAA Atlas 14, a curve number for every 2-ft cell from the land-cover raster, runoff volume and peak flow per catchment, and each pond routed through its own stage table to see whether it overtops. | `RAIN` |
+| **Phase 3** | *How much ground is behind any one point, and will the pipes take it?* | Flow accumulation (the acres draining through each cell) and the stream network above 5 acres; Manning capacity and the hydraulic grade for the storm pipes; and named scenarios that run the whole chain under a different set of assumptions. | `ACCUM`, `PIPES`, `SCENARIO` |
+
+**In the 25-year 24-hour design storm** (6.4 in, provisional depths) the site
+sheds **356.7 ac-ft**. The impoundment takes about **31 ac-ft** of that, rises
+**0.82 ft** from 1,336.45 to 1,337.27, and never reaches its 1,341.55-ft
+discharge invert; Frog Pond leaves through the pond culvert 0.29 ft under its rim
+and Green Pond is contained 1.4 ft below its FES. Those are the answers for *this*
+storm on *these* depths — the whole table moves when the Atlas 14 export replaces
+the provisional one.
+
+### How the four areas are computed
+
+There is **no new physics here and no new kernel**. The Phase 1 `drainage` kernel
+already labels every cell with the outlet it drains to; the drainage map runs it
+with the three pipes in the Clear Lake trench treated as ONE outlet, because they
+discharge at one point and the engineer reads one number for it (v22 §S). This
+layer runs the *same kernel over the same ground* with that merge switched off, so
+each discharge pipe terminates its own chain and the kernel reports one outlet per
+pipe. Same filled DEM, same conduit seeding, same ponds, same first-capture
+labels — only the outlet naming differs, and the two runs add up: the impoundment
+class plus the Frog/Green class is the drainage map's one 282.0-ac outfall
+catchment to the square foot (`test/kernels.mjs` §11.9).
+
+Which outlet belongs to which class is **read off the storm network, not off a
+list of acreages**: the impoundment's discharge pipes are the conduits whose inlet
+node carries a *surveyed invert* — on this network exactly the two 24-in barrels
+the August-2026 survey plotted — and the outlets their chains terminate at are the
+impoundment's class. Everything else that reaches the outfall is the road drain,
+which is the Frog/Green system.
+
 ## Drainage map — where every acre goes
 
 > **The whole site, 978.5 surveyed acres, coloured by the outlet each square foot
@@ -1336,8 +1408,8 @@ own kernel and its own window chaining, and requires it to land in the catchment
 the map drew under it. **All 100 agree.**
 
 **Terrain only.** No rainfall, no runoff, no curve numbers, no time. The map says
-where water goes, never how much — rainfall and volumes are Phase 2 of
-`docs/V14_CATCHMENT_PROPOSAL.md` and are not built.
+where water goes, never how much — rainfall and volumes are Phase 2 (`RAIN`, the
+design storm below) and the acres behind any one point are Phase 3 (`ACCUM`).
 
 ### What it draws
 

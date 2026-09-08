@@ -647,6 +647,106 @@ SBMM.runoff = (function () {
     </svg>`;
   }
 
+  /* ------------------------------------------------------------------ */
+  /* v22 §C: what this is, and a row per "where the water goes" class     */
+  /* ------------------------------------------------------------------ */
+  /* The engineer read this card and said he did not understand how the
+     rainfall system works. So the card now opens by saying what it is, in one
+     paragraph, before any number. */
+  function whatIsHtml() {
+    const st = R.settings;
+    return `<div class="note rnWhat">A design storm dropped on the whole site. `
+      + `${esc(R.storm.name)} means ${esc(fmt(R.storm.P, 2))} inches of rain in `
+      + `${esc(fmt(R.storm.hours, 0))} hours — a depth NOAA Atlas 14 gives for this point, `
+      + `spread over the day by the ${esc(st.dist)} distribution. The land-cover raster gives `
+      + `every 2-ft cell a curve number, the NRCS curve-number equation turns the depth into `
+      + `runoff, TR-55 says how long that runoff takes to arrive, and an SCS unit hydrograph `
+      + `turns the two into a peak flow. It runs over the catchments the drainage map drew, so `
+      + `"where does the water go" and "how much of it" cannot disagree about which ground `
+      + `drains where. Planning-level: every assumption is in the table at the bottom, and `
+      + `changing one is one dialog away.</div>`;
+  }
+
+  /* Rainfall depth x each class's runoff volume, apportioned from the
+     per-catchment results this card already has — NO NEW HYDROLOGY. A runoff
+     catchment is one of Phase 1's outlets; "where the water goes" splits the
+     SAME ground into four classes at a finer outlet naming (js/wherewater.js),
+     so each class's share of an outlet is its share of that outlet's AREA, and
+     the volume follows it. The card says so in those words: curve numbers are
+     not recomputed per class, so a class whose cover is wetter or drier than
+     its outlet's average carries the outlet's average. */
+  function classRows() {
+    const W = SBMM.whereWater;
+    if (!R || !W || !W.hasResult() || !SBMM.drainage) return [];
+    const cls = W.classes();
+    const out = cls.map(c => ({ id: c.id, label: c.label, color: c.color,
+                                acres: c.acres, sentence: c.sentence,
+                                volume_acft: 0, area_ft2: c.area_ft2 }));
+    const byId = Object.fromEntries(out.map(c => [c.id, c]));
+    let unattributed = 0;
+    for (const o of R.outlets) {
+      const rec = SBMM.drainage.recOf(o.label);
+      const k = rec && rec.t === "sink" ? rec.r : null;
+      if (!k) { unattributed += o.volume_acft || 0; continue; }
+      let den = 0;
+      const part = {};
+      for (const c of cls) for (const s of c.sinks) {
+        const same = k.kind === "outfall" ? s.kind === "outfall" : s.id === k.id;
+        if (!same) continue;
+        den += s.area_ft2;
+        part[c.id] = (part[c.id] || 0) + s.area_ft2;
+      }
+      if (!(den > 0)) { unattributed += o.volume_acft || 0; continue; }
+      for (const id of Object.keys(part))
+        byId[id].volume_acft += (o.volume_acft || 0) * part[id] / den;
+    }
+    for (const c of out) c.volume_acft = +c.volume_acft.toFixed(2);
+    if (unattributed > 0.005) out.unattributed_acft = +unattributed.toFixed(2);
+    return out;
+  }
+
+  /* the one line the engineer asked for: what the impoundment receives, and
+     what it does about it. Both halves come from results already on this card —
+     the class volume above and the level-pool routing below. */
+  function impoundLine(rows) {
+    const c = rows.find(q => q.id === "impound");
+    if (!c) return "";
+    const r = (R.routing || []).find(q => /impound|herman/i.test(q.name || ""));
+    let s = `The Herman impoundment receives ${fmt(c.volume_acft, 1)} ac-ft off `
+      + `${fmt(c.acres, 1)} acres in the ${R.storm.name} storm`;
+    if (r) {
+      const rise = r.peakLevel - r.stage0;
+      s += `, rises ${fmt(rise, 2)} ft to ${fmt(r.peakLevel, 2)} ft`;
+      s += r.overtops ? ` and OVERTOPS at ${fmt(r.overtopT_h, 1)} h.`
+        : r.throughConduit ? ` and discharges through ${esc(r.conduitId || "the surveyed pipes")}.`
+        : ` and is contained.`;
+    } else s += ".";
+    return s;
+  }
+
+  function classHtml() {
+    const rows = classRows();
+    if (!rows.length)
+      return `<div class="note">Where the water goes: not computed yet — tick `
+        + `<b>Where the water goes</b> in Layers, or type WHEREWATER, and this card will `
+        + `carry a line for each of the four areas.</div>`;
+    const rowsH = rows.map(c =>
+      `<tr><td class="k"><span class="wwsw" style="background:${c.color}"></span>${esc(c.label)}</td>`
+      + `<td class="v mono">${fmt(c.acres, 1)}</td>`
+      + `<td class="v mono">${fmt(c.volume_acft, 1)}</td></tr>`).join("");
+    const extra = rows.unattributed_acft
+      ? `<tr><td class="k">not attributed</td><td class="v mono">—</td>`
+        + `<td class="v mono">${fmt(rows.unattributed_acft, 1)}</td></tr>` : "";
+    return `<div class="note">Where this storm's water goes</div>`
+      + `<div class="dspopwrap"><table class="dspop">`
+      + `<tr><td class="k"><b>area</b></td><td class="v"><b>ac</b></td>`
+      + `<td class="v"><b>ac-ft in this storm</b></td></tr>${rowsH}${extra}</table>`
+      + `<div class="note">${esc(impoundLine(rows))}</div>`
+      + `<div class="note">Apportioned from the catchment table below by AREA: "where the water `
+      + `goes" splits the same Phase 1 catchments at a finer outlet naming, so a class carries `
+      + `its outlet's runoff depth. No curve number is recomputed per class.</div></div>`;
+  }
+
   function tableHtml() {
     const rowsH = R.outlets.slice().sort((a, b) => b.area_ft2 - a.area_ft2).map(c =>
       `<tr><td class="k">${esc(c.name)}</td>`
@@ -723,7 +823,7 @@ SBMM.runoff = (function () {
       card.appendChild(w);
     }
     const box = document.createElement("div");
-    box.innerHTML = tableHtml() + routeHtml()
+    box.innerHTML = whatIsHtml() + classHtml() + tableHtml() + routeHtml()
       + `<div class="note">${esc("Assumptions")}</div>`
       + `<div class="dspopwrap"><table class="dspop">${assumptionRows().map(r =>
           `<tr><td class="k">${esc(r[0])}</td><td class="v">${esc(r[1])}</td></tr>`).join("")}</table></div>`;
@@ -1139,6 +1239,10 @@ SBMM.runoff = (function () {
     waterRingAt, waterRingFor,
     catchment: label => R ? (R.outlets.find(c => c.label === label)
       || R.first.find(c => c.label === label) || null) : null,
-    paintDepth, showCard, NOTE
+    paintDepth, showCard, NOTE,
+    /* v22 §C: the four "where the water goes" rows this card carries, and the
+       one call that redraws it when that analysis lands after the storm did */
+    classRows, impoundLine,
+    refreshCard: () => { if (R && card && card.isConnected) showCard(); }
   };
 })();
