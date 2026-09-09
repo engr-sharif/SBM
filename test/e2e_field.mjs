@@ -1187,7 +1187,10 @@ await block("17. the boring logs", async () => {
       bands: el ? el.querySelectorAll("svg.blsvg .blprof").length : 0,
       contact: el ? +el.querySelector("svg.blsvg .blcontact").dataset.ft : null,
       spt: el ? el.querySelectorAll("svg.blsvg .blspt").length : 0,
-      disagree: SBMM.borelogs.disagreeCount()
+      disagree: SBMM.borelogs.disagreeCount(),
+      /* read off the payload, never a constant: the count moved 35 -> 18 when
+         the older field interpretation was retired (2026-09-09) */
+      flagged: D.holes.filter(h => ((h.contacts || {}).flags || []).length).length
     };
   });
   console.log("boring logs (field):", JSON.stringify(B));
@@ -1196,7 +1199,8 @@ await block("17. the boring logs", async () => {
   if (!B.card || !/SB-9/.test(B.title || "")) fail("SB-9's log built no card in field mode", B);
   if (B.bands < 3 || B.contact !== 7.5 || B.spt !== 15)
     fail("the field strip log is not the SB-9 log", B);
-  if (B.disagree !== 35) fail("the field build does not see the 35 flagged contacts", B);
+  if (B.flagged < 1 || B.disagree !== B.flagged)
+    fail("the field build's disagreement count is not the payload's flagged-hole count", B);
 });
 
 /* ===================================================================== */
