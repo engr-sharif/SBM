@@ -7541,6 +7541,13 @@ await block("9af. the log window", async () => {
    It leaves the window CLOSED and the 3D view as block 9ae left it. */
 errBeforeWin = errors.length;
 
+/* the payload facts this block checks against, read here rather than borrowed
+   from 9ae — `--only 9af` has to stand on its own (v18 §3) */
+const bwPay = await page.evaluate(() => {
+  const D = SBMM_DATA.borings_logs, h = D.holes.find(q => q.id === "SB-9");
+  return { n: D.holes.length, nc: h.contacts.native_contact, src: h.contacts.source };
+});
+
 /* ---- it opens, and it opens on the hole it was asked for ---- */
 bwOpen = await page.evaluate(() => {
   SBMM.borewin.open("SB-9");
@@ -7623,8 +7630,8 @@ for (const [k, min] of [["method", 2], ["casing", 2], ["prof", 3], ["gl", 5], ["
   if (!(bwCols[k] >= min)) { console.log("FAIL: §2.2 column", k, "drew", bwCols[k], "want >=", min); process.exit(1); }
 if (!bwCols.ph4 || !bwCols.water || !bwCols.rock)
   { console.log("FAIL: the pH-4 rule, the water triangle or the bedrock line is missing", bwCols); process.exit(1); }
-if (bwCols.contact !== logPay.sb9.nc || bwCols.contactSrc !== logPay.sb9.src)
-  { console.log("FAIL: the window's contact line does not match the payload", bwCols, logPay.sb9); process.exit(1); }
+if (bwCols.contact !== bwPay.nc || bwCols.contactSrc !== bwPay.src)
+  { console.log("FAIL: the window's contact line does not match the payload", bwCols, bwPay); process.exit(1); }
 if (bwCols.heads.length < 7)
   { console.log("FAIL: a §2.2 column heading is missing:", bwCols.heads); process.exit(1); }
 if (bwCols.kinds.length < 2)
@@ -7662,16 +7669,19 @@ bwCur = await page.evaluate(() => {
   const h = SBMM.borelogs.byId("SB-9");
   const ft = +c.dataset.ft;
   const s = (h.strata || []).find(q => q.primary && ft >= q.top && ft < q.base);
+  /* the chip prints through the app's own fmt(), which groups thousands — so
+     the expected string is built the same way rather than with toFixed */
   return { hidden: c.hidden, ft, txt: c.textContent, uscs: c.dataset.uscs,
-           wantUscs: s ? (s.uscs || "") : null, wantElev: h.elev - ft };
+           wantUscs: s ? (s.uscs || "") : null,
+           wantDepth: fmt(ft, 1), wantElev: fmt(h.elev - ft, 1) };
 });
 console.log("the depth cursor:", JSON.stringify(bwCur));
 if (bwCur.hidden || !(bwCur.ft > 0)) { console.log("FAIL: the depth cursor did not follow the pointer", bwCur); process.exit(1); }
 if (bwCur.uscs !== bwCur.wantUscs)
   { console.log("FAIL: the cursor names the wrong stratum", bwCur); process.exit(1); }
-if (!bwCur.txt.includes(bwCur.ft.toFixed(1)))
+if (!bwCur.txt.includes(bwCur.wantDepth))
   { console.log("FAIL: the cursor does not print the depth it is at", bwCur); process.exit(1); }
-if (!bwCur.txt.includes(bwCur.wantElev.toFixed(1)))
+if (!bwCur.txt.includes(bwCur.wantElev))
   { console.log("FAIL: the cursor does not print the elevation of that depth", bwCur); process.exit(1); }
 
 /* ---- the arrows walk holes, and do NOT orbit the 3D view ---- */
@@ -7694,7 +7704,7 @@ bwWalk = await page.evaluate(prev => {
   const ids = SBMM.borelogs.ids();
   const cam = SBMM.viewer3d.isOpen() ? SBMM.viewer3d.cameraWorld() : null;
   const moved = (prev.cam && cam)
-    ? Math.hypot(cam[0] - prev.cam[0], cam[1] - prev.cam[1], cam[2] - prev.cam[2]) : 0;
+    ? Math.hypot(cam.x - prev.cam.x, cam.y - prev.cam.y, cam.z - prev.cam.z) : 0;
   return { from: prev.id, to: SBMM.borewin.stateOf().id,
            want: ids[(ids.indexOf(prev.id) + 1) % ids.length], camMoved: moved,
            tab: SBMM.borewin.stateOf().tab };
@@ -7710,12 +7720,10 @@ bwCmp = await page.evaluate(() => {
   SBMM.borewin.compare(["SB-9", "SB-11", "SB-12", "SB-17"]);
   const svg = document.querySelector(".blwin svg.bwcmp");
   if (!svg) return { noSvg: true };
-  const cols = [...svg.querySelectorAll("g.blcol")].map(g => {
-    const r = g.querySelector(".blgl");
-    return { id: g.dataset.hole, y: r ? +r.getAttribute("y") : null,
-             top: r ? +r.dataset.top : null,
-             elev: SBMM.borelogs.byId(g.dataset.hole).elev };
-  });
+  const cols = [...svg.querySelectorAll("g.bwcolwrap")].map(g => ({
+    id: g.dataset.hole, y: +g.dataset.y0, elev: +g.dataset.elev,
+    boxes: g.querySelectorAll(".blgl").length
+  }));
   const seps = [...svg.querySelectorAll(".bwsep")].map(t => +t.dataset.ft);
   const xy = ["SB-9", "SB-11", "SB-12", "SB-17"].map(id => {
     const h = SBMM.borelogs.byId(id); return [h.x, h.y];
@@ -7733,10 +7741,11 @@ if (bwCmp.noSvg || bwCmp.cols.length !== 4)
    does not. */
 {
   const a = bwCmp.cols[0], b = bwCmp.cols[1];
-  const ya = a.y - a.top * 0, yb = b.y;
+  const ya = a.y, yb = b.y;
   const k = (yb - ya) / (a.elev - b.elev);
   let worst = 0;
   for (const c of bwCmp.cols) {
+    if (!(c.boxes >= 1)) { console.log("FAIL: compare drew no graphic log for", c.id); process.exit(1); }
     const want = ya + (a.elev - c.elev) * k;
     worst = Math.max(worst, Math.abs(c.y - want));
   }
@@ -7770,11 +7779,11 @@ if (bwCmp.corr.length < 3 || !bwCmp.corr.includes("native"))
              csv: SBMM.borewin.tableCsv().trim().split("\n").length - 1 };
   });
   console.log("the table tab:", JSON.stringify(t));
-  if (t.rows !== logPay.n || t.csv !== logPay.n)
-    { console.log("FAIL: the table lists", t.rows, "of", logPay.n); process.exit(1); }
+  if (t.rows !== bwPay.n || t.csv !== bwPay.n)
+    { console.log("FAIL: the table lists", t.rows, "of", bwPay.n); process.exit(1); }
   for (const c of ["area", "elev", "nce", "rocke", "logger", "date"])
     if (!t.cols.includes(c)) { console.log("FAIL: §2.5 column missing:", c, t.cols); process.exit(1); }
-  if (t.minis !== logPay.n) { console.log("FAIL: the table rows carry", t.minis, "mini columns"); process.exit(1); }
+  if (t.minis !== bwPay.n) { console.log("FAIL: the table rows carry", t.minis, "mini columns"); process.exit(1); }
 }
 
 /* ---- the printed log sheet paginates ---- */
@@ -7806,17 +7815,20 @@ bwSeams = await page.evaluate(() => {
   const out = { popup: /boring log/.test(SBMM.popups.forDataset(d, p)) };
   /* the map hover tooltip carries the mini column and the three lines */
   const mk = d.markerOf.get(p);
+  /* Leaflet keeps bindTooltip's argument on the Tooltip's _content, and this
+     one is a FUNCTION (built at open time, so a payload that arrives later
+     still reaches it) — it has to be CALLED, not stringified */
   const tip = mk && mk.getTooltip ? mk.getTooltip() : null;
-  const html = tip ? (typeof tip.options.content === "function"
-    ? tip.options.content(mk) : (tip._content || tip.options.content)) : "";
-  out.tipCol = /blcolsvg/.test(String(html));
-  out.tipLines = /native contact/.test(String(html));
+  const raw = tip ? tip._content : null;
+  const html = String(typeof raw === "function" ? raw(mk) : (raw || ""));
+  out.tipCol = /blcolsvg/.test(html);
+  out.tipLines = /native contact/.test(html);
   /* the table drawer's per-row log button */
   SBMM.table.toggle(true);
   SBMM.dsTable.show(d.id);
-  const tb = document.querySelector(`#tblPane_${d.id} [data-log], .tblpane [data-log]`)
-    || document.querySelector("[data-log]");
-  out.tableBtn = !!tb;
+  const pane = document.getElementById("tblPane_" + d.id);
+  out.tableBtn = !!(pane && pane.querySelector("tbody [data-log]"));
+  out.tableBtns = pane ? pane.querySelectorAll("tbody [data-log]").length : 0;
   SBMM.table.toggle(false);
   /* the 3D stratum highlight — one object, moved rather than rebuilt */
   const before = SBMM.viewer3d.stats().gpuGeometries;
