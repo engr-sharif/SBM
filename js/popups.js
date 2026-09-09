@@ -93,7 +93,21 @@ SBMM.popups = (function () {
     let head = `<b>${esc(p.id)}</b> <span style="opacity:.7">${esc(d.name)}</span>`;
     if (typeof dep === "number" && !isNaN(z))
       head += `<br><span style="opacity:.8">${fmt(dep, 1)} ft deep · base ≈ ${fmt(z - dep, 1)} ft</span>`;
-    return head
+    /* A 2025 boring with a log gets the log's own three lines and a button, and
+       both come FIRST: "how deep is the waste here" is what somebody clicking a
+       boring is asking, and the attribute table below is the long answer. The
+       button is on the shared popup, so the 3D pick card carries it too. */
+    let log = "";
+    const h = (d.kind === "borings" && SBMM.borelogs && SBMM.borelogs.has())
+      ? SBMM.borelogs.byId(p.id) : null;
+    if (h) {
+      log = `<div class="bllines">`
+        + SBMM.borelogs.summaryLine(h).map(t => `<span>${esc(t)}</span>`).join("")
+        + `</div>`
+        + actions(btn("boring log", () => SBMM.borelogs.open(h.id),
+          "Open the strip log — strata, SPT, lab values, water level"));
+    }
+    return head + log
       + attrTable(d.fields.map(f => [f, p.a[f]]))
       + coordLine(p.x, p.y);
   }

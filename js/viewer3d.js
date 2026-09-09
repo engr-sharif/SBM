@@ -1856,16 +1856,69 @@ SBMM.viewer3d = (function () {
        relative to the terrain it is standing in however hard the relief is pushed. */
     /* datasets: threeSpec() already returns only the datasets whose rows are on */
     if (SBMM.datasets) {
+      /* A boring's stick is the LOG, not a length (js/borelogs.js): where the
+         2025 OpenGround logs give a class profile for this hole, the stick is
+         drawn in segments coloured by that profile — waste, native, bedrock —
+         with a cross at the native contact and a blue tick at the water level.
+         The palette comes from SBMM.borelogs.classColor() rather than a copy
+         here, because a duplicated palette is a palette that drifts, and the
+         whole thing stays inside the SAME LineSegments: one object per dataset,
+         one draw call, one pick registration. A dataset with no log (the wells,
+         an imported CSV) keeps the plain single-colour stick it always had.
+
+         DEVIATION, recorded: the spec asked for a "small disc/ring" at the
+         contact. A disc is a second object with its own material and its own
+         pick entry; a two-segment cross is the same reading inside the geometry
+         that is already there, which is what "one object per dataset" costs. */
+      const BL = (SBMM.borelogs && SBMM.borelogs.has()) ? SBMM.borelogs : null;
       for (const spec of SBMM.datasets.threeSpec()) {
-        const pos = [], seg = [];
+        const pos = [], seg = [], scol = [], segPt = [];
         const c = new THREE.Color(spec.color);
-        for (const p of spec.pts) {
+        const tmp = new THREE.Color();
+        /* one segment: two vertices, two colours, and the RECORD it belongs to
+           so js/pick3d.js can still answer a click on it with the dataset popup */
+        const put = (x, y, za, zb, col, i) => {
+          seg.push(x, y, za, x, y, zb);
+          scol.push(col.r, col.g, col.b, col.r, col.g, col.b);
+          segPt.push(i);
+        };
+        const putH = (x0, y0, x1, y1, z, col, i) => {
+          seg.push(x0, y0, z, x1, y1, z);
+          scol.push(col.r, col.g, col.b, col.r, col.g, col.b);
+          segPt.push(i);
+        };
+        spec.pts.forEach((p, pi) => {
           const [z0] = SBMM.elev(p.x, p.y);
           const z = (isNaN(z0) ? ZMID : z0) - ZMID;
           pos.push(p.x - CX, p.y - CY, z + 4);
-          if (spec.stick && p.depth > 0)
-            seg.push(p.x - CX, p.y - CY, z + 1, p.x - CX, p.y - CY, z - p.depth);
-        }
+          if (!(spec.stick && p.depth > 0)) return;
+          const X = p.x - CX, Y = p.y - CY;
+          const prof = BL && p.id ? BL.profileOf(p.id) : null;
+          if (!prof) { put(X, Y, z + 1, z - p.depth, c, pi); return; }
+          let deepest = 0;
+          for (const r of prof) {
+            const a = Math.min(r.top, p.depth), b = Math.min(r.base, p.depth);
+            if (b - a < 1e-6) continue;
+            put(X, Y, z - a, z - b, tmp.set(BL.classColor(r.cls)), pi);
+            deepest = Math.max(deepest, b);
+          }
+          /* the strata stop where the logger stopped describing; the rest of the
+             drilled depth is drawn, in the "not classed" grey, rather than left
+             as a hole that looks shallower than it is */
+          if (p.depth - deepest > 0.05)
+            put(X, Y, z - deepest, z - p.depth, tmp.set(BL.classColor("unknown")), pi);
+          const ct = BL.contactOf(p.id);
+          if (ct && ct.native_contact != null && ct.native_contact <= p.depth) {
+            const zc = z - ct.native_contact, k = tmp.set(BL.classColor("contact"));
+            putH(X - 3, Y, X + 3, Y, zc, k, pi);
+            putH(X, Y - 3, X, Y + 3, zc, k, pi);
+          }
+          const wl = BL.waterOf(p.id);
+          if (wl && wl.encountered && wl.depth != null && wl.depth <= p.depth) {
+            const k = tmp.set(0x55C1FF);
+            putH(X - 2.5, Y, X + 2.5, Y, z - wl.depth, k, pi);
+          }
+        });
         if (pos.length) {
           const g = new THREE.BufferGeometry();
           g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
@@ -1880,19 +1933,27 @@ SBMM.viewer3d = (function () {
         if (seg.length) {
           const g2 = new THREE.BufferGeometry();
           g2.setAttribute("position", new THREE.Float32BufferAttribute(seg, 3));
+          g2.setAttribute("color", new THREE.Float32BufferAttribute(scol, 3));
           /* The stick is below the ground by definition, so with depth testing on
              it is inside the terrain mesh and invisible — a depth attribute that
              draws nothing. Drawn without depth test and semi-transparent it reads
              as what it is: the hole seen through the ground, the way a fence
              diagram or a Civil 3D borehole does. */
+          /* vertexColors, so the boring's own class profile and the plain
+             single-colour stick of every other dataset live in one material;
+             the base colour has to be white or it would tint them all */
           const stick = new THREE.LineSegments(g2, new THREE.LineBasicMaterial({
-            color: c, transparent: true, opacity: .55, depthTest: false, depthWrite: false
+            color: 0xffffff, vertexColors: true,
+            transparent: true, opacity: .55, depthTest: false, depthWrite: false
           }));
           stick.renderOrder = 2;
           /* the stick belongs to the same record as the dot above it — clicking
              the borehole, not just its cap, has to open the log */
-          stick.userData.pick = { kind: "dataset", dsId: spec.id, stick: true,
-                                  idx: spec.pts.map((p, i) => i).filter(i => spec.pts[i].depth > 0) };
+          /* segPt[k] is the record the k-th SEGMENT belongs to — js/pick3d.js
+             does idx[floor(vertexIndex / 2)], and a boring is many segments now
+             rather than exactly one, so the mapping has to be built as the
+             geometry is */
+          stick.userData.pick = { kind: "dataset", dsId: spec.id, stick: true, idx: segPt };
           tagKey(stick, spec.rowKey);
           overlayGroup.add(stick);
         }
@@ -2054,6 +2115,33 @@ SBMM.viewer3d = (function () {
        has, so the records are what the parity table must count. */
     for (const rec of labels3d.values())
       add(rec.sprite.userData && rec.sprite.userData.layer);
+    return out;
+  }
+
+  /* Introspection for the boring logs' depth sticks — the same reason
+     drawnTiles() and layersDrawn() exist: there is otherwise no way to ask
+     "is this stick coloured by its log", and a picture of the answer is not an
+     assertion. Per dataset drawn: the row it is tagged with, how many segments
+     it has and the DISTINCT colours across them. */
+  function datasetSticks() {
+    const out = [];
+    if (!scene) return out;
+    scene.traverse(o => {
+      const pk = o.userData && o.userData.pick;
+      if (!pk || pk.kind !== "dataset" || !pk.stick) return;
+      const c = o.geometry && o.geometry.getAttribute("color");
+      const cols = new Set();
+      if (c) for (let i = 0; i < c.count; i++)
+        cols.add([c.getX(i), c.getY(i), c.getZ(i)].map(v => Math.round(v * 255)).join(","));
+      out.push({
+        dsId: pk.dsId,
+        layer: o.userData.layer ? o.userData.layer.g + "/" + o.userData.layer.l : null,
+        segments: o.geometry ? o.geometry.getAttribute("position").count / 2 : 0,
+        records: pk.idx ? pk.idx.length : 0,
+        colors: [...cols],
+        vertexColors: !!(o.material && o.material.vertexColors)
+      });
+    });
     return out;
   }
 
@@ -3811,7 +3899,7 @@ SBMM.viewer3d = (function () {
     /* v15: the 3D label layer, the parity table and the sun */
     setLabels3d, labelsDrawn: () => [...labels3d.values()].map(r => ({ key: r.key, text: r.text,
       visible: r.sprite.visible, priority: r.priority })),
-    layersDrawn,
+    layersDrawn, datasetSticks,
     sun: (az, el) => { if (az === undefined && el === undefined) return { az: sunAz, el: sunEl };
                        setSun(az, el); return { az: sunAz, el: sunEl }; },
     lookAt: startLookAt,

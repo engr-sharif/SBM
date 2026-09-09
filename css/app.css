@@ -36,6 +36,13 @@
      a pipe is infrastructure somebody drew, a flow is the terrain's answer, and
      on a map showing both they must not read as the same thing */
   --storm:#7FA7C9; --stormbroken:#E4796A;
+  /* the boring logs (js/borelogs.js) — the class of a logged unit. THIS IS THE
+     ONE SOURCE OF TRUTH for those three colours: the strip log, the 3D depth
+     stick and the legend all read them through SBMM.borelogs.classColor(), so
+     changing a hue here changes it everywhere. Deliberately clear of the water
+     blue, the storm steel and the sample green — a boring is neither. */
+  --bl-waste:#E0733F; --bl-native:#7FC77A; --bl-rock:#9B8BD6;
+  --bl-unknown:#6C7F8A; --bl-contact:#FFD34D;
   /* metrics */
   --topH:48px; --statusH:30px; --railW:44px; --gripW:5px; --cmdH:0px;
   --botH:calc(var(--statusH) + var(--cmdH));
@@ -2056,3 +2063,53 @@ table.dspop.scnCmp td{white-space:nowrap;padding-right:12px}
 table.dspop td.k.wwsay{color:var(--mut);font-size:10.5px;line-height:1.45;
   padding:0 0 6px 15px;white-space:normal}
 .res .note.rnWhat{line-height:1.5;white-space:normal}
+
+/* ======================= the boring logs (js/borelogs.js) =======================
+   A strip log inside an ordinary results card — no new stacking band, no
+   floating window, nothing in the overlay z-order. The SVG carries its own
+   colours as presentation attributes (so the PNG export, which hands the
+   serialised SVG to an <img>, is not styled by this stylesheet); everything
+   here is layout, scrolling and the tables underneath. The three class colours
+   live in :root and are read through SBMM.borelogs.classColor(). */
+.blwrap{margin-top:8px;max-height:470px;overflow:auto;
+  background:var(--panel);border:1px solid var(--line);border-radius:var(--r2)}
+.blsvg{display:block;width:100%;height:auto}
+.blleg{padding-top:6px}
+.blleg .lg{display:inline-flex;align-items:center;gap:4px;margin-right:8px}
+.blleg .lg i{display:inline-block;width:9px;height:9px;border-radius:2px;border:1px solid #0006}
+.res .note.blstate{line-height:1.5;white-space:normal}
+.res .note.blstate b{color:var(--ink);font-variant-numeric:tabular-nums}
+
+details.bldesc{margin-top:7px;border-top:1px solid var(--line);padding-top:5px}
+details.bldesc>summary{cursor:pointer;font-size:11px;color:var(--mut);
+  list-style:none;padding:2px 0;user-select:none}
+details.bldesc>summary::-webkit-details-marker{display:none}
+details.bldesc>summary::before{content:"▸ ";color:var(--mut2)}
+details.bldesc[open]>summary::before{content:"▾ "}
+.blscroll{max-height:230px;overflow:auto}
+.blsumtbl{max-height:340px;margin-top:6px}
+
+table.bltbl{width:100%;border-collapse:collapse;font-size:11px}
+table.bltbl th{position:sticky;top:0;background:var(--panel);text-align:left;color:var(--mut);
+  font-size:9.5px;text-transform:uppercase;letter-spacing:.5px;padding:3px 5px;
+  border-bottom:1px solid var(--line);font-weight:600;white-space:nowrap}
+table.bltbl.sortable th{cursor:pointer;user-select:none}
+table.bltbl th.on{color:var(--acc2)}
+table.bltbl th.on.asc::after{content:" ▲"} table.bltbl th.on.desc::after{content:" ▼"}
+table.bltbl td{padding:2px 5px;border-bottom:1px solid rgba(44,59,69,.5);
+  color:var(--ink2);vertical-align:top}
+table.bltbl td.num{text-align:right;font-family:var(--mono);
+  font-variant-numeric:tabular-nums;white-space:nowrap}
+table.bltbl td.u{font-family:var(--mono);color:var(--acc2);white-space:nowrap}
+table.bltbl tr.sub td{color:var(--mut);font-size:10.5px}
+table.bltbl tbody tr:hover td{background:var(--panel2)}
+table.bltbl tbody tr.warn td.num:last-of-type,table.bltbl tbody tr.warn td:last-child{color:var(--amber)}
+table.bltbl tr.flash td{background:var(--accdim)}
+table.bltbl .cdot{display:inline-block;width:7px;height:7px;border-radius:2px;
+  margin-right:5px;vertical-align:1px;border:1px solid #0006}
+.blsum table.bltbl tbody tr{cursor:pointer}
+
+/* the three lines a boring's popup leads with (js/popups.js forDataset) */
+.bllines{display:block;margin:5px 0 2px;font-size:11.5px;color:var(--ink2)}
+.bllines span{display:block;line-height:1.4}
+.bllines span:first-child{color:var(--gold);font-weight:600}
