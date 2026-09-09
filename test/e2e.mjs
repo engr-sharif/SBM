@@ -2040,7 +2040,16 @@ for (const k of ["feature", "sample", "dataset", "gis"]) {
 shared = await page.evaluate(() => {
   const out = { api: Object.keys(SBMM.popups) };
   const d = SBMM.datasets.list()[0];
-  out.datasetSame = d ? SBMM.datasets.popup(d, d.points[0]) === SBMM.popups.forDataset(d, d.points[0]) : null;
+  /* A popup that carries an ACTION carries a fresh integer token per call
+     (js/popups.js recycles them), so two calls of the same builder are equal
+     everywhere except in that number — which is exactly what forGis has always
+     done and what a boring with a log now does too. Normalising the token is
+     what keeps this assertion about "one builder, both views" rather than about
+     "this popup has no buttons in it". */
+  const tok = h => String(h).replace(/data-popact="\d+"/g, 'data-popact="#"');
+  out.datasetSame = d ? tok(SBMM.datasets.popup(d, d.points[0])) === tok(SBMM.popups.forDataset(d, d.points[0])) : null;
+  out.datasetKind = d ? d.kind : null;
+  out.datasetHasAction = d ? /data-popact/.test(SBMM.popups.forDataset(d, d.points[0])) : null;
   const g = SBMM_DATA.design_gis.features.find(f => f.geometry.type === "Polygon");
   out.gisHasAction = /data-popact/.test(SBMM.popups.forGis(g.properties, g.geometry));
   const f = window.__mine()[0];
@@ -2049,6 +2058,7 @@ shared = await page.evaluate(() => {
   return out;
 });
 console.log("shared popups:", JSON.stringify({ api: shared.api.length, datasetSame: shared.datasetSame,
+  datasetKind: shared.datasetKind, datasetHasAction: shared.datasetHasAction,
   gisHasAction: shared.gisHasAction }));
 for (const k of ["forFeature", "forDataset", "forCad", "forGis", "forSample", "forTerrain"])
   if (!shared.api.includes(k)) { console.log("FAIL: SBMM.popups." + k + " missing"); process.exit(1); }
@@ -7358,10 +7368,16 @@ if (logCsv.empty !== 0) { console.log("FAIL: a CSV was produced for a hole that 
 log3d = await page.evaluate(async () => {
   const wait = ms => new Promise(r => setTimeout(r, ms));
   const h = SBMM.borelogs.byId("SB-9");
+  /* openAt already rebuilds the overlays (show() replays the whole layer state),
+     so asking for a second rebuild here costs a minute of software GL for
+     nothing; wait on the CONDITION instead of on the clock */
   await SBMM.viewer3d.openAt(h.x, h.y);
-  SBMM.viewer3d.refreshOverlays();
-  await wait(2500);
-  const sticks = SBMM.viewer3d.datasetSticks();
+  let sticks = [];
+  for (let i = 0; i < 40; i++) {
+    sticks = SBMM.viewer3d.datasetSticks();
+    if (sticks.some(t => t.dsId === "borings2025")) break;
+    await wait(500);
+  }
   const b = sticks.find(s => s.dsId === "borings2025") || null;
   return { sticks: sticks.length, boring: b,
            drawn: !!SBMM.viewer3d.stats().layersDrawn[(b && b.layer) || "-"] };
@@ -7379,12 +7395,20 @@ if (log3d.boring.segments < 44)
 /* one object per dataset, not one per hole */
 if (log3d.sticks > 3) { console.log("FAIL: the depth sticks were split into", log3d.sticks, "objects"); process.exit(1); }
 
-/* block 9e's contract: a new object must not make an idle view render for ever */
+/* block 9e's contract: a new object must not make an idle view render for ever.
+   9e asserts it early on an empty scene; by the time this block runs the water
+   blocks have left animated flows on the map, and the v13 particle stream asks
+   for ~30 frames a SECOND while one is visible — so an idle count measured on
+   top of that says nothing at all about the boring sticks. Switch the animation
+   off for the measurement and put it back: what is left has to settle, and the
+   sticks are static geometry that must add nothing per frame. */
 logIdle = await page.evaluate(async () => {
   const wait = ms => new Promise(r => setTimeout(r, ms));
   SBMM.borelogs.open("SB-9");
+  const wasAnim = SBMM.viewer3d.animateWater();
+  SBMM.viewer3d.animateWater(false);
   let prev = SBMM.viewer3d.stats().renderCount, tries = 0;
-  for (; tries < 40; tries++) {
+  for (; tries < 60; tries++) {
     await wait(1000);
     const now = SBMM.viewer3d.stats().renderCount;
     if (now - prev <= 1) break;
@@ -7392,10 +7416,16 @@ logIdle = await page.evaluate(async () => {
   }
   const a = SBMM.viewer3d.stats().renderCount;
   await wait(4000);
-  return { renders: SBMM.viewer3d.stats().renderCount - a, settleTries: tries };
+  const renders = SBMM.viewer3d.stats().renderCount - a;
+  SBMM.viewer3d.animateWater(wasAnim);
+  return { renders, settleTries: tries, settled: tries < 60, wasAnim,
+           sticks: SBMM.viewer3d.datasetSticks().length };
 });
 console.log("idle 3D with a log card open — renders over 4 s:", logIdle.renders,
-            "| settle polls:", logIdle.settleTries);
+            "| settle polls:", logIdle.settleTries, "| water animation was", logIdle.wasAnim,
+            "|", logIdle.sticks, "stick objects drawn");
+if (!logIdle.settled)
+  { console.log("FAIL: the 3D view never settled with the water animation off"); process.exit(1); }
 if (logIdle.renders > 1) { console.log("FAIL: the boring sticks keep the 3D view rendering"); process.exit(1); }
 
 if (errors.length !== errBeforeLog) {
