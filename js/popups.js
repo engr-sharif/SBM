@@ -143,10 +143,20 @@ SBMM.popups = (function () {
          answers, side by side, because their agreement is the check. */
       /* v10: any water body is a candidate for the overtopping analysis, and
          the click that asks the question is the click on the water itself */
-      if (p.layer === "water")
-        acts.push(btn("overtopping analysis",
-          () => SBMM.water.overtop({ ring: g.coordinates[0].map(q => [q[0], q[1]]), name: p.name }),
+      if (p.layer === "water") {
+        /* 2026-09-08: while THIS water body's overtopping analysis is open, the
+           click on the water is a question about the analysis, and the popup
+           answers it first — the level, what is left to the pipes and the rim,
+           and the slider one tap away */
+        const A = SBMM.water && SBMM.water.active && SBMM.water.active();
+        const ring0 = g.coordinates[0];
+        const cxy = ring0.reduce((a, q) => [a[0] + q[0] / ring0.length, a[1] + q[1] / ring0.length], [0, 0]);
+        const d = A && SBMM.water.describeAt ? SBMM.water.describeAt(cxy[0], cxy[1]) : null;
+        if (d && d.kind === "water") h += d.html;
+        else acts.push(btn("overtopping analysis",
+          () => SBMM.water.overtop({ ring: ring0.map(q => [q[0], q[1]]), name: p.name }),
           "Where and at what level this water body first spills"));
+      }
       if (p.layer === "exc")
         acts.push(btn("volume of this excavation",
           () => SBMM.isopach.excavationVolume(p, g),

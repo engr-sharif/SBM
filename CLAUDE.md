@@ -1022,7 +1022,16 @@ The definitions, in short (§2 has them in full):
 - **A pond** is a priority flood from a pit up to its pour point. Descent reads a
   pond cell as its pond's **level**, never its floor, so the drop leaving a pond
   cannot fall back in. Ponds shallower than **0.25 ft** (the lidar noise floor)
-  are crossed but never reported or drawn.
+  are crossed but never reported or drawn. **The path through a pond is
+  entry → outlet (2026-09-08):** once the flood fills, the vertices the drop
+  walked across the floor are cut back to the shoreline cell it entered at and
+  the run continues from the outlet. Without that every drop into the Herman
+  Impoundment walked the lidar's flat water surface to one pit on the north
+  shore and jumped 1,068 ft to the pipes from there — the engineer's "why do
+  they all go to this one point". The rule lives in `flowpath` in all three
+  implementations (JS, the Rust core, `test/fixtures/waterref.py`), the swale
+  reference was regenerated with it, and the recorded overland lengths in the
+  `storm` section moved shorter with it.
 - **The water surface** of an impoundment is the lidar's flat return: `z0` = the
   median z inside the polygon, seed = cells within `plateauTol` (0.3 ft) of it.
 - **The spill** is found by a *sealed* inside-out flood: a neighbour below the
@@ -2843,6 +2852,27 @@ accumulation identity at **0.000 %** on all three outlets.
   `page.click()` on one would time out on visibility. The harnesses all go through
   `evaluate`. The note is written in the engineer's own voice; nothing in the app may name
   a tool, a vendor or an assistant as its author.
+- **`SBMM.water.describeAt(x, y)` is the fact under a point while an analysis is open**
+  (2026-09-08): `{kind: "water"|"rim", title, html, ft?}` — the water at the slider's
+  level (area, storage, what is left to the conduit and to the rim, from `nearestStage`
+  and `ov.conduitLevel`/`R.primary`) or the rim band's own value there (`bandAt`, read
+  straight off `R.band.v` through `ov.bounds`). Three callers: the 2D dwell chip
+  (`#waterTip`, 550 ms on `mousemove`, hidden on 14 px of travel) and the 2D click on
+  bare band ground (deferred 30 ms so a layer's own popup wins), `js/popups.js forGis`
+  (the analysed water polygon's popup carries the summary instead of the "overtopping
+  analysis" button), and `js/pick3d.js` — the stage mesh is registered as a pickable
+  (`waterstage`, priority 1.5, re-registered on every `setWaterStage`), the 3D dwell
+  opens the hovered object's card after `DWELL_MS` (550) and, over bare terrain with an
+  analysis open, raycasts the terrain ONCE and opens `describeAt`'s card; a dwell card
+  closes after 10 px of travel, a clicked card stays; no dwell across a press, a drag, a
+  wheel or a pointer leave. The `data-wact` buttons are delegated on `document` so the
+  same HTML works in a Leaflet popup, a 3D card and the results panel;
+  `focusSlider()` shows Results, `scrollIntoPane`s the card and flashes `.wslider`.
+  Block 9t2 asserts water / rim / nothing and the slider focus.
+- **`SBMM.viewer3d.diag()` and the "copy 3D diagnostics" button** (View settings) are how
+  a 3D report arrives with numbers: renderer, pixel ratio, three's counters, every drawn
+  tile with its texture size, and a scan of every drawn vertex for a non-finite z. The
+  WebGL context is created with `powerPreference: "high-performance"`.
 - **E943D is the 30-in HDPE that conveys Green Pond** (the field team, 3–4 Sep 2026), not
   a third 24-in; `size_in: 30` on `storm_main_upper/lower`. The 2.35-ft drafted spacing is
   not a pipe size. `parallelBarrels()` already excludes it by size and by length.

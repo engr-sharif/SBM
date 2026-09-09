@@ -356,6 +356,17 @@ fn run(
         ponds[pid as usize].outlet = outlet;
         if reason != 0 { break; }
         if outlet < 0 { reason = 3; break; }
+        /* 2026-09-08 (js/compute.js flowpath, same comment): the walk across
+           the floor of a depression that has just filled is under water; the
+           stretch is cut back to the cell the drop ENTERED the pond at and the
+           run continues from the outlet. The flooded vertices are a suffix. */
+        {
+            let seg = segs.last_mut().unwrap();
+            let mut t = 0usize;
+            while t < seg.len() && pond_id[seg[t] as usize] != pid { t += 1; }
+            if t + 1 < seg.len() { seg.truncate(t + 1); }
+            if t < seg.len() { ponds[pid as usize].entry = seg[t]; }
+        }
         cur = outlet as usize;
         segs.last_mut().unwrap().push(cur as i32);
         if via_inlet >= 0 {

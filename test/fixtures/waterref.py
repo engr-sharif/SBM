@@ -125,6 +125,12 @@ def trace(z, X, Y, r, c, cell, F=None, minPondDepth=0.25, pondId=None, ponds=Non
             break
         if outlet is None:
             reason = 'pond'; break
+        # 2026-09-08: the walk across the floor of the depression that has just filled is under
+        # water; the path is cut back to the cell the drop entered the pond at (the flooded
+        # vertices are a suffix) and continues from the outlet. Same rule as js/compute.js.
+        t = next((i for i, rc in enumerate(path) if pondId[rc[0], rc[1]] == k), len(path) - 1)
+        del path[t + 1:]
+        P['entry'] = path[t]
         r, c = outlet
         path.append((r, c))
     if not reason:

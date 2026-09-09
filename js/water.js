@@ -2097,6 +2097,146 @@ SBMM.water = (function () {
     return n;
   }
 
+  /* ================================================================== */
+  /* what is under the pointer while an analysis is open (2026-09-08)    */
+  /* ================================================================== */
+  /* The engineer: "the pointer should be smart enough to know that if I am
+     showing the Herman overflow and I hover over the water, or the red and
+     yellow band, that is what I want to know about". These answer that in
+     both views: `describeAt(x, y)` is the fact under a point — the water at
+     the slider's level, or the rim band's own number there — and the 2D map
+     and js/pick3d.js both show it after a short dwell and on a click. */
+  function bandAt(x, y) {
+    if (!ov || !ov.R || !ov.R.band || !ov.bounds) return null;
+    const B = ov.R.band, b = ov.bounds;
+    if (x < b[0] || x > b[2] || y < b[1] || y > b[3]) return null;
+    const i = Math.floor((x - b[0]) / (b[2] - b[0]) * B.nx);
+    const j = Math.floor((y - b[1]) / (b[3] - b[1]) * B.ny);
+    if (i < 0 || j < 0 || i >= B.nx || j >= B.ny) return null;
+    const v = B.v[j * B.nx + i];
+    return Number.isNaN(v) ? null : v;
+  }
+  function inAnalysedWater(x, y) {
+    if (!ov) return false;
+    const s = nearestStage(ov.R, ov.level);
+    if (s && s.rings && s.rings.length) return s.rings.some(r => pointInPoly(x, y, r));
+    return !!(ov.ring && pointInPoly(x, y, ov.ring));
+  }
+  function levelWords() {
+    const R = ov.R, F = ov.facts, lvl = ov.level;
+    const s = nearestStage(R, lvl);
+    const rise = lvl - R.z0;
+    const parts = [];
+    parts.push(`<b>${esc(ov.name)}</b> — water at <b>${fmt(lvl, 2)} ft</b>`
+      + (Math.abs(rise) > 0.005 ? ` (${rise > 0 ? "+" : ""}${fmt(rise, 2)} ft above today's ${fmt(R.z0, 2)})` : " (today's surface)"));
+    if (s) parts.push(`${fmt(s.area_ft2 / 43560, 1)} ac of water · ${fmt(s.storage_ft3 / 43560, 1)} ac-ft stored above today`);
+    if (ov.conduitLevel != null) {
+      const d = ov.conduitLevel - lvl;
+      parts.push(`${esc(ov.conduitLabel || "first conduit")} at ${fmt(ov.conduitLevel, 2)} ft — `
+        + (d > 0.005 ? `<b>${fmt(d, 2)} ft to go</b>` : "<b>discharging</b>"));
+    }
+    if (R.primary) {
+      const d = R.primary.level - lvl;
+      parts.push(`rim spill at ${fmt(R.primary.level, 2)} ft — ` + (d > 0.005 ? `<b>${fmt(d, 2)} ft to go</b>` : "<b>overtopped</b>"));
+    }
+    if (F && F.wallCrest != null) parts.push(`sandbag crest surveyed at ${fmt(F.wallCrest, 2)} ft`);
+    return parts;
+  }
+  function describeAt(x, y) {
+    if (!ov || !ov.R) return null;
+    if (inAnalysedWater(x, y)) {
+      const parts = levelWords();
+      return { kind: "water", title: parts[0].replace(/<[^>]+>/g, ""),
+               html: `<div class="waterdesc">${parts.map(p => `<div>${p}</div>`).join("")}</div>`
+                 + `<div class="pop-actions"><span class="minib" data-wact="slider">raise the water — the level slider</span>`
+                 + `<span class="minib" data-wact="card">the overtopping card</span></div>` };
+    }
+    const v = bandAt(x, y);
+    if (v != null) {
+      const z = SBMM.elev(x, y), sp = ov.R.primary ? ov.R.primary.level : NaN;
+      const gz = Number.isNaN(z) ? null : z;
+      const title = `rim here ${gz != null ? fmt(gz, 2) + " ft · " : ""}+${fmt(v, 2)} ft above the spill`;
+      const html = `<div class="waterdesc"><div><b>The rim here</b>${gz != null ? ` — ground ${fmt(gz, 2)} ft` : ""}</div>`
+        + `<div><b>+${fmt(v, 2)} ft</b> above the spill level (${fmt(sp, 2)} ft): `
+        + (v < 0.005 ? "this is where the water leaves first" : `the water has to rise ${fmt(v, 2)} ft past the spill before it comes over here`) + `</div>`
+        + `<div class="note">The band is hot where the rim is at the spill and fades out ${fmt(RIM_RANGE, 0)} ft above it.</div></div>`
+        + `<div class="pop-actions"><span class="minib" data-wact="slider">raise the water — the level slider</span></div>`;
+      return { kind: "rim", title, html, ft: v };
+    }
+    return null;
+  }
+  /* the "levels…" action: bring the card forward and put the slider in the eye */
+  function focusSlider() {
+    if (!ov || !ov.card) { toast("no overtopping analysis is open — Water ▾ → Overtopping"); return false; }
+    if (SBMM.shell && SBMM.shell.showResults) SBMM.shell.showResults();
+    scrollIntoPane(ov.card);
+    const sl = ov.card.querySelector("#wsRange");
+    const box = sl ? sl.closest(".wslider") || sl.parentElement : ov.card;
+    if (box) { box.classList.remove("flashit"); void box.offsetWidth; box.classList.add("flashit"); }
+    if (sl) { try { sl.focus({ preventScroll: true }); } catch (e) { /* older browsers */ } }
+    toast("drag the slider to raise the water: the pipes, the sandbag crest and the rim are marked on it", 4200);
+    return true;
+  }
+  /* the actions inside a describeAt() popup, delegated from wherever it lands */
+  document.addEventListener("click", e => {
+    const t = e.target && e.target.closest && e.target.closest("[data-wact]");
+    if (!t) return;
+    if (t.dataset.wact === "slider") focusSlider();
+    else if (t.dataset.wact === "card" && ov && ov.card) { if (SBMM.shell && SBMM.shell.showResults) SBMM.shell.showResults(); scrollIntoPane(ov.card); }
+    if (SBMM.map && SBMM.map.closePopup) SBMM.map.closePopup();
+  });
+
+  /* 2D: a short dwell over the water or the band shows the chip; a click on
+     the water opens the description as a popup (the water polygon's own popup
+     carries the same summary, see js/popups.js forGis) */
+  let dwellT = null, chip = null, chipAt = null;
+  function chipEl() {
+    if (chip) return chip;
+    chip = document.createElement("div");
+    chip.id = "waterTip";
+    chip.hidden = true;
+    SBMM.map.getContainer().appendChild(chip);
+    return chip;
+  }
+  function hideChip() { if (chip) chip.hidden = true; chipAt = null; }
+  function wireDwell() {
+    const map = SBMM.map;
+    map.on("mousemove", e => {
+      if (dwellT) clearTimeout(dwellT);
+      if (chipAt && e.containerPoint.distanceTo(chipAt) > 14) hideChip();
+      if (!ov) return;
+      dwellT = setTimeout(() => {
+        dwellT = null;
+        if (!ov || SBMM.draw.isDrawing()) return;
+        const d = describeAt(e.latlng.lng, e.latlng.lat);
+        if (!d) { hideChip(); return; }
+        const el = chipEl();
+        el.textContent = d.title;
+        el.style.left = (e.containerPoint.x + 14) + "px";
+        el.style.top = (e.containerPoint.y + 16) + "px";
+        el.hidden = false;
+        chipAt = e.containerPoint;
+      }, 550);
+    });
+    map.on("mouseout zoomstart movestart", () => { if (dwellT) clearTimeout(dwellT); dwellT = null; hideChip(); });
+    /* a click on the analysed water body, anywhere the layers below did not
+       answer, opens the description — the polygon's own popup does the same
+       through js/popups.js when it is the one that answers */
+    map.on("click", e => {
+      if (!ov || SBMM.draw.isDrawing() || (SBMM.tools.active && SBMM.tools.active())) return;
+      const ll = e.latlng;
+      /* a beat later, so a layer under the click (a storm node, a DU, the
+         water polygon itself) keeps its own popup; only bare ground answers */
+      setTimeout(() => {
+        if (!ov || (map._popup && map._popup.isOpen && map._popup.isOpen())) return;
+        const d = describeAt(ll.lng, ll.lat);
+        if (!d || d.kind !== "rim") return;
+        hideChip();
+        L.popup({ maxWidth: 320 }).setLatLng(ll).setContent(`<div class="pop"><div class="pop-t">${esc(d.title)}</div>${d.html}</div>`).openOn(map);
+      }, 30);
+    });
+  }
+
   /* what js/viewer3d.js drapes on the terrain — the same picture as 2D, so
      there is one rim band and one legend rather than two */
   function drapeSpec() {
@@ -2122,6 +2262,7 @@ SBMM.water = (function () {
   function wire() {
     /* the pond labels are zoom-gated; nothing is rebuilt, only shown or hidden */
     if (SBMM.map) SBMM.map.on("zoomend", refreshLabels);
+    if (SBMM.map) wireDwell();
     const btn = document.getElementById("waterMenuBtn");
     const menu = document.getElementById("waterMenu");
     if (!btn || !menu) return;
@@ -2190,6 +2331,7 @@ SBMM.water = (function () {
     firstDischargeWords, parallelBarrels, pipeChainRoute,
     wire, dropAt, mkFlow, buildFlow, retrace, catchment, makeProfile,
     overtop, overtopHerman, overtopAt, clearOvertop, clearAnalysis, clearWater, drapeSpec, active,
+    describeAt, bandAt, focusSlider, inAnalysedWater,
     refreshLabels, fillFlowCard, endSentence, endShort, pickPond,
     COLORS: C, MIN_POND, RIM_RANGE
   };
