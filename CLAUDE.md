@@ -284,7 +284,11 @@ the draw-order assertions in the same run passing. Both passed alone
 (`--only "9z. the layer tree"`, 14 s each, `focus after ArrowDown: piles`), so it is the
 same load flake wearing a different assertion: the row the tree focuses next is decided
 from the DOM, and on a loaded box the reload's re-registration has not settled. Same
-rule — re-run the block alone before believing it. Two app-side causes were
+rule — re-run the block alone before believing it. **Since v9.25 the keyboard section
+waits on conditions too** (the toggle landing, the focused row being navigable with a
+row after it, the focus having moved) instead of 250/150 ms, and on a failure prints
+what `navRows()` saw — navigable rows, the focused index, the next row — so the next
+occurrence arrives with data. Two app-side causes were
 closed in v21: `legendSoon()` in `js/layertree.js` was a leading-edge debounce whose
 callback painted the legend BEFORE re-asserting the draw order, so a burst of layer
 adds outlasting its 80 ms, or a paint that threw, left the order unapplied; it is now

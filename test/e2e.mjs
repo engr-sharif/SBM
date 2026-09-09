@@ -6828,7 +6828,7 @@ await page.screenshot({ path: "/tmp/shot_props_" + label.replace(/\W+/g, "_") + 
 
 
 /* ==================================================================== */
-let errBeforeTree, treeBase, tree, treeKeys, treeMissing, treeNew, treeUnexplained, treeSearch, treeSolo, treeActs, gripBox, treeOrder, grip2, treeOrder2, treePreset, treeSess, kbBefore, kbAfter, kbMoved, treeLegend, errBeforeReload, treeReload;   /* hoisted — v18 §3 */
+let errBeforeTree, treeBase, tree, treeKeys, treeMissing, treeNew, treeUnexplained, treeSearch, treeSolo, treeActs, gripBox, treeOrder, grip2, treeOrder2, treePreset, treeSess, kbBefore, kbAfter, kbMoved, kbDiag, treeLegend, errBeforeReload, treeReload;   /* hoisted — v18 §3 */
 await block("9ac. the compute core", async () => {
 /* 9ac. the compute core — v21, docs/V21_WASM_SPEC.md §3/§5             */
 /* ==================================================================== */
@@ -7868,24 +7868,52 @@ if (!treeSess.inFile || !treeSess.gone || !treeSess.back) {
 if (!(treeSess.old >= 1)) { console.log("FAIL: a session without `_tree` no longer restores layers"); process.exit(1); }
 
 /* ---- keyboard: arrows move, Space toggles ---- */
+/* Every wait here is on a CONDITION, not on the clock. This section is the
+   second face of the 9z load flake ("ArrowDown did not move the focus dus",
+   seen on both builds in one matrix run, passing alone every time): Space
+   toggles the Decision units, which under software GL queues a 3D overlay
+   rebuild, and a fixed 150 ms after the ArrowDown was not always enough for
+   the renderer to have handled it. The tree's own navigation rule is
+   `navRows()` in js/layertree.js — a row is navigable when it is not filtered
+   out and has an offsetParent — so the probe restates it and, if the focus
+   still does not move, prints what that rule saw rather than a bare id. */
+const kbRows = () => [...document.querySelectorAll("#layers .lyr")]
+  .filter(r => !r.classList.contains("lthide") && r.offsetParent);
 await page.evaluate(() => {
   document.querySelector('#projLayers .lyr[data-lid="dus"]').focus();
 });
 kbBefore = await page.evaluate(() => SBMM.layerState.isOn("framework", "dus"));
 await page.keyboard.press("Space");
-await page.waitForTimeout(250);
+await page.waitForFunction(was => SBMM.layerState.isOn("framework", "dus") !== was, kbBefore,
+  { timeout: 30000 }).catch(() => {});
 kbAfter = await page.evaluate(() => ({
   on: SBMM.layerState.isOn("framework", "dus"),
   focused: (document.activeElement.dataset || {}).lid
 }));
+/* the row must be focused AND navigable with a row after it before the arrow
+   is pressed; a toggle-driven repaint can take a moment under load */
+await page.waitForFunction(`(${kbRows.toString()})().findIndex(r => r === document.activeElement
+  && r.dataset.lid === "dus") >= 0 && (${kbRows.toString()})().indexOf(document.activeElement)
+  < (${kbRows.toString()})().length - 1`, null, { timeout: 30000 }).catch(() => {});
+kbDiag = await page.evaluate(`(() => { const rows = (${kbRows.toString()})();
+  const i = rows.indexOf(document.activeElement);
+  return { navigable: rows.length, all: document.querySelectorAll("#layers .lyr").length,
+           hidden: document.querySelectorAll("#layers .lyr.lthide").length,
+           focusedIndex: i, next: i >= 0 && rows[i + 1] ? rows[i + 1].dataset.lid : null,
+           active: (document.activeElement.dataset || {}).lid || document.activeElement.tagName,
+           layersShown: !!document.getElementById("layers").offsetParent }; })()`);
 await page.keyboard.press("ArrowDown");
-await page.waitForTimeout(150);
+await page.waitForFunction(() => (document.activeElement.dataset || {}).lid !== "dus",
+  null, { timeout: 15000 }).catch(() => {});
 kbMoved = await page.evaluate(() => (document.activeElement.dataset || {}).lid);
 await page.keyboard.press("Space");
 await page.waitForTimeout(250);
-console.log("keyboard: dus", kbBefore, "-> Space ->", kbAfter.on, "| focus after ArrowDown:", kbMoved);
+console.log("keyboard: dus", kbBefore, "-> Space ->", kbAfter.on, "| focus after ArrowDown:", kbMoved,
+            "| navigable rows", kbDiag.navigable, "of", kbDiag.all, "focused at", kbDiag.focusedIndex,
+            "next", kbDiag.next);
 if (kbAfter.on === kbBefore) { console.log("FAIL: Space on a focused row did not toggle it"); process.exit(1); }
-if (!kbMoved || kbMoved === kbAfter.focused) { console.log("FAIL: ArrowDown did not move the focus", kbMoved); process.exit(1); }
+if (!kbMoved || kbMoved === kbAfter.focused) {
+  console.log("FAIL: ArrowDown did not move the focus", kbMoved, JSON.stringify(kbDiag)); process.exit(1); }
 await page.evaluate(on => SBMM.layerState.set("framework", "dus", { on }), kbBefore);
 
 /* ---- the legend card lists exactly the visible rows ---- */
