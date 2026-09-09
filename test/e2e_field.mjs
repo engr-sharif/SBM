@@ -1201,6 +1201,36 @@ await block("17. the boring logs", async () => {
     fail("the field strip log is not the SB-9 log", B);
   if (B.flagged < 1 || B.disagree !== B.flagged)
     fail("the field build's disagreement count is not the payload's flagged-hole count", B);
+
+  /* v23 §2.1: the log window opens MAXIMISED here — under body.field the stage
+     is the whole screen, so "maximised to the stage" IS the full-screen sheet
+     §2.1 asks for. A floating window inside a phone screen is two sets of
+     edges to miss with a thumb. */
+  const V = await page.evaluate(() => {
+    if (!SBMM.borewin) return { missing: true };
+    SBMM.borewin.open("SB-9");
+    const el = document.querySelector(".blwin");
+    if (!el) return { noWin: true };
+    const r = el.getBoundingClientRect(), s = SBMM.sheets.stageBox();
+    const svg = el.querySelector("svg.bwsvg");
+    const out = { st: SBMM.borewin.stateOf(), maxed: el.classList.contains("maxed"),
+                  w: Math.round(r.width), h: Math.round(r.height),
+                  stage: [Math.round(s.w), Math.round(s.h)],
+                  gl: svg ? svg.querySelectorAll(".blgl").length : 0,
+                  contact: svg && svg.querySelector(".blcontact")
+                    ? +svg.querySelector(".blcontact").dataset.ft : null };
+    SBMM.borewin.close();
+    out.closed = !document.querySelector(".blwin") || !SBMM.borewin.stateOf().open;
+    return out;
+  });
+  console.log("the log window (field):", JSON.stringify(V));
+  if (V.missing || V.noWin) fail("the log window did not open in field mode", V);
+  if (!V.maxed) fail("the log window is not a full-screen sheet under body.field", V);
+  if (V.w < V.stage[0] - 12 || V.h < V.stage[1] - 12)
+    fail("the log window does not fill the stage in field mode", V);
+  if (V.st.id !== "SB-9" || V.gl < 3 || V.contact !== 7.5)
+    fail("the field log window is not SB-9's log", V);
+  if (!V.closed) fail("the log window would not close in field mode", V);
 });
 
 /* ===================================================================== */

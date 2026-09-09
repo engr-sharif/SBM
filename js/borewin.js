@@ -37,7 +37,14 @@ SBMM.borewin = (function () {
   const Z = 4890;                       /* inside the sheet-window band       */
   const SCALES = [2, 5, 10, 20];        /* 1 in = N ft                        */
   const DPI = 96;
-  const PAGE_FT = 45;                   /* 9 in of drawing at 1 in = 5 ft     */
+  /* THE PAGE HEIGHT IS ARITHMETIC, NOT A TASTE. Letter is 11 in; at 0.35 in
+     margins 10.3 in of it prints. The header block is ~1.15 in, so 9.1 in is
+     left for the drawing, and at 1 in = 5 ft (19.2 px/ft, the browser's own
+     96 dpi) that is 43 ft plus the 30 px heading strip and a 10 px foot.
+     Change any of those four numbers and re-do this division — a log sheet
+     that silently spills onto a second sheet of paper is worse than a coarser
+     scale. SB-10, the deepest hole at 126.4 ft, comes out at 3 pages. */
+  const PAGE_FT = 43;
   const MAXCMP = 6;
 
   let W = null;                         /* the ONE window state               */
@@ -484,9 +491,13 @@ SBMM.borewin = (function () {
        say nothing about which horizon is which. */
     const zTop = Math.max(...list.map(h => (h.elev == null ? 0 : h.elev))) + 2;
     const zBot = Math.min(...list.map(h => (h.elev == null ? -100 : h.elev - h.depth))) - 2;
-    const P = ppf() / (scale >= 10 ? 1 : 2.2);      /* compare is a smaller scale than the sheet */
-    const CW = 92, GAP = 74, PADL = 46, PADT = 30;
-    const H = Math.ceil(PADT + (zTop - zBot) * P + 40);
+    const CW = 92, GAP = 74, PADL = 46, PADT = 34;
+    /* compare FITS by default: the point of it is the whole set of columns on
+       one datum, and a scale that puts three of the four below the fold is not
+       a comparison. The sheet's own scale is the ceiling, never the floor. */
+    const room = Math.max(220, (W ? W.body.clientHeight : 600) - PADT - 76);
+    const P = Math.min(ppf() / 2.2, room / Math.max(1, zTop - zBot));
+    const H = Math.ceil(PADT + (zTop - zBot) * P + 56);
     const Wt = PADL + list.length * CW + (list.length - 1) * GAP + 60;
     const yOfZ = z => PADT + (zTop - z) * P;
     const parts = [], defs = [];
@@ -503,10 +514,13 @@ SBMM.borewin = (function () {
 
     const cols = list.map((h, i) => {
       const x = PADL + i * (CW + GAP);
+      /* the SHARED zTop is what places the collar: column() maps the window's
+         top elevation to padTop, so every column here starts at the same y and
+         each hole's own ground falls where the datum says it does. Adding a
+         per-hole offset on top of that counted the datum twice, and three of
+         the four columns landed off the bottom of the drawing. */
       const r = BL().column(h, { tier: "stick", w: CW, ppf: P, datum: "elev",
-        zTop, zBot, padTop: PADT + (zTop - (h.elev == null ? zTop : h.elev)) * P - 0, axes: false });
-      /* column() places its own top at padTop, so the padTop above puts the
-         hole's collar at its own ground elevation on the shared datum */
+        zTop, zBot, padTop: PADT, axes: false });
       defs.push(r.defs);
       return { h, x, r };
     });
@@ -556,6 +570,15 @@ SBMM.borewin = (function () {
         + ` stroke="#3A4C58" stroke-width="1"/>`);
     }
 
+    /* the three horizons named once, at the foot, rather than in a caption */
+    const keyY = H - 4;
+    HZ.forEach((hz, i) => {
+      const x = PADL + i * 170;
+      parts.push(`<line x1="${x}" y1="${keyY - 3}" x2="${x + 20}" y2="${keyY - 3}"`
+        + ` stroke="${hz.col}" stroke-width="1.6" stroke-dasharray="${hz.dash || ""}"/>`);
+      parts.push(`<text x="${x + 25}" y="${keyY}" fill="#8FA3AE" font-size="8.5">${hz.label}`
+        + `${links[hz.key] ? "" : " — none"}</text>`);
+    });
     W.art.innerHTML = `<svg class="bwsvg bwcmp" viewBox="0 0 ${Wt} ${H}" width="${Wt}" height="${H}"`
       + ` xmlns="http://www.w3.org/2000/svg">`
       + `<style>text{font-family:"SF Mono",ui-monospace,Consolas,Menlo,monospace}</style>`
@@ -742,24 +765,30 @@ SBMM.borewin = (function () {
      class tints and the USCS patterns kept — this is the appendix the team
      hands out, so it has to look like one. */
   const PRINT_CSS = `
-    @page { size: letter portrait; margin: 0.45in; }
+    @page { size: letter portrait; margin: 0.35in; }
     *{box-sizing:border-box}
     body{margin:0;background:#fff;color:#111;font:11px/1.45 "Helvetica Neue",Helvetica,Arial,sans-serif;
       -webkit-print-color-adjust:exact;print-color-adjust:exact}
-    .pg{width:7.5in;margin:0 auto 18px;padding:0 0 10px;page-break-after:always;position:relative}
+    .pg{width:720px;margin:0 auto 18px;padding:0 0 8px;page-break-after:always;position:relative}
     .pg:last-child{page-break-after:auto}
     .hd{border:1.3px solid #111;margin-bottom:8px}
     .hd .r1{display:flex;border-bottom:1px solid #111}
-    .hd .who{padding:6px 9px;flex:1}
-    .hd .who h1{font-size:15px;margin:0;font-weight:700;letter-spacing:.02em}
-    .hd .who .sub{font-size:10px;color:#444;margin-top:1px}
-    .hd .pgno{padding:6px 9px;border-left:1px solid #111;min-width:1.5in;text-align:right;font-size:10px}
+    .hd .who{padding:4px 9px;flex:1}
+    .hd .who h1{font-size:14px;margin:0;font-weight:700;letter-spacing:.02em;line-height:1.2}
+    .hd .who .sub{font-size:9.5px;color:#444;line-height:1.3}
+    .hd .pgno{padding:4px 9px;border-left:1px solid #111;min-width:1.15in;text-align:right;
+      font-size:9.5px;line-height:1.3}
     .hd .grid{display:flex;flex-wrap:wrap;font-size:9.5px}
-    .hd .grid div{padding:3px 9px;border-right:1px solid #ccc;border-top:1px solid #eee;min-width:1.15in}
-    .hd .grid span{color:#666;display:block;font-size:8.5px;text-transform:uppercase;letter-spacing:.05em}
-    .hd .grid b{font-family:ui-monospace,Consolas,monospace;font-size:10.5px}
-    .flags{border:1px solid #b00;color:#b00;padding:2px 8px;font-size:9.5px;margin:0 0 6px}
-    svg{display:block;width:100%;height:auto}
+    .hd .grid div{padding:1px 8px;border-right:1px solid #ccc;border-top:1px solid #eee;min-width:118px}
+    .hd .grid span{color:#666;display:block;font-size:8px;text-transform:uppercase;letter-spacing:.05em;
+      line-height:1.3}
+    .hd .grid b{font-family:ui-monospace,Consolas,monospace;font-size:10px;line-height:1.3}
+    .flags{border:1px solid #b00;color:#b00;padding:1px 8px;font-size:9.5px;margin:0 0 5px}
+    /* 720 px = 7.5 in at the browser's 96 dpi, so 19.2 px/ft prints at exactly
+       1 in = 5 ft. Do NOT put width:100% on it — the drawing would print at
+       whatever the paper happened to be, and a log sheet at "about" a scale is
+       a picture rather than a log sheet. */
+    svg{display:block;width:720px;height:auto}
     .lg{display:flex;flex-wrap:wrap;gap:10px;font-size:9.5px;margin-top:8px;border-top:1px solid #111;padding-top:6px}
     .lg i{display:inline-block;width:11px;height:11px;border:1px solid #111;vertical-align:-1px;margin-right:3px}
     .ft{position:absolute;bottom:-2px;right:0;font-size:8.5px;color:#666}
@@ -776,7 +805,7 @@ SBMM.borewin = (function () {
         <div class="who"><h1>Boring ${esc(h.id)}</h1>
           <div class="sub">SBMM OU1 — Sulphur Bank Mercury Mine · ${esc(BL().areaOf(h.id) || "waste area not assigned")}
             · 2025 geotechnical investigation</div></div>
-        <div class="pgno">page ${page} of ${pages}<br>${new Date().toISOString().slice(0, 10)}</div>
+        <div class="pgno">page ${page} of ${pages}<br>1&Prime; = 5&prime;<br>${new Date().toISOString().slice(0, 10)}</div>
       </div>
       <div class="grid">
         ${f("Ground elev", fmt(h.elev, 1) + " ft" + (d ? " (Δ lidar " + (d.d > 0 ? "+" : "") + fmt(d.d, 1) + ")" : ""))}
@@ -790,10 +819,8 @@ SBMM.borewin = (function () {
         ${f("Lat / long", h.lat != null ? h.lat.toFixed(6) + ", " + h.lon.toFixed(6) : "—")}
         ${f("Drilled", (h.date_start || "—") + (h.date_end && h.date_end !== h.date_start ? "–" + h.date_end : ""))}
         ${f("Method", esc(h.method_words || "—"))}
-        ${f("Logged by", esc(h.logger || "—"))}
-        ${f("Checked", esc(h.checked_by || "—"))}
+        ${f("Logged / checked", esc((h.logger || "—") + (h.checked_by ? " · " + h.checked_by : "")))}
         ${f("Driller", esc([m0.driller, m0.contractor].filter(Boolean).join(" · ") || "—"))}
-        ${f("Scale", `1" = 5'`)}
       </div></div>
       ${(c.flags || []).length ? `<div class="flags">${esc(c.flags.join(" · "))} — not reconciled</div>` : ""}`;
   }
@@ -828,7 +855,7 @@ SBMM.borewin = (function () {
       pgs.forEach((rng, i) => {
         k++;
         const r = BL().column(h, { tier: "sheet", ppf: DPI / 5, w: 720, print: true,
-          headings: true, top: rng[0], bot: rng[1], padTop: 30 });
+          headings: true, top: rng[0], bot: rng[1], padTop: 30, padBot: 10 });
         pages.push(`<div class="pg">${headerHtml(h, i + 1, pgs.length)}`
           + `<svg viewBox="0 0 ${r.w} ${r.h}" width="${r.w}" height="${r.h}"`
           + ` xmlns="http://www.w3.org/2000/svg"><style>text{font-family:ui-monospace,Consolas,monospace}</style>`

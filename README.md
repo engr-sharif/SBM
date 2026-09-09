@@ -1705,6 +1705,62 @@ and a **boring log** button that draws the whole hole.
 native contact and a blue tick at the water level — so a fence of borings reads as the
 waste thickness across the site rather than as a row of sticks.
 
+### The log window (v23) — the log sheet, compare and the table
+
+The strip log in the Results panel is the quick view. **open in window** on it — or the
+popup's **boring log** button, the log button on a row of the Borings table, the 3D pick
+card, or `LOGWIN` — opens the log window: a floating, resizable window on the same chassis
+as the drawing viewer, with three tabs.
+
+**Log** draws the hole as a log sheet at a real scale — **1 in = 5 ft** by default, with
+1 in = 2, 5, 10 and 20 ft on the menu (`+` / `−`, or a pinch on a tablet) — and every
+column a gINT or LogPlot sheet carries, left to right:
+
+| column | what is in it |
+|---|---|
+| depth | ft below ground, ticked every foot and labelled every five |
+| method / casing | hand auger or sonic as a band, the casing as a line beside it |
+| class | waste / native / bedrock, the same band the strip log draws |
+| graphic log | the **ASTM D2488 / USCS pattern** of each unit — gravel circles, sand dots, silt dashes, clay lines, brick for rock, a diagonal hatch where the logger described a unit and did not classify it — **tinted by the logged class**, so waste that is a clayey sand reads as orange SC and native SC reads green SC |
+| USCS | the symbol |
+| description | the logger's full text, wrapped — the reason the window is wide |
+| sample · N | a box per drive over its own interval (split spoon filled, Modified California half, Shelby open), the recovery as a fill up its edge, and the N in a bar scaled 0–50 with refusal as a full red bar |
+| blows / 6 in | the three numbers beside the drive |
+| PP | pocket penetrometer on 0–4.5 tsf |
+| pH | 2–8 with the red rule at 4 |
+| lab | WC, LL, PI, fines, DD, Su, C, φ, Cc, Cr as chips at their sample depth; hover for the interval and the method |
+| remarks | the log notes at their depth |
+| elevation | ft NAVD88 — the hole's surveyed ground elevation minus the depth |
+
+The header block stays on screen while the log scrolls: the hole, its waste area, ground
+elevation (with **Δ lidar**, what the January-2024 survey reads at the same point — a hole
+more than 2 ft apart is pilled, never corrected), total depth, base elevation, both
+contacts, bedrock, groundwater, coordinates, dates, method, who logged and checked it, and
+the driller.
+
+A **depth cursor** follows the pointer across every column with a chip reading the depth,
+the elevation, the stratum, the drive and the nearest test. Hovering a unit lights the same
+interval on that hole's 3D depth stick; clicking one flashes the boring on the map.
+`←` / `→` walk the holes.
+
+**Compare** stands two to six holes on **one elevation datum** — the tallest ground at the
+top — with the native contact, the top of bedrock and the water level joined across
+neighbours (dashed where a hole did not reach that horizon; the correlation is linear
+between neighbours and nothing more) and **the true horizontal separation printed between
+each pair**, so 60 ft apart never reads like 600. This is the fence diagram without the
+ground under it.
+
+**Table** is the reconciliation sheet at full width: all 44 holes with waste area, ground
+elevation, both contacts and their elevations, bedrock and its elevation, groundwater, who
+logged it and when, the flags, and a mini column per row. Sortable on any column,
+filterable by waste area, `csv` copies it.
+
+**print** produces the appendix: black on white, one Letter page per 43 ft at 1 in = 5 ft,
+the header block repeated on every page, `page 2 of 3`, the class tints and USCS patterns
+kept, the legend on the last page and the watermark every export carries. **print all**
+does all 44 in id order as one document; **print area** does one waste area. `png` saves
+whatever tab is open.
+
 ### The two contact numbers, and what each one is
 
 "How deep is the waste here" has two answers in the approved logs, and **18 of the 44 holes
@@ -1734,6 +1790,7 @@ a row to open that hole's log. It says at the top how many disagree.
 | `LOG SB-9` (`BORELOG`, `BORING`) | open that boring's log. `9`, `sb9` and `SB-9` all work |
 | `LOG` | list the borings and open the table |
 | `LOGS` (`BORELOGS`, `BORINGS`) | the 44-hole contact table |
+| `LOGWIN SB-9` (`LOGWINDOW`, `BOREWIN`) | the log window — the log sheet, compare and the table |
 
 ### The coordinates
 
