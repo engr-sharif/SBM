@@ -207,6 +207,23 @@ SBMM.cmd = (function () {
     { n: "DATASET", a: ["DATA", "IMPORTCSV", "CSVIN"], d: "import a CSV of coordinates as a dataset (wells, borings, anything)",
       f: () => SBMM.datasets.pickFile() },
 
+    /* the 2025 boring logs. LOG / LOGS are the two words the engineer used for
+       them; every alias is checked against the whole flat table by
+       test/check.mjs, because aliases resolve first-match and a duplicate
+       silently kills the later command's. */
+    { n: "LOG",  a: ["BORELOG", "BORING"],
+      d: "boring log — the strata, SPT, lab values and water level of one 2025 boring", arg: "boring (e.g. SB-9)",
+      f: v => {
+        if (!SBMM.borelogs) { toast("this build has no boring logs"); return; }
+        SBMM.borelogs.cmd(v);
+      } },
+    { n: "LOGS", a: ["BORELOGS", "BORINGS"],
+      d: "every boring log in one table — the two contact statements per hole, and where they disagree",
+      f: () => {
+        if (!SBMM.borelogs) { toast("this build has no boring logs"); return; }
+        SBMM.borelogs.summary();
+      } },
+
     /* ---- field mode (v11 §4.4) ---- */
     { n: "FIELD", a: ["MOBILE", "PHONE"], d: "field mode — big-target touch layout for a phone in the field",
       f: () => SBMM.field.toggle() },

@@ -44,8 +44,15 @@ SBMM.datasets = (function () {
     wells: ["Total depth (ft)", "Screen top (ft bgs)", "Screen bottom (ft bgs)",
             "TOC elev (ft NAVD88)", "Ground elev (ft NAVD88)", "Installed",
             "Casing diameter (in)", "Lithology at screen"],
-    borings: ["Total depth (ft)", "Interpreted waste depth (ft)", "Waste area",
-              "Ground elev (ft)", "Waste depth basis"],
+    /* the log-derived answers first (the 2025 OpenGround logs, js/borelogs.js):
+       the contact somebody digs to, then how it was arrived at, then the strata
+       reading it is checked against. The older field spreadsheet's two columns
+       are gone (retired 2026-09-09) */
+    borings: ["Native contact (ft)", "Native contact source",
+              "Waste thickness — log strata (ft)", "Bedrock (ft)",
+              "Groundwater (ft bgs)", "Total depth (ft)", "Contact flags",
+              "Drilling method", "Drilled", "Logged by",
+              "Waste area", "Ground elev (ft)"],
     generic: []
   };
   const DEPTH_RE = /(^|[^a-z])(total\s*depth|td|depth|bottom\s*depth|boring\s*depth)([^a-z]|$)/i;
@@ -554,7 +561,10 @@ SBMM.datasets = (function () {
       id: d.id, rowKey: d.rowRef.key, name: d.name, color: d.style.color, size: d.style.size * 2.4,
       stick: !!(d.style.stick3d && d.depthField),
       pts: d.points.map(p => ({
-        x: p.x, y: p.y,
+        /* the record id travels with the point: js/viewer3d.js asks
+           SBMM.borelogs.profileOf(id) for the class profile that colours a
+           boring's depth stick, and a stick with no id is a plain line */
+        id: p.id, x: p.x, y: p.y,
         depth: d.depthField ? (typeof p.a[d.depthField] === "number" ? p.a[d.depthField] : null) : null
       }))
     }));
