@@ -7173,6 +7173,7 @@ logPay = await page.evaluate(() => {
     remarks: D.holes.filter(h => h.contacts.source === "remark").length,
     api: SBMM.borelogs.has() ? SBMM.borelogs.ids().length : 0,
     sb9: { depth: h9.depth, nc: h9.contacts.native_contact, src: h9.contacts.source,
+           wasteBase: h9.contacts.waste_base_strata,
            spt: h9.spt.length, pen: h9.pen.length,
            ph: h9.tests.filter(t => t.key === "pH").length,
            strata: h9.strata.filter(s => s.primary).length,
@@ -7183,7 +7184,7 @@ logPay = await page.evaluate(() => {
   };
 });
 console.log(`boring logs: ${logPay.n} holes, ${logPay.remarks} with a logger's remark, `
-  + `${logPay.flagged} whose three contact statements disagree`);
+  + `${logPay.flagged} whose two contact statements disagree`);
 console.log(`  SB-9: ${logPay.sb9.depth} ft, native contact ${logPay.sb9.nc} ft (${logPay.sb9.src}), `
   + `${logPay.sb9.spt} SPT, ${logPay.sb9.ph} pH, GW ${logPay.sb9.water} ft, classes ${logPay.sb9.cls.join("/")}`);
 if (logPay.n !== 44) { console.log("FAIL: the boring-log payload is not 44 holes:", logPay.n); process.exit(1); }
@@ -7209,7 +7210,7 @@ log9 = await page.evaluate(() => {
     contactFt: ct ? +ct.dataset.ft : null,
     contactSrc: ct ? ct.dataset.src : null,
     strataLine: !!svg.querySelector(".blstrataline"),
-    olderLine: !!svg.querySelector(".blolder"),
+    olderLine: !!svg.querySelector(".blolder"),   /* retired 2026-09-09: must be false */
     spt: svg.querySelectorAll(".blspt").length,
     pen: svg.querySelectorAll(".blpen").length,
     ph: svg.querySelectorAll(".blph").length,
@@ -7222,12 +7223,16 @@ log9 = await page.evaluate(() => {
     buttons: [...el.querySelectorAll(".crow.btns .minib")].map(b => b.dataset.b),
     saysRemark: /logger's remark/.test(txt),
     saysOffset: /OpenGround plots this hole/.test(txt),
-    saysNoReconcile: /Nothing is reconciled/.test(txt)
+    saysNoReconcile: /Nothing is reconciled/.test(txt),
+    saysAgree: /Both statements agree on this hole/.test(txt),
+    txt
   };
 });
 console.log("SB-9 log:", JSON.stringify(log9));
 if (log9.noCard || log9.noSvg) { console.log("FAIL: the SB-9 log built no card / no SVG"); process.exit(1); }
 if (!/SB-9/.test(log9.title)) { console.log("FAIL: the card is not titled for SB-9:", log9.title); process.exit(1); }
+if (log9.olderLine || /Field interpretation \(older\)|older field spreadsheet/.test(log9.txt || ""))
+  { console.log("FAIL: the retired field-interpretation line is still drawn"); process.exit(1); }
 for (const c of logPay.sb9.cls)
   if (!(log9.classes[c] >= 1)) { console.log("FAIL: no profile band drawn for class", c, log9.classes); process.exit(1); }
 if (Math.abs(log9.contactFt - logPay.sb9.nc) > 1e-6 || log9.contactSrc !== logPay.sb9.src)
@@ -7243,10 +7248,18 @@ if (log9.methods < 2) { console.log("FAIL: the drilling-method strip is missing"
 if (log9.details < 2) { console.log("FAIL: the descriptions / lab expanders are missing"); process.exit(1); }
 for (const b of ["prev", "next", "zoom", "3d", "csv", "png"])
   if (!log9.buttons.includes(b)) { console.log("FAIL: the log card has no", b, "button:", log9.buttons); process.exit(1); }
-if (!log9.saysRemark || !log9.saysOffset || !log9.saysNoReconcile)
-  { console.log("FAIL: the card does not state the contact source, the coordinate offset and that nothing is reconciled", log9); process.exit(1); }
+if (!log9.saysRemark || !log9.saysOffset)
+  { console.log("FAIL: the card does not state the contact source and the coordinate offset", log9); process.exit(1); }
+/* the sentence follows the PAYLOAD: where the two statements agree it says so,
+   where they differ it says nothing is reconciled (SB-9 agrees since the older
+   spreadsheet was retired; SB-7 below is the one that differs) */
+{
+  const agree = logPay.sb9.wasteBase != null && Math.abs(logPay.sb9.wasteBase - logPay.sb9.nc) <= 0.01;
+  if (agree ? !log9.saysAgree || log9.saysNoReconcile : !log9.saysNoReconcile || log9.saysAgree)
+    { console.log("FAIL: the card's agreement sentence does not follow the payload", agree, log9.saysAgree, log9.saysNoReconcile); process.exit(1); }
+}
 
-/* one card at a time, and the three statements where they disagree */
+/* one card at a time, and the two statements where they disagree */
 logReopen = await page.evaluate(() => {
   SBMM.borelogs.open("SB-9");
   return document.querySelectorAll("#resBody .res.blcard").length;
@@ -7266,6 +7279,7 @@ log7 = await page.evaluate(() => {
     flagsRow: [...el.querySelectorAll(".rrow")].map(r => r.textContent)
       .filter(t => /remark and strata differ|waste logged below native/.test(t)),
     interlayered: /Waste is logged BELOW native/.test(txt),
+    saysNoReconcile: /Nothing is reconciled/.test(txt),
     water: !!svg.querySelector(".blwater"),
     cards: document.querySelectorAll("#resBody .res.blcard").length
   };
@@ -7278,6 +7292,7 @@ if (!log7.flagsRow.length) { console.log("FAIL: SB-7's contact flags are not on 
 for (const f of ["remark and strata differ", "waste logged below native"])
   if (!log7.flagsRow.join(" ").includes(f)) { console.log("FAIL: flag missing from the card:", f, log7.flagsRow); process.exit(1); }
 if (!log7.interlayered) { console.log("FAIL: the card does not say the profile is interlayered"); process.exit(1); }
+if (!log7.saysNoReconcile) { console.log("FAIL: SB-7's card does not say nothing is reconciled"); process.exit(1); }
 if (log7.water) { console.log("FAIL: SB-7 did not encounter groundwater but a symbol was drawn"); process.exit(1); }
 
 /* ---- the entry points: the popup, the command, the summary ---- */

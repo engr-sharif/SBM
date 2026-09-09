@@ -9,8 +9,8 @@
    This module is what draws the LOG: a strip log in the results card, one hole
    at a time, plus the 44-row reconciliation table.
 
-   THE THREE CONTACT NUMBERS, AND WHY THE REMARK LEADS. "How deep is the waste
-   here" has three answers in this project and they do not always agree:
+   THE TWO CONTACT NUMBERS, AND WHY THE REMARK LEADS. "How deep is the waste
+   here" has two answers in the approved logs and they do not always agree:
 
      1. the logger's own remark  "@ 23' NATIVE CONTACT", written on the rig by
         the person looking at the core. Every one of the 44 holes has one, and
@@ -18,12 +18,15 @@
      2. the strata rows          the deepest stratum whose description ends in
         WASTE (`contacts.waste_base_strata`) — a second reading of the same
         log, derived rather than stated.
-     3. the older field interp.  the pre-log spreadsheet ("Interpreted waste
-        depth"), which the dataset has carried since before the logs arrived.
 
-   NOTHING HERE RESOLVES A DISAGREEMENT. 35 of the 44 holes carry at least one
-   flag; the log draws all three lines, the card names each one, and the summary
-   table (LOGS) is the sheet the engineer reconciles them on. Inventing a fourth
+   The older field-interpreted waste depth spreadsheet was a third statement
+   until 2026-09-09 and is RETIRED: the logs are the approved record and the
+   spreadsheet answered a different question (blow counts, pH, soil type). It is
+   no longer in the dataset and nothing here reads it.
+
+   NOTHING HERE RESOLVES A DISAGREEMENT. 18 of the 44 holes carry at least one
+   flag; the log draws both lines, the card names each one, and the summary
+   table (LOGS) is the sheet the engineer reconciles them on. Inventing a third
    number by averaging or by preferring the "cleaner" source would hide exactly
    the thing he needs to look at.
 
@@ -112,17 +115,6 @@ SBMM.borelogs = (function () {
   function contactOf(id) { const h = byId(id); return h ? h.contacts || null : null; }
   function waterOf(id) { const h = byId(id); return h ? h.water || null : null; }
 
-  /* the third statement — the pre-log field spreadsheet, which lives on the
-     baked dataset rather than in this payload */
-  function olderInterp(id) {
-    try {
-      const d = SBMM.datasets && SBMM.datasets.byId("borings2025");
-      if (!d) return null;
-      const p = d.points.find(q => q.id === normId(id));
-      const v = p && p.a["Interpreted waste depth (ft)"];
-      return typeof v === "number" ? v : null;
-    } catch (e) { return null; }
-  }
   const differs = (a, b) => a != null && b != null && Math.abs(a - b) > 0.01;
 
   function summaryLine(h) {
@@ -295,14 +287,9 @@ SBMM.borelogs = (function () {
         + `<title>pH ${fmt(t.value, 1)} @ ${fmt(t.depth, 2)} ft</title></circle>`);
     }
 
-    /* --- the three contact statements ------------------------------- */
+    /* --- the two contact statements --------------------------------- */
     const c = h.contacts || {};
-    const nc = c.native_contact, sc = c.waste_base_strata, oi = olderInterp(h.id);
-    if (oi != null && differs(oi, nc)) {
-      const y = Y(clamp(oi, 0, depth));
-      p.push(line(AX + 1, y, EAX - 3, y, "#8FA3AE", 1, "1 3", "blolder", ` data-ft="${oi}"`));
-      p.push(text(EAX - 4, y - 3, `field interp. ${fmt(oi, 1)} ft`, "#8FA3AE", 8, "end", HALO));
-    }
+    const nc = c.native_contact, sc = c.waste_base_strata;
     if (sc != null && differs(sc, nc)) {
       const y = Y(clamp(sc, 0, depth));
       p.push(line(AX + 1, y, EAX - 3, y, "#C3D0D7", 1, "5 3", "blstrataline", ` data-ft="${sc}"`));
@@ -418,8 +405,6 @@ SBMM.borelogs = (function () {
     if (c.waste_base_strata != null)
       rows.push(["Waste base — strata", `${fmt(c.waste_base_strata, 1)} ft`
         + (c.waste_thickness_strata != null ? ` · ${fmt(c.waste_thickness_strata, 1)} ft of waste` : "")]);
-    const oi = olderInterp(h.id);
-    if (oi != null) rows.push(["Field interpretation (older)", `${fmt(oi, 1)} ft`]);
     rows.push(["Bedrock", c.bedrock_top == null ? "not reached" : `${fmt(c.bedrock_top, 1)} ft`]);
     rows.push(["Groundwater", w && w.encountered && w.depth != null
       ? `${fmt(w.depth, 1)} ft bgs${w.perched ? " · perched" : ""}${w.event ? " · " + w.event.toLowerCase() : ""}`
@@ -454,25 +439,23 @@ SBMM.borelogs = (function () {
       .map(k => `<span class="lg"><i style="background:${classColor(k)}"></i>${esc(CLASS_WORD[k])}</span>`).join("");
     el.appendChild(leg);
 
-    /* the three statements, in words, because the lines alone do not say which
-       is which and 35 of the 44 holes disagree */
+    /* the two statements, in words, because the lines alone do not say which
+       is which and 18 of the 44 holes disagree */
     const note = document.createElement("div");
     note.className = "note blstate";
     /* every one of the 44 holes in this payload has a remark, but the source is
        DATA and the sentence follows it rather than assuming it */
     const dStrata = differs(c.waste_base_strata, c.native_contact);
-    const dOlder = oi != null && differs(oi, c.native_contact);
     note.innerHTML = `<b>${fmt(c.native_contact, 1)} ft</b> is `
       + (c.source === "remark" ? "the logger's own remark on the rig" : "read off the strata rows")
       + (dStrata
           ? `; the strata rows put the base of the waste at <b>${fmt(c.waste_base_strata, 1)} ft</b>`
           : (c.waste_base_strata != null ? `, and the strata rows agree` : ""))
-      + (dOlder ? `; the older field spreadsheet said <b>${fmt(oi, 1)} ft</b>` : "")
       + (c.waste_layered_below_native
           ? `. Waste is logged BELOW native here — the profile is interlayered, not a single contact` : "")
-      + (dStrata || dOlder
-          ? `. Nothing is reconciled: all three are drawn.`
-          : `. All three statements agree on this hole.`);
+      + (dStrata
+          ? `. Nothing is reconciled: both are drawn.`
+          : `. Both statements agree on this hole.`);
     el.appendChild(note);
 
     el.insertAdjacentHTML("beforeend", descHtml(h) + labHtml(h) + notesHtml(h));
@@ -576,25 +559,22 @@ SBMM.borelogs = (function () {
   }
 
   /* ================================================================== */
-  /* the summary — the sheet the three statements get reconciled on      */
+  /* the summary — the sheet the two statements get reconciled on        */
   /* ================================================================== */
-  /* Eight columns in ~300 px, which is what decided two things. The SOURCE
+  /* Seven columns in ~300 px, which is what decided two things. The SOURCE
      column is gone — all 44 holes are "remark", so it carried no information
-     here and the log card states it per hole; and the flags are three short
+     here and the log card states it per hole; and the flags are two short
      tokens with the sentence in the cell's tooltip, because the sentences
      wrapped to three lines each and made the table unreadable. */
   const FLAG_TOK = {
     "remark and strata differ": "R≠S",
-    "waste logged below native": "W<N",
-    "older interpretation differs": "≠F"
+    "waste logged below native": "W<N"
   };
   const COLS = [
     ["id", "hole", h => h.id, h => h.id],
     ["depth", "TD", h => fmt(h.depth, 1), h => h.depth],
     ["nc", "rmk", h => fmt(h.contacts.native_contact, 1), h => h.contacts.native_contact],
     ["strata", "str", h => fmt(h.contacts.waste_base_strata, 1), h => h.contacts.waste_base_strata],
-    ["older", "fld", h => { const v = olderInterp(h.id); return v == null ? "—" : fmt(v, 1); },
-      h => { const v = olderInterp(h.id); return v == null ? -1 : v; }],
     ["rock", "rck", h => fmt(h.contacts.bedrock_top, 1), h => h.contacts.bedrock_top],
     ["gw", "GW", h => (h.water && h.water.encountered && h.water.depth != null) ? fmt(h.water.depth, 1) : "—",
       h => (h.water && h.water.depth != null) ? h.water.depth : -1],
@@ -602,15 +582,14 @@ SBMM.borelogs = (function () {
       h => (h.contacts.flags || []).length]
   ];
   const flagTitle = h => (h.contacts.flags || []).join("; ");
-  /* the heads are abbreviated to fit eight columns in the card, so each one
+  /* the heads are abbreviated to fit seven columns in the card, so each one
      carries its full name as a tooltip rather than leaving the reader to guess */
   const COL_TITLE = {
     id: "boring", depth: "total depth drilled, ft",
     nc: "native contact — the logger's own remark, ft",
     strata: "base of waste — derived from the strata rows, ft",
-    older: "the older field interpretation of waste depth, ft",
     rock: "top of bedrock, ft", gw: "groundwater, ft bgs",
-    flags: "R≠S remark and strata differ · W<N waste logged below native · ≠F differs from the field interpretation"
+    flags: "R≠S remark and strata differ · W<N waste logged below native"
   };
 
   function disagreeCount() { return holes().filter(h => ((h.contacts || {}).flags || []).length > 0).length; }
@@ -647,7 +626,7 @@ SBMM.borelogs = (function () {
 
     SBMM.results.appendNote(el,
       `${n} of the ${H.length} holes have a waste/native contact that disagrees between the logger's `
-      + `remark, the strata rows and the older field interpretation. Nothing here resolves one — `
+      + `remark and the strata rows. Nothing here resolves one — `
       + `click a boring to read its log, and the flags column says which statements differ.`);
 
     const box = document.createElement("div");
@@ -659,7 +638,7 @@ SBMM.borelogs = (function () {
           + ` class="${sortKey === c[0] ? "on " + (sortDir > 0 ? "asc" : "desc") : ""}">`
           + `${esc(c[1])}</th>`).join("") + `</tr></thead><tbody>`
         + sorted().map(h => `<tr data-id="${esc(h.id)}" class="${((h.contacts || {}).flags || []).length ? "warn" : ""}"`
-          + ` title="${esc(h.id + (flagTitle(h) ? " — " + flagTitle(h) : " — the three statements agree"))}">`
+          + ` title="${esc(h.id + (flagTitle(h) ? " — " + flagTitle(h) : " — the two statements agree"))}">`
           + COLS.map(c => `<td class="${c[0] === "flags" ? "flg" : "num"}">${esc(c[2](h))}</td>`).join("")
           + `</tr>`).join("") + `</tbody></table>`;
     };
@@ -708,7 +687,7 @@ SBMM.borelogs = (function () {
                        modules boot.js starts. */ }
 
   return {
-    has, data, ids, holes, byId, profileOf, contactOf, waterOf, olderInterp, summaryLine,
+    has, data, ids, holes, byId, profileOf, contactOf, waterOf, summaryLine,
     classColor, classWord: c => CLASS_WORD[c] || c,
     open, close, step, summary, cmd, csvFor, summaryCsv, disagreeCount, wire,
     card: () => cardEl, current: () => curId, svgFor: id => { const h = byId(id); return h ? svgLog(h) : ""; }

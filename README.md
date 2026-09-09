@@ -1705,22 +1705,25 @@ and a **boring log** button that draws the whole hole.
 native contact and a blue tick at the water level — so a fence of borings reads as the
 waste thickness across the site rather than as a row of sticks.
 
-### The three contact numbers, and what each one is
+### The two contact numbers, and what each one is
 
-"How deep is the waste here" has three answers in this project, and **35 of the 44 holes
-disagree**. The log draws all three and the app resolves none of them:
+"How deep is the waste here" has two answers in the approved logs, and **18 of the 44 holes
+disagree**. The log draws both and the app resolves neither:
 
 | line | what it is |
 |---|---|
 | **native contact** (bold) | the logger's own remark on the rig — `@ 23' NATIVE CONTACT`. Every hole has one. This is the number the app leads with everywhere |
 | **strata** (dashed) | the base of the deepest unit the logger described as WASTE — a second reading of the same log, derived rather than stated |
-| **field interp.** (dotted) | the older pre-log spreadsheet's interpreted waste depth, which the boring dataset has carried since before the logs arrived |
 
-Where two of them differ the hole is flagged, and `SB-7` is the case worth looking at: the
+The older field-interpreted waste depth spreadsheet, which the boring dataset carried before
+the logs arrived, is **retired** (2026-09-09): the logs are the approved record and the
+spreadsheet was answering a different question. Its two columns are gone from the dataset.
+
+Where the two differ the hole is flagged, and `SB-7` is the case worth looking at: the
 remark says 22 ft, the strata bottom the waste at 25 ft, and waste is logged *below*
 native — the profile there is interlayered, not one contact.
 
-**`LOGS`** opens the reconciliation table: all 44 holes with the three numbers side by
+**`LOGS`** opens the reconciliation table: all 44 holes with the two numbers side by
 side, bedrock, groundwater and the flags, sortable on any column, with **copy CSV**. Click
 a row to open that hole's log. It says at the top how many disagree.
 
