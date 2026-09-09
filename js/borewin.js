@@ -745,8 +745,11 @@ SBMM.borewin = (function () {
   /* PNG                                                                 */
   /* ------------------------------------------------------------------ */
   function exportPng() {
-    const svg = W && W.art.querySelector("svg");
-    if (!svg) { toast("nothing to export on this tab"); return; }
+    /* .bwsvg is the DRAWING; the Table tab's rows carry mini columns of their
+       own and querySelector("svg") would hand back the first of those */
+    const svg = W && tab !== "table" ? W.art.querySelector("svg.bwsvg") : null;
+    if (!svg) { toast(tab === "table" ? "the table exports as csv, not as a picture"
+                                      : "nothing to export on this tab"); return; }
     const s = new XMLSerializer().serializeToString(svg);
     const vb = (svg.getAttribute("viewBox") || "0 0 600 800").split(/\s+/).map(Number);
     const w = vb[2] || 600, hh = vb[3] || 800, k = 2;
