@@ -388,7 +388,7 @@ SBMM.sections = (function () {
       drawPlot({ width: PW, height: PH, getContext: () => g2 }, f, s);
       const read = document.createElement("div");
       read.className = "secread mono";
-      read.textContent = "hover for offset / elevation";
+      read.textContent = "offset / elevation";
       cv.addEventListener("mousemove", ev => {
         const r = cv.getBoundingClientRect();
         const px = (ev.clientX - r.left) * (PW / r.width);
@@ -400,7 +400,7 @@ SBMM.sections = (function () {
         read.textContent = `off ${off > 0 ? "+" : ""}${off.toFixed(0)} ft · ground ${isNaN(gz) ? "—" : gz.toFixed(1)}` +
           (isNaN(dz) ? "" : ` · design ${dz.toFixed(1)} · Δ ${(gz - dz).toFixed(1)}`);
       });
-      cv.addEventListener("mouseleave", () => { read.textContent = "hover for offset / elevation"; });
+      cv.addEventListener("mouseleave", () => { read.textContent = "offset / elevation"; });
       cv.addEventListener("click", () => {
         SBMM.map.setView([R.cy[s], R.cx[s]], Math.max(SBMM.map.getZoom(), 2));
       });
