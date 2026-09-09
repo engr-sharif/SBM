@@ -541,7 +541,7 @@ SBMM.borewin = (function () {
       { key: "rock", label: "top of bedrock", col: BL().classColor("bedrock"), dash: "6 3",
         get: h => (h.contacts || {}).bedrock_top },
       { key: "water", label: "water level", col: "#55C1FF", dash: "4 2",
-        get: h => (h.water && h.water.encountered ? h.water.depth : null) }
+        get: h => (h.water && h.water.encountered && h.water.depth != null ? h.water.depth : null) }
     ];
     const links = {};
     for (const hz of HZ) {
