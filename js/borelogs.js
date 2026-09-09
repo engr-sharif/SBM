@@ -147,15 +147,24 @@ SBMM.borelogs = (function () {
      <img>: a document stylesheet does not travel with it, and a log exported in
      four shades of black is worse than no export at all. Classes are here for
      the harness and for hit-testing only. */
-  const W = 336, TOPM = 26, BOTM = 22;
-  const AX = 26;                 /* depth labels end here            */
-  const MET = [28, 33];          /* drilling-method strip            */
-  const PROF = [37, 63];         /* the class profile band           */
-  const STR = [67, 123];         /* the primary strata boxes         */
-  const SPT = [129, 215];        /* SPT N (0–50) and PP (0–4.5 tsf)  */
-  const PHC = [221, 275];        /* pH, 2–8                          */
-  const EAX = 281;               /* elevation labels start here      */
+  /* The card is ~300 px wide in the right dock, and every column below was
+     sized against that: at 336 the headings ran into each other, the SPT
+     labels crossed into the pH column and the profile band's own word
+     overflowed it. Nothing is squeezed by scaling — the SVG is drawn at the
+     width it is read at. */
+  const W = 300, TOPM = 26, BOTM = 22;
+  const AX = 20;                 /* depth labels end here            */
+  const MET = [22, 26];          /* drilling-method strip            */
+  const PROF = [29, 47];         /* the class profile band           */
+  const STR = [50, 106];         /* the primary strata boxes         */
+  const SPT = [110, 190];        /* SPT N (0–50) and PP (0–4.5 tsf)  */
+  const SPT_TXT = 28;            /* room kept at its right for the N */
+  const PHC = [194, 244];        /* pH, 2–8                          */
+  const EAX = 248;               /* elevation labels start here      */
   const N_MAX = 50, PP_MAX = 4.5, PH_LO = 2, PH_HI = 8, PH_ACID = 4;
+  /* a dark halo under any label that crosses a column, so an annotation is
+     readable over whatever it happens to lie on */
+  const HALO = ' stroke="#0D1215" stroke-width="2.6" paint-order="stroke" stroke-linejoin="round"';
 
   function tickStep(depth) { return depth <= 30 ? 5 : depth <= 80 ? 10 : 20; }
 
@@ -176,11 +185,11 @@ SBMM.borelogs = (function () {
       + `${anchor ? ` text-anchor="${anchor}"` : ""}${extra || ""}>${esc(s)}</text>`;
 
     /* --- column headings ------------------------------------------- */
-    p.push(text(PROF[0], 10, "class", "#8FA3AE", 8.5));
-    p.push(text(STR[0], 10, "strata (USCS)", "#8FA3AE", 8.5));
-    p.push(text(SPT[0], 10, "SPT N 0–50 · PP 0–4.5 tsf", "#8FA3AE", 8.5));
-    p.push(text(PHC[0], 10, "pH 2–8", "#8FA3AE", 8.5));
-    p.push(text(EAX, 10, "elev ft", "#8FA3AE", 8.5));
+    p.push(text(PROF[0], 10, "cls", "#8FA3AE", 8.5));
+    p.push(text(STR[0], 10, "strata", "#8FA3AE", 8.5));
+    p.push(text(SPT[0], 10, "SPT · PP", "#8FA3AE", 8.5));
+    p.push(text(PHC[0], 10, "pH", "#8FA3AE", 8.5));
+    p.push(text(EAX, 10, "elev", "#8FA3AE", 8.5));
     p.push(text(AX, 10, "ft bgs", "#8FA3AE", 8.5, "end"));
 
     /* --- the depth / elevation axes -------------------------------- */
@@ -215,10 +224,8 @@ SBMM.borelogs = (function () {
         + ` width="${PROF[1] - PROF[0]}" height="${(y1 - y0).toFixed(1)}" fill="${classColor(r.cls)}"`
         + ` fill-opacity=".85" stroke="#0D1215" stroke-width=".6">`
         + `<title>${esc(CLASS_WORD[r.cls] || r.cls)} ${fmt(r.top, 1)}–${fmt(r.base, 1)} ft</title></rect>`);
-      if (y1 - y0 > 22)
-        p.push(text((PROF[0] + PROF[1]) / 2, (y0 + y1) / 2 + 3,
-          (r.cls === "bedrock" ? "ROCK" : r.cls.toUpperCase()).slice(0, 6), "#0D1215", 8, "middle",
-          ' font-weight="700"'));
+      /* the band carries no word: at 18 px it would overflow into the strata
+         column, and the legend under the SVG plus the tooltip already name it */
     }
 
     /* --- column 2: the primary strata ------------------------------- */
@@ -238,31 +245,35 @@ SBMM.borelogs = (function () {
         + ` width="${STR[1] - STR[0]}" height="${(y1 - y0).toFixed(1)}" fill="${classColor(s.cls)}"`
         + ` fill-opacity=".22" stroke="${classColor(s.cls)}" stroke-width=".8" style="cursor:pointer">`
         + `<title>${esc(fmt(s.top, 1) + "–" + fmt(s.base, 1) + " ft  " + (s.uscs || "") + "  " + (s.desc || s.name || ""))}</title></rect>`);
-      if (y1 - y0 > 11 && s.uscs)
+      /* the USCS symbol only: the unit's name and its full description are one
+         click away in the expander, and a second line here crosses the column */
+      if (y1 - y0 > 10 && s.uscs)
         p.push(text(STR[0] + 3, (y0 + y1) / 2 + 3.2, s.uscs, "#E8EEF1", 9, null, ' font-weight="600"'));
-      if (y1 - y0 > 24 && s.name)
-        p.push(text(STR[0] + 3, (y0 + y1) / 2 + 14, String(s.name).slice(0, 26), "#8FA3AE", 8));
     });
 
     /* --- column 3: SPT and the pocket penetrometer ------------------- */
-    const nx = n => SPT[0] + (SPT[1] - SPT[0]) * clamp(n / N_MAX, 0, 1);
+    /* the N axis stops SPT_TXT short of the column's right edge, so a 50-blow
+       bar and the number printed beside it can never sit on top of each other */
+    const nW = SPT[1] - SPT_TXT - SPT[0];
+    const nx = n => SPT[0] + nW * clamp(n / N_MAX, 0, 1);
     p.push(line(SPT[0], TOPM, SPT[0], Y(depth), "rgba(44,59,69,.9)", 1));
     for (const s of (h.spt || [])) {
       const y = Y(clamp((s.top + s.base) / 2, 0, depth));
       const ref = s.refusal || s.n == null;
-      const w = ref ? SPT[1] - SPT[0] : Math.max(1.5, nx(s.n) - SPT[0]);
+      const w = ref ? nW : Math.max(1.5, nx(s.n) - SPT[0]);
       p.push(`<rect class="blspt" data-ref="${esc(s.ref || "")}" data-n="${s.n == null ? "" : s.n}"`
         + ` data-refusal="${ref ? 1 : 0}" x="${SPT[0]}" y="${(y - 2.5).toFixed(1)}" width="${w.toFixed(1)}"`
         + ` height="5" fill="${ref ? "#E4796A" : "#4FB3CE"}" fill-opacity="${ref ? ".9" : ".8"}">`
         + `<title>${esc((s.ref || "") + "  " + fmt(s.top, 1) + "–" + fmt(s.base, 1) + " ft  N = " + (s.n_text || "—")
             + (s.rec_pct != null ? "  rec " + fmt0(s.rec_pct) + "%" : "")
             + (s.blows_6in ? "  " + s.blows_6in.map(b => fmt0(b)).join("-") : ""))}</title></rect>`);
-      p.push(text(SPT[0] + w + 3, y + 3, (s.n_text || "—") + (s.ref ? " " + s.ref : ""),
-        ref ? "#E4796A" : "#C3D0D7", 8));
+      /* the number, not the sample reference — that is in the tooltip and in
+         the CSV, and printing it here is what crossed into the pH column */
+      p.push(text(SPT[1], y + 3, s.n_text || "—", ref ? "#E4796A" : "#C3D0D7", 8, "end"));
     }
     for (const q of (h.pen || [])) {
       const y = Y(clamp(q.depth, 0, depth));
-      const x = SPT[0] + (SPT[1] - SPT[0]) * clamp(q.tsf / PP_MAX, 0, 1);
+      const x = SPT[0] + nW * clamp(q.tsf / PP_MAX, 0, 1);
       p.push(`<path class="blpen" d="M${x.toFixed(1)} ${(y - 3).toFixed(1)} L${(x + 3).toFixed(1)} ${y.toFixed(1)} `
         + `L${x.toFixed(1)} ${(y + 3).toFixed(1)} L${(x - 3).toFixed(1)} ${y.toFixed(1)} Z" fill="none"`
         + ` stroke="#E8B34B" stroke-width="1"><title>pocket penetrometer ${fmt(q.tsf, 2)} tsf @ ${fmt(q.depth, 2)} ft</title></path>`);
@@ -290,20 +301,20 @@ SBMM.borelogs = (function () {
     if (oi != null && differs(oi, nc)) {
       const y = Y(clamp(oi, 0, depth));
       p.push(line(AX + 1, y, EAX - 3, y, "#8FA3AE", 1, "1 3", "blolder", ` data-ft="${oi}"`));
-      p.push(text(EAX - 4, y - 3, `field interp. ${fmt(oi, 1)} ft`, "#8FA3AE", 8, "end"));
+      p.push(text(EAX - 4, y - 3, `field interp. ${fmt(oi, 1)} ft`, "#8FA3AE", 8, "end", HALO));
     }
     if (sc != null && differs(sc, nc)) {
       const y = Y(clamp(sc, 0, depth));
       p.push(line(AX + 1, y, EAX - 3, y, "#C3D0D7", 1, "5 3", "blstrataline", ` data-ft="${sc}"`));
-      p.push(text(EAX - 4, y - 3, `strata ${fmt(sc, 1)} ft`, "#C3D0D7", 8, "end"));
+      p.push(text(EAX - 4, y - 3, `strata ${fmt(sc, 1)} ft`, "#C3D0D7", 8, "end", HALO));
     }
     if (nc != null) {
       const y = Y(clamp(nc, 0, depth));
       p.push(line(AX + 1, y, EAX - 3, y, classColor("contact"), 2, null, "blcontact",
         ` data-ft="${nc}" data-src="${esc(c.source || "")}"`));
       p.push(text(AX + 3, y - 4,
-        `native contact ${fmt(nc, 1)} ft (${c.source === "remark" ? "logger's remark" : "from strata"})`,
-        classColor("contact"), 8.5, null, ' font-weight="600"'));
+        `native contact ${fmt(nc, 1)} ft · ${c.source === "remark" ? "remark" : "strata"}`,
+        classColor("contact"), 8.5, null, ' font-weight="600"' + HALO));
     }
 
     /* --- the water level -------------------------------------------- */
@@ -311,12 +322,14 @@ SBMM.borelogs = (function () {
     if (w && w.encountered && w.depth != null) {
       const y = Y(clamp(w.depth, 0, depth));
       p.push(line(AX + 1, y, EAX - 3, y, "#55C1FF", 1, "4 2"));
-      /* the standard inverted triangle, on the depth axis where a driller draws it */
-      p.push(`<polygon class="blwater" data-ft="${w.depth}" points="${(AX + 2)},${(y - 6).toFixed(1)} `
-        + `${(AX + 12)},${(y - 6).toFixed(1)} ${(AX + 7)},${y.toFixed(1)}" fill="#55C1FF">`
+      /* the standard inverted triangle, sitting on the level it marks */
+      const wx = STR[0] + 2;
+      p.push(`<polygon class="blwater" data-ft="${w.depth}" points="${wx},${(y - 6).toFixed(1)} `
+        + `${(wx + 10)},${(y - 6).toFixed(1)} ${(wx + 5)},${y.toFixed(1)}" fill="#55C1FF">`
         + `<title>groundwater ${fmt(w.depth, 1)} ft bgs${w.perched ? " (perched)" : ""}`
         + `${w.event ? " — " + esc(w.event) : ""}</title></polygon>`);
-      p.push(text(AX + 15, y - 1, `GW ${fmt(w.depth, 1)} ft${w.perched ? " (perched)" : ""}`, "#9FDCFF", 8));
+      p.push(text(wx + 13, y - 1, `GW ${fmt(w.depth, 1)} ft${w.perched ? " (perched)" : ""}`,
+        "#9FDCFF", 8, null, HALO));
     }
 
     return `<svg class="blsvg" viewBox="0 0 ${W} ${Math.ceil(H)}" width="${W}" height="${Math.ceil(H)}"`
@@ -505,7 +518,11 @@ SBMM.borelogs = (function () {
       "OpenGround export of the 2025 Jacobs geotechnical investigation, "
       + (D.built || "") + ". The class of each unit is the last word of the logger's own description "
       + "(WASTE / NATIVE / BEDROCK); no depth here is interpolated or interpreted by the app.");
-    scrollIntoPane(el);
+    /* results.card PREPENDS, so the new card is the pane's first child — and a
+       log taller than the pane must show its HEAD (the contact, the depth, the
+       dates), not its foot, which is what scrolling it "into view" would do */
+    const pane = scrollIntoPane(el);
+    if (pane) pane.scrollTop = 0;
     return el;
   }
 
@@ -555,23 +572,40 @@ SBMM.borelogs = (function () {
   /* ================================================================== */
   /* the summary — the sheet the three statements get reconciled on      */
   /* ================================================================== */
+  /* Eight columns in ~300 px, which is what decided two things. The SOURCE
+     column is gone — all 44 holes are "remark", so it carried no information
+     here and the log card states it per hole; and the flags are three short
+     tokens with the sentence in the cell's tooltip, because the sentences
+     wrapped to three lines each and made the table unreadable. */
+  const FLAG_TOK = {
+    "remark and strata differ": "R≠S",
+    "waste logged below native": "W<N",
+    "older interpretation differs": "≠F"
+  };
   const COLS = [
-    ["id", "boring", h => h.id, h => h.id],
-    ["depth", "depth", h => fmt(h.depth, 1), h => h.depth],
-    ["nc", "native contact", h => fmt(h.contacts.native_contact, 1), h => h.contacts.native_contact],
-    ["src", "source", h => h.contacts.source || "", h => h.contacts.source || ""],
-    ["strata", "strata", h => fmt(h.contacts.waste_base_strata, 1), h => h.contacts.waste_base_strata],
-    ["older", "field interp.", h => { const v = olderInterp(h.id); return v == null ? "—" : fmt(v, 1); },
+    ["id", "hole", h => h.id, h => h.id],
+    ["depth", "TD", h => fmt(h.depth, 1), h => h.depth],
+    ["nc", "rmk", h => fmt(h.contacts.native_contact, 1), h => h.contacts.native_contact],
+    ["strata", "str", h => fmt(h.contacts.waste_base_strata, 1), h => h.contacts.waste_base_strata],
+    ["older", "fld", h => { const v = olderInterp(h.id); return v == null ? "—" : fmt(v, 1); },
       h => { const v = olderInterp(h.id); return v == null ? -1 : v; }],
-    ["rock", "bedrock", h => fmt(h.contacts.bedrock_top, 1), h => h.contacts.bedrock_top],
+    ["rock", "rck", h => fmt(h.contacts.bedrock_top, 1), h => h.contacts.bedrock_top],
     ["gw", "GW", h => (h.water && h.water.encountered && h.water.depth != null) ? fmt(h.water.depth, 1) : "—",
       h => (h.water && h.water.depth != null) ? h.water.depth : -1],
-    ["flags", "flags", h => (h.contacts.flags || []).length
-      ? (h.contacts.flags || []).map(f => f.replace("remark and strata differ", "remark≠strata")
-          .replace("waste logged below native", "waste under native")
-          .replace("older interpretation differs", "≠field interp.")).join(", ") : "",
+    ["flags", "flags", h => (h.contacts.flags || []).map(f => FLAG_TOK[f] || f).join(" "),
       h => (h.contacts.flags || []).length]
   ];
+  const flagTitle = h => (h.contacts.flags || []).join("; ");
+  /* the heads are abbreviated to fit eight columns in the card, so each one
+     carries its full name as a tooltip rather than leaving the reader to guess */
+  const COL_TITLE = {
+    id: "boring", depth: "total depth drilled, ft",
+    nc: "native contact — the logger's own remark, ft",
+    strata: "base of waste — derived from the strata rows, ft",
+    older: "the older field interpretation of waste depth, ft",
+    rock: "top of bedrock, ft", gw: "groundwater, ft bgs",
+    flags: "R≠S remark and strata differ · W<N waste logged below native · ≠F differs from the field interpretation"
+  };
 
   function disagreeCount() { return holes().filter(h => ((h.contacts || {}).flags || []).length > 0).length; }
 
@@ -615,10 +649,12 @@ SBMM.borelogs = (function () {
     el.appendChild(box);
     const paint = () => {
       box.innerHTML = `<table class="bltbl sortable"><thead><tr>`
-        + COLS.map(c => `<th data-k="${c[0]}" class="${sortKey === c[0] ? "on " + (sortDir > 0 ? "asc" : "desc") : ""}">`
+        + COLS.map(c => `<th data-k="${c[0]}" title="${esc(COL_TITLE[c[0]] || c[1])} — click to sort"`
+          + ` class="${sortKey === c[0] ? "on " + (sortDir > 0 ? "asc" : "desc") : ""}">`
           + `${esc(c[1])}</th>`).join("") + `</tr></thead><tbody>`
-        + sorted().map(h => `<tr data-id="${esc(h.id)}" class="${((h.contacts || {}).flags || []).length ? "warn" : ""}">`
-          + COLS.map(c => `<td class="${c[0] === "flags" || c[0] === "src" ? "" : "num"}">${esc(c[2](h))}</td>`).join("")
+        + sorted().map(h => `<tr data-id="${esc(h.id)}" class="${((h.contacts || {}).flags || []).length ? "warn" : ""}"`
+          + ` title="${esc(h.id + (flagTitle(h) ? " — " + flagTitle(h) : " — the three statements agree"))}">`
+          + COLS.map(c => `<td class="${c[0] === "flags" ? "flg" : "num"}">${esc(c[2](h))}</td>`).join("")
           + `</tr>`).join("") + `</tbody></table>`;
     };
     paint();
@@ -641,7 +677,8 @@ SBMM.borelogs = (function () {
         copyText(summaryCsv(), "the 44-hole contact table is on the clipboard");
     });
     el.appendChild(btns);
-    scrollIntoPane(el);
+    const pane2 = scrollIntoPane(el);
+    if (pane2) pane2.scrollTop = 0;
     return el;
   }
 

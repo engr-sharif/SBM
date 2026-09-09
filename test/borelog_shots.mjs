@@ -51,6 +51,26 @@ await page.evaluate(async () => {
   SBMM.viewer3d.refreshOverlays();
 });
 await wait(9000);
+/* dolly in on the boring itself — a 30-ft stick at the default orbit radius is
+   three pixels, and the point of this picture is the colours on it */
+const box = await page.locator("#v3dCanvas").boundingBox();
+for (let i = 0; i < 5 && box; i++) {
+  /* the wheel dollies TOWARD the point under the cursor, so the cursor has to
+     be on the boring — screenAt is the hook that answers where it is now */
+  const at = await page.evaluate(() => {
+    const h = SBMM.borelogs.byId("SB-9");
+    const [z] = SBMM.elev(h.x, h.y);
+    return SBMM.viewer3d.screenAt(h.x, h.y, isNaN(z) ? 1366 : z);
+  });
+  if (!at) break;
+  await page.mouse.move(at[0], at[1]);
+  await page.mouse.wheel(0, -520);
+  await wait(1400);
+}
+/* park the pointer over empty sky: a dwell over a stick opens the pick card,
+   and this picture is about the sticks rather than about the card */
+if (box) await page.mouse.move(box.x + 60, box.y + 40);
+await wait(6000);
 await page.screenshot({ path: resolve(OUT, "borelog_3d.png") });
 console.log("wrote borelog_3d.png");
 

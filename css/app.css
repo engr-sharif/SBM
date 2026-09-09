@@ -2087,7 +2087,14 @@ details.bldesc>summary::-webkit-details-marker{display:none}
 details.bldesc>summary::before{content:"▸ ";color:var(--mut2)}
 details.bldesc[open]>summary::before{content:"▾ "}
 .blscroll{max-height:230px;overflow:auto}
+/* the 44-hole reconciliation table has eight columns in ~296 px, so it is
+   tighter than the description tables: 10 px body, 9 px heads, half the cell
+   padding. Anything wider scrolls horizontally rather than wrapping, which is
+   what made the flags column push the numbers off the card. */
 .blsumtbl{max-height:340px;margin-top:6px}
+.blsumtbl table.bltbl{font-size:10px}
+.blsumtbl table.bltbl td{padding:2px 3px}
+.blsumtbl table.bltbl th{padding:3px 3px;font-size:9px;letter-spacing:.2px}
 
 table.bltbl{width:100%;border-collapse:collapse;font-size:11px}
 table.bltbl th{position:sticky;top:0;background:var(--panel);text-align:left;color:var(--mut);
@@ -2103,7 +2110,8 @@ table.bltbl td.num{text-align:right;font-family:var(--mono);
 table.bltbl td.u{font-family:var(--mono);color:var(--acc2);white-space:nowrap}
 table.bltbl tr.sub td{color:var(--mut);font-size:10.5px}
 table.bltbl tbody tr:hover td{background:var(--panel2)}
-table.bltbl tbody tr.warn td.num:last-of-type,table.bltbl tbody tr.warn td:last-child{color:var(--amber)}
+table.bltbl td.flg{font-family:var(--mono);font-size:10px;white-space:nowrap;color:var(--amber)}
+table.bltbl th[data-k="flags"]{text-align:right}
 table.bltbl tr.flash td{background:var(--accdim)}
 table.bltbl .cdot{display:inline-block;width:7px;height:7px;border-radius:2px;
   margin-right:5px;vertical-align:1px;border:1px solid #0006}

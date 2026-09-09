@@ -1943,8 +1943,13 @@ SBMM.viewer3d = (function () {
              single-colour stick of every other dataset live in one material;
              the base colour has to be white or it would tint them all */
           const stick = new THREE.LineSegments(g2, new THREE.LineBasicMaterial({
+            /* .85 rather than the old .55: a one-pixel line at 55 % over a
+               bright ortho washes out, and once the stick carries the LOG's
+               own three colours the whole point of it is that they are
+               distinguishable. It is still see-through, which is what says
+               "below the ground". */
             color: 0xffffff, vertexColors: true,
-            transparent: true, opacity: .55, depthTest: false, depthWrite: false
+            transparent: true, opacity: .85, depthTest: false, depthWrite: false
           }));
           stick.renderOrder = 2;
           /* the stick belongs to the same record as the dot above it — clicking
