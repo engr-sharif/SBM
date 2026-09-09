@@ -319,6 +319,27 @@ for (const k of ["demSite", "designGis", "storm", "cover", "sheetsIndex"])
   if (p[k] === "undefined") fail(`SBMM_DATA.${k} is MISSING on a phone — the field build keeps it`, p);
 console.log(`24 heavy payloads skipped · terrain, design GIS, storm, cover and the sheet index all present`);
 
+/* the 2025 boring logs are ~300 kB and are NOT a heavy payload: they ride in a
+   plain script tag and a phone keeps them, which is the whole reason they are
+   small. The card is an ordinary results card, so it lands in the right dock's
+   bottom sheet like the water one. */
+const bl = await page.evaluate(() => {
+  const D = SBMM_DATA.borings_logs;
+  if (!D) return { missing: true };
+  SBMM.borelogs.open("SB-9");
+  const el = document.querySelector("#resBody .res.blcard");
+  return { holes: D.holes.length, card: !!el,
+           title: el ? el.querySelector("h4").textContent.replace(/[⌖✎✕]/g, "").trim() : null,
+           bands: el ? el.querySelectorAll("svg.blsvg .blprof").length : 0,
+           contact: el ? +el.querySelector("svg.blsvg .blcontact").dataset.ft : null };
+});
+console.log("boring logs (phone):", JSON.stringify(bl));
+if (bl.missing) fail("SBMM_DATA.borings_logs is MISSING on a phone — it is not a heavy payload", bl);
+if (bl.holes !== 44) fail("the phone's boring-log payload is not 44 holes", bl);
+if (!bl.card || !/SB-9/.test(bl.title || "")) fail("SB-9's log built no card on a phone", bl);
+if (bl.bands < 3 || bl.contact !== 7.5) fail("the phone strip log is not the SB-9 log", bl);
+if (errors.length) fail("page errors opening a boring log on a phone", errors.slice(0, 4));
+
 /* payload tolerance: the modules that wanted one say so, and none of them
    threw. A silent refusal is the one thing this app must not do. */
 if (errors.length) fail("page errors with the heavy payloads absent", errors.slice(0, 4));

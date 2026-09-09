@@ -1168,6 +1168,38 @@ await block("15. accumulation, pipes and scenarios (v19)", async () => {
 });
 
 /* ===================================================================== */
+await block("17. the boring logs", async () => {
+/* 17. the boring logs — ~300 kB, and they are in the field build           */
+/* ===================================================================== */
+/* The log is what somebody standing beside the hole wants: it is small, it is
+   not in FIELD_EXCLUDE, and the card is an ordinary results card, so on a phone
+   it arrives in the right dock's bottom sheet like every other one. */
+  const B = await page.evaluate(() => {
+    const D = SBMM_DATA.borings_logs;
+    if (!D) return { missing: true };
+    SBMM.borelogs.open("SB-9");
+    const el = document.querySelector("#resBody .res.blcard");
+    return {
+      holes: D.holes.length,
+      api: SBMM.borelogs.ids().length,
+      card: !!el,
+      title: el ? el.querySelector("h4").textContent.replace(/[⌖✎✕]/g, "").trim() : null,
+      bands: el ? el.querySelectorAll("svg.blsvg .blprof").length : 0,
+      contact: el ? +el.querySelector("svg.blsvg .blcontact").dataset.ft : null,
+      spt: el ? el.querySelectorAll("svg.blsvg .blspt").length : 0,
+      disagree: SBMM.borelogs.disagreeCount()
+    };
+  });
+  console.log("boring logs (field):", JSON.stringify(B));
+  if (B.missing) fail("the field build has no boring logs — they are not in FIELD_EXCLUDE", B);
+  if (B.holes !== 44 || B.api !== 44) fail("the field build's boring-log payload is not 44 holes", B);
+  if (!B.card || !/SB-9/.test(B.title || "")) fail("SB-9's log built no card in field mode", B);
+  if (B.bands < 3 || B.contact !== 7.5 || B.spt !== 15)
+    fail("the field strip log is not the SB-9 log", B);
+  if (B.disagree !== 35) fail("the field build does not see the 35 flagged contacts", B);
+});
+
+/* ===================================================================== */
 console.log("\npage errors:", errors.length ? errors.slice(0, 8) : "none");
 await browser.close();
 if (errors.some(e => !e.includes("favicon"))) { console.log("RESULT: errors present"); process.exit(2); }
