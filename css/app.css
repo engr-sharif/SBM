@@ -2211,6 +2211,9 @@ table.bltbl .cdot{display:inline-block;width:7px;height:7px;border-radius:2px;
 .blwin .bwtbl tbody tr.warn td:first-child+td{color:var(--gold)}
 .blwin .bwminicell{width:16px;padding:0 2px;line-height:0}
 
+/* a phone's whole stage is narrower than the desktop minimum, and a floor of
+   520 px there makes a maximised window wider than the screen */
+body.touch .blwin{min-width:0;min-height:0}
 body.touch .blwin .bwtools{flex-wrap:wrap;row-gap:4px}
 body.touch .blwin .bwtools .minib,
 body.touch .blwin .bwtabs .minib{min-height:36px;padding:0 11px}

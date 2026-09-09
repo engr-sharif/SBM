@@ -53,6 +53,13 @@ SBMM.borewin = (function () {
 
   const ppf = () => DPI / scale;
   const has = () => !!(BL() && BL().has());
+  /* The desktop minimum is a readable log sheet; a PHONE's whole stage is
+     narrower than that, and a CSS min-width of 520 px on a 412-px stage makes
+     the window wider than the screen it is maximised into. Under body.touch
+     the window fills the stage, so the floor comes off. */
+  const touchy = () => !!(SBMM.touch && SBMM.touch.on());
+  const minW = () => touchy() ? 240 : 520;
+  const minH = () => touchy() ? 200 : 340;
 
   /* ------------------------------------------------------------------ */
   /* geometry — the stage box, borrowed from js/sheets.js                */
@@ -152,8 +159,8 @@ SBMM.borewin = (function () {
 
     const b = stageBox();
     const maxed = !!(SBMM.touch && SBMM.touch.on());
-    const w = maxed ? Math.round(b.w - 8) : Math.round(clamp(b.w * 0.94, 520, Math.max(520, b.w - 16)));
-    const hh = maxed ? Math.round(b.h - 8) : Math.round(clamp(b.h * 0.92, 340, Math.max(340, b.h - 16)));
+    const w = maxed ? Math.round(b.w - 8) : Math.round(clamp(b.w * 0.94, minW(), Math.max(minW(), b.w - 16)));
+    const hh = maxed ? Math.round(b.h - 8) : Math.round(clamp(b.h * 0.92, minH(), Math.max(minH(), b.h - 16)));
     el.style.width = w + "px"; el.style.height = hh + "px";
     el.style.left = Math.round(clamp(b.x + (b.w - w) / 2, b.x + 6, Math.max(b.x + 6, b.x + b.w - w - 6))) + "px";
     el.style.top = Math.round(clamp(b.y + (b.h - hh) / 2, b.y + 6, Math.max(b.y + 6, b.y + b.h - hh - 6))) + "px";
@@ -282,8 +289,8 @@ SBMM.borewin = (function () {
     grip.addEventListener("pointermove", e => {
       if (!rz) return;
       const b = stageBox();
-      el.style.width = clamp(rz.w + e.clientX - rz.x, 520, Math.max(520, b.x + b.w - el.offsetLeft - 6)) + "px";
-      el.style.height = clamp(rz.h + e.clientY - rz.y, 340, Math.max(340, b.y + b.h - el.offsetTop - 6)) + "px";
+      el.style.width = clamp(rz.w + e.clientX - rz.x, minW(), Math.max(minW(), b.x + b.w - el.offsetLeft - 6)) + "px";
+      el.style.height = clamp(rz.h + e.clientY - rz.y, minH(), Math.max(minH(), b.y + b.h - el.offsetTop - 6)) + "px";
       clampToStage(); paint();
     });
     grip.addEventListener("pointerup", () => { rz = null; paint(); });
