@@ -39,9 +39,8 @@ SBMM.drainage = (function () {
   const IMPOUND = "#3FB9B0";                 // the impoundment gets its own teal
   const GREENS = ["#4FCE9B", "#8BE04B", "#59B37A", "#A7D96B", "#3E9E78", "#C3E06B"];
   const FILL_OP = 0.28, EDGE_W = 1.5;
-  const NOTE = "Terrain only: steepest descent over the lidar bare earth, depressions filled to "
-    + "their pour point, storm conduits as topological shortcuts. No rainfall, runoff or "
-    + "hydraulics — the map says where water goes, never how much.";
+  const NOTE = "Terrain only \u00b7 lidar bare earth, depressions filled to their pour point, "
+    + "conduits as shortcuts \u00b7 where the water goes, never how much";
 
   let R = null;                      // the last kernel result
   let runKey = null, running = null; // the storm signature this result was computed for

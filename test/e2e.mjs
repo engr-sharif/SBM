@@ -6181,8 +6181,10 @@ accIdent = await page.evaluate(() => {
   const card = [...document.querySelectorAll("#resBody .res")]
     .find(el => /Flow accumulation/.test(el.querySelector("h4").textContent));
   return { rows: out, checked: R.checked,
-           saysBoundary: card ? /not attributable at/.test(card.textContent) : false,
-           saysHarness: card ? /full resolution/.test(card.textContent) : false,
+           /* v23: the "why" is the cross-check table's own tooltip now, not a
+              paragraph on the card — the FACTS asserted are unchanged */
+           saysBoundary: card ? /not attributable at/.test(card.innerHTML) : false,
+           saysHarness: card ? /full resolution/.test(card.innerHTML) : false,
            total: +(R.exitTotal_ft2 / 43560).toFixed(3),
            surveyed: +(R.surveyedArea_ft2 / 43560).toFixed(3) };
 });
