@@ -2399,6 +2399,44 @@ was asked to do.
   prints an empty toast list for a refusal, that is the bug.
 - Tooltips are sentence case and name the shortcut in brackets where there is one.
 
+## Voice — the app talks to engineers (v23)
+
+Contract: `docs/V23_VOICE_SPEC.md`, a rule rather than a round: it applies to every
+card, note, popup, tooltip, legend and dialog, existing and new. The engineer:
+*"most people using this app will know what this is about, so reduce the explaining
+and any of the instructions on what to do … know your audience: these will be
+engineers."* Three rules carry most of it:
+
+1. **A card states the result.** Numbers first, in the rows. The method is at most
+   ONE sentence — or one `·`-separated line — under them, and only where a reader
+   could mistake what the number is. `js/water.js`'s overtopping note is the worked
+   example (spec §2): five sentences of method became
+   `1-ft lidar (Jan 2024) · water level and pipe inverts from the Aug 2026 survey ·
+   static, no inflow · planning-level`.
+2. **No instructions, and no defending the method.** "Click a stratum to…", "drag
+   the slider…", "use the…" are deleted, not shortened; the escape test and the
+   pit-filled DEM live in `docs/` and in this file, never on a card. A prompt the
+   TOOL needs keeps the minimum words (`Area — click the boundary · Enter to
+   close`), and Esc discipline is universal so it is not restated on every one.
+3. **A caveat with legal or safety weight stays, as ONE clause.** The cultural
+   stamp and its acknowledgement, "provisional", "planning-level, 2 significant
+   figures", "not surveyed", "interpreted". A diagnostic nobody asked for goes into
+   a `title` tooltip or the copy-CSV instead — `SBMM.results.card` rows take an
+   optional third element which becomes the row's tooltip, and `appendNote` returns
+   its element so a `.title` can be hung on it.
+
+**`test/e2e.mjs` `voiceCheck(where)` enforces it**: after each card the harness
+already opens, the DOM of `#resBody` must not contain *click*, *drag*, *use the*,
+*you can*, *to see* or *hover* (case-insensitive). Tooltips are exempt —
+`textContent` does not carry a `title` attribute, which is exactly why the detail
+belongs there. It is a helper called from eleven existing blocks, never a block of
+its own: re-running the analyses to read their words costs minutes.
+
+**When a note is shortened, the assertion that read it MOVES — it is never deleted.**
+Prefer a `data-` attribute, a class, or (as the accumulation card's cross-check does)
+the tooltip the paragraph became, read through `innerHTML`. The FACT asserted has to
+survive; only the words may change.
+
 ## Field mode and the `photo` feature (v11 §4)
 
 `body.field` is the ONE switch, `SBMM.field.on()` reports it, `SBMM.events` emits `field`.
