@@ -7125,6 +7125,338 @@ if (errors.length !== errBeforeWW) {
 await page.evaluate(() => SBMM.layerState.set("framework", "where_water", { on: false }));
 });
 
+/* ==================================================================== */
+let errBeforeLog, logPay, log9, logReopen, log7, logPop, logCmd, logSum, logSort,
+    logCsv, log3d, logIdle, logGone;   /* hoisted — v18 §3 */
+await block("9ae. boring logs", async () => {
+/* 9ae. boring logs (js/borelogs.js, SBMM_DATA.borings_logs)             */
+/* ==================================================================== */
+/* The 2025 OpenGround export becomes a strip log. What is asserted here is the
+   thing the engineer will actually check: that the app shows all THREE contact
+   statements and reconciles none of them.
+
+     * the payload is 44 holes and every one has a logger's remark;
+     * SB-9's log draws a band per class present, the native contact at 7.5 ft
+       labelled as the logger's remark, its 15 SPT drives and the water symbol
+       at 32 ft — all read off the payload rather than hard-coded, so a rebuilt
+       payload moves the test with it;
+     * SB-7 is the interlayered hole: the remark says 22 ft, the strata say the
+       waste bottoms at 25 ft, and waste is logged BELOW native — both flags
+       reach the card;
+     * the popup, the LOG command and the summary all open the same card, and
+       the summary's disagreement count IS the number of flagged holes;
+     * in 3D the boring dataset's depth sticks are one object per dataset,
+       tagged for block 9y's parity table, with at least three distinct colours
+       across their segments — which is the class profile and nothing else;
+     * an idle 3D view with the card open still stops rendering (block 9e's
+       contract, which a new object must not break);
+     * and with the payload deleted every entry point refuses with a toast and
+       nothing throws. */
+errBeforeLog = errors.length;
+
+logPay = await page.evaluate(() => {
+  const D = SBMM_DATA.borings_logs;
+  const h9 = D.holes.find(h => h.id === "SB-9"), h7 = D.holes.find(h => h.id === "SB-7");
+  return {
+    n: D.holes.length,
+    flagged: D.holes.filter(h => (h.contacts.flags || []).length).length,
+    remarks: D.holes.filter(h => h.contacts.source === "remark").length,
+    api: SBMM.borelogs.has() ? SBMM.borelogs.ids().length : 0,
+    sb9: { depth: h9.depth, nc: h9.contacts.native_contact, src: h9.contacts.source,
+           spt: h9.spt.length, pen: h9.pen.length,
+           ph: h9.tests.filter(t => t.key === "pH").length,
+           strata: h9.strata.filter(s => s.primary).length,
+           water: h9.water && h9.water.depth,
+           cls: [...new Set(h9.profile.map(p => p.cls))].sort() },
+    sb7: { nc: h7.contacts.native_contact, strata: h7.contacts.waste_base_strata,
+           flags: h7.contacts.flags, below: h7.contacts.waste_layered_below_native }
+  };
+});
+console.log(`boring logs: ${logPay.n} holes, ${logPay.remarks} with a logger's remark, `
+  + `${logPay.flagged} whose three contact statements disagree`);
+console.log(`  SB-9: ${logPay.sb9.depth} ft, native contact ${logPay.sb9.nc} ft (${logPay.sb9.src}), `
+  + `${logPay.sb9.spt} SPT, ${logPay.sb9.ph} pH, GW ${logPay.sb9.water} ft, classes ${logPay.sb9.cls.join("/")}`);
+if (logPay.n !== 44) { console.log("FAIL: the boring-log payload is not 44 holes:", logPay.n); process.exit(1); }
+if (logPay.api !== 44) { console.log("FAIL: SBMM.borelogs does not see the payload"); process.exit(1); }
+if (logPay.remarks !== 44) { console.log("FAIL: a hole has no logger's contact remark"); process.exit(1); }
+
+/* ---- the log itself ---- */
+log9 = await page.evaluate(() => {
+  SBMM.borelogs.open("SB-9");
+  const el = document.querySelector("#resBody .res.blcard");
+  if (!el) return { noCard: true };
+  const svg = el.querySelector("svg.blsvg");
+  if (!svg) return { noSvg: true };
+  const cls = {};
+  svg.querySelectorAll(".blprof").forEach(r => {
+    cls[r.dataset.cls] = (cls[r.dataset.cls] || 0) + 1;
+  });
+  const ct = svg.querySelector(".blcontact"), w = svg.querySelector(".blwater");
+  const txt = el.textContent;
+  return {
+    title: el.querySelector("h4").textContent.replace(/[⌖✎✕]/g, "").trim(),
+    classes: cls,
+    contactFt: ct ? +ct.dataset.ft : null,
+    contactSrc: ct ? ct.dataset.src : null,
+    strataLine: !!svg.querySelector(".blstrataline"),
+    olderLine: !!svg.querySelector(".blolder"),
+    spt: svg.querySelectorAll(".blspt").length,
+    pen: svg.querySelectorAll(".blpen").length,
+    ph: svg.querySelectorAll(".blph").length,
+    ph4: !!svg.querySelector(".blph4"),
+    strata: svg.querySelectorAll(".blstrat").length,
+    methods: svg.querySelectorAll(".blmethod").length,
+    waterFt: w ? +w.dataset.ft : null,
+    rows: el.querySelectorAll(".rrow").length,
+    details: el.querySelectorAll("details.bldesc").length,
+    buttons: [...el.querySelectorAll(".crow.btns .minib")].map(b => b.dataset.b),
+    saysRemark: /logger's remark/.test(txt),
+    saysOffset: /OpenGround plots this hole/.test(txt),
+    saysNoReconcile: /Nothing is reconciled/.test(txt)
+  };
+});
+console.log("SB-9 log:", JSON.stringify(log9));
+if (log9.noCard || log9.noSvg) { console.log("FAIL: the SB-9 log built no card / no SVG"); process.exit(1); }
+if (!/SB-9/.test(log9.title)) { console.log("FAIL: the card is not titled for SB-9:", log9.title); process.exit(1); }
+for (const c of logPay.sb9.cls)
+  if (!(log9.classes[c] >= 1)) { console.log("FAIL: no profile band drawn for class", c, log9.classes); process.exit(1); }
+if (Math.abs(log9.contactFt - logPay.sb9.nc) > 1e-6 || log9.contactSrc !== logPay.sb9.src)
+  { console.log("FAIL: the native contact line does not match the payload", log9, logPay.sb9); process.exit(1); }
+if (log9.spt !== logPay.sb9.spt) { console.log("FAIL: SPT bars drawn", log9.spt, "of", logPay.sb9.spt); process.exit(1); }
+if (log9.pen !== logPay.sb9.pen) { console.log("FAIL: penetrometer marks drawn", log9.pen, "of", logPay.sb9.pen); process.exit(1); }
+if (log9.ph !== logPay.sb9.ph) { console.log("FAIL: pH points drawn", log9.ph, "of", logPay.sb9.ph); process.exit(1); }
+if (!log9.ph4) { console.log("FAIL: the pH 4 acid threshold is not drawn"); process.exit(1); }
+if (log9.strata !== logPay.sb9.strata) { console.log("FAIL: primary strata boxes", log9.strata, "of", logPay.sb9.strata); process.exit(1); }
+if (Math.abs(log9.waterFt - logPay.sb9.water) > 1e-6)
+  { console.log("FAIL: the water symbol is not at the logged level", log9.waterFt, logPay.sb9.water); process.exit(1); }
+if (log9.methods < 2) { console.log("FAIL: the drilling-method strip is missing"); process.exit(1); }
+if (log9.details < 2) { console.log("FAIL: the descriptions / lab expanders are missing"); process.exit(1); }
+for (const b of ["prev", "next", "zoom", "3d", "csv", "png"])
+  if (!log9.buttons.includes(b)) { console.log("FAIL: the log card has no", b, "button:", log9.buttons); process.exit(1); }
+if (!log9.saysRemark || !log9.saysOffset || !log9.saysNoReconcile)
+  { console.log("FAIL: the card does not state the contact source, the coordinate offset and that nothing is reconciled", log9); process.exit(1); }
+
+/* one card at a time, and the three statements where they disagree */
+logReopen = await page.evaluate(() => {
+  SBMM.borelogs.open("SB-9");
+  return document.querySelectorAll("#resBody .res.blcard").length;
+});
+if (logReopen !== 1) { console.log("FAIL: re-opening a log left", logReopen, "cards"); process.exit(1); }
+
+log7 = await page.evaluate(() => {
+  SBMM.borelogs.open("SB-7");
+  const el = document.querySelector("#resBody .res.blcard");
+  if (!el) return { noCard: true };
+  const svg = el.querySelector("svg.blsvg");
+  const sl = svg.querySelector(".blstrataline");
+  const txt = el.textContent;
+  return {
+    contactFt: +svg.querySelector(".blcontact").dataset.ft,
+    strataFt: sl ? +sl.dataset.ft : null,
+    flagsRow: [...el.querySelectorAll(".rrow")].map(r => r.textContent)
+      .filter(t => /remark and strata differ|waste logged below native/.test(t)),
+    interlayered: /Waste is logged BELOW native/.test(txt),
+    water: !!svg.querySelector(".blwater"),
+    cards: document.querySelectorAll("#resBody .res.blcard").length
+  };
+});
+console.log("SB-7 log:", JSON.stringify(log7));
+if (log7.cards !== 1) { console.log("FAIL: opening SB-7 did not replace the SB-9 card"); process.exit(1); }
+if (Math.abs(log7.contactFt - logPay.sb7.nc) > 1e-6 || Math.abs(log7.strataFt - logPay.sb7.strata) > 1e-6)
+  { console.log("FAIL: SB-7's two contact lines are wrong", log7, logPay.sb7); process.exit(1); }
+if (!log7.flagsRow.length) { console.log("FAIL: SB-7's contact flags are not on the card"); process.exit(1); }
+for (const f of ["remark and strata differ", "waste logged below native"])
+  if (!log7.flagsRow.join(" ").includes(f)) { console.log("FAIL: flag missing from the card:", f, log7.flagsRow); process.exit(1); }
+if (!log7.interlayered) { console.log("FAIL: the card does not say the profile is interlayered"); process.exit(1); }
+if (log7.water) { console.log("FAIL: SB-7 did not encounter groundwater but a symbol was drawn"); process.exit(1); }
+
+/* ---- the entry points: the popup, the command, the summary ---- */
+logPop = await page.evaluate(() => {
+  const d = SBMM.datasets.byId("borings2025");
+  const p = d.points.find(q => q.id === "SB-9");
+  const html = SBMM.popups.forDataset(d, p);
+  return { button: /boring log/.test(html), lines: /bllines/.test(html),
+           lead: d.fields.slice(0, 5),
+           contact: /native contact 7.5 ft/.test(html) };
+});
+console.log("the SB-9 popup:", JSON.stringify(logPop));
+if (!logPop.button) { console.log("FAIL: the boring popup has no 'boring log' button"); process.exit(1); }
+if (!logPop.lines || !logPop.contact) { console.log("FAIL: the boring popup does not lead with the log's own summary"); process.exit(1); }
+if (logPop.lead[0] !== "Native contact (ft)")
+  { console.log("FAIL: the borings popup does not lead with the native contact:", logPop.lead); process.exit(1); }
+
+logCmd = await page.evaluate(() => {
+  SBMM.borelogs.close();
+  const before = document.querySelectorAll("#resBody .res.blcard").length;
+  SBMM.cmd.run("LOG SB-9");
+  const el = document.querySelector("#resBody .res.blcard");
+  return { before, after: document.querySelectorAll("#resBody .res.blcard").length,
+           title: el ? el.querySelector("h4").textContent.replace(/[⌖✎✕]/g, "").trim() : null };
+});
+console.log("LOG SB-9:", JSON.stringify(logCmd));
+if (logCmd.before !== 0) { console.log("FAIL: close() left the log card behind"); process.exit(1); }
+if (logCmd.after !== 1 || !/SB-9/.test(logCmd.title || ""))
+  { console.log("FAIL: the LOG command did not open the SB-9 log", logCmd); process.exit(1); }
+
+logSum = await page.evaluate(() => {
+  SBMM.borelogs.summary();
+  const el = document.querySelector("#resBody .res.blsum");
+  if (!el) return { noCard: true };
+  return {
+    rows: el.querySelectorAll("table.bltbl tbody tr").length,
+    headers: [...el.querySelectorAll("table.bltbl th")].map(t => t.dataset.k),
+    disagree: SBMM.borelogs.disagreeCount(),
+    says: el.textContent,
+    warnRows: el.querySelectorAll("table.bltbl tbody tr.warn").length,
+    csvHead: SBMM.borelogs.summaryCsv().split("\n")[0],
+    csvRows: SBMM.borelogs.summaryCsv().trim().split("\n").length - 1
+  };
+});
+console.log(`the summary: ${logSum.rows} rows, ${logSum.disagree} disagree, columns ${logSum.headers.join("/")}`);
+if (logSum.noCard) { console.log("FAIL: LOGS built no summary card"); process.exit(1); }
+if (logSum.rows !== logPay.n) { console.log("FAIL: the summary lists", logSum.rows, "of", logPay.n); process.exit(1); }
+if (logSum.csvRows !== logPay.n) { console.log("FAIL: the summary CSV carries", logSum.csvRows, "rows"); process.exit(1); }
+if (logSum.disagree !== logPay.flagged || logSum.warnRows !== logPay.flagged)
+  { console.log("FAIL: the disagreement count is not the number of flagged holes", logSum.disagree, logSum.warnRows, logPay.flagged); process.exit(1); }
+if (!logSum.says.includes(`${logPay.flagged} of the ${logPay.n} holes`))
+  { console.log("FAIL: the summary does not say how many disagree in words"); process.exit(1); }
+
+/* the table sorts by any column, and a row opens that hole's log */
+logSort = await page.evaluate(() => {
+  const el = document.querySelector("#resBody .res.blsum");
+  const first = () => el.querySelector("table.bltbl tbody tr").dataset.id;
+  const a = first();
+  el.querySelector('th[data-k="depth"]').click();
+  const b = first();
+  el.querySelector('th[data-k="depth"]').click();
+  const c = first();
+  el.querySelector("table.bltbl tbody tr").click();
+  const card = document.querySelector("#resBody .res.blcard");
+  return { a, b, c, opened: card ? card.querySelector("h4").textContent.replace(/[⌖✎✕]/g, "").trim() : null,
+           deepestFirst: c };
+});
+console.log("summary sorting:", JSON.stringify(logSort));
+if (logSort.a === logSort.b || logSort.b === logSort.c)
+  { console.log("FAIL: the summary table does not sort on a header click", logSort); process.exit(1); }
+if (!logSort.opened || !logSort.opened.includes(logSort.c))
+  { console.log("FAIL: a summary row did not open that hole's log", logSort); process.exit(1); }
+
+/* ---- the CSV: one table, four table names ---- */
+logCsv = await page.evaluate(() => {
+  const t = SBMM.borelogs.csvFor("SB-9");
+  const kinds = {};
+  t.trim().split("\n").slice(1).forEach(l => { const k = l.split(",")[0]; kinds[k] = (kinds[k] || 0) + 1; });
+  return { head: t.split("\n")[0], kinds, bytes: t.length, empty: SBMM.borelogs.csvFor("SB-999").length };
+});
+console.log("SB-9 CSV:", JSON.stringify(logCsv));
+for (const k of ["strata", "spt", "pen", "tests"])
+  if (!logCsv.kinds[k]) { console.log("FAIL: the log CSV has no", k, "rows:", logCsv.kinds); process.exit(1); }
+if (!/^table,hole,/.test(logCsv.head)) { console.log("FAIL: the log CSV has no table column:", logCsv.head); process.exit(1); }
+if (logCsv.empty !== 0) { console.log("FAIL: a CSV was produced for a hole that does not exist"); process.exit(1); }
+
+/* ---- 3D: the stick IS the log ---- */
+log3d = await page.evaluate(async () => {
+  const wait = ms => new Promise(r => setTimeout(r, ms));
+  const h = SBMM.borelogs.byId("SB-9");
+  await SBMM.viewer3d.openAt(h.x, h.y);
+  SBMM.viewer3d.refreshOverlays();
+  await wait(2500);
+  const sticks = SBMM.viewer3d.datasetSticks();
+  const b = sticks.find(s => s.dsId === "borings2025") || null;
+  return { sticks: sticks.length, boring: b,
+           drawn: !!SBMM.viewer3d.stats().layersDrawn[(b && b.layer) || "-"] };
+});
+console.log("3D depth sticks:", JSON.stringify(log3d));
+if (!log3d.boring) { console.log("FAIL: the boring dataset draws no depth stick in 3D", log3d); process.exit(1); }
+if (!log3d.boring.layer) { console.log("FAIL: the boring stick carries no userData.layer (block 9y parity)"); process.exit(1); }
+if (!log3d.boring.vertexColors) { console.log("FAIL: the boring stick is not vertex-coloured"); process.exit(1); }
+if (log3d.boring.colors.length < 3)
+  { console.log("FAIL: the boring sticks carry", log3d.boring.colors.length, "distinct colours — the class profile is not drawn"); process.exit(1); }
+if (log3d.boring.segments !== log3d.boring.records)
+  { console.log("FAIL: the stick's segment->record map is the wrong length", log3d.boring); process.exit(1); }
+if (log3d.boring.segments < 44)
+  { console.log("FAIL: the boring sticks have fewer segments than holes", log3d.boring.segments); process.exit(1); }
+/* one object per dataset, not one per hole */
+if (log3d.sticks > 3) { console.log("FAIL: the depth sticks were split into", log3d.sticks, "objects"); process.exit(1); }
+
+/* block 9e's contract: a new object must not make an idle view render for ever */
+logIdle = await page.evaluate(async () => {
+  const wait = ms => new Promise(r => setTimeout(r, ms));
+  SBMM.borelogs.open("SB-9");
+  let prev = SBMM.viewer3d.stats().renderCount, tries = 0;
+  for (; tries < 40; tries++) {
+    await wait(1000);
+    const now = SBMM.viewer3d.stats().renderCount;
+    if (now - prev <= 1) break;
+    prev = now;
+  }
+  const a = SBMM.viewer3d.stats().renderCount;
+  await wait(4000);
+  return { renders: SBMM.viewer3d.stats().renderCount - a, settleTries: tries };
+});
+console.log("idle 3D with a log card open — renders over 4 s:", logIdle.renders,
+            "| settle polls:", logIdle.settleTries);
+if (logIdle.renders > 1) { console.log("FAIL: the boring sticks keep the 3D view rendering"); process.exit(1); }
+
+if (errors.length !== errBeforeLog) {
+  console.log("FAIL: the boring logs raised page errors:",
+              errors.slice(errBeforeLog, errBeforeLog + 4)); process.exit(1); }
+
+/* ---- payload tolerance: refuse with a toast, never throw ---- */
+/* There is ONE toast element, so two refusals in the same task overwrite each
+   other; the collector wraps window.toast the way block 9f's CSV guard does,
+   which records every one of them rather than only the last. */
+logGone = await page.evaluate(async () => {
+  const wait = ms => new Promise(r => setTimeout(r, ms));
+  const said = [];
+  const orig = window.toast;
+  window.toast = function (m) { said.push(String(m)); return orig.apply(this, arguments); };
+  const keep = SBMM_DATA.borings_logs;
+  delete SBMM_DATA.borings_logs;
+  const out = { has: SBMM.borelogs.has(), ids: SBMM.borelogs.ids().length };
+  /* ONE toast element: a gap between refusals or only the last is ever seen */
+  try { out.card = !!SBMM.borelogs.open("SB-9"); } catch (e) { out.threw = String(e); }
+  await wait(250);
+  try { out.summary = !!SBMM.borelogs.summary(); } catch (e) { out.threw2 = String(e); }
+  await wait(250);
+  try { SBMM.cmd.run("LOG SB-9"); } catch (e) { out.threw3 = String(e); }
+  await wait(250);
+  /* the popup must lose the button rather than break */
+  const d = SBMM.datasets.byId("borings2025");
+  const p = d.points.find(q => q.id === "SB-9");
+  try { out.popBtn = /boring log/.test(SBMM.popups.forDataset(d, p)); } catch (e) { out.threw4 = String(e); }
+  /* and 3D falls back to the plain single-colour stick */
+  try { SBMM.viewer3d.refreshOverlays(); } catch (e) { out.threw5 = String(e); }
+  await wait(1500);
+  const b = SBMM.viewer3d.datasetSticks().find(s => s.dsId === "borings2025");
+  out.plainColors = b ? b.colors.length : null;
+  SBMM_DATA.borings_logs = keep;
+  SBMM.viewer3d.refreshOverlays();
+  await wait(1500);
+  const b2 = SBMM.viewer3d.datasetSticks().find(s => s.dsId === "borings2025");
+  out.restoredColors = b2 ? b2.colors.length : null;
+  out.restored = SBMM.borelogs.has();
+  window.toast = orig;
+  out.said = said;
+  return out;
+});
+console.log("with the payload deleted:", JSON.stringify(logGone));
+for (const k of ["threw", "threw2", "threw3", "threw4", "threw5"])
+  if (logGone[k]) { console.log("FAIL: the boring logs threw with no payload:", k, logGone[k]); process.exit(1); }
+if (logGone.has || logGone.ids || logGone.card || logGone.summary)
+  { console.log("FAIL: the module answered with no payload", logGone); process.exit(1); }
+if (logGone.popBtn) { console.log("FAIL: the popup kept the 'boring log' button with no payload"); process.exit(1); }
+if (logGone.plainColors !== 1)
+  { console.log("FAIL: with no logs the stick should be one flat colour, got", logGone.plainColors); process.exit(1); }
+if (logGone.said.filter(t => /no boring logs/i.test(t)).length < 3)
+  { console.log("FAIL: a boring-log refusal was SILENT — every one must toast", logGone.said); process.exit(1); }
+if (!logGone.restored || !(logGone.restoredColors >= 3))
+  { console.log("FAIL: the payload did not come back", logGone); process.exit(1); }
+if (errors.length !== errBeforeLog) {
+  console.log("FAIL: page errors with the boring-log payload absent:",
+              errors.slice(errBeforeLog, errBeforeLog + 4)); process.exit(1); }
+});
+
 await block("9z. the layer tree", async () => {
 /* 9z. the layer tree (v16, docs/V16_LAYERS_SPEC.md §3)                  */
 /* ==================================================================== */
