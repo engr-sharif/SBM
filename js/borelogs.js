@@ -458,15 +458,21 @@ SBMM.borelogs = (function () {
        is which and 35 of the 44 holes disagree */
     const note = document.createElement("div");
     note.className = "note blstate";
-    note.innerHTML = `<b>${fmt(c.native_contact, 1)} ft</b> is the logger's own remark on the rig`
-      + (differs(c.waste_base_strata, c.native_contact)
+    /* every one of the 44 holes in this payload has a remark, but the source is
+       DATA and the sentence follows it rather than assuming it */
+    const dStrata = differs(c.waste_base_strata, c.native_contact);
+    const dOlder = oi != null && differs(oi, c.native_contact);
+    note.innerHTML = `<b>${fmt(c.native_contact, 1)} ft</b> is `
+      + (c.source === "remark" ? "the logger's own remark on the rig" : "read off the strata rows")
+      + (dStrata
           ? `; the strata rows put the base of the waste at <b>${fmt(c.waste_base_strata, 1)} ft</b>`
-          : `, and the strata rows agree`)
-      + (oi != null && differs(oi, c.native_contact)
-          ? `; the older field spreadsheet said <b>${fmt(oi, 1)} ft</b>` : "")
+          : (c.waste_base_strata != null ? `, and the strata rows agree` : ""))
+      + (dOlder ? `; the older field spreadsheet said <b>${fmt(oi, 1)} ft</b>` : "")
       + (c.waste_layered_below_native
           ? `. Waste is logged BELOW native here — the profile is interlayered, not a single contact` : "")
-      + `. Nothing is reconciled: all three are drawn.`;
+      + (dStrata || dOlder
+          ? `. Nothing is reconciled: all three are drawn.`
+          : `. All three statements agree on this hole.`);
     el.appendChild(note);
 
     el.insertAdjacentHTML("beforeend", descHtml(h) + labHtml(h) + notesHtml(h));
