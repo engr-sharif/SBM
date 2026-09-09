@@ -2123,6 +2123,52 @@ SBMM.viewer3d = (function () {
     return out;
   }
 
+  /* ------------------------------------------------------------------ */
+  /* v23 §2.6 — the stratum highlight on a boring's depth stick           */
+  /* ------------------------------------------------------------------ */
+  /* Hovering a stratum in the log window lights the same interval on the hole's
+     stick. ONE reusable object, moved rather than rebuilt, in its own group
+     outside overlayGroup so an overlay rebuild cannot take it away and so it
+     never enters block 9y's parity table (it belongs to no layer — it is a
+     cursor). It carries no userData.pick either: a highlight is not a thing to
+     click. It asks for exactly one render when it changes and nothing per
+     frame, which is block 9e's contract. */
+  let hiObj = null, hiKey = "";
+  function highlightStratum(id, top, base) {
+    if (!scene) { hiKey = ""; return; }
+    /* a torn-down scene leaves a stale object behind — the next open rebuilds it */
+    if (hiObj && hiObj.parent !== scene) { hiObj = null; hiKey = ""; }
+    const key = id == null ? "" : id + ":" + top + ":" + base;
+    if (key === hiKey) return;
+    hiKey = key;
+    if (!id) { if (hiObj) hiObj.visible = false; requestRender(); return; }
+    const h = SBMM.borelogs && SBMM.borelogs.has() ? SBMM.borelogs.byId(id) : null;
+    if (!h) { if (hiObj) hiObj.visible = false; requestRender(); return; }
+    const [z0] = SBMM.elev(h.x, h.y);
+    const z = (isNaN(z0) ? ZMID : z0) - ZMID;
+    if (!hiObj) {
+      const g = new THREE.BufferGeometry();
+      g.setAttribute("position", new THREE.Float32BufferAttribute(new Float32Array(6), 3));
+      hiObj = new THREE.LineSegments(g, new THREE.LineBasicMaterial({
+        color: 0xFFD34D, transparent: true, opacity: .95, depthTest: false, depthWrite: false
+      }));
+      hiObj.renderOrder = 3;
+      hiObj.frustumCulled = false;
+      scene.add(hiObj);
+    }
+    /* the exaggeration slider scales every group; the cursor is a lone object,
+       so it follows the slider itself rather than riding a group that a
+       rebuild would take away */
+    hiObj.scale.z = exag();
+    const p = hiObj.geometry.getAttribute("position");
+    p.setXYZ(0, h.x - CX, h.y - CY, z - Math.max(0, top));
+    p.setXYZ(1, h.x - CX, h.y - CY, z - Math.min(h.depth, base));
+    p.needsUpdate = true;
+    hiObj.geometry.computeBoundingSphere();
+    hiObj.visible = true;
+    requestRender();
+  }
+
   /* Introspection for the boring logs' depth sticks — the same reason
      drawnTiles() and layersDrawn() exist: there is otherwise no way to ask
      "is this stick coloured by its log", and a picture of the answer is not an
@@ -3174,6 +3220,7 @@ SBMM.viewer3d = (function () {
       if (lodOn) SBMM.terrain3d.setExag(zx);
       if (canopyMesh) canopyMesh.scale.z = zx;
       if (overlayGroup) overlayGroup.scale.z = zx;
+      if (hiObj) hiObj.scale.z = zx;
       if (contourGroup) contourGroup.scale.z = zx;
       if (sketchObj) sketchObj.scale.z = zx;
       if (sheetGroup) sheetGroup.scale.z = zx;
@@ -3914,7 +3961,7 @@ SBMM.viewer3d = (function () {
     /* v15: the 3D label layer, the parity table and the sun */
     setLabels3d, labelsDrawn: () => [...labels3d.values()].map(r => ({ key: r.key, text: r.text,
       visible: r.sprite.visible, priority: r.priority })),
-    layersDrawn, datasetSticks,
+    layersDrawn, datasetSticks, highlightStratum,
     sun: (az, el) => { if (az === undefined && el === undefined) return { az: sunAz, el: sunEl };
                        setSun(az, el); return { az: sunAz, el: sunEl }; },
     lookAt: startLookAt,
