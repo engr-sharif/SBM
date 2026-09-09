@@ -610,6 +610,7 @@ SBMM.viewer3d = (function () {
     return Math.abs(s) / 2;
   }
   function disposeStage() {
+    if (SBMM.pick3d && SBMM.pick3d.unregister) SBMM.pick3d.unregister("waterstage");
     if (!stageGroup) return;
     stageGroup.traverse(o => {
       if (o.geometry) o.geometry.dispose();
@@ -674,6 +675,17 @@ SBMM.viewer3d = (function () {
       color: 0x55C1FF, transparent: true, opacity: 0.34, depthWrite: false,
       side: THREE.DoubleSide, toneMapped: false }));
     mesh.renderOrder = 5;
+    /* 2026-09-08: the water surface is pickable — a hover names the level and
+       what is left to the pipes and the rim, a click (or a dwell) opens it */
+    if (SBMM.pick3d && SBMM.pick3d.register) {
+      SBMM.pick3d.unregister("waterstage");
+      SBMM.pick3d.register({ id: "waterstage", object3d: mesh, kind: "stage", priority: 1.5,
+        hit: it => {
+          const p = it && it.point;
+          const d = SBMM.water && SBMM.water.describeAt && p ? SBMM.water.describeAt(p.x + CX, p.y + CY) : null;
+          return d ? { title: d.title, html: d.html } : null;
+        } });
+    }
     const grp = new THREE.Group();
     grp.add(mesh);
     grp.scale.z = exag();
@@ -2824,8 +2836,23 @@ SBMM.viewer3d = (function () {
     /* WebGL2 where the device has it (three picks it by default), MSAA on, and
        the pixel ratio capped at 2 — an iPad reports 2, and 3 on a Pro would
        quadruple the fill rate for nothing anyone can see (v17 §5b). */
-    renderer = new THREE.WebGLRenderer({ canvas: $("v3dCanvas"), antialias: true, preserveDrawingBuffer: true });
+    /* powerPreference (2026-09-08): a laptop with two GPUs hands a WebGL
+       context to the integrated one unless asked; "high-performance" asks for
+       the discrete GPU. No permission prompt is involved — a browser either
+       uses the GPU or it does not (chrome://gpu says which, and so does the
+       Help line), and this is the one hint the page can give it. */
+    renderer = new THREE.WebGLRenderer({ canvas: $("v3dCanvas"), antialias: true, preserveDrawingBuffer: true,
+                                         powerPreference: "high-performance" });
     renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
+    /* 2026-09-08: the renderer named where the user looks, and the diagnostics
+       one click away (the Help line has both too) */
+    setTimeout(() => {
+      const gi = rendererInfo(), gl = $("v3dGpuLine");
+      if (gl) gl.textContent = "renderer: " + (gi.name ? gi.name.replace(/^ANGLE \((.*)\)$/, "$1").slice(0, 70) : "unknown")
+        + (gi.known && !gi.hardware ? " — SOFTWARE: turn on graphics acceleration in chrome://settings/system" : "");
+      const db = $("v3dDiagBtn");
+      if (db) db.onclick = () => copyText(JSON.stringify(diag(), null, 1), "3D diagnostics copied — paste them into a message");
+    }, 0);
     /* iPad Safari drops the WebGL context under memory pressure, and the
        default behaviour is a dead black canvas with no error anywhere. Prevent
        the default on loss (which is what allows a restore at all), rebuild from
@@ -3728,8 +3755,48 @@ SBMM.viewer3d = (function () {
       } : null
     };
   }
+  /* everything about the drawn terrain in one object (2026-09-08): the
+     renderer, the pixel ratio and canvas, three's own memory/render counters,
+     the tile records, the textures, and a scan of every drawn geometry for a
+     non-finite or wildly out-of-range vertex — the one thing that draws a
+     straight black sliver across a scene on a GPU and nothing under software
+     GL. It is what the "copy 3D diagnostics" button pastes. */
+  function diag() {
+    const out = { when: new Date().toISOString(), ua: navigator.userAgent, dpr: window.devicePixelRatio || 1 };
+    try { out.stats = stats(); } catch (e) { out.statsErr = String(e); }
+    try { out.terrain = SBMM.terrain3d && SBMM.terrain3d.stats ? SBMM.terrain3d.stats() : null; } catch (e) { out.terrainErr = String(e); }
+    try {
+      out.canvas = renderer ? { w: renderer.domElement.width, h: renderer.domElement.height, pr: renderer.getPixelRatio() } : null;
+      out.three = renderer ? { memory: renderer.info.memory, render: renderer.info.render, caps: {
+        maxTex: renderer.capabilities.maxTextureSize, aniso: renderer.capabilities.getMaxAnisotropy(),
+        precision: renderer.capabilities.precision, webgl2: renderer.capabilities.isWebGL2 } } : null;
+    } catch (e) { out.threeErr = String(e); }
+    try {
+      const ms = SBMM.terrain3d && SBMM.terrain3d.meshes ? SBMM.terrain3d.meshes() : terrainMeshes.map(t => t.mesh);
+      const tiles = [];
+      let bad = 0, scanned = 0;
+      for (const m of ms) {
+        const pa = m.geometry && m.geometry.getAttribute("position");
+        const rec = { name: m.name || null, verts: pa ? pa.count : 0, idx: m.geometry && m.geometry.index ? m.geometry.index.count : 0,
+                      map: m.material && m.material.map && m.material.map.image ? [m.material.map.image.width, m.material.map.image.height] : null,
+                      visible: m.visible, scaleZ: +m.scale.z.toFixed(3) };
+        if (pa) {
+          const a = pa.array; let lo = Infinity, hi = -Infinity, nb = 0;
+          for (let i = 2; i < a.length; i += 3) { const v = a[i]; if (!Number.isFinite(v)) { nb++; continue; } if (v < lo) lo = v; if (v > hi) hi = v; }
+          rec.zlo = +lo.toFixed(1); rec.zhi = +hi.toFixed(1); rec.nonFinite = nb; bad += nb; scanned += pa.count;
+        }
+        tiles.push(rec);
+      }
+      out.geometry = { meshes: ms.length, verticesScanned: scanned, nonFiniteZ: bad, tiles };
+    } catch (e) { out.geometryErr = String(e); }
+    try { out.water = { analysis: !!(SBMM.water && SBMM.water.active && SBMM.water.active()), stage: stageInfo || null,
+                        flows: SBMM.store.features.filter(f => f.type === "flow").length }; } catch (e) { /* none */ }
+    try { out.layersDrawn = stats().layersDrawn; } catch (e) { /* none */ }
+    return out;
+  }
+
   return {
-    toggle, openAt, flyTo, isOpen: () => open, updateSketch, stats, resize, cameraWorld,
+    toggle, openAt, flyTo, isOpen: () => open, updateSketch, stats, resize, cameraWorld, diag,
     toggleFly, isFly: () => !!(nav && nav.mode() === "fly"),
     navMode: () => (nav ? nav.mode() : null),
     preset, frame: frameSelectionOrSite, frameBox, northUp: () => nav && nav.northUp(),

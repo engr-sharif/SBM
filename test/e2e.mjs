@@ -46,7 +46,7 @@ const WREF = {
   reason: "nodata",
   end: [6370884.5, 2128611.5], endTol: 3,
   lastZ: 1326.10, lastZTol: 0.1,
-  lengthRaw: 409.6,                  // simplified path: -3 % / +0.5 %
+  lengthRaw: 402.7,                  // simplified path: -3 % / +0.5 % (402.7 since 2026-09-08: the path through a pond is entry -> outlet)
   ponds: 2,
   pond1: { level: 1330.96, cells: 12 },
   pond2: { level: 1329.76, cells: 19 },
@@ -4393,6 +4393,25 @@ const cw = await page.evaluate(async () => {
   out.opened = !!(R && SBMM.water.active());
   const r = SBMM.water.routes();
   out.pipeRoute = !!(r && r.pipe);
+  /* 2026-09-08: what is under the pointer while the analysis is open — the
+     water answers with the level and the slider, the band with its own number */
+  {
+    const A = SBMM.water.active();            /* the kernel result */
+    const ring = (SBMM.water.stageSpec() || { rings: [[]] }).rings[0] || [];
+    const c = ring.reduce((a, q) => [a[0] + q[0] / ring.length, a[1] + q[1] / ring.length], [0, 0]);
+    const dw = SBMM.water.describeAt(c[0], c[1]);
+    out.descWater = dw ? dw.kind : null;
+    out.descWaterHasSlider = !!(dw && /data-wact="slider"/.test(dw.html));
+    /* the band ABOVE the slider's level: a rim low the water has not reached
+       (at the spill cell itself the water already stands, and "water" is the
+       right answer there) */
+    const cl = (A.clusters || []).find(q => q.above_ft > 0.5) || A.primary;
+    const dr = SBMM.water.describeAt(cl.x, cl.y);
+    out.descRim = dr ? dr.kind : null;
+    out.descRimFt = dr ? +(dr.ft - (cl.above_ft || 0)).toFixed(3) : null;
+    out.descNowhere = SBMM.water.describeAt(c[0], c[1] + 100000);
+    out.slider = SBMM.water.focusSlider();
+  }
   await SBMM.water.dropAt(6373000, 2127600, { quiet: true });
   out.flowsWith = flows();
   out.names = SBMM.store.features.filter(f => f.type === "flow").map(f => f.name);
@@ -4421,6 +4440,8 @@ const cw = await page.evaluate(async () => {
 });
 console.log("clear water overlays:", JSON.stringify(cw));
 if (!cw.opened || !cw.pipeRoute) { console.log("FAIL: the Herman analysis did not open with its pipe route"); process.exit(1); }
+if (cw.descWater !== "water" || !cw.descWaterHasSlider || cw.descRim !== "rim" || !(Math.abs(cw.descRimFt) < 0.05) || cw.descNowhere !== null || !cw.slider)
+  { console.log("FAIL: describeAt must answer water / rim / nothing, and focus the slider:", JSON.stringify(cw)); process.exit(1); }
 if (cw.flowsWith < cw.flows0 + 2) { console.log("FAIL: expected the routes and a raindrop to be on the map"); process.exit(1); }
 /* `removed` counts the UNDOABLE removals — the user's routes and raindrops. A
    route the analysis owns (the automatic rim overflow, the what-if) goes with

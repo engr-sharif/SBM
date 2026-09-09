@@ -97,6 +97,18 @@ grid ("1-ft lidar grid" / "2-ft lidar grid").
   level − min z; volume = Σ(level − z)·cell²; area = cells·cell². Ponds
   shallower than `minPondDepth` (default **0.25 ft**, the lidar noise floor)
   are crossed but not reported or drawn.
+  **The path through a pond (2026-09-08).** The cells the drop walked across
+  the floor of a depression that has just filled are under water, so the run is
+  cut back to the cell it ENTERED the pond at — the first vertex of the stretch
+  the flood reached (the flooded vertices are a suffix: descent is monotone, so
+  once below the level inside the basin it stays there) — and continues from
+  the outlet. The drawn line is entry → outlet, straight across the water;
+  `entry` is that shoreline cell; `length_ft` counts the chord. Before this the
+  lidar's noisy flat water surface funnelled every drop entering the Herman
+  Impoundment to one pit on its north shore and the line jumped 1,068 ft from
+  there to the pipes. Same rule in `js/compute.js`, the Rust core and
+  `test/fixtures/waterref.py`; the swale reference and the recorded overland
+  lengths were re-recorded with it (§9.1: 299 → 285 vertices, 409.6 → 402.7 ft).
 - **Flat.** A flat is a pit with a flat floor; the flood handles it (all cells
   pop at the same z, the outlet is the first frontier cell with a lower
   neighbour). No separate flat-routing code.
