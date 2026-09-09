@@ -277,7 +277,14 @@ Fixing it means waiting on the condition rather than on the clock, which is a ch
 a harness and belongs to the planner. **Since v18 the harness waits on the condition**
 (`waitForFunction`, 60 s), and the failure still appeared about one run in three under
 load, always at exactly the insertion order — the stored order was present, the DOM
-order came back, and the draw order was never re-applied. Two app-side causes were
+order came back, and the draw order was never re-applied. **Under `--parallel 2` the
+same block also fails on its KEYBOARD assertion** — `FAIL: ArrowDown did not move the
+focus dus`, seen on the folder build AND the dist in one matrix run on 2026-09-09, with
+the draw-order assertions in the same run passing. Both passed alone
+(`--only "9z. the layer tree"`, 14 s each, `focus after ArrowDown: piles`), so it is the
+same load flake wearing a different assertion: the row the tree focuses next is decided
+from the DOM, and on a loaded box the reload's re-registration has not settled. Same
+rule — re-run the block alone before believing it. Two app-side causes were
 closed in v21: `legendSoon()` in `js/layertree.js` was a leading-edge debounce whose
 callback painted the legend BEFORE re-asserting the draw order, so a burst of layer
 adds outlasting its 80 ms, or a paint that threw, left the order unapplied; it is now
