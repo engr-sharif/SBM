@@ -10,7 +10,7 @@
  },
  "idField": "Boring",
  "depthField": "Total depth (ft)",
- "source": "Sulphur Bank Test Pit Soil Borings Location Coordinates20251210.xlsx, sheet SB (Geotechnical) for coordinates; depth drilled from 2025 Jacobs Investigation\\Borings Schedule and Progress.xlsx; interpreted waste depth from Soil Profiles\\SBMM_Field Interpretted Waste Depth.xlsx.",
+ "source": "Sulphur Bank Test Pit Soil Borings Location Coordinates20251210.xlsx, sheet SB (Geotechnical) for coordinates; depth drilled from 2025 Jacobs Investigation\\Borings Schedule and Progress.xlsx; interpreted waste depth from Soil Profiles\\SBMM_Field Interpretted Waste Depth.xlsx. Log-derived attributes (total depth, waste base and thickness, native contact, bedrock, groundwater, method, dates, logger) from the OpenGround export, tools/build_borings.py.",
  "points": [
   {
    "id": "SB-1",
@@ -19,11 +19,24 @@
    "a": {
     "Waste area": "Old Mine Building",
     "Ground elev (ft)": 1450.0,
-    "Total depth (ft)": 45.0,
+    "Total depth (ft)": 45.4,
     "Interpreted waste depth (ft)": 0.0,
     "Waste depth basis": "Blow Counts",
     "Latitude": 39.000029,
-    "Longitude": -122.667422
+    "Longitude": -122.667422,
+    "Waste base \u2014 log (ft)": 0.0,
+    "Waste thickness \u2014 log (ft)": 0.0,
+    "Native contact (ft)": 0.0,
+    "Bedrock (ft)": 5.5,
+    "Groundwater (ft bgs)": "not encountered",
+    "Drilling method": "Hand Auger / Sonic",
+    "Drilled": "2025-10-27",
+    "Logged by": "M. Sharif",
+    "Native contact source": "remark",
+    "Native contact \u2014 log remark (ft)": 0.0,
+    "Waste base \u2014 log strata (ft)": 0.0,
+    "Waste thickness \u2014 log strata (ft)": 0,
+    "Contact flags": null
    }
   },
   {
@@ -37,7 +50,20 @@
     "Interpreted waste depth (ft)": 0.0,
     "Waste depth basis": "Blow Counts",
     "Latitude": 38.999538,
-    "Longitude": -122.666822
+    "Longitude": -122.666822,
+    "Waste base \u2014 log (ft)": 5.0,
+    "Waste thickness \u2014 log (ft)": 5.0,
+    "Native contact (ft)": 2.5,
+    "Bedrock (ft)": 5.0,
+    "Groundwater (ft bgs)": "not encountered",
+    "Drilling method": "Hand Auger / Sonic",
+    "Drilled": "2025-10-28",
+    "Logged by": "M. Sharif",
+    "Native contact source": "remark",
+    "Native contact \u2014 log remark (ft)": 2.5,
+    "Waste base \u2014 log strata (ft)": 2.5,
+    "Waste thickness \u2014 log strata (ft)": 2.5,
+    "Contact flags": "older interpretation differs"
    }
   },
   {
@@ -47,11 +73,24 @@
    "a": {
     "Waste area": "Old Mine Building",
     "Ground elev (ft)": 1427.0,
-    "Total depth (ft)": 60.0,
+    "Total depth (ft)": 60.1,
     "Interpreted waste depth (ft)": 0.0,
     "Waste depth basis": "Blow Counts",
     "Latitude": 39.000552,
-    "Longitude": -122.666619
+    "Longitude": -122.666619,
+    "Waste base \u2014 log (ft)": 0.0,
+    "Waste thickness \u2014 log (ft)": 0.0,
+    "Native contact (ft)": 0.0,
+    "Bedrock (ft)": 10.0,
+    "Groundwater (ft bgs)": "not encountered",
+    "Drilling method": "Sonic",
+    "Drilled": "2025-10-24",
+    "Logged by": "M. Sharif",
+    "Native contact source": "remark",
+    "Native contact \u2014 log remark (ft)": 0.0,
+    "Waste base \u2014 log strata (ft)": 0.0,
+    "Waste thickness \u2014 log strata (ft)": 0,
+    "Contact flags": null
    }
   },
   {
@@ -65,7 +104,20 @@
     "Interpreted waste depth (ft)": 23.0,
     "Waste depth basis": "Blow Counts, air monitoring results",
     "Latitude": 39.000385,
-    "Longitude": -122.666241
+    "Longitude": -122.666241,
+    "Waste base \u2014 log (ft)": 10.0,
+    "Waste thickness \u2014 log (ft)": 10.0,
+    "Native contact (ft)": 23.0,
+    "Bedrock (ft)": 34.5,
+    "Groundwater (ft bgs)": "not encountered",
+    "Drilling method": "Sonic",
+    "Drilled": "2025-10-22",
+    "Logged by": "M. Sharif",
+    "Native contact source": "remark",
+    "Native contact \u2014 log remark (ft)": 23.0,
+    "Waste base \u2014 log strata (ft)": 10.0,
+    "Waste thickness \u2014 log strata (ft)": 10.0,
+    "Contact flags": "remark and strata differ"
    }
   },
   {
@@ -75,11 +127,24 @@
    "a": {
     "Waste area": "South Waste Rock Pile",
     "Ground elev (ft)": 1457.0,
-    "Total depth (ft)": 60.0,
+    "Total depth (ft)": 60.4,
     "Interpreted waste depth (ft)": 20.0,
     "Waste depth basis": "Blow Counts",
     "Latitude": 39.000015,
-    "Longitude": -122.663672
+    "Longitude": -122.663672,
+    "Waste base \u2014 log (ft)": 10.0,
+    "Waste thickness \u2014 log (ft)": 11.0,
+    "Native contact (ft)": 10.0,
+    "Bedrock (ft)": 35.0,
+    "Groundwater (ft bgs)": "not encountered",
+    "Drilling method": "Sonic",
+    "Drilled": "2025-10-06",
+    "Logged by": "P. Dahal",
+    "Native contact source": "remark",
+    "Native contact \u2014 log remark (ft)": 10.0,
+    "Waste base \u2014 log strata (ft)": 10.0,
+    "Waste thickness \u2014 log strata (ft)": 10.0,
+    "Contact flags": "older interpretation differs"
    }
   },
   {
@@ -89,11 +154,24 @@
    "a": {
     "Waste area": "South Waste Rock Pile",
     "Ground elev (ft)": 1399.0,
-    "Total depth (ft)": 80.0,
+    "Total depth (ft)": 80.1,
     "Interpreted waste depth (ft)": 7.0,
     "Waste depth basis": "Blow counts",
     "Latitude": 39.001953,
-    "Longitude": -122.66079
+    "Longitude": -122.66079,
+    "Waste base \u2014 log (ft)": 0.0,
+    "Waste thickness \u2014 log (ft)": 0.0,
+    "Native contact (ft)": 0.0,
+    "Bedrock (ft)": 30.0,
+    "Groundwater (ft bgs)": 19.0,
+    "Drilling method": "Sonic",
+    "Drilled": "2025-10-07",
+    "Logged by": "P. Dahal",
+    "Native contact source": "remark",
+    "Native contact \u2014 log remark (ft)": 0.0,
+    "Waste base \u2014 log strata (ft)": 0.0,
+    "Waste thickness \u2014 log strata (ft)": 0,
+    "Contact flags": "older interpretation differs"
    }
   },
   {
@@ -103,11 +181,24 @@
    "a": {
     "Waste area": "South Waste Rock Pile",
     "Ground elev (ft)": 1405.0,
-    "Total depth (ft)": 60.0,
+    "Total depth (ft)": 61.5,
     "Interpreted waste depth (ft)": 23.0,
     "Waste depth basis": "Blow counts",
     "Latitude": 39.00119,
-    "Longitude": -122.663774
+    "Longitude": -122.663774,
+    "Waste base \u2014 log (ft)": 61.5,
+    "Waste thickness \u2014 log (ft)": 70.5,
+    "Native contact (ft)": 22.0,
+    "Bedrock (ft)": null,
+    "Groundwater (ft bgs)": "not encountered",
+    "Drilling method": "Hand Auger / Sonic",
+    "Drilled": "2025-10-10",
+    "Logged by": "P. Dahal",
+    "Native contact source": "remark",
+    "Native contact \u2014 log remark (ft)": 22.0,
+    "Waste base \u2014 log strata (ft)": 25.0,
+    "Waste thickness \u2014 log strata (ft)": 14.0,
+    "Contact flags": "remark and strata differ; waste logged below native; older interpretation differs"
    }
   },
   {
@@ -117,11 +208,24 @@
    "a": {
     "Waste area": "Tailings Pile",
     "Ground elev (ft)": 1363.5,
-    "Total depth (ft)": 40.0,
+    "Total depth (ft)": 40.8,
     "Interpreted waste depth (ft)": 28.0,
     "Waste depth basis": "Blow counts",
     "Latitude": 39.001546,
-    "Longitude": -122.665112
+    "Longitude": -122.665112,
+    "Waste base \u2014 log (ft)": 9.0,
+    "Waste thickness \u2014 log (ft)": 9.0,
+    "Native contact (ft)": 7.5,
+    "Bedrock (ft)": 30.1,
+    "Groundwater (ft bgs)": "not encountered",
+    "Drilling method": "Hand Auger / Sonic",
+    "Drilled": "2025-10-15",
+    "Logged by": "P. Bahal",
+    "Native contact source": "remark",
+    "Native contact \u2014 log remark (ft)": 7.5,
+    "Waste base \u2014 log strata (ft)": 9.0,
+    "Waste thickness \u2014 log strata (ft)": 9.0,
+    "Contact flags": "remark and strata differ; older interpretation differs"
    }
   },
   {
@@ -135,7 +239,20 @@
     "Interpreted waste depth (ft)": 23.0,
     "Waste depth basis": "Blow counts",
     "Latitude": 39.001937,
-    "Longitude": -122.664212
+    "Longitude": -122.664212,
+    "Waste base \u2014 log (ft)": 7.5,
+    "Waste thickness \u2014 log (ft)": 7.5,
+    "Native contact (ft)": 7.5,
+    "Bedrock (ft)": 60.0,
+    "Groundwater (ft bgs)": 32.0,
+    "Drilling method": "Hand Auger / Sonic",
+    "Drilled": "2025-10-16",
+    "Logged by": "P. Dahal",
+    "Native contact source": "remark",
+    "Native contact \u2014 log remark (ft)": 7.5,
+    "Waste base \u2014 log strata (ft)": 7.5,
+    "Waste thickness \u2014 log strata (ft)": 7.5,
+    "Contact flags": "older interpretation differs"
    }
   },
   {
@@ -145,11 +262,24 @@
    "a": {
     "Waste area": "South Waste Rock Pile",
     "Ground elev (ft)": 1418.5,
-    "Total depth (ft)": 125.0,
+    "Total depth (ft)": 126.4,
     "Interpreted waste depth (ft)": 48.0,
     "Waste depth basis": "Blow counts, soil type",
     "Latitude": 39.0017,
-    "Longitude": -122.662609
+    "Longitude": -122.662609,
+    "Waste base \u2014 log (ft)": 40.0,
+    "Waste thickness \u2014 log (ft)": 40.0,
+    "Native contact (ft)": 25.0,
+    "Bedrock (ft)": 100.0,
+    "Groundwater (ft bgs)": 92.0,
+    "Drilling method": "Hand Auger / Sonic",
+    "Drilled": "2025-10-13",
+    "Logged by": "A. Mayer + P. Dahal",
+    "Native contact source": "remark",
+    "Native contact \u2014 log remark (ft)": 25.0,
+    "Waste base \u2014 log strata (ft)": 30.0,
+    "Waste thickness \u2014 log strata (ft)": 30.0,
+    "Contact flags": "remark and strata differ; older interpretation differs"
    }
   },
   {
@@ -159,11 +289,24 @@
    "a": {
     "Waste area": "South Waste Rock Pile",
     "Ground elev (ft)": 1427.5,
-    "Total depth (ft)": 80.0,
+    "Total depth (ft)": 81.5,
     "Interpreted waste depth (ft)": 43.0,
     "Waste depth basis": "Blow counts",
     "Latitude": 39.002132,
-    "Longitude": -122.661293
+    "Longitude": -122.661293,
+    "Waste base \u2014 log (ft)": 50.0,
+    "Waste thickness \u2014 log (ft)": 71.0,
+    "Native contact (ft)": 25.0,
+    "Bedrock (ft)": null,
+    "Groundwater (ft bgs)": null,
+    "Drilling method": "Hand Auger / Sonic",
+    "Drilled": "2025-10-09",
+    "Logged by": "P. Dahal",
+    "Native contact source": "remark",
+    "Native contact \u2014 log remark (ft)": 25.0,
+    "Waste base \u2014 log strata (ft)": 30.0,
+    "Waste thickness \u2014 log strata (ft)": 30.0,
+    "Contact flags": "remark and strata differ; older interpretation differs"
    }
   },
   {
@@ -173,11 +316,24 @@
    "a": {
     "Waste area": "South Waste Rock Pile",
     "Ground elev (ft)": 1387.0,
-    "Total depth (ft)": 80.0,
+    "Total depth (ft)": 80.2,
     "Interpreted waste depth (ft)": 15.0,
     "Waste depth basis": "Soil type",
     "Latitude": 39.00262,
-    "Longitude": -122.662324
+    "Longitude": -122.662324,
+    "Waste base \u2014 log (ft)": 15.0,
+    "Waste thickness \u2014 log (ft)": 15.0,
+    "Native contact (ft)": 7.5,
+    "Bedrock (ft)": 80.0,
+    "Groundwater (ft bgs)": 50.0,
+    "Drilling method": "Hand Auger / Sonic",
+    "Drilled": "2025-10-20",
+    "Logged by": "A. Mayer",
+    "Native contact source": "remark",
+    "Native contact \u2014 log remark (ft)": 7.5,
+    "Waste base \u2014 log strata (ft)": 10.0,
+    "Waste thickness \u2014 log strata (ft)": 10.0,
+    "Contact flags": "remark and strata differ; older interpretation differs"
    }
   },
   {
@@ -187,11 +343,24 @@
    "a": {
     "Waste area": "South Waste Rock Pile",
     "Ground elev (ft)": 1392.0,
-    "Total depth (ft)": 30.0,
+    "Total depth (ft)": 30.9,
     "Interpreted waste depth (ft)": 12.0,
     "Waste depth basis": "Soil type",
     "Latitude": 39.002997,
-    "Longitude": -122.661474
+    "Longitude": -122.661474,
+    "Waste base \u2014 log (ft)": 8.0,
+    "Waste thickness \u2014 log (ft)": 8.0,
+    "Native contact (ft)": 7.5,
+    "Bedrock (ft)": 30.0,
+    "Groundwater (ft bgs)": "not encountered",
+    "Drilling method": "Hand Auger / Sonic",
+    "Drilled": "2025-10-20",
+    "Logged by": "M. Sharif",
+    "Native contact source": "remark",
+    "Native contact \u2014 log remark (ft)": 7.5,
+    "Waste base \u2014 log strata (ft)": 8.0,
+    "Waste thickness \u2014 log strata (ft)": 8.0,
+    "Contact flags": "remark and strata differ; older interpretation differs"
    }
   },
   {
@@ -201,11 +370,24 @@
    "a": {
     "Waste area": "South Waste Rock Pile",
     "Ground elev (ft)": 1404.0,
-    "Total depth (ft)": 25.0,
+    "Total depth (ft)": 26.5,
     "Interpreted waste depth (ft)": 23.0,
     "Waste depth basis": "Blow bounts",
     "Latitude": 39.003279,
-    "Longitude": -122.660811
+    "Longitude": -122.660811,
+    "Waste base \u2014 log (ft)": 26.5,
+    "Waste thickness \u2014 log (ft)": 20.0,
+    "Native contact (ft)": 20.0,
+    "Bedrock (ft)": null,
+    "Groundwater (ft bgs)": 25.0,
+    "Drilling method": "Hand Auger / Sonic",
+    "Drilled": "2025-10-08",
+    "Logged by": "P. Dahal",
+    "Native contact source": "remark",
+    "Native contact \u2014 log remark (ft)": 20.0,
+    "Waste base \u2014 log strata (ft)": 20.0,
+    "Waste thickness \u2014 log strata (ft)": 20.0,
+    "Contact flags": "older interpretation differs"
    }
   },
   {
@@ -215,11 +397,24 @@
    "a": {
     "Waste area": "South Waste Rock Pile",
     "Ground elev (ft)": 1408.0,
-    "Total depth (ft)": 30.0,
+    "Total depth (ft)": 30.4,
     "Interpreted waste depth (ft)": 7.0,
     "Waste depth basis": "Blow bounts",
     "Latitude": 39.004268,
-    "Longitude": -122.66027
+    "Longitude": -122.66027,
+    "Waste base \u2014 log (ft)": 20.0,
+    "Waste thickness \u2014 log (ft)": 25.0,
+    "Native contact (ft)": 7.5,
+    "Bedrock (ft)": null,
+    "Groundwater (ft bgs)": null,
+    "Drilling method": "Hand Auger / Sonic",
+    "Drilled": "2025-10-21",
+    "Logged by": "M. Sharif",
+    "Native contact source": "remark",
+    "Native contact \u2014 log remark (ft)": 7.5,
+    "Waste base \u2014 log strata (ft)": 20.0,
+    "Waste thickness \u2014 log strata (ft)": 20.0,
+    "Contact flags": "remark and strata differ; older interpretation differs"
    }
   },
   {
@@ -229,11 +424,24 @@
    "a": {
     "Waste area": "South Waste Rock Pile",
     "Ground elev (ft)": 1415.0,
-    "Total depth (ft)": 25.0,
+    "Total depth (ft)": 26.5,
     "Interpreted waste depth (ft)": 3.0,
     "Waste depth basis": "Soil Type",
     "Latitude": 39.004618,
-    "Longitude": -122.658943
+    "Longitude": -122.658943,
+    "Waste base \u2014 log (ft)": 7.5,
+    "Waste thickness \u2014 log (ft)": 7.5,
+    "Native contact (ft)": 5.0,
+    "Bedrock (ft)": null,
+    "Groundwater (ft bgs)": null,
+    "Drilling method": "Hand Auger / Sonic",
+    "Drilled": "2025-10-21",
+    "Logged by": "M. Sharif",
+    "Native contact source": "remark",
+    "Native contact \u2014 log remark (ft)": 5.0,
+    "Waste base \u2014 log strata (ft)": 7.5,
+    "Waste thickness \u2014 log strata (ft)": 7.5,
+    "Contact flags": "remark and strata differ; older interpretation differs"
    }
   },
   {
@@ -243,9 +451,22 @@
    "a": {
     "Waste area": "North Waste Rock Pile",
     "Ground elev (ft)": 1403.0,
-    "Total depth (ft)": 90.0,
+    "Total depth (ft)": 90.5,
     "Latitude": 39.0050875,
-    "Longitude": -122.6610165
+    "Longitude": -122.6610165,
+    "Waste base \u2014 log (ft)": 0.0,
+    "Waste thickness \u2014 log (ft)": 0.0,
+    "Native contact (ft)": 0.0,
+    "Bedrock (ft)": 25.0,
+    "Groundwater (ft bgs)": "not encountered",
+    "Drilling method": "Hand Auger / Sonic",
+    "Drilled": "2025-12-17",
+    "Logged by": "D. Pranish",
+    "Native contact source": "remark",
+    "Native contact \u2014 log remark (ft)": 0.0,
+    "Waste base \u2014 log strata (ft)": 0.0,
+    "Waste thickness \u2014 log strata (ft)": 0,
+    "Contact flags": null
    }
   },
   {
@@ -259,7 +480,20 @@
     "Interpreted waste depth (ft)": 45.0,
     "Waste depth basis": "Blow counts, pH",
     "Latitude": 39.0063079,
-    "Longitude": -122.6614311
+    "Longitude": -122.6614311,
+    "Waste base \u2014 log (ft)": 45.0,
+    "Waste thickness \u2014 log (ft)": 60.0,
+    "Native contact (ft)": 40.0,
+    "Bedrock (ft)": 45.0,
+    "Groundwater (ft bgs)": "not encountered",
+    "Drilling method": "Hand Auger / Sonic",
+    "Drilled": "2025-12-15",
+    "Logged by": "A. Mayer",
+    "Native contact source": "remark",
+    "Native contact \u2014 log remark (ft)": 40.0,
+    "Waste base \u2014 log strata (ft)": 45.0,
+    "Waste thickness \u2014 log strata (ft)": 45.0,
+    "Contact flags": "older interpretation differs"
    }
   },
   {
@@ -269,9 +503,22 @@
    "a": {
     "Waste area": "North Waste Rock Pile",
     "Ground elev (ft)": 1442.0,
-    "Total depth (ft)": 90.0,
+    "Total depth (ft)": 90.3,
     "Latitude": 39.0070725,
-    "Longitude": -122.6615207
+    "Longitude": -122.6615207,
+    "Waste base \u2014 log (ft)": 65.0,
+    "Waste thickness \u2014 log (ft)": 55.0,
+    "Native contact (ft)": 60.0,
+    "Bedrock (ft)": 65.0,
+    "Groundwater (ft bgs)": "not encountered",
+    "Drilling method": "Sonic",
+    "Drilled": "2025-12-16",
+    "Logged by": "D. Pranish",
+    "Native contact source": "remark",
+    "Native contact \u2014 log remark (ft)": 60.0,
+    "Waste base \u2014 log strata (ft)": 60.0,
+    "Waste thickness \u2014 log strata (ft)": 60.0,
+    "Contact flags": null
    }
   },
   {
@@ -281,9 +528,22 @@
    "a": {
     "Waste area": "North Waste Rock Pile",
     "Ground elev (ft)": 1372.0,
-    "Total depth (ft)": 15.0,
+    "Total depth (ft)": 16.5,
     "Latitude": 39.007119,
-    "Longitude": -122.6596332
+    "Longitude": -122.6596332,
+    "Waste base \u2014 log (ft)": 0.0,
+    "Waste thickness \u2014 log (ft)": 0.0,
+    "Native contact (ft)": 0.0,
+    "Bedrock (ft)": null,
+    "Groundwater (ft bgs)": "not encountered",
+    "Drilling method": "Hand Auger / Sonic",
+    "Drilled": "2025-12-18",
+    "Logged by": "D. Pranish",
+    "Native contact source": "remark",
+    "Native contact \u2014 log remark (ft)": 0.0,
+    "Waste base \u2014 log strata (ft)": 0.0,
+    "Waste thickness \u2014 log strata (ft)": 0,
+    "Contact flags": null
    }
   },
   {
@@ -293,11 +553,24 @@
    "a": {
     "Waste area": "North Waste Rock Pile",
     "Ground elev (ft)": 1405.0,
-    "Total depth (ft)": 45.0,
+    "Total depth (ft)": 45.25,
     "Interpreted waste depth (ft)": 1.5,
     "Waste depth basis": "Soil type",
     "Latitude": 39.0067117,
-    "Longitude": -122.6633595
+    "Longitude": -122.6633595,
+    "Waste base \u2014 log (ft)": 20.0,
+    "Waste thickness \u2014 log (ft)": 25.0,
+    "Native contact (ft)": 20.0,
+    "Bedrock (ft)": 20.0,
+    "Groundwater (ft bgs)": "not encountered",
+    "Drilling method": "Hand Auger / Sonic",
+    "Drilled": "2025-12-12",
+    "Logged by": "F. Ssewanyana",
+    "Native contact source": "remark",
+    "Native contact \u2014 log remark (ft)": 20.0,
+    "Waste base \u2014 log strata (ft)": 20.0,
+    "Waste thickness \u2014 log strata (ft)": 20.0,
+    "Contact flags": "older interpretation differs"
    }
   },
   {
@@ -311,7 +584,20 @@
     "Interpreted waste depth (ft)": 0.0,
     "Waste depth basis": "Blow counts",
     "Latitude": 39.006574,
-    "Longitude": -122.664861
+    "Longitude": -122.664861,
+    "Waste base \u2014 log (ft)": 0.0,
+    "Waste thickness \u2014 log (ft)": 0.0,
+    "Native contact (ft)": 12.0,
+    "Bedrock (ft)": 12.0,
+    "Groundwater (ft bgs)": "not encountered",
+    "Drilling method": "Hand Auger / Sonic",
+    "Drilled": "2025-12-05",
+    "Logged by": "M. Fahd",
+    "Native contact source": "remark",
+    "Native contact \u2014 log remark (ft)": 12.0,
+    "Waste base \u2014 log strata (ft)": 0.0,
+    "Waste thickness \u2014 log strata (ft)": 0,
+    "Contact flags": "remark and strata differ; older interpretation differs"
    }
   },
   {
@@ -321,11 +607,24 @@
    "a": {
     "Waste area": "Northwest Pit",
     "Ground elev (ft)": 1400.0,
-    "Total depth (ft)": 50.0,
+    "Total depth (ft)": 50.6,
     "Interpreted waste depth (ft)": 0.0,
     "Waste depth basis": "Blow counts",
     "Latitude": 39.005753,
-    "Longitude": -122.663986
+    "Longitude": -122.663986,
+    "Waste base \u2014 log (ft)": 16.0,
+    "Waste thickness \u2014 log (ft)": 16.0,
+    "Native contact (ft)": 16.0,
+    "Bedrock (ft)": 16.0,
+    "Groundwater (ft bgs)": "not encountered",
+    "Drilling method": "Sonic",
+    "Drilled": "2025-12-11",
+    "Logged by": "S. Fahd",
+    "Native contact source": "remark",
+    "Native contact \u2014 log remark (ft)": 16.0,
+    "Waste base \u2014 log strata (ft)": 16.0,
+    "Waste thickness \u2014 log strata (ft)": 16.0,
+    "Contact flags": "older interpretation differs"
    }
   },
   {
@@ -335,11 +634,24 @@
    "a": {
     "Waste area": "Disturbed Rock",
     "Ground elev (ft)": 1389.5,
-    "Total depth (ft)": 60.0,
+    "Total depth (ft)": 60.1,
     "Interpreted waste depth (ft)": 9.0,
     "Waste depth basis": "pH",
     "Latitude": 39.004665,
-    "Longitude": -122.666126
+    "Longitude": -122.666126,
+    "Waste base \u2014 log (ft)": 5.0,
+    "Waste thickness \u2014 log (ft)": 5.0,
+    "Native contact (ft)": 2.5,
+    "Bedrock (ft)": 5.0,
+    "Groundwater (ft bgs)": "not encountered",
+    "Drilling method": "Hand Auger / Sonic",
+    "Drilled": "2025-12-04",
+    "Logged by": "M. Fahd",
+    "Native contact source": "remark",
+    "Native contact \u2014 log remark (ft)": 2.5,
+    "Waste base \u2014 log strata (ft)": 5.0,
+    "Waste thickness \u2014 log strata (ft)": 5.0,
+    "Contact flags": "remark and strata differ; older interpretation differs"
    }
   },
   {
@@ -353,7 +665,20 @@
     "Interpreted waste depth (ft)": 9.0,
     "Waste depth basis": "pH",
     "Latitude": 39.005533,
-    "Longitude": -122.666923
+    "Longitude": -122.666923,
+    "Waste base \u2014 log (ft)": 7.5,
+    "Waste thickness \u2014 log (ft)": 7.5,
+    "Native contact (ft)": 7.5,
+    "Bedrock (ft)": 10.0,
+    "Groundwater (ft bgs)": "not encountered",
+    "Drilling method": "Hand Auger / Sonic",
+    "Drilled": "2025-12-03",
+    "Logged by": "M. Fahd",
+    "Native contact source": "remark",
+    "Native contact \u2014 log remark (ft)": 7.5,
+    "Waste base \u2014 log strata (ft)": 7.5,
+    "Waste thickness \u2014 log strata (ft)": 7.5,
+    "Contact flags": "older interpretation differs"
    }
   },
   {
@@ -363,11 +688,24 @@
    "a": {
     "Waste area": "Northwest Pit",
     "Ground elev (ft)": 1368.5,
-    "Total depth (ft)": 70.0,
+    "Total depth (ft)": 71.5,
     "Interpreted waste depth (ft)": 0.0,
     "Waste depth basis": "pH",
     "Latitude": 39.0070307,
-    "Longitude": -122.6663502
+    "Longitude": -122.6663502,
+    "Waste base \u2014 log (ft)": 0.0,
+    "Waste thickness \u2014 log (ft)": 0.0,
+    "Native contact (ft)": 0.0,
+    "Bedrock (ft)": 15.0,
+    "Groundwater (ft bgs)": "not encountered",
+    "Drilling method": "Hand Auger / Sonic",
+    "Drilled": "2025-12-10",
+    "Logged by": "M. Fahd",
+    "Native contact source": "remark",
+    "Native contact \u2014 log remark (ft)": 0.0,
+    "Waste base \u2014 log strata (ft)": 0.0,
+    "Waste thickness \u2014 log strata (ft)": 0,
+    "Contact flags": null
    }
   },
   {
@@ -377,9 +715,22 @@
    "a": {
     "Waste area": "North Waste Rock Pile",
     "Ground elev (ft)": 1356.0,
-    "Total depth (ft)": 10.0,
+    "Total depth (ft)": 11.5,
     "Latitude": 39.007693,
-    "Longitude": -122.6605459
+    "Longitude": -122.6605459,
+    "Waste base \u2014 log (ft)": 5.0,
+    "Waste thickness \u2014 log (ft)": 5.0,
+    "Native contact (ft)": 2.5,
+    "Bedrock (ft)": null,
+    "Groundwater (ft bgs)": "not encountered",
+    "Drilling method": "Hand Auger / Sonic",
+    "Drilled": "2025-12-18",
+    "Logged by": "D. Pranish",
+    "Native contact source": "remark",
+    "Native contact \u2014 log remark (ft)": 2.5,
+    "Waste base \u2014 log strata (ft)": 5.0,
+    "Waste thickness \u2014 log strata (ft)": 5.0,
+    "Contact flags": "remark and strata differ"
    }
   },
   {
@@ -389,9 +740,22 @@
    "a": {
     "Waste area": "North Waste Rock Pile",
     "Ground elev (ft)": 1350.5,
-    "Total depth (ft)": 10.0,
+    "Total depth (ft)": 11.5,
     "Latitude": 39.007754,
-    "Longitude": -122.6636534
+    "Longitude": -122.6636534,
+    "Waste base \u2014 log (ft)": 0.0,
+    "Waste thickness \u2014 log (ft)": 0.0,
+    "Native contact (ft)": 0.0,
+    "Bedrock (ft)": null,
+    "Groundwater (ft bgs)": "not encountered",
+    "Drilling method": "Hand Auger / Sonic",
+    "Drilled": "2025-12-18",
+    "Logged by": "D. Pranish",
+    "Native contact source": "remark",
+    "Native contact \u2014 log remark (ft)": 0.0,
+    "Waste base \u2014 log strata (ft)": 0.0,
+    "Waste thickness \u2014 log strata (ft)": 0,
+    "Contact flags": null
    }
   },
   {
@@ -401,7 +765,21 @@
    "a": {
     "Ground elev (ft)": 1379.0,
     "Latitude": 39.006464,
-    "Longitude": -122.667587
+    "Longitude": -122.667587,
+    "Total depth (ft)": 67.0,
+    "Waste base \u2014 log (ft)": 5.0,
+    "Waste thickness \u2014 log (ft)": 5.0,
+    "Native contact (ft)": 5.0,
+    "Bedrock (ft)": 5.0,
+    "Groundwater (ft bgs)": 40.2,
+    "Drilling method": "Hand Auger",
+    "Drilled": "2025-11-24",
+    "Logged by": "D. Pranish",
+    "Native contact source": "remark",
+    "Native contact \u2014 log remark (ft)": 5.0,
+    "Waste base \u2014 log strata (ft)": 5.0,
+    "Waste thickness \u2014 log strata (ft)": 5.0,
+    "Contact flags": null
    }
   },
   {
@@ -411,11 +789,24 @@
    "a": {
     "Waste area": "Northwest Pit",
     "Ground elev (ft)": 1375.0,
-    "Total depth (ft)": 85.0,
+    "Total depth (ft)": 85.1,
     "Interpreted waste depth (ft)": 23.0,
     "Waste depth basis": "Soil type, blow counts",
     "Latitude": 39.003506,
-    "Longitude": -122.67026
+    "Longitude": -122.67026,
+    "Waste base \u2014 log (ft)": 35.0,
+    "Waste thickness \u2014 log (ft)": 45.0,
+    "Native contact (ft)": 35.0,
+    "Bedrock (ft)": 65.0,
+    "Groundwater (ft bgs)": 65.0,
+    "Drilling method": "Hand Auger / Sonic",
+    "Drilled": "2025-11-04",
+    "Logged by": "D. Pranish",
+    "Native contact source": "remark",
+    "Native contact \u2014 log remark (ft)": 35.0,
+    "Waste base \u2014 log strata (ft)": 35.0,
+    "Waste thickness \u2014 log strata (ft)": 35.0,
+    "Contact flags": "older interpretation differs"
    }
   },
   {
@@ -429,7 +820,20 @@
     "Interpreted waste depth (ft)": 0.0,
     "Waste depth basis": "Soil type, pH",
     "Latitude": 39.0057742,
-    "Longitude": -122.6685013
+    "Longitude": -122.6685013,
+    "Waste base \u2014 log (ft)": 0.0,
+    "Waste thickness \u2014 log (ft)": 0.0,
+    "Native contact (ft)": 0.0,
+    "Bedrock (ft)": 10.0,
+    "Groundwater (ft bgs)": 20.0,
+    "Drilling method": "Hand Auger",
+    "Drilled": "2025-12-01",
+    "Logged by": "A. Mayer",
+    "Native contact source": "remark",
+    "Native contact \u2014 log remark (ft)": 0.0,
+    "Waste base \u2014 log strata (ft)": 0.0,
+    "Waste thickness \u2014 log strata (ft)": 0,
+    "Contact flags": null
    }
   },
   {
@@ -443,7 +847,20 @@
     "Interpreted waste depth (ft)": 19.0,
     "Waste depth basis": "Blow counts, pH",
     "Latitude": 39.004495,
-    "Longitude": -122.670854
+    "Longitude": -122.670854,
+    "Waste base \u2014 log (ft)": 0.0,
+    "Waste thickness \u2014 log (ft)": 0.0,
+    "Native contact (ft)": 0.0,
+    "Bedrock (ft)": 43.0,
+    "Groundwater (ft bgs)": 19.0,
+    "Drilling method": "Hand Auger / Sonic",
+    "Drilled": "2025-11-06",
+    "Logged by": "D. Pranish",
+    "Native contact source": "remark",
+    "Native contact \u2014 log remark (ft)": 0.0,
+    "Waste base \u2014 log strata (ft)": 0.0,
+    "Waste thickness \u2014 log strata (ft)": 0,
+    "Contact flags": "older interpretation differs"
    }
   },
   {
@@ -453,11 +870,24 @@
    "a": {
     "Waste area": "Waste Rock Dam",
     "Ground elev (ft)": 1347.0,
-    "Total depth (ft)": 35.0,
+    "Total depth (ft)": 36.5,
     "Interpreted waste depth (ft)": 35.0,
     "Waste depth basis": "Blow counts, pH",
     "Latitude": 39.001484,
-    "Longitude": -122.669622
+    "Longitude": -122.669622,
+    "Waste base \u2014 log (ft)": 25.0,
+    "Waste thickness \u2014 log (ft)": 31.0,
+    "Native contact (ft)": 23.0,
+    "Bedrock (ft)": null,
+    "Groundwater (ft bgs)": 23.3,
+    "Drilling method": "Hand Auger / Sonic",
+    "Drilled": "2025-11-07",
+    "Logged by": "M. Sharif",
+    "Native contact source": "remark",
+    "Native contact \u2014 log remark (ft)": 23.0,
+    "Waste base \u2014 log strata (ft)": 25.0,
+    "Waste thickness \u2014 log strata (ft)": 25.0,
+    "Contact flags": "remark and strata differ; older interpretation differs"
    }
   },
   {
@@ -471,7 +901,20 @@
     "Interpreted waste depth (ft)": 35.0,
     "Waste depth basis": "Soil type, blow counts",
     "Latitude": 39.002704,
-    "Longitude": -122.669911
+    "Longitude": -122.669911,
+    "Waste base \u2014 log (ft)": 47.0,
+    "Waste thickness \u2014 log (ft)": 54.5,
+    "Native contact (ft)": 40.0,
+    "Bedrock (ft)": 70.0,
+    "Groundwater (ft bgs)": "not encountered",
+    "Drilling method": "Hand Auger / Sonic",
+    "Drilled": "2025-10-31",
+    "Logged by": "M. Sharif",
+    "Native contact source": "remark",
+    "Native contact \u2014 log remark (ft)": 40.0,
+    "Waste base \u2014 log strata (ft)": 40.0,
+    "Waste thickness \u2014 log strata (ft)": 40.0,
+    "Contact flags": "older interpretation differs"
    }
   },
   {
@@ -483,7 +926,21 @@
     "Interpreted waste depth (ft)": 53.0,
     "Waste depth basis": "Soil type, blow counts",
     "Latitude": 39.002837,
-    "Longitude": -122.669273
+    "Longitude": -122.669273,
+    "Total depth (ft)": 60.0,
+    "Waste base \u2014 log (ft)": 0.0,
+    "Waste thickness \u2014 log (ft)": 0.0,
+    "Native contact (ft)": 0.0,
+    "Bedrock (ft)": 30.0,
+    "Groundwater (ft bgs)": 30.4,
+    "Drilling method": "Hand Auger / Sonic",
+    "Drilled": "2025-11-19",
+    "Logged by": "M. Sharif",
+    "Native contact source": "remark",
+    "Native contact \u2014 log remark (ft)": 0.0,
+    "Waste base \u2014 log strata (ft)": 0.0,
+    "Waste thickness \u2014 log strata (ft)": 0,
+    "Contact flags": "older interpretation differs"
    }
   },
   {
@@ -493,11 +950,24 @@
    "a": {
     "Waste area": "Waste Rock Dam",
     "Ground elev (ft)": 1347.5,
-    "Total depth (ft)": 60.0,
+    "Total depth (ft)": 60.3,
     "Interpreted waste depth (ft)": 10.0,
     "Waste depth basis": "Soil type, blow counts",
     "Latitude": 39.003179,
-    "Longitude": -122.668733
+    "Longitude": -122.668733,
+    "Waste base \u2014 log (ft)": 25.0,
+    "Waste thickness \u2014 log (ft)": 27.5,
+    "Native contact (ft)": 20.0,
+    "Bedrock (ft)": 25.0,
+    "Groundwater (ft bgs)": 18.5,
+    "Drilling method": "Hand Auger / Sonic",
+    "Drilled": "2025-11-03",
+    "Logged by": "N. Brown",
+    "Native contact source": "remark",
+    "Native contact \u2014 log remark (ft)": 20.0,
+    "Waste base \u2014 log strata (ft)": 20.0,
+    "Waste thickness \u2014 log strata (ft)": 20.0,
+    "Contact flags": "older interpretation differs"
    }
   },
   {
@@ -509,7 +979,21 @@
     "Interpreted waste depth (ft)": 34.0,
     "Waste depth basis": "Soil type, pH, blow counts",
     "Latitude": 39.002646,
-    "Longitude": -122.668733
+    "Longitude": -122.668733,
+    "Total depth (ft)": 51.1,
+    "Waste base \u2014 log (ft)": 25.0,
+    "Waste thickness \u2014 log (ft)": 35.0,
+    "Native contact (ft)": 22.0,
+    "Bedrock (ft)": 45.0,
+    "Groundwater (ft bgs)": 25.0,
+    "Drilling method": "Hand Auger / Sonic",
+    "Drilled": "2025-11-18",
+    "Logged by": "M. Sharif",
+    "Native contact source": "remark",
+    "Native contact \u2014 log remark (ft)": 22.0,
+    "Waste base \u2014 log strata (ft)": 25.0,
+    "Waste thickness \u2014 log strata (ft)": 25.0,
+    "Contact flags": "remark and strata differ; older interpretation differs"
    }
   },
   {
@@ -521,7 +1005,21 @@
     "Interpreted waste depth (ft)": 47.0,
     "Waste depth basis": "Soil type, pH",
     "Latitude": 39.002786,
-    "Longitude": -122.669122
+    "Longitude": -122.669122,
+    "Total depth (ft)": 50.2,
+    "Waste base \u2014 log (ft)": 30.1,
+    "Waste thickness \u2014 log (ft)": 35.1,
+    "Native contact (ft)": 30.0,
+    "Bedrock (ft)": null,
+    "Groundwater (ft bgs)": 29.0,
+    "Drilling method": "Hand Auger / Sonic",
+    "Drilled": "2025-11-17",
+    "Logged by": "M. Sharif",
+    "Native contact source": "remark",
+    "Native contact \u2014 log remark (ft)": 30.0,
+    "Waste base \u2014 log strata (ft)": 30.1,
+    "Waste thickness \u2014 log strata (ft)": 30.1,
+    "Contact flags": "remark and strata differ; older interpretation differs"
    }
   },
   {
@@ -534,7 +1032,20 @@
     "Total depth (ft)": 40.0,
     "Waste depth basis": "Soil type",
     "Latitude": 39.002754,
-    "Longitude": -122.668159
+    "Longitude": -122.668159,
+    "Waste base \u2014 log (ft)": 15.0,
+    "Waste thickness \u2014 log (ft)": 17.0,
+    "Native contact (ft)": 15.5,
+    "Bedrock (ft)": 35.0,
+    "Groundwater (ft bgs)": 15.5,
+    "Drilling method": "Hand Auger / Sonic",
+    "Drilled": "2025-11-11",
+    "Logged by": "M. Sharif",
+    "Native contact source": "remark",
+    "Native contact \u2014 log remark (ft)": 15.5,
+    "Waste base \u2014 log strata (ft)": 15.0,
+    "Waste thickness \u2014 log strata (ft)": 15.0,
+    "Contact flags": "remark and strata differ"
    }
   },
   {
@@ -546,7 +1057,21 @@
     "Interpreted waste depth (ft)": 26.0,
     "Waste depth basis": "Soil type, blow counts",
     "Latitude": 39.002811,
-    "Longitude": -122.667851
+    "Longitude": -122.667851,
+    "Total depth (ft)": 50.0,
+    "Waste base \u2014 log (ft)": 7.5,
+    "Waste thickness \u2014 log (ft)": 7.5,
+    "Native contact (ft)": 7.5,
+    "Bedrock (ft)": 40.0,
+    "Groundwater (ft bgs)": 13.0,
+    "Drilling method": "Hand Auger / Sonic",
+    "Drilled": "2025-11-10",
+    "Logged by": "M. Sharif",
+    "Native contact source": "remark",
+    "Native contact \u2014 log remark (ft)": 7.5,
+    "Waste base \u2014 log strata (ft)": 7.5,
+    "Waste thickness \u2014 log strata (ft)": 7.5,
+    "Contact flags": "older interpretation differs"
    }
   },
   {
@@ -556,11 +1081,24 @@
    "a": {
     "Waste area": "West Waste Rock Pile",
     "Ground elev (ft)": 1362.0,
-    "Total depth (ft)": 25.0,
+    "Total depth (ft)": 25.8,
     "Interpreted waste depth (ft)": 17.0,
     "Waste depth basis": "Soil type, blow counts",
     "Latitude": 39.001791,
-    "Longitude": -122.668407
+    "Longitude": -122.668407,
+    "Waste base \u2014 log (ft)": 20.0,
+    "Waste thickness \u2014 log (ft)": 23.0,
+    "Native contact (ft)": 12.0,
+    "Bedrock (ft)": 22.5,
+    "Groundwater (ft bgs)": "not encountered",
+    "Drilling method": "Hand Auger / Sonic",
+    "Drilled": "2025-10-29",
+    "Logged by": "M. Sharif",
+    "Native contact source": "remark",
+    "Native contact \u2014 log remark (ft)": 12.0,
+    "Waste base \u2014 log strata (ft)": 20.0,
+    "Waste thickness \u2014 log strata (ft)": 18.0,
+    "Contact flags": "remark and strata differ; waste logged below native; older interpretation differs"
    }
   },
   {
@@ -570,11 +1108,24 @@
    "a": {
     "Waste area": "West Waste Rock Pile",
     "Ground elev (ft)": 1376.5,
-    "Total depth (ft)": 50.0,
+    "Total depth (ft)": 51.5,
     "Interpreted waste depth (ft)": 43.0,
     "Waste depth basis": "Soil type",
     "Latitude": 39.001857,
-    "Longitude": -122.669506
+    "Longitude": -122.669506,
+    "Waste base \u2014 log (ft)": 30.0,
+    "Waste thickness \u2014 log (ft)": 32.5,
+    "Native contact (ft)": 10.0,
+    "Bedrock (ft)": null,
+    "Groundwater (ft bgs)": "not encountered",
+    "Drilling method": "Hand Auger / Sonic",
+    "Drilled": "2025-10-30",
+    "Logged by": "M. Sharif",
+    "Native contact source": "remark",
+    "Native contact \u2014 log remark (ft)": 10.0,
+    "Waste base \u2014 log strata (ft)": 10.0,
+    "Waste thickness \u2014 log strata (ft)": 10.0,
+    "Contact flags": "older interpretation differs"
    }
   },
   {
@@ -586,7 +1137,21 @@
     "Interpreted waste depth (ft)": 38.0,
     "Waste depth basis": "Soil type, blow counts",
     "Latitude": 39.002683,
-    "Longitude": -122.668867
+    "Longitude": -122.668867,
+    "Total depth (ft)": 50.0,
+    "Waste base \u2014 log (ft)": 26.0,
+    "Waste thickness \u2014 log (ft)": 33.5,
+    "Native contact (ft)": 21.5,
+    "Bedrock (ft)": 40.0,
+    "Groundwater (ft bgs)": 27.0,
+    "Drilling method": "Hand Auger / Sonic",
+    "Drilled": "2025-11-12",
+    "Logged by": "M. Sharif",
+    "Native contact source": "remark",
+    "Native contact \u2014 log remark (ft)": 21.5,
+    "Waste base \u2014 log strata (ft)": 26.0,
+    "Waste thickness \u2014 log strata (ft)": 22.5,
+    "Contact flags": "waste logged below native; older interpretation differs"
    }
   },
   {
@@ -598,7 +1163,21 @@
     "Interpreted waste depth (ft)": 35.0,
     "Waste depth basis": "pH",
     "Latitude": 39.002604,
-    "Longitude": -122.668651
+    "Longitude": -122.668651,
+    "Total depth (ft)": 51.3,
+    "Waste base \u2014 log (ft)": 10.0,
+    "Waste thickness \u2014 log (ft)": 12.5,
+    "Native contact (ft)": 10.0,
+    "Bedrock (ft)": 40.0,
+    "Groundwater (ft bgs)": 25.0,
+    "Drilling method": "Hand Auger / Sonic",
+    "Drilled": "2025-11-13",
+    "Logged by": "M. Sharif",
+    "Native contact source": "remark",
+    "Native contact \u2014 log remark (ft)": 10.0,
+    "Waste base \u2014 log strata (ft)": 10.0,
+    "Waste thickness \u2014 log strata (ft)": 10.0,
+    "Contact flags": "older interpretation differs"
    }
   }
  ],
