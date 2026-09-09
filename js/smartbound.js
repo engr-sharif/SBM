@@ -284,12 +284,11 @@ SBMM.smartbound = (function () {
     if (pts.length < 3) throw new Error("the traced contour was too small to use");
     const name = SBMM.tools.nextName("Contour boundary");
     const f = makeArea(pts, name, "Smart boundaries",
-      "The closed " + fmt(R.level, 2) + "-ft terrain contour enclosing the clicked point, on the " +
-      spec.dem.m.cell + "-ft grid. " + (R.autoLevel
-        ? "The level was taken from the clicked ground (" + fmt(R.sampled, 2) + " ft) and nudged up " +
-          fmt(R.level - R.sampled, 2) + " ft, because a click sitting exactly on its own contour is " +
-          "ambiguous about which side it is on."
-        : "The level was typed."));
+      "The closed " + fmt(R.level, 2) + "-ft terrain contour on the " + spec.dem.m.cell +
+      "-ft grid \u00b7 " + (R.autoLevel
+        ? "level from the picked ground (" + fmt(R.sampled, 2) + " ft), nudged up " +
+          fmt(R.level - R.sampled, 2) + " ft"
+        : "level typed"));
     const A = polyArea(pts);
     SBMM.results.setRows(f.card, [
       ["Area", fmt(A / 43560, 3) + " ac"],
@@ -339,17 +338,16 @@ SBMM.smartbound = (function () {
     const label = P.toe.mode === "crest" ? "Crest" : "Toe";
     const name = SBMM.tools.nextName(label + " line");
     const f = makeLine(pts, name, "Smart boundaries",
-      "The " + (P.toe.thresh * 100).toFixed(0) + "% slope contour nearest the click, measured on the " +
-      "terrain smoothed over " + fmt(P.toe.smooth, 0) + " ft. This is a slope-magnitude contour, not a " +
-      "hydrologically conditioned break line — it finds where the ground changes steepness, which " +
-      "is what a toe or a crest is, but it has no idea which side is uphill. Check it before you use it.");
+      "The " + (P.toe.thresh * 100).toFixed(0) + "% slope contour nearest the pick, on terrain " +
+      "smoothed over " + fmt(P.toe.smooth, 0) + " ft \u00b7 a slope-magnitude contour, not a " +
+      "hydrologically conditioned break line \u2014 it does not know which side is uphill");
     SBMM.results.setRows(f.card, [
       /* the feature's own length — the one number the line, the Inspector and
          the card all agree on */
       ["Length", fmt(f.props.length_ft, 0) + " ft"],
       ["Vertices", String(R.nPts)],
       ["Threshold", (P.toe.thresh * 100).toFixed(0) + " % (" + label.toLowerCase() + ")"],
-      ["Nearest to click", fmt(R.distFt, 0) + " ft"]
+      ["Nearest to the pick", fmt(R.distFt, 0) + " ft"]
     ]);
     if (R.chains > 1)
       toast("slope crossed the threshold on " + R.chains + " separate chains here — took the one nearest your click");
