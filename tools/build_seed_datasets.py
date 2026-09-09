@@ -129,12 +129,10 @@ def borings():
             prev = sched.get(k, (0, None))[0]
             sched[k] = (max(d, prev), txt(r[1]))
 
-    waste = {}
-    for r in openpyxl.load_workbook(
-            os.path.join(jp, "Soil Profiles", "SBMM_Field Interpretted Waste Depth.xlsx"),
-            data_only=True)["Sheet1"].iter_rows(min_row=5, values_only=True):
-        if r[1]:
-            waste[key(str(r[1]))] = (num(r[2]), txt(r[4]))
+    # "SBMM_Field Interpretted Waste Depth.xlsx" used to be read here into
+    # "Interpreted waste depth (ft)" / "Waste depth basis". Retired 2026-09-09:
+    # the 2025 boring logs (tools/build_borings.py) are the approved statement of
+    # the waste/native contact and the spreadsheet answered a different question.
 
     pts, skipped = [], 0
     for r in rows[1:]:
@@ -145,13 +143,10 @@ def borings():
             continue
         k = key(loc)
         depth, area = sched.get(k, (None, None))
-        wd, wj = waste.get(k, (None, None))
         a = {
             "Waste area": area,
             "Ground elev (ft)": num(r[col["Elevation"]]),
             "Total depth (ft)": depth,
-            "Interpreted waste depth (ft)": wd,
-            "Waste depth basis": wj,
             "Latitude": num(r[col["Latitude"]]),
             "Longitude": num(r[col["Longtitude"]]),
         }

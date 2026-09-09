@@ -20,8 +20,6 @@
     "Waste area": "Old Mine Building",
     "Ground elev (ft)": 1450.0,
     "Total depth (ft)": 45.4,
-    "Interpreted waste depth (ft)": 0.0,
-    "Waste depth basis": "Blow Counts",
     "Latitude": 39.000029,
     "Longitude": -122.667422,
     "Waste base \u2014 log (ft)": 0.0,
@@ -47,8 +45,6 @@
     "Waste area": "Old Mine Building",
     "Ground elev (ft)": 1482.0,
     "Total depth (ft)": 42.0,
-    "Interpreted waste depth (ft)": 0.0,
-    "Waste depth basis": "Blow Counts",
     "Latitude": 38.999538,
     "Longitude": -122.666822,
     "Waste base \u2014 log (ft)": 5.0,
@@ -63,7 +59,7 @@
     "Native contact \u2014 log remark (ft)": 2.5,
     "Waste base \u2014 log strata (ft)": 2.5,
     "Waste thickness \u2014 log strata (ft)": 2.5,
-    "Contact flags": "older interpretation differs"
+    "Contact flags": null
    }
   },
   {
@@ -74,8 +70,6 @@
     "Waste area": "Old Mine Building",
     "Ground elev (ft)": 1427.0,
     "Total depth (ft)": 60.1,
-    "Interpreted waste depth (ft)": 0.0,
-    "Waste depth basis": "Blow Counts",
     "Latitude": 39.000552,
     "Longitude": -122.666619,
     "Waste base \u2014 log (ft)": 0.0,
@@ -101,8 +95,6 @@
     "Waste area": "Old Mine Building",
     "Ground elev (ft)": 1427.0,
     "Total depth (ft)": 75.0,
-    "Interpreted waste depth (ft)": 23.0,
-    "Waste depth basis": "Blow Counts, air monitoring results",
     "Latitude": 39.000385,
     "Longitude": -122.666241,
     "Waste base \u2014 log (ft)": 10.0,
@@ -128,8 +120,6 @@
     "Waste area": "South Waste Rock Pile",
     "Ground elev (ft)": 1457.0,
     "Total depth (ft)": 60.4,
-    "Interpreted waste depth (ft)": 20.0,
-    "Waste depth basis": "Blow Counts",
     "Latitude": 39.000015,
     "Longitude": -122.663672,
     "Waste base \u2014 log (ft)": 10.0,
@@ -144,7 +134,7 @@
     "Native contact \u2014 log remark (ft)": 10.0,
     "Waste base \u2014 log strata (ft)": 10.0,
     "Waste thickness \u2014 log strata (ft)": 10.0,
-    "Contact flags": "older interpretation differs"
+    "Contact flags": null
    }
   },
   {
@@ -155,8 +145,6 @@
     "Waste area": "South Waste Rock Pile",
     "Ground elev (ft)": 1399.0,
     "Total depth (ft)": 80.1,
-    "Interpreted waste depth (ft)": 7.0,
-    "Waste depth basis": "Blow counts",
     "Latitude": 39.001953,
     "Longitude": -122.66079,
     "Waste base \u2014 log (ft)": 0.0,
@@ -171,7 +159,7 @@
     "Native contact \u2014 log remark (ft)": 0.0,
     "Waste base \u2014 log strata (ft)": 0.0,
     "Waste thickness \u2014 log strata (ft)": 0,
-    "Contact flags": "older interpretation differs"
+    "Contact flags": null
    }
   },
   {
@@ -182,8 +170,6 @@
     "Waste area": "South Waste Rock Pile",
     "Ground elev (ft)": 1405.0,
     "Total depth (ft)": 61.5,
-    "Interpreted waste depth (ft)": 23.0,
-    "Waste depth basis": "Blow counts",
     "Latitude": 39.00119,
     "Longitude": -122.663774,
     "Waste base \u2014 log (ft)": 61.5,
@@ -198,7 +184,7 @@
     "Native contact \u2014 log remark (ft)": 22.0,
     "Waste base \u2014 log strata (ft)": 25.0,
     "Waste thickness \u2014 log strata (ft)": 14.0,
-    "Contact flags": "remark and strata differ; waste logged below native; older interpretation differs"
+    "Contact flags": "remark and strata differ; waste logged below native"
    }
   },
   {
@@ -209,8 +195,6 @@
     "Waste area": "Tailings Pile",
     "Ground elev (ft)": 1363.5,
     "Total depth (ft)": 40.8,
-    "Interpreted waste depth (ft)": 28.0,
-    "Waste depth basis": "Blow counts",
     "Latitude": 39.001546,
     "Longitude": -122.665112,
     "Waste base \u2014 log (ft)": 9.0,
@@ -225,7 +209,7 @@
     "Native contact \u2014 log remark (ft)": 7.5,
     "Waste base \u2014 log strata (ft)": 9.0,
     "Waste thickness \u2014 log strata (ft)": 9.0,
-    "Contact flags": "remark and strata differ; older interpretation differs"
+    "Contact flags": "remark and strata differ"
    }
   },
   {
@@ -236,8 +220,6 @@
     "Waste area": "Tailings Pile",
     "Ground elev (ft)": 1366.5,
     "Total depth (ft)": 80.0,
-    "Interpreted waste depth (ft)": 23.0,
-    "Waste depth basis": "Blow counts",
     "Latitude": 39.001937,
     "Longitude": -122.664212,
     "Waste base \u2014 log (ft)": 7.5,
@@ -252,7 +234,7 @@
     "Native contact \u2014 log remark (ft)": 7.5,
     "Waste base \u2014 log strata (ft)": 7.5,
     "Waste thickness \u2014 log strata (ft)": 7.5,
-    "Contact flags": "older interpretation differs"
+    "Contact flags": null
    }
   },
   {
@@ -263,8 +245,6 @@
     "Waste area": "South Waste Rock Pile",
     "Ground elev (ft)": 1418.5,
     "Total depth (ft)": 126.4,
-    "Interpreted waste depth (ft)": 48.0,
-    "Waste depth basis": "Blow counts, soil type",
     "Latitude": 39.0017,
     "Longitude": -122.662609,
     "Waste base \u2014 log (ft)": 40.0,
@@ -279,7 +259,7 @@
     "Native contact \u2014 log remark (ft)": 25.0,
     "Waste base \u2014 log strata (ft)": 30.0,
     "Waste thickness \u2014 log strata (ft)": 30.0,
-    "Contact flags": "remark and strata differ; older interpretation differs"
+    "Contact flags": "remark and strata differ"
    }
   },
   {
@@ -290,8 +270,6 @@
     "Waste area": "South Waste Rock Pile",
     "Ground elev (ft)": 1427.5,
     "Total depth (ft)": 81.5,
-    "Interpreted waste depth (ft)": 43.0,
-    "Waste depth basis": "Blow counts",
     "Latitude": 39.002132,
     "Longitude": -122.661293,
     "Waste base \u2014 log (ft)": 50.0,
@@ -306,7 +284,7 @@
     "Native contact \u2014 log remark (ft)": 25.0,
     "Waste base \u2014 log strata (ft)": 30.0,
     "Waste thickness \u2014 log strata (ft)": 30.0,
-    "Contact flags": "remark and strata differ; older interpretation differs"
+    "Contact flags": "remark and strata differ"
    }
   },
   {
@@ -317,8 +295,6 @@
     "Waste area": "South Waste Rock Pile",
     "Ground elev (ft)": 1387.0,
     "Total depth (ft)": 80.2,
-    "Interpreted waste depth (ft)": 15.0,
-    "Waste depth basis": "Soil type",
     "Latitude": 39.00262,
     "Longitude": -122.662324,
     "Waste base \u2014 log (ft)": 15.0,
@@ -333,7 +309,7 @@
     "Native contact \u2014 log remark (ft)": 7.5,
     "Waste base \u2014 log strata (ft)": 10.0,
     "Waste thickness \u2014 log strata (ft)": 10.0,
-    "Contact flags": "remark and strata differ; older interpretation differs"
+    "Contact flags": "remark and strata differ"
    }
   },
   {
@@ -344,8 +320,6 @@
     "Waste area": "South Waste Rock Pile",
     "Ground elev (ft)": 1392.0,
     "Total depth (ft)": 30.9,
-    "Interpreted waste depth (ft)": 12.0,
-    "Waste depth basis": "Soil type",
     "Latitude": 39.002997,
     "Longitude": -122.661474,
     "Waste base \u2014 log (ft)": 8.0,
@@ -360,7 +334,7 @@
     "Native contact \u2014 log remark (ft)": 7.5,
     "Waste base \u2014 log strata (ft)": 8.0,
     "Waste thickness \u2014 log strata (ft)": 8.0,
-    "Contact flags": "remark and strata differ; older interpretation differs"
+    "Contact flags": "remark and strata differ"
    }
   },
   {
@@ -371,8 +345,6 @@
     "Waste area": "South Waste Rock Pile",
     "Ground elev (ft)": 1404.0,
     "Total depth (ft)": 26.5,
-    "Interpreted waste depth (ft)": 23.0,
-    "Waste depth basis": "Blow bounts",
     "Latitude": 39.003279,
     "Longitude": -122.660811,
     "Waste base \u2014 log (ft)": 26.5,
@@ -387,7 +359,7 @@
     "Native contact \u2014 log remark (ft)": 20.0,
     "Waste base \u2014 log strata (ft)": 20.0,
     "Waste thickness \u2014 log strata (ft)": 20.0,
-    "Contact flags": "older interpretation differs"
+    "Contact flags": null
    }
   },
   {
@@ -398,8 +370,6 @@
     "Waste area": "South Waste Rock Pile",
     "Ground elev (ft)": 1408.0,
     "Total depth (ft)": 30.4,
-    "Interpreted waste depth (ft)": 7.0,
-    "Waste depth basis": "Blow bounts",
     "Latitude": 39.004268,
     "Longitude": -122.66027,
     "Waste base \u2014 log (ft)": 20.0,
@@ -414,7 +384,7 @@
     "Native contact \u2014 log remark (ft)": 7.5,
     "Waste base \u2014 log strata (ft)": 20.0,
     "Waste thickness \u2014 log strata (ft)": 20.0,
-    "Contact flags": "remark and strata differ; older interpretation differs"
+    "Contact flags": "remark and strata differ"
    }
   },
   {
@@ -425,8 +395,6 @@
     "Waste area": "South Waste Rock Pile",
     "Ground elev (ft)": 1415.0,
     "Total depth (ft)": 26.5,
-    "Interpreted waste depth (ft)": 3.0,
-    "Waste depth basis": "Soil Type",
     "Latitude": 39.004618,
     "Longitude": -122.658943,
     "Waste base \u2014 log (ft)": 7.5,
@@ -441,7 +409,7 @@
     "Native contact \u2014 log remark (ft)": 5.0,
     "Waste base \u2014 log strata (ft)": 7.5,
     "Waste thickness \u2014 log strata (ft)": 7.5,
-    "Contact flags": "remark and strata differ; older interpretation differs"
+    "Contact flags": "remark and strata differ"
    }
   },
   {
@@ -477,8 +445,6 @@
     "Waste area": "North Waste Rock Pile",
     "Ground elev (ft)": 1431.0,
     "Total depth (ft)": 110.0,
-    "Interpreted waste depth (ft)": 45.0,
-    "Waste depth basis": "Blow counts, pH",
     "Latitude": 39.0063079,
     "Longitude": -122.6614311,
     "Waste base \u2014 log (ft)": 45.0,
@@ -493,7 +459,7 @@
     "Native contact \u2014 log remark (ft)": 40.0,
     "Waste base \u2014 log strata (ft)": 45.0,
     "Waste thickness \u2014 log strata (ft)": 45.0,
-    "Contact flags": "older interpretation differs"
+    "Contact flags": null
    }
   },
   {
@@ -554,8 +520,6 @@
     "Waste area": "North Waste Rock Pile",
     "Ground elev (ft)": 1405.0,
     "Total depth (ft)": 45.25,
-    "Interpreted waste depth (ft)": 1.5,
-    "Waste depth basis": "Soil type",
     "Latitude": 39.0067117,
     "Longitude": -122.6633595,
     "Waste base \u2014 log (ft)": 20.0,
@@ -570,7 +534,7 @@
     "Native contact \u2014 log remark (ft)": 20.0,
     "Waste base \u2014 log strata (ft)": 20.0,
     "Waste thickness \u2014 log strata (ft)": 20.0,
-    "Contact flags": "older interpretation differs"
+    "Contact flags": null
    }
   },
   {
@@ -581,8 +545,6 @@
     "Waste area": "North Waste Rock Pile",
     "Ground elev (ft)": 1380.0,
     "Total depth (ft)": 25.0,
-    "Interpreted waste depth (ft)": 0.0,
-    "Waste depth basis": "Blow counts",
     "Latitude": 39.006574,
     "Longitude": -122.664861,
     "Waste base \u2014 log (ft)": 0.0,
@@ -597,7 +559,7 @@
     "Native contact \u2014 log remark (ft)": 12.0,
     "Waste base \u2014 log strata (ft)": 0.0,
     "Waste thickness \u2014 log strata (ft)": 0,
-    "Contact flags": "remark and strata differ; older interpretation differs"
+    "Contact flags": "remark and strata differ"
    }
   },
   {
@@ -608,8 +570,6 @@
     "Waste area": "Northwest Pit",
     "Ground elev (ft)": 1400.0,
     "Total depth (ft)": 50.6,
-    "Interpreted waste depth (ft)": 0.0,
-    "Waste depth basis": "Blow counts",
     "Latitude": 39.005753,
     "Longitude": -122.663986,
     "Waste base \u2014 log (ft)": 16.0,
@@ -624,7 +584,7 @@
     "Native contact \u2014 log remark (ft)": 16.0,
     "Waste base \u2014 log strata (ft)": 16.0,
     "Waste thickness \u2014 log strata (ft)": 16.0,
-    "Contact flags": "older interpretation differs"
+    "Contact flags": null
    }
   },
   {
@@ -635,8 +595,6 @@
     "Waste area": "Disturbed Rock",
     "Ground elev (ft)": 1389.5,
     "Total depth (ft)": 60.1,
-    "Interpreted waste depth (ft)": 9.0,
-    "Waste depth basis": "pH",
     "Latitude": 39.004665,
     "Longitude": -122.666126,
     "Waste base \u2014 log (ft)": 5.0,
@@ -651,7 +609,7 @@
     "Native contact \u2014 log remark (ft)": 2.5,
     "Waste base \u2014 log strata (ft)": 5.0,
     "Waste thickness \u2014 log strata (ft)": 5.0,
-    "Contact flags": "remark and strata differ; older interpretation differs"
+    "Contact flags": "remark and strata differ"
    }
   },
   {
@@ -662,8 +620,6 @@
     "Waste area": "Northwest Pit",
     "Ground elev (ft)": 1393.0,
     "Total depth (ft)": 50.0,
-    "Interpreted waste depth (ft)": 9.0,
-    "Waste depth basis": "pH",
     "Latitude": 39.005533,
     "Longitude": -122.666923,
     "Waste base \u2014 log (ft)": 7.5,
@@ -678,7 +634,7 @@
     "Native contact \u2014 log remark (ft)": 7.5,
     "Waste base \u2014 log strata (ft)": 7.5,
     "Waste thickness \u2014 log strata (ft)": 7.5,
-    "Contact flags": "older interpretation differs"
+    "Contact flags": null
    }
   },
   {
@@ -689,8 +645,6 @@
     "Waste area": "Northwest Pit",
     "Ground elev (ft)": 1368.5,
     "Total depth (ft)": 71.5,
-    "Interpreted waste depth (ft)": 0.0,
-    "Waste depth basis": "pH",
     "Latitude": 39.0070307,
     "Longitude": -122.6663502,
     "Waste base \u2014 log (ft)": 0.0,
@@ -790,8 +744,6 @@
     "Waste area": "Northwest Pit",
     "Ground elev (ft)": 1375.0,
     "Total depth (ft)": 85.1,
-    "Interpreted waste depth (ft)": 23.0,
-    "Waste depth basis": "Soil type, blow counts",
     "Latitude": 39.003506,
     "Longitude": -122.67026,
     "Waste base \u2014 log (ft)": 35.0,
@@ -806,7 +758,7 @@
     "Native contact \u2014 log remark (ft)": 35.0,
     "Waste base \u2014 log strata (ft)": 35.0,
     "Waste thickness \u2014 log strata (ft)": 35.0,
-    "Contact flags": "older interpretation differs"
+    "Contact flags": null
    }
   },
   {
@@ -817,8 +769,6 @@
     "Waste area": "Northwest Pit",
     "Ground elev (ft)": 1397.0,
     "Total depth (ft)": 65.0,
-    "Interpreted waste depth (ft)": 0.0,
-    "Waste depth basis": "Soil type, pH",
     "Latitude": 39.0057742,
     "Longitude": -122.6685013,
     "Waste base \u2014 log (ft)": 0.0,
@@ -844,8 +794,6 @@
     "Waste area": "Waste Rock Dam",
     "Ground elev (ft)": 1342.5,
     "Total depth (ft)": 50.0,
-    "Interpreted waste depth (ft)": 19.0,
-    "Waste depth basis": "Blow counts, pH",
     "Latitude": 39.004495,
     "Longitude": -122.670854,
     "Waste base \u2014 log (ft)": 0.0,
@@ -860,7 +808,7 @@
     "Native contact \u2014 log remark (ft)": 0.0,
     "Waste base \u2014 log strata (ft)": 0.0,
     "Waste thickness \u2014 log strata (ft)": 0,
-    "Contact flags": "older interpretation differs"
+    "Contact flags": null
    }
   },
   {
@@ -871,8 +819,6 @@
     "Waste area": "Waste Rock Dam",
     "Ground elev (ft)": 1347.0,
     "Total depth (ft)": 36.5,
-    "Interpreted waste depth (ft)": 35.0,
-    "Waste depth basis": "Blow counts, pH",
     "Latitude": 39.001484,
     "Longitude": -122.669622,
     "Waste base \u2014 log (ft)": 25.0,
@@ -887,7 +833,7 @@
     "Native contact \u2014 log remark (ft)": 23.0,
     "Waste base \u2014 log strata (ft)": 25.0,
     "Waste thickness \u2014 log strata (ft)": 25.0,
-    "Contact flags": "remark and strata differ; older interpretation differs"
+    "Contact flags": "remark and strata differ"
    }
   },
   {
@@ -898,8 +844,6 @@
     "Waste area": "Waste Rock Dam",
     "Ground elev (ft)": 1357.0,
     "Total depth (ft)": 80.0,
-    "Interpreted waste depth (ft)": 35.0,
-    "Waste depth basis": "Soil type, blow counts",
     "Latitude": 39.002704,
     "Longitude": -122.669911,
     "Waste base \u2014 log (ft)": 47.0,
@@ -914,7 +858,7 @@
     "Native contact \u2014 log remark (ft)": 40.0,
     "Waste base \u2014 log strata (ft)": 40.0,
     "Waste thickness \u2014 log strata (ft)": 40.0,
-    "Contact flags": "older interpretation differs"
+    "Contact flags": null
    }
   },
   {
@@ -923,8 +867,6 @@
    "y": 2127734.75,
    "a": {
     "Ground elev (ft)": 1355.0,
-    "Interpreted waste depth (ft)": 53.0,
-    "Waste depth basis": "Soil type, blow counts",
     "Latitude": 39.002837,
     "Longitude": -122.669273,
     "Total depth (ft)": 60.0,
@@ -940,7 +882,7 @@
     "Native contact \u2014 log remark (ft)": 0.0,
     "Waste base \u2014 log strata (ft)": 0.0,
     "Waste thickness \u2014 log strata (ft)": 0,
-    "Contact flags": "older interpretation differs"
+    "Contact flags": null
    }
   },
   {
@@ -951,8 +893,6 @@
     "Waste area": "Waste Rock Dam",
     "Ground elev (ft)": 1347.5,
     "Total depth (ft)": 60.3,
-    "Interpreted waste depth (ft)": 10.0,
-    "Waste depth basis": "Soil type, blow counts",
     "Latitude": 39.003179,
     "Longitude": -122.668733,
     "Waste base \u2014 log (ft)": 25.0,
@@ -967,7 +907,7 @@
     "Native contact \u2014 log remark (ft)": 20.0,
     "Waste base \u2014 log strata (ft)": 20.0,
     "Waste thickness \u2014 log strata (ft)": 20.0,
-    "Contact flags": "older interpretation differs"
+    "Contact flags": null
    }
   },
   {
@@ -976,8 +916,6 @@
    "y": 2127664.06,
    "a": {
     "Ground elev (ft)": 1351.0,
-    "Interpreted waste depth (ft)": 34.0,
-    "Waste depth basis": "Soil type, pH, blow counts",
     "Latitude": 39.002646,
     "Longitude": -122.668733,
     "Total depth (ft)": 51.1,
@@ -993,7 +931,7 @@
     "Native contact \u2014 log remark (ft)": 22.0,
     "Waste base \u2014 log strata (ft)": 25.0,
     "Waste thickness \u2014 log strata (ft)": 25.0,
-    "Contact flags": "remark and strata differ; older interpretation differs"
+    "Contact flags": "remark and strata differ"
    }
   },
   {
@@ -1002,8 +940,6 @@
    "y": 2127715.78,
    "a": {
     "Ground elev (ft)": 1354.5,
-    "Interpreted waste depth (ft)": 47.0,
-    "Waste depth basis": "Soil type, pH",
     "Latitude": 39.002786,
     "Longitude": -122.669122,
     "Total depth (ft)": 50.2,
@@ -1019,7 +955,7 @@
     "Native contact \u2014 log remark (ft)": 30.0,
     "Waste base \u2014 log strata (ft)": 30.1,
     "Waste thickness \u2014 log strata (ft)": 30.1,
-    "Contact flags": "remark and strata differ; older interpretation differs"
+    "Contact flags": "remark and strata differ"
    }
   },
   {
@@ -1030,7 +966,6 @@
     "Waste area": "Waste Rock Dam",
     "Ground elev (ft)": 1344.0,
     "Total depth (ft)": 40.0,
-    "Waste depth basis": "Soil type",
     "Latitude": 39.002754,
     "Longitude": -122.668159,
     "Waste base \u2014 log (ft)": 15.0,
@@ -1054,8 +989,6 @@
    "y": 2127722.41,
    "a": {
     "Ground elev (ft)": 1340.0,
-    "Interpreted waste depth (ft)": 26.0,
-    "Waste depth basis": "Soil type, blow counts",
     "Latitude": 39.002811,
     "Longitude": -122.667851,
     "Total depth (ft)": 50.0,
@@ -1071,7 +1004,7 @@
     "Native contact \u2014 log remark (ft)": 7.5,
     "Waste base \u2014 log strata (ft)": 7.5,
     "Waste thickness \u2014 log strata (ft)": 7.5,
-    "Contact flags": "older interpretation differs"
+    "Contact flags": null
    }
   },
   {
@@ -1082,8 +1015,6 @@
     "Waste area": "West Waste Rock Pile",
     "Ground elev (ft)": 1362.0,
     "Total depth (ft)": 25.8,
-    "Interpreted waste depth (ft)": 17.0,
-    "Waste depth basis": "Soil type, blow counts",
     "Latitude": 39.001791,
     "Longitude": -122.668407,
     "Waste base \u2014 log (ft)": 20.0,
@@ -1098,7 +1029,7 @@
     "Native contact \u2014 log remark (ft)": 12.0,
     "Waste base \u2014 log strata (ft)": 20.0,
     "Waste thickness \u2014 log strata (ft)": 18.0,
-    "Contact flags": "remark and strata differ; waste logged below native; older interpretation differs"
+    "Contact flags": "remark and strata differ; waste logged below native"
    }
   },
   {
@@ -1109,8 +1040,6 @@
     "Waste area": "West Waste Rock Pile",
     "Ground elev (ft)": 1376.5,
     "Total depth (ft)": 51.5,
-    "Interpreted waste depth (ft)": 43.0,
-    "Waste depth basis": "Soil type",
     "Latitude": 39.001857,
     "Longitude": -122.669506,
     "Waste base \u2014 log (ft)": 30.0,
@@ -1125,7 +1054,7 @@
     "Native contact \u2014 log remark (ft)": 10.0,
     "Waste base \u2014 log strata (ft)": 10.0,
     "Waste thickness \u2014 log strata (ft)": 10.0,
-    "Contact flags": "older interpretation differs"
+    "Contact flags": null
    }
   },
   {
@@ -1134,8 +1063,6 @@
    "y": 2127677.92,
    "a": {
     "Ground elev (ft)": 1352.0,
-    "Interpreted waste depth (ft)": 38.0,
-    "Waste depth basis": "Soil type, blow counts",
     "Latitude": 39.002683,
     "Longitude": -122.668867,
     "Total depth (ft)": 50.0,
@@ -1151,7 +1078,7 @@
     "Native contact \u2014 log remark (ft)": 21.5,
     "Waste base \u2014 log strata (ft)": 26.0,
     "Waste thickness \u2014 log strata (ft)": 22.5,
-    "Contact flags": "waste logged below native; older interpretation differs"
+    "Contact flags": "waste logged below native"
    }
   },
   {
@@ -1160,8 +1087,6 @@
    "y": 2127648.48,
    "a": {
     "Ground elev (ft)": 1351.0,
-    "Interpreted waste depth (ft)": 35.0,
-    "Waste depth basis": "pH",
     "Latitude": 39.002604,
     "Longitude": -122.668651,
     "Total depth (ft)": 51.3,
@@ -1177,7 +1102,7 @@
     "Native contact \u2014 log remark (ft)": 10.0,
     "Waste base \u2014 log strata (ft)": 10.0,
     "Waste thickness \u2014 log strata (ft)": 10.0,
-    "Contact flags": "older interpretation differs"
+    "Contact flags": null
    }
   }
  ],

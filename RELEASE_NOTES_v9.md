@@ -17,6 +17,45 @@ All three are offline-only by design. Nothing in this app calls out to the inter
 
 ---
 
+## v9.25 — the boring logs (2026-09-09)
+
+The 44 soil borings we drilled in October–December 2025 are in the app. Click one and
+the popup now opens with the three things you actually want — the native contact, how
+much waste is logged, and the groundwater — and a **boring log** button.
+
+The log is the whole hole on one strip: waste / native / bedrock as a coloured band, every
+unit as a box with its USCS symbol, the SPT drives as bars with the blow count beside them
+(a refusal is a full red bar reading `50/5"`), the pocket penetrometer on its own scale,
+pH plotted against a red rule at 4 — which is where the acid-generating waste shows —
+the hand-auger and sonic intervals down the side, and the water level as the triangle you
+would draw yourself. Click a stratum box for its full description; the lab values and the
+log notes are folded underneath. **Copy CSV** takes the strata, the SPT, the penetrometer
+and every lab result as one table, and **PNG** saves the strip log as a picture.
+
+**Both contact numbers are on the log, and I have not picked between them.**
+There are two statements of how deep the waste goes: the remark the logger wrote on the rig, and the
+base of the deepest unit described as WASTE. **18 of the
+44 holes disagree — and I logged 18 of the holes myself.** The log draws both lines — bold for the remark, dashed for the
+strata — and says which is which. `LOGS` opens the table of
+all 44 side by side, sortable on any column, so we can go through them; SB-7 is the one to
+look at first (22 against 25, and waste logged below native, so it is interlayered rather
+than one contact). The older field-interpreted waste depth spreadsheet is retired: the logs
+are the approved record, and the spreadsheet was answering a different question. Its two
+columns are gone from the borings dataset.
+
+In 3D each boring's depth stick is coloured by its own profile, with a cross at the native
+contact and a blue tick at the water level, so a line of borings reads as the waste
+thickness across the site.
+
+`LOG SB-9` opens a log; `LOGS` opens the table. It is in all three builds, phone included.
+
+One thing worth saying: OpenGround plots the holes 3.8 ft west and 1.9 ft north of the
+coordinates in our December spreadsheet, and the latitude and longitude are identical — it
+is two realisations of NAD83, not a survey problem. The app uses our coordinates, which
+are the ones that check against the lidar, and each log says so at the bottom.
+
+---
+
 ## v9.24 — the raindrop through a pond, and the water that answers the pointer (2026-09-08)
 
 You said: *"why do all the points that enter the Herman Impoundment go to this one point up

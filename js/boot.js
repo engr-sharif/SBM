@@ -144,6 +144,7 @@ function wireWasmSwitch() {
     SBMM.trees.wire();
     SBMM.sheets.wire();
     SBMM.datasets.wire();
+    if (SBMM.borelogs) SBMM.borelogs.wire();
     SBMM.layersUI.wire();
     SBMM.watermark.wire();
     SBMM.sheetMarks.wire();
