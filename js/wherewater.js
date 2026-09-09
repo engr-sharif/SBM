@@ -433,8 +433,8 @@ SBMM.whereWater = (function () {
       { id: "where_water", checked: false, swatch: CBY.impound.color,
         sub: "Drainage (lidar + storm drains)",
         onChange: st => { if (st.on) ensure(); } });
-    row.row.title = "The four areas the site drains to: Clear Lake overland, the Herman "
-      + "impoundment, Frog/Green Pond, and off the surveyed ground. Terrain only.";
+    row.row.title = "Clear Lake overland, the Herman impoundment, Frog/Green Pond, off the "
+      + "surveyed ground \u00b7 terrain only";
     /* the legend goes AFTER the row, outside it: js/layertree.js reorders the
        `.lyr` elements among themselves and leaves everything else alone */
     if (row.row.parentNode) {

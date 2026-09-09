@@ -164,9 +164,7 @@ SBMM.features = (function () {
     $("ftCount").textContent = n + (n === 1 ? " feature" : " features");
     host.innerHTML = "";
     if (!n && !SBMM.store.allGroups().length) {
-      host.innerHTML = `<div class="ftempty">Nothing drawn yet.<br>
-        Pick a measure tool and draw on the map — every drawing shows up here, where you can
-        rename it, hide it, lock it, zoom to it, and drag it into folders.</div>`;
+      host.innerHTML = `<div class="ftempty">Nothing drawn yet.</div>`;
       return;
     }
     fillContainer(host, "");
@@ -246,10 +244,7 @@ SBMM.props = (function () {
     if (!force && host.contains(document.activeElement) && document.activeElement !== document.body) return;
     const f = SBMM.store.selectedFeature();
     if (!f) {
-      host.innerHTML = `<div class="pnone">No feature selected.<br><br>
-        Click a drawing on the map or in 3D, or a row in the <b>My work</b> tab, to see and
-        edit its type, folder, style, coordinates and computed results here.
-        <kbd>Esc</kbd> clears the selection and returns to Navigate.</div>`;
+      host.innerHTML = `<div class="pnone">No feature selected.</div>`;
       return;
     }
     const meta = TYPE_META[f.type] || { label: f.type };

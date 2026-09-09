@@ -263,7 +263,7 @@ SBMM.accum = (function () {
           const res = await ensure("accum_raster");
           if (res) paintRaster();
         } });
-    rast.row.title = "How much ground drains through each cell, log-scaled in acres. Terrain only.";
+    rast.row.title = "Contributing area through each cell, log-scaled in acres · terrain only";
     rows.accum_raster = rast;
 
     const str = SBMM.addLayerRow("proj", `Streams (≥ ${THRESH_AC} ac)`, groups.streams,
@@ -273,8 +273,7 @@ SBMM.accum = (function () {
           const res = await ensure("accum_streams");
           if (res) paintStreams();
         } });
-    str.row.title = `Every flow path with more than ${THRESH_AC} acres above it, weighted by `
-      + "Strahler order. Hover shows the upstream acres.";
+    str.row.title = `Flow paths with over ${THRESH_AC} acres above them, weighted by Strahler order`;
     rows.accum_streams = str;
 
     /* the legend, after both rows — js/layertree.js reorders the `.lyr`

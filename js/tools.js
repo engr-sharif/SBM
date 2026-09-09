@@ -9,14 +9,16 @@ SBMM.tools = (function () {
 
   /* ================== tool switching ================== */
   /* What the map says the moment a tool is armed, before the first click. */
+  /* v23 §1 — a prompt is the minimum words the tool needs. Esc always returns to
+     Navigate (§2), everywhere, so it is not restated on every one. */
   const START_TIP = {
-    inspect: "Inspect — click anywhere for a point card. Esc returns to Navigate.",
-    point: "Point — click where the point goes. Esc returns to Navigate.",
-    distance: "Distance — click each point; double-click or Enter finishes. Esc cancels.",
-    area: "Area — click the boundary; double-click or Enter closes it. Esc cancels.",
-    volume: "Volume — click a footprint around the pile or excavation; double-click closes it.",
-    profile: "Profile — click the start and the end of the line; Enter finishes.",
-    raindrop: "Raindrop — click where the drop lands; every click traces another. Esc returns to Navigate."
+    inspect: "Inspect — click anywhere for a point card",
+    point: "Point — click where it goes",
+    distance: "Distance — click each point · Enter to finish",
+    area: "Area — click the boundary · Enter to close",
+    volume: "Volume — click a footprint · Enter to close",
+    profile: "Profile — click the start and the end · Enter to finish",
+    raindrop: "Raindrop — click where the drop lands"
   };
   /* Tools that put a card up rather than opening a sketch. */
   const CLICK_TOOLS = new Set(["inspect", "point", "raindrop"]);

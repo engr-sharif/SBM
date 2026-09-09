@@ -351,7 +351,7 @@ SBMM.drainage = (function () {
       return row;
     };
     mk("drain_outlet", "Catchments — by outlet", groups.outlet,
-       "Where every square foot of the surveyed ground finally drains to. Terrain only.");
+       "The outlet every square foot of the surveyed ground drains to \u00b7 terrain only");
     mk("drain_first", "Catchments — by first capture", groups.first,
        "The first pond or storm inlet each square foot reaches on the way.");
     mk("drain_paths", "Flow paths (longest per catchment)", groups.paths,
