@@ -509,7 +509,8 @@ SBMM.borelogs = (function () {
     const ppf = o.ppf || (tier === "sheet" ? 19.2 : tier === "stick" ? 3 : 2);
     const PADT = o.padTop != null ? o.padTop : (tier === "sheet" ? (o.headings ? 30 : 16) : 2);
     const yOf = ft => PADT + (ft - y0ft) * ppf;
-    const H = Math.ceil(PADT + (bot - y0ft) * ppf + (tier === "sheet" ? 22 : 2));
+    const PADB = o.padBot != null ? o.padBot : (tier === "sheet" ? 22 : 2);
+    const H = Math.ceil(PADT + (bot - y0ft) * ppf + PADB);
     /* nothing outside the hole is drawn; the window may be bigger than it is */
     const cTop = Math.max(top, 0), cBot = Math.min(bot, depth);
 
@@ -532,9 +533,9 @@ SBMM.borelogs = (function () {
       const hy = PADT - 6;
       const hd = (x, s, anchor) => p.push(text(x, hy, s, T.hd, 8.5, anchor,
         ' letter-spacing=".06em"'));
-      hd(L.ax, "FT BGS", "end");
-      if (L.met) hd(L.met[0], "METH");
-      if (L.prof) hd(L.prof[0], "CLS");
+      /* the two narrow left columns are 12 px and 8 px wide — a word there
+         would run into its neighbour, and both are named by their tooltips */
+      hd(0, "FT BGS");
       if (L.gl) hd(L.gl[0], "GRAPHIC LOG");
       if (L.uscs) hd(L.uscs[0], "USCS");
       if (L.desc) hd(L.desc[0], "DESCRIPTION");
@@ -545,7 +546,7 @@ SBMM.borelogs = (function () {
       if (L.lab) hd(L.lab[0], "LAB");
       if (L.rem) hd(L.rem[0], "REMARKS");
       if (L.eax != null) hd(L.eax, "ELEV");
-      p.push(line(L.ax - 24, PADT - 3, W, PADT - 3, T.grid, 1));
+      p.push(line(0, PADT - 3, W, PADT - 3, T.grid, 1));
     }
 
     /* ---- axes (§1.3) ---- */
@@ -650,12 +651,14 @@ SBMM.borelogs = (function () {
     /* ---- descriptions, wrapped (§2.2 item 9) ---- */
     if (L.desc) {
       const dw = L.desc[1] - L.desc[0];
-      const per = Math.max(8, Math.floor(dw / 4.55));
+      const per = Math.max(8, Math.floor(dw / 5.3));
       (h.strata || []).forEach(s => {
         const a = Math.max(cTop, s.top), b = Math.min(cBot, s.base);
         if (s.primary ? (b - a < 1e-6) : (s.top < cTop || s.top > cBot)) return;
         const sub = !s.primary;
-        const txt = (sub ? "— " : "") + (s.desc || s.name || "");
+        const words = s.desc || s.name || "";
+        if (!words) return;
+        const txt = (sub ? "— " : "") + words;
         const lines = wrapText(txt, sub ? per - 2 : per);
         let yy = yOf(sub ? s.top : a) + 8;
         const room = sub ? 3 : Math.max(1, Math.floor(((b - a) * ppf - 3) / 10.5));
@@ -732,6 +735,11 @@ SBMM.borelogs = (function () {
       /* pH under 4 is the acid-generating signature of this site's waste — the
          rule is drawn, never the conclusion */
       p.push(line(phx(PH_ACID), yOf(cTop), phx(PH_ACID), yOf(cBot), "#E4796A", 1, "2 3", "blph4"));
+      if (o.headings) {
+        p.push(text(L.ph[0], PADT - 15, String(PH_LO), T.ax, 7.5));
+        p.push(text(phx(PH_ACID), PADT - 15, String(PH_ACID), "#E4796A", 7.5, "middle"));
+        p.push(text(L.ph[1], PADT - 15, String(PH_HI), T.ax, 7.5, "end"));
+      }
       for (const t of (h.tests || [])) {
         if (t.key !== "pH" || t.depth == null || t.depth < cTop || t.depth > cBot) continue;
         p.push(`<circle class="blph" data-ph="${t.value}" cx="${phx(t.value).toFixed(1)}"`
@@ -779,31 +787,36 @@ SBMM.borelogs = (function () {
 
     /* ---- the two contact statements, across the whole column ---- */
     const c = h.contacts || {};
+    /* on white the screen palette stops being lines: gold at 55 % luminance is
+       invisible on paper and violet is worse. The class TINTS are kept (they
+       are the graphic log's own, on its own paper); the horizon lines darken. */
+    const HC = o.print ? { contact: "#8A6A00", bedrock: "#4B3E86", water: "#0B6FA8" }
+                       : { contact: classColor("contact"), bedrock: classColor("bedrock"), water: "#55C1FF" };
     const across0 = L.ax + 1, across1 = L.eax != null ? L.eax - 3 : W;
     if (c.waste_base_strata != null && differs(c.waste_base_strata, c.native_contact)
         && c.waste_base_strata >= cTop && c.waste_base_strata <= cBot) {
       const y = yOf(c.waste_base_strata);
       p.push(line(across0, y, across1, y, T.ink, 1, "5 3", "blstrataline",
         ` data-ft="${c.waste_base_strata}"`));
-      if (tier !== "mini")
+      if (tier === "sheet")
         p.push(text(across1 - 2, y - 3, `strata ${fmt(c.waste_base_strata, 1)} ft`, T.ink, 8.5, "end", HL));
     }
     if (c.native_contact != null && c.native_contact >= cTop && c.native_contact <= cBot) {
       const y = yOf(c.native_contact);
-      p.push(line(across0, y, across1, y, classColor("contact"), tier === "mini" ? 1.4 : 2.2, null,
+      p.push(line(across0, y, across1, y, HC.contact, tier === "mini" ? 1.4 : 2.2, null,
         "blcontact", ` data-ft="${c.native_contact}" data-src="${esc2(c.source || "")}"`));
       if (tier === "sheet")
         p.push(text(across0 + 3, y - 5,
           `native contact ${fmt(c.native_contact, 1)} ft · ${c.source === "remark" ? "logger's remark" : "from the strata"}`,
-          classColor("contact"), 9.5, null, ' font-weight="700"' + HL));
+          HC.contact, 9.5, null, ' font-weight="700"' + HL));
     }
     if (c.bedrock_top != null && c.bedrock_top >= cTop && c.bedrock_top <= cBot && tier !== "mini") {
       const y = yOf(c.bedrock_top);
-      p.push(line(across0, y, across1, y, classColor("bedrock"), 1.4, "6 3", "blrockline",
+      p.push(line(across0, y, across1, y, HC.bedrock, 1.4, "6 3", "blrockline",
         ` data-ft="${c.bedrock_top}"`));
       if (tier === "sheet")
         p.push(text(across0 + 3, y + 10, `top of bedrock ${fmt(c.bedrock_top, 1)} ft`,
-          classColor("bedrock"), 8.5, null, HL));
+          HC.bedrock, 8.5, null, HL));
     }
     if (c.waste_layered_below_native && tier === "sheet")
       p.push(text(across0 + 3, yOf(Math.min(cBot, (c.native_contact || 0) + 2)) + 22,
@@ -813,7 +826,7 @@ SBMM.borelogs = (function () {
     const w = h.water;
     if (w && w.encountered && w.depth != null && w.depth >= cTop && w.depth <= cBot) {
       const y = yOf(w.depth), wx = (L.gl ? L.gl[0] : L.prof ? L.prof[0] : across0) + 2;
-      p.push(line(across0, y, across1, y, "#55C1FF", 1, "4 2"));
+      p.push(line(across0, y, across1, y, HC.water, 1, "4 2"));
       p.push(`<polygon class="blwater" data-ft="${w.depth}" points="${wx},${(y - 7).toFixed(1)} `
         + `${(wx + 11)},${(y - 7).toFixed(1)} ${(wx + 5.5)},${y.toFixed(1)}" fill="#55C1FF">`
         + `<title>groundwater ${fmt(w.depth, 1)} ft bgs${w.perched ? " (perched)" : ""}`
@@ -821,7 +834,7 @@ SBMM.borelogs = (function () {
       if (tier === "sheet")
         p.push(text(wx + 14, y - 1, `groundwater ${fmt(w.depth, 1)} ft`
           + `${w.perched ? " (perched)" : ""}${w.when ? " · " + String(w.when).slice(0, 10) : ""}`,
-          "#9FDCFF", 8.6, null, HL));
+          o.print ? HC.water : "#9FDCFF", 8.6, null, HL));
     }
 
     return { g: `<g class="blcol" data-hole="${esc2(h.id)}">${p.join("")}</g>`,
