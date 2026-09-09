@@ -347,9 +347,10 @@ const bw = await page.evaluate(() => {
   SBMM.borewin.open("SB-9");
   const el = document.querySelector(".blwin");
   if (!el) return { noWin: true };
-  const r = el.getBoundingClientRect(), s = SBMM.sheets.stageBox();
+  /* the layout box, not getBoundingClientRect: the window rises from scale(.08) */
+  const s = SBMM.sheets.stageBox();
   const out = { maxed: el.classList.contains("maxed"), id: SBMM.borewin.stateOf().id,
-                w: Math.round(r.width), stage: Math.round(s.w),
+                w: el.offsetWidth, stage: Math.round(s.w),
                 gl: el.querySelectorAll("svg.bwsvg .blgl").length };
   SBMM.borewin.close();
   return out;

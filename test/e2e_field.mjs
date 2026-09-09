@@ -1211,10 +1211,13 @@ await block("17. the boring logs", async () => {
     SBMM.borewin.open("SB-9");
     const el = document.querySelector(".blwin");
     if (!el) return { noWin: true };
-    const r = el.getBoundingClientRect(), s = SBMM.sheets.stageBox();
+    /* offsetWidth/Height, never getBoundingClientRect: the window rises from
+       scale(.08) on open and the rect is the TRANSFORMED box for a quarter of
+       a second. The layout box is what "fills the stage" means. */
+    const s = SBMM.sheets.stageBox();
     const svg = el.querySelector("svg.bwsvg");
     const out = { st: SBMM.borewin.stateOf(), maxed: el.classList.contains("maxed"),
-                  w: Math.round(r.width), h: Math.round(r.height),
+                  w: el.offsetWidth, h: el.offsetHeight,
                   stage: [Math.round(s.w), Math.round(s.h)],
                   gl: svg ? svg.querySelectorAll(".blgl").length : 0,
                   contact: svg && svg.querySelector(".blcontact")
