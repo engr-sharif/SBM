@@ -326,6 +326,562 @@ SBMM.borelogs = (function () {
       + p.join("") + `</svg>`;
   }
 
+
+  /* ================================================================== */
+  /* THE COLUMN RENDERER (v23 §1) — one implementation, every view       */
+  /* ================================================================== */
+  /* Every face of the borings — the mini chip in a popup, the stick in a
+     compare or a fence, the log sheet in the window and on paper — is THIS
+     function placed differently. Nothing draws a stratum twice, and a change to
+     what a stratum looks like reaches all of them at once.
+
+       SBMM.borelogs.column(hole, {
+         tier   "mini" | "stick" | "sheet",
+         ppf    px per foot (a scale, not a fit),
+         datum  "depth" (ft bgs, the default) or "elev" (ft NAVD88),
+         zTop / zBot   the elevation window, when datum is "elev" — this is
+                       what a fence needs: several holes on ONE datum, each
+                       clipped to the strip of ground the section draws,
+         top / bot     the depth window, when datum is "depth",
+         w      the column's own width (sheet: the window's width),
+         print  black-on-white rather than the dark theme,
+         axes   draw the depth and elevation axes (default: not on mini)
+       })
+       -> { g, w, h, ppf, top, bot, yOf(ft), defs }
+
+     `g` is an SVG FRAGMENT — a <g> with no transform of its own — so a caller
+     places it, and `defs` is the <defs> block it needs. `columnSvg()` wraps the
+     two into a standalone <svg> for the callers that want one (the tooltip, a
+     table cell, the PNG export).
+
+     TWO AXES, ALWAYS (§1.3). Depth in feet below ground on the left, elevation
+     in feet NAVD88 on the right, the second being h.elev - depth. h.elev is the
+     SURVEYED ground elevation from the coordinate spreadsheet; deltaLidar()
+     asks SBMM.elev for what the January-2024 lidar says at the same point and
+     the header prints the difference. A hole whose two elevations differ by
+     more than 2 ft gets a warn pill. It is reported, never corrected — the same
+     rule the OpenGround coordinate offset is under. */
+
+  /* ---- ASTM D2488 / USCS graphic-log patterns (§1.1) ---------------- */
+  /* The CLASS is the tint and the USCS is the PATTERN, so waste that is a
+     clayey sand reads as orange-tinted SC and native SC reads green-tinted SC.
+     Both facts the log states are visible and neither is conflated with the
+     other.
+
+     The graphic-log column is drawn on LIGHT PAPER in both themes. That is
+     deliberate: the pattern ink is near-black by convention, a near-black
+     hatch on the app's dark panel is invisible, and a second palette for print
+     would be a second thing to keep in step. So the one column that carries
+     the patterns looks the same on screen as it does on paper, and everything
+     around it follows the theme. */
+  const PAPER = "#F1EFE8", PINK = "#2A2A2A";
+  const TILE = 24;
+  const PAT = {
+    /* gravel: large open circles, scattered */
+    gravel: k => `<circle cx="6" cy="6" r="3.3" fill="none" stroke="${k}" stroke-width=".9"/>`
+      + `<circle cx="17.5" cy="15" r="2.6" fill="none" stroke="${k}" stroke-width=".9"/>`
+      + `<circle cx="10" cy="19" r="1.9" fill="none" stroke="${k}" stroke-width=".9"/>`,
+    /* sand: fine dots */
+    sand: k => [[4, 5], [12, 3], [19, 7], [7, 12], [16, 14], [3, 18], [11, 20], [20, 21]]
+      .map(([x, y]) => `<circle cx="${x}" cy="${y}" r=".95" fill="${k}"/>`).join(""),
+    /* ML — short horizontal dashes */
+    M: k => `<path d="M2 6h7M13 6h7M6 14h7M17 14h5M2 21h6M12 21h8" stroke="${k}" stroke-width=".85" fill="none"/>`,
+    /* CL — horizontal lines */
+    C: k => `<path d="M0 6h24M0 14h24M0 22h24" stroke="${k}" stroke-width=".85" fill="none"/>`,
+    /* MH — long dashes */
+    MH: k => `<path d="M1 7h14M9 17h14" stroke="${k}" stroke-width=".95" fill="none"/>`,
+    /* CH — close horizontal lines */
+    CH: k => `<path d="M0 3h24M0 8h24M0 13h24M0 18h24M0 23h24" stroke="${k}" stroke-width=".8" fill="none"/>`,
+    /* organic — grass ticks */
+    org: k => `<path d="M4 20v-6M4 14l-2.5-3M4 14l2.5-3M14 22v-7M14 15l-2.5-3M14 15l2.5-3"`
+      + ` stroke="${k}" stroke-width=".85" fill="none"/>`,
+    /* bedrock — brick */
+    rock: k => `<path d="M0 8h24M0 16h24M0 24h24M8 0v8M16 8v8M8 16v8M0 0v8M24 8v8" stroke="${k}" stroke-width=".85" fill="none"/>`,
+    /* mudstone — dashed brick */
+    rockmd: k => `<path d="M0 8h10M14 8h10M0 16h6M10 16h8M22 16h2M0 24h10M14 24h10M8 0v8M16 8v8M8 16v8"`
+      + ` stroke="${k}" stroke-width=".8" stroke-dasharray="3 2" fill="none"/>`,
+    /* described but not classified — diagonal hatch, so the reader SEES that
+       the logger wrote words and no USCS symbol rather than reading a blank */
+    none: k => `<path d="M-6 6L6 -6M0 24L24 0M18 30L30 18" stroke="${k}" stroke-width=".8" fill="none"/>`
+  };
+
+  /* the pattern family of one stratum, from its USCS symbol and its type */
+  function famOf(s) {
+    const u = String(s.uscs || "").toUpperCase().replace(/\s+/g, "");
+    const words = String(s.desc || "") + " " + String(s.name || "") + " " + String(s.legend || "");
+    if (s.cls === "bedrock" || s.type === "Rock" || /^(BEDROCK|ROCK)$/.test(u))
+      return /MUDSTONE|SHALE|CLAYSTONE/i.test(words) ? "rockmd" : "rock";
+    if (!u || u === "BEDROCK") return "none";
+    const toks = u.split(/[-/]/).filter(Boolean);
+    const a = toks[0] || "", p = a[0], q = a[1];
+    if (p === "G" || p === "S") {
+      const coarse = p === "G" ? "gravel" : "sand";
+      let f = (q === "M" || q === "C") ? q : null;
+      if (!f) for (const t of toks.slice(1)) { if (t[1] === "M" || t[1] === "C") { f = t[1]; break; } }
+      return f ? coarse + "+" + f : coarse;
+    }
+    /* a fines-only symbol: the second letter is the plasticity, and MH/CH get
+       their own denser pattern the way the chart does */
+    if (p === "M" || p === "C") return q === "H" ? p + "H" : p;
+    if (p === "O" || p === "P") return "org";
+    return "none";
+  }
+  const patId = (fam, cls) => "blp_" + fam.replace("+", "_") + "_" + cls;
+
+  /* the <defs> for exactly the (family, class) pairs a drawing uses. Every
+     colour in it is a presentation ATTRIBUTE — the PNG export serialises this
+     SVG into an <img> and a document stylesheet does not travel with it. */
+  function defsFor(pairs) {
+    const out = [];
+    for (const key of pairs) {
+      const [fam, cls] = key.split("|");
+      const parts = fam.split("+");
+      const body = parts.map(p => (PAT[p] || PAT.none)(PINK)).join("");
+      out.push(`<pattern id="${patId(fam, cls)}" width="${TILE}" height="${TILE}"`
+        + ` patternUnits="userSpaceOnUse">`
+        + `<rect width="${TILE}" height="${TILE}" fill="${PAPER}"/>`
+        + `<rect width="${TILE}" height="${TILE}" fill="${classColor(cls)}" fill-opacity=".34"/>`
+        + body + `</pattern>`);
+    }
+    return out.length ? `<defs>${out.join("")}</defs>` : "";
+  }
+
+  /* what the lidar says at this hole against what the surveyor said (§1.3) */
+  function deltaLidar(h) {
+    if (!h || h.elev == null || !SBMM.elev) return null;
+    let z = NaN;
+    try { z = SBMM.elev(h.x, h.y)[0]; } catch (e) { return null; }
+    if (!isFinite(z)) return null;
+    return { lidar: z, d: z - h.elev, warn: Math.abs(z - h.elev) > 2 };
+  }
+
+  /* the waste area lives on the BAKED DATASET, not in the log payload — the
+     picker groups by it and the table shows it, so it is read here once rather
+     than in three places */
+  function areaOf(id) {
+    try {
+      const d = SBMM.datasets && SBMM.datasets.byId("borings2025");
+      if (!d) return null;
+      const p = d.points.find(q => normId(q.id) === normId(id));
+      return p ? (p.a["Waste area"] || null) : null;
+    } catch (e) { return null; }
+  }
+  function areas() {
+    const m = new Map();
+    for (const h of holes()) {
+      const a = areaOf(h.id) || "not assigned";
+      if (!m.has(a)) m.set(a, []);
+      m.get(a).push(h.id);
+    }
+    return m;
+  }
+
+  /* ---- the renderer ------------------------------------------------ */
+  const TIER_W = { mini: 36, stick: 90, sheet: 900 };
+  const THEME = {
+    dark: { ax: "#6C7F8A", hd: "#8FA3AE", ink: "#C3D0D7", grid: "rgba(44,59,69,.55)",
+            rule: "#3A4C58", box: "#26343D", box2: "#3E5763", halo: "#0D1215" },
+    print: { ax: "#444", hd: "#333", ink: "#111", grid: "#ccc",
+             rule: "#111", box: "#e6e6e6", box2: "#c9c9c9", halo: "#ffffff" }
+  };
+
+  function column(h, opts) {
+    const o = opts || {};
+    const tier = o.tier || "sheet";
+    const T = o.print ? THEME.print : THEME.dark;
+    const W = Math.max(20, o.w || TIER_W[tier] || 90);
+    const depth = h.depth || h.strata_base || 1;
+    const elev = h.elev;
+
+    /* the window, in DEPTH feet, whichever datum was asked for. An elevation
+       window is what a fence hands in: several holes on one datum, each clipped
+       to the strip of ground the section draws. */
+    let top = o.top != null ? o.top : 0;
+    let bot = o.bot != null ? o.bot : depth;
+    let y0ft = top;
+    const useElev = o.datum === "elev" && elev != null;
+    if (useElev) {
+      const zT = o.zTop != null ? o.zTop : elev;
+      const zB = o.zBot != null ? o.zBot : elev - depth;
+      top = elev - zT; bot = elev - zB;      /* may be negative above ground */
+      y0ft = top;
+    }
+    const ppf = o.ppf || (tier === "sheet" ? 19.2 : tier === "stick" ? 3 : 2);
+    const PADT = o.padTop != null ? o.padTop : (tier === "sheet" ? (o.headings ? 30 : 16) : 2);
+    const yOf = ft => PADT + (ft - y0ft) * ppf;
+    const H = Math.ceil(PADT + (bot - y0ft) * ppf + (tier === "sheet" ? 22 : 2));
+    /* nothing outside the hole is drawn; the window may be bigger than it is */
+    const cTop = Math.max(top, 0), cBot = Math.min(bot, depth);
+
+    const p = [], pairs = new Set();
+    const esc2 = esc;
+    const line = (x1, y1, x2, y2, col, w, dash, cls, at) =>
+      `<line${cls ? ` class="${cls}"` : ""} x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}"`
+      + ` y2="${y2.toFixed(1)}" stroke="${col}" stroke-width="${w || 1}"`
+      + `${dash ? ` stroke-dasharray="${dash}"` : ""}${at || ""}/>`;
+    const text = (x, y, s, col, size, anchor, extra) =>
+      `<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" fill="${col}" font-size="${size || 9}"`
+      + `${anchor ? ` text-anchor="${anchor}"` : ""}${extra || ""}>${esc2(s)}</text>`;
+    const HL = ` stroke="${T.halo}" stroke-width="2.6" paint-order="stroke" stroke-linejoin="round"`;
+
+    /* ---- the column geometry, by tier ---- */
+    const L = layoutFor(tier, W);
+
+    /* ---- column headings, drawn in the top margin ---- */
+    if (o.headings && tier === "sheet") {
+      const hy = PADT - 6;
+      const hd = (x, s, anchor) => p.push(text(x, hy, s, T.hd, 8.5, anchor,
+        ' letter-spacing=".06em"'));
+      hd(L.ax, "FT BGS", "end");
+      if (L.met) hd(L.met[0], "METH");
+      if (L.prof) hd(L.prof[0], "CLS");
+      if (L.gl) hd(L.gl[0], "GRAPHIC LOG");
+      if (L.uscs) hd(L.uscs[0], "USCS");
+      if (L.desc) hd(L.desc[0], "DESCRIPTION");
+      if (L.smp) hd(L.smp[0], "SAMPLE · N");
+      if (L.blows) hd(L.blows[0], "BLOWS/6\u2033");
+      if (L.pp) hd(L.pp[0], "PP tsf");
+      if (L.ph) hd(L.ph[0], "pH 2\u20138");
+      if (L.lab) hd(L.lab[0], "LAB");
+      if (L.rem) hd(L.rem[0], "REMARKS");
+      if (L.eax != null) hd(L.eax, "ELEV");
+      p.push(line(L.ax - 24, PADT - 3, W, PADT - 3, T.grid, 1));
+    }
+
+    /* ---- axes (§1.3) ---- */
+    const wantAxes = o.axes != null ? o.axes : tier !== "mini";
+    if (wantAxes) {
+      const step = ppf >= 12 ? 1 : ppf >= 5 ? 2 : ppf >= 2 ? 5 : 10;
+      const lab = ppf >= 12 ? 5 : ppf >= 5 ? 10 : ppf >= 2 ? 10 : 20;
+      const first = Math.ceil(cTop / step) * step;
+      for (let ft = first; ft <= cBot + 1e-6; ft += step) {
+        const y = yOf(ft), big = Math.abs(ft / lab - Math.round(ft / lab)) < 1e-6;
+        p.push(line(L.ax + (big ? 0 : 4), y, L.ax + 6, y, T.grid, big ? 1 : .7));
+        if (big) {
+          p.push(text(L.ax - 2, y + 3, String(Math.round(ft)), T.ax, L.fs, "end"));
+          if (elev != null && L.eax != null)
+            p.push(text(L.eax, y + 3, fmt0(elev - ft), T.ax, L.fs));
+          if (L.grid) p.push(line(L.ax + 7, y, L.eax != null ? L.eax - 4 : W, y, T.grid, .6));
+        }
+      }
+      /* the terminated depth always carries a label — it is the one number a
+         reader looks for at the foot of a log */
+      if (cBot >= depth - 1e-6) {
+        const y = yOf(depth);
+        p.push(line(L.ax, y, L.eax != null ? L.eax - 4 : W, y, T.rule, 1.3));
+        p.push(text(L.ax - 2, y + 9, fmt(depth, 1), T.ink, L.fs, "end"));
+        if (elev != null && L.eax != null)
+          p.push(text(L.eax, y + 9, fmt0(elev - depth), T.ink, L.fs));
+      }
+    }
+
+    /* ---- method / casing band ---- */
+    if (L.met) {
+      for (const m of (h.methods || [])) {
+        const a = Math.max(cTop, m.top), b = Math.min(cBot, m.base);
+        if (b - a < 1e-6) continue;
+        const auger = /auger/i.test(m.method || "");
+        p.push(`<rect class="blmethod" x="${L.met[0]}" y="${yOf(a).toFixed(1)}"`
+          + ` width="${L.met[1] - L.met[0]}" height="${((b - a) * ppf).toFixed(1)}"`
+          + ` fill="${auger ? T.box2 : T.box}" stroke="${T.halo}" stroke-width=".5">`
+          + `<title>${esc2(m.method || "")} ${fmt(m.top, 1)}–${fmt(m.base, 1)} ft`
+          + `${m.driller ? " · " + m.driller : ""}</title></rect>`);
+      }
+      for (const c of (h.casing || [])) {
+        const a = Math.max(cTop, c.top), b = Math.min(cBot, c.base);
+        if (b - a < 1e-6) continue;
+        const x = L.met[1] - 1.5;
+        p.push(`<line class="blcasing" x1="${x}" y1="${yOf(a).toFixed(1)}" x2="${x}"`
+          + ` y2="${yOf(b).toFixed(1)}" stroke="#8FA3AE" stroke-width="1.6" stroke-opacity=".8">`
+          + `<title>${esc2((c.diam_in ? c.diam_in + ' in casing ' : 'casing ')
+            + fmt(c.top, 1) + "–" + fmt(c.base, 1) + " ft")}</title></line>`);
+      }
+    }
+
+    /* ---- the class profile band (every tier draws it) ---- */
+    if (L.prof) {
+      for (const r of (h.profile || [])) {
+        const a = Math.max(cTop, r.top), b = Math.min(cBot, r.base);
+        if (b - a < 1e-6) continue;
+        p.push(`<rect class="blprof" data-cls="${esc2(r.cls)}" x="${L.prof[0]}" y="${yOf(a).toFixed(1)}"`
+          + ` width="${L.prof[1] - L.prof[0]}" height="${((b - a) * ppf).toFixed(1)}"`
+          + ` fill="${classColor(r.cls)}" fill-opacity=".85" stroke="${T.halo}" stroke-width=".5">`
+          + `<title>${esc2((CLASS_WORD[r.cls] || r.cls) + " " + fmt(r.top, 1) + "–" + fmt(r.base, 1) + " ft")}</title></rect>`);
+      }
+    }
+
+    /* ---- the graphic log: pattern by USCS, tint by class (§1.1) ---- */
+    if (L.gl) {
+      const gw = L.gl[1] - L.gl[0];
+      (h.strata || []).forEach((s, i) => {
+        if (!s.primary) return;
+        const a = Math.max(cTop, s.top), b = Math.min(cBot, s.base);
+        if (b - a < 1e-6) return;
+        const fam = famOf(s), cls = s.cls || "unknown";
+        pairs.add(fam + "|" + cls);
+        const hh = (b - a) * ppf;
+        p.push(`<rect class="blgl" data-i="${i}" data-top="${s.top}" data-base="${s.base}"`
+          + ` data-fam="${esc2(fam)}" x="${L.gl[0]}" y="${yOf(a).toFixed(1)}" width="${gw}"`
+          + ` height="${hh.toFixed(1)}" fill="url(#${patId(fam, cls)})" stroke="${PINK}"`
+          + ` stroke-width=".7" style="cursor:pointer">`
+          + `<title>${esc2(fmt(s.top, 1) + "–" + fmt(s.base, 1) + " ft  " + (s.uscs || "no USCS")
+              + "  " + (s.desc || s.name || ""))}</title></rect>`);
+        /* the USCS symbol goes in its own column at sheet width and inside the
+           graphic log at stick width, where there is no room for a column */
+        if (L.uscs == null && s.uscs && hh > 9)
+          p.push(text(L.gl[0] + gw / 2, yOf((a + b) / 2) + 3.2, s.uscs, PINK, 8.5, "middle",
+            ' font-weight="700"'));
+      });
+    }
+
+    /* ---- USCS column ---- */
+    if (L.uscs) {
+      (h.strata || []).forEach(s => {
+        if (!s.primary) return;
+        const a = Math.max(cTop, s.top), b = Math.min(cBot, s.base);
+        if (b - a < 1e-6) return;
+        const hh = (b - a) * ppf;
+        if (hh < 8) return;
+        p.push(text(L.uscs[0] + 2, yOf((a + b) / 2) + 3.4, s.uscs || "—", T.ink, 10, null,
+          ' font-weight="650"'));
+      });
+    }
+
+    /* ---- descriptions, wrapped (§2.2 item 9) ---- */
+    if (L.desc) {
+      const dw = L.desc[1] - L.desc[0];
+      const per = Math.max(8, Math.floor(dw / 4.55));
+      (h.strata || []).forEach(s => {
+        const a = Math.max(cTop, s.top), b = Math.min(cBot, s.base);
+        if (s.primary ? (b - a < 1e-6) : (s.top < cTop || s.top > cBot)) return;
+        const sub = !s.primary;
+        const txt = (sub ? "— " : "") + (s.desc || s.name || "");
+        const lines = wrapText(txt, sub ? per - 2 : per);
+        let yy = yOf(sub ? s.top : a) + 8;
+        const room = sub ? 3 : Math.max(1, Math.floor(((b - a) * ppf - 3) / 10.5));
+        lines.slice(0, Math.max(1, room)).forEach((ln, k) => {
+          p.push(text(L.desc[0] + (sub ? 7 : 0), yy + k * 10.5, ln, sub ? T.ax : T.ink, 9.4, null,
+            ' font-family="system-ui,-apple-system,Segoe UI,sans-serif"'));
+        });
+        if (lines.length > room && room >= 1)
+          p.push(text(L.desc[0] + (sub ? 7 : 0), yy + room * 10.5, "…", T.ax, 9.4));
+      });
+    }
+
+    /* ---- the sample column: drives, N bars, refusal, recovery ---- */
+    if (L.smp) {
+      const sw = L.smp[1] - L.smp[0], nw = sw - 20;
+      for (const s of (h.spt || [])) {
+        const a = Math.max(cTop, s.top), b = Math.min(cBot, s.base);
+        if (b - a < 1e-6) continue;
+        const ya = yOf(a), yb = yOf(b), hh = Math.max(4, yb - ya);
+        const kind = /^ST/i.test(s.ref || "") ? "ST" : /^MC/i.test(s.ref || "") ? "MC" : "SS";
+        const ref = s.refusal || s.n == null;
+        /* the drive box over its own interval, with the tube glyph inside it:
+           a Shelby is an open box, a Modified California is cross-hatched and a
+           split spoon is the filled one — the three glyphs a log sheet uses */
+        p.push(`<rect class="blsmp" data-ref="${esc2(s.ref || "")}" data-kind="${kind}"`
+          + ` x="${L.smp[0]}" y="${ya.toFixed(1)}" width="14" height="${hh.toFixed(1)}"`
+          + ` fill="${kind === "ST" ? "none" : kind === "MC" ? "rgba(79,179,206,.22)" : "rgba(79,179,206,.42)"}"`
+          + ` stroke="#4FB3CE" stroke-width="1">`
+          + `<title>${esc2((s.ref || "") + "  " + fmt(s.top, 1) + "–" + fmt(s.base, 1) + " ft  N = "
+              + (s.n_text || "—") + (s.rec_pct != null ? "  recovery " + fmt0(s.rec_pct) + "%" : "")
+              + (s.blows_6in ? "  blows " + s.blows_6in.join("-") : ""))}</title></rect>`);
+        /* recovery as a thin fill up the left edge of the box */
+        if (s.rec_pct != null)
+          p.push(`<rect x="${L.smp[0] + 1}" y="${(yb - hh * clamp(s.rec_pct / 100, 0, 1) + 1).toFixed(1)}"`
+            + ` width="3" height="${Math.max(1, hh * clamp(s.rec_pct / 100, 0, 1) - 2).toFixed(1)}"`
+            + ` fill="#7FC77A" fill-opacity=".8"/>`);
+        if (L.smp[1] - L.smp[0] > 30) {
+          const ym = (ya + yb) / 2;
+          const bw = ref ? nw : Math.max(1.5, nw * clamp(s.n / N_MAX, 0, 1));
+          p.push(`<rect class="blspt" data-n="${s.n == null ? "" : s.n}" data-refusal="${ref ? 1 : 0}"`
+            + ` x="${L.smp[0] + 16}" y="${(ym - 3).toFixed(1)}" width="${bw.toFixed(1)}" height="6"`
+            + ` fill="${ref ? "#E4796A" : "#4FB3CE"}" fill-opacity="${ref ? ".9" : ".8"}"/>`);
+          p.push(text(L.smp[1], ym + 3, s.n_text || "—", ref ? "#E4796A" : T.ink, 8.5, "end"));
+        }
+      }
+    }
+    /* ---- blows per 6 in ---- */
+    if (L.blows) {
+      for (const s of (h.spt || [])) {
+        if (!s.blows_6in || !s.blows_6in.length) continue;
+        const a = Math.max(cTop, s.top), b = Math.min(cBot, s.base);
+        if (b - a < 1e-6) continue;
+        const ym = (yOf(a) + yOf(b)) / 2;
+        p.push(text(L.blows[0], ym + 3, s.blows_6in.map(v => fmt0(v)).join("-"), T.ax, 8.5));
+      }
+    }
+
+    /* ---- PP on 0–4.5 tsf, pH on 2–8 with the acid rule at 4 ---- */
+    if (L.pp) {
+      const px = v => L.pp[0] + (L.pp[1] - L.pp[0]) * clamp(v / PP_MAX, 0, 1);
+      p.push(line(L.pp[0], yOf(cTop), L.pp[0], yOf(cBot), T.grid, 1));
+      for (const q2 of (h.pen || [])) {
+        if (q2.depth < cTop || q2.depth > cBot) continue;
+        const y = yOf(q2.depth), x = px(q2.tsf);
+        p.push(`<path class="blpen" d="M${x.toFixed(1)} ${(y - 3).toFixed(1)} L${(x + 3).toFixed(1)} ${y.toFixed(1)}`
+          + ` L${x.toFixed(1)} ${(y + 3).toFixed(1)} L${(x - 3).toFixed(1)} ${y.toFixed(1)} Z"`
+          + ` fill="none" stroke="#E8B34B" stroke-width="1.1">`
+          + `<title>pocket penetrometer ${fmt(q2.tsf, 2)} tsf @ ${fmt(q2.depth, 2)} ft</title></path>`);
+      }
+    }
+    if (L.ph) {
+      const phx = v => L.ph[0] + (L.ph[1] - L.ph[0]) * clamp((v - PH_LO) / (PH_HI - PH_LO), 0, 1);
+      p.push(line(L.ph[0], yOf(cTop), L.ph[0], yOf(cBot), T.grid, 1));
+      /* pH under 4 is the acid-generating signature of this site's waste — the
+         rule is drawn, never the conclusion */
+      p.push(line(phx(PH_ACID), yOf(cTop), phx(PH_ACID), yOf(cBot), "#E4796A", 1, "2 3", "blph4"));
+      for (const t of (h.tests || [])) {
+        if (t.key !== "pH" || t.depth == null || t.depth < cTop || t.depth > cBot) continue;
+        p.push(`<circle class="blph" data-ph="${t.value}" cx="${phx(t.value).toFixed(1)}"`
+          + ` cy="${yOf(t.depth).toFixed(1)}" r="2.8" fill="${t.value < PH_ACID ? "#E4796A" : "#7CD0E6"}">`
+          + `<title>pH ${fmt(t.value, 1)} @ ${fmt(t.depth, 2)} ft</title></circle>`);
+      }
+    }
+
+    /* ---- lab chips at their sample depth ---- */
+    if (L.lab) {
+      const at = new Map();
+      for (const t of (h.tests || [])) {
+        if (t.key === "pH" || t.key === "PP" || t.depth == null) continue;
+        if (t.depth < cTop || t.depth > cBot) continue;
+        const k = t.depth.toFixed(2);
+        if (!at.has(k)) at.set(k, { d: t.depth, v: [], iv: t.interval, m: t.method });
+        at.get(k).v.push(`${t.key} ${fmt(t.value, t.value % 1 ? 2 : 0)}${t.unit ? " " + t.unit : ""}`);
+      }
+      const per = Math.max(6, Math.floor((L.lab[1] - L.lab[0]) / 4.6));
+      for (const rec of at.values()) {
+        const lines = wrapText(rec.v.join(" · "), per);
+        const y = yOf(rec.d);
+        p.push(`<rect class="bllab" x="${L.lab[0]}" y="${(y - 5.5).toFixed(1)}"`
+          + ` width="${L.lab[1] - L.lab[0]}" height="${Math.min(3, lines.length) * 10 + 3}"`
+          + ` fill="${T.box}" fill-opacity=".55" stroke="${T.grid}" stroke-width=".6" rx="2">`
+          + `<title>${esc2(rec.v.join(" · ") + (rec.iv ? "  over " + fmt(rec.iv[0], 1) + "–" + fmt(rec.iv[1], 1) + " ft" : "")
+              + (rec.m ? "  " + rec.m : ""))}</title></rect>`);
+        lines.slice(0, 3).forEach((ln, k) =>
+          p.push(text(L.lab[0] + 3, y + 2.5 + k * 10, ln, T.ink, 8.5)));
+      }
+    }
+
+    /* ---- remarks at depth ---- */
+    if (L.rem) {
+      const per = Math.max(8, Math.floor((L.rem[1] - L.rem[0]) / 4.4));
+      for (const n of (h.notes || [])) {
+        if (n.depth == null || n.depth < cTop || n.depth > cBot) continue;
+        const y = yOf(n.depth);
+        p.push(line(L.rem[0] - 4, y, L.rem[0] - 1, y, T.ax, 1));
+        wrapText(n.text, per).slice(0, 3).forEach((ln, k) =>
+          p.push(text(L.rem[0], y + 3 + k * 9.6, ln, T.ax, 8.6, null,
+            ' font-family="system-ui,-apple-system,Segoe UI,sans-serif"')));
+      }
+    }
+
+    /* ---- the two contact statements, across the whole column ---- */
+    const c = h.contacts || {};
+    const across0 = L.ax + 1, across1 = L.eax != null ? L.eax - 3 : W;
+    if (c.waste_base_strata != null && differs(c.waste_base_strata, c.native_contact)
+        && c.waste_base_strata >= cTop && c.waste_base_strata <= cBot) {
+      const y = yOf(c.waste_base_strata);
+      p.push(line(across0, y, across1, y, T.ink, 1, "5 3", "blstrataline",
+        ` data-ft="${c.waste_base_strata}"`));
+      if (tier !== "mini")
+        p.push(text(across1 - 2, y - 3, `strata ${fmt(c.waste_base_strata, 1)} ft`, T.ink, 8.5, "end", HL));
+    }
+    if (c.native_contact != null && c.native_contact >= cTop && c.native_contact <= cBot) {
+      const y = yOf(c.native_contact);
+      p.push(line(across0, y, across1, y, classColor("contact"), tier === "mini" ? 1.4 : 2.2, null,
+        "blcontact", ` data-ft="${c.native_contact}" data-src="${esc2(c.source || "")}"`));
+      if (tier === "sheet")
+        p.push(text(across0 + 3, y - 5,
+          `native contact ${fmt(c.native_contact, 1)} ft · ${c.source === "remark" ? "logger's remark" : "from the strata"}`,
+          classColor("contact"), 9.5, null, ' font-weight="700"' + HL));
+    }
+    if (c.bedrock_top != null && c.bedrock_top >= cTop && c.bedrock_top <= cBot && tier !== "mini") {
+      const y = yOf(c.bedrock_top);
+      p.push(line(across0, y, across1, y, classColor("bedrock"), 1.4, "6 3", "blrockline",
+        ` data-ft="${c.bedrock_top}"`));
+      if (tier === "sheet")
+        p.push(text(across0 + 3, y + 10, `top of bedrock ${fmt(c.bedrock_top, 1)} ft`,
+          classColor("bedrock"), 8.5, null, HL));
+    }
+    if (c.waste_layered_below_native && tier === "sheet")
+      p.push(text(across0 + 3, yOf(Math.min(cBot, (c.native_contact || 0) + 2)) + 22,
+        "waste is logged BELOW native here — the profile is interlayered", "#E4796A", 8.5, null, HL));
+
+    /* ---- water: the standard triangles ---- */
+    const w = h.water;
+    if (w && w.encountered && w.depth != null && w.depth >= cTop && w.depth <= cBot) {
+      const y = yOf(w.depth), wx = (L.gl ? L.gl[0] : L.prof ? L.prof[0] : across0) + 2;
+      p.push(line(across0, y, across1, y, "#55C1FF", 1, "4 2"));
+      p.push(`<polygon class="blwater" data-ft="${w.depth}" points="${wx},${(y - 7).toFixed(1)} `
+        + `${(wx + 11)},${(y - 7).toFixed(1)} ${(wx + 5.5)},${y.toFixed(1)}" fill="#55C1FF">`
+        + `<title>groundwater ${fmt(w.depth, 1)} ft bgs${w.perched ? " (perched)" : ""}`
+        + `${w.event ? " — " + esc2(w.event) : ""}${w.when ? " · " + esc2(String(w.when).slice(0, 10)) : ""}</title></polygon>`);
+      if (tier === "sheet")
+        p.push(text(wx + 14, y - 1, `groundwater ${fmt(w.depth, 1)} ft`
+          + `${w.perched ? " (perched)" : ""}${w.when ? " · " + String(w.when).slice(0, 10) : ""}`,
+          "#9FDCFF", 8.6, null, HL));
+    }
+
+    return { g: `<g class="blcol" data-hole="${esc2(h.id)}">${p.join("")}</g>`,
+             defs: defsFor(pairs), w: W, h: H, ppf, top, bot, yOf,
+             pairs: [...pairs] };
+  }
+
+  /* the column layout, by tier. A sheet's columns are laid out from BOTH ends —
+     the axes and the graphic log from the left, the tests and the elevation
+     axis from the right — so the description column takes whatever is left,
+     which is the whole reason the window is wide. */
+  function layoutFor(tier, W) {
+    if (tier === "mini") return { ax: 0, fs: 7, prof: [0, W], gl: null };
+    if (tier === "stick") return { ax: 16, fs: 7.5, eax: null, prof: [18, 24],
+                                   gl: [26, W - 22], smp: [W - 20, W - 2], grid: false };
+    /* sheet */
+    const fs = 9;
+    const ax = 30, met = [34, 46], prof = [48, 56], gl = [60, 130], uscs = [136, 172];
+    let eax = W - 40, rem = [W - 172, eax - 8], lab = [W - 290, W - 180],
+        ph = [W - 358, W - 300], pp = [W - 428, W - 368], blows = [W - 490, W - 436],
+        smp = [W - 570, W - 496];
+    const L = { ax, fs, met, prof, gl, uscs, eax, grid: true };
+    /* narrow windows drop the optional columns from the right, in the order a
+       log sheet would: the remarks, then the lab chips. The description is
+       never dropped — it is what the width is for. */
+    if (W >= 1160) { L.rem = rem; L.lab = lab; L.ph = ph; L.pp = pp; L.blows = blows; L.smp = smp; }
+    else if (W >= 1000) { L.lab = [W - 118, eax - 8]; L.ph = [W - 186, W - 128];
+                          L.pp = [W - 256, W - 196]; L.blows = [W - 318, W - 264]; L.smp = [W - 398, W - 324]; }
+    else { L.ph = [W - 108, eax - 8]; L.pp = [W - 178, W - 118];
+           L.blows = [W - 240, W - 186]; L.smp = [W - 320, W - 246]; }
+    L.desc = [uscs[1] + 6, (L.smp ? L.smp[0] : eax) - 10];
+    if (L.desc[1] - L.desc[0] < 60) L.desc = null;
+    return L;
+  }
+
+  /* a word wrapper for SVG text, which has none of its own */
+  function wrapText(s, per) {
+    const words = String(s == null ? "" : s).split(/\s+/).filter(Boolean);
+    const out = [];
+    let cur = "";
+    for (const w of words) {
+      if (!cur) { cur = w; continue; }
+      if ((cur + " " + w).length <= per) cur += " " + w;
+      else { out.push(cur); cur = w; }
+    }
+    if (cur) out.push(cur);
+    return out.length ? out : [""];
+  }
+
+  /* a standalone <svg> around one column — the tooltip, a table cell and the
+     PNG export all want one rather than a fragment */
+  function columnSvg(h, opts) {
+    const r = column(h, opts);
+    const o = opts || {};
+    return `<svg class="blcolsvg" viewBox="0 0 ${r.w} ${r.h}" width="${o.cssW || r.w}"`
+      + ` height="${o.cssH || r.h}" xmlns="http://www.w3.org/2000/svg" role="img">`
+      + `<style>text{font-family:"SF Mono",ui-monospace,Consolas,Menlo,monospace}</style>`
+      + r.defs + r.g + `</svg>`;
+  }
+
   /* ------------------------------------------------------------------ */
   /* the tables under the strip                                          */
   /* ------------------------------------------------------------------ */
@@ -439,23 +995,20 @@ SBMM.borelogs = (function () {
       .map(k => `<span class="lg"><i style="background:${classColor(k)}"></i>${esc(CLASS_WORD[k])}</span>`).join("");
     el.appendChild(leg);
 
-    /* the two statements, in words, because the lines alone do not say which
-       is which and 18 of the 44 holes disagree */
+    /* The two statements, as ONE line. v23 voice rule: a card states the
+       result, and this one is a result — 18 of the 44 holes disagree and the
+       app resolves none of them. The `data-agree` attribute is what the
+       harness reads, so the words can change again without a harness edit. */
     const note = document.createElement("div");
     note.className = "note blstate";
-    /* every one of the 44 holes in this payload has a remark, but the source is
-       DATA and the sentence follows it rather than assuming it */
     const dStrata = differs(c.waste_base_strata, c.native_contact);
-    note.innerHTML = `<b>${fmt(c.native_contact, 1)} ft</b> is `
-      + (c.source === "remark" ? "the logger's own remark on the rig" : "read off the strata rows")
-      + (dStrata
-          ? `; the strata rows put the base of the waste at <b>${fmt(c.waste_base_strata, 1)} ft</b>`
-          : (c.waste_base_strata != null ? `, and the strata rows agree` : ""))
-      + (c.waste_layered_below_native
-          ? `. Waste is logged BELOW native here — the profile is interlayered, not a single contact` : "")
-      + (dStrata
-          ? `. Nothing is reconciled: both are drawn.`
-          : `. Both statements agree on this hole.`);
+    note.dataset.agree = dStrata ? "0" : "1";
+    note.innerHTML = `<b>${fmt(c.native_contact, 1)} ft</b> `
+      + (c.source === "remark" ? "logger's remark" : "read off the strata")
+      + (dStrata ? ` · strata ${fmt(c.waste_base_strata, 1)} ft`
+                 : (c.waste_base_strata != null ? " · strata agree" : ""))
+      + (c.waste_layered_below_native ? " · waste below native" : "")
+      + (dStrata ? " · not reconciled" : "");
     el.appendChild(note);
 
     el.insertAdjacentHTML("beforeend", descHtml(h) + labHtml(h) + notesHtml(h));
@@ -477,7 +1030,8 @@ SBMM.borelogs = (function () {
     /* the buttons */
     const btns = document.createElement("div");
     btns.className = "crow btns";
-    btns.innerHTML = `<button class="minib" data-b="prev" title="Previous boring">‹ prev</button>`
+    btns.innerHTML = `<button class="minib prim" data-b="win" title="Open the log window (full log sheet, compare, table)">open in window</button>`
+      + `<button class="minib" data-b="prev" title="Previous boring">‹ prev</button>`
       + `<button class="minib" data-b="next" title="Next boring">next ›</button>`
       + `<button class="minib" data-b="zoom" title="Zoom the map to this boring">zoom to</button>`
       + `<button class="minib" data-b="3d" title="Open the 3D view at this boring">3D</button>`
@@ -486,6 +1040,7 @@ SBMM.borelogs = (function () {
     btns.addEventListener("click", ev => {
       const b = ev.target.dataset && ev.target.dataset.b;
       if (!b) return;
+      if (b === "win") { if (SBMM.borewin) SBMM.borewin.open(h.id); else toast("the log window is not in this build"); }
       if (b === "prev" || b === "next") step(b === "next" ? 1 : -1);
       if (b === "zoom") zoomTo(h);
       if (b === "3d") { if (SBMM.viewer3d) SBMM.viewer3d.openAt(h.x, h.y); }
@@ -504,9 +1059,8 @@ SBMM.borelogs = (function () {
             + `${off.dN_mean < 0 ? "S" : "N"} of the surveyed coordinate; the surveyed one is used.`
           : ""));
     SBMM.results.appendNote(el,
-      "OpenGround export of the 2025 Jacobs geotechnical investigation, "
-      + (D.built || "") + ". The class of each unit is the last word of the logger's own description "
-      + "(WASTE / NATIVE / BEDROCK); no depth here is interpolated or interpreted by the app.");
+      `OpenGround logs, 2025 Jacobs investigation${D.built ? " · " + D.built : ""}`
+      + " · class = last word of the logger's description · nothing interpolated");
     /* results.card PREPENDS, so the new card is the pane's first child — and a
        log taller than the pane must show its HEAD (the contact, the depth, the
        dates), not its foot, which is what scrolling it "into view" would do */
@@ -625,9 +1179,7 @@ SBMM.borelogs = (function () {
     if (x) x.onclick = () => { el.remove(); sumEl = null; SBMM.results.checkEmpty(); };
 
     SBMM.results.appendNote(el,
-      `${n} of the ${H.length} holes have a waste/native contact that disagrees between the logger's `
-      + `remark and the strata rows. Nothing here resolves one — `
-      + `click a boring to read its log, and the flags column says which statements differ.`);
+      `${n} of the ${H.length} holes: the logger's remark and the strata rows disagree · not reconciled`);
 
     const box = document.createElement("div");
     box.className = "blscroll blsumtbl";
@@ -690,6 +1242,12 @@ SBMM.borelogs = (function () {
     has, data, ids, holes, byId, profileOf, contactOf, waterOf, summaryLine,
     classColor, classWord: c => CLASS_WORD[c] || c,
     open, close, step, summary, cmd, csvFor, summaryCsv, disagreeCount, wire,
-    card: () => cardEl, current: () => curId, svgFor: id => { const h = byId(id); return h ? svgLog(h) : ""; }
+    card: () => cardEl, current: () => curId, svgFor: id => { const h = byId(id); return h ? svgLog(h) : ""; },
+    /* v23 §1 — the column renderer, and the facts a view needs around it.
+       Phase B's fence calls column(h, {tier:"stick", datum:"elev", zTop, zBot,
+       ppf}) once per hole and places the returned <g> at its station. */
+    column, columnSvg, defsFor, famOf, patternId: patId, wrapText,
+    deltaLidar, areaOf, areas, differs, tickStep,
+    CLASS_LIST: () => CLASSES.slice()
   };
 })();

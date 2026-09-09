@@ -264,7 +264,20 @@ SBMM.datasets = (function () {
       icon: L.divIcon({ className: "dsmk", html, iconSize: [s, s], iconAnchor: [st.size, st.size] }),
       keyboard: false
     });
-    mk.bindTooltip(`${esc(p.id)} · ${esc(d.name)}`, { sticky: true, className: "ctip" });
+    /* v23 §2.6: a boring with a log gets its mini column and its three
+       summary lines under the pointer — the fact before the click. Built at
+       open time, so a payload that arrives later still reaches it. */
+    mk.bindTooltip(() => {
+      const h = (d.kind === "borings" && SBMM.borelogs && SBMM.borelogs.has())
+        ? SBMM.borelogs.byId(p.id) : null;
+      if (!h) return `${esc(p.id)} · ${esc(d.name)}`;
+      return `<span class="bltipcol">`
+        + SBMM.borelogs.columnSvg(h, { tier: "mini", ppf: 74 / (h.depth || 1),
+            padTop: 2, cssW: 15, cssH: 78 })
+        + `</span><span class="bltiptxt"><b>${esc(p.id)}</b>`
+        + SBMM.borelogs.summaryLine(h).map(t => `<span>${esc(t)}</span>`).join("")
+        + `</span>`;
+    }, { sticky: true, className: "ctip bltip" });
     mk.bindPopup(() => popup(d, p), { maxWidth: 340 });
     return mk;
   }
