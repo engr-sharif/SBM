@@ -123,7 +123,7 @@ SBMM.borewin = (function () {
         <span class="bwtabs">
           <button class="minib bwtab" data-t="log" title="The log sheet for one hole">Log</button>
           <button class="minib bwtab" data-t="compare" title="Two to six holes on one elevation datum">Compare</button>
-          <button class="minib bwtab" data-t="table" title="All 44 holes, sortable">Table</button>
+          <button class="minib bwtab" data-t="table" title="Every hole, sortable and filterable by waste area">Table</button>
         </span>
         <label class="bwlbl">scale
           <select class="bwscale" title="Drawing scale (+ / − to change)">
@@ -135,7 +135,7 @@ SBMM.borewin = (function () {
           </select></label>
         <span class="spacer"></span>
         <button class="minib" data-b="print" title="Printed log sheet (Print → PDF)">print</button>
-        <button class="minib" data-b="printall" title="All 44 logs as one document">print all</button>
+        <button class="minib" data-b="printall" title="Every log in id order, as one document">print all</button>
         <button class="minib" data-b="printarea" title="Every log in this hole's waste area">print area</button>
         <button class="minib" data-b="csv" title="Copy this hole's strata, SPT, penetrometer and lab tables">csv</button>
         <button class="minib" data-b="png" title="Save what is drawn as a PNG">png</button>
@@ -250,8 +250,8 @@ SBMM.borewin = (function () {
       if (b === "print") printSheet([cur]);
       if (b === "printall") printSheet(BL().ids());
       if (b === "printarea") printArea();
-      if (b === "csv") copyText(csvNow(), tab === "table" ? "the 44-hole table is on the clipboard"
-                                                          : `${cur} log copied as CSV`);
+      if (b === "csv") copyText(csvNow(), tab === "table"
+        ? `${BL().holes().length} holes copied as CSV` : `${cur} log copied as CSV`);
       if (b === "png") exportPng();
     });
     wirePicker();
