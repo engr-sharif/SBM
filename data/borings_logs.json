@@ -842,9 +842,7 @@
     ],
     "native_contact": 2.5,
     "source": "remark",
-    "flags": [
-     "older interpretation differs"
-    ]
+    "flags": []
    },
    "strata_base": 42.0
   },
@@ -2763,9 +2761,7 @@
     ],
     "native_contact": 10.0,
     "source": "remark",
-    "flags": [
-     "older interpretation differs"
-    ]
+    "flags": []
    },
    "strata_base": 60.42
   },
@@ -3483,9 +3479,7 @@
     ],
     "native_contact": 0.0,
     "source": "remark",
-    "flags": [
-     "older interpretation differs"
-    ]
+    "flags": []
    },
    "strata_base": 81.0
   },
@@ -4251,8 +4245,7 @@
     "source": "remark",
     "flags": [
      "remark and strata differ",
-     "waste logged below native",
-     "older interpretation differs"
+     "waste logged below native"
     ]
    },
    "strata_base": 61.5
@@ -4729,8 +4722,7 @@
     "native_contact": 7.5,
     "source": "remark",
     "flags": [
-     "remark and strata differ",
-     "older interpretation differs"
+     "remark and strata differ"
     ]
    },
    "strata_base": 40.8
@@ -5768,9 +5760,7 @@
     ],
     "native_contact": 7.5,
     "source": "remark",
-    "flags": [
-     "older interpretation differs"
-    ]
+    "flags": []
    },
    "strata_base": 80.0
   },
@@ -6952,8 +6942,7 @@
     "native_contact": 25.0,
     "source": "remark",
     "flags": [
-     "remark and strata differ",
-     "older interpretation differs"
+     "remark and strata differ"
     ]
    },
    "strata_base": 126.4
@@ -7855,8 +7844,7 @@
     "native_contact": 25.0,
     "source": "remark",
     "flags": [
-     "remark and strata differ",
-     "older interpretation differs"
+     "remark and strata differ"
     ]
    },
    "strata_base": 81.5
@@ -8644,8 +8632,7 @@
     "native_contact": 7.5,
     "source": "remark",
     "flags": [
-     "remark and strata differ",
-     "older interpretation differs"
+     "remark and strata differ"
     ]
    },
    "strata_base": 80.2
@@ -9111,8 +9098,7 @@
     "native_contact": 7.5,
     "source": "remark",
     "flags": [
-     "remark and strata differ",
-     "older interpretation differs"
+     "remark and strata differ"
     ]
    },
    "strata_base": 30.9
@@ -9661,9 +9647,7 @@
     ],
     "native_contact": 20.0,
     "source": "remark",
-    "flags": [
-     "older interpretation differs"
-    ]
+    "flags": []
    },
    "strata_base": 26.5
   },
@@ -10220,8 +10204,7 @@
     "native_contact": 7.5,
     "source": "remark",
     "flags": [
-     "remark and strata differ",
-     "older interpretation differs"
+     "remark and strata differ"
     ]
    },
    "strata_base": 30.4
@@ -10605,8 +10588,7 @@
     "native_contact": 5.0,
     "source": "remark",
     "flags": [
-     "remark and strata differ",
-     "older interpretation differs"
+     "remark and strata differ"
     ]
    },
    "strata_base": 26.5
@@ -11954,9 +11936,7 @@
     ],
     "native_contact": 40.0,
     "source": "remark",
-    "flags": [
-     "older interpretation differs"
-    ]
+    "flags": []
    },
    "strata_base": 110.0
   },
@@ -13240,9 +13220,7 @@
     ],
     "native_contact": 20.0,
     "source": "remark",
-    "flags": [
-     "older interpretation differs"
-    ]
+    "flags": []
    },
    "strata_base": 45.0
   },
@@ -13560,8 +13538,7 @@
     "native_contact": 12.0,
     "source": "remark",
     "flags": [
-     "remark and strata differ",
-     "older interpretation differs"
+     "remark and strata differ"
     ]
    },
    "strata_base": 25.0
@@ -13953,9 +13930,7 @@
     ],
     "native_contact": 16.0,
     "source": "remark",
-    "flags": [
-     "older interpretation differs"
-    ]
+    "flags": []
    },
    "strata_base": 50.6
   },
@@ -14484,8 +14459,7 @@
     "native_contact": 2.5,
     "source": "remark",
     "flags": [
-     "remark and strata differ",
-     "older interpretation differs"
+     "remark and strata differ"
     ]
    },
    "strata_base": 61.5
@@ -14901,9 +14875,7 @@
     ],
     "native_contact": 7.5,
     "source": "remark",
-    "flags": [
-     "older interpretation differs"
-    ]
+    "flags": []
    },
    "strata_base": 10.0
   },
@@ -17093,9 +17065,7 @@
     ],
     "native_contact": 35.0,
     "source": "remark",
-    "flags": [
-     "older interpretation differs"
-    ]
+    "flags": []
    },
    "strata_base": 85.1
   },
@@ -18327,9 +18297,7 @@
     ],
     "native_contact": 0.0,
     "source": "remark",
-    "flags": [
-     "older interpretation differs"
-    ]
+    "flags": []
    },
    "strata_base": 50.0
   },
@@ -18875,8 +18843,7 @@
     "native_contact": 23.0,
     "source": "remark",
     "flags": [
-     "remark and strata differ",
-     "older interpretation differs"
+     "remark and strata differ"
     ]
    },
    "strata_base": 36.5
@@ -19712,9 +19679,7 @@
     ],
     "native_contact": 40.0,
     "source": "remark",
-    "flags": [
-     "older interpretation differs"
-    ]
+    "flags": []
    },
    "strata_base": 80.0
   },
@@ -20231,9 +20196,7 @@
     ],
     "native_contact": 0.0,
     "source": "remark",
-    "flags": [
-     "older interpretation differs"
-    ]
+    "flags": []
    },
    "strata_base": 60.0
   },
@@ -20887,9 +20850,7 @@
     ],
     "native_contact": 20.0,
     "source": "remark",
-    "flags": [
-     "older interpretation differs"
-    ]
+    "flags": []
    },
    "strata_base": 60.3
   },
@@ -21592,8 +21553,7 @@
     "native_contact": 22.0,
     "source": "remark",
     "flags": [
-     "remark and strata differ",
-     "older interpretation differs"
+     "remark and strata differ"
     ]
    },
    "strata_base": 51.1
@@ -22269,8 +22229,7 @@
     "native_contact": 30.0,
     "source": "remark",
     "flags": [
-     "remark and strata differ",
-     "older interpretation differs"
+     "remark and strata differ"
     ]
    },
    "strata_base": 50.2
@@ -23430,9 +23389,7 @@
     ],
     "native_contact": 7.5,
     "source": "remark",
-    "flags": [
-     "older interpretation differs"
-    ]
+    "flags": []
    },
    "strata_base": 50.0
   },
@@ -23998,8 +23955,7 @@
     "source": "remark",
     "flags": [
      "remark and strata differ",
-     "waste logged below native",
-     "older interpretation differs"
+     "waste logged below native"
     ]
    },
    "strata_base": 25.8
@@ -24808,9 +24764,7 @@
     ],
     "native_contact": 10.0,
     "source": "remark",
-    "flags": [
-     "older interpretation differs"
-    ]
+    "flags": []
    },
    "strata_base": 51.5
   },
@@ -25444,8 +25398,7 @@
     "native_contact": 21.5,
     "source": "remark",
     "flags": [
-     "waste logged below native",
-     "older interpretation differs"
+     "waste logged below native"
     ]
    },
    "strata_base": 50.0
@@ -26152,9 +26105,7 @@
     ],
     "native_contact": 10.0,
     "source": "remark",
-    "flags": [
-     "older interpretation differs"
-    ]
+    "flags": []
    },
    "strata_base": 51.3
   }

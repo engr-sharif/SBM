@@ -33,9 +33,13 @@ every description with WASTE, NATIVE or BEDROCK; a sub-row (a colour change
 inside a stratum) that carries no word inherits its stratum's. THE CONTACT THE
 APP LEADS WITH IS THE LOGGER'S OWN "@ 23' NATIVE CONTACT" REMARK, which every
 one of the 44 holes has; the class profile read off the strata rows at their
-finest resolution, and the older field-interpreted waste depth already in the
-dataset, are carried beside it and every disagreement is flagged, not resolved
-(see the comment above the contacts block in main()).
+finest resolution is carried beside it and every disagreement between the two
+is flagged, not resolved (see the comment above the contacts block in main()).
+THE OLDER FIELD-INTERPRETED WASTE DEPTH SPREADSHEET IS RETIRED (decision,
+2026-09-09): the logs are the approved record, the spreadsheet was answering a
+different question (blow counts, pH and soil type rather than the logged
+contact), so its two dataset columns ("Interpreted waste depth (ft)", "Waste
+depth basis") are REMOVED from the dataset here whatever the seed carried.
 
 Run from the repo root:  python3 tools/build_borings.py
 Then, if the dataset changed:  python3 tools/build_data.py && python3 tools/build_dist.py
@@ -341,11 +345,10 @@ def main():
     #       row it sits in (SB-10's primary 7-40 ft says WASTE and its sub-rows
     #       say NATIVE from 30 ft);
     #   (b) the logger's own "@ 23' NATIVE CONTACT" remark, where one was written
-    #       (the deepest one when there are two, SB-7);
-    #   (c) the older field-interpreted waste depth spreadsheet, already baked
-    #       into the dataset as "Interpreted waste depth (ft)".
+    #       (the deepest one when there are two, SB-7).
     # `contacts.native_contact` is (b) where it exists and (a) otherwise, with
-    # `source` saying which; the dataset carries all three columns.
+    # `source` saying which; the dataset carries both. The older field spreadsheet
+    # was a third statement until 2026-09-09 and is retired (see the docstring).
     n_gap = 0
     for h in holes.values():
         h["strata"].sort(key=lambda s: (s["top"], 0 if s["primary"] else 1))
@@ -400,9 +403,6 @@ def main():
             flags.append("remark and strata differ")
         if layered:
             flags.append("waste logged below native")
-        old = baked.get(h["id"], {}).get("a", {}).get("Interpreted waste depth (ft)")
-        if old is not None and c["native_contact"] is not None and abs(old - c["native_contact"]) > 0.05:
-            flags.append("older interpretation differs")
         c["flags"] = flags
         h["contacts"] = c
         # coverage: do the primary strata tile the hole?
@@ -455,6 +455,9 @@ def main():
         a["Waste thickness — log strata (ft)"] = c["waste_thickness_strata"]
         a["Bedrock (ft)"] = c["bedrock_top"]
         a["Contact flags"] = "; ".join(c["flags"]) or None
+        # the retired spreadsheet's two columns, whatever tools/build_seed_datasets.py wrote
+        a.pop("Interpreted waste depth (ft)", None)
+        a.pop("Waste depth basis", None)
         w = h["water"]
         a["Groundwater (ft bgs)"] = (w["depth"] if w and w["encountered"] else ("not encountered" if w else None))
         a["Drilling method"] = h["method_words"] or None
@@ -481,15 +484,15 @@ def main():
     if off:
         print(f"OpenGround easting/northing vs the baked coordinates: mean ({off['dE_mean']}, {off['dN_mean']}) ft, "
               f"range E {off['dE_range']} N {off['dN_range']} over {off['n']} holes -- the baked ones are kept")
-    print("\n  hole    depth  contact src     remark  strata_native  waste_base  bedrock  GW      old_interp  method")
+    print("\n  hole    depth  contact src     remark  strata_native  waste_base  bedrock  GW      method")
     for h in ordered:
-        c = h["contacts"]; a = baked[h["id"]]["a"] if h["id"] in baked else {}
+        c = h["contacts"]
         w = h["water"]
         gw = ("%.1f" % w["depth"] if w and w["encountered"] else ("none" if w else "-"))
         flag = ("  [" + "; ".join(c["flags"]) + "]") if c["flags"] else ""
         print(f"  {h['id']:6s} {h['depth']!s:>6}  {c['native_contact']!s:>7} {c['source']!s:>6}  {c.get('native_remark')!s:>7}  "
               f"{c['native_top_strata']!s:>13}  {c['waste_base_strata']!s:>10}  {c['bedrock_top']!s:>7}  {gw:>6}  "
-              f"{a.get('Interpreted waste depth (ft)')!s:>10}  {h['method_words']}{flag}")
+              f"{h['method_words']}{flag}")
 
 
 if __name__ == "__main__":

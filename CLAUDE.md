@@ -2164,9 +2164,9 @@ schema is in the builder's docstring and in the task brief. It is a plain `<scri
 in `index.html`, **in every build — the full dist, the field dist and a phone** — because
 it is small and it is what somebody standing beside the hole wants.
 
-### THE THREE CONTACT STATEMENTS, AND WHY NOTHING RECONCILES THEM
+### THE TWO CONTACT STATEMENTS, AND WHY NOTHING RECONCILES THEM
 
-"How deep is the waste here" has three answers in this project and **35 of the 44 holes
+"How deep is the waste here" has two answers in the approved logs and **18 of the 44 holes
 disagree**:
 
 1. **the logger's own remark** — `@ 23' NATIVE CONTACT`, written on the rig by the person
@@ -2176,17 +2176,21 @@ disagree**:
 2. **the strata rows** — the deepest unit whose description ends in WASTE
    (`contacts.waste_base_strata`). A second reading of the same log, derived rather than
    stated. Drawn as a dashed second line where it differs.
-3. **the older field interpretation** — the pre-log spreadsheet's "Interpreted waste
-   depth", which the baked dataset has carried since before the logs arrived. It lives on
-   the DATASET, not in this payload (`olderInterp()` reads it), and is drawn as a faint
-   dotted third line.
+
+**The older field-interpreted waste depth spreadsheet is RETIRED (decision, 2026-09-09).**
+It was a third statement in the first cut of v9.25 and disagreed with the logs on 32 holes
+— because it answered a different question (blow counts, pH and soil type, not the logged
+contact). The logs are the approved record, so `tools/build_borings.py` now DELETES its two
+dataset columns (`Interpreted waste depth (ft)`, `Waste depth basis`) whatever the seed
+carried, `tools/build_seed_datasets.py` no longer reads the workbook, and nothing in the app
+reads either column. Do not bring it back as a "reference" line; the engineer's ruling was
+that the spreadsheet "might be answering something else entirely".
 
 `contacts.flags` names each disagreement (`remark and strata differ`, `waste logged below
-native`, `older interpretation differs`) and **the app resolves none of them**. Averaging
-them, or preferring the "cleaner" source, would hide exactly the thing the engineer has to
-look at — he logged 35 of the 44 himself. `LOGS` (`SBMM.borelogs.summary()`) is the sheet
-he reconciles them on: 44 rows, sortable on any column, `copy CSV`, and one line at the
-top saying how many disagree.
+native`) and **the app resolves none of them**. Averaging them, or preferring the "cleaner"
+source, would hide exactly the thing the engineer has to look at — he logged 18 of the 44
+himself. `LOGS` (`SBMM.borelogs.summary()`) is the sheet he reconciles them on: 44 rows,
+sortable on any column, `copy CSV`, and one line at the top saying how many disagree.
 
 ### The coordinates are the BAKED ones, and the card says so
 

@@ -32,14 +32,16 @@ would draw yourself. Click a stratum box for its full description; the lab value
 log notes are folded underneath. **Copy CSV** takes the strata, the SPT, the penetrometer
 and every lab result as one table, and **PNG** saves the strip log as a picture.
 
-**The three contact numbers are all on the log, and I have not picked between them.**
-There are three statements of how deep the waste goes: the remark the logger wrote on the rig, the
-base of the deepest unit described as WASTE, and the older field spreadsheet. **35 of the
-44 holes disagree — and I logged 18 of them myself.** The log draws all three lines — bold for the remark, dashed for the
-strata, dotted for the older number — and says which is which. `LOGS` opens the table of
+**Both contact numbers are on the log, and I have not picked between them.**
+There are two statements of how deep the waste goes: the remark the logger wrote on the rig, and the
+base of the deepest unit described as WASTE. **18 of the
+44 holes disagree — and I logged 18 of the holes myself.** The log draws both lines — bold for the remark, dashed for the
+strata — and says which is which. `LOGS` opens the table of
 all 44 side by side, sortable on any column, so we can go through them; SB-7 is the one to
 look at first (22 against 25, and waste logged below native, so it is interlayered rather
-than one contact).
+than one contact). The older field-interpreted waste depth spreadsheet is retired: the logs
+are the approved record, and the spreadsheet was answering a different question. Its two
+columns are gone from the borings dataset.
 
 In 3D each boring's depth stick is coloured by its own profile, with a cross at the native
 contact and a blue tick at the water level, so a line of borings reads as the waste

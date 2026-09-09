@@ -45,14 +45,14 @@ SBMM.datasets = (function () {
             "TOC elev (ft NAVD88)", "Ground elev (ft NAVD88)", "Installed",
             "Casing diameter (in)", "Lithology at screen"],
     /* the log-derived answers first (the 2025 OpenGround logs, js/borelogs.js):
-       the contact somebody digs to, then how it was arrived at, then the older
-       statements it is checked against */
+       the contact somebody digs to, then how it was arrived at, then the strata
+       reading it is checked against. The older field spreadsheet's two columns
+       are gone (retired 2026-09-09) */
     borings: ["Native contact (ft)", "Native contact source",
               "Waste thickness — log strata (ft)", "Bedrock (ft)",
-              "Groundwater (ft bgs)", "Total depth (ft)",
-              "Interpreted waste depth (ft)", "Contact flags",
+              "Groundwater (ft bgs)", "Total depth (ft)", "Contact flags",
               "Drilling method", "Drilled", "Logged by",
-              "Waste area", "Ground elev (ft)", "Waste depth basis"],
+              "Waste area", "Ground elev (ft)"],
     generic: []
   };
   const DEPTH_RE = /(^|[^a-z])(total\s*depth|td|depth|bottom\s*depth|boring\s*depth)([^a-z]|$)/i;
