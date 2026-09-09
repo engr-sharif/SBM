@@ -484,8 +484,18 @@ SBMM.borewin = (function () {
   }
 
   function paintCompare() {
-    const list = cmp.map(id => BL().byId(id)).filter(Boolean);
-    if (list.length < 2) { cmp = nearest(cur, 4); return paintCompare(); }
+    let list = cmp.map(id => BL().byId(id)).filter(Boolean);
+    if (list.length < 2) {
+      /* seed from the nearest holes rather than recursing: a payload with one
+         hole in it would otherwise recurse for ever */
+      cmp = nearest(cur, Math.min(4, BL().holes().length));
+      list = cmp.map(id => BL().byId(id)).filter(Boolean);
+    }
+    if (list.length < 2) {
+      W.art.innerHTML = `<div class="note">compare needs two holes</div>`;
+      W.el.querySelector(".bwfoot").textContent = `${list.length} hole`;
+      return;
+    }
     /* ONE elevation datum for every column — the tallest ground at the top.
        That is the whole point: two logs read side by side at their own zeros
        say nothing about which horizon is which. */
@@ -552,7 +562,12 @@ SBMM.borewin = (function () {
       }
     }
     for (const c of cols) {
-      parts.push(`<g transform="translate(${c.x},0)">${c.r.g}</g>`);
+      /* data-y0 is the y this hole's COLLAR lands at on the shared datum — the
+         one number that says whether the columns really stand on one datum,
+         and what the harness reads rather than guessing it back out of a
+         stratum's own top */
+      parts.push(`<g class="bwcolwrap" data-hole="${esc(c.h.id)}" data-y0="${c.r.yOf(0).toFixed(2)}"`
+        + ` data-elev="${c.h.elev}" transform="translate(${c.x},0)">${c.r.g}</g>`);
       parts.push(`<text x="${c.x + CW / 2}" y="16" fill="#E8EEF1" font-size="11" text-anchor="middle"`
         + ` font-weight="700">${esc(c.h.id)}</text>`);
       parts.push(`<text x="${c.x + CW / 2}" y="26" fill="#6C7F8A" font-size="8.5" text-anchor="middle">`

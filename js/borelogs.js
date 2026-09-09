@@ -535,7 +535,7 @@ SBMM.borelogs = (function () {
         ' letter-spacing=".06em"'));
       /* the two narrow left columns are 12 px and 8 px wide — a word there
          would run into its neighbour, and both are named by their tooltips */
-      hd(0, "FT BGS");
+      hd(0, useElev ? "ELEV" : "FT BGS");
       if (L.gl) hd(L.gl[0], "GRAPHIC LOG");
       if (L.uscs) hd(L.uscs[0], "USCS");
       if (L.desc) hd(L.desc[0], "DESCRIPTION");
@@ -545,7 +545,7 @@ SBMM.borelogs = (function () {
       if (L.ph) hd(L.ph[0], "pH 2\u20138");
       if (L.lab) hd(L.lab[0], "LAB");
       if (L.rem) hd(L.rem[0], "REMARKS");
-      if (L.eax != null) hd(L.eax, "ELEV");
+      if (L.eax != null) hd(L.eax, useElev ? "FT BGS" : "ELEV");
       p.push(line(0, PADT - 3, W, PADT - 3, T.grid, 1));
     }
 
@@ -554,14 +554,29 @@ SBMM.borelogs = (function () {
     if (wantAxes) {
       const step = ppf >= 12 ? 1 : ppf >= 5 ? 2 : ppf >= 2 ? 5 : 10;
       const lab = ppf >= 12 ? 5 : ppf >= 5 ? 10 : ppf >= 2 ? 10 : 20;
-      const first = Math.ceil(cTop / step) * step;
-      for (let ft = first; ft <= cBot + 1e-6; ft += step) {
-        const y = yOf(ft), big = Math.abs(ft / lab - Math.round(ft / lab)) < 1e-6;
+      /* THE DATUM DECIDES WHICH AXIS IS TICKED, not merely which label is
+         printed. On "depth" the ticks fall on round feet below ground and the
+         elevations come out uneven; on "elev" they fall on round elevations —
+         which is the axis a section, a fence and a design surface are read on,
+         and the reason the control exists. The two label sets swap sides with
+         it, so the axis the reader asked for is the one on the left. */
+      const ticks = [];
+      if (useElev && elev != null) {
+        const z0 = elev - cBot, z1 = elev - cTop;
+        for (let z = Math.ceil(z0 / step) * step; z <= z1 + 1e-6; z += step)
+          ticks.push([elev - z, Math.abs(z / lab - Math.round(z / lab)) < 1e-6]);
+      } else {
+        for (let ft = Math.ceil(cTop / step) * step; ft <= cBot + 1e-6; ft += step)
+          ticks.push([ft, Math.abs(ft / lab - Math.round(ft / lab)) < 1e-6]);
+      }
+      for (const [ft, big] of ticks) {
+        const y = yOf(ft);
         p.push(line(L.ax + (big ? 0 : 4), y, L.ax + 6, y, T.grid, big ? 1 : .7));
         if (big) {
-          p.push(text(L.ax - 2, y + 3, String(Math.round(ft)), T.ax, L.fs, "end"));
-          if (elev != null && L.eax != null)
-            p.push(text(L.eax, y + 3, fmt0(elev - ft), T.ax, L.fs));
+          const near = String(useElev && elev != null ? fmt0(elev - ft) : Math.round(ft));
+          const far = elev != null ? (useElev ? String(Math.round(ft)) : fmt0(elev - ft)) : null;
+          p.push(text(L.ax - 2, y + 3, near, T.ax, L.fs, "end"));
+          if (far != null && L.eax != null) p.push(text(L.eax, y + 3, far, T.ax, L.fs));
           if (L.grid) p.push(line(L.ax + 7, y, L.eax != null ? L.eax - 4 : W, y, T.grid, .6));
         }
       }
@@ -570,9 +585,10 @@ SBMM.borelogs = (function () {
       if (cBot >= depth - 1e-6) {
         const y = yOf(depth);
         p.push(line(L.ax, y, L.eax != null ? L.eax - 4 : W, y, T.rule, 1.3));
-        p.push(text(L.ax - 2, y + 9, fmt(depth, 1), T.ink, L.fs, "end"));
+        p.push(text(L.ax - 2, y + 9,
+          useElev && elev != null ? fmt0(elev - depth) : fmt(depth, 1), T.ink, L.fs, "end"));
         if (elev != null && L.eax != null)
-          p.push(text(L.eax, y + 9, fmt0(elev - depth), T.ink, L.fs));
+          p.push(text(L.eax, y + 9, useElev ? fmt(depth, 1) : fmt0(elev - depth), T.ink, L.fs));
       }
     }
 
