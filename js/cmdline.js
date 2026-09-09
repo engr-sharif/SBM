@@ -40,7 +40,7 @@ SBMM.cmd = (function () {
   /* the command table                                                   */
   /* ------------------------------------------------------------------ */
   const CMDS = [
-    { n: "PLINE",   a: ["PL", "LINE", "L"],       d: "polyline — a line feature you can measure and edit", f: () => mode("draw.line") },
+    { n: "PLINE",   a: ["PL", "LINE", "L"],       d: "polyline — a measurable, editable line feature", f: () => mode("draw.line") },
     { n: "DIST",    a: ["DI", "DISTANCE"],        d: "distance between points",                f: () => mode("measure.distance") },
     { n: "POLY",    a: ["POLYGON", "AREA", "AR"], d: "closed area sketch",                     f: () => mode("measure.area") },
     { n: "VOL",     a: ["VOLUME"],                d: "volume footprint (cut/fill vs a base surface)", f: () => mode("volume") },
@@ -110,28 +110,28 @@ SBMM.cmd = (function () {
       d: "raindrop — trace where water flows downhill from a click, ponding on the way",
       f: () => mode("raindrop") },
     { n: "OVERTOP", a: ["SPILL", "POUR"],
-      d: "overtopping analysis of the Herman Impoundment — spill level, where, and where it goes",
+      d: "overtopping analysis of the Herman Impoundment",
       f: () => SBMM.water.overtopHerman() },
     { n: "WATERCLEAR", a: ["CLEARWATER"],
-      d: "clear every water overlay — the overtopping analysis, its routes and every raindrop (one undo)",
+      d: "clear every water overlay (one undo)",
       f: () => SBMM.water.clearWater() },
     /* v17 §5a — freehand ink. MARKUP and INK are the two words a Civil 3D user
        reaches for; neither is taken (aliases resolve first-match over one flat
        table, so a duplicate would silently kill the later command's). */
     { n: "REDLINE", a: ["MARKUP", "INK"],
-      d: "redline — freehand ink on the map or a drawing, with the Pencil or a finger (v17)",
+      d: "redline — freehand ink on the map or a drawing",
       f: () => {
         if (SBMM.mode.current() === "redline") { SBMM.mode.navigate(); toast("redline off"); return; }
         SBMM.mode.set("redline");
       } },
     { n: "STORM",   a: ["DRAINS", "STORMDRAIN"],
-      d: "storm drains work — assume the CAD/surveyed network carries water (v12)",
+      d: "storm drains work — assume the network carries water",
       f: () => {
         if (!SBMM.storm || !SBMM.storm.data()) { toast("this build has no storm-drainage network"); return; }
         SBMM.storm.toggle();
       } },
     { n: "DRAIN",   a: ["DRAINAGE", "WATERSHEDS", "CATCHMENTS"],
-      d: "drainage map — every square foot of the site coloured by the outlet it drains to (v14)",
+      d: "drainage map — the site coloured by the outlet each cell drains to",
       f: () => {
         if (!SBMM.drainage) { toast("this build has no drainage map"); return; }
         SBMM.drainage.cmd();
@@ -141,7 +141,7 @@ SBMM.cmd = (function () {
        flat table by test/check.mjs — a duplicate silently kills the later
        command's. */
     { n: "WHEREWATER", a: ["WHERE", "GOES", "OUTFLOW"],
-      d: "where the water goes — the four areas: Clear Lake, the impoundment, the ponds, off site (v22)",
+      d: "where the water goes — Clear Lake, the impoundment, the ponds, off site",
       f: () => {
         if (!SBMM.whereWater) { toast("this build has no 'where the water goes'"); return; }
         SBMM.whereWater.cmd();
@@ -150,7 +150,7 @@ SBMM.cmd = (function () {
        RAINDROP, and an alias can only belong to one command (a duplicate
        silently kills the later one, which the e2e fails on). */
     { n: "RAIN",    a: ["RUNOFF", "DESIGNSTORM"],
-      d: "design storm — rainfall, curve numbers, runoff volume and peak per catchment (v14)",
+      d: "design storm — rainfall, curve numbers, runoff volume and peak per catchment",
       f: () => {
         if (!SBMM.runoff) { toast("this build has no design storm"); return; }
         SBMM.runoff.cmd();
@@ -158,19 +158,19 @@ SBMM.cmd = (function () {
     /* v19 Phase 3. Every alias below is checked against the whole flat table by
        test/check.mjs — a duplicate silently kills the later command's. */
     { n: "ACCUM",   a: ["ACCUMULATION", "STREAMS", "UPSTREAM"],
-      d: "flow accumulation — how much ground drains through each cell, and the streams over 5 ac (v19)",
+      d: "flow accumulation — the area draining through each cell, and the streams over 5 ac",
       f: () => {
         if (!SBMM.accum) { toast("this build has no flow accumulation"); return; }
         SBMM.accum.cmd();
       } },
     { n: "PIPES",   a: ["CAPACITY", "HYDRAULICS", "HGL"],
-      d: "pipe capacity — Manning capacity, the design storm's peak and the hydraulic grade (v19)",
+      d: "pipe capacity — Manning capacity, the storm's peak and the hydraulic grade",
       f: () => {
         if (!SBMM.pipes) { toast("this build has no pipe hydraulics"); return; }
         SBMM.pipes.cmd();
       } },
     { n: "SCENARIO", a: ["SCENARIOS", "WHATIF"],
-      d: "scenarios — name a set of assumptions, run it, and compare two to four of them (v19)",
+      d: "scenarios — named assumption sets, compared two to four at a time",
       f: v => {
         if (!SBMM.scenarios) { toast("this build has no scenarios"); return; }
         SBMM.scenarios.cmd(v);
@@ -204,7 +204,7 @@ SBMM.cmd = (function () {
         if (!s) { toast(`no sheet “${v}” — type SHEETS with no argument for the list`); return; }
         SBMM.sheets.open(s.sheet);
       } },
-    { n: "DATASET", a: ["DATA", "IMPORTCSV", "CSVIN"], d: "import a CSV of coordinates as a dataset (wells, borings, anything)",
+    { n: "DATASET", a: ["DATA", "IMPORTCSV", "CSVIN"], d: "import a CSV of coordinates as a dataset",
       f: () => SBMM.datasets.pickFile() },
 
     /* the 2025 boring logs. LOG / LOGS are the two words the engineer used for
@@ -225,7 +225,7 @@ SBMM.cmd = (function () {
       } },
 
     /* ---- field mode (v11 §4.4) ---- */
-    { n: "FIELD", a: ["MOBILE", "PHONE"], d: "field mode — big-target touch layout for a phone in the field",
+    { n: "FIELD", a: ["MOBILE", "PHONE"], d: "field mode — big-target touch layout",
       f: () => SBMM.field.toggle() },
     { n: "GPS", a: ["POSITION", "WHEREAMI"], d: "show the device position on the map (and follow it)",
       f: () => SBMM.field.locate() },
@@ -242,7 +242,7 @@ SBMM.cmd = (function () {
     { n: "HELP",  a: ["?", "H"], d: "list every command", f: () => showHelp() },
     /* the password gate (js/gate.js). Forgetting the remembered unlock and
        putting the screen back up is one action, so it is one command. */
-    { n: "LOCK",  a: ["LOGOUT", "SIGNOUT"], d: "lock the app — forget this browser's unlock and show the password screen",
+    { n: "LOCK",  a: ["LOGOUT", "SIGNOUT"], d: "lock the app — forget this browser's unlock",
       f: () => { if (SBMM.gate) SBMM.gate.lock(); else toast("no password gate in this build"); } }
   ];
 
@@ -279,9 +279,9 @@ SBMM.cmd = (function () {
     box.id = "cmdHelp";
     box.innerHTML = `<div class="box"><span class="close">✕</span>
       <h2>Command line</h2>
-      <p class="mut">Type a command and press Enter. <kbd>\`</kbd> or <kbd>Ctrl</kbd><kbd>K</kbd> focuses the bar,
-      <kbd>↑</kbd> walks history, <kbd>Tab</kbd> completes. Commands that act on a drawing use the current
-      selection, or ask you to click one.</p>
+      <p class="mut"><kbd>\`</kbd> or <kbd>Ctrl</kbd><kbd>K</kbd> focuses the bar,
+      <kbd>↑</kbd> walks history, <kbd>Tab</kbd> completes. A command that acts on a drawing takes the
+      selection, or asks for one.</p>
       <table class="cmdhelp"><thead><tr><th>Command</th><th>Aliases</th><th>Does</th></tr></thead><tbody>${rows}</tbody></table>
       <h2>While you draw</h2>
       <table class="cmdhelp"><tbody>

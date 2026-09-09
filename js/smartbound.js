@@ -230,7 +230,7 @@ SBMM.smartbound = (function () {
       ["Rim on steep ground", fmt(R.steepPct, 0) + " %"],
       ["Method", "top-hat r=" + fmt(P.wand.r, 0) + " ft @ " + fmt(P.wand.thresh, 2) + " ft"]
     ]);
-    addVolumeOffer(f, "one-click volume (perimeter TIN — the memo base surface)");
+    addVolumeOffer(f, "volume (perimeter TIN — the memo base surface)");
     if (R.touchedEdge)
       toast("the mound reaches the edge of the search window — raise “search window” and click again");
     if (R.rings > 1)
@@ -300,7 +300,7 @@ SBMM.smartbound = (function () {
     ]);
     if (!R.enclosing)
       toast("no closed contour encloses that click in this window — took the largest closed ring instead");
-    addVolumeOffer(f, "one-click volume");
+    addVolumeOffer(f, "volume");
     SBMM.store.select(f.id);
     return f;
   }
