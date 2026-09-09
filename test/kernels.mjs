@@ -1301,7 +1301,7 @@ function hostRun(M, x, y, storm) {
 }
 
 /* §6.6, recorded from this commit: the Frog Pond drop's overland length and the west pond's depth when it overflows through its FES */
-const RECORDED_GP_OVERLAND = 629.9, RECORDED_WP_DEPTH = 3.08;
+const RECORDED_GP_OVERLAND = 611.7, RECORDED_WP_DEPTH = 3.08;
 function secStorm() {
   /* ---- the identity (§6, first bullet) -------------------------------- */
   /* Absent, and empty, must be the v10 kernel to the bit. This is the check
@@ -1463,7 +1463,7 @@ function secStorm() {
         M.NET.conduits.find(c => c.id === s8.legs[s8.legs.length - 1].id).to, "outfall");
   exact("reason", s8.reason, "nodata");
   dist("ends in Clear Lake", s8.end[0], s8.end[1], 6371177, 2127474, 3);
-  near("overland length (recorded)", s8.length, 137.0, 1, " ft");
+  near("overland length (recorded)", s8.length, 127.2, 1, " ft");
   note("Spot 8: " + s8.length.toFixed(1) + " ft overland + " + s8.pipeFt.toFixed(1) +
        " ft in pipe = " + (s8.length + s8.pipeFt).toFixed(1) + " ft, " + s8.ponds.length +
        " ponds, " + s8.hops + " windows chained [" + s8.grids + "]");
@@ -1472,7 +1472,7 @@ function secStorm() {
   const s8off = hostRun(M, g8.x, g8.y, false);
   exact("with the drains off, no legs", s8off.legs.length, 0);
   exact("with the drains off, reason", s8off.reason, "nodata");
-  near("with the drains off, overland (recorded)", s8off.length, 2267.6, 3, " ft");
+  near("with the drains off, overland (recorded)", s8off.length, 2233.8, 3, " ft");
   row("with the drains off it crosses the impoundment",
       s8off.ponds.some(p => p.cells > 200000) ? "yes" : "no", "yes",
       s8off.ponds.some(p => p.cells > 200000), "exact",
@@ -1532,7 +1532,7 @@ function secStorm() {
       "E " + froff.end[0].toFixed(0) + " N " + froff.end[1].toFixed(0), "E 6375216 N 2128916",
       Math.hypot(froff.end[0] - 6375216, froff.end[1] - 2128916) <= 3, "within 3 ft",
       "recorded from this commit; §1 predicts it spills north-east off the survey");
-  near("with the drains off, overland (recorded)", froff.length, 1468.6, 3, " ft");
+  near("with the drains off, overland (recorded)", froff.length, 1447.4, 3, " ft");
 
   console.log("\n§6.7  the Herman pipe discharge route (the plotted west end of the North pipe)");
   /* RE-RECORDED, v22 §S (engineer, 2026-09-06): the North barrel no longer joins
@@ -1549,11 +1549,11 @@ function secStorm() {
       hp.legs.map(l => l.id).join(",") === hpChain.join(","), "exact");
   near("pipe_ft = 12.8 + 783.9 (E943E)", hp.pipeFt, chain(hpChain), 0.5, " ft");
   dist("ends in Clear Lake", hp.end[0], hp.end[1], 6371177, 2127474, 3);
-  near("overland length (recorded)", hp.length, 137.0, 1, " ft");
+  near("overland length (recorded)", hp.length, 127.2, 1, " ft");
   note("Herman pipe discharge: " + hp.length.toFixed(1) + " ft overland + " +
        hp.pipeFt.toFixed(1) + " ft in pipe = " + (hp.length + hp.pipeFt).toFixed(1) + " ft to the lake");
   const hpoff = hostRun(M, pw.x, pw.y, false);
-  near("with the drains off, overland (recorded)", hpoff.length, 1091.0, 3, " ft");
+  near("with the drains off, overland (recorded)", hpoff.length, 1064.0, 3, " ft");
   exact("with the drains off, no legs", hpoff.legs.length, 0);
 
   /* ---- the Herman water-level shot (the ruling's own case) -------------- */
@@ -1590,7 +1590,7 @@ function secStorm() {
         M.NET.conduits.find(c => c.id === hw.legs[hw.legs.length - 1].id).to, "outfall");
   exact("reason", hw.reason, "nodata");
   dist("then overland to Clear Lake", hw.end[0], hw.end[1], 6371177, 2127474, 3);
-  near("overland length (recorded)", hw.length, 2634.6, 3, " ft");
+  near("overland length (recorded)", hw.length, 2623.9, 3, " ft");
   note("Herman water level: " + hw.length.toFixed(1) + " ft overland + " + hw.pipeFt.toFixed(1) +
        " ft in pipe, via " + via + ", pond " +
        (hw.ponds.find(p => p.via) || {}).level.toFixed(2) + " ft (" +
@@ -1604,7 +1604,7 @@ function secStorm() {
      is also a large "pond", 0.34 ft deep, and comes first in trace order) */
   near("with the drains off it fills to the lidar rim (recorded)",
        (hwoff.ponds.find(p => p.cells > 200000 && p.depth_ft > 5) || {}).level, 1343.84, 0.02, " ft");
-  near("with the drains off, overland (recorded)", hwoff.length, 3520.6, 3, " ft");
+  near("with the drains off, overland (recorded)", hwoff.length, 3486.8, 3, " ft");
   note("Herman water level, drains off: " + hwoff.length.toFixed(1) + " ft overland, spills over the " +
        "1,343.84-ft rim; the 2.30-ft difference from the pipe invert is what the sunken-inlet rule buys");
 

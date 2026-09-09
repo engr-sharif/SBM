@@ -498,6 +498,11 @@ window.SBMM_BUILD="full";
       <!-- v13 §3.1: the flow-path particles. Default on, remembered in the same
            localStorage record js/view.js keeps the camera in. -->
       <label class="chk"><input type="checkbox" id="v3dAnimWater" checked> Animate water</label>
+      <!-- 2026-09-08: which GPU three got, and everything about the drawn
+           terrain in one paste — the answer to "something looks broken in 3D
+           on my machine" arrives with numbers instead of a description. -->
+      <div class="v3ddiag"><span class="mono" id="v3dGpuLine">renderer: …</span>
+        <button class="minib" id="v3dDiagBtn" title="Copy the renderer, the drawn tiles, the textures and a scan of the terrain geometry — paste it into a message when the 3D view looks wrong">copy 3D diagnostics</button></div>
     </div>
 
     <div id="v3dHelpPop" class="popover">

@@ -2770,6 +2770,19 @@ var SBMM_COMPUTE = (function SBMMComputeModule() {
       P.level = level; P.outlet = outlet;
       if (reason) break;
       if (outlet < 0) { reason = "pond"; break; }
+      /* 2026-09-08: the cells the drop walked across the floor of this
+         depression are under water now. The run is drawn from the cell it
+         ENTERED the pond at — the first vertex of this stretch the flood
+         reached (the flooded vertices are a suffix: descent is monotone, so
+         once below the level inside the basin it stays there) — straight to
+         the outlet, not along the lidar's noisy flat water surface to whichever
+         pit it happened to reach first. On the Herman Impoundment every drop
+         from every shore used to walk to one pit on the north shore and jump
+         1,068 ft from there to the pipes. `entry` is that shoreline cell.
+         Mirrored in wasm/sbmm-kernels/src/flowpath.rs and test/fixtures/waterref.py. */
+      for (t = 0; t < path.length; t++) if (pondId[path[t]] === pid) break;
+      if (t < path.length - 1) path.length = t + 1;
+      if (t < path.length) P.entry = path[t];
       cur = outlet; path.push(cur);
       /* the pond drained through a grate, not over its rim: the run leaves the
          ground at the inlet cell it just stopped on and reappears at the outlet */
