@@ -37,6 +37,8 @@ in code, and what comes next. It replaces re-reading the chat history that built
 | **A raindrop's path through a pond is entry → outlet** (2026-09-08): once the flood fills, the walk across the floor is cut back to the shoreline cell and the line goes straight to the outlet | Every drop into the impoundment walked the lidar's flat water surface to one north-shore pit and jumped 1,068 ft to the pipes; the engineer read that as the model being wrong. Three implementations changed together; the swale reference and the recorded lengths moved with it |
 | **With an overtopping analysis open, the water and the rim band answer the pointer** — a dwell names them, a click opens the level slider (2026-09-08) | "The pointer should be smart enough to know that is what I want info on." Rule-based: what analysis is open + what is under the pointer decides the answer. A local language model was considered and set aside — the behaviour asked for is deterministic UI, and a 1–2 GB model cannot ship in a file:// build |
 | **The info page is a short personal note, not the manual** (2026-09-08): a weekends project, in beta, send feedback; the manual and the settings are folded under two headings | "This should feel like a young hungry engineer built this." Nothing in the app names a tool, a vendor or an assistant as its author, and nothing should |
+| **The 2025 boring logs use the BAKED coordinates, not OpenGround's** (2026-09-09) | OpenGround plots every one of the 44 holes a constant (-3.8, +1.9) ft from the December-2025 coordinate spreadsheet the dataset was baked from, while its lat/long is identical to that spreadsheet's — two realisations of NAD83, not a survey disagreement. The baked coordinates are the ones that check against the lidar. The offset is measured on every build and the log card prints it in one line rather than dropping it |
+| **The logger's own contact remark LEADS, and nothing reconciles the three statements** (2026-09-09) | "How deep is the waste here" has three answers — the remark written on the rig, the strata rows read back, and the older field spreadsheet — and 35 of the 44 holes disagree. The remark leads because every hole has one and a person looking at the core wrote it. The log draws all three lines, the flags name each difference, and `LOGS` is the sheet they get reconciled on. Averaging them or preferring the "cleaner" source would hide exactly the thing he has to look at |
 | Lot 13 / Lot 15 CAD layer names are swapped; geometry wins | Flagged on the features, never "corrected" the other way |
 | Cultural resources **included**, gated (off by default, acknowledgement, CONFIDENTIAL stamp, export gate) | User reversed the earlier exclusion; NHPA §304 / ARPA §9 still apply |
 | No proposed-grade surface is synthesised from breaklines | It would invent the pad; ask EA for LandXML instead |
@@ -149,6 +151,23 @@ in code, and what comes next. It replaces re-reading the chat history that built
    `test/kernels.mjs` §12.5 need re-recording — say so in the commit. The 24-hour temporal
    distributions in the same payload are provisional for the same reason; replace them with
    the published TR-55 / NEH-630 table before anything is issued.
+
+0b. **Reconcile the flagged boring contacts — he logged 18 of the 44 holes himself, and 16 of those are flagged.**
+   The 2025 OpenGround logs shipped in v9.25 and every hole carries three statements of the
+   waste/native contact: the logger's remark on the rig, the base of the deepest unit
+   described as WASTE, and the older field spreadsheet. **35 of the 44 disagree** — 17
+   between the remark and the strata, 3 where waste is logged BELOW native (SB-7, SB-43,
+   SB-45), 32 against the older interpretation. The app resolves none of them on purpose:
+   it draws all three lines on the strip log, flags each difference, and `LOGS` is the
+   44-row table with the three numbers side by side, sortable, with copy CSV. **This is a
+   reading task, not a code task** — M. Sharif logged 18 of the 44 (16 of them flagged),
+   P. Dahal 6, D. Pranish 8, and A. Caruso checked all 44, so the people who can settle
+   each one are in the room. When a hole is settled, the
+   change goes into the SOURCE (`data/source/borings_openground/`, or a note beside it) and
+   `python3 tools/build_borings.py` rebuilds the payload and the dataset attributes; do not
+   patch a number into `js/borelogs.js`, which reads and never decides. If a rule emerges
+   ("the strata win where waste is logged below native"), that is a spec change and belongs
+   to the planner — the app must not start averaging.
 
 0a. **THE INVERT SURVEY IS NOW THE ONE THING BLOCKING PIPE CAPACITY, and the sheet to
    fill in is written.** v19 shipped the hydraulics — Manning full-flow capacity, HEC-22
