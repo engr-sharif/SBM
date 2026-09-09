@@ -362,6 +362,7 @@ terrain source, which needs an explicit decision + README/test update).
 | report.js | print-ready report sheets (browser Print → PDF) |
 | smartbound.js | WAND (memo top-hat pile delineation), CBOUND (contour-snap), TOE, STANDS |
 | trees.js | individual tree detection over CHM, canvas dot layer, CSV inventory |
+| borelogs.js | **the 2025 boring logs (OpenGround)** — the strip log in a results card (class profile, strata + USCS, SPT with the pocket penetrometer, pH against the acid threshold, method bands, the water symbol), the THREE contact statements drawn together and reconciled nowhere, the 44-hole `LOGS` table, the CSV and the PNG, the popup button, `LOG` / `LOGS`, and the class palette every other view reads through `classColor()`; `SBMM.borelogs` |
 | io.js | GeoJSON (WGS84 + EPSG:6418) / session / CSV import-export |
 | dxf.js | DXF R12 export + R12/2000 import, raw SP ft |
 | designea.js | EA residential design **from the PDFs**: sheet rasters, extracted boundaries, surveyed nodes, per-sheet 3D drape toggle, sheet-footprint click target (read-only project data, NOT `SBMM.store` features). Boundary layer defaults **off** since v8 |
@@ -2144,6 +2145,114 @@ is what keeps `test/e2e.mjs` and `test/e2e_tablet.mjs` unchanged.
 `gpuTextures` and `gpuGeometries`, and `SBMM.touch.diagnostics()` puts the heap,
 the heap limit, the GPU counts and "heavy payloads skipped (phone)" on the Help
 line — so the next report arrives with numbers.
+
+## The boring logs (OpenGround, 2026-09-09)
+
+Payload `SBMM_DATA.borings_logs` (`data/borings_logs.json` -> `datajs/d_borings_logs.js`,
+~300 kB) from `tools/build_borings.py` over the OpenGround per-table CSV export of the
+2025 Jacobs geotechnical investigation: **44 holes** (SB-1 .. SB-46, no SB-27/SB-30,
+SB-6 is SB-6A), 476 strata rows, 516 SPT drives, 178 pocket-penetrometer readings, 774
+lab values, 257 notes, 41 water records. Host `js/borelogs.js` (`SBMM.borelogs`); the
+schema is in the builder's docstring and in the task brief. It is a plain `<script src>`
+in `index.html`, **in every build — the full dist, the field dist and a phone** — because
+it is small and it is what somebody standing beside the hole wants.
+
+### THE THREE CONTACT STATEMENTS, AND WHY NOTHING RECONCILES THEM
+
+"How deep is the waste here" has three answers in this project and **35 of the 44 holes
+disagree**:
+
+1. **the logger's own remark** — `@ 23' NATIVE CONTACT`, written on the rig by the person
+   looking at the core. Every one of the 44 has one, and it is `contacts.native_contact`
+   with `source: "remark"`. **This is the number the app leads with**, everywhere: the
+   card's first row, the popup's first line, the bold line across the strip log.
+2. **the strata rows** — the deepest unit whose description ends in WASTE
+   (`contacts.waste_base_strata`). A second reading of the same log, derived rather than
+   stated. Drawn as a dashed second line where it differs.
+3. **the older field interpretation** — the pre-log spreadsheet's "Interpreted waste
+   depth", which the baked dataset has carried since before the logs arrived. It lives on
+   the DATASET, not in this payload (`olderInterp()` reads it), and is drawn as a faint
+   dotted third line.
+
+`contacts.flags` names each disagreement (`remark and strata differ`, `waste logged below
+native`, `older interpretation differs`) and **the app resolves none of them**. Averaging
+them, or preferring the "cleaner" source, would hide exactly the thing the engineer has to
+look at — he logged 35 of the 44 himself. `LOGS` (`SBMM.borelogs.summary()`) is the sheet
+he reconciles them on: 44 rows, sortable on any column, `copy CSV`, and one line at the
+top saying how many disagree.
+
+### The coordinates are the BAKED ones, and the card says so
+
+OpenGround plots every hole a constant **(-3.8, +1.9) ft** from the December-2025
+coordinate spreadsheet the dataset was baked from, while its lat/long is IDENTICAL to that
+spreadsheet's — a datum realisation difference, not a survey disagreement, and the baked
+coordinates are the ones that check against the lidar. The builder measures the offset on
+every run into `openground_offset_ft`, and the card prints it as one sentence rather than
+dropping it silently. Do not "fix" this with a shift; it is the same rule the EA
+deliverables section states for EPSG:2226 vs 6418.
+
+### The seams
+
+- **The popup.** `SBMM.popups.forDataset` leads a `borings` point that has a log with the
+  log's own three lines and a **"boring log"** button, before the attribute table. It is
+  the shared builder, so the 3D pick card carries both for free.
+- **`LOG <id>` / `LOGS`** (aliases `BORELOG`, `BORING` / `BORELOGS`, `BORINGS`). `LOG`
+  with no argument toasts the first ten ids and opens the summary. Ids normalise: `9`,
+  `sb9`, `SB-9` and `sb-6a` all land.
+- **The LEAD order** for kind `borings` in `js/datasets.js` now puts the log-derived
+  answers first — native contact, its source, waste thickness, bedrock, groundwater —
+  then the totals, then the older statements.
+- **The 3D depth stick IS the log.** `js/viewer3d.js` colours each boring's stick by
+  `SBMM.borelogs.profileOf(id)`, with a cross at the native contact and a blue tick at the
+  water level, all inside the **same one `LineSegments` per dataset** that was already
+  there: one object, one draw call, one pick registration, `userData.layer` intact for
+  block 9y. A dataset with no log keeps its flat single-colour stick.
+- **The palette lives once**, in `css/app.css` `:root` (`--bl-waste`, `--bl-native`,
+  `--bl-rock`, `--bl-unknown`, `--bl-contact`), and everything asks
+  `SBMM.borelogs.classColor()` for it. A duplicated palette is a palette that drifts.
+
+### Five things that will be walked into again
+
+- **A results card is not as wide as a strip log wants to be.** The card is ~300 px in the
+  right dock and the log is drawn at exactly that: at 336 the headings ran together, the
+  SPT sample references crossed into the pH column and the profile band's own word
+  overflowed it. Scaling an over-wide SVG down does not fix a layout — it shrinks the
+  text and keeps the collisions. The column constants at the top of `svgLog` are sized
+  against the width it is read at, the sample reference lives in the tooltip and the CSV,
+  and any annotation that crosses a column carries a dark halo (`paint-order:stroke`).
+- **`scrollIntoPane` brings the BOTTOM into view**, which for a card taller than the pane
+  hides its head. `SBMM.results.card` PREPENDS, so the new card is the pane's first child
+  and `pane.scrollTop = 0` is the right answer — the contact, the depth and the dates are
+  what a log has to open on.
+- **Every colour in the SVG is a presentation ATTRIBUTE, never a CSS class.** The PNG
+  export serialises the SVG and hands it to an `<img>`, and a document stylesheet does not
+  travel with it: a log exported in four shades of black is worse than no export. Classes
+  are there for the harness and for hit-testing only, and the one `<style>` inside the
+  `<svg>` sets the font, which does travel.
+- **`THREE.Color.set("#E0733F")` converts sRGB to LINEAR**, so a vertex-colour probe reads
+  `190,44,13` and not `224,115,63`. The e2e counts DISTINCT colours rather than naming
+  them, which is the assertion that survives a colour-management change.
+- **The depth stick's opacity is .85, not the old .55.** A one-pixel line at 55 % over a
+  bright ortho washes out, and once the stick carries the log's three colours the whole
+  point is that they can be told apart. It is still see-through, which is what says "below
+  the ground".
+
+### Tests
+
+E2E block **"9ae. boring logs"** (after 9ac2, before 9z — 9z stays last): the payload's 44
+holes; SB-9's bands, its 7.5-ft contact labelled `remark`, its 15 SPT drives, 9
+penetrometer readings, 15 pH points and 32-ft water symbol, all read OFF THE PAYLOAD so a
+rebuild moves the test with it; SB-7's two flags and its interlayered sentence; the popup
+button and the LEAD order; `LOG SB-9` through `SBMM.cmd.run`; the summary's 44 rows and
+its disagreement count equal to the flagged holes; the four table names in the CSV; the 3D
+sticks' distinct colours, their segment-to-record map and their layer tag; block 9e's idle
+contract with the card open; and, with `SBMM_DATA.borings_logs` deleted, every entry point
+refusing with a toast and nothing throwing (the payload is read LIVE through `sync()` for
+exactly that reason, and restored afterwards). One assertion each in
+`test/e2e_field.mjs` (block 17) and `test/e2e_phone.mjs` (block 4) that the payload is
+there and the card builds. `SBMM.viewer3d.datasetSticks()` is the introspection hook.
+`node test/borelog_shots.mjs` writes `borelog_card`, `borelog_3d` and `borelog_summary`
+into `test/shots/`; not pass-fail — look at them.
 
 ## Undo and redo (v9.4) — the both-closures rule and `readd`
 
