@@ -65,7 +65,9 @@ SBMM.results = (function () {
 
   function rowsHtml(rows) {
     if (typeof rows === "string") return `<div class="note">${rows}</div>`;
-    return rows.map((r, i) => `<div class="rrow ${i === 0 ? "big" : ""}"><span>${r[0]}</span><b>${r[1]}</b></div>`).join("");
+    /* r[2], when present, is a tooltip on the row — v23 §1: the detail a
+       reader may want lives in a title attribute, not in a paragraph. */
+    return rows.map((r, i) => `<div class="rrow ${i === 0 ? "big" : ""}"${r[2] ? ` title="${String(r[2]).replace(/"/g, "&quot;")}"` : ""}><span>${r[0]}</span><b>${r[1]}</b></div>`).join("");
   }
   function setRows(el, rows) { el.querySelector(".rows").innerHTML = rowsHtml(rows); }
   function appendNote(el, txt) {

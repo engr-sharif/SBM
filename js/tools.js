@@ -495,8 +495,9 @@ SBMM.tools = (function () {
     SBMM.props && SBMM.props.refresh(f);
   }
 
+  /* v23 §1 — the compact form: every caveat that carries weight, no sentences. */
   const PLANNING_NOTE =
-    "Neat in-place topographic volume, no bulking. Perimeter-TIN base reproduces the ABP memo Attachment E method. Planning-level — report to 2 significant figures.";
+    "Neat in-place volume, no bulking · perimeter-TIN base (ABP memo Attachment E) · planning-level, 2 significant figures";
 
   /* the base dropdown is rebuilt whenever the set of design surfaces changes, so a
      surface created after this card still shows up as a base without a reload */
@@ -611,7 +612,7 @@ SBMM.tools = (function () {
          <span><b>${sig2(range.hi)}</b><i>high</i></span></div>
        <table class="rmeth">${rows.map(r =>
          `<tr class="${r.best ? "best" : ""}"><td>${esc(r.label)}</td><td class="num">${sig2(r.fill)}</td></tr>`).join("")}</table>
-       <div class="note">yd³ above the base. "Best" is the perimeter-TIN method the ABP memo used; low and high bracket the modelling choice, not survey error.</div>`;
+       <div class="note">yd³ above the base · low and high bracket the modelling choice, not survey error</div>`;
     SBMM.props && SBMM.props.refresh(f);
     toast(`range: ${sig2(range.lo)} – ${sig2(range.hi)} yd³ (best ${sig2(range.best)})`);
     return range;

@@ -191,19 +191,14 @@ SBMM.smartbound = (function () {
   /* 1. PILE WAND                                                        */
   /* ================================================================== */
   const WAND_NOTE =
-    "Method: morphological top-hat — the DEM is opened with a disc of the stated " +
-    "radius to build a base surface, and the footprint is the closed contour of the " +
-    "residual at the stated threshold, with rim faces steeper than the slope cutoff " +
-    "excluded. That is the delineation method the ABP technical memo used for the " +
-    "waste-rock piles, run here on the lidar terrain rather than the contour-derived " +
-    "surface the memo had. Planning-level: check the outline against the imagery and " +
-    "edit the vertices where the terrain is ambiguous.";
+    "Morphological top-hat \u2014 the ABP memo's delineation method, run on the lidar " +
+    "terrain rather than the contour-derived surface it had \u00b7 planning-level";
 
   function cmdWand() {
     SBMM.tools.setTool(null);
     disarm(true);
     live = { kind: "wand" };
-    live.card = optionsCard("Pile wand", "Click a mound. The wash shows the top-hat residual — what a click will capture.", [
+    live.card = optionsCard("Pile wand", "The wash is the top-hat residual \u2014 what the tool will capture.", [
       { key: "r", label: "opening radius", value: P.wand.r, step: 5, min: 5, unit: "ft" },
       { key: "thresh", label: "residual threshold", value: P.wand.thresh, step: 0.05, min: 0.05, unit: "ft" },
       { key: "smooth", label: "pre-smooth", value: P.wand.smooth, step: 1, min: 0, unit: "ft" },
@@ -240,8 +235,7 @@ SBMM.smartbound = (function () {
       toast("the mound reaches the edge of the search window — raise “search window” and click again");
     if (R.rings > 1)
       SBMM.results.appendNote(f.card, "The residual formed " + R.rings +
-        " separate rings in this window; the one enclosing your click was taken. Where the memo " +
-        "split a pile into parts, a single click returns whichever connected part-complex you hit.");
+        " separate rings in this window \u2014 the one enclosing the pick was taken.");
     SBMM.store.select(f.id);
     return f;
   }
@@ -270,7 +264,7 @@ SBMM.smartbound = (function () {
     P.cbound.level = (typed != null && !isNaN(typed)) ? typed : null;
     live = { kind: "cbound" };
     live.card = optionsCard("Contour boundary",
-      "Click a point: the closed terrain contour through it becomes an area. Leave the elevation blank to use the clicked ground.", [
+      "The closed terrain contour becomes an area \u00b7 a blank elevation takes the picked ground.", [
       { key: "level", label: "elevation", value: P.cbound.level, step: 0.5, unit: "ft", placeholder: "clicked" },
       { key: "smooth", label: "pre-smooth", value: P.cbound.smooth, step: 1, min: 0, unit: "ft" },
       { key: "win", label: "search window", value: P.cbound.win, step: 100, min: 100, unit: "ft" }
@@ -321,7 +315,7 @@ SBMM.smartbound = (function () {
     if (!isNaN(typed)) P.toe.thresh = typed > 1 ? typed / 100 : typed;
     live = { kind: "toe" };
     live.card = optionsCard("Toe / crest line",
-      "Click on a slope: the line where the slope crosses the threshold becomes a line feature.", [
+      "The line where the slope crosses the threshold becomes a line feature.", [
       { key: "mode", label: "label", type: "select", value: P.toe.mode,
         options: [["toe", "toe (bottom of slope)"], ["crest", "crest (top of slope)"]] },
       { key: "thresh", label: "slope threshold", value: P.toe.thresh, step: 0.05, min: 0.01, unit: "rise/run" },
@@ -373,7 +367,7 @@ SBMM.smartbound = (function () {
     disarm(true);
     live = { kind: "stands" };
     live.card = optionsCard("Canopy stands",
-      "Sketch a polygon over the area to clear (double-click to close), or press “whole view”.", [
+      "Canopy at or above the threshold, inside a sketched polygon or the whole view.", [
       { key: "thresh", label: "canopy height ≥", value: P.stands.thresh, step: 1, min: 1, unit: "ft" },
       { key: "minArea", label: "drop stands under", value: P.stands.minArea, step: 100, min: 0, unit: "ft²" },
       { key: "closeR", label: "gap close", value: P.stands.closeR, step: 1, min: 0, unit: "cells" }
@@ -443,10 +437,8 @@ SBMM.smartbound = (function () {
       ["Dropped as too small", String(R.dropped) + " under " + fmt0(P.stands.minArea) + " ft²"]
     ]);
     SBMM.results.appendNote(card,
-      "Clearing limits from the lidar canopy height model. Areas are the CANOPY-CELL area — the " +
-      "polygon rings are outer boundaries and enclose internal clearings, so a ring's own area reads " +
-      "larger. Stands are ordinary area features in the “Canopy stands” folder: edit, measure " +
-      "and export them like any other drawing.");
+      "Lidar canopy height model \u00b7 areas are CANOPY-CELL area \u2014 the rings are outer " +
+      "boundaries and enclose internal clearings, so a ring's own area reads larger");
     SBMM.undo.push(made.length + " canopy stands",
       () => made.forEach(f => SBMM.store.remove(f)),
       () => made.forEach(f => SBMM.store.readd(f)));

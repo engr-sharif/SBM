@@ -51,9 +51,8 @@ SBMM.whereWater = (function () {
   ];
   const CBY = Object.fromEntries(CLASSES.map(c => [c.id, c]));
   const FILL_OP = 0.30, EDGE_W = 1.5;
-  const NOTE = "Terrain only: steepest descent over the lidar bare earth, depressions filled to "
-    + "their pour point, storm conduits as topological shortcuts. Where the water goes, never "
-    + "how much — the design storm (RAIN) is the volume question.";
+  const NOTE = "Terrain only \u00b7 lidar bare earth, depressions filled to their pour point, "
+    + "conduits as shortcuts \u00b7 volumes are the design storm (RAIN)";
 
   let R = null;                       // the last kernel result (outlets un-merged)
   let lastCds = null;                 // the conduit list THAT run was given
