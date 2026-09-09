@@ -1670,6 +1670,77 @@ scenario's assumptions under it. The switches ride in the session; the results
 deliberately do not, because a stale result beside newer terrain is a number
 nobody can trace.
 
+## Boring logs — the 2025 geotechnical investigation
+
+Forty-four soil borings were drilled in October–December 2025 and logged in OpenGround.
+The export is in the app: click any boring on the map and the popup opens with the three
+numbers you want first — the native contact, the waste thickness and the groundwater —
+and a **boring log** button that draws the whole hole.
+
+**The log** is a strip log in the Results panel:
+
+- **class profile** — waste, native soil and bedrock as a coloured band down the hole,
+  read off the last word of the logger's own description of each unit;
+- **strata** — every primary unit as a box with its USCS symbol, with the sub-units
+  (a colour or moisture change inside a unit) as ticks on the edge. Click a box, or open
+  *descriptions*, for the full description of every logged unit;
+- **SPT** — a bar per drive scaled to N (0–50), with the blow count printed beside it and
+  the sample reference, the recovery and the 6-inch blows in its tooltip. A refusal drive
+  is a full red bar reading `50/5"` or `REF`. Pocket-penetrometer readings sit in the same
+  column as small diamonds on their own 0–4.5 tsf scale;
+- **pH** — a point per reading on a 2–8 scale with a red rule at **pH 4**, which is the
+  acid-generating signature of the waste on this site. It is measured on nearly every
+  drive, which is why it is in the strip rather than in the table. Everything else the lab
+  reported — water content, Atterberg limits, gradation, dry density, shear strength,
+  consolidation — is in the *lab values* list underneath, grouped by depth;
+- **groundwater** — the standard inverted triangle at the level, saying whether it was
+  perched and when it was read. "GW not encountered" where it was not;
+- **the drilling method** — hand auger or sonic — as a strip down the depth axis, and the
+  driller, the contractor and the rig in the header;
+- **buttons** — prev / next hole, zoom to, 3D, **copy CSV** (the strata, the SPT drives,
+  the penetrometer readings and every lab value as one table with a `table` column) and
+  **PNG** (the strip log as a picture, watermarked like every other export).
+
+**In 3D** the boring's depth stick is coloured by that same profile, with a cross at the
+native contact and a blue tick at the water level — so a fence of borings reads as the
+waste thickness across the site rather than as a row of sticks.
+
+### The three contact numbers, and what each one is
+
+"How deep is the waste here" has three answers in this project, and **35 of the 44 holes
+disagree**. The log draws all three and the app resolves none of them:
+
+| line | what it is |
+|---|---|
+| **native contact** (bold) | the logger's own remark on the rig — `@ 23' NATIVE CONTACT`. Every hole has one. This is the number the app leads with everywhere |
+| **strata** (dashed) | the base of the deepest unit the logger described as WASTE — a second reading of the same log, derived rather than stated |
+| **field interp.** (dotted) | the older pre-log spreadsheet's interpreted waste depth, which the boring dataset has carried since before the logs arrived |
+
+Where two of them differ the hole is flagged, and `SB-7` is the case worth looking at: the
+remark says 22 ft, the strata bottom the waste at 25 ft, and waste is logged *below*
+native — the profile there is interlayered, not one contact.
+
+**`LOGS`** opens the reconciliation table: all 44 holes with the three numbers side by
+side, bedrock, groundwater and the flags, sortable on any column, with **copy CSV**. Click
+a row to open that hole's log. It says at the top how many disagree.
+
+### Commands
+
+| command | what it does |
+|---|---|
+| `LOG SB-9` (`BORELOG`, `BORING`) | open that boring's log. `9`, `sb9` and `SB-9` all work |
+| `LOG` | list the borings and open the table |
+| `LOGS` (`BORELOGS`, `BORINGS`) | the 44-hole contact table |
+
+### The coordinates
+
+OpenGround plots every hole a constant 3.8 ft west and 1.9 ft north of the coordinates in
+the December-2025 spreadsheet the dataset was built from, while its latitude and longitude
+are identical to that spreadsheet's — two projections of the same point in two realisations
+of NAD83, not a survey disagreement. **The app uses the spreadsheet's coordinates**, which
+are the ones that check against the lidar, and each log says so in a line at the bottom
+rather than dropping the difference silently.
+
 ## Canopy v2 and the tree inventory
 
 ### The cleaned canopy model
