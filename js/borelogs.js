@@ -1240,10 +1240,17 @@ SBMM.borelogs = (function () {
 
     const btns = document.createElement("div");
     btns.className = "crow btns";
-    btns.innerHTML = `<button class="minib" data-b="csv" title="Copy this table as CSV">copy CSV</button>`;
+    btns.innerHTML = `<button class="minib prim" data-b="win" title="Open the log window at the full table">open in window</button>`
+      + `<button class="minib" data-b="csv" title="Copy this table as CSV">copy CSV</button>`;
     btns.addEventListener("click", ev => {
-      if (ev.target.dataset && ev.target.dataset.b === "csv")
-        copyText(summaryCsv(), "the 44-hole contact table is on the clipboard");
+      const b = ev.target.dataset && ev.target.dataset.b;
+      if (b === "csv") copyText(summaryCsv(), `the ${H.length}-hole contact table is on the clipboard`);
+      /* v23 §2.1: the Table tab is this sheet at full width, with the waste
+         area, the elevations and the filter the card has no room for */
+      if (b === "win") {
+        if (SBMM.borewin) SBMM.borewin.open(curId || H[0].id, { tab: "table" });
+        else toast("the log window is not in this build");
+      }
     });
     el.appendChild(btns);
     const pane2 = scrollIntoPane(el);

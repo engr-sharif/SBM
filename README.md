@@ -1707,7 +1707,8 @@ waste thickness across the site rather than as a row of sticks.
 
 ### The log window (v23) — the log sheet, compare and the table
 
-The strip log in the Results panel is the quick view. **open in window** on it — or the
+The strip log in the Results panel is the quick view, and so is the `LOGS` table; both
+carry **open in window**. That button on a log — or the
 popup's **boring log** button, the log button on a row of the Borings table, the 3D pick
 card, or `LOGWIN` — opens the log window: a floating, resizable window on the same chassis
 as the drawing viewer, with three tabs.

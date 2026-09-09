@@ -2426,11 +2426,13 @@ a sentence because a test reads it.
 
 ### Deviations from the spec, and why
 
-- **`LOG` still opens the results card, not the window.** §2.1 lists the `LOG`
-  command among the ways into the window; opening a stage-wide floating window
-  on every `LOG` is intrusive, and block 9ae's contract is that `LOG SB-9`
-  builds the card. The card's first button is **open in window**, and `LOGWIN`
-  (`LOGWINDOW`, `BOREWIN`) is the command that goes straight there.
+- **`LOG` and `LOGS` still open the results cards, not the window.** §2.1 lists
+  the `LOG` command among the ways in and says `LOGS` opens the Table tab;
+  throwing a stage-wide floating window up on every `LOG` is intrusive, and
+  block 9ae's contract is that `LOG SB-9` builds the card and `LOGS` builds the
+  summary. Both cards' first button is **open in window** — the log card at the
+  Log tab, the summary at the Table tab — and `LOGWIN` (`LOGWINDOW`, `BOREWIN`)
+  is the command that goes straight there.
 - **The toolbar carries three tabs, not five.** *Fence* is Phase B and *Site* is
   Phase C; a tab that toasts "not built yet" is worse than a tab that is not
   there. They go in when they exist.
