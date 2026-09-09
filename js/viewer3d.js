@@ -3426,6 +3426,16 @@ SBMM.viewer3d = (function () {
       }
       const k = e.key;
       if (k.indexOf("Arrow") !== 0 || nav.mode() === "fly") return;
+      /* An arrow belongs to whatever has the keyboard focus OUTSIDE the stage
+         — a layer-tree row (ArrowDown moves to the next row), a sheet window
+         (arrows pan the drawing), a focused button in a dock. This listener is
+         capture-phase on `document`, so without this test it took every arrow
+         the moment 3D was open and the layer tree's keyboard went dead — the
+         e2e's 9z "ArrowDown did not move the focus" whenever an earlier block
+         had left 3D open. Body, the 3D canvas and anything inside the stage
+         still orbit. */
+      if (t && t !== document.body && t !== document.documentElement
+          && t.closest && !t.closest("#stage")) return;
       e.preventDefault(); e.stopPropagation();
       const st = nav.st;
       if (e.shiftKey) {

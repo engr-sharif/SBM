@@ -284,11 +284,19 @@ the draw-order assertions in the same run passing. Both passed alone
 (`--only "9z. the layer tree"`, 14 s each, `focus after ArrowDown: piles`), so it is the
 same load flake wearing a different assertion: the row the tree focuses next is decided
 from the DOM, and on a loaded box the reload's re-registration has not settled. Same
-rule — re-run the block alone before believing it. **Since v9.25 the keyboard section
-waits on conditions too** (the toggle landing, the focused row being navigable with a
-row after it, the focus having moved) instead of 250/150 ms, and on a failure prints
-what `navRows()` saw — navigable rows, the focused index, the next row — so the next
-occurrence arrives with data. Two app-side causes were
+rule — re-run the block alone before believing it. **That keyboard face turned out
+NOT to be a load flake, and v9.25 closed it.** The keyboard section now waits on
+conditions (the toggle landing, the focused row being navigable with a row after it, the
+focus having moved) and prints what `navRows()` saw on a failure — and the first
+occurrence with data read `navigable 89, focused at 7, next piles, active dus`: the row was
+focused and navigable and the arrow simply never reached the tree. Block 9ae ends with
+the 3D view OPEN, and `js/viewer3d.js`'s key handler is capture-phase on `document` and
+claimed EVERY arrow while 3D was open — so with a layer-tree row focused, ArrowDown
+orbited the camera and the tree's own `onKey` on `#layers` never saw it (a sheet window's
+arrow pan had the same problem). It now leaves an arrow alone when the focused element
+is outside `#stage`. Running 9ae then 9z together (`--from 9ae`) reproduced it every
+time and passes with the fix; alone, 9z opens with 3D closed, which is why it always
+passed alone. Two app-side causes were
 closed in v21: `legendSoon()` in `js/layertree.js` was a leading-edge debounce whose
 callback painted the legend BEFORE re-asserting the draw order, so a burst of layer
 adds outlasting its 80 ms, or a paint that threw, left the order unapplied; it is now
