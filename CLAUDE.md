@@ -2376,6 +2376,16 @@ block 9af is the property the fence needs.
   `width:720px` and **not** `width:100%`: 720 px is exactly 7.5 in at 96 dpi, so
   the scale printed is the scale stated. A log sheet at "about" a scale is a
   picture of one. Change any of those four numbers and re-do the division.
+- **The DESCRIPTION column takes what is left, and the optional ones drop from
+  the RIGHT.** `layoutFor()` lays a sheet out from both ends — the axes and the
+  graphic log are fixed widths on the left, the tests and the elevation axis are
+  stacked inward from the right edge, and the description gets the remainder.
+  The remarks column needs ~1,040 px of window and the lab chips ~900; below
+  that they drop, in that order, and the description is never dropped. The
+  printed Letter sheet is 720 px (7.5 in) so it carries neither — they are in
+  the results card's expanders and in `csv`, which is where a paper log sheet
+  puts them too. Block 9af asserts the whole set by calling `column()` at three
+  widths rather than by resizing a dock.
 - **The narrow left columns have no room for a heading.** `METH` and `CLS` are
   12 px and 8 px wide; a word there runs into its neighbour, and `FT BGS`
   anchored `end` at the axis clipped off the left edge of the drawing. Only the

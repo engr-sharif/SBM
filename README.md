@@ -1728,9 +1728,15 @@ column a gINT or LogPlot sheet carries, left to right:
 | blows / 6 in | the three numbers beside the drive |
 | PP | pocket penetrometer on 0–4.5 tsf |
 | pH | 2–8 with the red rule at 4 |
-| lab | WC, LL, PI, fines, DD, Su, C, φ, Cc, Cr as chips at their sample depth; hover for the interval and the method |
-| remarks | the log notes at their depth |
+| lab | WC, LL, PI, fines, DD, Su, C, φ, Cc, Cr as chips at their sample depth; hover for the interval and the method — from about 900 px of window |
+| remarks | the log notes at their depth — from about 1,040 px of window |
 | elevation | ft NAVD88 — the hole's surveyed ground elevation minus the depth |
+
+The description column takes whatever the other columns leave, which is why the window is
+worth making wide (⤢, or collapse a dock). Below about 1,040 px the remarks column drops
+and below about 900 px the lab chips go with it — they are in *lab values* and *log notes*
+under the strip log and in `csv`, and the description is never dropped. The printed Letter
+sheet is 7.5 in wide, so it carries the columns that fit at that width.
 
 The header block stays on screen while the log scrolls: the hole, its waste area, ground
 elevation (with **Δ lidar**, what the January-2024 survey reads at the same point — a hole

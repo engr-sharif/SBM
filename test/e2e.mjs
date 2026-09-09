@@ -7634,6 +7634,35 @@ if (bwCols.contact !== bwPay.nc || bwCols.contactSrc !== bwPay.src)
   { console.log("FAIL: the window's contact line does not match the payload", bwCols, bwPay); process.exit(1); }
 if (bwCols.heads.length < 7)
   { console.log("FAIL: a §2.2 column heading is missing:", bwCols.heads); process.exit(1); }
+/* the two OPTIONAL columns — the lab chips and the remarks — need a window
+   wider than the harness's stage, and the layout drops them from the right in
+   the order a log sheet would give them up. Ask the renderer for the full
+   width directly rather than resizing a dock: what is asserted is that §2.2's
+   whole column set exists, and where it stops fitting. */
+{
+  const wide = await page.evaluate(() => {
+    const h = SBMM.borelogs.byId("SB-9");
+    const at = w => {
+      const r = SBMM.borelogs.column(h, { tier: "sheet", w, ppf: 19.2, headings: true });
+      const d = document.createElement("div");
+      d.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg">${r.g}</svg>`;
+      const txt = [...d.querySelectorAll("text")].map(t => t.textContent);
+      return { lab: d.querySelectorAll(".bllab").length,
+               heads: ["LAB", "REMARKS"].filter(k => txt.includes(k)),
+               desc: txt.filter(t => /Poorly graded SAND/.test(t)).length };
+    };
+    return { wide: at(1200), mid: at(940), narrow: at(760) };
+  });
+  console.log("the optional columns by width:", JSON.stringify(wide));
+  if (!(wide.wide.lab >= 3) || wide.wide.heads.length !== 2)
+    { console.log("FAIL: at 1,200 px the lab and remarks columns are missing", wide.wide); process.exit(1); }
+  if (wide.mid.heads.join() !== "LAB")
+    { console.log("FAIL: at 940 px the remarks column should drop and the lab stay", wide.mid); process.exit(1); }
+  if (wide.narrow.heads.length !== 0)
+    { console.log("FAIL: at 760 px both optional columns should have dropped", wide.narrow); process.exit(1); }
+  for (const k of ["wide", "mid", "narrow"])
+    if (!wide[k].desc) { console.log("FAIL: the description column was dropped at", k); process.exit(1); }
+}
 if (bwCols.kinds.length < 2)
   { console.log("FAIL: the sample column does not tell a split spoon from a tube:", bwCols.kinds); process.exit(1); }
 
