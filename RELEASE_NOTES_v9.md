@@ -17,6 +17,43 @@ All three are offline-only by design. Nothing in this app calls out to the inter
 
 ---
 
+## v9.24 — the raindrop through a pond, and the water that answers the pointer (2026-09-08)
+
+You said: *"why do all the points that enter the Herman Impoundment go to this one point up
+in the north of the impoundment? If water enters it should follow the flow path in, and
+when it exits it should be at the two discharge lines on the west side or spill over at
+the spill-over point."*
+
+- **The path through a pond is entry → outlet now.** The raindrop floods a depression from
+  the pit it reaches first, and on the impoundment the lidar's flat, faintly noisy water
+  surface funnelled every drop — from every shore — to one pit on the north shore, from
+  which the line jumped 1,068 ft to the pipe mouth. Once the flood fills, the walk across
+  the floor is under water, so the run is now cut back to the cell it entered the pond at
+  and drawn straight to the outlet: into the impoundment where the water actually arrives,
+  across to the 24-in pipes at the sandbag wall (or over the rim when the drains are
+  off). Same rule in the JavaScript kernel, the WebAssembly core and the Python reference;
+  the swale reference and every recorded overland length were re-recorded with it
+  (shorter, because a chord is shorter than a walk).
+- **The pointer knows what you are looking at.** With an overtopping analysis open, a
+  half-second dwell over the water — in 2D or 3D — names the level, the water area and
+  storage at the slider's position, what is left to the pipes and to the rim; a dwell over
+  the red-to-yellow rim band says how far above the spill the rim is right there; a click
+  opens the same as a card with **raise the water — the level slider** one tap away, which
+  brings the card forward and flashes the slider. The water polygon's own popup carries the
+  same summary while its analysis is open. In 3D a dwell over any object opens its card as
+  a click would and closes it when the pointer moves on; a card opened by a click stays.
+- **3D diagnostics, one click.** The View settings popover names the renderer three was
+  given (and says so, with the fix, when it is a software rasteriser) and has **copy 3D
+  diagnostics**: the GPU, the pixel ratio, three's memory and draw counters, every drawn
+  tile with its texture size, and a scan of every terrain vertex for a non-finite value —
+  the one thing that draws a straight black sliver across a scene on a GPU and nothing
+  under software GL. The WebGL context now asks for the high-performance GPU on a laptop
+  with two.
+- **The sheet rows' 3D button is reachable again.** The layer tree's hover toolbar
+  (opacity, zoom, solo, info) sat on top of a sheet row's own **3D** drape toggle; it now
+  sits to the left of it. (You: "the 3D button gets covered by the opacity, zoom, solo
+  buttons.")
+
 ## v9.23 — clear water overlays, the info page, and the 30-in pipe (2026-09-08)
 
 You said: *"after I use an aspect of the water feature, whether it be the HI overflow or the

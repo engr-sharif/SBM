@@ -303,8 +303,49 @@ SBMM.pick3d = (function () {
   /* hover                                                               */
   /* ------------------------------------------------------------------ */
   let hoverRAF = 0, hoverEvt = null;
+  /* THE DWELL (2026-09-08). A pointer that stops for half a second over
+     something is a question about it: the card opens as a click would, and
+     closes again once the pointer has moved on (a card opened by a CLICK stays).
+     Over bare terrain the one thing worth answering unasked is the water — the
+     rim band and the stage surface of an open overtopping analysis — and that
+     is a single terrain raycast, allowed here because it runs once per dwell
+     and never per move. */
+  const DWELL_MS = 550, DWELL_LEAVE_PX = 10;
+  let dwellT = null, dwellCard = false, dwellAt = null;
+  function armDwell(e) {
+    if (dwellT) clearTimeout(dwellT);
+    if (dwellCard && dwellAt && Math.hypot(e.clientX - dwellAt.x, e.clientY - dwellAt.y) > DWELL_LEAVE_PX) {
+      closeCard(); dwellCard = false; dwellAt = null;
+    }
+    dwellT = setTimeout(() => { dwellT = null; dwell(e); }, DWELL_MS);
+  }
+  let pDown = false;
+  function cancelDwell() { if (dwellT) clearTimeout(dwellT); dwellT = null; }
+  function dwell(e) {
+    if (!ctx || !ctx.isOpen() || card || pDown || SBMM.tools.active()) return;
+    let html = null, title = null, sp = null;
+    if (hovered) {
+      const got = raycast(e);
+      if (!got) return;
+      let info = null;
+      try { info = got.entry.hit(got.hit); } catch (err) { info = null; }
+      if (!info) return;
+      html = info.html; title = info.title; sp = got.hit.point;
+    } else if (SBMM.water && SBMM.water.active && SBMM.water.active()) {
+      const p = ctx.pickWorld(e);
+      if (!p) return;
+      const d = SBMM.water.describeAt(p[0], p[1]);
+      if (!d) return;
+      html = d.html; title = d.title; sp = ctx.pickScene(e);
+    }
+    if (!html) return;
+    openCard(html, sp, title);
+    dwellCard = true; dwellAt = { x: e.clientX, y: e.clientY };
+    hideTip();
+  }
   function onMove(e) {
     hoverEvt = e;
+    armDwell(e);
     if (hoverRAF) return;
     hoverRAF = requestAnimationFrame(() => { hoverRAF = 0; doHover(hoverEvt); });
   }
@@ -397,6 +438,7 @@ SBMM.pick3d = (function () {
     }, 0);
   }
   function closeCard() {
+    dwellCard = false; dwellAt = null;
     if (!card) return;
     document.removeEventListener("pointerdown", awayHandler, true);
     document.removeEventListener("keydown", escHandler, true);
@@ -453,15 +495,20 @@ SBMM.pick3d = (function () {
       try { info = got.entry.hit(got.hit); } catch (err) { console.error(err); }
       if (info) {
         openCard(info.html, got.hit.point, info.title);
+        dwellCard = false;
         if (info.featureId) SBMM.store.select(info.featureId);
         return true;
       }
     }
-    /* terrain fallback — the coordinate card §2 and §8 ask for */
+    /* terrain fallback — the coordinate card §2 and §8 ask for; with an
+       overtopping analysis open, the water and the rim band answer first */
     const p = ctx.pickWorld(e);
     if (!p) { closeCard(); return false; }
     const sp = ctx.pickScene(e);
-    openCard(SBMM.popups.forTerrain(p[0], p[1], p[2]), sp, "Point");
+    const d = SBMM.water && SBMM.water.active && SBMM.water.active() && SBMM.water.describeAt
+      ? SBMM.water.describeAt(p[0], p[1]) : null;
+    openCard(d ? d.html : SBMM.popups.forTerrain(p[0], p[1], p[2]), sp, d ? d.title : "Point");
+    dwellCard = false;
     return true;
   }
 
@@ -578,6 +625,14 @@ SBMM.pick3d = (function () {
        code through `touchDrag` from js/viewer3d.js's long-press instead. */
     const notFinger = e => e.pointerType !== "touch";
     dom.addEventListener("pointermove", e => { if (notFinger(e)) onMove(e); });
+    /* the dwell never fires across a press, a drag or a wheel: those are the
+       camera's, and a card popping up after every orbit would be the opposite
+       of understanding what was wanted */
+    dom.addEventListener("pointerdown", () => { pDown = true; cancelDwell(); }, true);
+    dom.addEventListener("pointerup", () => { pDown = false; cancelDwell(); }, true);
+    dom.addEventListener("pointercancel", () => { pDown = false; cancelDwell(); }, true);
+    dom.addEventListener("wheel", cancelDwell, { capture: true, passive: true });
+    dom.addEventListener("pointerleave", cancelDwell, true);
     dom.addEventListener("pointerleave", () => clearHover());
     dom.addEventListener("pointerdown", e => { if (notFinger(e)) onDown(e); }, true);
     dom.addEventListener("pointermove", e => { if (notFinger(e)) onDrag(e); }, true);
