@@ -866,22 +866,25 @@ SBMM.borelogs = (function () {
     if (tier === "mini") return { ax: 0, fs: 7, prof: [0, W], gl: null };
     if (tier === "stick") return { ax: 16, fs: 7.5, eax: null, prof: [18, 24],
                                    gl: [26, W - 22], smp: [W - 20, W - 2], grid: false };
-    /* sheet */
+    /* sheet — laid out from BOTH ends. The axes and the graphic log are fixed
+       widths on the left; the tests and the elevation axis are stacked inward
+       from the right edge; and the DESCRIPTION takes whatever is left, which
+       is the whole reason the window is wide. The optional columns drop from
+       the right in the order a log sheet would give them up — the remarks
+       first, then the lab chips — and the description is never dropped. */
     const fs = 9;
     const ax = 30, met = [34, 46], prof = [48, 56], gl = [60, 130], uscs = [136, 172];
-    let eax = W - 40, rem = [W - 172, eax - 8], lab = [W - 290, W - 180],
-        ph = [W - 358, W - 300], pp = [W - 428, W - 368], blows = [W - 490, W - 436],
-        smp = [W - 570, W - 496];
+    const eax = W - 40;
+    let x = eax - 10;
+    const put = w => { const b = [x - w, x]; x -= (w + 6); return b; };
     const L = { ax, fs, met, prof, gl, uscs, eax, grid: true };
-    /* narrow windows drop the optional columns from the right, in the order a
-       log sheet would: the remarks, then the lab chips. The description is
-       never dropped — it is what the width is for. */
-    if (W >= 1160) { L.rem = rem; L.lab = lab; L.ph = ph; L.pp = pp; L.blows = blows; L.smp = smp; }
-    else if (W >= 1000) { L.lab = [W - 118, eax - 8]; L.ph = [W - 186, W - 128];
-                          L.pp = [W - 256, W - 196]; L.blows = [W - 318, W - 264]; L.smp = [W - 398, W - 324]; }
-    else { L.ph = [W - 108, eax - 8]; L.pp = [W - 178, W - 118];
-           L.blows = [W - 240, W - 186]; L.smp = [W - 320, W - 246]; }
-    L.desc = [uscs[1] + 6, (L.smp ? L.smp[0] : eax) - 10];
+    if (W >= 1040) L.rem = put(112);
+    if (W >= 900) L.lab = put(98);
+    L.ph = put(58);
+    L.pp = put(54);
+    L.blows = put(52);
+    L.smp = put(74);
+    L.desc = [uscs[1] + 6, x - 4];
     if (L.desc[1] - L.desc[0] < 60) L.desc = null;
     return L;
   }
