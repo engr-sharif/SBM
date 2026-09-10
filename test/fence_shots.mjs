@@ -85,12 +85,12 @@ await wait(7000);
   /* orbit down to a shallow elevation */
   await page.mouse.move(cx, cy);
   await page.mouse.down();
-  for (let i = 1; i <= 6; i++) { await page.mouse.move(cx, cy - i * 20, { steps: 2 }); await wait(120); }
+  for (let i = 1; i <= 8; i++) { await page.mouse.move(cx, cy - i * 22, { steps: 2 }); await wait(120); }
   await page.mouse.up();
-  await wait(2500);
-  /* and in, until the 463-ft cut fills the frame */
-  for (let i = 0; i < 2; i++) { await page.mouse.wheel(0, -220); await wait(320); }
-  await wait(5000);
+  /* NO WHEEL. openAt targets the fence's own centre and an orbit keeps that
+     target; the wheel dollies toward the POINTER, which walked the target off
+     the cut and put the fence at the bottom edge of the frame. */
+  await wait(7000);
 }
 console.log("3D:", JSON.stringify(await page.evaluate(() => {
   const s = SBMM.viewer3d.stats();
