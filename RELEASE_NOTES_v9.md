@@ -17,6 +17,20 @@ All three are offline-only by design. Nothing in this app calls out to the inter
 
 ---
 
+## v9.26 — less reading (2026-09-09)
+
+- **The cards say the answer and stop.** The results sheets were explaining themselves
+  at length — the overtopping card alone had five sentences about the grid, the escape
+  test and the sealed flood before it got to a number. That is one line now
+  ("1-ft lidar (Jan 2024) · water level and pipe inverts from the Aug 2026 survey ·
+  static, no inflow · planning-level"), and the same cut went through the volume,
+  isopach, section, design, smart-boundary, tree, drainage, accumulation, design-storm,
+  pipe-capacity and scenario cards, the popups and the tool prompts. Nothing was thrown
+  away: the detail that mattered is on the hover tooltip of the row it belongs to, and
+  every caveat with weight — provisional, planning-level to 2 significant figures, not
+  surveyed, the cultural stamp — is still there in one clause. You should know what this
+  is about; the app has stopped assuming you don't.
+
 ## v9.25 — the boring logs (2026-09-09)
 
 The 44 soil borings we drilled in October–December 2025 are in the app. Click one and

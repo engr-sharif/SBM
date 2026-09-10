@@ -23,10 +23,8 @@
 SBMM.scenarios = (function () {
 
   const AC = 43560;
-  const NOTE = "A scenario is a named set of the assumptions the dialogs already offer, and "
-    + "running one calls the same kernels they call. Every caveat those cards carry — "
-    + "provisional rainfall, provisional pipe slopes, terrain-only catchments — carries "
-    + "here unchanged.";
+  const NOTE = "A named set of the assumptions the dialogs already offer, run through the "
+    + "same kernels \u00b7 every caveat those cards carry applies here unchanged";
 
   let list = [];                 // the scenarios, in the order they were made
   let activeId = null;           // the one whose settings the app is wearing
@@ -307,9 +305,9 @@ SBMM.scenarios = (function () {
   }
   function listHtml() {
     if (!list.length)
-      return `<div class="note">No scenarios yet. “capture” takes the switches as they stand `
-           + `— the storm, the soil-group rule, the storm-drain master switch and every broken `
-           + `conduit — and names them.</div>`;
+      return `<div class="note" title="The storm, the soil-group rule, the storm-drain master `
+           + `switch and every broken conduit">No scenarios yet \u2014 “capture” names the `
+           + `switches as they stand.</div>`;
     return `<div class="dspopwrap"><table class="dspop">
       <tr><td class="k"><b>scenario</b></td><td class="v"><b>result</b></td><td class="v"></td></tr>`
       + list.map(s =>
@@ -360,8 +358,7 @@ SBMM.scenarios = (function () {
       card.appendChild(pick);
       const sel = comparable(picked);
       if (picked.length >= 2 && sel.length < picked.length)
-        SBMM.results.appendNote(card, "One of the picked scenarios has not been run — "
-          + "run it and the comparison fills in.");
+        SBMM.results.appendNote(card, "One of the picked scenarios has not been run.");
       if (sel.length >= 2) {
         const cmp = document.createElement("div");
         cmp.innerHTML = compareHtml(sel);

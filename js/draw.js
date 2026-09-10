@@ -153,7 +153,7 @@ SBMM.draw = (function () {
       txt = `${fmt(lineLength(pts), 1)} ft`;
     }
     const hint = polar ? " · polar 15°" : "";
-    $("sketchTip").textContent = txt + `  ·  ${pts.length} vtx — type a distance or @dx,dy · double-click / Enter to finish, Esc cancels${hint}`;
+    $("sketchTip").textContent = txt + `  ·  ${pts.length} vtx · @dx,dy or a distance · Enter to finish${hint}`;
     $("sketchTip").style.display = "block";
   }
   function finish() {
@@ -202,7 +202,7 @@ SBMM.draw = (function () {
     if (!picking) return;
     const p = picking.opts.prompts || [];
     const msg = p[picking.pts.length] || p[p.length - 1] || "click a point";
-    $("sketchTip").textContent = msg + " — Esc cancels";
+    $("sketchTip").textContent = msg;
     $("sketchTip").style.display = "block";
   }
   function pickClick(x, y) {
@@ -237,7 +237,7 @@ SBMM.draw = (function () {
     for (const p of (g.dots || [])) {
       L.circleMarker([p[1], p[0]], { pane: "drawings", radius: 4, color: "#7CD0E6", weight: 2, fillColor: "#12181C", fillOpacity: 1, interactive: false }).addTo(picking.ghost);
     }
-    if (g.label) { $("sketchTip").textContent = g.label + " — Esc cancels"; }
+    if (g.label) { $("sketchTip").textContent = g.label; }
   }
   /* finish an open-ended pick with whatever has been collected */
   function finishPick() {

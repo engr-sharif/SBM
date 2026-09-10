@@ -348,13 +348,13 @@ SBMM.popups = (function () {
   function mouthNote(mo) {
     if (!mo) return "";
     if (mo.moved == null)
-      return `<span class="warntxt">Surveyed invert ${fmt(mo.ground, 2)} ft below the lidar ground here, `
-        + `and no cell at or under it within ${fmt0(SBMM.storm.MOUTH_SEARCH_FT)} ft — the analysis enters `
-        + `the pipe at the surveyed point.</span><br>`;
-    return `<span style="opacity:.75">Sunken mouth: the lidar (Jan 2024) reads `
-      + `${fmt(mo.ground, 2)} ft here — the sandbag wall, built after the flight. Inlet cell moved `
-      + `${fmt(mo.moved, 1)} ft to the channel floor the lidar sees (${fmt(mo.z, 2)} ft); the rim `
-      + `stays the surveyed invert.</span><br>`;
+      return `<span class="warntxt">Surveyed invert under the lidar ground (${fmt(mo.ground, 2)} ft) `
+        + `and no lower cell within ${fmt0(SBMM.storm.MOUTH_SEARCH_FT)} ft — the analysis enters at the `
+        + `surveyed point.</span><br>`;
+    return `<span style="opacity:.75" title="The lidar is the Jan 2024 flight and reads the sandbag `
+      + `wall built after it, so the pipe mouth is the nearest cell at or below the surveyed invert.">`
+      + `Sunken mouth · inlet cell moved ${fmt(mo.moved, 1)} ft to the channel floor the lidar sees `
+      + `(${fmt(mo.z, 2)} ft) · the rim stays the surveyed invert</span><br>`;
   }
 
   function forStorm(n, c) {
@@ -405,10 +405,8 @@ SBMM.popups = (function () {
       + hydRows(SBMM.pipes && SBMM.pipes.rowsForConduit ? SBMM.pipes.rowsForConduit(c.id) : "")
       + `<br><span style="opacity:.6;font-size:11px">`
       + (SBMM.pipes && SBMM.pipes.hasResult()
-         ? `Manning full-flow capacity and a steady-state hydraulic grade — no unsteady routing, `
-           + `no storage in the pipe, no time. Anything unsurveyed says so.`
-         : `A topological shortcut with an elevation at each end — no capacity, no hydraulic `
-           + `grade, no time.`)
+         ? `Manning capacity · steady-state HGL · no unsteady routing, no storage, no time`
+         : `A topological shortcut with an elevation at each end \u00b7 no capacity, no time`)
       + `</span>`;
     const acts = [];
     if (SBMM.pipes)
@@ -451,7 +449,7 @@ SBMM.popups = (function () {
         ["Threshold", (R ? R.threshold_ac : 5) + " ac"]
       ])
       + `<span style="opacity:.6;font-size:11px">Contributing AREA over the lidar bare earth, `
-      + `never discharge. The design storm is what turns an area into a flow.</span>`;
+      + `never discharge.</span>`;
     const acts = [];
     acts.push(btn("trace a raindrop here", () => SBMM.water.dropAt(s.pts[0][0], s.pts[0][1]),
                   "Follow the water from the head of this link"));

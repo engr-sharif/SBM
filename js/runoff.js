@@ -36,10 +36,8 @@
 SBMM.runoff = (function () {
 
   const AC = 43560;
-  const NOTE = "Planning-level: NRCS curve-number runoff over the lidar catchments, "
-    + "TR-55 time of concentration, an SCS unit hydrograph and level-pool routing. "
-    + "No infiltration model, no pipe capacity, no continuous simulation — every "
-    + "assumption is listed above and can be changed in the Design storm dialog.";
+  const NOTE = "NRCS curve number \u00b7 TR-55 Tc \u00b7 SCS unit hydrograph \u00b7 level-pool "
+    + "routing \u00b7 planning-level";
   const WEIR_C = 3.0;          // broad-crested weir coefficient, Q = C·L·H^1.5
   const SUB = "Design storm (rainfall + runoff)";   // the v16 layer-tree sub-group
 
@@ -650,21 +648,13 @@ SBMM.runoff = (function () {
   /* ------------------------------------------------------------------ */
   /* v22 §C: what this is, and a row per "where the water goes" class     */
   /* ------------------------------------------------------------------ */
-  /* The engineer read this card and said he did not understand how the
-     rainfall system works. So the card now opens by saying what it is, in one
-     paragraph, before any number. */
+  /* v23 §1 — the storm, the source and the ground it runs over, in one line.
+     The chain itself is the note at the foot of the card. */
   function whatIsHtml() {
     const st = R.settings;
-    return `<div class="note rnWhat">A design storm dropped on the whole site. `
-      + `${esc(R.storm.name)} means ${esc(fmt(R.storm.P, 2))} inches of rain in `
-      + `${esc(fmt(R.storm.hours, 0))} hours — a depth NOAA Atlas 14 gives for this point, `
-      + `spread over the day by the ${esc(st.dist)} distribution. The land-cover raster gives `
-      + `every 2-ft cell a curve number, the NRCS curve-number equation turns the depth into `
-      + `runoff, TR-55 says how long that runoff takes to arrive, and an SCS unit hydrograph `
-      + `turns the two into a peak flow. It runs over the catchments the drainage map drew, so `
-      + `"where does the water go" and "how much of it" cannot disagree about which ground `
-      + `drains where. Planning-level: every assumption is in the table at the bottom, and `
-      + `changing one is one dialog away.</div>`;
+    return `<div class="note rnWhat">${esc(R.storm.name)} \u00b7 `
+      + `${esc(fmt(R.storm.P, 2))} in in ${esc(fmt(R.storm.hours, 0))} h `
+      + `(NOAA Atlas 14, ${esc(st.dist)}) \u00b7 over the drainage map's own catchments</div>`;
   }
 
   /* Rainfall depth x each class's runoff volume, apportioned from the
@@ -727,9 +717,7 @@ SBMM.runoff = (function () {
   function classHtml() {
     const rows = classRows();
     if (!rows.length)
-      return `<div class="note">Where the water goes: not computed yet — tick `
-        + `<b>Where the water goes</b> in Layers, or type WHEREWATER, and this card will `
-        + `carry a line for each of the four areas.</div>`;
+      return `<div class="note">Where the water goes \u2014 not computed (WHEREWATER)</div>`;
     const rowsH = rows.map(c =>
       `<tr><td class="k"><span class="wwsw" style="background:${c.color}"></span>${esc(c.label)}</td>`
       + `<td class="v mono">${fmt(c.acres, 1)}</td>`
@@ -742,9 +730,8 @@ SBMM.runoff = (function () {
       + `<tr><td class="k"><b>area</b></td><td class="v"><b>ac</b></td>`
       + `<td class="v"><b>ac-ft in this storm</b></td></tr>${rowsH}${extra}</table>`
       + `<div class="note">${esc(impoundLine(rows))}</div>`
-      + `<div class="note">Apportioned from the catchment table below by AREA: "where the water `
-      + `goes" splits the same Phase 1 catchments at a finer outlet naming, so a class carries `
-      + `its outlet's runoff depth. No curve number is recomputed per class.</div></div>`;
+      + `<div class="note">Apportioned by AREA from the catchment table below \u2014 no curve `
+      + `number is recomputed per class.</div></div>`;
   }
 
   function tableHtml() {
@@ -776,9 +763,8 @@ SBMM.runoff = (function () {
       <tr><td class="k"><b>pond (level-pool)</b></td><td class="v"><b>peak ft</b></td>
           <td class="v"><b>freeboard</b></td><td class="v"><b>t peak h</b></td><td class="v"><b>outcome</b></td></tr>
       ${rowsH}</table>
-      <div class="note">The named water bodies only — every lidar depression is a pond, and the
-      ones worth routing are the ones EA's water layer names. Outlet ratings: a broad-crested weir
-      over the rim (Q = 3.0·L·H^1.5). A conduit with no surveyed size or invert passes its inflow —
+      <div class="note">Named water bodies only · broad-crested weir over the rim
+      (Q = 3.0·L·H^1.5) · a conduit with no surveyed size or invert passes its inflow —
       capacity unknown, survey pending.</div></div>`;
   }
   function assumptionRows() {
@@ -818,8 +804,8 @@ SBMM.runoff = (function () {
     if (R.provisional) {
       const w = document.createElement("div");
       w.className = "note bad rnProv";
-      w.textContent = "provisional depths — replace with the Atlas 14 export "
-        + "(data/atlas14_sbmm.csv, then tools/build_rainfall.py)";
+      w.textContent = "PROVISIONAL depths — Atlas 14 export pending";
+      w.title = "data/atlas14_sbmm.csv, then tools/build_rainfall.py";
       card.appendChild(w);
     }
     const box = document.createElement("div");

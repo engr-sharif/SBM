@@ -295,13 +295,12 @@ SBMM.trees = (function () {
       ["Median crown", fmt0(data.area[Math.floor(data.n / 2)]) + " ft² "],
       ["Detection", (data.ms / 1000).toFixed(1) + " s · " + fmt0(data.maxima) + " maxima"]
     ]);
-    SBMM.results.appendNote(card,
-      "Variable-window local maxima on the cleaned canopy height model (window radius = " +
-      "max(4 ft, 0.35 × height), the usual allometric rule), then a marker-based region " +
-      "grow cut at saddles and below 0.3 × apex height. Heights are canopy height above " +
-      "bare earth, over the mine-area window only. Individual-tree detection from a 1-ft " +
-      "CHM is reliable for dominant, well-separated crowns and merges or misses suppressed " +
-      "understorey — treat the count as a canopy inventory, not a stem count.");
+    const n = SBMM.results.appendNote(card,
+      "Variable-window local maxima on the cleaned CHM, mine-area window only \u00b7 heights "
+      + "are canopy above bare earth \u00b7 a canopy inventory, not a stem count");
+    n.title = "Window radius = max(4 ft, 0.35 × height), then a marker-based region grow cut at "
+      + "saddles and below 0.3 × apex height. Detection from a 1-ft CHM is reliable for dominant, "
+      + "well-separated crowns and merges or misses suppressed understorey.";
     const row = document.createElement("div"); row.className = "volctl";
     row.innerHTML = `<div class="crow btns"><button class="minib">export inventory CSV</button></div>`;
     row.querySelector("button").onclick = () => exportCsv();

@@ -313,8 +313,8 @@ SBMM.design = (function () {
     }
     f.card.appendChild(ctl);
     SBMM.results.appendNote(f.card,
-      "Design surface: flat/sloped pad inside the footprint, side slopes daylighting into existing ground. " +
-      "Quantities are neat in-place topographic volumes against the January 2024 lidar surface — no bulking, planning-level.");
+      "Pad inside the footprint, side slopes daylighting into existing ground \u00b7 "
+      + "against the Jan 2024 lidar \u00b7 " + SBMM.tools.PLANNING_NOTE);
   }
 
   /* one-click: a volume footprint over this pad, measured against this design */
@@ -393,14 +393,14 @@ SBMM.design = (function () {
     let box = f.card.querySelector(".sbalbox");
     if (!box) { box = document.createElement("div"); box.className = "vrangebox sbalbox"; f.card.appendChild(box); }
     box.innerHTML =
-      `<div class="rhead">Balanced pad elevation</div>
+      `<div class="rhead" title="Bisection on pad elevation, ${R.iters} iterations on a ${fmt0(j.cell)}-ft raster, confirmed on the ${fmt0(f._surf.cell)}-ft design grid">Balanced pad elevation</div>
        <div class="rtrip"><span><b>${fmt(f.props.padZ, 2)}</b><i>ft</i></span>
          <span class="mid"><b>${sig2(cut)}</b><i>cut yd³</i></span>
          <span><b>${sig2(fill)}</b><i>fill yd³</i></span></div>
        <div class="note">${targetYd3
          ? `Solved for a net of ${sig2(targetYd3)} yd³ (${targetYd3 > 0 ? "surplus to haul off" : "borrow to import"}); residual ${sig2(net)} yd³.`
          : `Net ${sig2(net)} yd³ — <b>haul ≈ 0</b>, cut and fill agree to ${fmt(pct, 1)}%.`}
-         Bisection on pad elevation, ${R.iters} iterations on a ${fmt0(j.cell)}-ft raster, confirmed on the ${fmt0(f._surf.cell)}-ft design grid.</div>`;
+         </div>`;
     SBMM.props && SBMM.props.refresh(f);
     toast(`balanced at ${fmt(f.props.padZ, 2)} ft — cut ${sig2(cut)} / fill ${sig2(fill)} yd³`);
     return { z: f.props.padZ, cut, fill, net };

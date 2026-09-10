@@ -205,9 +205,9 @@ SBMM.sections = (function () {
        <table class="rmeth"><tr><td>average end area</td><td class="num">${sig2(c.ea.cut)} / ${sig2(c.ea.fill)}</td></tr>
         <tr><td>grid integration</td><td class="num">${sig2(c.grid.cut)} / ${sig2(c.grid.fill)}</td></tr>
         <tr class="${ok ? "best" : "warn"}"><td>difference</td><td class="num">${fmt(c.diffPct, 1)} %</td></tr></table>
-       <div class="note">cut / fill in yd³ over the section corridor. Two independent numerical
-        methods over the same terrain and the same design surface; a few percent apart is normal —
-        end areas are a coarser sampling of the same solid.</div>`;
+       <div class="note" title="Two independent numerical methods over the same terrain and the
+        same design surface; a few percent apart is normal — end areas are a coarser sampling of
+        the same solid.">cut / fill in yd³ over the section corridor</div>`;
   }
 
   /* ------------------------------------------------------------------ */
@@ -388,7 +388,7 @@ SBMM.sections = (function () {
       drawPlot({ width: PW, height: PH, getContext: () => g2 }, f, s);
       const read = document.createElement("div");
       read.className = "secread mono";
-      read.textContent = "hover for offset / elevation";
+      read.textContent = "offset / elevation";
       cv.addEventListener("mousemove", ev => {
         const r = cv.getBoundingClientRect();
         const px = (ev.clientX - r.left) * (PW / r.width);
@@ -400,7 +400,7 @@ SBMM.sections = (function () {
         read.textContent = `off ${off > 0 ? "+" : ""}${off.toFixed(0)} ft · ground ${isNaN(gz) ? "—" : gz.toFixed(1)}` +
           (isNaN(dz) ? "" : ` · design ${dz.toFixed(1)} · Δ ${(gz - dz).toFixed(1)}`);
       });
-      cv.addEventListener("mouseleave", () => { read.textContent = "hover for offset / elevation"; });
+      cv.addEventListener("mouseleave", () => { read.textContent = "offset / elevation"; });
       cv.addEventListener("click", () => {
         SBMM.map.setView([R.cy[s], R.cx[s]], Math.max(SBMM.map.getZoom(), 2));
       });
@@ -435,8 +435,8 @@ SBMM.sections = (function () {
     q(".sreport").onclick = () => SBMM.report.open(f);
     f.card.appendChild(ctl);
     SBMM.results.appendNote(f.card,
-      "Sections are cut perpendicular to the alignment at the station interval. End-area volumes " +
-      "use the average-end-area rule and are cross-checked against the grid integration of the same corridor.");
+      "Cut perpendicular to the alignment at the station interval \u00b7 average-end-area "
+      + "volumes, cross-checked against a grid integration of the same corridor");
     refreshDesignSelects();
   }
   function refreshDesignSelects() {
