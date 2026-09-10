@@ -1757,6 +1757,23 @@ between neighbours and nothing more) and **the true horizontal separation printe
 each pair**, so 60 ft apart never reads like 600. This is the fence diagram without the
 ground under it.
 
+**Fence** is the section through the subsurface (v9.28). `FENCE`, or **draw a fence** on
+the tab: click a line across the site and every boring within the swath — 150 ft either
+side by default, `FENCE 300` to widen it as you arm the tool — is projected square onto
+the alignment and drawn at its own station with its offset printed (`SB-9 · 42 ft L`). The
+lidar surface is the top; the native contact, the top of bedrock and the water level are
+joined between neighbouring holes, dashed where the next hole never reached that horizon;
+the waste between the surface and the contact is shaded; each hole's own logged ground is
+a tick on the surface line. The correlation is linear between neighbours and the drawing
+says so. 1×, 2× and 5× vertical, the scale bar stating both. On the map the alignment
+carries its swath as a band and a tick per hole, and hovering either end lights up the
+other. In 3D it stands in the ground as a cut with the terrain drawn over it. Exports:
+PNG, CSV (station, offset, both grounds, and the contact, bedrock and water elevations)
+and **DXF in section coordinates** — X = station ft, Y = elevation ft, a layer per horizon
+and a layer per hole, which opens straight into a Civil 3D section view. A fence is an
+ordinary drawing: it undoes, saves in a session, re-cuts itself when its ends are dragged,
+and lives in My work under **Borings**.
+
 **Table** is the reconciliation sheet at full width: all 44 holes with waste area, ground
 elevation, both contacts and their elevations, bedrock and its elevation, groundwater, who
 logged it and when, the flags, and a mini column per row. Sortable on any column,
