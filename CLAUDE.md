@@ -392,6 +392,7 @@ terrain source, which needs an explicit decision + README/test update).
 | trees.js | individual tree detection over CHM, canvas dot layer, CSV inventory |
 | borelogs.js | **the 2025 boring logs (OpenGround)** — the strip log in a results card (class profile, strata + USCS, SPT with the pocket penetrometer, pH against the acid threshold, method bands, the water symbol), the TWO contact statements drawn together and reconciled nowhere, the 44-hole `LOGS` table, the CSV and the PNG, the popup button, `LOG` / `LOGS`, the class palette every other view reads through `classColor()`, and since v23 **the column renderer `column()`** every face of the borings is drawn by; `SBMM.borelogs` |
 | borewin.js | **v23 Phase A — the boring-log window** on the sheet-window chassis: the Log tab as a real log sheet at 1 in = 5 ft with the depth cursor, Compare (2–6 holes on one elevation datum, correlation lines, printed separations), the 44-hole Table, the printed log sheet through `js/report.js`, the hole picker, `LOGWIN`; `SBMM.borewin` |
+| fence.js | **v23 Phase B — the fence diagram**: the `fence` store feature (a section through the subsurface along a drawn line), `projectHoles`/`groundProfile`, the SVG the Fence tab, the PNG and the 3D texture are all drawn from, the cut on the map (alignment + swath band + a tick per projected hole), the CSV, the **section-coordinate DXF** (X = station ft, Y = elevation ft) and `FENCE`; `SBMM.fence` |
 | io.js | GeoJSON (WGS84 + EPSG:6418) / session / CSV import-export |
 | dxf.js | DXF R12 export + R12/2000 import, raw SP ft |
 | designea.js | EA residential design **from the PDFs**: sheet rasters, extracted boundaries, surveyed nodes, per-sheet 3D drape toggle, sheet-footprint click target (read-only project data, NOT `SBMM.store` features). Boundary layer defaults **off** since v8 |
@@ -2460,6 +2461,122 @@ a sentence because a test reads it.
 - **The toolbar carries three tabs, not five.** *Fence* is Phase B and *Site* is
   Phase C; a tab that toasts "not built yet" is worse than a tab that is not
   there. They go in when they exist.
+
+## v23 Phase B — the fence
+
+Contract: `docs/V23_BORINGS_SPEC.md` §3. No kernel work (`js/compute.js` is not
+touched; `VERSION` stays 10). New file `js/fence.js` (`SBMM.fence`); the rest is
+the Fence tab in `js/borewin.js`, `SBMM.dxf.writeEntities`, the five
+FeatureGroup places in `js/tools.js`, a **Borings** class row in `js/layers.js`,
+a `fence` mode in `js/mode.js`, `FENCE` in `js/cmdline.js`, the strip and its
+texture in `js/viewer3d.js`, the `fence` pick kind in `js/pick3d.js`, the fence
+rows in `js/popups.js` and the alignment in `js/io.js`. E2E block **9ag**, one
+assertion each in `test/e2e_field.mjs` and `test/e2e_phone.mjs`; shots
+`test/fence_shots.mjs`.
+
+**A fence is one more PLACEMENT of the same column.** Every column on it is
+`SBMM.borelogs.column(h, {tier:"stick", datum:"elev", zTop, zBot, ppf, padTop})`
+— the same call the Compare tab makes — and **the shared datum is set by `zTop`
+alone**: `column()` maps the window's top elevation to `padTop`, so adding
+`(zTop − h.elev)·ppf` to `padTop` as well counts the datum twice and the columns
+land off the bottom of the drawing, silently. That is the Phase A trap, and the
+fence carries the same guard: every column is wrapped in a `<g class="fncol">`
+with `data-y0` / `data-elev` / `data-sta` / `data-off`, and block 9ag reads the
+datum back out of those rather than eyeballing it (worst residual 0.003 px over
+four columns).
+
+### Six things that will be walked into again
+
+- **A HOLE'S OFFSET IS ITS DISTANCE TO THE ALIGNMENT, NOT TO THE SEGMENT'S
+  INFINITE LINE.** A hole past the end of the drawn line has its perpendicular
+  foot CLAMPED to the endpoint, and the distance to the segment's extension is
+  shorter than the hole really is from the section: SB-8 came inside a 300-ft
+  swath reading "188 ft R" when it is 292.8 ft from the line. `projectPoint`
+  takes the sign from the cross product (positive RIGHT looking up-station, the
+  convention `js/sections.js` uses) and the MAGNITUDE from `d`, the distance to
+  the nearest point ON the alignment. For an interior projection the two are
+  identical; at an end they are not, and it is the end that decides whether a
+  hole is on the fence at all.
+- **A BORING IS AN INTERACTIVE MAP MARKER AND IT EATS THE SKETCH CLICK.** Block
+  9ag clicks 60 ft BEYOND each hole along the line rather than on it: clicking
+  the hole itself opened the dataset popup, the sketch collected nothing, and
+  Enter then refused — which reads exactly like "Enter does not work". Extending
+  the line past both holes puts the pointer on empty ground and leaves both
+  holes inside the fence, which is what a fence through two borings looks like
+  anyway.
+- **AND THE 3D VIEW HAS TO BE SHUT BEFORE A MAP CLICK.** Block 9ae leaves it
+  open and the 3D canvas covers the map, so a page click at a map coordinate
+  reaches the canvas. `--only 9ag` opens with 3D closed, which is why this only
+  bites in sequence — and it is the second failure that looks like a broken
+  Enter key.
+- **`SBMM.mode.set` runs `enter()` SYNCHRONOUSLY**, so `FENCE 260` has to stash
+  its props BEFORE the mode change, not after: `beginSketch` reads them from
+  inside `enter()`, and setting them afterwards drew a 150-ft swath with no
+  error anywhere. The sketch's `onDone` also calls `SBMM.mode.navigate()` —
+  leaving the HUD saying "Fence" with nothing armed is §2 broken quietly.
+- **`close()` sets `W = null` at once and removes the element 200 ms later**, so
+  a harness probe that reads `document.querySelector(".blwin")` gets the
+  PREVIOUS log window while the module's own `tab()` already reads "fence". The
+  field and phone probes take `[...document.querySelectorAll(".blwin")].pop()`.
+  And `getBoundingClientRect` is the TRANSFORMED box while the window rises from
+  `scale(.08)` — the drawing's own `width` attribute and the body's
+  `scrollWidth − clientWidth` are what say whether it fits a 393-px stage.
+- **THE 3D STRIP IS UNDERGROUND BY DESIGN.** Its top edge IS the lidar surface,
+  so from above the terrain draws over all of it and a top-down screenshot is a
+  picture of nothing — `test/fence_shots.mjs` drives the camera down to a low
+  oblique with REAL pointer events, because the nav rig eases towards a
+  destination and only asks for frames while it is being driven (a programmatic
+  `nav.place` moves the camera and never repaints). The plate is TRANSLUCENT
+  (`bg: "rgba(11,16,19,.62)"`, the one thing the 3D texture changes about the
+  drawing): an opaque section standing in the terrain reads as a black wall from
+  any distance, and the first cut did.
+
+### The rest of it, in short
+
+- **The 3D strip** is one `BufferGeometry` wall following the alignment
+  resampled at 10 ft, top at the lidar surface and bottom at the fence's own
+  datum floor, `DoubleSide`, `depthWrite:false`, `polygonOffset`, `renderOrder`
+  3, `userData.layer = {g:"mywork", l:"borings"}` for block 9y and a `fence`
+  pick tag carrying the hole list and the scene's centring constants so the card
+  can name the boring nearest the hit. **The UVs come from the DRAWING's own
+  mapping** (`xOf(station)`, `yOf(elevation)`), so the columns, the horizons and
+  the waste band land exactly where the 2D drawing puts them and the axes, which
+  live in the margins, simply fall outside the wall. A vertex with no ground
+  under it BREAKS the wall — the same rule `js/layers.js` applies to the survey
+  contours and `js/drainage.js` to a catchment boundary. **The texture is built
+  once per overlay rebuild**, keyed on a signature computed WITHOUT drawing
+  (`rebuildOverlays` runs on every selection change and a 100 kB SVG string per
+  rebuild is exactly the per-frame-adjacent work §3.2 keeps out), and the async
+  decode asks for exactly one render when it lands — block 9e's idle contract
+  holds.
+- **`SBMM.dxf.writeEntities(layers, entities)`** is the section-coordinate
+  export's writer, and it is the SAME R12 writer: the header, the layer table,
+  the POLYLINE/VERTEX shape and the ACI matching do not care whether X is a
+  State Plane easting or a station. `js/fence.js` builds the entity list; the
+  swath and the hole ties still ride along in the ordinary State Plane DXF on
+  `FENCE-SWATH`, and the alignment in the GeoJSON.
+- **`mkFence` re-derives rather than storing**, and the invariant is the one the
+  e2e asserts: **zero compute jobs across a session round trip**. The projection
+  is 44 dot products and the ground a few hundred bilinear reads; the session
+  carries the scalars (`swath_ft`, `ve`, `length_ft`, `n_holes`, the datum, and
+  each hole's id/station/offset) rather than 1,500 ground samples per fence.
+  Editing the alignment goes through `SBMM.tools.recompute`'s new `fence` branch
+  — no job to debounce, no handle to cancel.
+- **The drawing's own minimum is 360 px** (PADL + PADR + a column at each end is
+  184 px before a station is drawn) and the Fence tab asks for
+  `max(touch ? 330 : 560, body.clientWidth − 18)`, so a 393-px phone stage gets
+  the drawing at 1:1 instead of a 560-px one scaled down — which shrinks the
+  text and keeps the collisions, the results-card strip log's own lesson.
+- **`PROFILE` is not an alias.** It is the elevation-profile command's own name;
+  `GEOSECTION` and `FENCEDIAGRAM` are the two, and `test/check.mjs` fails on a
+  duplicate.
+- **`mywork/borings` is a DATED exemption in block 9z**, beside the design-storm,
+  accumulation and where-the-water-goes rows: the class row is registered
+  through `SBMM.addLayerRow` like every other, and it is APPENDED to `CLASSES`
+  because `classOf` reads `CLASSES[4]` as "imported wins".
+- **`SBMM.fence.projectHoles(alignment, halfFt)` is the Phase C seam** — the
+  same projection, exported, so the thickness control points do not get a second
+  copy of it.
 
 ## Undo and redo (v9.4) — the both-closures rule and `readd`
 

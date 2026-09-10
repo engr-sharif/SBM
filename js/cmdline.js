@@ -224,6 +224,17 @@ SBMM.cmd = (function () {
         if (!SBMM.borewin) { toast("the log window is not in this build"); return; }
         SBMM.borewin.open(v ? String(v).trim() : null);
       } },
+    /* v23 Phase B. GEOSECTION and FENCEDIAGRAM are free; PROFILE is NOT — it
+       is the elevation-profile command's own name, and an alias resolves
+       first-match over one flat table, so claiming it would kill the profile
+       tool silently. test/check.mjs fails on a duplicate. */
+    { n: "FENCE", a: ["GEOSECTION", "FENCEDIAGRAM"],
+      d: "fence diagram — a section through the borings along a line you draw",
+      arg: "swath half-width ft",
+      f: v => {
+        if (!SBMM.fence) { toast("this build has no fence diagram"); return; }
+        SBMM.fence.cmd(v);
+      } },
     { n: "LOGS", a: ["BORELOGS", "BORINGS"],
       d: "every boring log in one table — the two contact statements per hole, and where they disagree",
       f: () => {

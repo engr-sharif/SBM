@@ -8043,6 +8043,622 @@ if (errors.length !== errBeforeWin) {
               errors.slice(errBeforeWin, errBeforeWin + 4)); process.exit(1); }
 });
 
+let fnPay, fnMade, fnRef, fnDraw, fnVe, fnHz, fnCsv, fnDxf, fn3d, fnTrip, fnUndo, fnWin, fnGone, errBeforeFence;
+await block("9ag. the fence", async () => {
+/* 9ag. the fence diagram (js/fence.js, v23 Phase B)                     */
+/* ==================================================================== */
+/* §5's Phase B row. A fence is a section through the SUBSURFACE along a
+   line the engineer draws, and what is asserted here is that every number
+   on it comes from somewhere checkable:
+
+     * the holes inside the swath, their stations and their offsets, against
+       a projection this file computes ITSELF out of the payload's x, y — a
+       harness that calls the module's own projectHoles proves the module
+       runs, not that it is right;
+     * the ground line against SBMM.elev at every station it sampled;
+     * ONE correlation segment per neighbouring pair per horizon, dashed
+       exactly where the far hole never reached it;
+     * the shared datum: every column's collar y is decided by zTop and by
+       its own ground elevation, and by nothing else (the Phase A trap);
+     * the vertical exaggeration control moves the drawing's height by the
+       factor it states;
+     * the CSV's header and a row read off the payload;
+     * the DXF in SECTION coordinates, parsed BACK through js/dxf.js — the
+       horizons on their own layers, X = station and Y = elevation;
+     * the 3D strip drawn, tagged mywork/borings and pickable;
+     * a session round trip that rebuilds it with ZERO compute jobs;
+     * undo removes it and redo brings back the SAME id;
+     * and with the payload deleted every entry point toasts.
+
+   It leaves the Layers tab shown and the 3D view as 9af left it, because
+   9z runs next and drags a row by its page position. */
+errBeforeFence = errors.length;
+
+/* ---- the payload facts, read here so `--only 9ag` stands on its own ---- */
+fnPay = await page.evaluate(() => {
+  const D = SBMM_DATA.borings_logs;
+  const pick = id => D.holes.find(h => h.id === id);
+  const a = pick("SB-9"), b = pick("SB-10");
+  return { n: D.holes.length,
+           a: { id: a.id, x: a.x, y: a.y, elev: a.elev, depth: a.depth },
+           b: { id: b.id, x: b.x, y: b.y, elev: b.elev, depth: b.depth },
+           all: D.holes.map(h => ({ id: h.id, x: h.x, y: h.y, elev: h.elev, depth: h.depth,
+                                    nc: (h.contacts || {}).native_contact,
+                                    rock: (h.contacts || {}).bedrock_top,
+                                    wat: (h.water && h.water.encountered && h.water.depth != null)
+                                           ? h.water.depth : null })) };
+});
+console.log("fence payload:", fnPay.n, "holes · SB-9", fnPay.a.x.toFixed(1), fnPay.a.y.toFixed(1),
+            "· SB-10", fnPay.b.x.toFixed(1), fnPay.b.y.toFixed(1));
+
+/* THE REFERENCE PROJECTION, written here out of the payload's own numbers.
+   Closest point on the two-vertex alignment, clamped to it; the station is
+   the distance along, the offset's MAGNITUDE is the distance to that point
+   (not to the segment's infinite line — a hole past the end is further from
+   the fence than its perpendicular offset says) and its sign is the cross
+   product, positive to the right looking up-station. */
+const SWATH = 260;
+const project = (a, b) => {
+  const dx = b[0] - a[0], dy = b[1] - a[1], len = Math.hypot(dx, dy);
+  const ux = dx / len, uy = dy / len;
+  const out = [];
+  for (const h of fnPay.all) {
+    const t = Math.max(0, Math.min(len, (h.x - a[0]) * ux + (h.y - a[1]) * uy));
+    const px = a[0] + ux * t, py = a[1] + uy * t;
+    const d = Math.hypot(h.x - px, h.y - py);
+    if (d > SWATH) continue;
+    const cross = (h.x - a[0]) * (-uy) + (h.y - a[1]) * ux;
+    out.push({ id: h.id, sta: t, off: (cross > 0 ? -1 : 1) * d });
+  }
+  out.sort((p, q) => p.sta - q.sta);
+  return { total: len, holes: out };
+};
+/* THE CLICKS GO 60 FT BEYOND EACH HOLE, NOT ON IT. A boring is an interactive
+   dataset marker and it eats the click — the sketch collected nothing and Enter
+   then refused, which reads exactly like "Enter does not work". Extending the
+   line past both holes puts the pointer on empty ground and leaves both holes
+   INSIDE the fence, which is what a fence through two borings should look like
+   anyway. */
+const fnAim = (() => {
+  const a = [fnPay.a.x, fnPay.a.y], b = [fnPay.b.x, fnPay.b.y];
+  const len = Math.hypot(b[0] - a[0], b[1] - a[1]);
+  const ux = (b[0] - a[0]) / len, uy = (b[1] - a[1]) / len;
+  return [{ id: "before SB-9", x: a[0] - ux * 60, y: a[1] - uy * 60 },
+          { id: "past SB-10", x: b[0] + ux * 60, y: b[1] + uy * 60 }];
+})();
+
+/* ---- draw the fence: the command, then the sketch, exactly as a user does ----
+   invalidateSize FIRST: block 9af leaves the 3D view open, and Leaflet answers
+   latLngToContainerPoint from a cached map size — without it the clicks land
+   somewhere else entirely (the same trap the C-106 footprint click carries).
+   And the two holes have to be ON SCREEN before a screen click can reach them. */
+await page.evaluate(([a, b]) => {
+  SBMM.borewin.close();
+  /* AND THE 3D VIEW HAS TO BE SHUT. Block 9ae leaves it open, and the 3D canvas
+     covers the map — a page click at a map coordinate reaches the canvas, the
+     sketch collects nothing, and Enter then refuses. `--only 9ag` opens with it
+     closed, which is why this only bites in sequence. */
+  if (SBMM.viewer3d.isOpen()) SBMM.viewer3d.toggle();
+  SBMM.map.invalidateSize();
+  SBMM.map.fitBounds([[Math.min(a.y, b.y), Math.min(a.x, b.x)],
+                      [Math.max(a.y, b.y), Math.max(a.x, b.x)]], { animate: false, padding: [90, 90] });
+}, [fnAim[0], fnAim[1]]);
+await page.waitForTimeout(1400);
+await page.evaluate(() => { SBMM.cmd.run("FENCE 260"); });
+await page.waitForTimeout(500);
+const fnArmed = await page.evaluate(() => ({ mode: SBMM.mode.current(),
+                                             tip: ($("sketchTip") || {}).textContent || "" }));
+console.log("FENCE armed:", JSON.stringify(fnArmed));
+if (fnArmed.mode !== "fence") { console.log("FAIL: FENCE did not arm the fence mode", fnArmed); process.exit(1); }
+if (!/fence/i.test(fnArmed.tip) || !/alignment/i.test(fnArmed.tip))
+  { console.log("FAIL: the fence sketch prompt does not name the alignment", fnArmed); process.exit(1); }
+
+/* the two clicks, at the two holes' own coordinates, through the map's own
+   projection — the same route the sketch engine takes from a real pointer */
+for (const p of fnAim) {
+  const pt = await page.evaluate(q => {
+    const c = SBMM.map.latLngToContainerPoint([q.y, q.x]);
+    const r = document.getElementById("map").getBoundingClientRect();
+    const scr = { x: Math.round(r.left + c.x), y: Math.round(r.top + c.y) };
+    /* prove the screen point maps back to the hole before clicking it */
+    const back = SBMM.map.containerPointToLatLng([scr.x - r.left, scr.y - r.top]);
+    scr.dx = back.lng - q.x; scr.dy = back.lat - q.y;
+    scr.onScreen = scr.x > r.left + 4 && scr.x < r.right - 4 && scr.y > r.top + 4 && scr.y < r.bottom - 4;
+    return scr;
+  }, p);
+  console.log("   click at", p.id, JSON.stringify(pt));
+  if (!pt.onScreen || Math.abs(pt.dx) > 3 || Math.abs(pt.dy) > 3)
+    { console.log("FAIL: could not aim at", p.id, pt); process.exit(1); }
+  await page.mouse.move(pt.x, pt.y);
+  await page.waitForTimeout(120);
+  await page.mouse.click(pt.x, pt.y);
+  await page.waitForTimeout(400);
+}
+const fnPicked = await page.evaluate(() => ({ picking: SBMM.draw.isPicking(),
+  tip: ($("sketchTip") || {}).textContent || "" }));
+console.log("after two clicks:", JSON.stringify(fnPicked));
+if (!fnPicked.picking) { console.log("FAIL: the fence sketch is no longer collecting points"); process.exit(1); }
+/* Enter finishes an open-ended pick — but js/draw.js's key handler steps aside
+   while a text field has the focus, and SBMM.cmd.run leaves the command bar
+   focused. Blur it, the way clicking the map would. */
+const fnFocus = await page.evaluate(() => {
+  const a = document.activeElement;
+  const tag = a ? (a.id || a.tagName) : "none";
+  if (a && a.blur) a.blur();
+  return tag;
+});
+console.log("focus before Enter:", fnFocus);
+await page.waitForTimeout(150);
+await page.keyboard.press("Enter");
+await page.waitForTimeout(600);
+await page.waitForTimeout(900);
+
+fnMade = await page.evaluate(() => {
+  const f = SBMM.store.features.filter(g => g.type === "fence").pop();
+  if (!f) return null;
+  f.__pts = f.pts.map(p => p.slice());
+  SBMM.store.select(f.id);
+  SBMM.fence.setCurrent(f.id);
+  const st = SBMM.fence.stateOf(f);
+  return { id: f.id, name: f.name, group: f.group, cls: SBMM.myWork.classOf(f),
+           nPts: f.pts.length, pts: f.pts.map(p => p.slice()),
+           props: JSON.parse(JSON.stringify(f.props)), st,
+           onMap: !!(f.layer && SBMM.map.hasLayer(f.layer)),
+           sub: f.layer ? f.layer.getLayers().length : 0,
+           card: !!(f.card && f.card.isConnected),
+           mode: SBMM.mode.current() };
+});
+console.log("fence drawn:", JSON.stringify({ id: fnMade && fnMade.id, name: fnMade && fnMade.name,
+  cls: fnMade && fnMade.cls, sub: fnMade && fnMade.sub, mode: fnMade && fnMade.mode,
+  holes: fnMade && fnMade.st.holes.length }));
+if (!fnMade) {
+  console.log("FAIL: the sketch did not produce a fence feature");
+  console.log("   still picking:", await page.evaluate(() => SBMM.draw.isPicking()),
+              "| mode:", await page.evaluate(() => SBMM.mode.current()),
+              "| errors since:", JSON.stringify(errors.slice(errBeforeFence, errBeforeFence + 4)));
+  process.exit(1); }
+if (fnMade.nPts !== 2) { console.log("FAIL: the alignment is not the two clicked points", fnMade.nPts); process.exit(1); }
+if (fnMade.cls !== "borings")
+  { console.log("FAIL: a fence must join the Borings My-work class, got", fnMade.cls); process.exit(1); }
+if (!fnMade.onMap || fnMade.sub < 3)
+  { console.log("FAIL: the cut on the map is missing (alignment, swath, ticks)", fnMade); process.exit(1); }
+if (!fnMade.card) { console.log("FAIL: the fence has no results card"); process.exit(1); }
+if (fnMade.mode !== "navigate")
+  { console.log("FAIL: finishing the sketch did not return to Navigate, got", fnMade.mode); process.exit(1); }
+if (fnMade.props.swath_ft !== 260)
+  { console.log("FAIL: FENCE 260 did not set the swath", fnMade.props.swath_ft); process.exit(1); }
+
+/* ---- the projection, against this file's own arithmetic (±1 ft) ---- */
+/* the reference is computed from the alignment the app ENDED UP WITH, so the
+   clicks are checked separately (they landed within 3 ft above) and the
+   projection is checked against maths written here rather than borrowed */
+fnRef = project(fnMade.pts[0], fnMade.pts[1]);
+console.log("reference projection:", fnRef.holes.length, "holes in a", SWATH, "ft swath ·",
+            "alignment", fnRef.total.toFixed(2), "ft ·",
+            JSON.stringify(fnRef.holes.map(h => h.id + " " + h.sta.toFixed(1) + "/" + h.off.toFixed(1))));
+{
+  const got = fnMade.st.holes;
+  if (got.length !== fnRef.holes.length) {
+    console.log("FAIL: the swath caught a different set of holes — app",
+                JSON.stringify(got.map(h => h.id)), "reference",
+                JSON.stringify(fnRef.holes.map(h => h.id))); process.exit(1); }
+  if (Math.abs(fnMade.st.total - fnRef.total) > 0.05)
+    { console.log("FAIL: the alignment length disagrees", fnMade.st.total, fnRef.total); process.exit(1); }
+  let worstSta = 0, worstOff = 0;
+  for (let i = 0; i < got.length; i++) {
+    if (got[i].id !== fnRef.holes[i].id) {
+      console.log("FAIL: the holes are not in station order", i, got[i].id, fnRef.holes[i].id); process.exit(1); }
+    worstSta = Math.max(worstSta, Math.abs(got[i].sta - fnRef.holes[i].sta));
+    worstOff = Math.max(worstOff, Math.abs(got[i].off - fnRef.holes[i].off));
+  }
+  console.log("projection residuals: station", worstSta.toFixed(4), "ft · offset", worstOff.toFixed(4), "ft ·",
+              got.length, "holes");
+  if (worstSta > 1 || worstOff > 1)
+    { console.log("FAIL: the projection is off by more than 1 ft", worstSta, worstOff); process.exit(1); }
+  /* the two holes the alignment was drawn THROUGH sit ON it — offset 0 — and
+     60 ft in from each end, which is where the clicks put the ends */
+  const nine = got.find(h => h.id === "SB-9"), ten = got.find(h => h.id === "SB-10");
+  if (!nine || !ten) { console.log("FAIL: the fence lost the two holes it was drawn through", got); process.exit(1); }
+  if (Math.abs(nine.off) > 1 || Math.abs(ten.off) > 1)
+    { console.log("FAIL: a hole the line passes through is not at offset 0", nine, ten); process.exit(1); }
+  if (Math.abs(nine.sta - 60) > 3 || Math.abs(fnRef.total - ten.sta - 60) > 3)
+    { console.log("FAIL: the holes are not 60 ft in from the ends", nine.sta, ten.sta, fnRef.total); process.exit(1); }
+}
+
+/* ---- the drawing: the ground line, the datum, the columns ---- */
+fnDraw = await page.evaluate(() => {
+  const f = SBMM.fence.currentFence();
+  const d = SBMM.fence.drawSvg(f, { w: 1000 });
+  const host = document.createElement("div");
+  host.style.cssText = "position:absolute;left:-99999px;top:0";
+  host.innerHTML = d.svg;
+  document.body.appendChild(host);
+  const cols = [...host.querySelectorAll(".fncol")].map(g => ({
+    hole: g.dataset.hole, y0: +g.dataset.y0, elev: +g.dataset.elev,
+    sta: +g.dataset.sta, off: +g.dataset.off }));
+  const corr = [...host.querySelectorAll(".fncorr")].map(l => ({
+    hz: l.dataset.hz, miss: l.dataset.miss === "1", a: l.dataset.a, b: l.dataset.b,
+    x1: +l.getAttribute("x1"), x2: +l.getAttribute("x2"),
+    y1: +l.getAttribute("y1"), y2: +l.getAttribute("y2") }));
+  const waste = host.querySelectorAll(".fnwaste").length;
+  const ticks = [...host.querySelectorAll(".fnelevtick")].map(l => ({
+    hole: l.dataset.hole, elev: +l.dataset.elev, y: +l.getAttribute("y1") }));
+  const note = (host.querySelector(".fnnote") || {}).textContent || "";
+  /* the ground line, read back off the path and compared with SBMM.elev at the
+     same station — the drawing has to BE the terrain, not a smoothing of it */
+  const path = host.querySelector(".fnground");
+  const dstr = path ? path.getAttribute("d") : "";
+  const pts = dstr.trim().split(/(?=[ML])/).map(s => s.slice(1).trim().split(/\s+/).map(Number));
+  let worstZ = 0, nSamp = 0;
+  const A = f.pts[0], B = f.pts[1];
+  const len = Math.hypot(B[0] - A[0], B[1] - A[1]);
+  for (const q of pts) {
+    if (q.length !== 2 || !isFinite(q[0]) || !isFinite(q[1])) continue;
+    const sta = (q[0] - d.padLeft - (78 / 2 + 4)) / d.hppf;
+    const z = d.zTop - (q[1] - d.padTop) / d.vppf;
+    const t = sta / len;
+    const [zz] = SBMM.elev(A[0] + (B[0] - A[0]) * t, A[1] + (B[1] - A[1]) * t);
+    if (!isFinite(zz)) continue;
+    worstZ = Math.max(worstZ, Math.abs(zz - z)); nSamp++;
+  }
+  host.remove();
+  return { w: d.w, h: d.h, drawH: d.drawH, vppf: d.vppf, hppf: d.hppf,
+           zTop: d.zTop, zBot: d.zBot, links: d.links, cols, corr, waste, ticks, note,
+           groundPts: pts.length, worstZ, nSamp, ve: f.props.ve };
+});
+console.log("fence drawing:", JSON.stringify({ w: fnDraw.w, h: fnDraw.h, cols: fnDraw.cols.length,
+  corr: fnDraw.corr.length, waste: fnDraw.waste, ground: fnDraw.groundPts,
+  groundWorstFt: +fnDraw.worstZ.toFixed(4), samples: fnDraw.nSamp, links: fnDraw.links }));
+if (fnDraw.cols.length !== fnMade.st.holes.length)
+  { console.log("FAIL: a column per hole in the swath, got", fnDraw.cols.length); process.exit(1); }
+if (fnDraw.nSamp < 100)
+  { console.log("FAIL: the ground line has too few samples to mean anything", fnDraw.nSamp); process.exit(1); }
+if (fnDraw.worstZ > 0.05)
+  { console.log("FAIL: the ground line disagrees with SBMM.elev by", fnDraw.worstZ, "ft"); process.exit(1); }
+if (!fnDraw.waste) { console.log("FAIL: the waste band was not drawn"); process.exit(1); }
+if (!/correlated linearly/i.test(fnDraw.note) || !/lidar ground/i.test(fnDraw.note))
+  { console.log("FAIL: the drawing does not state its method:", JSON.stringify(fnDraw.note)); process.exit(1); }
+
+/* THE SHARED DATUM. column() maps zTop to padTop, so a hole's collar lands at
+   padTop + (zTop - elev) * ppf and NOWHERE else. Adding the datum a second
+   time is the Phase A trap, and it is silent — three columns simply fall off
+   the bottom of a drawing that still looks like a drawing. */
+{
+  const padTop = fnDraw.cols[0].y0 - (fnDraw.zTop - fnDraw.cols[0].elev) * fnDraw.vppf;
+  let worst = 0;
+  for (const c of fnDraw.cols)
+    worst = Math.max(worst, Math.abs(c.y0 - (padTop + (fnDraw.zTop - c.elev) * fnDraw.vppf)));
+  console.log("datum: padTop", padTop.toFixed(2), "px · collars at padTop + (zTop - elev)*ppf,",
+              "worst residual", worst.toFixed(4), "px over", fnDraw.cols.length, "columns");
+  for (const c of fnDraw.cols) {
+    const want = padTop + (fnDraw.zTop - c.elev) * fnDraw.vppf;
+    if (Math.abs(c.y0 - want) > 0.05) {
+      console.log("FAIL: the columns are NOT on one datum —", c.hole, "collar", c.y0, "expected", want);
+      process.exit(1); }
+    if (c.y0 < 0 || c.y0 > fnDraw.h) {
+      console.log("FAIL: a column's collar is off the drawing —", c.hole, c.y0, "of", fnDraw.h);
+      process.exit(1); }
+  }
+  /* and the elevation tick on the surface line is the hole's OWN ground. Its y
+     is written to ONE decimal in the SVG, so half a tenth is the floor of what
+     can be read back — 0.05 exactly is the boundary and it landed on it. */
+  for (const t of fnDraw.ticks) {
+    const want = padTop + (fnDraw.zTop - t.elev) * fnDraw.vppf;
+    if (Math.abs(t.y - want) > 0.1)
+      { console.log("FAIL: a logged-ground tick is off the datum", t, want); process.exit(1); }
+  }
+}
+
+/* ---- the correlation: one segment per neighbouring pair, dashed on a miss ---- */
+{
+  const byId = {}; for (const h of fnPay.all) byId[h.id] = h;
+  const ids = fnMade.st.holes.map(h => h.id);
+  const want = { native: 0, rock: 0, water: 0 }, wantMiss = { native: 0, rock: 0, water: 0 };
+  const val = (h, k) => k === "native" ? h.nc : k === "rock" ? h.rock : h.wat;
+  for (let i = 0; i + 1 < ids.length; i++) {
+    for (const k of ["native", "rock", "water"]) {
+      const a = val(byId[ids[i]], k), b = val(byId[ids[i + 1]], k);
+      if (a == null && b == null) continue;
+      want[k]++;
+      if (a == null || b == null) wantMiss[k]++;
+    }
+  }
+  const got = { native: 0, rock: 0, water: 0 }, gotMiss = { native: 0, rock: 0, water: 0 };
+  for (const c of fnDraw.corr) { got[c.hz]++; if (c.miss) gotMiss[c.hz]++; }
+  console.log("correlation segments:", JSON.stringify(got), "dashed", JSON.stringify(gotMiss),
+              "| expected", JSON.stringify(want), "dashed", JSON.stringify(wantMiss),
+              "| pairs", ids.length - 1);
+  for (const k of ["native", "rock", "water"]) {
+    if (got[k] !== want[k])
+      { console.log("FAIL:", k, "correlation is not one segment per neighbouring pair", got[k], want[k]); process.exit(1); }
+    if (gotMiss[k] !== wantMiss[k])
+      { console.log("FAIL:", k, "the dashed rule is wrong", gotMiss[k], wantMiss[k]); process.exit(1); }
+  }
+  if (fnDraw.links.native !== want.native)
+    { console.log("FAIL: the drawing's own link count disagrees", fnDraw.links, want); process.exit(1); }
+}
+
+/* ---- the vertical exaggeration control ---- */
+fnVe = await page.evaluate(() => {
+  const f = SBMM.fence.currentFence();
+  const a = SBMM.fence.drawSvg(f, { w: 1000 });
+  f.props.ve = 1; SBMM.fence.recompute(f);
+  const b = SBMM.fence.drawSvg(f, { w: 1000 });
+  f.props.ve = 5; SBMM.fence.recompute(f);
+  const c = SBMM.fence.drawSvg(f, { w: 1000 });
+  f.props.ve = 2; SBMM.fence.recompute(f);
+  return { at2: { v: a.vppf, h: a.drawH }, at1: { v: b.vppf, h: b.drawH }, at5: { v: c.vppf, h: c.drawH },
+           hppf: a.hppf };
+});
+console.log("vertical exaggeration:", JSON.stringify({
+  "1x": [+fnVe.at1.v.toFixed(4), +fnVe.at1.h.toFixed(1)],
+  "2x": [+fnVe.at2.v.toFixed(4), +fnVe.at2.h.toFixed(1)],
+  "5x": [+fnVe.at5.v.toFixed(4), +fnVe.at5.h.toFixed(1)] }));
+for (const [ve, r] of [[1, fnVe.at1], [2, fnVe.at2], [5, fnVe.at5]]) {
+  if (Math.abs(r.v - fnVe.hppf * ve) > 1e-6)
+    { console.log("FAIL: at", ve + "x the vertical scale is not", ve, "times the horizontal", r.v, fnVe.hppf); process.exit(1); }
+}
+if (Math.abs(fnVe.at2.h / fnVe.at1.h - 2) > 1e-6 || Math.abs(fnVe.at5.h / fnVe.at1.h - 5) > 1e-6)
+  { console.log("FAIL: the drawing height does not follow the stated factor", fnVe); process.exit(1); }
+
+/* ---- CSV ---- */
+fnCsv = await page.evaluate(() => {
+  const f = SBMM.fence.currentFence();
+  const t = SBMM.fence.csvText(f);
+  const lines = t.trim().split("\n");
+  return { head: lines[0], n: lines.length - 1, first: lines[1], rows: lines.slice(1) };
+});
+console.log("fence CSV:", fnCsv.n, "rows |", fnCsv.head);
+console.log("           ", fnCsv.first);
+for (const col of ["station_ft", "station", "hole", "offset_ft", "side", "ground_lidar_ft",
+                   "ground_logged_ft", "native_contact_elev_ft", "bedrock_elev_ft",
+                   "water_elev_ft", "total_depth_ft"])
+  if (!fnCsv.head.split(",").includes(col))
+    { console.log("FAIL: the CSV is missing the column", col, fnCsv.head); process.exit(1); }
+if (fnCsv.n !== fnMade.st.holes.length)
+  { console.log("FAIL: one CSV row per hole in the swath", fnCsv.n, fnMade.st.holes.length); process.exit(1); }
+{
+  const row = fnCsv.rows.find(r => r.split(",")[2] === "SB-9");
+  if (!row) { console.log("FAIL: SB-9 is not in the CSV"); process.exit(1); }
+  const c = row.split(",");
+  const wantNc = fnPay.a.elev - fnPay.all.find(h => h.id === "SB-9").nc;
+  const refNine = fnRef.holes.find(h => h.id === "SB-9");
+  if (Math.abs(+c[0] - refNine.sta) > 1 || Math.abs(+c[3] - Math.abs(refNine.off)) > 1)
+    { console.log("FAIL: SB-9's CSV station/offset are wrong", row, refNine); process.exit(1); }
+  if (Math.abs(+c[6] - fnPay.a.elev) > 0.01 || Math.abs(+c[7] - wantNc) > 0.01)
+    { console.log("FAIL: SB-9's logged ground / contact elevation are wrong", row, fnPay.a.elev, wantNc); process.exit(1); }
+  if (Math.abs(+c[10] - fnPay.a.depth) > 0.01)
+    { console.log("FAIL: SB-9's total depth is wrong", row, fnPay.a.depth); process.exit(1); }
+}
+
+/* ---- the DXF in SECTION coordinates, parsed BACK through js/dxf.js ---- */
+fnDxf = await page.evaluate(() => {
+  const f = SBMM.fence.currentFence();
+  const spec = SBMM.fence.dxfEntities(f);
+  const txt = SBMM.dxf.writeEntities(spec.layers, spec.entities);
+  const back = SBMM.dxf.parseDXF(txt);
+  const byLayer = {};
+  let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+  for (const o of back) {
+    byLayer[o.layer] = (byLayer[o.layer] || 0) + 1;
+    for (const p of (o.pts || [])) {
+      if (p[0] < x0) x0 = p[0]; if (p[0] > x1) x1 = p[0];
+      if (p[1] < y0) y0 = p[1]; if (p[1] > y1) y1 = p[1];
+    }
+  }
+  const ground = back.filter(o => o.layer === "FENCE-GROUND" && o.kind === "line");
+  const texts = back.filter(o => o.kind === "text").map(o => o.text);
+  return { n: back.length, layers: Object.keys(byLayer).sort(), byLayer,
+           x: [x0, x1], y: [y0, y1],
+           groundRuns: ground.length,
+           groundPts: ground.reduce((a, o) => a + o.pts.length, 0),
+           texts, bytes: txt.length,
+           header: /AC1009/.test(txt) };
+});
+console.log("fence DXF (section coordinates):", fnDxf.n, "entities,", fnDxf.bytes, "bytes");
+console.log("   layers:", JSON.stringify(fnDxf.layers));
+console.log("   X (station ft)", fnDxf.x.map(v => +v.toFixed(2)),
+            "| Y (elevation ft)", fnDxf.y.map(v => +v.toFixed(2)));
+if (!fnDxf.header) { console.log("FAIL: the fence DXF is not R12"); process.exit(1); }
+for (const lay of ["FENCE-GROUND", "FENCE-CONTACT", "FENCE-BEDROCK", "FENCE-WATER",
+                   "FENCE-WASTE", "FENCE-SB-9", "FENCE-SB-10", "FENCE-STATION"])
+  if (!fnDxf.layers.includes(lay))
+    { console.log("FAIL: the fence DXF has no", lay, "layer —", JSON.stringify(fnDxf.layers)); process.exit(1); }
+/* X is the STATION and Y is the ELEVATION — not State Plane. That is the whole
+   point of this export: it drops straight into a Civil 3D section view. */
+/* the strata ticks stand 3 ft either side of their hole's station, so a hole
+   at 0+00 legitimately puts a vertex at -3 */
+if (fnDxf.x[0] < -6 || fnDxf.x[1] > fnRef.total + 10)
+  { console.log("FAIL: the DXF's X is not the station", fnDxf.x, "against", fnRef.total); process.exit(1); }
+if (fnDxf.y[0] < fnDraw.zBot - 5 || fnDxf.y[1] > fnDraw.zTop + 15)
+  { console.log("FAIL: the DXF's Y is not the elevation", fnDxf.y, [fnDraw.zBot, fnDraw.zTop]); process.exit(1); }
+if (fnDxf.groundPts < 100)
+  { console.log("FAIL: the DXF ground line is too coarse", fnDxf.groundPts); process.exit(1); }
+if (!fnDxf.texts.includes("SB-9") || !fnDxf.texts.includes("SB-10"))
+  { console.log("FAIL: the DXF does not label the holes", fnDxf.texts.slice(0, 8)); process.exit(1); }
+if (!fnDxf.texts.some(t => /^\d+\+\d\d$/.test(t)))
+  { console.log("FAIL: the DXF carries no station text", fnDxf.texts.slice(0, 8)); process.exit(1); }
+/* and the ordinary State-Plane DXF carries the alignment and the swath */
+{
+  const sp = await page.evaluate(() => {
+    const txt = SBMM.dxf.buildDXF(SBMM.store.features.filter(f => f.type === "fence"));
+    const back = SBMM.dxf.parseDXF(txt);
+    const lays = [...new Set(back.map(o => o.layer))].sort();
+    const xs = back.flatMap(o => (o.pts || []).map(p => p[0]));
+    return { lays, minX: Math.min(...xs) };
+  });
+  console.log("fence in the ordinary DXF:", JSON.stringify(sp.lays), "min X", Math.round(sp.minX));
+  if (!sp.lays.includes("FENCE-SWATH"))
+    { console.log("FAIL: the swath is missing from the State Plane DXF", sp.lays); process.exit(1); }
+  if (sp.minX < 6e6) { console.log("FAIL: the ordinary DXF is not State Plane", sp.minX); process.exit(1); }
+}
+
+/* ---- GeoJSON carries the alignment ---- */
+{
+  const gj = await page.evaluate(() => {
+    const fc = SBMM.io.collection("sp");
+    if (!fc) return null;
+    const f = fc.features.find(x => x.properties.tool === "fence");
+    return f ? { type: f.geometry.type, n: f.geometry.coordinates.length,
+                 swath: f.properties.swath_ft, len: f.properties.length_ft } : null;
+  });
+  console.log("fence in GeoJSON:", JSON.stringify(gj));
+  if (!gj || gj.type !== "LineString" || gj.n !== 2 || gj.swath !== 260)
+    { console.log("FAIL: the fence does not ride along in the GeoJSON export", gj); process.exit(1); }
+}
+
+/* ---- the 3D strip ---- */
+fn3d = await page.evaluate(async () => {
+  if (!SBMM.viewer3d.isOpen()) SBMM.viewer3d.toggle();
+  await new Promise(r => setTimeout(r, 2500));
+  SBMM.viewer3d.refreshOverlays();
+  await new Promise(r => setTimeout(r, 2500));
+  const s = SBMM.viewer3d.stats();
+  const p = SBMM.pick3d.stats();
+  return { drawn: (s.layersDrawn || {})["mywork/borings"] || 0,
+           kinds: p.kinds, fencePicks: p.kinds.fence || 0 };
+});
+console.log("fence in 3D:", JSON.stringify(fn3d));
+if (!fn3d.drawn)
+  { console.log("FAIL: the fence draws nothing in 3D — block 9y's parity table would fail on it"); process.exit(1); }
+if (!fn3d.fencePicks)
+  { console.log("FAIL: the 3D strip is not registered as a pickable fence", fn3d.kinds); process.exit(1); }
+
+/* ---- a session round trip: the SAME props, and ZERO compute jobs ---- */
+fnTrip = await page.evaluate(() => {
+  const f = SBMM.store.features.find(g => g.type === "fence");
+  const spec = SBMM.store.serialize().features.find(x => x.type === "fence");
+  const before = JSON.parse(JSON.stringify(f.props));
+  const j0 = SBMM.compute.stats.workerJobs + SBMM.compute.stats.syncJobs;
+  SBMM.store.remove(f);
+  const nf = SBMM.tools.rebuildFeature(spec);
+  const j1 = SBMM.compute.stats.workerJobs + SBMM.compute.stats.syncJobs;
+  const after = JSON.parse(JSON.stringify(nf.props));
+  const same = ["swath_ft", "ve", "length_ft", "n_holes", "datum_top_ft", "datum_bot_ft"]
+    .filter(k => JSON.stringify(before[k]) !== JSON.stringify(after[k]));
+  SBMM.fence.setCurrent(nf.id);
+  return { jobs: j1 - j0, type: nf.type, pts: nf.pts.length, drawn: SBMM.map.hasLayer(nf.layer),
+           holes: (nf._fen || {}).holes ? nf._fen.holes.length : 0,
+           serialisedHoles: (spec.props.holes || []).length, differ: same,
+           cls: SBMM.myWork.classOf(nf), card: !!(nf.card && nf.card.isConnected) };
+});
+console.log("fence session round trip:", JSON.stringify(fnTrip));
+if (fnTrip.jobs !== 0)
+  { console.log("FAIL: rebuilding a fence spawned", fnTrip.jobs, "compute job(s) — a session load must spawn none"); process.exit(1); }
+if (fnTrip.type !== "fence" || fnTrip.pts !== 2 || !fnTrip.drawn || !fnTrip.card)
+  { console.log("FAIL: the fence did not come back", fnTrip); process.exit(1); }
+if (fnTrip.differ.length)
+  { console.log("FAIL: the round trip moved these props:", fnTrip.differ); process.exit(1); }
+if (fnTrip.holes !== fnMade.st.holes.length)
+  { console.log("FAIL: the rebuilt fence found a different set of holes", fnTrip.holes); process.exit(1); }
+
+/* ---- undo removes it, redo brings back the SAME id ---- */
+fnUndo = await page.evaluate(() => {
+  /* the rebuild above is not an undo entry, so draw one more through the
+     command's own path and undo THAT — the entry the user actually makes */
+  const B = SBMM.borelogs;
+  const a = B.byId("SB-9"), b = B.byId("SB-10");
+  const before = SBMM.store.features.filter(f => f.type === "fence").length;
+  let mk = null;
+  const f = SBMM.fence.mkFence([[a.x, a.y], [b.x, b.y]], "Undo fence", { swath_ft: 120 });
+  SBMM.undo.push("fence", () => SBMM.store.remove(f),
+    () => { SBMM.store.readd(f); SBMM.fence.derive(f); SBMM.fence.buildFence(f); });
+  const id = f.id;
+  const n1 = SBMM.store.features.filter(g => g.type === "fence").length;
+  SBMM.undo.pop();
+  const n2 = SBMM.store.features.filter(g => g.type === "fence").length;
+  SBMM.undo.redo();
+  const n3 = SBMM.store.features.filter(g => g.type === "fence").length;
+  const back = SBMM.store.byId(id);
+  return { before, n1, n2, n3, sameId: !!back, drawn: back ? SBMM.map.hasLayer(back.layer) : false,
+           holes: back && back._fen ? back._fen.holes.length : 0 };
+});
+console.log("fence undo/redo:", JSON.stringify(fnUndo));
+if (fnUndo.n1 !== fnUndo.before + 1 || fnUndo.n2 !== fnUndo.before || fnUndo.n3 !== fnUndo.before + 1)
+  { console.log("FAIL: undo/redo did not add and remove exactly one fence", fnUndo); process.exit(1); }
+if (!fnUndo.sameId || !fnUndo.drawn || !fnUndo.holes)
+  { console.log("FAIL: redo did not bring the same fence back", fnUndo); process.exit(1); }
+await page.evaluate(() => {
+  const f = SBMM.store.features.find(g => g.name === "Undo fence");
+  if (f) SBMM.tools.deleteFeature(f);
+});
+
+/* ---- the Fence tab in the log window ---- */
+fnWin = await page.evaluate(() => {
+  SBMM.borewin.open(null, { tab: "fence" });
+  const el = document.querySelector(".blwin");
+  const svg = el ? el.querySelector("svg.fnsvg") : null;
+  const tabs = el ? [...el.querySelectorAll(".bwtab")].map(b => b.textContent) : [];
+  const out = { tab: SBMM.borewin.tab(), tabs, svg: !!svg,
+                cols: svg ? svg.querySelectorAll(".fncol").length : 0,
+                newBtn: !!(el && el.querySelector(".fnnew")),
+                foot: el ? el.querySelector(".bwfoot").textContent : "" };
+  SBMM.borewin.close();
+  return out;
+});
+console.log("the Fence tab:", JSON.stringify(fnWin));
+if (fnWin.tab !== "fence" || !fnWin.svg || !fnWin.cols)
+  { console.log("FAIL: the Fence tab does not draw the fence", fnWin); process.exit(1); }
+if (!fnWin.tabs.includes("Fence"))
+  { console.log("FAIL: the log window has no Fence tab", fnWin.tabs); process.exit(1); }
+if (!fnWin.newBtn) { console.log("FAIL: the Fence tab has no way to draw one"); process.exit(1); }
+
+await voiceCheck("9ag. the fence card");
+
+/* ---- payload tolerance: every entry point toasts, nothing throws ---- */
+fnGone = await page.evaluate(async () => {
+  const wait = ms => new Promise(r => setTimeout(r, ms));
+  const said = [];
+  const orig = window.toast;
+  window.toast = function (m) { said.push(String(m)); return orig.apply(this, arguments); };
+  const keep = SBMM_DATA.borings_logs;
+  delete SBMM_DATA.borings_logs;
+  const out = {};
+  try { out.cmd = SBMM.fence.cmd(); } catch (e) { out.threw = String(e); }
+  await wait(300);
+  try { SBMM.cmd.run("FENCE"); } catch (e) { out.threw2 = String(e); }
+  await wait(300);
+  try { out.holes = SBMM.fence.projectHoles([[0, 0], [100, 100]], 200).length; } catch (e) { out.threw3 = String(e); }
+  await wait(300);
+  try { SBMM.borewin.open(null, { tab: "fence" }); } catch (e) { out.threw4 = String(e); }
+  await wait(300);
+  SBMM_DATA.borings_logs = keep;
+  out.restored = SBMM.borelogs.has();
+  window.toast = orig;
+  out.said = said;
+  out.mode = SBMM.mode.current();
+  out.win = !!document.querySelector(".blwin");
+  return out;
+});
+console.log("the fence with no payload:", JSON.stringify(fnGone));
+for (const k of ["threw", "threw2", "threw3", "threw4"])
+  if (fnGone[k]) { console.log("FAIL: the fence threw with no payload:", k, fnGone[k]); process.exit(1); }
+if (fnGone.cmd) { console.log("FAIL: FENCE made a fence with no payload"); process.exit(1); }
+if (fnGone.holes) { console.log("FAIL: projectHoles answered with no payload", fnGone.holes); process.exit(1); }
+if (fnGone.said.filter(t => /no boring logs/i.test(t)).length < 2)
+  { console.log("FAIL: a fence refusal was SILENT — every one must toast", fnGone.said); process.exit(1); }
+if (!fnGone.restored) { console.log("FAIL: the payload did not come back"); process.exit(1); }
+
+if (errors.length !== errBeforeFence) {
+  console.log("FAIL: page errors around the fence:",
+              errors.slice(errBeforeFence, errBeforeFence + 4)); process.exit(1); }
+
+/* leave the app the way 9z expects to find it: the Layers tab shown, the pane
+   scrolled to the top (9z drags a row in #projLayers by its grip's PAGE
+   position, and a scrolled pane puts those rows somewhere else), and the
+   fences removed so the class row is not carrying features into the tree
+   assertions */
+await page.evaluate(() => {
+  SBMM.borewin.close();
+  for (const f of SBMM.store.features.filter(g => g.type === "fence")) SBMM.tools.deleteFeature(f);
+  SBMM.mode.navigate();
+});
+await page.click('#leftTabs .dtab[data-tab="layers"]');
+await page.waitForTimeout(300);
+await page.evaluate(() => { const p = $("layers"); if (p) p.scrollTop = 0; });
+await page.waitForTimeout(200);
+});
+
 await block("9z. the layer tree", async () => {
 /* 9z. the layer tree (v16, docs/V16_LAYERS_SPEC.md §3)                  */
 /* ==================================================================== */
@@ -8108,7 +8724,13 @@ treeMissing = treeBase.keys.filter(k => !treeKeys.has(k));
        other row rather than being drawn into the tree by hand.
      · the "Where the water goes" row (v22 §C), in that same Drainage
        sub-group. Same reason again, and the same mechanism: it is registered
-       through SBMM.addLayerRow with `sub:` like the five rows beside it. */
+       through SBMM.addLayerRow with `sub:` like the five rows beside it.
+     · the "Borings" My-work class row (v23 Phase B), which the `fence` feature
+       type joins. Same reason and the same mechanism once more: SBMM.myWork
+       registers every class row through SBMM.addLayerRow, and this one was
+       APPENDED to CLASSES after the baseline was dumped — CLASSES[4] is
+       "imported wins" and that index is load-bearing, so nothing may be
+       inserted before it. */
 treeNew = tree.keys.filter(k => treeBase.keys.indexOf(k) < 0);
 treeUnexplained = treeNew.filter(k => !/^invest\//.test(k) && !/^base\/contours_/.test(k)
                                          && k !== "framework/runoff_cover"
@@ -8117,7 +8739,8 @@ treeUnexplained = treeNew.filter(k => !/^invest\//.test(k) && !/^base\/contours_
                                          && k !== "design/c_203_borrow_source_demonstration_area"
                                          && k !== "framework/accum_raster"
                                          && k !== "framework/accum_streams"
-                                         && k !== "framework/where_water");
+                                         && k !== "framework/where_water"
+                                         && k !== "mywork/borings");
 console.log("layer tree:", tree.rows.length, "rows in the state,", tree.domRows, "in the DOM,",
             tree.subs.length, "sub-groups |", tree.swatches, "symbology swatches |",
             "baseline", treeBase.keys.length, "rows — missing", treeMissing.length,
@@ -8517,11 +9140,21 @@ treeReload = await page.evaluate(() => ({
          piles: SBMM.layerTree.drawIndex("framework", "piles") },
   rows: document.querySelectorAll("#layers .lyr").length,
   subs: document.querySelectorAll("#layers .lgsub").length,
-  analysisClosed: document.querySelector('#layers .lgsub[data-sub="analysis"]').classList.contains("closed")
+  analysisClosed: document.querySelector('#layers .lgsub[data-sub="analysis"]').classList.contains("closed"),
+  /* v9.28: what the re-apply passes did since the reload — printed on every
+     run so a failure can be read against a passing baseline */
+  diag: SBMM.layerTree.diag ? SBMM.layerTree.diag() : null,
+  orderKeys: Object.keys(SBMM.layerTree.order()),
+  onMap: { dus: !!(SBMM.layerTree.refs().get("framework/dus") || {}).layer,
+           piles: !!(SBMM.layerTree.refs().get("framework/piles") || {}).layer },
+  sinceNav: Math.round(performance.now())
 }));
 console.log("after a reload: order", treeReload.order.slice(0, 2).join(","), "| draw index",
             JSON.stringify(treeReload.idx), "|", treeReload.rows, "rows,", treeReload.subs, "sub-groups",
             "| Terrain analysis still closed:", treeReload.analysisClosed);
+console.log("  draw-order passes since the reload:", JSON.stringify(treeReload.diag),
+            "| order keys", JSON.stringify(treeReload.orderKeys), "| layers", JSON.stringify(treeReload.onMap),
+            "| measured at", treeReload.sinceNav, "ms");
 if (treeReload.order[0] !== "dus" || treeReload.order[1] !== "piles") {
   console.log("FAIL: the dragged row order did not survive a reload", treeReload.order); process.exit(1); }
 if (treeReload.idx.piles < 0 || !(treeReload.idx.dus > treeReload.idx.piles)) {

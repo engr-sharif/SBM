@@ -57,6 +57,12 @@ SBMM.layerTree = (function () {
      legend: {open: bool}                                                    */
   let S = { open: {}, order: {}, presets: {}, legend: { open: false } };
   let wired = false;
+  /* v9.28: what the draw-order passes actually did, for block 9z's post-reload
+     assertion. When it fails the indices alone cannot say whether the pass never
+     ran, ran before the layers were on the map, or fronted a different object;
+     this can. */
+  const DIAG = { calls: 0, applied: 0, fronted: {}, lastApplyMs: 0, bootPass: 0,
+                 layeradds: 0, layersEv: 0, swatchErrors: 0 };
   let uid = 0;
 
   const refs = new Map();          // "group/id" -> row ref
@@ -459,6 +465,8 @@ SBMM.layerTree = (function () {
       const r = refs.get(rows[i].dataset.lgroup + "/" + rows[i].dataset.lid);
       if (r && r.layer) { front(r.layer); n++; }
     }
+    DIAG.calls++;
+    if (n) { DIAG.applied++; DIAG.fronted[gid] = n; DIAG.lastApplyMs = Math.round(performance.now()); }
     return n;
   }
 
@@ -1200,10 +1208,13 @@ SBMM.layerTree = (function () {
     if (pane) pane.addEventListener("keydown", onKey);
 
     SBMM.events.on("layers", e => {
+      DIAG.layersEv++;
       if (e && e.group && e.layer) noteChange(e.group, e.layer);
       /* swatches follow the layer, not the row: a dataset restyled or a group
-         rendered on first show changes what the glyph should say */
-      for (const [, ref] of refs) paintSwatch(ref);
+         rendered on first show changes what the glyph should say. On its own
+         try: a swatch that throws must not cost the map its draw order. */
+      try { for (const [, ref] of refs) paintSwatch(ref); }
+      catch (err) { DIAG.swatchErrors++; console.error("layer tree swatch", err); }
       legendSoon();
     });
     if (SBMM.events.on) SBMM.events.on("field", () => legendSoon());
@@ -1211,18 +1222,18 @@ SBMM.layerTree = (function () {
        layeradd for every add, including the ones nothing here asked for (the
        zoom gate, the sheet-tab footprint borrow, the boot session restore).
        Only armed once the user has actually ordered something. */
-    if (SBMM.map) SBMM.map.on("layeradd", () => { if (Object.keys(S.order).length) legendSoon(); });
+    if (SBMM.map) SBMM.map.on("layeradd", () => { DIAG.layeradds++; if (Object.keys(S.order).length) legendSoon(); });
     /* and once more when boot has finished: every row is registered and every
        remembered layer is on the map by then, whatever order the payloads and
        the workers landed in, so this is the one pass that cannot be early */
-    if (SBMM.events.on) SBMM.events.on("boot", () => { if (Object.keys(S.order).length) { try { applyStoredOrder(); } catch (e) {} } });
+    if (SBMM.events.on) SBMM.events.on("boot", () => { DIAG.bootPass++; if (Object.keys(S.order).length) { try { applyStoredOrder(); } catch (e) { console.error("layer tree boot order", e); } } });
     legendEl();
     legendSoon();
   }
 
   return {
     hostFor, onRow, wire, openState, dump, refs: () => refs,
-    applyDrawOrder, drawIndex, order: () => S.order, restoreOrder: applyStoredOrder,
+    applyDrawOrder, drawIndex, order: () => S.order, restoreOrder: applyStoredOrder, diag: () => DIAG,
     solo, zoomTo, search, toggleRow,
     presetNames, applyPreset, savePreset, deletePreset, renamePreset,
     snapshot, applySnapshot,
