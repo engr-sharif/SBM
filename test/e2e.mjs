@@ -9140,11 +9140,21 @@ treeReload = await page.evaluate(() => ({
          piles: SBMM.layerTree.drawIndex("framework", "piles") },
   rows: document.querySelectorAll("#layers .lyr").length,
   subs: document.querySelectorAll("#layers .lgsub").length,
-  analysisClosed: document.querySelector('#layers .lgsub[data-sub="analysis"]').classList.contains("closed")
+  analysisClosed: document.querySelector('#layers .lgsub[data-sub="analysis"]').classList.contains("closed"),
+  /* v9.28: what the re-apply passes did since the reload — printed on every
+     run so a failure can be read against a passing baseline */
+  diag: SBMM.layerTree.diag ? SBMM.layerTree.diag() : null,
+  orderKeys: Object.keys(SBMM.layerTree.order()),
+  onMap: { dus: !!(SBMM.layerTree.refs().get("framework/dus") || {}).layer,
+           piles: !!(SBMM.layerTree.refs().get("framework/piles") || {}).layer },
+  sinceNav: Math.round(performance.now())
 }));
 console.log("after a reload: order", treeReload.order.slice(0, 2).join(","), "| draw index",
             JSON.stringify(treeReload.idx), "|", treeReload.rows, "rows,", treeReload.subs, "sub-groups",
             "| Terrain analysis still closed:", treeReload.analysisClosed);
+console.log("  draw-order passes since the reload:", JSON.stringify(treeReload.diag),
+            "| order keys", JSON.stringify(treeReload.orderKeys), "| layers", JSON.stringify(treeReload.onMap),
+            "| measured at", treeReload.sinceNav, "ms");
 if (treeReload.order[0] !== "dus" || treeReload.order[1] !== "piles") {
   console.log("FAIL: the dragged row order did not survive a reload", treeReload.order); process.exit(1); }
 if (treeReload.idx.piles < 0 || !(treeReload.idx.dus > treeReload.idx.piles)) {
