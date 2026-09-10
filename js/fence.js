@@ -438,8 +438,8 @@ SBMM.fence = (function () {
     const rings = bandRings(f.pts, half);
     if (rings.length) {
       L.polygon(rings.map(r => r.map(q => [q[1], q[0]])), {
-        pane: "drawings", color: col, weight: 1, opacity: .45, dashArray: "5 5",
-        fillColor: col, fillOpacity: .09, fillRule: "nonzero", interactive: false
+        pane: "drawings", color: col, weight: 1.2, opacity: .7, dashArray: "7 6",
+        fillColor: col, fillOpacity: .13, fillRule: "nonzero", interactive: false
       }).addTo(g);
     }
     /* the alignment */
@@ -452,7 +452,7 @@ SBMM.fence = (function () {
       const u = [q.px - q.x, q.py - q.y];
       const d = Math.hypot(u[0], u[1]);
       const nx = d > 1e-6 ? u[0] / d : 0, ny = d > 1e-6 ? u[1] / d : 0;
-      const t = Math.max(12, half * 0.08);
+      const t = Math.max(18, half * 0.12);
       L.polyline([[q.py - ny * t, q.px - nx * t], [q.py + ny * t, q.px + nx * t]],
         { pane: "drawings", color: col, weight: 2, opacity: .9, interactive: false }).addTo(g);
       if (d > 1) L.polyline([[q.y, q.x], [q.py, q.px]],

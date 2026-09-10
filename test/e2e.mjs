@@ -8339,10 +8339,12 @@ if (!/correlated linearly/i.test(fnDraw.note) || !/lidar ground/i.test(fnDraw.no
       console.log("FAIL: a column's collar is off the drawing —", c.hole, c.y0, "of", fnDraw.h);
       process.exit(1); }
   }
-  /* and the elevation tick on the surface line is the hole's OWN ground */
+  /* and the elevation tick on the surface line is the hole's OWN ground. Its y
+     is written to ONE decimal in the SVG, so half a tenth is the floor of what
+     can be read back — 0.05 exactly is the boundary and it landed on it. */
   for (const t of fnDraw.ticks) {
     const want = padTop + (fnDraw.zTop - t.elev) * fnDraw.vppf;
-    if (Math.abs(t.y - want) > 0.05)
+    if (Math.abs(t.y - want) > 0.1)
       { console.log("FAIL: a logged-ground tick is off the datum", t, want); process.exit(1); }
   }
 }
