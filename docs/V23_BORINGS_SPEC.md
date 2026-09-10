@@ -191,6 +191,14 @@ opens the Log tab. `copy CSV` unchanged.
 
 ## 3. Phase B — the fence diagram
 
+**Status: BUILT (2026-09-10).** `js/fence.js` (`SBMM.fence`), the Fence tab in
+`js/borewin.js`, `SBMM.dxf.writeEntities`, the `fence` feature type through the
+five FeatureGroup places in `js/tools.js`, a **Borings** My-work class row
+appended to `CLASSES`, the `fence` mode, `FENCE` (`GEOSECTION`,
+`FENCEDIAGRAM`), the 3D strip and the `fence` pick kind. E2E block **9ag**, one
+assertion each in `test/e2e_field.mjs` and `test/e2e_phone.mjs`, shots
+`test/fence_shots.mjs`. Deviations are noted in place below.
+
 ### 3.1 What it is
 
 A **section through the subsurface along a line the engineer draws**, the
@@ -198,13 +206,16 @@ holes within a swath projected onto it, the lidar ground as the top, the
 correlated horizons drawn between the holes. Feature type `fence` (a store
 feature: serialises, undoes, exports, appears in My work under a new
 *Borings* class row — appended, per the `CLASSES[4]` rule). Command `FENCE`
-(aliases `PROFILE`, `GEOSECTION`); a button on the Fence tab; the sketch
+(aliases `GEOSECTION`, `FENCEDIAGRAM` — **not** `PROFILE`: that is the
+elevation-profile command's own name, and an alias resolves first-match over one
+flat table, so claiming it would have killed the profile tool silently); a button on the Fence tab; the sketch
 engine draws the alignment exactly as a section set is drawn.
 
 ### 3.2 The drawing
 
 - **Alignment** with CAD stationing (`0+00`, reuse `staLabel`), **swath** half
-  width default 150 ft (a control); holes inside the swath are projected
+  width default 150 ft (a control, and `FENCE <ft>` sets it as the tool is
+  armed); holes inside the swath are projected
   perpendicular onto the alignment and drawn at their station, each with its
   offset printed (`SB-9 · 42 ft L`).
 - **Ground** along the alignment from the lidar (`SBMM.elev`, every 2 ft —
@@ -219,6 +230,8 @@ engine draws the alignment exactly as a section set is drawn.
   linear between neighbours and says so — it is the standard first fence, not
   an interpretation.
 - **Vertical exaggeration** slider (1×, 2×, 5×), the scale bar stating both.
+  *Built as a three-way select rather than a slider: three values are three
+  values, and a slider with three stops is a select wearing a costume.*
 - The **cut on the map**: the alignment with the swath as a translucent band,
   the projected holes as ticks, hover on the fence highlights the hole on the
   map and vice versa.
@@ -290,7 +303,7 @@ with, which is why every card says *interpreted* and prints the hole count.
 | phase | ships | acceptance |
 |---|---|---|
 | A | `js/borewin.js`, the column renderer in `js/borelogs.js`, the report sheet, the seams, the toolbar fix | e2e block **9af**: the window opens on SB-9 with every column of §2.2 present at 1"=5'; both axes; the depth cursor reports the stratum under it; `←`/`→` walk holes; Compare draws four holes on one datum with correlation lines; the printed sheet paginates SB-10 to 3 pages with the header on each; the toolbar no longer overlaps `.dsgear` (bounding boxes disjoint); field and phone blocks open the window as a full-screen sheet; block 9e's idle contract holds with the window open |
-| B | the `fence` feature, the 2D drawing, the 3D strip, the three exports | e2e block **9ag**: a fence through SB-9/SB-10 finds the holes inside the swath at the right stations and offsets (±1 ft against a hand computation), the ground line agrees with `SBMM.elev` at every station, the contact correlation has one segment per neighbouring pair, the DXF parses back through `js/dxf.js` with the horizons on their layers, the 3D strip is drawn and tagged, and a session round trip rebuilds the fence with zero jobs |
+| B **(built)** | the `fence` feature, the 2D drawing, the 3D strip, the three exports | e2e block **9ag**: a fence through SB-9/SB-10 finds the holes inside the swath at the right stations and offsets (±1 ft against a hand computation), the ground line agrees with `SBMM.elev` at every station, the contact correlation has one segment per neighbouring pair, the DXF parses back through `js/dxf.js` with the horizons on their layers, the 3D strip is drawn and tagged, and a session round trip rebuilds the fence with zero jobs |
 | C | the colour-by control (C.1 now), the thickness raster and the base surface (after C.0) | the surface passes through the golden: a polygon around a single hole returns that hole's thickness × area within 2 %; every DU's volume card names its controlling borings |
 
 `docs/HANDOFF.md` gets a decision row per ruling and the C.0 question in the

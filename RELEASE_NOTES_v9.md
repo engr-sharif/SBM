@@ -17,6 +17,52 @@ All three are offline-only by design. Nothing in this app calls out to the inter
 
 ---
 
+## v9.28 — the fence diagram (2026-09-10)
+
+Compare stands the holes side by side. A **fence** stands them on the ground they were
+drilled through.
+
+Type `FENCE` (or use **draw a fence** on the log window's new Fence tab), click a line
+across the site and press Enter. Every boring within **150 ft either side** — the swath is
+a control, and `FENCE 300` sets it as you arm the tool — is projected square onto that
+line and drawn at its own station, with its offset printed beside it (`SB-9 · 42 ft L`).
+The lidar surface is the top of the drawing. The native contact, the top of bedrock and
+the water level are joined between neighbouring holes — dashed where the next hole never
+reached that horizon — and the waste between the surface and the contact is shaded. Each
+hole's own logged ground elevation is a tick on the surface line, so where the log and the
+lidar disagree you can see it.
+
+The correlation is a straight line between the two holes that bound it, and the drawing
+says so. It is the standard first fence, not an interpretation.
+
+**1×, 2× and 5× vertical** on the card and on the tab; the scale bar states both scales.
+Stations are CAD stations (`0+00`), elevations on both sides.
+
+On the map the fence is the alignment with its swath as a band, a tick where each boring
+lands on the line and a tie back to the hole itself. Hover a boring on the drawing and it
+lights up on the map; hover it on the map and its column lights up on the drawing. In 3D
+the fence **stands in the ground as a cut** — the drawing itself, hanging from the surface
+down past the deepest hole, with the terrain drawn over it, and a click on it names the
+nearest boring.
+
+Three exports on the card and on the tab:
+
+- **PNG** of the drawing, watermarked.
+- **CSV** — station, offset, side, the lidar ground, the logged ground, and the contact,
+  bedrock and water **elevations**, one row per hole.
+- **DXF in section coordinates** — X is the station in feet and Y is the elevation in
+  feet, which is the grid a Civil 3D section view is drawn on. A layer per horizon
+  (`FENCE-GROUND`, `FENCE-CONTACT`, `FENCE-BEDROCK`, `FENCE-WATER`, `FENCE-WASTE`), a
+  layer per hole with its strata boundaries as ticks, and the ids and stations as text.
+  It opens straight into a section view.
+
+A fence is an ordinary drawing: it undoes and redoes, it saves in a session, it exports
+with everything else (the alignment and its swath go out in the ordinary State Plane DXF
+and the GeoJSON), you can drag its ends and it re-cuts itself, and it lives in **My work
+under a new Borings row**.
+
+---
+
 ## v9.27 — the log window (2026-09-10)
 
 The strip log was a 300-pixel column in the Results panel, and the borings are the only
