@@ -361,6 +361,48 @@ if (!bw.maxed || bw.w < bw.stage - 12) fail("the log window is not a full-screen
 if (bw.id !== "SB-9" || bw.gl < 3) fail("the phone log window is not SB-9's log", bw);
 if (errors.length) fail("page errors opening the log window on a phone", errors.slice(0, 4));
 
+/* v23 Phase B: and the fence. It is main-thread arithmetic over 44 holes, so a
+   phone runs it exactly as a desktop does; what has to be checked here is that
+   the drawing fits a 393-px stage rather than forcing the window wider. */
+const fn = await page.evaluate(() => {
+  if (!SBMM.fence) return { missing: true };
+  const B = SBMM.borelogs;
+  const a = B.byId("SB-9"), b = B.byId("SB-10");
+  const f = SBMM.fence.mkFence([[a.x, a.y], [b.x, b.y]], "Phone fence", { swath_ft: 200 });
+  SBMM.borewin.open(null, { tab: "fence" });
+  /* the LAST .blwin, not the first: close() sets W = null at once and removes
+     the element 200 ms later, so the previous log window is still in the DOM
+     here and querySelector hands back that one — the tab reads "fence" while
+     the element under inspection is the old log */
+  const el = [...document.querySelectorAll(".blwin")].pop();
+  const s = SBMM.sheets.stageBox();
+  const svg = el ? el.querySelector("svg.fnsvg") : null;
+  const out = { holes: (SBMM.fence.stateOf(f) || {}).holes.length,
+                tab: SBMM.borewin.tab(), maxed: el ? el.classList.contains("maxed") : false,
+                w: el ? el.offsetWidth : 0, stage: Math.round(s.w),
+                cols: svg ? svg.querySelectorAll(".fncol").length : 0,
+                /* the drawing's own requested width, and whether the body it
+                   sits in overflows — getBoundingClientRect is the TRANSFORMED
+                   box while the window rises from scale(.08) and says nothing */
+                svgW: svg ? +(svg.getAttribute("width") || 0) : 0,
+                over: el ? el.querySelector(".bwbody").scrollWidth
+                             - el.querySelector(".bwbody").clientWidth : 0 };
+  SBMM.borewin.close();
+  SBMM.tools.deleteFeature(f);
+  return out;
+});
+console.log("the fence (phone):", JSON.stringify(fn));
+if (fn.missing) fail("js/fence.js is not on a phone", fn);
+if (!fn.holes || !fn.cols) fail("the phone fence found no borings", fn);
+if (fn.tab !== "fence" || !fn.maxed || fn.w < fn.stage - 12)
+  fail("the Fence tab is not a full-screen sheet on a phone", fn);
+/* the drawing has a readable minimum of its own (360 px), so what is asserted
+   is that the tab does not OVERFLOW — the CSS caps an over-wide drawing and
+   the body must not gain a horizontal scrollbar on a 393-px stage */
+if (fn.over > 2) fail("the Fence tab overflows the window it is in", fn);
+if (fn.svgW > fn.stage + 40) fail("the fence drawing is far wider than a phone stage", fn);
+if (errors.length) fail("page errors drawing a fence on a phone", errors.slice(0, 4));
+
 /* payload tolerance: the modules that wanted one say so, and none of them
    threw. A silent refusal is the one thing this app must not do. */
 if (errors.length) fail("page errors with the heavy payloads absent", errors.slice(0, 4));
