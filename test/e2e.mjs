@@ -7896,6 +7896,15 @@ if (bwSeams.geoms > 1)
              shown: getComputedStyle(a).display !== "none",
              overlapGear: ar > gl + 0.5, overlapZoom: ar > zl + 0.5 };
   });
+  /* Put the Layers pane back where the next block expects it. Reaching the
+     borings row scrolled the pane down to Investigations, and 9z drags a row
+     in #projLayers by computing its grip's PAGE position — with the pane
+     scrolled, those rows are no longer under the pointer and the drag lands on
+     nothing. It reads exactly like the old 9z load flake and is not one. */
+  await page.mouse.move(4, 4);
+  await page.evaluate(() => {
+    document.querySelectorAll("#leftdock .dockpane, #layers").forEach(d => { d.scrollTop = 0; });
+  });
   console.log("the row toolbar vs the dataset buttons:", JSON.stringify(bwActs));
   if (bwActs.noRow || bwActs.noActs || bwActs.noGear)
     { console.log("FAIL: no dataset row with a hover toolbar to measure", bwActs); process.exit(1); }
