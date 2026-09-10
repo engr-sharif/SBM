@@ -98,7 +98,10 @@ SBMM.tools = (function () {
     /* v10 — water reads as water everywhere it appears (§7) */
     flow:    { pane: "drawings", color: "#55C1FF", weight: 2.75 },
     /* v11 §4.4 — a field photo: a framed thumbnail marker, not a stroked shape */
-    photo:   { pane: "drawings", color: "#E8B34B", weight: 2 }
+    photo:   { pane: "drawings", color: "#E8B34B", weight: 2 },
+    /* v23 Phase B — a fence diagram: the alignment, its swath band and the
+       projected boring ticks, rebuilt rather than re-styled */
+    fence:   { pane: "drawings", color: "#C7A6F0", weight: 2.6 }
   };
   const SEL_COLOR = "#FFD34D";
   function baseStyle(t) { return styles[t] || styles.area; }
@@ -116,6 +119,9 @@ SBMM.tools = (function () {
     /* v17 §5a: an ink stroke is many polylines of varying width, so like a
        flow it is REBUILT rather than re-styled */
     if (f.type === "ink") { SBMM.redline.build(f); return; }
+    /* v23 Phase B: a fence is the alignment, the swath band, a tick per
+       projected hole and a tie back to each — rebuilt like a flow */
+    if (f.type === "fence") { SBMM.fence.buildFence(f); return; }
     if (!f.layer.setStyle) return;
     const base = baseStyle(f.type);
     const sel = SBMM.store.selected === f.id;
@@ -134,7 +140,7 @@ SBMM.tools = (function () {
   function layerFor(f) {
     const ll = f.pts.map(p => [p[1], p[0]]);
     if (f.type === "dim" || f.type === "text" || f.type === "flow"
-        || f.type === "photo" || f.type === "ink") return L.featureGroup([]);
+        || f.type === "photo" || f.type === "ink" || f.type === "fence") return L.featureGroup([]);
     if (f.type === "spot") {
       return L.circleMarker(ll[0], { pane: "drawings", radius: 5, color: "#FFD34D", weight: 2, fillColor: "#12181C", fillOpacity: 1 });
     }
@@ -149,6 +155,7 @@ SBMM.tools = (function () {
     if (f.type === "flow") { SBMM.water.buildFlow(f); return; }
     if (f.type === "photo") { SBMM.field.buildPhoto(f); return; }
     if (f.type === "ink") { SBMM.redline.build(f); return; }
+    if (f.type === "fence") { SBMM.fence.buildFence(f); return; }
     const ll = f.pts.map(p => [p[1], p[0]]);
     if (f.type === "spot") f.layer.setLatLng(ll[0]);
     else f.layer.setLatLngs(OPEN_TYPES.has(f.type) ? ll : [ll]);
@@ -172,7 +179,7 @@ SBMM.tools = (function () {
        own builder fills them again (buildAnno here, js/water.js buildFlow);
        at creation the caller does that itself a moment later. */
     if (rebuild && (f.type === "dim" || f.type === "text" || f.type === "flow"
-                    || f.type === "photo" || f.type === "ink")) redraw(f);
+                    || f.type === "photo" || f.type === "ink" || f.type === "fence")) redraw(f);
     if (rebuild && f.card && f.layer.on) {
       f.layer.on("mouseover", () => f.card.classList.add("hl"));
       f.layer.on("mouseout", () => f.card.classList.remove("hl"));
@@ -230,6 +237,10 @@ SBMM.tools = (function () {
   function recompute(f, live) {
     if (f.type === "flow") { SBMM.water.buildFlow(f); SBMM.store.autosave(); return; }
     if (f.type === "ink") { SBMM.redline.build(f); SBMM.store.autosave(); return; }
+    /* v23 Phase B: editing a fence's alignment re-projects the holes and
+       re-samples the ground the way editing a section set re-cuts it — main
+       thread arithmetic, so there is nothing to debounce and no job to cancel */
+    if (f.type === "fence") { SBMM.fence.recompute(f); SBMM.store.autosave(); return; }
     if (f.type === "dim") compDim(f);
     else if (f.type === "text") compText(f);
     else if (f.type === "line") compDistance(f);
@@ -804,6 +815,10 @@ SBMM.tools = (function () {
     /* v17 §5a — a Pencil redline. Rebuilt from props like `flow` and `photo`:
        a session load must not go looking for a pointer. */
     else if (type === "ink") { f = SBMM.redline.mkInk(pts, name, props, spec); }
+    /* v23 Phase B — a fence diagram. Rebuilt from `pts` and `props` like the
+       three above: the projection and the ground sampling are main-thread
+       arithmetic over 44 holes, so a session load still spawns zero jobs. */
+    else if (type === "fence") { f = SBMM.fence.mkFence(pts, name, props, spec); }
     else return null;
     if (name) {
       f.name = name;

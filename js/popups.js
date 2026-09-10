@@ -256,7 +256,7 @@ SBMM.popups = (function () {
     spot: "spot elevation", line: "distance", area: "area", volume: "volume",
     profile: "elevation profile", dim: "aligned dimension", text: "annotation",
     surface: "design surface", sections: "cross-section set", flow: "raindrop flow path",
-    photo: "field photo"
+    photo: "field photo", fence: "fence diagram"
   };
   const PROP_LABEL = {
     length_ft: "Length (ft)", grade_pct: "Grade (%)", area_ft2: "Area (ft²)",
@@ -305,6 +305,21 @@ SBMM.popups = (function () {
         ["Storm drains", p.storm === false ? "off — ground only" : (p.storm ? "assumed working" : null)],
         ["Grid", (p.grids && p.grids.length > 1 ? p.grids.join(" → ") : p.dem) + " lidar"]
       ]);
+    } else if (f.type === "fence" && SBMM.fence) {
+      /* a fence is a drawn section, not a measured shape: what a reader asks of
+         it is which holes it caught, how long it is and how hard it is
+         exaggerated — the generic property dump would print the whole holes
+         array (v23 §3.2) */
+      const R = f._fen || {};
+      h += attrTable([
+        ["Holes in the swath", (R.holes || []).length],
+        ["Alignment (ft)", p.length_ft],
+        ["Swath (ft either side)", p.swath_ft],
+        ["Vertical exaggeration", p.ve ? p.ve + "\u00d7" : null],
+        ["Datum (ft NAVD88)", p.datum_bot_ft == null ? null
+          : fmt0(p.datum_bot_ft) + " \u2013 " + fmt0(p.datum_top_ft)],
+        ["Borings", (R.holes || []).map(q => q.id).join(", ") || null]
+      ]);
     } else if (f.type === "photo" && SBMM.field) {
       /* §4.4: the image full width, then the note, the time and how it was
          placed. One builder, so the 2D popup, the 3D pick card and the field
@@ -317,6 +332,11 @@ SBMM.popups = (function () {
       acts.push(btn("catchment", () => SBMM.water.catchment(f), "Everything that drains to the drop"));
       acts.push(btn("retrace", () => SBMM.water.retrace(f), "Run the trace again from the drop"));
       acts.push(btn("3D", () => SBMM.viewer3d.openAt(p.drop[0], p.drop[1])));
+    }
+    if (f.type === "fence" && SBMM.fence) {
+      acts.push(btn("fence", () => SBMM.fence.openInWindow(f), "Open the drawing in the log window"));
+      acts.push(btn("CSV", () => SBMM.fence.exportCsv(f), "Station, offset and every horizon, per hole"));
+      acts.push(btn("DXF", () => SBMM.fence.exportDxf(f), "Section coordinates: X = station ft, Y = elevation ft"));
     }
     acts.push(btn("select", () => SBMM.store.select(f.id)));
     /* Only offer what the tools will actually accept: `SBMM.tools` owns the one

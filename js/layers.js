@@ -281,7 +281,15 @@ SBMM.myWork = (function () {
     /* v11 §4.4 — field photos and the notes taken with them. APPENDED for the
        same reason "water" was: classOf() reads CLASSES[4] as "imported wins"
        and that index is load-bearing. */
-    ["field",        "Field",          "#E8B34B", f => f.type === "photo"]
+    ["field",        "Field",          "#E8B34B", f => f.type === "photo"],
+    /* v23 Phase B — fence diagrams. APPENDED for the same reason "water" and
+       "field" were: classOf() reads CLASSES[4] as "imported wins" and that
+       index is load-bearing. Block 9z baselines every (group, id) against
+       test/fixtures/layer_rows_pre_v16.json and fails on an invented row, so
+       `mywork/borings` is a DATED exemption there — a row the app grew after
+       that baseline was dumped, registered through SBMM.addLayerRow like every
+       other class row rather than drawn into the tree by hand. */
+    ["borings",      "Borings",        "#C7A6F0", f => f.type === "fence"]
   ];
   let built = false;
 

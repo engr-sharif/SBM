@@ -85,6 +85,15 @@ SBMM.mode = (function () {
       next: "click the alignment", more: "double-click to finish",
       enter() { SBMM.tools.setTool(null); SBMM.sections.cmdSections(); }
     },
+    /* v23 Phase B — the fence diagram. A transient sketch mode like "section":
+       the alignment is drawn once, the feature owns everything after it. No
+       single-key shortcut — S is Section, F is fly, and a free letter that
+       arms a tool under the hand is worse than one more click. */
+    "fence": {
+      label: "Fence", cursor: "crosshair", transient: true,
+      next: "click the alignment", more: "Enter to finish",
+      enter() { SBMM.tools.setTool(null); SBMM.fence.beginSketch(); }
+    },
     "dimension": {
       label: "Dimension", cursor: "crosshair", key: "N", transient: true,
       next: "click the first point",
