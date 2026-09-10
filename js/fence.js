@@ -39,6 +39,9 @@ SBMM.fence = (function () {
   const has = () => !!(BL() && BL().has());
   const staLabel = s => (SBMM.sections && SBMM.sections.staLabel)
     ? SBMM.sections.staLabel(s) : String(Math.round(s));
+  /* a hole ON the alignment has no side: the offset prints to the foot, so
+     anything that rounds to 0 ft is "0 ft", not "0 ft R" */
+  const sideOf = off => Math.abs(off) < 0.5 ? "" : (off < 0 ? "L" : "R");
 
   /* the swath is a HALF width: "150 ft either side of the line" is how a
      section corridor is stated on a plan, and it is what the offset column
@@ -347,7 +350,7 @@ SBMM.fence = (function () {
       p.push(text(x, Math.max(12, y0 - 12), q.id, C.ink, 10.5, "middle",
         ' font-weight="700"' + HALO));
       p.push(text(x, Math.max(21, y0 - 3),
-        `${staLabel(q.sta)} · ${fmt0(Math.abs(q.off))} ft ${q.off < 0 ? "L" : "R"}`,
+        `${staLabel(q.sta)} · ${fmt0(Math.abs(q.off))} ft${sideOf(q.off) ? " " + sideOf(q.off) : ""}`,
         C.hd, 8.2, "middle", HALO));
     }
 
@@ -470,8 +473,8 @@ SBMM.fence = (function () {
           interactive: false }).addTo(g);
       const mk = L.circleMarker([q.y, q.x], { pane: "drawings", radius: 4.5, color: col,
         weight: 1.6, fillColor: "#12181C", fillOpacity: 1 })
-        .bindTooltip(`${q.id} · ${staLabel(q.sta)} · ${fmt0(Math.abs(q.off))} ft `
-          + `${q.off < 0 ? "L" : "R"}`, { sticky: true, className: "ctip" });
+        .bindTooltip(`${q.id} · ${staLabel(q.sta)} · ${fmt0(Math.abs(q.off))} ft`
+          + `${sideOf(q.off) ? " " + sideOf(q.off) : ""}`, { sticky: true, className: "ctip" });
       mk.on("mouseover", () => highlight(q.id));
       mk.on("mouseout", () => highlight(null));
       mk.on("click", ev => { L.DomEvent.stopPropagation(ev);
@@ -545,7 +548,7 @@ SBMM.fence = (function () {
     const nat = R.holes.filter(q => horizonZ(HZ[0], q.id) != null).length;
     return [
       ["Holes in the swath", `${R.holes.length}`,
-       R.holes.map(q => `${q.id} ${staLabel(q.sta)} ${fmt0(Math.abs(q.off))} ft ${q.off < 0 ? "L" : "R"}`).join(" · ")],
+       R.holes.map(q => `${q.id} ${staLabel(q.sta)} ${fmt0(Math.abs(q.off))} ft${sideOf(q.off) ? " " + sideOf(q.off) : ""}`).join(" · ")],
       ["Alignment", `${fmt(R.total, 1)} ft (${staLabel(0)} – ${staLabel(R.total)})`],
       ["Swath", `${fmt0(pr.swath_ft)} ft either side`],
       ["Native contact", `${nat} of ${R.holes.length} holes`],
@@ -655,7 +658,7 @@ SBMM.fence = (function () {
     for (const q of R.holes) {
       const h = BL().byId(q.id);
       out += `${q.sta.toFixed(2)},${staLabel(q.sta)},${q.id},${Math.abs(q.off).toFixed(2)},`
-        + `${q.off < 0 ? "L" : "R"},${n(gAt(q.sta))},${n(h ? h.elev : null)},`
+        + `${sideOf(q.off)},${n(gAt(q.sta))},${n(h ? h.elev : null)},`
         + `${n(horizonZ(HZ[0], q.id))},${n(horizonZ(HZ[1], q.id))},${n(horizonZ(HZ[2], q.id))},`
         + `${n(h ? h.depth : null)}\n`;
     }
