@@ -7880,6 +7880,11 @@ if (bwSeams.geoms > 1)
         button; this is the second half of that fix and the assertion is the
         two boxes, not the CSS. ---- */
 {
+  /* the left dock may be on My work or Sheets by now — a full run leaves it
+     wherever the last block put it, and a locator waits 180 s for a row inside
+     a hidden pane before it says so */
+  await page.click('#leftTabs .dtab[data-tab="layers"]');
+  await page.waitForTimeout(250);
   const row = page.locator("#layers .lyr:has(.dsgear)").first();
   await row.scrollIntoViewIfNeeded();
   await row.hover();
