@@ -8134,11 +8134,16 @@ const fnAim = (() => {
    And the two holes have to be ON SCREEN before a screen click can reach them. */
 await page.evaluate(([a, b]) => {
   SBMM.borewin.close();
+  /* AND THE 3D VIEW HAS TO BE SHUT. Block 9ae leaves it open, and the 3D canvas
+     covers the map — a page click at a map coordinate reaches the canvas, the
+     sketch collects nothing, and Enter then refuses. `--only 9ag` opens with it
+     closed, which is why this only bites in sequence. */
+  if (SBMM.viewer3d.isOpen()) SBMM.viewer3d.toggle();
   SBMM.map.invalidateSize();
   SBMM.map.fitBounds([[Math.min(a.y, b.y), Math.min(a.x, b.x)],
                       [Math.max(a.y, b.y), Math.max(a.x, b.x)]], { animate: false, padding: [90, 90] });
 }, [fnAim[0], fnAim[1]]);
-await page.waitForTimeout(900);
+await page.waitForTimeout(1400);
 await page.evaluate(() => { SBMM.cmd.run("FENCE 260"); });
 await page.waitForTimeout(500);
 const fnArmed = await page.evaluate(() => ({ mode: SBMM.mode.current(),
@@ -8717,7 +8722,13 @@ treeMissing = treeBase.keys.filter(k => !treeKeys.has(k));
        other row rather than being drawn into the tree by hand.
      · the "Where the water goes" row (v22 §C), in that same Drainage
        sub-group. Same reason again, and the same mechanism: it is registered
-       through SBMM.addLayerRow with `sub:` like the five rows beside it. */
+       through SBMM.addLayerRow with `sub:` like the five rows beside it.
+     · the "Borings" My-work class row (v23 Phase B), which the `fence` feature
+       type joins. Same reason and the same mechanism once more: SBMM.myWork
+       registers every class row through SBMM.addLayerRow, and this one was
+       APPENDED to CLASSES after the baseline was dumped — CLASSES[4] is
+       "imported wins" and that index is load-bearing, so nothing may be
+       inserted before it. */
 treeNew = tree.keys.filter(k => treeBase.keys.indexOf(k) < 0);
 treeUnexplained = treeNew.filter(k => !/^invest\//.test(k) && !/^base\/contours_/.test(k)
                                          && k !== "framework/runoff_cover"
@@ -8726,7 +8737,8 @@ treeUnexplained = treeNew.filter(k => !/^invest\//.test(k) && !/^base\/contours_
                                          && k !== "design/c_203_borrow_source_demonstration_area"
                                          && k !== "framework/accum_raster"
                                          && k !== "framework/accum_streams"
-                                         && k !== "framework/where_water");
+                                         && k !== "framework/where_water"
+                                         && k !== "mywork/borings");
 console.log("layer tree:", tree.rows.length, "rows in the state,", tree.domRows, "in the DOM,",
             tree.subs.length, "sub-groups |", tree.swatches, "symbology swatches |",
             "baseline", treeBase.keys.length, "rows — missing", treeMissing.length,
