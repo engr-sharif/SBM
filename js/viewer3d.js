@@ -1544,6 +1544,15 @@ SBMM.viewer3d = (function () {
        into geometry nothing draws (v13 §3.1) */
     waterAnim = []; animLast = 0;
     haloMats = [];
+    /* v23 Phase B: a fence's texture is cached by feature id and outlives the
+       overlay group, so a deleted fence would leave its canvas texture on the
+       GPU for the life of the session */
+    for (const id of [...fenceTex.keys()])
+      if (!SBMM.store.byId(id)) {
+        const rec = fenceTex.get(id);
+        if (rec && rec.tex) rec.tex.dispose();
+        fenceTex.delete(id);
+      }
     const zx = exag();
     /* v15: the drop-shadow sink and the label specs this pass collects */
     const SHW = [], OVL = [];
