@@ -186,17 +186,15 @@ SBMM.isopach = (function () {
     row.innerHTML = `<button class="minib isoOff">hide overlay</button>`;
     row.querySelector(".isoOff").onclick = () => { clear(); toast("isopach hidden"); };
     el.appendChild(row);
-    SBMM.results.appendNote(el,
-      "Design minus the January 2024 lidar ground, integrated at "
-      + R.intCell + " ft"
-      + (R.cell !== R.intCell ? " and drawn at " + R.cell + " ft" : "")
-      + " (\u00b1 " + fmt(M, 1) + " ft full scale). "
-      + "A cell counts as unchanged where the difference is smaller than the two "
-      + "rasters can express: the 0.02 ft terrain-RGB step of each, plus \u2014 only "
-      + "where the ground is the 2-ft site grid rather than the 1-ft mine grid \u2014 "
-      + "that grid's own interpolation error on the local slope. Cells on the "
-      + "design raster's nodata boundary are excluded. "
-      + SBMM.tools.PLANNING_NOTE);
+    /* v23 §1/§5 — the comparison tolerance is a tooltip, not a paragraph. */
+    const n = SBMM.results.appendNote(el,
+      "Design minus the Jan 2024 lidar \u00b7 integrated at " + R.intCell + " ft"
+      + (R.cell !== R.intCell ? ", drawn at " + R.cell + " ft" : "")
+      + " \u00b7 \u00b1" + fmt(M, 1) + " ft full scale \u00b7 " + SBMM.tools.PLANNING_NOTE);
+    n.title = "A cell counts as unchanged where the difference is smaller than the two rasters "
+      + "can express: the 0.02 ft terrain-RGB step of each, plus \u2014 only where the ground is "
+      + "the 2-ft site grid rather than the 1-ft mine grid \u2014 that grid's own interpolation "
+      + "error on the local slope. Cells on the design raster's nodata boundary are excluded.";
     SBMM.shell.showResults();
   }
 
@@ -384,12 +382,11 @@ SBMM.isopach = (function () {
       ["Agreement", fmt(diff, 2) + " %"]
     ]);
     SBMM.results.appendNote(el,
-      "Two independent answers to one question: the arithmetic EA's quantity take-off uses, "
-      + "and the integral of the excavation-bottom surface against the lidar ground. "
-      + (Math.abs(diff) < 2
-         ? "They agree, which is the check."
-         : "They disagree by more than 2 % — the polygon may extend beyond the surface's working buffer.")
-      + " " + SBMM.tools.PLANNING_NOTE);
+      "EA's take-off arithmetic against the raster integral"
+      + (Math.abs(diff) < 2 ? " \u2014 they agree"
+         : " \u2014 they disagree by over 2 %; the polygon may extend beyond the surface's "
+           + "working buffer")
+      + " \u00b7 " + SBMM.tools.PLANNING_NOTE);
   }
 
   function wire() {
