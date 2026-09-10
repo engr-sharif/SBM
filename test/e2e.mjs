@@ -7552,6 +7552,7 @@ if (!logGone.restored || !(logGone.restoredColors >= 3))
 if (errors.length !== errBeforeLog) {
   console.log("FAIL: page errors with the boring-log payload absent:",
               errors.slice(errBeforeLog, errBeforeLog + 4)); process.exit(1); }
+await voiceCheck("9ae. the boring-log card");
 });
 
 let bwOpen, bwCols, bwAxes, bwCur, bwWalk, bwCmp, bwPrint, bwSeams, bwActs, bwIdle, bwGone, errBeforeWin;
