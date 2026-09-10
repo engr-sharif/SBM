@@ -2227,7 +2227,12 @@ body.field .blwin .bwf{min-width:92px}
    own — the ⋯ menu and the ⤢ zoom — and the layer tree's hover toolbar sat on
    top of both. Same rule as the sheet rows' 3D button: the toolbar moves left
    of them instead. */
-.lyr:has(.dsgear) .ltacts{right:56px}
+/* measured, not guessed: with right:56px the toolbar's right edge landed at
+   247 and the ⋯ button's left at 243 — a 4 px overlap. The two glyph buttons
+   span 60 px from the ⋯'s left edge to the row's right edge, so 66 px clears
+   them with 6 px to spare, and block 9af asserts the two boxes are disjoint
+   rather than asserting this number. */
+.lyr:has(.dsgear) .ltacts{right:66px}
 
 /* the boring tooltip on the map: the mini column beside the three lines */
 .leaflet-tooltip.bltip{display:flex;gap:8px;align-items:flex-start;max-width:260px}
