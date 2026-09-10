@@ -264,6 +264,15 @@ node test/perf.mjs   /abs/path/index.html folder   # 3D / memory numbers (its la
 node test/audit.mjs  /abs/path/index.html folder   # every tool, command, dialog + its toasts
 node test/audit2.mjs /abs/path/index.html folder   # sheet viewer, properties, split, report
 ```
+**Two things about reading a harness's output.** A harness that ends in
+`process.exit(1)` loses its last lines when stdout is a PIPE — Node does not
+flush an async pipe write before exiting — so run one with `> file`, never
+`| grep`, or a real failure arrives as a silent empty result. And **a CSS or JS
+change needs `python tools/build_dist.py` before `e2e:dist` or `field` means
+anything**: the dists inline the source, and a stale one fails on the fix you
+just made (a `.ltacts` offset landed at its old value in a dist built twenty
+minutes earlier).
+
 **One known flake, and it is older than the runner.** `test/e2e.mjs`'s last block,
 *9z. the layer tree*, reloads the page and measures the tree **1.5 s later** — a fixed
 wait, not a condition. On a loaded box (two browser steps in parallel) the app has not
@@ -2394,6 +2403,21 @@ block 9af is the property the fence needs.
 - **A `parts.push` after the `innerHTML` that joined them draws nothing**, and
   it looks exactly like a CSS problem. The compare tab's horizon key was pushed
   three lines below the assignment that consumed the array.
+- **A PHONE's whole stage is narrower than the desktop minimum.** `.blwin`
+  carries `min-width:520px`, and on a 412-px stage that made a MAXIMISED window
+  wider than the screen it was maximised into. `body.touch .blwin{min-width:0}`
+  takes the floor off and the resize clamps read `minW()`/`minH()`. And the
+  harness must measure `offsetWidth`, never `getBoundingClientRect`: the window
+  rises from `scale(.08)` on open and the rect is the TRANSFORMED box for a
+  quarter of a second (it read 42 x 55 in a 412 x 693 stage).
+- **Block 9af puts the Layers pane back before 9z runs.** Reaching the borings
+  dataset row to measure the hover toolbar scrolls the pane to Investigations,
+  and 9z drags a row in `#projLayers` by its grip's PAGE position — with the
+  pane scrolled those rows are not under the pointer and the drag lands on
+  nothing. It reads exactly like the old 9z load flake and is not one. The same
+  block clicks the Layers tab first, because a full run leaves the left dock
+  wherever the previous block put it and a Playwright locator waits the whole
+  180 s timeout for a row inside a hidden pane.
 
 ### The seams (§2.6)
 
