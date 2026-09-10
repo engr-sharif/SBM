@@ -1234,6 +1234,48 @@ await block("17. the boring logs", async () => {
   if (V.st.id !== "SB-9" || V.gl < 3 || V.contact !== 7.5)
     fail("the field log window is not SB-9's log", V);
   if (!V.closed) fail("the log window would not close in field mode", V);
+
+  /* v23 Phase B: the Fence tab fits the stage too, and the fence itself draws
+     with the payload present. A phone's stage is narrower than the desktop
+     minimum — body.touch takes the floor off .blwin, and the tab has to live
+     inside that. */
+  const F = await page.evaluate(() => {
+    if (!SBMM.fence) return { missing: true };
+    const B = SBMM.borelogs;
+    const a = B.byId("SB-9"), b = B.byId("SB-10");
+    const f = SBMM.fence.mkFence([[a.x, a.y], [b.x, b.y]], "Field fence", { swath_ft: 200 });
+    const d = SBMM.fence.drawSvg(f, { w: 420 });
+    SBMM.borewin.open(null, { tab: "fence" });
+    /* the LAST .blwin, not the first: close() sets W = null at once and removes
+       the element 200 ms later, so the previous log window is still in the DOM
+       here and querySelector hands back that one */
+    const el = [...document.querySelectorAll(".blwin")].pop();
+    const s = SBMM.sheets.stageBox();
+    const svg = el ? el.querySelector("svg.fnsvg") : null;
+    const out = { holes: (SBMM.fence.stateOf(f) || {}).holes.length,
+                  drawW: d.w, drawH: Math.round(d.h),
+                  tab: SBMM.borewin.tab(), maxed: el ? el.classList.contains("maxed") : false,
+                  w: el ? el.offsetWidth : 0, stage: Math.round(s.w),
+                  cols: svg ? svg.querySelectorAll(".fncol").length : 0,
+                  /* the drawing's own requested width, and whether the body it
+                     sits in overflows — getBoundingClientRect is the TRANSFORMED
+                     box while the window rises from scale(.08) */
+                  svgW: svg ? +(svg.getAttribute("width") || 0) : 0,
+                  over: el ? el.querySelector(".bwbody").scrollWidth
+                               - el.querySelector(".bwbody").clientWidth : 0 };
+    SBMM.borewin.close();
+    SBMM.tools.deleteFeature(f);
+    return out;
+  });
+  console.log("the fence (field):", JSON.stringify(F));
+  if (F.missing) fail("js/fence.js is not in the field build", F);
+  if (!F.holes || !F.cols) fail("the field fence found no borings", F);
+  if (F.tab !== "fence" || !F.maxed) fail("the Fence tab is not a full-screen sheet in field mode", F);
+  if (F.w < F.stage - 12) fail("the Fence tab does not fill the stage", F);
+  /* the drawing has a readable minimum of its own (360 px), so what is asserted
+     is that the tab does not OVERFLOW the window it is maximised into */
+  if (F.over > 2) fail("the Fence tab overflows the window it is in", F);
+  if (F.svgW > F.stage + 40) fail("the fence drawing is far wider than the stage", F);
 });
 
 /* ===================================================================== */

@@ -1331,6 +1331,111 @@ SBMM.viewer3d = (function () {
     return line;
   }
 
+  /* v23 Phase B — the fence strip.
+
+     The wall is the alignment resampled at 10 ft (drapedLine's own step, so
+     the top edge sits on the same ground the 2D alignment drapes to), each
+     sample carrying a top vertex at the lidar surface and a bottom vertex at
+     the fence's own datum floor. The UVs come from the DRAWING's own mapping —
+     `xOf(station)` and `yOf(elevation)` — so the columns, the horizons and the
+     waste band land on the wall exactly where the 2D drawing puts them, and
+     the axes and the title, which live in the margins, simply fall outside it.
+
+     A vertex with no ground under it is dropped and BREAKS the wall, the same
+     rule js/layers.js applies to the survey contours and js/drainage.js to a
+     catchment boundary: a fence that runs off the survey would otherwise stand
+     as a 70-ft curtain over open water. */
+  const fenceTex = new Map();
+  function fenceWall(f, R) {
+    /* the SIGNATURE is everything that changes the drawing, and it is computed
+       WITHOUT drawing: rebuildOverlays runs on every selection change, and
+       building a 100 kB SVG string per rebuild for a texture that has not moved
+       is exactly the per-frame-adjacent work §3.2 exists to keep out */
+    const sig = [f.id, R.total.toFixed(2), R.zTop.toFixed(2), R.zBot.toFixed(2),
+                 f.props.swath_ft, f.props.ve, R.holes.map(q => q.id).join(",")].join("|");
+    let rec = fenceTex.get(f.id);
+    if (!rec || rec.sig !== sig) {
+      if (rec && rec.tex) rec.tex.dispose();
+      const d0 = SBMM.fence.drawSvg(f, { w: 1200, bg: "rgba(11,16,19,.62)" });
+      if (!d0) return null;
+      rec = { sig, tex: null, pending: true, d: d0 };
+      fenceTex.set(f.id, rec);
+      const d = d0;
+      const img = new Image();
+      img.onload = () => {
+        try {
+          const small = fitToBudget(img, d.w, d.h);
+          const c = document.createElement("canvas");
+          c.width = small ? small.width : d.w; c.height = small ? small.height : d.h;
+          c.getContext("2d").drawImage(small || img, 0, 0, c.width, c.height);
+          const t = new THREE.CanvasTexture(c);
+          t.colorSpace = THREE.SRGBColorSpace;
+          rec.tex = t; rec.pending = false;
+          /* the placeholder is a flat lilac at 55 %; once the drawing is here
+             the material has to STOP tinting it, or the fence reads as a
+             coloured wash of itself */
+          if (rec.mat) { rec.mat.map = t; rec.mat.color.setHex(0xffffff);
+                         rec.mat.opacity = 1; rec.mat.needsUpdate = true; }
+          /* the canvas keeps the SVG's own alpha, so the plate is translucent
+             and the terrain still reads through the parts of the section that
+             carry no ink */
+          requestRender();
+        } catch (e) { console.error("fence texture", e); rec.pending = false; }
+      };
+      img.onerror = () => { rec.pending = false; };
+      img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(d.svg);
+    }
+    const d = rec.d;
+    if (!d) return null;
+    /* the wall geometry, in runs broken at NoData */
+    const STEP = 10;
+    const pos = [], uv = [], idx = [];
+    let runStart = -1, n = 0;
+    const zBot = R.zBot - ZMID;
+    let sta = 0;
+    const samples = [];
+    for (let i = 0; i + 1 < f.pts.length; i++) {
+      const a = f.pts[i], b = f.pts[i + 1];
+      const len = dist2d(a, b);
+      if (len < 1e-9) continue;
+      const k = Math.max(1, Math.round(len / STEP));
+      for (let j = 0; j < k; j++) {
+        const t = j / k;
+        samples.push([a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, sta + t * len]);
+      }
+      sta += len;
+    }
+    samples.push([f.pts[f.pts.length - 1][0], f.pts[f.pts.length - 1][1], sta]);
+    for (const [x, y, s0] of samples) {
+      const [zr] = SBMM.elev(x, y);
+      if (!isFinite(zr)) { runStart = -1; continue; }
+      const u = d.xOf(s0) / d.w;
+      pos.push(x - CX, y - CY, zr - ZMID, x - CX, y - CY, zBot);
+      uv.push(u, 1 - d.yOf(zr) / d.h, u, 1 - d.yOf(R.zBot) / d.h);
+      const col = n; n++;
+      if (runStart >= 0 && col > runStart) {
+        const a0 = (col - 1) * 2, b0 = col * 2;
+        idx.push(a0, a0 + 1, b0, b0, a0 + 1, b0 + 1);
+      }
+      if (runStart < 0) runStart = col;
+    }
+    if (!idx.length) return null;
+    const g = new THREE.BufferGeometry();
+    g.setAttribute("position", new THREE.BufferAttribute(new Float32Array(pos), 3));
+    g.setAttribute("uv", new THREE.BufferAttribute(new Float32Array(uv), 2));
+    g.setIndex(idx);
+    const mat = new THREE.MeshBasicMaterial({
+      map: rec.tex || null, color: rec.tex ? 0xffffff : 0xC7A6F0,
+      transparent: true, opacity: rec.tex ? 1 : .45,
+      depthWrite: false, depthTest: true, side: THREE.DoubleSide,
+      toneMapped: false, polygonOffset: true, polygonOffsetFactor: -4
+    });
+    rec.mat = mat;
+    const mesh = new THREE.Mesh(g, mat);
+    mesh.renderOrder = 3;
+    return mesh;
+  }
+
   /* §3.1 — draped reference linework, MERGED per layer. One draw call and one
      registry entry for a whole layer, with a segment→feature map so a click
      still names the right thing. Reference linework is resampled at 25 ft
@@ -1439,6 +1544,15 @@ SBMM.viewer3d = (function () {
        into geometry nothing draws (v13 §3.1) */
     waterAnim = []; animLast = 0;
     haloMats = [];
+    /* v23 Phase B: a fence's texture is cached by feature id and outlives the
+       overlay group, so a deleted fence would leave its canvas texture on the
+       GPU for the life of the session */
+    for (const id of [...fenceTex.keys()])
+      if (!SBMM.store.byId(id)) {
+        const rec = fenceTex.get(id);
+        if (rec && rec.tex) rec.tex.dispose();
+        fenceTex.delete(id);
+      }
     const zx = exag();
     /* v15: the drop-shadow sink and the label specs this pass collects */
     const SHW = [], OVL = [];
@@ -1801,6 +1915,45 @@ SBMM.viewer3d = (function () {
             new THREE.MeshBasicMaterial({ color: sel ? 0xFFD34D : 0xE8B34B }));
           st.position.set(x - CX, y - CY, drapeZ(x, y, 4));
           overlayGroup.add(own(st, f));
+          continue;
+        }
+        /* v23 Phase B — the fence stands in the scene as a vertical strip:
+           the drawn fence, rendered to a canvas texture, mapped on a wall that
+           follows the alignment from the LIDAR GROUND down to the datum's
+           bottom. The top edge is the ground, so the whole strip is at or
+           below it and the terrain draws over it wherever it is buried —
+           which is what makes it read as a cut rather than as a billboard.
+
+           depthWrite off with a modest renderOrder keeps the transparent parts
+           from punching holes in the terrain behind, and polygonOffset keeps
+           the top edge off the surface it is welded to; DoubleSide so it is
+           there from either bank.
+
+           THE TEXTURE IS BUILT ONCE PER OVERLAY REBUILD, cached on the feature
+           against a signature of everything that changes the drawing. Block
+           9e's idle contract is at most one render over four idle seconds, so
+           there is no per-frame work here at all — the async decode asks for
+           exactly one render when it lands. */
+        if (f.type === "fence" && SBMM.fence) {
+          const R = f._fen || SBMM.fence.derive(f);
+          if (R && f.pts.length > 1) {
+            overlayGroup.add(own(addShadow(SHW, drapedLine(f.pts, col, false, sel ? 4.5 : 3)), f));
+            const wall = fenceWall(f, R);
+            if (wall) {
+              own(wall, f);
+              /* the wall answers with the boring nearest the hit, so it carries
+                 the hole list and the scene's centring constants */
+              wall.userData.pick = { kind: "fence", fid: f.id, cx: CX, cy: CY,
+                holes: R.holes.map(q => ({ id: q.id, x: q.px, y: q.py })) };
+              overlayGroup.add(wall);
+            }
+            for (const q of R.holes)
+              OVL.push({ key: "fence:" + f.id + ":" + q.id, text: q.id,
+                         color: colCss, x: q.px, y: q.py,
+                         z: drapeZ(q.px, q.py, 8) + ZMID, priority: 44,
+                         pick: { kind: "feature", fid: f.id },
+                         layer: { g: "mywork", l: SBMM.myWork.classOf(f) } });
+          }
           continue;
         }
         const closed = f.type === "area" || f.type === "volume";

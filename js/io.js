@@ -6,8 +6,10 @@ SBMM.io = (function () {
   function featGeom(f, project) {
     const P = project;   // p -> coordinate pair
     if (f.type === "spot" || f.type === "text" || f.type === "photo") return { type: "Point", coordinates: P(f.pts[0]) };
+    /* v23 Phase B: a fence rides along as its ALIGNMENT, the way a section set
+       does — the drawing itself is a separate export in section coordinates */
     if (f.type === "line" || f.type === "profile" || f.type === "dim" || f.type === "sections"
-        || f.type === "flow" || f.type === "ink")
+        || f.type === "flow" || f.type === "ink" || f.type === "fence")
       return { type: "LineString", coordinates: f.pts.map(P) };
     return { type: "Polygon", coordinates: [[...f.pts, f.pts[0]].map(P)] };
   }

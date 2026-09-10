@@ -96,6 +96,8 @@ SBMM.dxf = (function () {
       layers.set("GRADING", toACI("#4FD8E6"));
     if (feats.some(f => f.type === "sections" && f._sec))
       layers.set("SECTION", toACI("#F0A6D0"));
+    if (feats.some(f => f.type === "fence"))
+      layers.set("FENCE-SWATH", toACI("#C7A6F0"));
     /* a raindrop's ponds are computed geometry like a daylight line, and land on
        their own layer so a drafter can freeze them apart from the run */
     if (feats.some(f => f.type === "flow" && f.props && (f.props.ponds || []).length))
@@ -207,6 +209,17 @@ SBMM.dxf = (function () {
         for (const ring of (pd.rings || []))
           if (ring.length > 2) polyline(w, "WATER-PONDS", ring, true);
     }
+    /* v23 Phase B: a fence's SWATH is computed geometry like a daylight line —
+       it goes out on its own layer so a drafter can freeze the corridor apart
+       from the alignment. The fence DRAWING is a separate export in section
+       coordinates (SBMM.fence.exportDxf); this one is the cut on the plan. */
+    if (f.type === "fence" && SBMM.fence) {
+      const half = (f.props && f.props.swath_ft) || 150;
+      for (const ring of SBMM.fence.bandRings ? SBMM.fence.bandRings(f.pts, half) : [])
+        if (ring.length > 2) polyline(w, "FENCE-SWATH", ring, true);
+      for (const q of ((f._fen && f._fen.holes) || []))
+        line(w, "FENCE-SWATH", [q.x, q.y], [q.px, q.py]);
+    }
     if (f.type === "sections" && f._sec) {
       const R = f._sec;
       for (let s = 0; s < R.ns; s++) {
@@ -230,7 +243,8 @@ SBMM.dxf = (function () {
       return;
     }
     if (t === "area" || t === "volume" || t === "surface") { polyline(w, lay, f.pts, true); return; }
-    if (t === "line" || t === "profile" || t === "sections" || t === "flow" || t === "ink") {
+    if (t === "line" || t === "profile" || t === "sections" || t === "flow" || t === "ink"
+        || t === "fence") {
       polyline(w, lay, f.pts, false); return;
     }
     if (t === "text") {
@@ -265,6 +279,69 @@ SBMM.dxf = (function () {
     }
     /* anything else: fall back to its polyline */
     if (f.pts.length > 1) polyline(w, lay, f.pts, false); else { w(0, "POINT"); w(8, lay); w(10, N(f.pts[0][0])); w(20, N(f.pts[0][1])); w(30, "0.0"); }
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* writeEntities — the same R12 writer, an explicit entity list          */
+  /* ------------------------------------------------------------------ */
+  /* v23 Phase B. The fence diagram's DXF is in SECTION coordinates — X is the
+     station in feet and Y is the elevation in feet, which is the grid a Civil
+     3D section view is drawn on — so it cannot go through buildDXF(), which
+     walks the store and writes State Plane. What it must NOT do is carry a
+     second DXF writer: the header, the layer table, the POLYLINE/VERTEX shape
+     and the ACI matching are the same file format either way. So the caller
+     hands in the layers and the entities and this writes them.
+
+       layers:   [{name, color}]
+       entities: {kind:"polyline", layer, pts:[[x,y]…], closed?}
+                 {kind:"line",     layer, a:[x,y], b:[x,y]}
+                 {kind:"point",    layer, point:[x,y]}
+                 {kind:"text",     layer, point:[x,y], h, text, rot?}                */
+  function writeEntities(layerSpec, entities) {
+    const o = [];
+    const w = (c, v) => { o.push(String(c)); o.push(String(v)); };
+    const layers = new Map();
+    for (const l of (layerSpec || [])) layers.set(l.name, toACI(l.color || "#FFFFFF"));
+    for (const e of (entities || [])) if (e.layer && !layers.has(e.layer)) layers.set(e.layer, 7);
+    if (!layers.size) layers.set("SBMM", 7);
+
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    const see = q => { if (!q) return;
+      if (q[0] < x0) x0 = q[0]; if (q[0] > x1) x1 = q[0];
+      if (q[1] < y0) y0 = q[1]; if (q[1] > y1) y1 = q[1]; };
+    for (const e of (entities || [])) {
+      if (e.pts) e.pts.forEach(see);
+      see(e.a); see(e.b); see(e.point);
+    }
+    if (!isFinite(x0)) { x0 = y0 = 0; x1 = y1 = 1; }
+
+    w(0, "SECTION"); w(2, "HEADER");
+    w(9, "$ACADVER"); w(1, "AC1009");
+    w(9, "$EXTMIN"); w(10, N(x0)); w(20, N(y0)); w(30, N(0));
+    w(9, "$EXTMAX"); w(10, N(x1)); w(20, N(y1)); w(30, N(0));
+    w(9, "$LUNITS"); w(70, 2);
+    w(0, "ENDSEC");
+
+    w(0, "SECTION"); w(2, "TABLES");
+    w(0, "TABLE"); w(2, "LTYPE"); w(70, 1);
+    w(0, "LTYPE"); w(2, "CONTINUOUS"); w(70, 0); w(3, "Solid line"); w(72, 65); w(73, 0); w(40, "0.0");
+    w(0, "ENDTAB");
+    w(0, "TABLE"); w(2, "LAYER"); w(70, layers.size);
+    for (const [name, aci] of layers) { w(0, "LAYER"); w(2, name); w(70, 0); w(62, aci); w(6, "CONTINUOUS"); }
+    w(0, "ENDTAB");
+    w(0, "ENDSEC");
+
+    w(0, "SECTION"); w(2, "ENTITIES");
+    for (const e of (entities || [])) {
+      const lay = e.layer || "SBMM";
+      if (e.kind === "polyline" && e.pts && e.pts.length > 1) polyline(w, lay, e.pts, !!e.closed);
+      else if (e.kind === "line" && e.a && e.b) line(w, lay, e.a, e.b);
+      else if (e.kind === "point" && e.point) { w(0, "POINT"); w(8, lay); w(10, N(e.point[0])); w(20, N(e.point[1])); w(30, "0.0"); }
+      else if (e.kind === "text" && e.point) text(w, lay, e.point, e.h || 4, e.text || "", e.rot || 0);
+    }
+    w(0, "ENDSEC");
+    w(0, "EOF");
+    return o.join("\r\n") + "\r\n";
   }
 
   function exportDXF() {
@@ -410,5 +487,5 @@ SBMM.dxf = (function () {
     toast("choose a .dxf (State Plane ft) — or drag it onto the map");
   }
 
-  return { buildDXF, exportDXF, parseDXF, importText, importPrompt, toACI, ACI, checkCRS };
+  return { buildDXF, exportDXF, writeEntities, parseDXF, importText, importPrompt, toACI, ACI, checkCRS };
 })();

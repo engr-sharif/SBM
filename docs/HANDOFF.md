@@ -138,8 +138,44 @@ and really develop a more useful feature than just plotting them on the results 
 I want this beautifully and usefully done."* `docs/V23_BORINGS_SPEC.md` is the contract.
 Phase A shipped: one column renderer in `js/borelogs.js` and the log window
 (`js/borewin.js`) with the Log sheet, Compare and the Table, plus the printed log sheet.
-Phase B (the fence diagram) is a separate round and calls the same renderer at the `stick`
-tier with an elevation window. **Phase C needs a ruling first** — see the open items.
+Phase B (the fence diagram) shipped on 2026-09-10 and calls the same renderer at the
+`stick` tier with an elevation window — see the next entry. **Phase C needs a ruling
+first** — see the open items.
+
+### The fence: four rulings this round made for itself (2026-09-10, v23 Phase B)
+
+`js/fence.js` ships. Four things the spec did not settle, decided here and
+recorded because each one moves a number or a word the engineer reads:
+
+1. **A hole's OFFSET is its distance to the alignment, not to the segment's
+   infinite line.** A hole past the end of a drawn line has its foot clamped to
+   the endpoint, and the perpendicular distance to the extension is shorter than
+   the hole really is from the section: SB-8 came inside a 300-ft swath reading
+   "188 ft R" when it is 293 ft from the line. The sign is still the cross
+   product (positive RIGHT looking up-station, the convention `js/sections.js`
+   uses); only the magnitude changed.
+2. **`PROFILE` is NOT an alias of `FENCE`.** §3.1 lists it; it is already the
+   elevation-profile command's own name, and an alias resolves first-match over
+   one flat table, so claiming it would have killed the profile tool silently
+   (`test/check.mjs` fails on the duplicate). `GEOSECTION` and `FENCEDIAGRAM`
+   are the two aliases.
+3. **A fence rebuilds its DERIVED geometry on load rather than storing it.**
+   `flow` and `photo` "never recompute" because recomputing spawns compute jobs
+   and a session load must spawn none. A fence's projection is 44 dot products
+   and its ground is a few hundred bilinear reads — main-thread arithmetic,
+   measured at well under a millisecond — so `mkFence` re-derives and the
+   session carries only the scalars (`swath_ft`, `ve`, `length_ft`, `n_holes`,
+   the datum, and the id/station/offset of each hole). The invariant the e2e
+   asserts is the one that matters: **zero jobs across a round trip.** Storing
+   1,500 ground samples per fence in every session file would have been the
+   alternative.
+4. **The 3D strip's plate is TRANSLUCENT, not opaque.** An opaque section
+   standing in the terrain reads as a black wall from any distance — the first
+   cut did. The drawing is rendered with `bg: "rgba(11,16,19,.62)"` for the
+   texture only; the 2D drawing is unchanged.
+
+**The vertical exaggeration is a three-way select, not a slider** (§3.2 says
+slider): three values are three values.
 
 ### Voice: the app talks to engineers (2026-09-09)
 

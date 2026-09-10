@@ -113,6 +113,33 @@ SBMM.pick3d = (function () {
                    featureId: f.id, xyz: [f.pts[0][0], f.pts[0][1]] };
         }
       };
+      /* v23 Phase B — the fence strip. The card is the fence's own popup with
+         the boring nearest the point that was actually hit named at the top:
+         a wall 900 ft long answering "fence diagram" says nothing a reader
+         standing at one hole wants to know. The strip carries its own centring
+         constants because the scene is drawn about (cx, cy) and only the
+         viewer knows them. */
+      case "fence": return {
+        object3d: o, kind: "fence", priority: P,
+        hit(inx) {
+          const f = SBMM.store.byId(t.fid);
+          if (!f) return null;
+          let near = null, bd = Infinity;
+          if (inx && inx.point) {
+            const wx = inx.point.x + (t.cx || 0), wy = inx.point.y + (t.cy || 0);
+            for (const q of (t.holes || [])) {
+              const d = Math.hypot(q.x - wx, q.y - wy);
+              if (d < bd) { bd = d; near = q; }
+            }
+          }
+          const head = near
+            ? `<b>${esc(near.id)}</b> <span style="opacity:.7">nearest boring, `
+              + `${fmt0(bd)} ft along the cut</span><br>` : "";
+          return { title: near ? near.id + " · " + (f.name || "fence") : (f.name || "fence"),
+                   html: head + SBMM.popups.forFeature(f),
+                   featureId: f.id, xyz: near ? [near.x, near.y] : [f.pts[0][0], f.pts[0][1]] };
+        }
+      };
       case "gis": return {
         object3d: o, kind: "gis", priority: P,
         hit() {
