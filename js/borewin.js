@@ -658,7 +658,11 @@ SBMM.borewin = (function () {
       W.art.innerHTML = pick + `<div class="note">No fence drawn yet.</div>`;
       W.el.querySelector(".bwfoot").textContent = "no fence";
     } else {
-      const d = FN.drawSvg(f, { w: Math.max(560, W.body.clientWidth - 18) });
+      /* a fence is drawn at the width it is READ at. On a phone the whole
+         stage is 393 px, so a 560-px floor would hand the CSS a drawing to
+         scale down — which shrinks the text and keeps the collisions, the
+         same lesson the results-card strip log carries. */
+      const d = FN.drawSvg(f, { w: Math.max(touchy() ? 330 : 560, W.body.clientWidth - 18) });
       W.art.innerHTML = pick + (d ? d.svg : `<div class="note">this fence has no alignment</div>`);
       W.el.querySelector(".bwfoot").textContent = d
         ? `${d.holes.length} borings \u00b7 ${fmt(d.total, 1)} ft \u00b7 `

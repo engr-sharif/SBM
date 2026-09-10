@@ -204,7 +204,10 @@ SBMM.fence = (function () {
     const R = f._fen || derive(f);
     if (!R) return null;
     const pr = f.props;
-    const W = Math.max(420, Math.round(o.w || 900));
+    /* 360 is the floor: PADL + PADR + a column at each end is 184 px before a
+       single station is drawn, and below ~360 the axes and the id labels run
+       into each other. A phone stage is 393, so the drawing fits it 1:1. */
+    const W = Math.max(360, Math.round(o.w || 900));
     const ve = pr.ve || 1;
     const total = Math.max(1, R.total);
     const inset = CW / 2 + 4;
