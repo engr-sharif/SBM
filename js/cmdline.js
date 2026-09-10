@@ -217,6 +217,13 @@ SBMM.cmd = (function () {
         if (!SBMM.borelogs) { toast("this build has no boring logs"); return; }
         SBMM.borelogs.cmd(v);
       } },
+    { n: "LOGWIN", a: ["LOGWINDOW", "BOREWIN"],
+      d: "the log window — one hole as a log sheet, compare, and the 44-hole table",
+      arg: "boring (e.g. SB-9)",
+      f: v => {
+        if (!SBMM.borewin) { toast("the log window is not in this build"); return; }
+        SBMM.borewin.open(v ? String(v).trim() : null);
+      } },
     { n: "LOGS", a: ["BORELOGS", "BORINGS"],
       d: "every boring log in one table — the two contact statements per hole, and where they disagree",
       f: () => {

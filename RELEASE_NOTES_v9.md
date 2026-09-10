@@ -17,6 +17,53 @@ All three are offline-only by design. Nothing in this app calls out to the inter
 
 ---
 
+## v9.27 — the log window (2026-09-10)
+
+The strip log was a 300-pixel column in the Results panel, and the borings are the only
+direct evidence of what is under everything else in this app. They now have an instrument.
+
+Click **open in window** on a log — or the **boring log** button on any boring's popup or
+3D card, the **log** button on a row of the Borings table, or type `LOGWIN` — and the log
+opens in its own window, the same kind of window the drawings open in: drag it, resize it,
+maximise it, Esc closes it.
+
+**Log** is the hole as a log sheet at **1 in = 5 ft** (2, 5, 10 and 20 on the menu; `+`
+and `−`, or a pinch on the iPad), with the columns a real log sheet has: depth and
+elevation on the two sides, the drilling method and casing, the class band, the graphic log
+with the proper **USCS patterns** — gravel circles, sand dots, silt dashes, clay lines,
+brick for rock — tinted by whether the unit is waste, native or bedrock, the USCS symbol,
+the logger's **full description wrapped** instead of cut off, the sample column with a box
+per drive and the N in a bar, blows per 6 inches, the pocket penetrometer, pH on its scale
+with the red rule at 4, the lab values as chips at their own depth, the water triangle and
+the log notes at their depth. The header stays on screen while you scroll: the hole, its
+waste area, the ground elevation with **how far the lidar disagrees with it**, both
+contacts, bedrock, groundwater, coordinates, dates, who logged it and who checked it, and
+the driller.
+
+Run the pointer down it and a **cursor** reads the depth, the elevation, the unit, the
+drive and the nearest test at once. Hover a unit and it lights up on that hole's stick in
+3D; click it and the boring flashes on the map. `←` and `→` walk the holes.
+
+**Compare** stands two to six holes side by side on **one elevation datum**, joins the
+native contact, the top of bedrock and the water level across them — dashed where a hole
+did not get that deep — and prints the **real distance between each pair**, so you can see
+at a glance whether you are looking at 60 ft apart or 900. It is the fence diagram without
+the ground; the ground comes next.
+
+**Table** is the 44-hole sheet at full width — waste area, ground elevation, both contacts
+and their elevations, bedrock and its elevation, groundwater, who logged it, the date and
+the flags — sortable on any column and filterable by waste area.
+
+**print** gives you the appendix: black on white at the stated scale, one page per 43 ft,
+the header repeated on every page, `page 2 of 3`, the patterns and tints kept, and a legend
+at the end. **print all** does all 44 holes in one document; **print area** does one waste
+area.
+
+Two smaller things while I was in there: hovering a boring on the map now shows a little
+column of the hole with its three numbers before you click, and the layer tree's hover
+buttons no longer sit on top of the ⋯ and ⤢ buttons on a dataset's row.
+
+---
 ## v9.26 — less reading (2026-09-09)
 
 - **The cards say the answer and stop.** The results sheets were explaining themselves
