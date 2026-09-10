@@ -68,6 +68,35 @@ const WREF = {
 };
 const wdist = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]);
 
+/* ---- v23 §4: the app talks to engineers ---------------------------------
+   A results card states the result. It never tells the reader what to click,
+   drag or hover, and never explains what a control is for in running text —
+   that belongs in a tooltip (`title`, which textContent does not carry) and in
+   the manual. This scans EVERYTHING on the results panel at the moment it is
+   called, so the blocks that open a card call it and a new card is covered by
+   whichever block opened it. It is a helper rather than a block of its own on
+   purpose: re-running the analyses to look at their words would cost minutes. */
+const VOICE_BAN = ["click", "drag", "use the", "you can", "to see", "hover"];
+async function voiceCheck(where) {
+  const cards = await page.evaluate(() =>
+    [...document.querySelectorAll("#resBody .res")].map(el => {
+      const h = el.querySelector("h4");
+      return { card: h ? h.textContent.replace(/[⌖✎✕]/g, "").trim() : "(card)",
+               txt: el.textContent };
+    }));
+  for (const c of cards) {
+    const low = c.txt.toLowerCase();
+    for (const w of VOICE_BAN) {
+      const i = low.indexOf(w);
+      if (i < 0) continue;
+      console.log(`FAIL: ${where} — the card “${c.card}” instructs the reader (“${w}”):`,
+                  JSON.stringify(c.txt.slice(Math.max(0, i - 70), i + 70)));
+      process.exit(1);
+    }
+  }
+  console.log(`voice (${where}): ${cards.length} card(s) on the panel, no instructions`);
+}
+
 await block("1. boot completes (the old app hung here forever)", async () => {
 /* 1. boot completes (the old app hung here forever) */
 await page.waitForSelector("#loading", { state: "hidden", timeout: 60000 })
@@ -217,6 +246,7 @@ if (Math.abs(vol.fill_yd3 - 278.4) > 10 || Math.abs(vol.net_yd3 - (-48.1)) > 10)
   console.log("FAIL: volume validation out of tolerance"); process.exit(1);
 }
 console.log("volume validation: OK");
+await voiceCheck("3. the volume card");
 });
 
 let wk;   /* hoisted — v18 §3 */
@@ -987,6 +1017,7 @@ secRes = await page.evaluate(async () => {
     csvRows: SBMM.sections.csvText(f).trim().split("\n").length - 1
   };
 });
+await voiceCheck("8M. the earthworks cards");
 console.log("sections:", secRes.ns, "stations |", JSON.stringify(secRes.labels),
             "| end-area cut/fill", secRes.ea.cut.toFixed(0), "/", secRes.ea.fill.toFixed(0),
             "| grid", secRes.cross.grid.cut.toFixed(0), "/", secRes.cross.grid.fill.toFixed(0),
@@ -1241,6 +1272,7 @@ console.log(`STANDS: ${stands.n} stands, ${stands.totAc} ac canopy, folder "${st
 if (!(stands.n >= 1)) { console.log("FAIL: STANDS found nothing"); process.exit(1); }
 if (!stands.allAreas) { console.log("FAIL: STANDS kept a stand under the minimum area"); process.exit(1); }
 console.log("canopy stands: OK");
+await voiceCheck("8N. the smart-boundary cards");
 });
 
 let trees;   /* hoisted — v18 §3 */
@@ -1264,6 +1296,7 @@ if (!(trees.n > 50)) { console.log(`FAIL: only ${trees.n} trees detected (expect
 if (trees.over150 > 0) { console.log(`FAIL: ${trees.over150} trees taller than 150 ft`); process.exit(1); }
 if (!(trees.hmin >= 6)) { console.log("FAIL: a detected tree is below the 6-ft minimum"); process.exit(1); }
 console.log("tree detection: OK");
+await voiceCheck("8N-f. the tree inventory card");
 });
 
 let sb;   /* hoisted — v18 §3 */
@@ -2965,6 +2998,7 @@ if (!excCut.layerOnMap || !excCut.card || !excCut.legend) {
   console.log("FAIL: the isopach did not draw its overlay, card and legend"); process.exit(1);
 }
 await page.screenshot({ path: "shots/isopach.png" });
+await voiceCheck("9i. the isopach card");
 await page.evaluate(() => SBMM.isopach.clear());
 
 /* "volume of this excavation": area x depth and the raster method side by side */
@@ -4353,6 +4387,7 @@ w13d = await page.evaluate(async () => {
   if (!wasOpen) { await SBMM.viewer3d.toggle(); await wait(500); }
   return out;
 });
+await voiceCheck("9t. the overtopping card");
 console.log("v13 water in 3D:", JSON.stringify(w13d));
 if (!w13d.anim || w13d.anim.length !== 1 || w13d.anim[0].n < 10)
   { console.log("FAIL: the visible flow has no particle stream:", JSON.stringify(w13d.anim)); process.exit(1); }
@@ -5833,6 +5868,7 @@ drainOff = await page.evaluate(async () => {
   return back;
 });
 console.log("drainage with the storm drains off:", JSON.stringify(drainOff));
+await voiceCheck("9x. the drainage card");
 if (drainOff.inletSinks !== 0 || drainOff.conduits !== 0 || drainOff.inlets !== 0)
   { console.log("FAIL: the drains-off map still has inlet catchments"); process.exit(1); }
 if (drainOff.backAgain !== 1) { console.log("FAIL: switching the drains back on lost the outfall"); process.exit(1); }
@@ -5935,6 +5971,7 @@ rainRun = await page.evaluate(async () => {
   };
 });
 console.log("design storm:", JSON.stringify(rainRun));
+await voiceCheck("9aa. the design-storm card");
 if (rainRun.failed) { console.log("FAIL: the design storm produced nothing"); process.exit(1); }
 if (Date.now() - rainT0 > 60000) { console.log("FAIL: the design storm took over 60 s"); process.exit(1); }
 if (!rainRun.card) { console.log("FAIL: no Design storm results card"); process.exit(1); }
@@ -6181,12 +6218,15 @@ accIdent = await page.evaluate(() => {
   const card = [...document.querySelectorAll("#resBody .res")]
     .find(el => /Flow accumulation/.test(el.querySelector("h4").textContent));
   return { rows: out, checked: R.checked,
-           saysBoundary: card ? /not attributable at/.test(card.textContent) : false,
-           saysHarness: card ? /full resolution/.test(card.textContent) : false,
+           /* v23: the "why" is the cross-check table's own tooltip now, not a
+              paragraph on the card — the FACTS asserted are unchanged */
+           saysBoundary: card ? /not attributable at/.test(card.innerHTML) : false,
+           saysHarness: card ? /full resolution/.test(card.innerHTML) : false,
            total: +(R.exitTotal_ft2 / 43560).toFixed(3),
            surveyed: +(R.surveyedArea_ft2 / 43560).toFixed(3) };
 });
 console.log("accumulation vs the drainage map:", JSON.stringify(accIdent));
+await voiceCheck("9ab. the accumulation card");
 if (accIdent.none || !accIdent.rows.length) { console.log("FAIL: the card has no cross-check to print"); process.exit(1); }
 /* WHAT THE APP CAN AND CANNOT CHECK, and the card has to say which is which.
    Summing what leaves the model by catchment needs a label AT THE EXIT CELL, and
@@ -6291,6 +6331,7 @@ pipeRun = await page.evaluate(async () => {
   };
 });
 console.log("pipe capacity:", JSON.stringify(pipeRun));
+await voiceCheck("9ab. the pipe-capacity card");
 if (pipeRun.failed) { console.log("FAIL: PIPES produced nothing"); process.exit(1); }
 if (!pipeRun.card) { console.log("FAIL: no Pipe capacity results card"); process.exit(1); }
 if (!pipeRun.warn) { console.log("FAIL: the card does not carry the provisional warning"); process.exit(1); }
@@ -6347,6 +6388,7 @@ scnRun = await page.evaluate(async () => {
   };
 });
 console.log("scenarios:", JSON.stringify(scnRun));
+await voiceCheck("9ab. the scenarios card");
 if (scnRun.n !== 2 || !scnRun.ran.every(Boolean)) { console.log("FAIL: the two scenarios did not run"); process.exit(1); }
 if (scnRun.vols[0] <= scnRun.vols[1]) {
   console.log("FAIL: the 25-year storm must produce more runoff than the 10-year",
@@ -6983,6 +7025,7 @@ wwRun = await page.evaluate(async () => {
   };
 });
 console.log("where the water goes:", JSON.stringify(wwRun, null, 1));
+await voiceCheck("9ac2. the where-the-water-goes card");
 if (wwRun.failed) { console.log("FAIL: the four areas did not compute"); process.exit(1); }
 if (!wwRun.row) { console.log("FAIL: the 'Where the water goes' row is not in the tree"); process.exit(1); }
 if (!wwRun.card) { console.log("FAIL: no 'Where the water goes' results card"); process.exit(1); }

@@ -65,9 +65,8 @@ SBMM.water = (function () {
   const RANKS = "①②③④⑤⑥⑦⑧⑨⑩⑪⑫";
 
   const NOTE_FLOW = grid =>
-    "Steepest-descent trace on the " + grid + " lidar bare earth; depressions fill to "
-    + "their pour point and the drop continues. No rainfall, infiltration or hydraulics "
-    + "— a terrain analysis, planning-level.";
+    grid + " lidar · steepest descent, depressions filled to their pour point · "
+    + "no rainfall or hydraulics · planning-level";
 
   /* ================================================================== */
   /* small helpers                                                      */
@@ -847,11 +846,9 @@ SBMM.water = (function () {
     a.props.catchment_partial = !!R.touchesEdge;
     SBMM.undo.push("contributing area", () => SBMM.store.remove(a), () => SBMM.store.readd(a));
     SBMM.results.appendNote(a.card,
-      "Contributing area (within the " + fmt0(half * 2) + "-ft window): "
-      + fmt(acft(R.area_ft2), 3) + " ac · " + fmt0(R.area_ft2) + " ft², D8 on the pit-filled "
-      + gridLabel(dem) + " lidar grid."
-      + (R.touchesEdge ? " The catchment reaches the window edge, so this is a LOWER BOUND." : "")
-      + " " + SBMM.tools.PLANNING_NOTE);
+      fmt(acft(R.area_ft2), 3) + " ac · D8 on the pit-filled " + gridLabel(dem)
+      + " lidar grid · " + fmt0(half * 2) + "-ft window"
+      + (R.touchesEdge ? " · reaches the window edge — lower bound" : ""));
     SBMM.store.select(a.id);
     SBMM.shell.showResults();
     return a;
@@ -1848,7 +1845,9 @@ SBMM.water = (function () {
     if (F && F.wallCrest != null) {
       const st = stageAt(R, F.wallCrest);
       rows.push(["Sandbag wall crest", `${fmt(F.wallCrest, 2)} ft · +${fmt(F.wallCrest - R.z0, 2)} ft`
-        + (st ? ` · ${fmt(acft(st.storage_ft3), 1)} ac-ft` : "")]);
+        + (st ? ` · ${fmt(acft(st.storage_ft3), 1)} ac-ft` : ""),
+        "Surveyed Aug 2026; the lidar rim beside it reads higher — the survey is the "
+        + "current truth for the wall itself."]);
     }
     /* v15 §1 + v22 §R.2: with a conduit carrying the water first, the rim spill
        is not a route BELOW the rim — say what carries it instead, so nobody
@@ -1955,20 +1954,13 @@ SBMM.water = (function () {
     });
     el.appendChild(btns);
 
+    /* v23 §2 — the worked example. The rows already carry the pipe-versus-rim
+       story, the slider says what the flood above the spill is, and the wall's
+       survey-versus-lidar fact is the tooltip on its own row. */
     SBMM.results.appendNote(el,
-      "Static spill analysis on the " + grid + " lidar bare earth: "
-      + (F && F.waterLevel != null
-        ? "today's water surface is the surveyed level (Jacobs, Aug 2026, " + fmt(R.z0, 2) + " ft) over the lidar's "
-          + "water footprint (its flat return read " + fmt(R.z0_lidar != null ? R.z0_lidar : R.z0, 2) + " ft in Jan 2024); "
-          + "the first discharge is the surveyed 24-in pipes, the rim spill is the lidar's; "
-          + "the sandbag wall beside the pipes is surveyed at " + fmt(F.wallCrest, 2) + " ft, the lidar rim there reads higher (rim low ②) — "
-          + "the survey is the current truth for the wall itself. "
-        : "the water surface is the lidar's flat return over the pond (" + fmt(R.z0, 1) + " ft), ")
-      + "the spill is the lowest rim "
-      + "cell from which water drains away (pit-filled DEM), storage is geometric. Above the spill "
-      + "the table describes a sealed flood — what would happen if the low rim at ① were raised. "
-      + "No inflow, wave run-up, seepage or erosion — planning-level."
-      + (F ? " Surveyed levels are used where they exist; the lidar supplies the terrain." : ""));
+      gridLabel(ov.dem) + " lidar (Jan 2024)"
+      + (F && F.waterLevel != null ? " · water level and pipe inverts from the Aug 2026 survey" : "")
+      + " · static, no inflow · planning-level");
   }
 
   function toggleOverlay(btn) {
@@ -2148,8 +2140,8 @@ SBMM.water = (function () {
       const parts = levelWords();
       return { kind: "water", title: parts[0].replace(/<[^>]+>/g, ""),
                html: `<div class="waterdesc">${parts.map(p => `<div>${p}</div>`).join("")}</div>`
-                 + `<div class="pop-actions"><span class="minib" data-wact="slider">raise the water — the level slider</span>`
-                 + `<span class="minib" data-wact="card">the overtopping card</span></div>` };
+                 + `<div class="pop-actions"><span class="minib" data-wact="slider">level slider</span>`
+                 + `<span class="minib" data-wact="card">overtopping card</span></div>` };
     }
     const v = bandAt(x, y);
     if (v != null) {
@@ -2157,10 +2149,9 @@ SBMM.water = (function () {
       const gz = Number.isNaN(z) ? null : z;
       const title = `rim here ${gz != null ? fmt(gz, 2) + " ft · " : ""}+${fmt(v, 2)} ft above the spill`;
       const html = `<div class="waterdesc"><div><b>The rim here</b>${gz != null ? ` — ground ${fmt(gz, 2)} ft` : ""}</div>`
-        + `<div><b>+${fmt(v, 2)} ft</b> above the spill level (${fmt(sp, 2)} ft): `
-        + (v < 0.005 ? "this is where the water leaves first" : `the water has to rise ${fmt(v, 2)} ft past the spill before it comes over here`) + `</div>`
-        + `<div class="note">The band is hot where the rim is at the spill and fades out ${fmt(RIM_RANGE, 0)} ft above it.</div></div>`
-        + `<div class="pop-actions"><span class="minib" data-wact="slider">raise the water — the level slider</span></div>`;
+        + `<div><b>+${fmt(v, 2)} ft</b> above the spill (${fmt(sp, 2)} ft)`
+        + (v < 0.005 ? " — the water leaves here first" : "") + `</div></div>`
+        + `<div class="pop-actions"><span class="minib" data-wact="slider">level slider</span></div>`;
       return { kind: "rim", title, html, ft: v };
     }
     return null;

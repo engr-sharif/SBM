@@ -37,9 +37,8 @@ SBMM.accum = (function () {
 
   const AC = 43560;
   const SUB = "Drainage (lidar + storm drains)";      // the v16 layer-tree sub-group
-  const NOTE = "Terrain only: the contributing area draining through each cell, over the same "
-    + "filled lidar surface and the same storm conduits as the drainage map. Contributing AREA, "
-    + "never discharge — the design storm is what turns an area into a flow.";
+  const NOTE = "Terrain only · same filled lidar surface and conduits as the drainage map · "
+    + "contributing AREA, never discharge";
   /* the log ramp: one cell, then decades of acres */
   const RAMP = [[0.02, [30, 52, 74]], [0.2, [46, 111, 214]], [2, [79, 206, 155]],
                 [20, [242, 193, 78]], [200, [232, 115, 74]]];
@@ -264,7 +263,7 @@ SBMM.accum = (function () {
           const res = await ensure("accum_raster");
           if (res) paintRaster();
         } });
-    rast.row.title = "How much ground drains through each cell, log-scaled in acres. Terrain only.";
+    rast.row.title = "Contributing area through each cell, log-scaled in acres · terrain only";
     rows.accum_raster = rast;
 
     const str = SBMM.addLayerRow("proj", `Streams (≥ ${THRESH_AC} ac)`, groups.streams,
@@ -274,8 +273,7 @@ SBMM.accum = (function () {
           const res = await ensure("accum_streams");
           if (res) paintStreams();
         } });
-    str.row.title = `Every flow path with more than ${THRESH_AC} acres above it, weighted by `
-      + "Strahler order. Hover shows the upstream acres.";
+    str.row.title = `Flow paths with over ${THRESH_AC} acres above them, weighted by Strahler order`;
     rows.accum_streams = str;
 
     /* the legend, after both rows — js/layertree.js reorders the `.lyr`
@@ -353,7 +351,16 @@ SBMM.accum = (function () {
         + `<td class="v mono">${isNaN(d) ? "—" : fmt(d, 2) + " %"}</td></tr>`;
     }).join("");
     if (!rowsH) return "";
-    return `<div class="note">Against the drainage map</div><div class="dspopwrap"><table class="dspop">
+    /* v23 §1/§5 — the diagnostic is a tooltip, not a paragraph. The first row is
+       exact at any resolution; per outlet the sum needs a label AT THE EXIT CELL
+       and this card's label raster is decimated for drawing, so a boundary exit
+       is not attributable while a piped one is. */
+    const why = "Everything that leaves the model is exact at any resolution. Per outlet the sum "
+      + "needs a catchment label at the exit cell and this card's label raster is decimated to "
+      + R.dCell + " ft, so a piped outlet is attributed exactly and a boundary one is not; the "
+      + "exact identity runs at full resolution in test/kernels.mjs \u00a711.8."
+      + (compared ? "" : " Nothing on this run leaves through a pipe.");
+    return `<div class="note">Against the drainage map</div><div class="dspopwrap" title="${esc(why)}"><table class="dspop">
       <tr><td class="k"><b>outlet</b></td><td class="v"><b>accumulated ac</b></td>
           <td class="v"><b>catchment ac</b></td><td class="v"><b>d</b></td></tr>
       <tr><td class="k">Everything that leaves the model</td>
@@ -362,15 +369,7 @@ SBMM.accum = (function () {
           <td class="v mono">${fmt(100 * (R.exitTotal_ft2 - R.surveyedArea_ft2)
                 / (R.surveyedArea_ft2 || 1), 3)} %</td></tr>
       ${rowsH}</table>
-      <div class="note">Every square foot of the surveyed ground leaves the model exactly once —
-      that row is exact at any resolution. Per outlet, the sum needs a catchment label AT THE
-      EXIT CELL, and the label raster on this card is decimated to ${R.dCell} ft for drawing:
-      an outlet that leaves through a pipe is attributed exactly (its exits are the pipe's own
-      cells), while one that leaves along the survey boundary cannot be, because a boundary
-      exit cell falls in a label cell that may belong to its neighbour. The exact identity is
-      run at full resolution in test/kernels.mjs §11.8, where it is 0.000 % on every outlet
-      over an acre.${compared ? "" : " Nothing on this run leaves through a pipe, so there is"
-      + " nothing here to compare."}</div></div>`;
+      </div>`;
   }
 
   function csv() {

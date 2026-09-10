@@ -36,11 +36,8 @@ SBMM.pipes = (function () {
                    "reinforced concrete": 0.013, "CMP": 0.024,
                    "corrugated metal": 0.024 };
   const COL_OK = "#4FCE9B", COL_NEAR = "#F2C14E", COL_OVER = "#E4796A";
-  const NOTE = "Provisional: Manning full-flow capacity, HEC-22 inlet capacity and a "
-    + "steady-state hydraulic grade line. No unsteady routing, no storage in the pipes and "
-    + "no time. A slope taken from the lidar rims rather than from surveyed inverts is "
-    + "marked provisional, and a conduit with no diameter has no capacity at all — "
-    + "unknown, survey pending.";
+  const NOTE = "Provisional \u00b7 Manning full-flow capacity, HEC-22 inlets, steady-state HGL "
+    + "\u00b7 no unsteady routing, no storage, no time";
 
   let R = null;                 // the last hydraulics result
   let colorBy = false;          // colour the conduit layer by capacity ratio
@@ -279,9 +276,10 @@ SBMM.pipes = (function () {
     ]);
     const warn = document.createElement("div");
     warn.className = "note bad";
-    warn.textContent = "Provisional. " + R.unknownConduits + " of " + R.totalConduits
-      + " conduits have no diameter, roughness or surveyed slope — no capacity is reported for "
-      + "them, and none is guessed. Add data/storm_survey.csv and rebuild the network.";
+    warn.textContent = "Provisional \u00b7 " + R.unknownConduits + " of " + R.totalConduits
+      + " conduits have no diameter, roughness or surveyed slope \u2014 no capacity reported, "
+      + "none guessed";
+    warn.title = "data/storm_survey.csv, then tools/build_storm_network.py";
     card.appendChild(warn);
     const box = document.createElement("div");
     box.innerHTML = tableHtml();
