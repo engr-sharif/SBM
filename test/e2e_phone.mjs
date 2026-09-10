@@ -340,6 +340,27 @@ if (!bl.card || !/SB-9/.test(bl.title || "")) fail("SB-9's log built no card on 
 if (bl.bands < 3 || bl.contact !== 7.5) fail("the phone strip log is not the SB-9 log", bl);
 if (errors.length) fail("page errors opening a boring log on a phone", errors.slice(0, 4));
 
+/* v23 §2.1: and the log window opens as a full-screen sheet, the same way a
+   drawing does — the stage is the whole screen here. */
+const bw = await page.evaluate(() => {
+  if (!SBMM.borewin) return { missing: true };
+  SBMM.borewin.open("SB-9");
+  const el = document.querySelector(".blwin");
+  if (!el) return { noWin: true };
+  /* the layout box, not getBoundingClientRect: the window rises from scale(.08) */
+  const s = SBMM.sheets.stageBox();
+  const out = { maxed: el.classList.contains("maxed"), id: SBMM.borewin.stateOf().id,
+                w: el.offsetWidth, stage: Math.round(s.w),
+                gl: el.querySelectorAll("svg.bwsvg .blgl").length };
+  SBMM.borewin.close();
+  return out;
+});
+console.log("the log window (phone):", JSON.stringify(bw));
+if (bw.missing || bw.noWin) fail("the log window did not open on a phone", bw);
+if (!bw.maxed || bw.w < bw.stage - 12) fail("the log window is not a full-screen sheet on a phone", bw);
+if (bw.id !== "SB-9" || bw.gl < 3) fail("the phone log window is not SB-9's log", bw);
+if (errors.length) fail("page errors opening the log window on a phone", errors.slice(0, 4));
+
 /* payload tolerance: the modules that wanted one say so, and none of them
    threw. A silent refusal is the one thing this app must not do. */
 if (errors.length) fail("page errors with the heavy payloads absent", errors.slice(0, 4));

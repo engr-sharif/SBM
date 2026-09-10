@@ -104,8 +104,13 @@ SBMM.popups = (function () {
       log = `<div class="bllines">`
         + SBMM.borelogs.summaryLine(h).map(t => `<span>${esc(t)}</span>`).join("")
         + `</div>`
-        + actions(btn("boring log", () => SBMM.borelogs.open(h.id),
-          "Open the strip log — strata, SPT, lab values, water level"));
+        /* v23 §2.6: the button opens the LOG WINDOW — the log sheet at a real
+           scale, compare and the 44-hole table. The results-card strip stays
+           as the quick view and is one click away inside it. This is the
+           shared popup builder, so the 3D pick card carries the same button. */
+        + actions(btn("boring log", () => (SBMM.borewin ? SBMM.borewin.open(h.id)
+                                                        : SBMM.borelogs.open(h.id)),
+          "Open the log window (log sheet, compare, table)"));
     }
     return head + log
       + attrTable(d.fields.map(f => [f, p.a[f]]))
