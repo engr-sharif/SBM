@@ -52,6 +52,7 @@ SBMM.sheets = (function () {
   /* dragging a dock grip, collapsing a dock or resizing the browser all move
      the stage's edges under a window that is already open */
   function clampAll() {
+    if (SBMM.borewin) SBMM.borewin.follow();
     for (const st of wins.values()) {
       /* a maximised window follows the stage rather than being clamped into
          its old rectangle — rotating an iPad changes the stage, not the intent */
@@ -612,6 +613,10 @@ SBMM.sheets = (function () {
       const t = e.target;
       if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT" || t.isContentEditable)) return;
       if (modalOpen()) return;
+      /* v23: the boring-log window shares this band and has its own capture
+         handler. Whichever floating window is front-most owns Esc, and while
+         the log window has the focus that is not a drawing. */
+      if (SBMM.borewin && SBMM.borewin.ownsEscape()) return;
       if (closePicker()) { e.stopPropagation(); e.preventDefault(); return; }
       if (!wins.size) return;
       /* A window with a mark in progress owns Esc first: this listener is on the

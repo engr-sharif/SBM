@@ -7266,8 +7266,13 @@ log9 = await page.evaluate(() => {
     buttons: [...el.querySelectorAll(".crow.btns .minib")].map(b => b.dataset.b),
     saysRemark: /logger's remark/.test(txt),
     saysOffset: /OpenGround plots this hole/.test(txt),
-    saysNoReconcile: /Nothing is reconciled/.test(txt),
-    saysAgree: /Both statements agree on this hole/.test(txt),
+    /* v23 voice: the two statements are ONE line now, and the card carries the
+       answer as a data attribute so the words can change again without a
+       harness edit. The FACT asserted is unchanged. */
+    agreeAttr: (el.querySelector(".blstate") || {}).dataset
+      ? el.querySelector(".blstate").dataset.agree : null,
+    saysNoReconcile: /not reconciled/.test(txt),
+    saysAgree: /strata agree/.test(txt),
     txt
   };
 });
@@ -7298,8 +7303,10 @@ if (!log9.saysRemark || !log9.saysOffset)
    spreadsheet was retired; SB-7 below is the one that differs) */
 {
   const agree = logPay.sb9.wasteBase != null && Math.abs(logPay.sb9.wasteBase - logPay.sb9.nc) <= 0.01;
+  if (log9.agreeAttr !== (agree ? "1" : "0"))
+    { console.log("FAIL: the card's agreement flag does not follow the payload", agree, log9.agreeAttr); process.exit(1); }
   if (agree ? !log9.saysAgree || log9.saysNoReconcile : !log9.saysNoReconcile || log9.saysAgree)
-    { console.log("FAIL: the card's agreement sentence does not follow the payload", agree, log9.saysAgree, log9.saysNoReconcile); process.exit(1); }
+    { console.log("FAIL: the card's agreement line does not follow the payload", agree, log9.saysAgree, log9.saysNoReconcile); process.exit(1); }
 }
 
 /* one card at a time, and the two statements where they disagree */
@@ -7321,8 +7328,9 @@ log7 = await page.evaluate(() => {
     strataFt: sl ? +sl.dataset.ft : null,
     flagsRow: [...el.querySelectorAll(".rrow")].map(r => r.textContent)
       .filter(t => /remark and strata differ|waste logged below native/.test(t)),
-    interlayered: /Waste is logged BELOW native/.test(txt),
-    saysNoReconcile: /Nothing is reconciled/.test(txt),
+    interlayered: /waste below native/.test(txt),
+    agreeAttr: el.querySelector(".blstate").dataset.agree,
+    saysNoReconcile: /not reconciled/.test(txt),
     water: !!svg.querySelector(".blwater"),
     cards: document.querySelectorAll("#resBody .res.blcard").length
   };
@@ -7335,7 +7343,8 @@ if (!log7.flagsRow.length) { console.log("FAIL: SB-7's contact flags are not on 
 for (const f of ["remark and strata differ", "waste logged below native"])
   if (!log7.flagsRow.join(" ").includes(f)) { console.log("FAIL: flag missing from the card:", f, log7.flagsRow); process.exit(1); }
 if (!log7.interlayered) { console.log("FAIL: the card does not say the profile is interlayered"); process.exit(1); }
-if (!log7.saysNoReconcile) { console.log("FAIL: SB-7's card does not say nothing is reconciled"); process.exit(1); }
+if (log7.agreeAttr !== "0" || !log7.saysNoReconcile)
+  { console.log("FAIL: SB-7's card does not say the two statements are unreconciled", log7); process.exit(1); }
 if (log7.water) { console.log("FAIL: SB-7 did not encounter groundwater but a symbol was drawn"); process.exit(1); }
 
 /* ---- the entry points: the popup, the command, the summary ---- */
@@ -7543,6 +7552,495 @@ if (!logGone.restored || !(logGone.restoredColors >= 3))
 if (errors.length !== errBeforeLog) {
   console.log("FAIL: page errors with the boring-log payload absent:",
               errors.slice(errBeforeLog, errBeforeLog + 4)); process.exit(1); }
+await voiceCheck("9ae. the boring-log card");
+});
+
+let bwOpen, bwCols, bwAxes, bwCur, bwWalk, bwCmp, bwPrint, bwSeams, bwActs, bwIdle, bwGone, errBeforeWin;
+await block("9af. the log window", async () => {
+/* 9af. the boring-log window (js/borewin.js, v23 Phase A)               */
+/* ==================================================================== */
+/* §5's Phase A row, item by item. The window is the instrument the 300-px
+   results-card strip could never be, and what is asserted here is that it is
+   a LOG SHEET rather than a bigger picture of one:
+
+     * it opens on SB-9 at 1 in = 5 ft with every column §2.2 lists — the
+       method band, the class profile, the graphic log with its USCS patterns,
+       the USCS column, wrapped descriptions, the sample column with its N
+       bars, blows per 6 in, PP, pH with the acid rule, the water triangle and
+       both contact statements;
+     * BOTH axes: depth below ground on the left and elevation NAVD88 on the
+       right, the second being h.elev - depth read off the payload;
+     * the depth cursor reads both axes and names the stratum under it;
+     * the arrows walk holes and do NOT reach the 3D orbit (the 9z lesson);
+     * Compare stands four holes on ONE elevation datum — the y a hole's
+       collar lands at is decided by its own ground elevation and by nothing
+       else — with the correlation lines and the true separations printed;
+     * the printed sheet paginates SB-10 to three pages, each carrying the
+       header block;
+     * the layer tree's hover toolbar no longer sits on top of a dataset row's
+       own two buttons (§2.6);
+     * the idle 3D contract of block 9e holds with the window open;
+     * and with the payload deleted every entry point refuses with a toast.
+
+   It leaves the window CLOSED and the 3D view as block 9ae left it. */
+errBeforeWin = errors.length;
+
+/* the payload facts this block checks against, read here rather than borrowed
+   from 9ae — `--only 9af` has to stand on its own (v18 §3) */
+const bwPay = await page.evaluate(() => {
+  const D = SBMM_DATA.borings_logs, h = D.holes.find(q => q.id === "SB-9");
+  return { n: D.holes.length, nc: h.contacts.native_contact, src: h.contacts.source };
+});
+
+/* ---- it opens, and it opens on the hole it was asked for ---- */
+bwOpen = await page.evaluate(() => {
+  SBMM.borewin.open("SB-9");
+  const el = document.querySelector(".blwin");
+  const st = SBMM.borewin.stateOf();
+  const head = el ? el.querySelector(".bwhead").textContent : "";
+  return { el: !!el, st,
+    /* the chassis: .shwin is what buys the 4000-4899 band, Esc, and
+       js/mode.js swallowing the single-letter tool shortcuts */
+    shwin: el ? el.classList.contains("shwin") : false,
+    z: el ? +getComputedStyle(el).zIndex : 0,
+    tabs: el ? [...el.querySelectorAll(".bwtab")].map(b => b.dataset.t) : [],
+    headHas: {
+      ground: /1,366.5 ft/.test(head), delta: /Δ lidar/.test(head),
+      depth: /80.0 ft/.test(head), contact: /7\.5 ft/.test(head),
+      water: /32\.0 ft/.test(head), logger: /P\. Dahal/.test(head),
+      driller: /Gregg Drilling/.test(head), en: /6,372,920/.test(head),
+      area: /Tailings|waste area/i.test(head)
+    }
+  };
+});
+console.log("the log window:", JSON.stringify(bwOpen));
+if (!bwOpen.el) { console.log("FAIL: SBMM.borewin.open built no window"); process.exit(1); }
+if (!bwOpen.shwin) { console.log("FAIL: the log window is not on the sheet-window chassis (.shwin)"); process.exit(1); }
+if (!(bwOpen.z >= 4000 && bwOpen.z <= 4899))
+  { console.log("FAIL: the log window is outside the 4000-4899 band:", bwOpen.z); process.exit(1); }
+if (bwOpen.st.id !== "SB-9" || bwOpen.st.tab !== "log" || bwOpen.st.scale !== 5)
+  { console.log("FAIL: the window did not open on SB-9's log at 1\" = 5'", bwOpen.st); process.exit(1); }
+for (const t of ["log", "compare", "table"])
+  if (!bwOpen.tabs.includes(t)) { console.log("FAIL: no", t, "tab:", bwOpen.tabs); process.exit(1); }
+for (const k in bwOpen.headHas)
+  if (!bwOpen.headHas[k]) { console.log("FAIL: the header block does not state", k, bwOpen.headHas); process.exit(1); }
+
+/* ---- every column of §2.2, and the scale it says it is drawn at ---- */
+bwCols = await page.evaluate(() => {
+  const svg = document.querySelector(".blwin svg.bwsvg");
+  if (!svg) return { noSvg: true };
+  const txt = [...svg.querySelectorAll("text")].map(t => t.textContent);
+  const gl = [...svg.querySelectorAll(".blgl")];
+  /* the drawing scale, measured off the geometry rather than believed: a
+     stratum's box height divided by its own thickness IS px per foot */
+  let ppf = null;
+  for (const r of gl) {
+    const th = +r.dataset.base - +r.dataset.top;
+    if (th > 1) { ppf = +r.getAttribute("height") / th; break; }
+  }
+  return {
+    method: svg.querySelectorAll(".blmethod").length,
+    casing: svg.querySelectorAll(".blcasing").length,
+    prof: svg.querySelectorAll(".blprof").length,
+    gl: gl.length,
+    patterns: [...new Set(gl.map(r => r.getAttribute("fill")))].length,
+    defs: svg.querySelectorAll("defs pattern").length,
+    smp: svg.querySelectorAll(".blsmp").length,
+    kinds: [...new Set([...svg.querySelectorAll(".blsmp")].map(r => r.dataset.kind))].sort(),
+    spt: svg.querySelectorAll(".blspt").length,
+    pen: svg.querySelectorAll(".blpen").length,
+    ph: svg.querySelectorAll(".blph").length,
+    ph4: !!svg.querySelector(".blph4"),
+    lab: svg.querySelectorAll(".bllab").length,
+    water: !!svg.querySelector(".blwater"),
+    contact: svg.querySelector(".blcontact") ? +svg.querySelector(".blcontact").dataset.ft : null,
+    contactSrc: svg.querySelector(".blcontact") ? svg.querySelector(".blcontact").dataset.src : null,
+    rock: !!svg.querySelector(".blrockline"),
+    heads: ["FT BGS", "GRAPHIC LOG", "USCS", "DESCRIPTION", "SAMPLE · N", "PP tsf", "ELEV"]
+      .filter(h => txt.includes(h)),
+    uscsCol: txt.filter(t => /^(SP|SP-SC|CL|ML|MH|SC|SM|GW|GP|GC)$/.test(t)).length,
+    blows: txt.filter(t => /^\d+-\d+-\d+$/.test(t)).length,
+    desc: txt.filter(t => /Poorly graded SAND|CLAYEY SAND/.test(t)).length,
+    ppf
+  };
+});
+console.log("SB-9's log sheet:", JSON.stringify(bwCols));
+if (bwCols.noSvg) { console.log("FAIL: the Log tab drew no SVG"); process.exit(1); }
+if (Math.abs(bwCols.ppf - 96 / 5) > 0.02)
+  { console.log("FAIL: the log is not drawn at 1\" = 5' (19.2 px/ft), got", bwCols.ppf); process.exit(1); }
+for (const [k, min] of [["method", 2], ["casing", 2], ["prof", 3], ["gl", 5], ["smp", 5],
+                        ["spt", 5], ["pen", 1], ["ph", 5], ["desc", 1], ["uscsCol", 3],
+                        ["blows", 5], ["defs", 3], ["patterns", 3]])
+  if (!(bwCols[k] >= min)) { console.log("FAIL: §2.2 column", k, "drew", bwCols[k], "want >=", min); process.exit(1); }
+if (!bwCols.ph4 || !bwCols.water || !bwCols.rock)
+  { console.log("FAIL: the pH-4 rule, the water triangle or the bedrock line is missing", bwCols); process.exit(1); }
+if (bwCols.contact !== bwPay.nc || bwCols.contactSrc !== bwPay.src)
+  { console.log("FAIL: the window's contact line does not match the payload", bwCols, bwPay); process.exit(1); }
+if (bwCols.heads.length < 7)
+  { console.log("FAIL: a §2.2 column heading is missing:", bwCols.heads); process.exit(1); }
+/* the two OPTIONAL columns — the lab chips and the remarks — need a window
+   wider than the harness's stage, and the layout drops them from the right in
+   the order a log sheet would give them up. Ask the renderer for the full
+   width directly rather than resizing a dock: what is asserted is that §2.2's
+   whole column set exists, and where it stops fitting. */
+{
+  const wide = await page.evaluate(() => {
+    const h = SBMM.borelogs.byId("SB-9");
+    const at = w => {
+      const r = SBMM.borelogs.column(h, { tier: "sheet", w, ppf: 19.2, headings: true });
+      const d = document.createElement("div");
+      d.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg">${r.g}</svg>`;
+      const txt = [...d.querySelectorAll("text")].map(t => t.textContent);
+      return { lab: d.querySelectorAll(".bllab").length,
+               heads: ["LAB", "REMARKS"].filter(k => txt.includes(k)),
+               desc: txt.filter(t => /Poorly graded SAND/.test(t)).length };
+    };
+    return { wide: at(1200), mid: at(940), narrow: at(760) };
+  });
+  console.log("the optional columns by width:", JSON.stringify(wide));
+  if (!(wide.wide.lab >= 3) || wide.wide.heads.length !== 2)
+    { console.log("FAIL: at 1,200 px the lab and remarks columns are missing", wide.wide); process.exit(1); }
+  if (wide.mid.heads.join() !== "LAB")
+    { console.log("FAIL: at 940 px the remarks column should drop and the lab stay", wide.mid); process.exit(1); }
+  if (wide.narrow.heads.length !== 0)
+    { console.log("FAIL: at 760 px both optional columns should have dropped", wide.narrow); process.exit(1); }
+  for (const k of ["wide", "mid", "narrow"])
+    if (!wide[k].desc) { console.log("FAIL: the description column was dropped at", k); process.exit(1); }
+}
+if (bwCols.kinds.length < 2)
+  { console.log("FAIL: the sample column does not tell a split spoon from a tube:", bwCols.kinds); process.exit(1); }
+
+/* ---- both axes (§1.3): depth on the left, elevation on the right ---- */
+bwAxes = await page.evaluate(() => {
+  const svg = document.querySelector(".blwin svg.bwsvg");
+  const h = SBMM.borelogs.byId("SB-9");
+  const want = [];
+  for (let ft = 0; ft <= h.depth; ft += 5) want.push([ft, h.elev - ft]);
+  const txt = [...svg.querySelectorAll("text")];
+  const has = s => txt.some(t => t.textContent === s);
+  const f0 = v => Math.round(v).toLocaleString("en-US");
+  const missDepth = want.filter(([d]) => !has(String(d))).length;
+  const missElev = want.filter(([, z]) => !has(f0(z))).length;
+  /* the elevation axis is h.elev - depth and nothing else: pick the labels off
+     the two ends of the column and require the arithmetic */
+  return { n: want.length, missDepth, missElev,
+           elev: h.elev, sample: want.slice(0, 3).map(([d, z]) => d + "→" + f0(z)) };
+});
+console.log("the two axes:", JSON.stringify(bwAxes));
+if (bwAxes.missDepth > 1 || bwAxes.missElev > 1)
+  { console.log("FAIL: the depth or elevation axis is incomplete", bwAxes); process.exit(1); }
+
+/* ---- the depth cursor reads both axes and names the stratum ---- */
+{
+  const box = await page.locator(".blwin .blgl").nth(2).boundingBox();
+  if (!box) { console.log("FAIL: no graphic-log box to put the cursor on"); process.exit(1); }
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.waitForTimeout(300);
+}
+bwCur = await page.evaluate(() => {
+  const c = document.querySelector(".blwin .bwcur");
+  const h = SBMM.borelogs.byId("SB-9");
+  const ft = +c.dataset.ft;
+  const s = (h.strata || []).find(q => q.primary && ft >= q.top && ft < q.base);
+  /* the chip prints through the app's own fmt(), which groups thousands — so
+     the expected string is built the same way rather than with toFixed */
+  return { hidden: c.hidden, ft, txt: c.textContent, uscs: c.dataset.uscs,
+           wantUscs: s ? (s.uscs || "") : null,
+           wantDepth: fmt(ft, 1), wantElev: fmt(h.elev - ft, 1) };
+});
+console.log("the depth cursor:", JSON.stringify(bwCur));
+if (bwCur.hidden || !(bwCur.ft > 0)) { console.log("FAIL: the depth cursor did not follow the pointer", bwCur); process.exit(1); }
+if (bwCur.uscs !== bwCur.wantUscs)
+  { console.log("FAIL: the cursor names the wrong stratum", bwCur); process.exit(1); }
+if (!bwCur.txt.includes(bwCur.wantDepth))
+  { console.log("FAIL: the cursor does not print the depth it is at", bwCur); process.exit(1); }
+if (!bwCur.txt.includes(bwCur.wantElev))
+  { console.log("FAIL: the cursor does not print the elevation of that depth", bwCur); process.exit(1); }
+
+/* ---- the arrows walk holes, and do NOT orbit the 3D view ---- */
+/* block 9ae leaves the 3D view OPEN, and js/viewer3d.js's key handler is
+   capture-phase on the document: the window is a child of <body>, outside
+   #stage, so the arrow has to reach the window and leave the camera alone.
+   That is the same rule the 9z keyboard failure turned on. */
+bwWalk = await page.evaluate(() => ({
+  cam: SBMM.viewer3d.isOpen() ? SBMM.viewer3d.cameraWorld() : null,
+  id: SBMM.borewin.stateOf().id
+}));
+await page.evaluate(() => { document.querySelector(".blwin").focus({ preventScroll: true }); });
+await page.keyboard.press("ArrowRight");
+await page.waitForTimeout(250);
+await page.keyboard.press("ArrowRight");
+await page.waitForTimeout(250);
+await page.keyboard.press("ArrowLeft");
+await page.waitForTimeout(400);
+bwWalk = await page.evaluate(prev => {
+  const ids = SBMM.borelogs.ids();
+  const cam = SBMM.viewer3d.isOpen() ? SBMM.viewer3d.cameraWorld() : null;
+  const moved = (prev.cam && cam)
+    ? Math.hypot(cam.x - prev.cam.x, cam.y - prev.cam.y, cam.z - prev.cam.z) : 0;
+  return { from: prev.id, to: SBMM.borewin.stateOf().id,
+           want: ids[(ids.indexOf(prev.id) + 1) % ids.length], camMoved: moved,
+           tab: SBMM.borewin.stateOf().tab };
+}, bwWalk);
+console.log("the arrows:", JSON.stringify(bwWalk));
+if (bwWalk.to !== bwWalk.want)
+  { console.log("FAIL: right, right, left did not land one hole along", bwWalk); process.exit(1); }
+if (bwWalk.camMoved > 0.5)
+  { console.log("FAIL: an arrow inside the log window orbited the 3D camera by", bwWalk.camMoved, "ft"); process.exit(1); }
+
+/* ---- Compare: four holes on ONE elevation datum ---- */
+bwCmp = await page.evaluate(() => {
+  SBMM.borewin.compare(["SB-9", "SB-11", "SB-12", "SB-17"]);
+  const svg = document.querySelector(".blwin svg.bwcmp");
+  if (!svg) return { noSvg: true };
+  const cols = [...svg.querySelectorAll("g.bwcolwrap")].map(g => ({
+    id: g.dataset.hole, y: +g.dataset.y0, elev: +g.dataset.elev,
+    boxes: g.querySelectorAll(".blgl").length
+  }));
+  const seps = [...svg.querySelectorAll(".bwsep")].map(t => +t.dataset.ft);
+  const xy = ["SB-9", "SB-11", "SB-12", "SB-17"].map(id => {
+    const h = SBMM.borelogs.byId(id); return [h.x, h.y];
+  });
+  return { noSvg: false, cols, seps, xy, links: SBMM.borewin.stateOf().cmp,
+           corr: [...svg.querySelectorAll(".bwcorr")].map(l => l.dataset.hz),
+           tab: SBMM.borewin.stateOf().tab };
+});
+console.log("compare:", JSON.stringify(bwCmp));
+if (bwCmp.noSvg || bwCmp.cols.length !== 4)
+  { console.log("FAIL: compare did not draw four columns", bwCmp); process.exit(1); }
+/* ONE datum: y is a linear function of the hole's own ground elevation, and
+   the same one for every column. Two columns fix the line; the rest must lie
+   on it — which is exactly the property a shared datum has and a per-hole zero
+   does not. */
+{
+  const a = bwCmp.cols[0], b = bwCmp.cols[1];
+  const ya = a.y, yb = b.y;
+  const k = (yb - ya) / (a.elev - b.elev);
+  let worst = 0;
+  for (const c of bwCmp.cols) {
+    if (!(c.boxes >= 1)) { console.log("FAIL: compare drew no graphic log for", c.id); process.exit(1); }
+    const want = ya + (a.elev - c.elev) * k;
+    worst = Math.max(worst, Math.abs(c.y - want));
+  }
+  console.log(`  one datum: ${k.toFixed(2)} px per ft of elevation, worst residual ${worst.toFixed(2)} px`);
+  if (!(k > 0.2) || worst > 1.5)
+    { console.log("FAIL: the compare columns do not stand on one elevation datum", bwCmp.cols, worst); process.exit(1); }
+}
+if (bwCmp.corr.length < 3 || !bwCmp.corr.includes("native"))
+  { console.log("FAIL: compare drew no correlation lines", bwCmp.corr); process.exit(1); }
+/* the printed separations are the real ground distances, not the drawing's */
+{
+  const want = [];
+  for (let i = 0; i + 1 < bwCmp.xy.length; i++)
+    want.push(Math.hypot(bwCmp.xy[i][0] - bwCmp.xy[i + 1][0], bwCmp.xy[i][1] - bwCmp.xy[i + 1][1]));
+  if (bwCmp.seps.length !== want.length)
+    { console.log("FAIL: compare printed", bwCmp.seps.length, "separations for", want.length, "gaps"); process.exit(1); }
+  for (let i = 0; i < want.length; i++)
+    if (Math.abs(bwCmp.seps[i] - want[i]) > 1)
+      { console.log("FAIL: separation", i, "reads", bwCmp.seps[i], "against", want[i].toFixed(1)); process.exit(1); }
+  console.log("  separations:", want.map(v => Math.round(v) + " ft").join(" · "));
+}
+
+/* ---- the Table tab ---- */
+{
+  const t = await page.evaluate(() => {
+    SBMM.borewin.tab("table");
+    const el = document.querySelector(".blwin .bwtbl");
+    return { rows: el ? el.querySelectorAll("tbody tr").length : 0,
+             cols: el ? [...el.querySelectorAll("th[data-k]")].map(h => h.dataset.k) : [],
+             minis: el ? el.querySelectorAll(".bwminicell svg").length : 0,
+             csv: SBMM.borewin.tableCsv().trim().split("\n").length - 1 };
+  });
+  console.log("the table tab:", JSON.stringify(t));
+  if (t.rows !== bwPay.n || t.csv !== bwPay.n)
+    { console.log("FAIL: the table lists", t.rows, "of", bwPay.n); process.exit(1); }
+  for (const c of ["area", "elev", "nce", "rocke", "logger", "date"])
+    if (!t.cols.includes(c)) { console.log("FAIL: §2.5 column missing:", c, t.cols); process.exit(1); }
+  if (t.minis !== bwPay.n) { console.log("FAIL: the table rows carry", t.minis, "mini columns"); process.exit(1); }
+}
+
+/* ---- the printed log sheet paginates ---- */
+bwPrint = await page.evaluate(() => {
+  const html = SBMM.borewin.sheetHtml(["SB-10"]);
+  const pages = (html.match(/class="pg"/g) || []).length;
+  const heads = (html.match(/Boring SB-10/g) || []).length;
+  const nums = (html.match(/page \d+ of \d+/g) || []);
+  return { pages, heads, nums, legend: /ASTM D2488/.test(html),
+           mark: /Jacobs 2026/.test(html), scale: /1&Prime; = 5&prime;/.test(html),
+           patterns: (html.match(/<pattern /g) || []).length,
+           calc: SBMM.borewin.pagesFor(SBMM.borelogs.byId("SB-10")).length,
+           all: (SBMM.borewin.sheetHtml(SBMM.borelogs.ids()).match(/class="pg"/g) || []).length };
+});
+console.log("the printed sheet:", JSON.stringify(bwPrint));
+if (bwPrint.pages !== 3 || bwPrint.calc !== 3)
+  { console.log("FAIL: SB-10 does not paginate to three pages:", bwPrint); process.exit(1); }
+if (bwPrint.heads !== 3 || bwPrint.nums.length !== 3 || bwPrint.nums[1] !== "page 2 of 3")
+  { console.log("FAIL: the header block is not repeated on every page", bwPrint); process.exit(1); }
+if (!bwPrint.legend || !bwPrint.mark || !bwPrint.scale)
+  { console.log("FAIL: the printed sheet has no legend, watermark or stated scale", bwPrint); process.exit(1); }
+if (!(bwPrint.patterns >= 3)) { console.log("FAIL: the printed sheet carries no USCS patterns"); process.exit(1); }
+if (!(bwPrint.all >= 44)) { console.log("FAIL: print all produced", bwPrint.all, "pages for 44 holes"); process.exit(1); }
+
+/* ---- the seams (§2.6) ---- */
+bwSeams = await page.evaluate(() => {
+  const d = SBMM.datasets.byId("borings2025");
+  const p = d.points.find(q => q.id === "SB-9");
+  const out = { popup: /boring log/.test(SBMM.popups.forDataset(d, p)) };
+  /* the map hover tooltip carries the mini column and the three lines */
+  const mk = d.markerOf.get(p);
+  /* Leaflet keeps bindTooltip's argument on the Tooltip's _content, and this
+     one is a FUNCTION (built at open time, so a payload that arrives later
+     still reaches it) — it has to be CALLED, not stringified */
+  const tip = mk && mk.getTooltip ? mk.getTooltip() : null;
+  const raw = tip ? tip._content : null;
+  const html = String(typeof raw === "function" ? raw(mk) : (raw || ""));
+  out.tipCol = /blcolsvg/.test(html);
+  out.tipLines = /native contact/.test(html);
+  /* the table drawer's per-row log button */
+  SBMM.table.toggle(true);
+  SBMM.dsTable.show(d.id);
+  const pane = document.getElementById("tblPane_" + d.id);
+  out.tableBtn = !!(pane && pane.querySelector("tbody [data-log]"));
+  out.tableBtns = pane ? pane.querySelectorAll("tbody [data-log]").length : 0;
+  SBMM.table.toggle(false);
+  /* the 3D stratum highlight — one object, moved rather than rebuilt */
+  const before = SBMM.viewer3d.stats().gpuGeometries;
+  SBMM.viewer3d.highlightStratum("SB-9", 0, 7.5);
+  SBMM.viewer3d.highlightStratum("SB-9", 7.5, 60);
+  SBMM.viewer3d.highlightStratum(null);
+  out.geoms = SBMM.viewer3d.stats().gpuGeometries - before;
+  return out;
+});
+console.log("the seams:", JSON.stringify(bwSeams));
+if (!bwSeams.popup) { console.log("FAIL: the popup lost its boring-log button"); process.exit(1); }
+if (!bwSeams.tipCol || !bwSeams.tipLines)
+  { console.log("FAIL: the map hover tooltip has no mini column / summary lines", bwSeams); process.exit(1); }
+if (!bwSeams.tableBtn) { console.log("FAIL: the table drawer's borings rows have no log button"); process.exit(1); }
+if (bwSeams.geoms > 1)
+  { console.log("FAIL: the stratum highlight built", bwSeams.geoms, "geometries — it must be ONE, moved"); process.exit(1); }
+
+/* ---- §2.6: the layer tree's hover toolbar clears a dataset row's own
+        buttons. The engineer reported the same thing on the sheet rows' 3D
+        button; this is the second half of that fix and the assertion is the
+        two boxes, not the CSS. ---- */
+{
+  /* the left dock may be on My work or Sheets by now — a full run leaves it
+     wherever the last block put it, and a locator waits 180 s for a row inside
+     a hidden pane before it says so */
+  await page.click('#leftTabs .dtab[data-tab="layers"]');
+  await page.waitForTimeout(250);
+  const row = page.locator("#layers .lyr:has(.dsgear)").first();
+  await row.scrollIntoViewIfNeeded();
+  await row.hover();
+  await page.waitForTimeout(250);
+  bwActs = await page.evaluate(() => {
+    const r = document.querySelector("#layers .lyr:has(.dsgear)");
+    if (!r) return { noRow: true };
+    const a = r.querySelector(".ltacts"), g = r.querySelector(".dsgear"), z = r.querySelector(".dszoom");
+    if (!a || !g) return { noActs: !a, noGear: !g };
+    const B = e => { const b = e.getBoundingClientRect(); return [b.left, b.right, b.width]; };
+    const [al, ar] = B(a), [gl] = B(g), [zl, zr] = B(z || g);
+    return { label: r.textContent.trim().slice(0, 40),
+             acts: [al, ar], gear: gl, zoom: [zl, zr],
+             shown: getComputedStyle(a).display !== "none",
+             overlapGear: ar > gl + 0.5, overlapZoom: ar > zl + 0.5 };
+  });
+  /* Put the Layers pane back where the next block expects it. Reaching the
+     borings row scrolled the pane down to Investigations, and 9z drags a row
+     in #projLayers by computing its grip's PAGE position — with the pane
+     scrolled, those rows are no longer under the pointer and the drag lands on
+     nothing. It reads exactly like the old 9z load flake and is not one. */
+  await page.mouse.move(4, 4);
+  await page.evaluate(() => {
+    document.querySelectorAll("#leftdock .dockpane, #layers").forEach(d => { d.scrollTop = 0; });
+  });
+  console.log("the row toolbar vs the dataset buttons:", JSON.stringify(bwActs));
+  if (bwActs.noRow || bwActs.noActs || bwActs.noGear)
+    { console.log("FAIL: no dataset row with a hover toolbar to measure", bwActs); process.exit(1); }
+  if (!bwActs.shown) { console.log("FAIL: the hover toolbar did not appear on hover"); process.exit(1); }
+  if (bwActs.overlapGear || bwActs.overlapZoom)
+    { console.log("FAIL: the hover toolbar covers the dataset row's own buttons", bwActs); process.exit(1); }
+}
+
+/* ---- block 9e's idle contract, with the window open ---- */
+bwIdle = await page.evaluate(async () => {
+  const wait = ms => new Promise(r => setTimeout(r, ms));
+  SBMM.borewin.open("SB-9", { tab: "log" });
+  const wasAnim = SBMM.viewer3d.animateWater();
+  SBMM.viewer3d.animateWater(false);
+  let prev = SBMM.viewer3d.stats().renderCount, tries = 0;
+  for (; tries < 60; tries++) {
+    await wait(1000);
+    const now = SBMM.viewer3d.stats().renderCount;
+    if (now - prev <= 1) break;
+    prev = now;
+  }
+  const a = SBMM.viewer3d.stats().renderCount;
+  await wait(4000);
+  const renders = SBMM.viewer3d.stats().renderCount - a;
+  SBMM.viewer3d.animateWater(wasAnim);
+  return { renders, settled: tries < 60, tries };
+});
+console.log("idle 3D with the log window open — renders over 4 s:", bwIdle.renders,
+            "| settle polls:", bwIdle.tries);
+if (!bwIdle.settled) { console.log("FAIL: the 3D view never settled with the log window open"); process.exit(1); }
+if (bwIdle.renders > 1) { console.log("FAIL: the log window keeps the 3D view rendering"); process.exit(1); }
+
+if (errors.length !== errBeforeWin) {
+  console.log("FAIL: the log window raised page errors:",
+              errors.slice(errBeforeWin, errBeforeWin + 4)); process.exit(1); }
+
+/* ---- payload tolerance: refuse with a toast, never throw ---- */
+bwGone = await page.evaluate(async () => {
+  const wait = ms => new Promise(r => setTimeout(r, ms));
+  const said = [];
+  const orig = window.toast;
+  window.toast = function (m) { said.push(String(m)); return orig.apply(this, arguments); };
+  SBMM.borewin.close();
+  const keep = SBMM_DATA.borings_logs;
+  delete SBMM_DATA.borings_logs;
+  const out = {};
+  try { out.opened = !!SBMM.borewin.open("SB-9"); } catch (e) { out.threw = String(e); }
+  await wait(250);
+  try { out.printed = !!SBMM.borewin.printSheet(["SB-9"]); } catch (e) { out.threw2 = String(e); }
+  await wait(250);
+  try { SBMM.cmd.run("LOGWIN SB-9"); } catch (e) { out.threw3 = String(e); }
+  await wait(250);
+  SBMM_DATA.borings_logs = keep;
+  out.restored = SBMM.borelogs.has();
+  window.toast = orig;
+  out.said = said;
+  out.win = !!document.querySelector(".blwin");
+  return out;
+});
+console.log("the log window with no payload:", JSON.stringify(bwGone));
+for (const k of ["threw", "threw2", "threw3"])
+  if (bwGone[k]) { console.log("FAIL: the log window threw with no payload:", k, bwGone[k]); process.exit(1); }
+if (bwGone.opened || bwGone.printed || bwGone.win)
+  { console.log("FAIL: the log window opened with no payload", bwGone); process.exit(1); }
+if (bwGone.said.filter(t => /no boring logs/i.test(t)).length < 2)
+  { console.log("FAIL: a log-window refusal was SILENT — every one must toast", bwGone.said); process.exit(1); }
+if (!bwGone.restored) { console.log("FAIL: the payload did not come back"); process.exit(1); }
+
+/* the window closes on Esc and leaves nothing behind — 9z runs next and it
+   reloads the page, but the 3D view has to be as 9ae left it */
+{
+  await page.evaluate(() => { SBMM.borewin.open("SB-9"); document.querySelector(".blwin").focus(); });
+  await page.waitForTimeout(200);
+  await page.keyboard.press("Escape");
+  await page.waitForTimeout(400);
+  const left = await page.evaluate(() => ({
+    win: !!document.querySelector(".blwin"), st: SBMM.borewin.stateOf().open,
+    threed: SBMM.viewer3d.isOpen()
+  }));
+  console.log("after Esc:", JSON.stringify(left));
+  if (left.win || left.st) { console.log("FAIL: Esc did not close the log window", left); process.exit(1); }
+  if (!left.threed) { console.log("FAIL: closing the log window closed the 3D view"); process.exit(1); }
+}
+
+if (errors.length !== errBeforeWin) {
+  console.log("FAIL: page errors around the log window:",
+              errors.slice(errBeforeWin, errBeforeWin + 4)); process.exit(1); }
 });
 
 await block("9z. the layer tree", async () => {

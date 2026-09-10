@@ -192,14 +192,28 @@ SBMM.dsTable = (function () {
     st.pane.querySelector("tbody").innerHTML = rows.map(p => "<tr data-id=\"" + esc(p.id) + "\">"
       + c.map(k => {
         const v = val(p, k);
-        if (k === "id") return `<td><span class="dot" style="background:${d.style.color}"></span>${esc(p.id)}</td>`;
+        if (k === "id") {
+          /* v23 §2.6: a 2025 boring with a log carries the way into it */
+          const hasLog = d.kind === "borings" && SBMM.borelogs && SBMM.borelogs.has()
+            && !!SBMM.borelogs.byId(p.id);
+          return `<td><span class="dot" style="background:${d.style.color}"></span>${esc(p.id)}`
+            + (hasLog ? `<button class="minib dslog" data-log="${esc(p.id)}" title="Open the log window">log</button>` : "")
+            + `</td>`;
+        }
         if (k === "x" || k === "y") return `<td class="num mut">${fmt0(v)}</td>`;
         return `<td class="${typeof v === "number" ? "num" : ""}">${v == null || v === "" ? "—" : esc(typeof v === "number" ? fmt(v, 2) : v)}</td>`;
       }).join("") + "</tr>").join("");
     st.pane.querySelector('[data-r="count"]').textContent = `${rows.length} / ${d.points.length}`;
     /* row -> point by position in the filtered list, not by id: IDs repeat in real
        tables and a find-by-id sent every duplicate row to the first one's marker */
-    st.pane.querySelectorAll("tbody tr").forEach((tr, i) => tr.onclick = () => {
+    st.pane.querySelectorAll("tbody tr").forEach((tr, i) => tr.onclick = ev => {
+      const lg = ev.target.closest && ev.target.closest("[data-log]");
+      if (lg) {
+        ev.stopPropagation();
+        if (SBMM.borewin) SBMM.borewin.open(lg.dataset.log, { tab: "log" });
+        else if (SBMM.borelogs) SBMM.borelogs.open(lg.dataset.log);
+        return;
+      }
       const p = rows[i]; if (!p) return;
       SBMM.map.setView([p.y, p.x], Math.max(SBMM.map.getZoom(), 2));
       const mk = (d.markerOf && d.markerOf.get(p)) || (d.markers && d.markers[p.id]);

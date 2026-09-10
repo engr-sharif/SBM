@@ -264,6 +264,15 @@ node test/perf.mjs   /abs/path/index.html folder   # 3D / memory numbers (its la
 node test/audit.mjs  /abs/path/index.html folder   # every tool, command, dialog + its toasts
 node test/audit2.mjs /abs/path/index.html folder   # sheet viewer, properties, split, report
 ```
+**Two things about reading a harness's output.** A harness that ends in
+`process.exit(1)` loses its last lines when stdout is a PIPE — Node does not
+flush an async pipe write before exiting — so run one with `> file`, never
+`| grep`, or a real failure arrives as a silent empty result. And **a CSS or JS
+change needs `python tools/build_dist.py` before `e2e:dist` or `field` means
+anything**: the dists inline the source, and a stale one fails on the fix you
+just made (a `.ltacts` offset landed at its old value in a dist built twenty
+minutes earlier).
+
 **One known flake, and it is older than the runner.** `test/e2e.mjs`'s last block,
 *9z. the layer tree*, reloads the page and measures the tree **1.5 s later** — a fixed
 wait, not a condition. On a loaded box (two browser steps in parallel) the app has not
@@ -381,7 +390,8 @@ terrain source, which needs an explicit decision + README/test update).
 | report.js | print-ready report sheets (browser Print → PDF) |
 | smartbound.js | WAND (memo top-hat pile delineation), CBOUND (contour-snap), TOE, STANDS |
 | trees.js | individual tree detection over CHM, canvas dot layer, CSV inventory |
-| borelogs.js | **the 2025 boring logs (OpenGround)** — the strip log in a results card (class profile, strata + USCS, SPT with the pocket penetrometer, pH against the acid threshold, method bands, the water symbol), the THREE contact statements drawn together and reconciled nowhere, the 44-hole `LOGS` table, the CSV and the PNG, the popup button, `LOG` / `LOGS`, and the class palette every other view reads through `classColor()`; `SBMM.borelogs` |
+| borelogs.js | **the 2025 boring logs (OpenGround)** — the strip log in a results card (class profile, strata + USCS, SPT with the pocket penetrometer, pH against the acid threshold, method bands, the water symbol), the TWO contact statements drawn together and reconciled nowhere, the 44-hole `LOGS` table, the CSV and the PNG, the popup button, `LOG` / `LOGS`, the class palette every other view reads through `classColor()`, and since v23 **the column renderer `column()`** every face of the borings is drawn by; `SBMM.borelogs` |
+| borewin.js | **v23 Phase A — the boring-log window** on the sheet-window chassis: the Log tab as a real log sheet at 1 in = 5 ft with the depth cursor, Compare (2–6 holes on one elevation datum, correlation lines, printed separations), the 44-hole Table, the printed log sheet through `js/report.js`, the hole picker, `LOGWIN`; `SBMM.borewin` |
 | io.js | GeoJSON (WGS84 + EPSG:6418) / session / CSV import-export |
 | dxf.js | DXF R12 export + R12/2000 import, raw SP ft |
 | designea.js | EA residential design **from the PDFs**: sheet rasters, extracted boundaries, surveyed nodes, per-sheet 3D drape toggle, sheet-footprint click target (read-only project data, NOT `SBMM.store` features). Boundary layer defaults **off** since v8 |
@@ -2276,6 +2286,180 @@ exactly that reason, and restored afterwards). One assertion each in
 there and the card builds. `SBMM.viewer3d.datasetSticks()` is the introspection hook.
 `node test/borelog_shots.mjs` writes `borelog_card`, `borelog_3d` and `borelog_summary`
 into `test/shots/`; not pass-fail — look at them.
+
+## v23 Phase A — the column renderer and the boring-log window
+
+Contract: `docs/V23_BORINGS_SPEC.md` §1 and §2 (Phase A). No kernel work
+(`js/compute.js` is not touched; `VERSION` stays 10). New file `js/borewin.js`
+(`SBMM.borewin`); the renderer is a new section of `js/borelogs.js`; the rest is
+`js/popups.js`, `js/datasets.js`, `js/table.js`, `js/viewer3d.js`,
+`js/sheets.js`, `js/cmdline.js`, `js/boot.js`, `index.html` and the `v23` block
+at the end of `css/app.css`. E2E block **9af**, one assertion each in
+`test/e2e_field.mjs` (block 17) and `test/e2e_phone.mjs` (block 4); shots
+`test/borewin_shots.mjs`.
+
+The engineer: *"I really think we need to take this function from the soil
+borings and log and really develop a more useful feature than just plotting them
+on the results section … I want this beautifully and usefully done."*
+
+### ONE COLUMN RENDERER — `SBMM.borelogs.column()`, and Phase B calls it too
+
+```
+SBMM.borelogs.column(hole, {
+  tier    "mini" (36 px) | "stick" (90 px) | "sheet" (the window's width),
+  ppf     px per foot — a SCALE, never a fit,
+  datum   "depth" (ft bgs, the default) | "elev" (ft NAVD88),
+  zTop / zBot   the elevation window, when datum is "elev",
+  top / bot     the depth window, when datum is "depth",
+  w       the column's own width,
+  padTop / padBot   the margins, in px,
+  headings      draw the column headings in the top margin (sheet only),
+  print   black-on-white rather than the dark theme,
+  axes    draw the two axes (default: everything but mini)
+}) -> { g, defs, w, h, ppf, top, bot, yOf(ft), pairs }
+```
+
+`g` is an SVG **fragment** — a `<g>` with no transform of its own — so a caller
+places it, and `defs` is the `<defs>` of exactly the USCS patterns it used.
+`columnSvg(h, opts)` wraps the two into a standalone `<svg>` (the map tooltip, a
+table cell, the PNG export). **Phase B's fence is `column(h, {tier:"stick",
+datum:"elev", zTop, zBot, ppf})` once per hole, placed at its station** — that
+is exactly what the Compare tab already does, and the "one datum" assertion in
+block 9af is the property the fence needs.
+
+- **The CLASS is the tint and the USCS is the PATTERN.** Waste that is a clayey
+  sand reads as orange-tinted SC and native SC reads green-tinted SC: both facts
+  the log states, neither conflated. `famOf(s)` maps a USCS symbol to a pattern
+  family (`gravel`, `sand+C`, `ML`, `CH`, `org`, `rock`, `rockmd`, `none`) and
+  the pattern id is `blp_<family>_<class>`.
+- **The graphic-log column is drawn on LIGHT PAPER in both themes**, and that is
+  deliberate: the pattern ink is near-black by convention, a near-black hatch on
+  the app's dark panel is invisible, and a second palette for print would be a
+  second thing to keep in step. The one column that carries the patterns looks
+  the same on screen as on paper; everything around it follows the theme.
+- **`print: true` darkens the HORIZON LINES, never the class tints.** Gold at
+  55 % luminance is not a line on white — the contact, the bedrock top and the
+  water level get print colours; the tints are the graphic log's own and stay.
+- **Two axes, always** (§1.3), and the elevation one is `h.elev − depth` and
+  nothing else. `deltaLidar(h)` asks `SBMM.elev` what the January-2024 lidar
+  reads at the same point and the header prints the difference; over 2 ft it is
+  pilled. It is reported, never corrected — the same rule the OpenGround
+  coordinate offset is under.
+- **The waste area lives on the BAKED DATASET, not in the log payload.**
+  `areaOf(id)` / `areas()` read `ds_borings2025`'s *Waste area* attribute, which
+  is what the picker groups by, the table filters on and `print area` prints.
+
+### The window
+
+- **The chassis is `js/sheets.js`'s and the element carries `.shwin`.** That
+  buys the title bar, the grip, maximise, the 4000-4899 band, `body.touch`
+  opening maximised, `body.field` filling the stage — and, because
+  `js/mode.js` tests for `.shwin`, **the single-letter tool shortcuts are
+  swallowed while the window has focus** (without it, pressing `3` while reading
+  a log opens the 3D view behind it: the same bug the sheet windows had).
+- **Esc is SHARED and `js/sheets.js` asks first.** Its capture-phase handler is
+  registered before this one, so it steps aside on
+  `SBMM.borewin.ownsEscape()` — the front-most floating window owns Esc, and
+  while the log window has the focus that is not a drawing.
+- **An arrow inside the window must not orbit the camera.** `js/viewer3d.js`
+  already leaves an arrow alone when the focused element is outside `#stage`
+  (the v9.25 fix for block 9z), and the window is a child of `<body>`, so it is
+  covered — block 9af asserts the camera does not move, because block 9ae leaves
+  the 3D view OPEN and 9z runs next.
+- **ONE window.** Opening another hole reuses it. A log viewer that stacks
+  windows is a light table, and the light table is `js/sheets.js`.
+
+### Four traps this build hit
+
+- **A SHARED DATUM IS SET BY `zTop`, NOT BY A PER-HOLE OFFSET.** `column()` maps
+  the window's top elevation to `padTop`, so on a compare every column starts at
+  the same y and each hole's own ground falls where the datum says. Adding
+  `(zTop − h.elev) * ppf` to `padTop` as well counted the datum twice and three
+  of the four columns landed off the bottom of the drawing — visibly, with no
+  error anywhere. Phase B's fence will want the same rule.
+- **THE PRINTED PAGE HEIGHT IS ARITHMETIC.** Letter is 11 in; at 0.35 in margins
+  10.3 in prints; the header block is ~1.15 in; so 9.1 in is left, and at
+  1 in = 5 ft (19.2 px/ft, the browser's own 96 dpi) that is **43 ft a page**
+  plus a 30 px heading strip and a 10 px foot. `PAGE_FT` is 43 for that reason
+  and SB-10, the deepest hole at 126.4 ft, comes out at three pages. The svg is
+  `width:720px` and **not** `width:100%`: 720 px is exactly 7.5 in at 96 dpi, so
+  the scale printed is the scale stated. A log sheet at "about" a scale is a
+  picture of one. Change any of those four numbers and re-do the division.
+- **The DESCRIPTION column takes what is left, and the optional ones drop from
+  the RIGHT.** `layoutFor()` lays a sheet out from both ends — the axes and the
+  graphic log are fixed widths on the left, the tests and the elevation axis are
+  stacked inward from the right edge, and the description gets the remainder.
+  The remarks column needs ~1,040 px of window and the lab chips ~900; below
+  that they drop, in that order, and the description is never dropped. The
+  printed Letter sheet is 720 px (7.5 in) so it carries neither — they are in
+  the results card's expanders and in `csv`, which is where a paper log sheet
+  puts them too. Block 9af asserts the whole set by calling `column()` at three
+  widths rather than by resizing a dock.
+- **The narrow left columns have no room for a heading.** `METH` and `CLS` are
+  12 px and 8 px wide; a word there runs into its neighbour, and `FT BGS`
+  anchored `end` at the axis clipped off the left edge of the drawing. Only the
+  columns wide enough for their own name carry one; the other two are named by
+  their tooltips.
+- **A `parts.push` after the `innerHTML` that joined them draws nothing**, and
+  it looks exactly like a CSS problem. The compare tab's horizon key was pushed
+  three lines below the assignment that consumed the array.
+- **A PHONE's whole stage is narrower than the desktop minimum.** `.blwin`
+  carries `min-width:520px`, and on a 412-px stage that made a MAXIMISED window
+  wider than the screen it was maximised into. `body.touch .blwin{min-width:0}`
+  takes the floor off and the resize clamps read `minW()`/`minH()`. And the
+  harness must measure `offsetWidth`, never `getBoundingClientRect`: the window
+  rises from `scale(.08)` on open and the rect is the TRANSFORMED box for a
+  quarter of a second (it read 42 x 55 in a 412 x 693 stage).
+- **Block 9af puts the Layers pane back before 9z runs.** Reaching the borings
+  dataset row to measure the hover toolbar scrolls the pane to Investigations,
+  and 9z drags a row in `#projLayers` by its grip's PAGE position — with the
+  pane scrolled those rows are not under the pointer and the drag lands on
+  nothing. It reads exactly like the old 9z load flake and is not one. The same
+  block clicks the Layers tab first, because a full run leaves the left dock
+  wherever the previous block put it and a Playwright locator waits the whole
+  180 s timeout for a row inside a hidden pane.
+
+### The seams (§2.6)
+
+The popup's **boring log** button and the 3D pick card's (same builder) open the
+WINDOW; the results-card strip stays as the quick view and gained **open in
+window**. A boring's map hover tooltip carries its `mini` column and the three
+summary lines. The table drawer's Borings rows gained a per-row **log** button.
+`js/viewer3d.js` gained **`highlightStratum(id, top, base)`** — ONE reusable
+`LineSegments`, moved rather than rebuilt, outside `overlayGroup` (so a rebuild
+cannot take it away and it never enters block 9y's parity table: it belongs to
+no layer, it is a cursor), carrying no `userData.pick`, asking for exactly one
+render when it changes.
+
+**And the layer tree's hover toolbar clears a dataset row's own buttons.** A
+dataset row carries `.dsgear` and `.dszoom`; `.lyr:has(.dsgear) .ltacts
+{right:56px}` is the same rule `.lyr:has(.d3d)` already had for the sheet rows'
+3D button, and block 9af asserts the two bounding boxes are disjoint rather than
+asserting the CSS.
+
+### Voice (`docs/V23_VOICE_SPEC.md`)
+
+The rule is the app's, not this round's: **a card states the result**, the
+method is at most one sentence and only where a number could be mistaken, there
+are no instructions in running text, assumptions are a `·`-separated line. In
+this file's scope the log card's two-statement note became one line carrying
+**`data-agree`** (so the words can change again without a harness edit) and the
+summary's disagreement paragraph became one line. Block 9ae's three text
+assertions moved to the new wording and the data attribute — rule 9: never keep
+a sentence because a test reads it.
+
+### Deviations from the spec, and why
+
+- **`LOG` and `LOGS` still open the results cards, not the window.** §2.1 lists
+  the `LOG` command among the ways in and says `LOGS` opens the Table tab;
+  throwing a stage-wide floating window up on every `LOG` is intrusive, and
+  block 9ae's contract is that `LOG SB-9` builds the card and `LOGS` builds the
+  summary. Both cards' first button is **open in window** — the log card at the
+  Log tab, the summary at the Table tab — and `LOGWIN` (`LOGWINDOW`, `BOREWIN`)
+  is the command that goes straight there.
+- **The toolbar carries three tabs, not five.** *Fence* is Phase B and *Site* is
+  Phase C; a tab that toasts "not built yet" is worse than a tab that is not
+  there. They go in when they exist.
 
 ## Undo and redo (v9.4) — the both-closures rule and `readd`
 
