@@ -421,6 +421,16 @@ SBMM.fence = (function () {
       }
       rings.push(ring);
     }
+    /* EVERY RING THE SAME WAY ROUND. Leaflet puts them all in one path and
+       fills with `nonzero`, which unions same-wound rings and CANCELS opposite
+       ones — a bend whose two rectangles wound the other way would punch a hole
+       in the band it is supposed to join. A rectangle's winding follows the
+       segment's direction; the caps are always counter-clockwise. */
+    const signed = r => { let a = 0;
+      for (let i = 0; i < r.length; i++) { const p0 = r[i], p1 = r[(i + 1) % r.length];
+        a += p0[0] * p1[1] - p1[0] * p0[1]; }
+      return a / 2; };            /* polyArea() in js/util.js is ABSOLUTE */
+    for (const r of rings) if (signed(r) < 0) r.reverse();
     return rings;
   }
 
