@@ -131,6 +131,23 @@ in code, and what comes next. It replaces re-reading the chat history that built
 | **The command bar does not open itself on a phone** (v19.1) | It opens on a first visit so it is discoverable, which is right at a desk and wrong under a thumb: no backtick, no Ctrl+K, a placeholder teaching AutoCAD chords, and 32 px taken out of a map that is the whole screen. It was in his screenshot. More → the command entry is still one tap |
 | **The app talks to engineers — one line of method, no instructions** (v23, 2026-09-09) | His words: *"the whole webapp has a lot of text overexplaining stuff. Most of the people using this app will know what this is about, so reduce the amount of explaining and any of the instructions on what to do … those could be at most a sentence. Know your audience: these will be engineers."* `docs/V23_VOICE_SPEC.md` is the rule, and it applies to everything written from now on, not only to what was rewritten. A card states the result; the method is one sentence or one `·` line; nothing tells the reader what to click, drag or hover. What was cut is not lost — the comparison tolerance, the sunken-mouth explanation and the accumulation cross-check's caveat are `title` tooltips now, and the caveats with weight (cultural, provisional, planning-level, not surveyed) stay as one clause each. `test/e2e.mjs`'s `voiceCheck()` fails on the banned words in `#resBody`, and every assertion that read a sentence MOVED to the new wording rather than pinning the old one |
 
+### The borings are a first-class instrument now (2026-09-09, v23 Phase A)
+
+The engineer: *"I really think we need to take this function from the soil borings and log
+and really develop a more useful feature than just plotting them on the results section …
+I want this beautifully and usefully done."* `docs/V23_BORINGS_SPEC.md` is the contract.
+Phase A shipped: one column renderer in `js/borelogs.js` and the log window
+(`js/borewin.js`) with the Log sheet, Compare and the Table, plus the printed log sheet.
+Phase B (the fence diagram) is a separate round and calls the same renderer at the `stick`
+tier with an elevation window. **Phase C needs a ruling first** — see the open items.
+
+### Voice: the app talks to engineers (2026-09-09)
+
+`docs/V23_VOICE_SPEC.md`. A card states the result; the method is at most one sentence and
+only where a number could be mistaken; no instructions in running text; assumptions are a
+`·`-separated line; caveats that carry weight stay, in one clause. Applied to
+`js/borelogs.js` in the v23 Phase A round; the rest of the app is a separate pass.
+
 ## What was tried and dropped
 
 - AI (SAM) segmentation of piles — model exports produced degenerate masks; dropped.
@@ -139,6 +156,17 @@ in code, and what comes next. It replaces re-reading the chat history that built
 - A breakline-Delaunay "design surface" — refused on the merits (see decisions).
 
 ## Open items, in priority order
+
+**C.0 — which polygons bound the waste-thickness interpolation?** (asked 2026-09-09, v23
+Phase C). The borings carry a *Waste area* attribute (South Waste Rock Pile 10, North Waste
+Rock Pile 8, Northwest Pit 5, Waste Rock Dam 5, Old Mine Building 4, Tailings Pile 2, West
+Waste Rock Pile 2, Disturbed Rock 1, none 7); the app has the traced piles and the six
+decision units. An interpolated thickness map has to be clipped to *something* — a TIN over
+the whole site would bridge the North and South piles through ground nobody drilled. The
+question for the engineer: **the pile polygons, the DUs, or a new set of waste-area polygons
+he draws?** Until it is answered, §4.2 (the thickness raster) and §4.3 (the interpreted
+waste-base surface the volume and isopach tools would dig to) are not built. §4.1, colouring
+the borings by what they found, needs no ruling.
 
 0. **Replace the provisional rainfall with the NOAA Atlas 14 export.** Phase 2 (the
    design storm) shipped in v9.13 and runs today on the planner's approximate depths for
