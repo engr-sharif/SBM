@@ -2243,3 +2243,17 @@ body.field .blwin .bwf{min-width:92px}
 /* the table drawer's per-row way into the log window */
 .dslog{padding:0 5px;font-size:9.5px;line-height:14px;margin-left:6px;opacity:.55}
 tr:hover .dslog{opacity:1}
+
+/* ---------------------------------------------------------------------- */
+/* v23 Phase B — the fence diagram (js/fence.js, the window's Fence tab)    */
+/* ---------------------------------------------------------------------- */
+/* The drawing is an SVG whose every colour is a presentation attribute, so
+   there is almost nothing to style here: what is left is the tab's own control
+   strip and the two things that have to be readable at 412 px. */
+.blwin .bwfnbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;
+  padding:4px 2px 8px;border-bottom:1px solid var(--line);margin-bottom:8px}
+.blwin .bwfnbar .fnnew{background:var(--panel3);border-color:var(--acc2);color:var(--acc2)}
+.blwin svg.fnsvg{display:block;max-width:100%;height:auto}
+.blwin svg.fnsvg .fncol{cursor:pointer}
+body.touch .blwin .bwfnbar{row-gap:6px}
+body.touch .blwin .bwfnbar .minib{min-height:36px;padding:0 11px}

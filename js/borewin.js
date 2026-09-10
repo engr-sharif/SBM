@@ -130,6 +130,7 @@ SBMM.borewin = (function () {
         <span class="bwtabs">
           <button class="minib bwtab" data-t="log" title="The log sheet for one hole">Log</button>
           <button class="minib bwtab" data-t="compare" title="Two to six holes on one elevation datum">Compare</button>
+          <button class="minib bwtab" data-t="fence" title="A section through the borings along a drawn line">Fence</button>
           <button class="minib bwtab" data-t="table" title="Every hole, sortable and filterable by waste area">Table</button>
         </span>
         <label class="bwlbl">scale
@@ -257,8 +258,12 @@ SBMM.borewin = (function () {
       if (b === "print") printSheet([cur]);
       if (b === "printall") printSheet(BL().ids());
       if (b === "printarea") printArea();
-      if (b === "csv") copyText(csvNow(), tab === "table"
-        ? `${BL().holes().length} holes copied as CSV` : `${cur} log copied as CSV`);
+      if (b === "csv") {
+        const t = csvNow();
+        if (!t) { toast("nothing on this tab to copy"); return; }
+        copyText(t, tab === "table" ? `${BL().holes().length} holes copied as CSV`
+          : tab === "fence" ? "the fence copied as CSV" : `${cur} log copied as CSV`);
+      }
       if (b === "png") exportPng();
     });
     wirePicker();
@@ -418,12 +423,14 @@ SBMM.borewin = (function () {
     const h = BL().byId(cur);
     W.el.querySelector(".bwid").textContent = cur || "—";
     W.el.querySelector(".shtitle").textContent =
-      tab === "log" ? "Boring log" : tab === "compare" ? "Compare" : "All borings";
+      tab === "log" ? "Boring log" : tab === "compare" ? "Compare"
+        : tab === "fence" ? "Fence" : "All borings";
     W.el.querySelectorAll(".bwtab").forEach(b => b.classList.toggle("active", b.dataset.t === tab));
     W.el.classList.toggle("bwtab-table", tab === "table");
     W.cursor.hidden = true;
     if (tab === "log") { paintHead(h); paintLog(h); }
     else if (tab === "compare") { W.head.innerHTML = ""; paintCompare(); }
+    else if (tab === "fence") { W.head.innerHTML = ""; paintFence(); }
     else { W.head.innerHTML = ""; paintTable(); }
   }
 
@@ -621,6 +628,68 @@ SBMM.borewin = (function () {
       `${cols.length} holes · datum ${fmt0(zBot)}–${fmt0(zTop)} ft NAVD88 · 1" = ${fmt0(DPI / P)}'`;
   }
 
+  /* ---- the fence (§3, js/fence.js) ---------------------------------- */
+  /* The window SHOWS the fence; js/fence.js owns it. Everything here is the
+     list of what exists, the two controls and the button that arms the tool —
+     the drawing is one call to SBMM.fence.drawSvg(). */
+  function paintFence() {
+    const FN = SBMM.fence;
+    if (!FN) { W.art.innerHTML = `<div class="note">the fence diagram is not in this build</div>`;
+               W.el.querySelector(".bwfoot").textContent = "\u2014"; return; }
+    const all = FN.list();
+    const f = FN.currentFence();
+    const pick = `<div class="bwfnbar">`
+      + `<button class="minib fnnew" title="Draw a fence alignment on the map (FENCE)">draw a fence</button>`
+      + (all.length ? `<label class="bwlbl">fence <select class="fnpick">`
+          + all.map(g => `<option value="${esc(g.id)}"${f && g.id === f.id ? " selected" : ""}>`
+              + `${esc(g.name || "Fence")}</option>`).join("") + `</select></label>` : "")
+      + (f ? `<label class="bwlbl">swath <input type="number" class="fnsw" step="25" min="10"`
+          + ` style="width:64px" value="${f.props.swath_ft}"><span class="mut">ft either side</span></label>`
+          + `<label class="bwlbl">vertical <select class="fnve">`
+          + FN.VE_CHOICES.map(v => `<option value="${v}"${v === f.props.ve ? " selected" : ""}>${v}\u00d7</option>`).join("")
+          + `</select></label>`
+          + `<span class="spacer"></span>`
+          + `<button class="minib" data-fb="png" title="Save the drawing as a PNG">png</button>`
+          + `<button class="minib" data-fb="csv" title="Station, offset, ground and every horizon, per hole">csv</button>`
+          + `<button class="minib" data-fb="dxf" title="Section coordinates: X = station ft, Y = elevation ft">dxf</button>`
+        : "")
+      + `</div>`;
+    if (!f) {
+      W.art.innerHTML = pick + `<div class="note">No fence drawn yet.</div>`;
+      W.el.querySelector(".bwfoot").textContent = "no fence";
+    } else {
+      const d = FN.drawSvg(f, { w: Math.max(560, W.body.clientWidth - 18) });
+      W.art.innerHTML = pick + (d ? d.svg : `<div class="note">this fence has no alignment</div>`);
+      W.el.querySelector(".bwfoot").textContent = d
+        ? `${d.holes.length} borings \u00b7 ${fmt(d.total, 1)} ft \u00b7 `
+          + `${fmt0(d.zBot)}\u2013${fmt0(d.zTop)} ft NAVD88 \u00b7 ${f.props.ve}\u00d7 vertical`
+        : "\u2014";
+    }
+    const q = c => W.art.querySelector(c);
+    if (q(".fnnew")) q(".fnnew").onclick = () => { SBMM.cmd.run("FENCE"); };
+    if (q(".fnpick")) q(".fnpick").onchange = e => { FN.setCurrent(e.target.value); paintFence(); };
+    if (q(".fnsw")) q(".fnsw").onchange = e => {
+      f.props.swath_ft = Math.max(10, parseFloat(e.target.value) || FN.DEFAULTS.swath_ft);
+      FN.recompute(f); SBMM.store.autosave(); paintFence();
+    };
+    if (q(".fnve")) q(".fnve").onchange = e => {
+      f.props.ve = parseFloat(e.target.value) || 1;
+      FN.recompute(f); SBMM.store.autosave(); paintFence();
+    };
+    W.art.querySelectorAll("[data-fb]").forEach(b => b.onclick = () => {
+      if (b.dataset.fb === "png") FN.exportPng(f);
+      if (b.dataset.fb === "csv") FN.exportCsv(f);
+      if (b.dataset.fb === "dxf") FN.exportDxf(f);
+    });
+    /* the cross-highlight: a column under the pointer flags its boring on the
+       map, and the map's own tick flags the column (js/fence.js owns both) */
+    W.art.querySelectorAll(".fncol").forEach(gEl => {
+      gEl.addEventListener("mouseenter", () => FN.flashHole(gEl.dataset.hole));
+      gEl.addEventListener("mouseleave", () => FN.flashHole(null));
+      gEl.addEventListener("click", () => { cur = gEl.dataset.hole; tab = "log"; paint(); });
+    });
+  }
+
   /* ---- the table (§2.5) -------------------------------------------- */
   const TCOLS = [
     ["id", "hole", h => h.id, h => h.id],
@@ -693,7 +762,14 @@ SBMM.borewin = (function () {
     for (const h of tableRows()) out += TCOLS.map(c => q(c[2](h))).join(",") + "\n";
     return out;
   }
-  function csvNow() { return tab === "table" ? tableCsv() : BL().csvFor(cur); }
+  function csvNow() {
+    if (tab === "table") return tableCsv();
+    if (tab === "fence") {
+      const f = SBMM.fence && SBMM.fence.currentFence();
+      return f ? SBMM.fence.csvText(f) : "";
+    }
+    return BL().csvFor(cur);
+  }
 
   /* ------------------------------------------------------------------ */
   /* the depth cursor, the stratum hover and the map flash               */
@@ -754,6 +830,11 @@ SBMM.borewin = (function () {
   function exportPng() {
     /* .bwsvg is the DRAWING; the Table tab's rows carry mini columns of their
        own and querySelector("svg") would hand back the first of those */
+    if (tab === "fence") {
+      const f = SBMM.fence && SBMM.fence.currentFence();
+      if (!f) { toast("no fence drawn yet"); return; }
+      SBMM.fence.exportPng(f); return;
+    }
     const svg = W && tab !== "table" ? W.art.querySelector("svg.bwsvg") : null;
     if (!svg) { toast(tab === "table" ? "the table exports as csv, not as a picture"
                                       : "nothing to export on this tab"); return; }
