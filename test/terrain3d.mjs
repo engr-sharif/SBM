@@ -471,10 +471,17 @@ if (want("band")) {
      else. (They were not what made the first cut of this test fail; the dense
      conifer canopy in the 6-in ortho was, which is what the threshold below is
      for.) */
+  /* SNAPSHOT AND RESTORE, never setGroup(true) to put it back: a group's master
+     switch turns EVERY row on, including rows that were deliberately off (the
+     1.5-ft site ortho, the drainage rasters), and the map2d section that runs
+     after this one then finds a coarse raster painted over a fine one and fails
+     on this section's own side effect. */
   const GROUPS = ["framework", "design", "invest", "mywork", "cultural"];
-  await page.evaluate(async gs => {
+  const snap = await page.evaluate(async gs => {
+    const was = SBMM.layerState.serialize();
     for (const g of gs) SBMM.layerState.setGroup(g, false);
     await new Promise(r => setTimeout(r, 1500));
+    return was;
   }, GROUPS);
   const mid = [(W[0] + W[2]) / 2, (W[1] + W[3]) / 2];
   const runs = [];
@@ -492,10 +499,10 @@ if (want("band")) {
     ok(`the ${r.side} edge at ${r.detail} is no blacker than the ground beside it`,
       r.edge.best <= Math.max(20, r.ctrl.best * 1.5), `${r.edge.best} vs ${r.ctrl.best}`);
   }
-  await page.evaluate(async gs => {
-    for (const g of gs) SBMM.layerState.setGroup(g, true);
+  await page.evaluate(async was => {
+    SBMM.layerState.restore(was);
     await new Promise(r => setTimeout(r, 1500));
-  }, GROUPS);
+  }, snap);
 }
 
 /* -------------------------------------------------------------- frames ---- */
@@ -515,9 +522,15 @@ if (want("frames")) {
      lands. Measuring the selects while those are in flight reads 60-90 ms and
      four full rebuilds and blames the selection. Block 9y of test/e2e.mjs waits
      on exactly the same two for exactly the same reason. */
-  await page.evaluate(() => {
-    for (const g of ["base", "framework", "design", "invest", "mywork"])
+  /* NOT the base group. Its master switch turns the 1.5-ft site ortho on, which
+     is off by default and which the map2d section below would then find painted
+     over the 6-in and 3-in imagery — a failure about this section's own side
+     effect. The overlay cost this section measures is the vector groups anyway. */
+  const fsnap = await page.evaluate(() => {
+    const was = SBMM.layerState.serialize();
+    for (const g of ["framework", "design", "invest", "mywork"])
       SBMM.layerState.setGroup(g, true);
+    return was;
   });
   await page.waitForFunction(() => (!SBMM.drainage || SBMM.drainage.hasResult())
     && (!SBMM.whereWater || SBMM.whereWater.hasResult()), null, { timeout: TIMEOUT });
@@ -558,6 +571,10 @@ if (want("frames")) {
   ok("frameStats reports a pixel ratio", r.sel.pixelRatio > 0, r.sel.pixelRatio);
   ok("the diagnostics line carries the numbers",
     /render .* · overlays x/.test(r.line), (r.line || "").slice(0, 60));
+  await page.evaluate(async was => {
+    SBMM.layerState.restore(was);
+    await new Promise(r => setTimeout(r, 1500));
+  }, fsnap);
 }
 
 if (want("meshport")) {
