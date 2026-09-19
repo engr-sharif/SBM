@@ -26,6 +26,10 @@ in code, and what comes next. It replaces re-reading the chat history that built
 | decision | why |
 |---|---|
 | Stay browser-based, file:// double-click, one 130 MB HTML | Zero-install for the team; Electron rejected |
+| **A log annotation that will not fit is ELIDED, never overprinted** (v24, 2026-09-18) | The engineer reported overlapping text. A lane per column places every per-depth label and refuses the ones with no room; their readings stay in the shape's tooltip and in the CSV. Proven by a sweep of all 44 holes at three widths: 1,475 overlapping pairs before, 0 after |
+| **A fence's class bands come from the LOGGED CONTACTS, not from the strata runs** (v24) | The app leads with the logger's own remark everywhere else, and 18 of the 44 holes' two statements disagree. A band derived from the strata would put the quieter answer beside the loud one on the same drawing |
+| **A unit with no USCS symbol is not correlated and does not pinch out** (v24) | "Described, not classified" is what the graphic log's hatch already says; a wedge for it would be a claim about ground nobody drilled. It took a three-hole fence from 25 wedges to a readable few |
+| **`FENCE <ids>` draws through the named holes and has no swath** (v24) | A swath catches holes; naming them is a different instruction, and an offset of 0 by construction is what the engineer asked for when he said the fence should connect the borings |
 | Lidar bare-earth grid (Jan-30-2024 flight) is *the* terrain; CAD contours are display only | Survey-grade source; golden Pile 1 number guards it |
 | Canopy only over the mine window | Only LAS tile A1 was ever delivered — a data limit, not a bug |
 | EA native GIS/CAD (June 2026) supersedes the PDF-registered sheets | Exact geometry; PDF registration kept only as the record and for the sheet viewer |

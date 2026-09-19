@@ -2578,6 +2578,147 @@ four columns).
   same projection, exported, so the thickness control points do not get a second
   copy of it.
 
+## v24 — the borings round: zero overlaps, the refined window, the fence that correlates
+
+Contract: `docs/V23_BORINGS_SPEC.md` §2 and §3, updated in place. No kernel work
+(`js/compute.js` is not touched; `VERSION` stays 10). `js/borelogs.js`,
+`js/borewin.js`, `js/fence.js`, the `v23`/`v24` block in `css/app.css`; new
+harness `test/borewin_overlap.mjs`, new e2e block **9ah**, extended **9af** and
+**9ag**; shots `test/borewin_shots.mjs` (+ `borewin_log10`, `borewin_picker`)
+and `test/fence_shots.mjs` (+ `fence_through`).
+
+The engineer: *"something about it seems unfinished, some text are overlapping
+others … the fence does kind of a poor job connecting different borings
+together."*
+
+### THE LANE — every per-depth annotation goes through one, and elision is the rule
+
+`lane(gap)` in `js/borelogs.js` is the whole of "zero overlaps": one running
+stack per column, in depth order, that pushes the next box down by `gap` and
+returns **null** when the push would carry it past the limit the caller set.
+What is refused is **elided**, never overprinted, and its reading is already in
+the `<title>` of the shape it belongs to and in `csvFor()`. Every column uses
+one — description, USCS, sample N, blows, lab chips, remarks, the horizon tags
+— so the property is in the placer rather than in a set of hand-tuned offsets.
+
+**1,475 overlapping text pairs before, 0 after** (`node
+test/borewin_overlap.mjs`: 44 holes x 560/900/1240 px, six Compare sets, the
+fence at three widths, the heading band). Block **9ah** is the gate at 560 and
+1,240 px — 88 off-screen renders through `SBMM.borewin.logSvg()`, ~9,000 text
+elements, under 20 s.
+
+Seven things that will be walked into again:
+
+- **A `<title>` INSIDE a `<text>` is part of its `textContent`.** Every harness
+  and `voiceCheck` read that, so a labelled USCS symbol stops being `"SC"` and
+  a heading stops being findable. Titles go on the SHAPE — the horizon LINE,
+  the graphic-log rect — never inside the label. `line()`'s self-closing tag
+  takes one through `.replace("/>", "><title>…</title></line>")`.
+- **A word longer than its column does not wrap, it overflows.** SVG text does
+  not clip, so one long token printed straight through the column to its right
+  while `wrapText`'s own line count said it fitted. `wrapText` breaks a word
+  longer than the limit, and the limit comes from `perChars(w, size, mono)` —
+  0.62 em for the monospace faces, 0.58 for the sans, both deliberately wide.
+- **The USCS column prints a SYMBOL, never a word.** The payload carries
+  `"Bedrock"` where a hole logged rock rather than a group symbol: 42 px of
+  bold in a 36-px column. `uscsSymbol()` answers the symbol or an em dash, at
+  the sheet tier AND inside the graphic log at the stick tier.
+- **The horizon sentences became short tags in the one lane with no other
+  text** — from the depth axis across the method, class and graphic-log
+  columns, which at sheet tier hold patterns and no words. `NATIVE 7.5 ft`,
+  `BEDROCK 42.0 ft`, `WATER 32.0 ft`, `strata 9.0 ft`. The source, the strata
+  reading and the interlayered flag are each stated once in the window's header
+  strip and on the printed header; the full sentence is the line's own title.
+- **The terminated depth owns its label**: a round tick within 11 px of it
+  printed the same number twice, 2 px apart, on both axes.
+- **The pH scale's own 2 / 4 / 8 sat half a line under the heading band** and
+  collided with it at every width. The heading reads `pH 2–8 · 4` and the red
+  dashed rule IS the 4.
+- **A compare's hole id at 11 px on y 16 with its ground at 8.5 px on y 26 is
+  ten pixels for two boxes that need eleven**, and the fence's id/station pair
+  had the same defect. Both are nine-pixel gaps that read fine and measure bad.
+
+### The window (§2) — one scale, a strip that stays, a cursor that does not move
+
+Three sizes and one heading (`--bl-s` 11 / `--bl-m` 12.5 / `--bl-l` 14 /
+`--bl-h` 18) on an 8-px grid, tabular numerals everywhere, no ad-hoc
+`font-size` left in the block. Four things to keep:
+
+- **`.bwf > span` is the label, and the DIRECT child selector is load-bearing.**
+  The depth-cursor readout carries `<span>`s of its own inside its value, and
+  `display:block` on all of them stacked the whole reading down the strip.
+- **The column headings are drawn ONCE, by `SBMM.borelogs.headingBand()`**, into
+  a fixed strip that is a sibling of the scrolling body — the same list
+  `headingList()` gives `column()` for the printed page, which repeats it per
+  sheet. The strip follows the body's horizontal `scrollLeft` or it stops
+  naming the columns under it. `logSvg()` passes `headings:false, padTop:30` so
+  the drawing keeps the margin and does not draw them twice.
+- **THE ZOOM ANCHOR'S INVERSE MAPPING INCLUDES `y0`.** `y = 0` in the SVG is
+  the top of the heading margin, not depth zero: leaving `W.geom.y0` out of
+  `ftAt` put the anchor `PADT/ppf` feet too deep — **1.56 ft at 1 in = 5 ft** —
+  and the depth under the pointer walked on every Ctrl+wheel step. It holds to
+  0.02 ft now, and `SBMM.borewin.depthAtClientY(y)` is the hook that says so
+  (asking the cursor chip instead means driving a mousemove and trusting it
+  landed, which on a loaded software-GL box it does not).
+- **Solve the zoom's scroll in SCREEN coordinates**, not in `scrollTop`
+  arithmetic: the drawing sits in a padded, scrolled box under a header whose
+  height is not a constant, and the client rectangle after the repaint already
+  carries every one of those terms.
+- `page.mouse.wheel` carries **no modifier** — Control has to be HELD around it
+  for a harness to reach a ctrl+wheel branch.
+
+### The fence (§3) — class bands, matched units, pinch-outs
+
+**A fence THROUGH named holes**: `FENCE SB-9 SB-10 SB-11` (or the Fence tab's
+tick list) builds the alignment as the polyline hole-to-hole, `props.through`
+carries the ids, `projectHoles(pts, half, through)` takes THOSE holes and no
+others, and there is no swath — so every offset is 0 by construction and stays
+honest if the alignment is later edited. `mkFence` re-derives from `through`,
+so a session round trip is still **zero compute jobs**.
+
+**The correlation**, and each rule is a ruling:
+
+- **The class bands come from the LOGGED CONTACTS and nothing else** — waste is
+  ground to the logger's native contact, native is that to the top of bedrock,
+  bedrock is that to the terminated depth. Deriving them from the strata runs
+  would put the app's quieter second answer beside the one it leads with
+  everywhere, on the same drawing, for exactly the 18 holes whose two
+  statements disagree. `ended` marks a band that stops at a hole's own bottom
+  and is drawn with a dashed edge.
+- **Units are matched in order by USCS FAMILY** (`famOf`), by an LCS over the
+  families — deterministic, never crossing two links, and it cannot match a
+  sand to a clay. Confidence is the full symbol: same family AND same symbol is
+  a solid link, same family alone is dashed.
+- **A unit with no USCS family is neither matched NOR pinched.** "Described,
+  not classified" is what the graphic log's diagonal hatch already says, and a
+  wedge for it claims the unit ends at mid-span — a statement about ground
+  nobody drilled. Excluding them took a three-hole fence from **25 wedges to a
+  readable few**.
+- **`FOOT` is the footer stack and every row reads from it.** The first cut put
+  the span distances, the scale bar and the two keys at one y; the second cut
+  computed the class key from `H` and the scale bar from `PADT + drawH` and put
+  one straight through the other. Six rows, one table, `PADB` = its last row
+  plus a line (132).
+
+`spanCorrelation(a, b)` is the one answer the drawing, the CSV and the DXF all
+read: the CSV gains six class-band elevation columns per hole, the DXF a CLOSED
+polyline per class band on `FENCE-BAND-WASTE` / `-NATIVE` / `-BEDROCK` plus the
+links and wedges on `FENCE-UNITS`, and the 3D strip follows because it is
+textured from the same SVG.
+
+Recorded, `FENCE SB-9 SB-10 SB-11`: stations 0 / 463.70 / 869.19 ft (the
+cumulative hole-to-hole distances, offsets 0), **5 class bands** over 2 spans
+(SB-11 logs no bedrock), 9 unit links, and the spans printed at 464 and 405 ft.
+
+### What block 9ag and 9ah assert, and what they do not
+
+9ag's new section computes its own reference out of the payload — the stations
+by arithmetic, the expected band set from the contacts, and **the families one
+hole of a span carries and the other does not**, which can never be matched by
+any rule and therefore MUST appear as a pinch-out. 9ah measures glyph boxes; it
+does not look at colour, and it excludes a halo twin (the same string within
+1.5 px) and anything inside a `<title>`.
+
 ## Undo and redo (v9.4) — the both-closures rule and `readd`
 
 `SBMM.undo` is two stacks of `{ desc, undo, redo }`, 100 deep each way:

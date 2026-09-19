@@ -21,8 +21,9 @@ import { mkdirSync } from "node:fs";
 import { unlock } from "./gate.mjs";
 
 const HERE = resolve(fileURLToPath(new URL(".", import.meta.url)));
-const target = process.argv[2] || resolve(HERE, "..", "index.html");
-const out = process.argv[3] || resolve(HERE, "shots");
+const pos = process.argv.slice(2).filter(a => !a.startsWith("--"));
+const target = pos[0] || resolve(HERE, "..", "index.html");
+const out = pos[1] || resolve(HERE, "shots");
 mkdirSync(out, { recursive: true });
 
 const browser = await launch();
@@ -63,6 +64,19 @@ await shot("fence_map");
 await page.evaluate(() => { SBMM.borewin.open(null, { tab: "fence" }); });
 await wait(1200);
 await shot("fence_2d");
+
+/* v24 Part 3: the same drawing built THROUGH three named holes — no swath,
+   each hole at its own vertex, and the class bands correlated between them */
+await page.evaluate(() => {
+  for (const g of SBMM.store.features.filter(q => q.type === "fence"))
+    SBMM.tools.deleteFeature(g);
+  const f = SBMM.fence.startThrough(["SB-9", "SB-10", "SB-11"]);
+  SBMM.fence.setCurrent(f.id);
+  SBMM.borewin.open(null, { tab: "fence" });
+  SBMM.borewin.tab("fence");
+});
+await wait(1400);
+await shot("fence_through");
 
 await page.evaluate(() => { SBMM.borewin.close(); });
 await wait(400);
