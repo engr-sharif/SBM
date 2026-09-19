@@ -485,6 +485,39 @@ SBMM.borelogs = (function () {
              rule: "#111", box: "#e6e6e6", box2: "#c9c9c9", halo: "#ffffff" }
   };
 
+  /* ---- the collision rules every per-depth annotation goes through (v24) --
+     A LANE is one column's vertical stack. Everything drawn at a depth — the
+     sample reference, the N value, the blows, a lab chip, a remark, a line of
+     description, a horizon tag — is placed through one, in depth order, and a
+     lane never lets two boxes touch: it pushes the next one down by the gap it
+     was built with, and refuses (returns null) when the push would carry it
+     past the limit the caller set. What is refused is ELIDED, never
+     overprinted, and its text is already in the <title> of the shape it
+     belongs to and in csvFor(). That is the whole of "zero overlaps": it is a
+     property of the placer, not of a set of hand-tuned offsets.
+
+     ONE MEASUREMENT PER FONT, conservatively. SVG has no text metrics without
+     a DOM, so a wrapped column's width is estimated from the em advance —
+     0.62 em for the monospace faces and 0.58 for the sans, both a little wide,
+     because a line that overflows its column lands on its neighbour and a line
+     that stops short only looks airy. */
+  const MONO_EM = 0.62, SANS_EM = 0.58;
+  const perChars = (w, size, mono) => Math.max(4, Math.floor(w / (size * (mono ? MONO_EM : SANS_EM))));
+  function lane(gap) {
+    let last = -1e9;
+    return {
+      /* y = where this box's TOP wants to be, hh = its height, limit = the y
+         its bottom must not pass (null: no limit) */
+      at(y, hh, limit) {
+        const yy = Math.max(y, last + gap);
+        if (limit != null && yy + hh > limit) return null;
+        last = yy + hh;
+        return yy;
+      },
+      reset() { last = -1e9; }
+    };
+  }
+
   function column(h, opts) {
     const o = opts || {};
     const tier = o.tier || "sheet";
@@ -529,24 +562,28 @@ SBMM.borelogs = (function () {
     const L = layoutFor(tier, W);
 
     /* ---- column headings, drawn in the top margin ---- */
+    /* ONE HEADING BAND, and every name carries its unit (v24 §2.2). The band
+       is the top margin and nothing else may be drawn in it: the pH scale's
+       own 2 / 4 / 8 used to sit half a line under the headings and collided
+       with them at every width, so the rule is named in the heading instead.
+       The two narrow left columns (12 px and 8 px) have no room for a word
+       and are named by their tooltips. */
     if (o.headings && tier === "sheet") {
-      const hy = PADT - 6;
+      const hy = PADT - 13;
       const hd = (x, s, anchor) => p.push(text(x, hy, s, T.hd, 8.5, anchor,
         ' letter-spacing=".06em"'));
-      /* the two narrow left columns are 12 px and 8 px wide — a word there
-         would run into its neighbour, and both are named by their tooltips */
-      hd(0, useElev ? "ELEV" : "FT BGS");
+      hd(0, useElev ? "ELEV ft" : "FT BGS");
       if (L.gl) hd(L.gl[0], "GRAPHIC LOG");
       if (L.uscs) hd(L.uscs[0], "USCS");
       if (L.desc) hd(L.desc[0], "DESCRIPTION");
       if (L.smp) hd(L.smp[0], "SAMPLE · N");
       if (L.blows) hd(L.blows[0], "BLOWS/6\u2033");
       if (L.pp) hd(L.pp[0], "PP tsf");
-      if (L.ph) hd(L.ph[0], "pH 2\u20138");
+      if (L.ph) hd(L.ph[0], "pH 2\u20138 · 4");
       if (L.lab) hd(L.lab[0], "LAB");
       if (L.rem) hd(L.rem[0], "REMARKS");
-      if (L.eax != null) hd(L.eax, useElev ? "FT BGS" : "ELEV");
-      p.push(line(0, PADT - 3, W, PADT - 3, T.grid, 1));
+      if (L.eax != null) hd(L.eax, useElev ? "FT BGS" : "ELEV ft NAVD88");
+      p.push(line(0, PADT - 6, W, PADT - 6, T.grid, 1));
     }
 
     /* ---- axes (§1.3) ---- */
@@ -569,9 +606,14 @@ SBMM.borelogs = (function () {
         for (let ft = Math.ceil(cTop / step) * step; ft <= cBot + 1e-6; ft += step)
           ticks.push([ft, Math.abs(ft / lab - Math.round(ft / lab)) < 1e-6]);
       }
+      /* THE TERMINATED DEPTH OWNS ITS OWN LABEL. A round tick at or within a
+         label's height of it printed "60" straight through the TD line's
+         "60.1" — the same number twice, 2 px apart, on both axes. */
+      const tdY = cBot >= depth - 1e-6 ? yOf(depth) : null;
       for (const [ft, big] of ticks) {
         const y = yOf(ft);
         p.push(line(L.ax + (big ? 0 : 4), y, L.ax + 6, y, T.grid, big ? 1 : .7));
+        if (big && tdY != null && Math.abs(y - tdY) < 11) continue;
         if (big) {
           const near = String(useElev && elev != null ? fmt0(elev - ft) : Math.round(ft));
           const far = elev != null ? (useElev ? String(Math.round(ft)) : fmt0(elev - ft)) : null;
@@ -630,6 +672,10 @@ SBMM.borelogs = (function () {
     /* ---- the graphic log: pattern by USCS, tint by class (§1.1) ---- */
     if (L.gl) {
       const gw = L.gl[1] - L.gl[0];
+      /* at stick width the USCS symbol goes INSIDE the graphic log (there is
+         no column for it), so two thin units printed theirs through each
+         other on a fence and on the Compare tab — one lane, same rule */
+      const gLane = lane(1.4);
       (h.strata || []).forEach((s, i) => {
         if (!s.primary) return;
         const a = Math.max(cTop, s.top), b = Math.min(cBot, s.base);
@@ -645,51 +691,89 @@ SBMM.borelogs = (function () {
               + "  " + (s.desc || s.name || ""))}</title></rect>`);
         /* the USCS symbol goes in its own column at sheet width and inside the
            graphic log at stick width, where there is no room for a column */
-        if (L.uscs == null && s.uscs && hh > 9)
-          p.push(text(L.gl[0] + gw / 2, yOf((a + b) / 2) + 3.2, s.uscs, PINK, 8.5, "middle",
-            ' font-weight="700"'));
+        if (L.uscs == null && s.uscs && hh > 9) {
+          const gy = gLane.at(yOf((a + b) / 2) - 4.6, 9.4, null);
+          if (gy != null)
+            p.push(text(L.gl[0] + gw / 2, gy + 7.8, s.uscs, PINK, 8.5, "middle",
+              ' font-weight="700"'));
+        }
       });
     }
 
     /* ---- USCS column ---- */
     if (L.uscs) {
-      (h.strata || []).forEach(s => {
+      /* two thin units put their symbols a few pixels apart, so the column is
+         a lane like every other: the second is pushed down, and a symbol with
+         nowhere to go is dropped (it is in the graphic log's own title) */
+      const ul = lane(1.6);
+      (h.strata || []).slice().sort((x, y2) => x.top - y2.top).forEach(s => {
         if (!s.primary) return;
         const a = Math.max(cTop, s.top), b = Math.min(cBot, s.base);
         if (b - a < 1e-6) return;
-        const hh = (b - a) * ppf;
-        if (hh < 8) return;
-        p.push(text(L.uscs[0] + 2, yOf((a + b) / 2) + 3.4, s.uscs || "—", T.ink, 10, null,
-          ' font-weight="650"'));
+        if ((b - a) * ppf < 8) return;
+        const y = ul.at(yOf((a + b) / 2) - 5, 11, yOf(cBot) + 6);
+        if (y == null) return;
+        /* A SYMBOL, NEVER A WORD. The column is 36 px wide and "Bedrock" —
+           which is what the payload carries where a hole logged rock rather
+           than a USCS group — is 42 px of bold and ran into the description.
+           The graphic log already draws rock as brick and tints it, so the
+           word adds nothing; it stays in the title. */
+        const u = String(s.uscs || "").trim();
+        const sym = /^[A-Z]{1,2}([-/][A-Z]{1,2})?$/.test(u.toUpperCase()) ? u.toUpperCase() : "\u2014";
+        /* NO <title> INSIDE A <text>: a title is part of its parent's
+           textContent, which is what every harness and the voice check read,
+           so a labelled symbol would stop being "SC". The full word is on the
+           graphic log's own rect, where the pattern it names is drawn. */
+        p.push(text(L.uscs[0] + 2, y + 8.4, sym, T.ink, 10, null, ' font-weight="650"'));
       });
     }
 
-    /* ---- descriptions, wrapped (§2.2 item 9) ---- */
+    /* ---- descriptions, wrapped and STACKED (§2.2 item 9, v24) ----
+       The description column is ONE running lane down the page: each unit's
+       text starts at its own top or below whatever the unit above it used,
+       whichever is lower, and stops where the NEXT unit's text begins. A unit
+       with room for no line at all is elided — its words are in the graphic
+       log's <title> and in csvFor() — and a unit with room for some of them
+       carries the ellipsis ON its last line rather than on a line of its own,
+       which is what used to land on the unit below. */
     if (L.desc) {
       const dw = L.desc[1] - L.desc[0];
-      const per = Math.max(8, Math.floor(dw / 5.3));
-      (h.strata || []).forEach(s => {
-        const a = Math.max(cTop, s.top), b = Math.min(cBot, s.base);
-        if (s.primary ? (b - a < 1e-6) : (s.top < cTop || s.top > cBot)) return;
+      const LH = 11.2, FS = 9.4;
+      const per = perChars(dw, FS, false), perSub = perChars(dw - 7, FS, false);
+      const SANS = ' font-family="system-ui,-apple-system,Segoe UI,sans-serif"';
+      const items = (h.strata || []).map((s, i) => ({ s, i }))
+        .filter(({ s }) => {
+          const a = Math.max(cTop, s.top), b = Math.min(cBot, s.base);
+          if (s.primary ? (b - a < 1e-6) : (s.top < cTop || s.top > cBot)) return false;
+          return !!(s.desc || s.name);
+        })
+        .sort((x, y2) => (x.s.top - y2.s.top) || (x.i - y2.i));
+      const dl = lane(1.6);
+      items.forEach(({ s }, k) => {
         const sub = !s.primary;
-        const words = s.desc || s.name || "";
-        if (!words) return;
-        const txt = (sub ? "— " : "") + words;
-        const lines = wrapText(txt, sub ? per - 2 : per);
-        let yy = yOf(sub ? s.top : a) + 8;
-        const room = sub ? 3 : Math.max(1, Math.floor(((b - a) * ppf - 3) / 10.5));
-        lines.slice(0, Math.max(1, room)).forEach((ln, k) => {
-          p.push(text(L.desc[0] + (sub ? 7 : 0), yy + k * 10.5, ln, sub ? T.ax : T.ink, 9.4, null,
-            ' font-family="system-ui,-apple-system,Segoe UI,sans-serif"'));
-        });
-        if (lines.length > room && room >= 1)
-          p.push(text(L.desc[0] + (sub ? 7 : 0), yy + room * 10.5, "…", T.ax, 9.4));
+        const a = Math.max(cTop, s.top);
+        const lines = wrapText((sub ? "— " : "") + (s.desc || s.name || ""), sub ? perSub : per);
+        /* the unit below decides how much room this one has; the last one has
+           the foot of the drawing */
+        const nx = items[k + 1];
+        const limit = nx ? yOf(Math.max(cTop, nx.s.top)) + LH * 0.5
+                         : yOf(cBot) + PADB - 4;
+        let y = dl.at(yOf(a) + 8, LH, limit);
+        if (y == null) return;
+        const room = Math.max(1, Math.floor((limit - y) / LH));
+        const shown = lines.slice(0, room);
+        if (lines.length > shown.length && shown.length)
+          shown[shown.length - 1] = shown[shown.length - 1].replace(/\s*$/, "") + "…";
+        shown.forEach((ln, j) =>
+          p.push(text(L.desc[0] + (sub ? 7 : 0), y + j * LH, ln, sub ? T.ax : T.ink, FS, null, SANS)));
+        dl.at(y + (shown.length - 1) * LH, LH, null);   /* claim what was drawn */
       });
     }
 
     /* ---- the sample column: drives, N bars, refusal, recovery ---- */
     if (L.smp) {
       const sw = L.smp[1] - L.smp[0], nw = sw - 20;
+      const nLane = lane(1.6);
       for (const s of (h.spt || [])) {
         const a = Math.max(cTop, s.top), b = Math.min(cBot, s.base);
         if (b - a < 1e-6) continue;
@@ -717,18 +801,25 @@ SBMM.borelogs = (function () {
           p.push(`<rect class="blspt" data-n="${s.n == null ? "" : s.n}" data-refusal="${ref ? 1 : 0}"`
             + ` x="${L.smp[0] + 16}" y="${(ym - 3).toFixed(1)}" width="${bw.toFixed(1)}" height="6"`
             + ` fill="${ref ? "#E4796A" : "#4FB3CE"}" fill-opacity="${ref ? ".9" : ".8"}"/>`);
-          p.push(text(L.smp[1], ym + 3, s.n_text || "—", ref ? "#E4796A" : T.ink, 8.5, "end"));
+          /* the N value goes through the lane: at 1 in = 20 ft two drives are
+             seven pixels apart and their numbers printed through each other */
+          const yn = nLane.at(ym - 4, 9, null);
+          if (yn != null)
+            p.push(text(L.smp[1], yn + 7, s.n_text || "—", ref ? "#E4796A" : T.ink, 8.5, "end"));
         }
       }
     }
     /* ---- blows per 6 in ---- */
     if (L.blows) {
+      const bLane = lane(1.6);
       for (const s of (h.spt || [])) {
         if (!s.blows_6in || !s.blows_6in.length) continue;
         const a = Math.max(cTop, s.top), b = Math.min(cBot, s.base);
         if (b - a < 1e-6) continue;
         const ym = (yOf(a) + yOf(b)) / 2;
-        p.push(text(L.blows[0], ym + 3, s.blows_6in.map(v => fmt0(v)).join("-"), T.ax, 8.5));
+        const y = bLane.at(ym - 4, 9, null);
+        if (y == null) continue;
+        p.push(text(L.blows[0], y + 7, s.blows_6in.map(v => fmt0(v)).join("-"), T.ax, 8.5));
       }
     }
 
@@ -751,11 +842,9 @@ SBMM.borelogs = (function () {
       /* pH under 4 is the acid-generating signature of this site's waste — the
          rule is drawn, never the conclusion */
       p.push(line(phx(PH_ACID), yOf(cTop), phx(PH_ACID), yOf(cBot), "#E4796A", 1, "2 3", "blph4"));
-      if (o.headings) {
-        p.push(text(L.ph[0], PADT - 15, String(PH_LO), T.ax, 7.5));
-        p.push(text(phx(PH_ACID), PADT - 15, String(PH_ACID), "#E4796A", 7.5, "middle"));
-        p.push(text(L.ph[1], PADT - 15, String(PH_HI), T.ax, 7.5, "end"));
-      }
+      /* the scale's own 2 / 4 / 8 used to sit half a line under the heading
+         band and collided with it at every width; the heading reads
+         "pH 2–8 · 4" and the red dashed rule IS the 4 (v24) */
       for (const t of (h.tests || [])) {
         if (t.key !== "pH" || t.depth == null || t.depth < cTop || t.depth > cBot) continue;
         p.push(`<circle class="blph" data-ph="${t.value}" cx="${phx(t.value).toFixed(1)}"`
@@ -774,30 +863,50 @@ SBMM.borelogs = (function () {
         if (!at.has(k)) at.set(k, { d: t.depth, v: [], iv: t.interval, m: t.method });
         at.get(k).v.push(`${t.key} ${fmt(t.value, t.value % 1 ? 2 : 0)}${t.unit ? " " + t.unit : ""}`);
       }
-      const per = Math.max(6, Math.floor((L.lab[1] - L.lab[0]) / 4.6));
-      for (const rec of at.values()) {
-        const lines = wrapText(rec.v.join(" · "), per);
-        const y = yOf(rec.d);
-        p.push(`<rect class="bllab" x="${L.lab[0]}" y="${(y - 5.5).toFixed(1)}"`
-          + ` width="${L.lab[1] - L.lab[0]}" height="${Math.min(3, lines.length) * 10 + 3}"`
+      const per = perChars(L.lab[1] - L.lab[0] - 6, 8.5, true);
+      const LH = 10.4;
+      const ll = lane(2.5);
+      const recs = [...at.values()].sort((a2, b2) => a2.d - b2.d);
+      for (const rec of recs) {
+        const lines = wrapText(rec.v.join(" · "), per).slice(0, 3);
+        const boxH = lines.length * LH + 3;
+        const title = esc2(rec.v.join(" · ")
+          + (rec.iv ? "  over " + fmt(rec.iv[0], 1) + "–" + fmt(rec.iv[1], 1) + " ft" : "")
+          + (rec.m ? "  " + rec.m : ""));
+        /* a chip that cannot be placed without landing on the one above it is
+           dropped rather than overprinted; every value is in the <title> of
+           its own tick, in the card's lab table and in csvFor() */
+        const y = ll.at(yOf(rec.d) - 5.5, boxH, yOf(cBot) + PADB - 4);
+        if (y == null) {
+          p.push(line(L.lab[0], yOf(rec.d), L.lab[0] + 5, yOf(rec.d), T.ax, 1, null, "bllabtick",
+            ` data-ft="${rec.d}"`) .replace("/>", `><title>${title}</title></line>`));
+          continue;
+        }
+        p.push(`<rect class="bllab" data-ft="${rec.d}" x="${L.lab[0]}" y="${y.toFixed(1)}"`
+          + ` width="${L.lab[1] - L.lab[0]}" height="${boxH.toFixed(1)}"`
           + ` fill="${T.box}" fill-opacity=".55" stroke="${T.grid}" stroke-width=".6" rx="2">`
-          + `<title>${esc2(rec.v.join(" · ") + (rec.iv ? "  over " + fmt(rec.iv[0], 1) + "–" + fmt(rec.iv[1], 1) + " ft" : "")
-              + (rec.m ? "  " + rec.m : ""))}</title></rect>`);
-        lines.slice(0, 3).forEach((ln, k) =>
-          p.push(text(L.lab[0] + 3, y + 2.5 + k * 10, ln, T.ink, 8.5)));
+          + `<title>${title}</title></rect>`);
+        if (Math.abs(y + 5.5 - yOf(rec.d)) > 1.5)
+          p.push(line(L.lab[0] - 4, yOf(rec.d), L.lab[0], y + boxH / 2, T.grid, .7));
+        lines.forEach((ln, k) => p.push(text(L.lab[0] + 3, y + 8 + k * LH, ln, T.ink, 8.5)));
       }
     }
 
     /* ---- remarks at depth ---- */
     if (L.rem) {
-      const per = Math.max(8, Math.floor((L.rem[1] - L.rem[0]) / 4.4));
-      for (const n of (h.notes || [])) {
-        if (n.depth == null || n.depth < cTop || n.depth > cBot) continue;
-        const y = yOf(n.depth);
-        p.push(line(L.rem[0] - 4, y, L.rem[0] - 1, y, T.ax, 1));
-        wrapText(n.text, per).slice(0, 3).forEach((ln, k) =>
-          p.push(text(L.rem[0], y + 3 + k * 9.6, ln, T.ax, 8.6, null,
-            ' font-family="system-ui,-apple-system,Segoe UI,sans-serif"')));
+      const per = perChars(L.rem[1] - L.rem[0], 8.6, false);
+      const LH = 10.2;
+      const rl = lane(2.2);
+      const notes = (h.notes || []).filter(n => n.depth != null && n.depth >= cTop && n.depth <= cBot)
+        .sort((a2, b2) => a2.depth - b2.depth);
+      for (const n of notes) {
+        const lines = wrapText(n.text, per).slice(0, 3);
+        const y = rl.at(yOf(n.depth) - 6, lines.length * LH, yOf(cBot) + PADB - 4);
+        p.push(line(L.rem[0] - 4, yOf(n.depth), L.rem[0] - 1, yOf(n.depth), T.ax, 1, null, null,
+          "").replace("/>", `><title>${esc2(fmt(n.depth, 1) + " ft — " + n.text)}</title></line>`));
+        if (y == null) continue;
+        lines.forEach((ln, k) => p.push(text(L.rem[0], y + 7 + k * LH, ln, T.ax, 8.6, null,
+          ' font-family="system-ui,-apple-system,Segoe UI,sans-serif"')));
       }
     }
 
@@ -809,34 +918,59 @@ SBMM.borelogs = (function () {
     const HC = o.print ? { contact: "#8A6A00", bedrock: "#4B3E86", water: "#0B6FA8" }
                        : { contact: classColor("contact"), bedrock: classColor("bedrock"), water: "#55C1FF" };
     const across0 = L.ax + 1, across1 = L.eax != null ? L.eax - 3 : W;
+    /* THE HORIZON TAG LANE (v24). Until this round each horizon printed a
+       sentence across the whole column — "native contact 7.5 ft · logger's
+       remark" — straight over the descriptions, the lab chips and the heading
+       band, and it was the single biggest source of the overlapping text the
+       engineer reported. A horizon is now tagged SHORT, in the one lane of the
+       drawing that carries no other text: from the depth axis across the
+       method, class and graphic-log columns, which at sheet tier hold patterns
+       and no words. The source of the contact, the strata reading and the
+       interlayered flag are stated once each in the window's header strip and
+       on the printed sheet's header block, so the drawing does not repeat
+       them; each tag keeps the full sentence in its own <title>. */
+    const tagLane = lane(1.8);
+    const tagW = Math.max(40, (L.gl ? L.gl[1] : across1) - across0 - 4);
+    const tagRoom = perChars(tagW, 8.5, true);
+    /* the tag is a plain <text>: a <title> inside one becomes part of its
+       textContent, and the sentence each tag shortens lives on the horizon
+       LINE's own title instead (and in the window's header strip) */
+    const tag = (y, words, col) => {
+      if (tier !== "sheet") return;
+      const txt = words.length > tagRoom ? words.slice(0, tagRoom - 1) + "…" : words;
+      const at = tagLane.at(y - 11, 10.5, null);
+      p.push(text(across0 + 3, at + 8, txt, col, 8.5, null,
+        ' font-weight="700" class="bltag"' + HL));
+    };
+    /* the tags are emitted in DEPTH order, which is what lets one lane keep
+       them apart: strata reading, native contact, bedrock, water */
+    const tagQ = [];
     if (c.waste_base_strata != null && differs(c.waste_base_strata, c.native_contact)
         && c.waste_base_strata >= cTop && c.waste_base_strata <= cBot) {
       const y = yOf(c.waste_base_strata);
       p.push(line(across0, y, across1, y, T.ink, 1, "5 3", "blstrataline",
-        ` data-ft="${c.waste_base_strata}"`));
-      if (tier === "sheet")
-        p.push(text(across1 - 2, y - 3, `strata ${fmt(c.waste_base_strata, 1)} ft`, T.ink, 8.5, "end", HL));
+        ` data-ft="${c.waste_base_strata}"`)
+        .replace("/>", `><title>waste base from the strata rows — `
+          + `${fmt(c.waste_base_strata, 1)} ft</title></line>`));
+      tagQ.push([c.waste_base_strata, y, `strata ${fmt(c.waste_base_strata, 1)} ft`, T.ink]);
     }
     if (c.native_contact != null && c.native_contact >= cTop && c.native_contact <= cBot) {
       const y = yOf(c.native_contact);
       p.push(line(across0, y, across1, y, HC.contact, tier === "mini" ? 1.4 : 2.2, null,
-        "blcontact", ` data-ft="${c.native_contact}" data-src="${esc2(c.source || "")}"`));
-      if (tier === "sheet")
-        p.push(text(across0 + 3, y - 5,
-          `native contact ${fmt(c.native_contact, 1)} ft · ${c.source === "remark" ? "logger's remark" : "from the strata"}`,
-          HC.contact, 9.5, null, ' font-weight="700"' + HL));
+        "blcontact", ` data-ft="${c.native_contact}" data-src="${esc2(c.source || "")}"`)
+        .replace("/>", `><title>native contact ${fmt(c.native_contact, 1)} ft · `
+          + `${c.source === "remark" ? "logger's remark" : "from the strata"}`
+          + `${c.waste_layered_below_native ? " · waste logged below native — interlayered" : ""}`
+          + `</title></line>`));
+      tagQ.push([c.native_contact, y, `NATIVE ${fmt(c.native_contact, 1)} ft`, HC.contact]);
     }
     if (c.bedrock_top != null && c.bedrock_top >= cTop && c.bedrock_top <= cBot && tier !== "mini") {
       const y = yOf(c.bedrock_top);
       p.push(line(across0, y, across1, y, HC.bedrock, 1.4, "6 3", "blrockline",
-        ` data-ft="${c.bedrock_top}"`));
-      if (tier === "sheet")
-        p.push(text(across0 + 3, y + 10, `top of bedrock ${fmt(c.bedrock_top, 1)} ft`,
-          HC.bedrock, 8.5, null, HL));
+        ` data-ft="${c.bedrock_top}"`)
+        .replace("/>", `><title>top of bedrock ${fmt(c.bedrock_top, 1)} ft</title></line>`));
+      tagQ.push([c.bedrock_top, y, `BEDROCK ${fmt(c.bedrock_top, 1)} ft`, HC.bedrock]);
     }
-    if (c.waste_layered_below_native && tier === "sheet")
-      p.push(text(across0 + 3, yOf(Math.min(cBot, (c.native_contact || 0) + 2)) + 22,
-        "waste is logged BELOW native here — the profile is interlayered", "#E4796A", 8.5, null, HL));
 
     /* ---- water: the standard triangles ---- */
     const w = h.water;
@@ -847,11 +981,15 @@ SBMM.borelogs = (function () {
         + `${(wx + 11)},${(y - 7).toFixed(1)} ${(wx + 5.5)},${y.toFixed(1)}" fill="#55C1FF">`
         + `<title>groundwater ${fmt(w.depth, 1)} ft bgs${w.perched ? " (perched)" : ""}`
         + `${w.event ? " — " + esc2(w.event) : ""}${w.when ? " · " + esc2(String(w.when).slice(0, 10)) : ""}</title></polygon>`);
-      if (tier === "sheet")
-        p.push(text(wx + 14, y - 1, `groundwater ${fmt(w.depth, 1)} ft`
-          + `${w.perched ? " (perched)" : ""}${w.when ? " · " + String(w.when).slice(0, 10) : ""}`,
-          o.print ? HC.water : "#9FDCFF", 8.6, null, HL));
+      /* "perched" is a qualifier, and it is stated in the window's header
+         strip and in the triangle's own title; the tag lane is 95 px wide and
+         a truncated qualifier reads worse than none */
+      tagQ.push([w.depth, y, `WATER ${fmt(w.depth, 1)} ft`, o.print ? HC.water : "#9FDCFF"]);
     }
+    /* the water triangle sits at the graphic log's own left edge, so a tag at
+       the same depth starts clear of it */
+    tagQ.sort((a2, b2) => a2[0] - b2[0]);
+    for (const [, y, words, col] of tagQ) tag(y, words, col);
 
     return { g: `<g class="blcol" data-hole="${esc2(h.id)}">${p.join("")}</g>`,
              defs: defsFor(pairs), w: W, h: H, ppf, top, bot, yOf,
@@ -889,14 +1027,24 @@ SBMM.borelogs = (function () {
     return L;
   }
 
-  /* a word wrapper for SVG text, which has none of its own */
+  /* a word wrapper for SVG text, which has none of its own.
+
+     A WORD LONGER THAN THE COLUMN IS BROKEN, not left to run out of it. SVG
+     text does not clip, so one long token — a lab method, a hyphen-less
+     mineral name — overprinted whatever column was to its right, and the
+     wrapper's own line count then said the text fitted. (v24) */
   function wrapText(s, per) {
-    const words = String(s == null ? "" : s).split(/\s+/).filter(Boolean);
+    const lim = Math.max(3, Math.floor(per));
+    const words = [];
+    for (let w of String(s == null ? "" : s).split(/\s+/).filter(Boolean)) {
+      while (w.length > lim) { words.push(w.slice(0, lim - 1) + "\u2011"); w = w.slice(lim - 1); }
+      if (w) words.push(w);
+    }
     const out = [];
     let cur = "";
     for (const w of words) {
       if (!cur) { cur = w; continue; }
-      if ((cur + " " + w).length <= per) cur += " " + w;
+      if ((cur + " " + w).length <= lim) cur += " " + w;
       else { out.push(cur); cur = w; }
     }
     if (cur) out.push(cur);
