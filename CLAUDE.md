@@ -3594,7 +3594,7 @@ formula in JS: **mean absolute difference 0.013 of 255** (the spec's bar is 2).
 ### The offline copy
 
 `index.html` names only the 30 kB tile index, so the offline copy would
-otherwise have no pyramid. **"terrain tiles (52 MB)"** beside the offline button
+otherwise have no pyramid. **"terrain tiles (64 MB)"** beside the offline button
 is the opt-in: `{type:"precache", tiles:true}` makes `sw.js` read the tile index
 out of the payload it just cached and add every tile it names — one list, not
 two, the same rule the script list follows. A tile that will not cache is a hole

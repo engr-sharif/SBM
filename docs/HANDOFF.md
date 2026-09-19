@@ -480,7 +480,7 @@ normally — the JavaScript kernels are still there and are still the reference.
 
 ## v20 — the terrain tiles, and what regenerating them costs
 
-`datajs/tiles/` (2,311 files, 52 MB) is a generated payload like `datajs/` itself, and
+`datajs/tiles/` (3,134 files, 64 MB) is a generated payload like `datajs/` itself, and
 `python tools/build_tiles.py` is the generator. It reads `data/*.png|jpg` — the repo's
 own rasters — and takes about 35 minutes; the tile index records that the masters were
 not available on the build box, and re-running it against the masters changes that
