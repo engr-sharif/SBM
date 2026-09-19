@@ -57,7 +57,19 @@ SBMM.fence = (function () {
      station 0+00 is the commonest fence there is (the engineer draws from one
      boring to another), and its column is centred on its station, so without
      that inset half of it hangs over the elevation axis and off the paper. */
-  const PADL = 52, PADR = 46, PADT = 34, PADB = 84, CW = 78;
+  /* PADB CARRIES SIX STACKED ROWS AND EVERY ONE OF THEM HAS ITS OWN OFFSET.
+     The station axis and its labels, the per-span distances, the scale bar,
+     the class key, the horizon key and then the rule the drawing is under —
+     all of them at one y is what the first cut drew, and the second cut put
+     the class key straight through the scale bar because both were computed
+     from different ends of the same margin. FOOT is the stack, measured from
+     the foot of the drawing, and PADB is its last row plus a line. */
+  const FOOT = { axis: 12, staLab: 26, spanRule: 40, span: 50, bar: 68,
+                 keyClass: 88, keyHz: 104, note: 120, noteLine: 11 };
+  /* PADB reserves the note's SECOND line whether or not this width needs one —
+     a footer whose height depends on how the sentence wrapped is a footer that
+     lands on the key it sits under at exactly one width. */
+  const PADL = 52, PADR = 46, PADT = 34, PADB = 144, CW = 78;
   const C = { ink: "#E8EEF1", ax: "#6C7F8A", hd: "#8FA3AE", grid: "rgba(44,59,69,.55)",
               ground: "#E8EEF1", tick: "#FFD34D", plate: "#0D1215" };
 
@@ -99,12 +111,20 @@ SBMM.fence = (function () {
     return best;
   }
 
-  /* every logged hole inside the swath, in station order. THE PHASE C SEAM. */
-  function projectHoles(pts, halfFt) {
+  /* every logged hole inside the swath, in station order. THE PHASE C SEAM.
+
+     `through` names the holes instead: a fence drawn hole-to-hole takes THOSE
+     holes and no others, whatever the swath would have caught, and each one is
+     projected onto the polyline it is a vertex of — so its offset is 0 by
+     construction and stays honest if the alignment is later edited. */
+  function projectHoles(pts, halfFt, through) {
     if (!has() || !pts || pts.length < 2) return [];
-    const half = Math.max(1, halfFt || DEFAULTS.swath_ft);
+    const half = through ? Infinity : Math.max(1, halfFt || DEFAULTS.swath_ft);
+    const list = through
+      ? through.map(v => BL().byId(v)).filter(Boolean)
+      : BL().holes();
     const out = [];
-    for (const h of BL().holes()) {
+    for (const h of list) {
       if (h.x == null || h.y == null) continue;
       const pr = projectPoint(pts, h.x, h.y);
       if (!pr || Math.abs(pr.off) > half) continue;
@@ -160,6 +180,117 @@ SBMM.fence = (function () {
   }
 
   /* ------------------------------------------------------------------ */
+  /* THE CORRELATION (v24 Part 3)                                        */
+  /* ------------------------------------------------------------------ */
+  /* A fence that draws three straight horizons is a fence that says almost
+     nothing about what is between the holes. What an engineer reads off a
+     fence is the BODY — how thick the waste is here, where the native comes
+     up, where the rock is — so the classes are correlated as FILLED BANDS
+     between adjacent holes, and inside a band the logged units are matched by
+     the USCS family they share.
+
+     THE BAND BOUNDARIES ARE THE LOGGED CONTACTS AND NOTHING ELSE. Waste is
+     ground down to the logger's own native contact, native is that contact
+     down to the top of bedrock, bedrock is that down to the hole's terminated
+     depth. Deriving a band from the strata runs instead would put a second,
+     quieter answer beside the one the app leads with everywhere else — and the
+     18 holes whose two statements disagree are exactly the ones a reader is
+     looking at. `ended` says a band stops at the hole's own bottom rather than
+     at a logged contact, and it is drawn with a dashed edge.
+
+     NOTHING IS INTERPOLATED BEYOND STRAIGHT LINES, and nothing is drawn
+     between holes that are not neighbours. */
+  const CLASS_ORDER = ["waste", "native", "bedrock"];
+  function bandsOf(id) {
+    const h = BL().byId(id);
+    if (!h || h.elev == null || h.depth == null) return null;
+    const c = h.contacts || {};
+    const g = h.elev, tdz = h.elev - h.depth;
+    const nc = c.native_contact != null ? h.elev - c.native_contact : null;
+    const rk = c.bedrock_top != null ? h.elev - c.bedrock_top : null;
+    const out = {};
+    if (nc != null && nc < g - 0.01) out.waste = { top: g, base: nc, ended: false };
+    const nTop = nc != null ? nc : g;
+    const nBase = rk != null ? rk : tdz;
+    if (nBase < nTop - 0.01) out.native = { top: nTop, base: nBase, ended: rk == null };
+    if (rk != null && tdz < rk - 0.01) out.bedrock = { top: rk, base: tdz, ended: true };
+    return out;
+  }
+
+  /* the primary units inside one class band, top-down, each with the pattern
+     family the graphic log draws it with */
+  function unitsIn(id, cls) {
+    const h = BL().byId(id);
+    const b = (bandsOf(id) || {})[cls];
+    if (!h || !b) return [];
+    const out = [];
+    for (const s2 of (h.strata || [])) {
+      if (!s2.primary) continue;
+      const zt = h.elev - s2.top, zb = h.elev - s2.base;
+      const mid = (zt + zb) / 2;
+      if (mid > b.top + 0.01 || mid < b.base - 0.01) continue;
+      out.push({ top: Math.min(zt, b.top), base: Math.max(zb, b.base),
+                 fam: BL().famOf(s2), uscs: String(s2.uscs || "").trim() });
+    }
+    out.sort((x, y2) => y2.top - x.top);
+    return out;
+  }
+
+  /* IN-ORDER MATCHING, BY FAMILY. A longest common subsequence over the
+     pattern families: it is deterministic, it never crosses two links, and it
+     cannot match a sand to a clay. Lists are a dozen units long at most.
+     CONFIDENCE is the full USCS symbol: same family AND the same symbol is a
+     solid link, same family alone is dashed. */
+  function matchUnits(A, B) {
+    const n = A.length, m = B.length;
+    const L = Array.from({ length: n + 1 }, () => new Int32Array(m + 1));
+    for (let i = n - 1; i >= 0; i--)
+      for (let j = m - 1; j >= 0; j--)
+        L[i][j] = A[i].fam === B[j].fam && A[i].fam !== "none"
+          ? L[i + 1][j + 1] + 1
+          : Math.max(L[i + 1][j], L[i][j + 1]);
+    const pairs = [];
+    const usedA = new Set(), usedB = new Set();
+    let i = 0, j = 0;
+    while (i < n && j < m) {
+      if (A[i].fam === B[j].fam && A[i].fam !== "none") {
+        pairs.push({ a: i, b: j, sure: !!A[i].uscs && A[i].uscs === B[j].uscs });
+        usedA.add(i); usedB.add(j); i++; j++;
+      } else if (L[i + 1][j] >= L[i][j + 1]) i++;
+      else j++;
+    }
+    /* A UNIT WITH NO USCS SYMBOL IS NOT CORRELATED AND DOES NOT PINCH OUT.
+       "Described, not classified" is what the graphic log's diagonal hatch
+       already says; drawing a wedge for it would claim the unit ends at
+       mid-span, which is a statement about ground nobody drilled. Excluding
+       them took a three-hole fence from 25 wedges to a readable few. */
+    const real = (arr, used) => arr.map((u, k) => k)
+      .filter(k => !used.has(k) && arr[k].fam !== "none");
+    return { pairs, loneA: real(A, usedA), loneB: real(B, usedB) };
+  }
+
+  /* one span's whole correlation, as data — the drawing, the CSV and the DXF
+     all read THIS rather than each working it out again */
+  function spanCorrelation(idA, idB) {
+    const ba = bandsOf(idA), bb = bandsOf(idB);
+    if (!ba || !bb) return null;
+    const bands = [], units = [], pinch = [];
+    for (const cls of CLASS_ORDER) {
+      const a = ba[cls], b = bb[cls];
+      if (!a || !b) continue;
+      bands.push({ cls, a, b, ended: a.ended || b.ended });
+      const UA = unitsIn(idA, cls), UB = unitsIn(idB, cls);
+      const m = matchUnits(UA, UB);
+      for (const p of m.pairs)
+        units.push({ cls, sure: p.sure, za: UA[p.a].top, zb: UB[p.b].top,
+                     uscs: UA[p.a].uscs || UB[p.b].uscs });
+      for (const k of m.loneA) pinch.push({ cls, side: "a", u: UA[k] });
+      for (const k of m.loneB) pinch.push({ cls, side: "b", u: UB[k] });
+    }
+    return { bands, units, pinch };
+  }
+
+  /* ------------------------------------------------------------------ */
   /* derive — main-thread arithmetic, no worker job                      */
   /* ------------------------------------------------------------------ */
   /* 44 holes and a few hundred ground samples: measured at well under a
@@ -172,7 +303,7 @@ SBMM.fence = (function () {
     const pts = f.pts;
     if (!pts || pts.length < 2) { f._fen = null; return null; }
     const total = lineLength(pts);
-    const holes = has() ? projectHoles(pts, pr.swath_ft) : [];
+    const holes = has() ? projectHoles(pts, pr.swath_ft, pr.through) : [];
     const ground = groundProfile(pts, pr.ground_step_ft);
     let gLo = Infinity, gHi = -Infinity;
     for (const g of ground) if (isFinite(g.z)) { if (g.z < gLo) gLo = g.z; if (g.z > gHi) gHi = g.z; }
@@ -192,6 +323,7 @@ SBMM.fence = (function () {
       holes: holes.map(q => ({ id: q.id, sta: +q.sta.toFixed(2), off: +q.off.toFixed(2) })),
       datum_top_ft: +zTop.toFixed(2), datum_bot_ft: +zBot.toFixed(2)
     });
+    if (pr.through) pr.through = pr.through.slice();
     return f._fen;
   }
 
@@ -243,50 +375,70 @@ SBMM.fence = (function () {
     p.push(text(W - PADR + 9, PADT - 16, "ELEV ft", C.hd, 8, null, ' letter-spacing=".06em"'));
 
     /* ---- the station axis along the bottom ---- */
-    const yAx = PADT + drawH + 12;
+    const yAx = PADT + drawH + FOOT.axis;
     p.push(line(PADL, yAx, W - PADR, yAx, C.ax, 1));
     const staStep = total > 4000 ? 500 : total > 1600 ? 200 : total > 700 ? 100 : total > 240 ? 50 : 25;
     for (let s = 0; s <= total + 1e-6; s += staStep) {
       p.push(line(xOf(s), yAx, xOf(s), yAx + 4, C.ax, 1));
-      p.push(text(xOf(s), yAx + 14, staLabel(s), C.ax, 8.5, "middle"));
+      p.push(text(xOf(s), PADT + drawH + FOOT.staLab, staLabel(s), C.ax, 8.5, "middle"));
     }
     if (total % staStep > staStep * 0.35) {
       p.push(line(xOf(total), yAx, xOf(total), yAx + 4, C.ax, 1));
-      p.push(text(xOf(total), yAx + 14, staLabel(total), C.ax, 8.5, "middle"));
+      p.push(text(xOf(total), PADT + drawH + FOOT.staLab, staLabel(total), C.ax, 8.5, "middle"));
     }
 
-    /* ---- the waste band: ground down to the correlated contact ----
-       shaded between the first and the last hole that state one, because
-       outside them there is nothing to correlate against */
-    const nat = HZ[0];
-    const withNat = R.holes.filter(q => horizonZ(nat, q.id) != null);
-    if (withNat.length >= 1) {
-      const s0 = withNat[0].sta, s1 = withNat[withNat.length - 1].sta;
-      const contactAt = s => {
-        if (withNat.length === 1) return horizonZ(nat, withNat[0].id);
-        for (let i = 0; i + 1 < withNat.length; i++) {
-          const a = withNat[i], b = withNat[i + 1];
-          if (s >= a.sta - 1e-6 && s <= b.sta + 1e-6) {
-            const t = (s - a.sta) / Math.max(1e-6, b.sta - a.sta);
-            const za = horizonZ(nat, a.id), zb = horizonZ(nat, b.id);
-            return za + (zb - za) * t;
-          }
-        }
-        return null;
-      };
-      const topRun = [], botRun = [];
-      for (const g of R.ground) {
-        if (g.sta < s0 - 1e-6 || g.sta > s1 + 1e-6 || !isFinite(g.z)) continue;
-        const cz = contactAt(g.sta);
-        if (cz == null) continue;
-        topRun.push([xOf(g.sta), yOf(g.z)]);
-        botRun.push([xOf(g.sta), yOf(cz)]);
+    /* ---- the class bands, correlated between adjacent holes (v24) ----
+       One filled polygon per class per span: the band's top and base joined
+       linearly to the next hole's, so the waste body reads as one shaded band
+       of varying thickness with the native under it and the rock hatched. A
+       band that stops at a hole's own bottom rather than at a logged contact
+       carries a dashed edge. */
+    const spans = [];
+    for (let i = 0; i + 1 < R.holes.length; i++) {
+      const a = R.holes[i], b = R.holes[i + 1];
+      const co = spanCorrelation(a.id, b.id);
+      if (!co) continue;
+      spans.push({ a, b, co });
+    }
+    let nBands = 0, nUnits = 0, nPinch = 0;
+    for (const sp of spans) {
+      const xa = xOf(sp.a.sta), xb = xOf(sp.b.sta);
+      for (const bd of sp.co.bands) {
+        const col = BL().classColor(bd.cls);
+        const pts4 = [[xa, yOf(bd.a.top)], [xb, yOf(bd.b.top)],
+                      [xb, yOf(bd.b.base)], [xa, yOf(bd.a.base)]];
+        p.push(`<polygon class="fnband" data-cls="${esc2(bd.cls)}"`
+          + ` data-a="${esc2(sp.a.id)}" data-b="${esc2(sp.b.id)}"`
+          + ` data-ended="${bd.ended ? 1 : 0}" points="${pts4.map(q => q[0].toFixed(1) + "," + q[1].toFixed(1)).join(" ")}"`
+          + ` fill="${col}" fill-opacity="${bd.cls === "bedrock" ? ".13" : ".17"}"`
+          + ` stroke="none"/>`);
+        /* the two edges: the top is a contact, the base is a contact or the
+           bottom of what was drilled */
+        p.push(line(xa, yOf(bd.a.top), xb, yOf(bd.b.top), col, 1.1, null, "fnbandedge"));
+        p.push(line(xa, yOf(bd.a.base), xb, yOf(bd.b.base), col, 1.1,
+          bd.ended ? "3 4" : null, "fnbandedge",
+          ` data-ended="${bd.ended ? 1 : 0}"`));
+        nBands++;
       }
-      if (topRun.length > 1) {
-        const d = topRun.map(q => `${q[0].toFixed(1)},${q[1].toFixed(1)}`).join(" ")
-          + " " + botRun.reverse().map(q => `${q[0].toFixed(1)},${q[1].toFixed(1)}`).join(" ");
-        p.push(`<polygon class="fnwaste" points="${d}" fill="${BL().classColor("waste")}"`
-          + ` fill-opacity=".16" stroke="none"/>`);
+      /* the units inside a band, matched in order by USCS family */
+      for (const u of sp.co.units) {
+        p.push(line(xa, yOf(u.za), xb, yOf(u.zb), C.hd, u.sure ? 1 : .8,
+          u.sure ? null : "2 3", "fnunit",
+          ` data-cls="${esc2(u.cls)}" data-sure="${u.sure ? 1 : 0}"`
+          + ` data-uscs="${esc2(u.uscs || "")}"`));
+        nUnits++;
+      }
+      /* a unit only one hole logged pinches out to a POINT at mid-span */
+      const xm = (xa + xb) / 2;
+      for (const pn of sp.co.pinch) {
+        const x0 = pn.side === "a" ? xa : xb;
+        const u = pn.u, ym = yOf((u.top + u.base) / 2);
+        p.push(`<path class="fnpinch" data-cls="${esc2(pn.cls)}" data-side="${pn.side}"`
+          + ` d="M${x0.toFixed(1)} ${yOf(u.top).toFixed(1)} L${xm.toFixed(1)} ${ym.toFixed(1)}`
+          + ` L${x0.toFixed(1)} ${yOf(u.base).toFixed(1)}" fill="none"`
+          + ` stroke="${BL().classColor(pn.cls)}" stroke-width=".9" stroke-dasharray="2 3"`
+          + ` stroke-opacity=".8"/>`);
+        nPinch++;
       }
     }
 
@@ -356,9 +508,19 @@ SBMM.fence = (function () {
         C.hd, 8.2, "middle", HALO));
     }
 
+    /* ---- the true hole-to-hole distance, once per span ---- */
+    for (const sp of spans) {
+      const d = Math.hypot(sp.a.x - sp.b.x, sp.a.y - sp.b.y);
+      const xm = (xOf(sp.a.sta) + xOf(sp.b.sta)) / 2;
+      p.push(line(xOf(sp.a.sta) + 4, PADT + drawH + FOOT.spanRule,
+        xOf(sp.b.sta) - 4, PADT + drawH + FOOT.spanRule, C.grid, 1));
+      p.push(text(xm, PADT + drawH + FOOT.span, `${fmt0(d)} ft`, C.hd, 8.5, "middle", ` class="fnspan"`
+        + ` data-a="${esc2(sp.a.id)}" data-b="${esc2(sp.b.id)}" data-ft="${d.toFixed(1)}"`));
+    }
+
     /* ---- the scale bar: BOTH scales, because a fence is exaggerated ---- */
     {
-      const y = PADT + drawH + 44;
+      const y = PADT + drawH + FOOT.bar;
       const barFt = staStep;
       p.push(line(PADL, y, PADL + barFt * hppf, y, C.ax, 2));
       p.push(line(PADL, y - 3, PADL, y + 3, C.ax, 2));
@@ -368,18 +530,38 @@ SBMM.fence = (function () {
         + `1 in = ${fmt0(96 / hppf)} ft H · 1 in = ${fmt0(96 / vppf)} ft V`, C.ax, 8.5, "end"));
     }
 
-    /* ---- one method line (the voice rule: state the result, one sentence) ---- */
-    p.push(text(PADL, H - 8,
-      "contacts correlated linearly between adjacent holes · lidar ground Jan 2024",
-      C.ax, 8.5, null, ` class="fnnote"`));
-    /* the three horizons named once, at the right of that line */
+    /* ---- the key, then the rule, in the voice the app is under: the result
+       is the drawing and this is the one `·` line that says what it means ---- */
     {
+      const yC = PADT + drawH + FOOT.keyClass;
       let x = PADL;
+      for (const cls of CLASS_ORDER) {
+        p.push(`<rect x="${x}" y="${(yC - 6).toFixed(1)}" width="16" height="7"`
+          + ` fill="${BL().classColor(cls)}" fill-opacity=".45" stroke="${BL().classColor(cls)}"`
+          + ` stroke-width=".8"/>`);
+        p.push(text(x + 20, yC, BL().classWord(cls), C.ax, 8.5));
+        x += 108;
+      }
+      const yH = PADT + drawH + FOOT.keyHz;
+      x = PADL;
       for (const hz of HZ) {
-        p.push(line(x, H - 27, x + 18, H - 27, hzColor(hz.tone), hz.w, hz.dash || ""));
-        p.push(text(x + 22, H - 24, hz.label + (links[hz.key] ? "" : " — none"), C.ax, 8.5));
+        p.push(line(x, yH - 3, x + 18, yH - 3, hzColor(hz.tone), hz.w, hz.dash || ""));
+        p.push(text(x + 22, yH, hz.label + (links[hz.key] ? "" : " — none"), C.ax, 8.5));
         x += 110;
       }
+    }
+    {
+      /* ONE `·` LINE, the voice rule's form: what the drawing does between the
+         holes, and what the ground it hangs from is. Two lines only when the
+         drawing is too narrow for one. */
+      const rule = ["class bands correlated linearly between adjacent holes",
+                    "units matched by USCS family", "pinch-outs at mid-span",
+                    "lidar ground Jan 2024"];
+      const rows = W >= 900 ? [rule.join(" · ")]
+                            : [rule.slice(0, 2).join(" · "), rule.slice(2).join(" · ")];
+      const y0 = PADT + drawH + FOOT.note;
+      rows.forEach((r2, k) =>
+        p.push(text(PADL, y0 + k * FOOT.noteLine, r2, C.ax, 8.5, null, ` class="fnnote"`)));
     }
 
     const svg = `<svg class="fnsvg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}"`
@@ -395,6 +577,7 @@ SBMM.fence = (function () {
        obviously a section through the ground rather than a billboard on it. */
     return { svg, w: W, h: H, drawH, hppf, vppf, xOf, yOf,
              zTop: R.zTop, zBot: R.zBot, total, links, holes: R.holes,
+             bands: nBands, units: nUnits, pinch: nPinch, spans: spans.length,
              padTop: PADT, padBot: PADB, padLeft: PADL, padRight: PADR };
   }
 
@@ -449,8 +632,8 @@ SBMM.fence = (function () {
     const col = (f.style && f.style.color) || "#C7A6F0";
     const half = f.props.swath_ft || DEFAULTS.swath_ft;
 
-    /* the swath */
-    const rings = bandRings(f.pts, half);
+    /* the swath — a fence THROUGH named holes has none: nothing was caught */
+    const rings = f.props.through ? [] : bandRings(f.pts, half);
     if (rings.length) {
       L.polygon(rings.map(r => r.map(q => [q[1], q[0]])), {
         pane: "drawings", color: col, weight: 1.2, opacity: .7, dashArray: "7 6",
@@ -548,15 +731,27 @@ SBMM.fence = (function () {
     const R = f._fen, pr = f.props;
     if (!R) return [["Fence", "no alignment"]];
     const nat = R.holes.filter(q => horizonZ(HZ[0], q.id) != null).length;
-    return [
-      ["Holes in the swath", `${R.holes.length}`,
+    let bands = 0, units = 0, pinch = 0;
+    for (let i = 0; i + 1 < R.holes.length; i++) {
+      const co = spanCorrelation(R.holes[i].id, R.holes[i + 1].id);
+      if (!co) continue;
+      bands += co.bands.length; units += co.units.length; pinch += co.pinch.length;
+    }
+    const rows = [
+      [pr.through ? "Holes on the line" : "Holes in the swath", `${R.holes.length}`,
        R.holes.map(q => `${q.id} ${staLabel(q.sta)} ${fmt0(Math.abs(q.off))} ft${sideOf(q.off) ? " " + sideOf(q.off) : ""}`).join(" · ")],
-      ["Alignment", `${fmt(R.total, 1)} ft (${staLabel(0)} – ${staLabel(R.total)})`],
-      ["Swath", `${fmt0(pr.swath_ft)} ft either side`],
-      ["Native contact", `${nat} of ${R.holes.length} holes`],
-      ["Datum", `${fmt0(R.zBot)} – ${fmt0(R.zTop)} ft NAVD88`],
-      ["Vertical exaggeration", `${pr.ve}×`]
+      ["Alignment", `${fmt(R.total, 1)} ft (${staLabel(0)} – ${staLabel(R.total)})`]
     ];
+    rows.push(pr.through ? ["Drawn", "through the named holes"]
+                         : ["Swath", `${fmt0(pr.swath_ft)} ft either side`]);
+    rows.push(["Class bands", `${bands} over ${Math.max(0, R.holes.length - 1)} spans`,
+      "waste, native and bedrock, where both holes of a span state one"]);
+    rows.push(["Units correlated", `${units}`,
+      pinch ? `${pinch} pinch out at mid-span` : "none pinch out"]);
+    rows.push(["Native contact", `${nat} of ${R.holes.length} holes`]);
+    rows.push(["Datum", `${fmt0(R.zBot)} – ${fmt0(R.zTop)} ft NAVD88`]);
+    rows.push(["Vertical exaggeration", `${pr.ve}×`]);
+    return rows;
   }
 
   function fillCard(f) {
@@ -579,8 +774,9 @@ SBMM.fence = (function () {
           <button class="minib fndxf" title="Section coordinates: X = station ft, Y = elevation ft">DXF</button></div>`;
       f.card.appendChild(ctl);
       SBMM.results.appendNote(f.card,
-        "Contacts correlated linearly between adjacent holes · lidar ground Jan 2024 · "
-        + "logger's remark leads");
+        "Class bands correlated linearly between adjacent holes · units matched by USCS "
+        + "family · pinch-outs at mid-span · logged contacts, logger's remark leads · "
+        + "lidar ground Jan 2024");
       const q = c => ctl.querySelector(c);
       q(".fnsw").onchange = e => {
         f.props.swath_ft = Math.max(10, parseFloat(e.target.value) || DEFAULTS.swath_ft);
@@ -595,7 +791,12 @@ SBMM.fence = (function () {
       q(".fncsv").onclick = () => exportCsv(f);
       q(".fndxf").onclick = () => exportDxf(f);
     }
-    const sw = ctl.querySelector(".fnsw"); if (sw) sw.value = String(f.props.swath_ft);
+    const sw = ctl.querySelector(".fnsw");
+    if (sw) {
+      sw.value = String(f.props.swath_ft);
+      const row = sw.closest(".crow");
+      if (row) row.style.display = f.props.through ? "none" : "";
+    }
     const veS = ctl.querySelector(".fnve"); if (veS) veS.value = String(f.props.ve);
   }
 
@@ -645,8 +846,11 @@ SBMM.fence = (function () {
     img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(d.svg);
   }
 
+  /* the class-band tops travel with the horizons: a reader who wants the
+     shaded body in a spreadsheet wants the elevations it was drawn from */
   const CSV_HEAD = "station_ft,station,hole,offset_ft,side,ground_lidar_ft,ground_logged_ft,"
-    + "native_contact_elev_ft,bedrock_elev_ft,water_elev_ft,total_depth_ft";
+    + "native_contact_elev_ft,bedrock_elev_ft,water_elev_ft,total_depth_ft,"
+    + "waste_top_ft,waste_base_ft,native_top_ft,native_base_ft,bedrock_top_ft,bedrock_base_ft";
   function csvText(f) {
     const R = f._fen || derive(f);
     if (!R) return "";
@@ -659,10 +863,12 @@ SBMM.fence = (function () {
     let out = CSV_HEAD + "\n";
     for (const q of R.holes) {
       const h = BL().byId(q.id);
+      const bd = bandsOf(q.id) || {};
+      const bn = k => bd[k] ? `${n(bd[k].top)},${n(bd[k].base)}` : ",";
       out += `${q.sta.toFixed(2)},${staLabel(q.sta)},${q.id},${Math.abs(q.off).toFixed(2)},`
         + `${sideOf(q.off)},${n(gAt(q.sta))},${n(h ? h.elev : null)},`
         + `${n(horizonZ(HZ[0], q.id))},${n(horizonZ(HZ[1], q.id))},${n(horizonZ(HZ[2], q.id))},`
-        + `${n(h ? h.depth : null)}\n`;
+        + `${n(h ? h.depth : null)},${bn("waste")},${bn("native")},${bn("bedrock")}\n`;
     }
     return out;
   }
@@ -707,7 +913,32 @@ SBMM.fence = (function () {
       if (pts.length > 1) ents.push({ kind: "polyline", layer: lay(HL[hz.key][0], HL[hz.key][1]), pts });
       else if (pts.length === 1) ents.push({ kind: "point", layer: lay(HL[hz.key][0], HL[hz.key][1]), point: pts[0] });
     }
-    /* the waste band's own outline, so a drafter can hatch it */
+    /* THE CLASS BANDS, one CLOSED polyline per class per span, on a layer per
+       class — which is what a drafter hatches in Civil 3D — and the pinch-outs
+       on one layer of their own. Same geometry the drawing fills. */
+    const BANDLAY = { waste: "FENCE-BAND-WASTE", native: "FENCE-BAND-NATIVE",
+                      bedrock: "FENCE-BAND-BEDROCK" };
+    for (let i = 0; i + 1 < R.holes.length; i++) {
+      const a = R.holes[i], b = R.holes[i + 1];
+      const co = spanCorrelation(a.id, b.id);
+      if (!co) continue;
+      for (const bd of co.bands)
+        ents.push({ kind: "polyline", closed: true,
+                    layer: lay(BANDLAY[bd.cls], BL().classColor(bd.cls)),
+                    pts: [[a.sta, bd.a.top], [b.sta, bd.b.top],
+                          [b.sta, bd.b.base], [a.sta, bd.a.base]] });
+      for (const u of co.units)
+        ents.push({ kind: "line", layer: lay("FENCE-UNITS", "#8FA3AE"),
+                    a: [a.sta, u.za], b: [b.sta, u.zb] });
+      const xm = (a.sta + b.sta) / 2;
+      for (const pn of co.pinch) {
+        const s0 = pn.side === "a" ? a.sta : b.sta;
+        ents.push({ kind: "polyline", layer: lay("FENCE-UNITS", "#8FA3AE"),
+                    pts: [[s0, pn.u.top], [xm, (pn.u.top + pn.u.base) / 2], [s0, pn.u.base]] });
+      }
+    }
+    /* the waste band's own outline against the LIDAR ground, kept because it
+       is the surface a drafter cuts to rather than the logged collar */
     {
       const nat = HZ[0];
       const have = R.holes.filter(q => horizonZ(nat, q.id) != null);
@@ -786,9 +1017,40 @@ SBMM.fence = (function () {
     return f;
   }
 
+  /* A FENCE THROUGH NAMED HOLES (v24 Part 3.1). The alignment IS the polyline
+     hole-to-hole — each hole at its own vertex, station along the polyline,
+     offset 0 — and there is no swath, because the holes were named rather than
+     caught. `props.through` is what mkFence re-derives from, so a session round
+     trip rebuilds exactly this fence with no job. */
+  function startThrough(ids) {
+    const hs = ids.map(v => BL().byId(v)).filter(Boolean);
+    if (hs.length < 2) { toast("a fence through holes needs two of them"); return null; }
+    const f = start(hs.map(h => [h.x, h.y]),
+      { through: hs.map(h => h.id), swath_ft: 0 });
+    if (f) {
+      f.name = `Fence — ${hs.map(h => h.id).join(" to ")}`;
+      /* the results card's title is an editable .rname span (js/results.js),
+         not a heading with a class of its own */
+      const t = f.card && f.card.querySelector(".rname");
+      if (t) t.textContent = f.name;
+      if (SBMM.features && SBMM.features.refresh) SBMM.features.refresh(f);
+    }
+    return f;
+  }
+
   function cmd(arg) {
     if (!has()) { toast("this build has no boring logs"); return null; }
-    const half = parseFloat(arg);
+    const raw = String(arg == null ? "" : arg).trim();
+    /* FENCE SB-9 SB-10 SB-11 — anything that is not a bare number is a hole
+       list, and an id that names no hole is refused by name rather than
+       silently dropped */
+    if (raw && !/^[\d.]+$/.test(raw)) {
+      const want = raw.split(/[\s,]+/).filter(Boolean);
+      const bad = want.filter(v => !BL().byId(v));
+      if (bad.length) { toast(`no boring log for ${bad.join(", ")} — type LOGS for the list`); return null; }
+      return startThrough(want.map(v => BL().byId(v).id));
+    }
+    const half = parseFloat(raw);
     const props = {};
     if (!isNaN(half) && half > 0) props.swath_ft = half;
     /* an already-drawn line is an alignment: the same shortcut SEC offers */
@@ -833,6 +1095,7 @@ SBMM.fence = (function () {
   }
 
   return { wire, cmd, beginSketch, mkFence, buildFence, recompute, derive, list,
+           startThrough, bandsOf, unitsIn, matchUnits, spanCorrelation, CLASS_ORDER,
            drawSvg, csvText, dxfEntities, exportPng, exportCsv, exportDxf, bandRings,
            projectHoles, projectPoint, groundProfile, horizonZ, flashHole, highlight,
            currentFence, setCurrent, openInWindow, rows, has,
@@ -845,6 +1108,7 @@ SBMM.fence = (function () {
              return { id: g.id, name: g.name, total: g._fen.total,
                       zTop: g._fen.zTop, zBot: g._fen.zBot,
                       swath_ft: g.props.swath_ft, ve: g.props.ve,
+                      through: g.props.through ? g.props.through.slice() : null,
                       holes: g._fen.holes.map(q => ({ id: q.id, sta: q.sta, off: q.off })) };
            } };
 })();

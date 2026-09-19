@@ -83,6 +83,15 @@ header (`Δ lidar −0.4 ft`). A hole whose two elevations differ by more than
 
 ## 2. Phase A — the log window and the log sheet
 
+**Status: BUILT (2026-09-10), REFINED (v24, 2026-09-18).** The v24 pass is
+recorded in place below under **v24** headings: zero text overlaps, proven by
+`test/borewin_overlap.mjs` and gated by e2e block **9ah**; one typographic
+scale; a header strip of six facts with the rest behind `more`; the column
+headings in a band that does not scroll; the depth cursor's reading in that
+strip, pinned by a click; Ctrl+wheel zoom about the pointer; hover, focus,
+empty and disabled states; and a printed header that leads with the same six
+facts in the same order.
+
 ### 2.1 The window
 
 A floating, resizable window on the **sheet-window chassis** (`js/sheets.js`'s
@@ -97,7 +106,14 @@ toolbar:
 ```
 
 - The hole picker is a typeahead over ids and waste areas (`SB-9`, `9`,
-  `north waste`), grouped by waste area, each entry showing a `mini` column.
+  `north waste`), grouped by waste area, each entry showing a `mini` column,
+  its total depth and its native contact. **v24:** `ArrowUp` / `ArrowDown`
+  walk the list and `Enter` takes the highlighted row (a typeahead whose only
+  key is Enter is a text box with a menu behind it); the current hole is
+  highlighted; and the id chip in the title bar opens it as well as the field.
+  *Deviation: `←` / `→` keep walking the holes rather than opening the picker —
+  block 9af's contract is that the arrows walk holes, and silently rebinding a
+  documented key is a user-facing regression this round was not asked for.*
 - ‹ › walk the holes in id order; `←`/`→` do the same; `+`/`−` change the scale;
   `Home`/`End` scroll to top/bottom; `Esc` closes.
 - Opening the window from a popup, the `LOG` command, the table row or a 3D
@@ -112,10 +128,19 @@ SB-10 at 126 ft is 2,420 px tall and scrolls), with 1 in = 2, 5, 10, 20 ft on
 the menu and pinch-to-zoom under touch. Layout, left to right, the way a log
 sheet is laid out:
 
-1. **Header block** (sticky at the top while scrolling): project, hole id,
-   waste area, E/N (EPSG:6418), lat/long, ground elevation (+ the lidar Δ),
-   total depth, dates, driller / contractor / rig, logged by, checked by, the
-   OpenGround-offset sentence, and the contact sentence from today's card.
+1. **Header block** (fixed, above the scrolling drawing). **v24:** it leads
+   with SIX labelled facts and nothing else — the hole id, its waste area, the
+   ground elevation with the lidar Δ, the native contact, the bedrock top and
+   the groundwater — because those are what a reader checks before reading a
+   single stratum. The other ten (coordinates, dates, method, driller, logger,
+   total depth, base, the strata reading, the contact's source) are one click
+   away behind **more**; the printed sheet prints all of them on every page, in
+   the same order. Under the facts sits the **depth-cursor readout** (§2.2) and
+   under that the **column-heading band**: the same list `column()` prints on
+   paper, drawn once by `SBMM.borelogs.headingBand()` into a strip that is a
+   sibling of the scrolling body, so a reader 80 ft down a log still knows
+   which column is which. Every heading carries its unit (`FT BGS`, `SAMPLE ·
+   N`, `BLOWS/6″`, `PP tsf`, `pH 2–8 · 4`, `ELEV ft NAVD88`).
 2. **Depth** axis (ft bgs, tick every 1 ft, label every 5).
 3. **Elevation** axis.
 4. **Method / casing** band (hand auger, sonic; casing intervals) as thin
@@ -139,11 +164,33 @@ sheet is laid out:
     static level (filled) with the date; perched marked.
 12. **Remarks** column: the log notes at depth.
 
-A **depth cursor** follows the pointer across every column: a horizontal rule
-with `12.3 ft · 1,354.2 ft` on the axes and the stratum, N and the nearest test
-highlighted. Hovering a stratum in the window highlights the same interval on
-the hole's 3D stick and in any open fence; clicking a stratum flashes the
-boring on the map.
+A **depth cursor** follows the pointer across every column. **v24:** it is a
+full-width hairline and nothing else — its reading (`12.3 ft · 1,354.2 ft ·
+CL mine waste · MC-2 N 15 · PP 1.50 @ 5.8`) is in the header strip, where it
+cannot land on the drawing it describes, and **a click pins it** (the label
+says so; a second click releases it). Hovering a stratum highlights the same
+interval on the hole's 3D stick; clicking one flashes the boring on the map.
+
+**v24 — the scale, and the states.** The scale menu stays and `+` / `−` stay;
+**Ctrl+wheel** zooms about the pointer and holds the depth under it (measured
+to 0.02 ft — the anchor's inverse mapping must include the drawing's own top
+margin, or it walks `PADT/ppf` feet a step). Every control carries a hover and
+a `:focus-visible` ring; Compare with nothing chosen shows an empty state with
+its chip list and a *nearest four* button rather than a blank panel; and a
+control with nothing to do — a PNG of a table, `print` on a tab that is not one
+hole, `through N holes` with fewer than two ticked — is disabled rather than
+silently inert.
+
+**v24 — ZERO TEXT OVERLAPS, AND IT IS PROVEN.** Every per-depth annotation is
+placed through a LANE (one running stack per column, in depth order, that
+pushes the next box down and refuses when there is no room); what is refused is
+ELIDED, with its reading kept in the shape's own `<title>` and in `csvFor()`,
+never overprinted. The horizon sentences became short tags in the one lane that
+carries no other text. `node test/borewin_overlap.mjs` sweeps all 44 holes at
+560 / 900 / 1,240 px plus six Compare sets, the fence at three widths and the
+heading band, measuring every rendered `<text>` by its client rectangle:
+**1,475 overlapping pairs before this round, 0 after**. E2E block **9ah** is
+the gate at 560 and 1,240 px.
 
 ### 2.3 The printed log sheet
 
@@ -191,7 +238,8 @@ opens the Log tab. `copy CSV` unchanged.
 
 ## 3. Phase B — the fence diagram
 
-**Status: BUILT (2026-09-10).** `js/fence.js` (`SBMM.fence`), the Fence tab in
+**Status: BUILT (2026-09-10), EXTENDED (v24, 2026-09-18 — §3.4).**
+`js/fence.js` (`SBMM.fence`), the Fence tab in
 `js/borewin.js`, `SBMM.dxf.writeEntities`, the `fence` feature type through the
 five FeatureGroup places in `js/tools.js`, a **Borings** My-work class row
 appended to `CLASSES`, the `fence` mode, `FENCE` (`GEOSECTION`,
@@ -225,10 +273,10 @@ engine draws the alignment exactly as a section set is drawn.
 - **Columns** at the `stick` tier, elevation-true, hanging from the ground.
 - **Horizons**: the native contact, the bedrock top and the water level
   correlated between adjacent holes as straight segments, dashed where the
-  next hole did not reach the horizon; the waste band between the ground and
-  the contact **shaded** in the waste tint at low opacity. Correlation is
-  linear between neighbours and says so — it is the standard first fence, not
-  an interpretation.
+  next hole did not reach the horizon. Correlation is linear between
+  neighbours and says so — it is the standard first fence, not an
+  interpretation. *(v24 replaces the single shaded waste band with the class
+  bands of §3.4.)*
 - **Vertical exaggeration** slider (1×, 2×, 5×), the scale bar stating both.
   *Built as a three-way select rather than a slider: three values are three
   values, and a slider with three stops is a select wearing a costume.*
@@ -249,6 +297,62 @@ sided, `userData.layer` tagged for block 9y, pickable (`fence` kind, the pick
 card names the hole nearest the hit). The terrain is drawn over it where the
 strip is below ground, so it reads as a cut — set `renderOrder` and
 `depthWrite` so the strip is visible from either side without z-fighting.
+
+### 3.4 v24 — through the holes, and unit-level correlation
+
+The engineer: *"the fence does kind of a poor job connecting different borings
+together."* Two additions, both keeping the existing fence working.
+
+**A fence THROUGH named holes.** `FENCE SB-9 SB-10 SB-11`, or ticking holes in
+the Fence tab's list, builds the alignment as the polyline **hole to hole** —
+each boring at its own vertex, station along the polyline, offset 0 — and there
+is **no swath**, because the holes were named rather than caught. The feature
+stores `props.through = [ids]` and `mkFence` re-derives from it, so a session
+round trip rebuilds it with zero compute jobs; the map draws the alignment
+through the holes with no band. The named holes are still *projected* onto the
+current polyline, so an alignment the user later edits reports honest offsets.
+
+**Unit-level correlation, on every fence.**
+
+- **(a) The CLASS bands** — waste, native, bedrock, in that stratigraphic order
+  — are correlated between adjacent holes as **filled polygons**: each band's
+  top and base joined linearly to the next hole's, so the waste body reads as
+  one shaded band of varying thickness, native beneath it, rock under that.
+  **The band boundaries are the LOGGED CONTACTS and nothing else** (ground →
+  the logger's native contact → the top of bedrock → the terminated depth):
+  deriving them from the strata runs would put the app's quieter second answer
+  beside the one it leads with everywhere, on the same drawing, for exactly the
+  18 holes whose two statements disagree.
+- **(b) Inside a class band the USCS units are matched in order** where both
+  holes carry the same pattern family (`famOf`), by a longest common
+  subsequence over the families — deterministic, never crossing two links, and
+  it cannot match a sand to a clay. A thin line joins matched unit tops, solid
+  where the full USCS symbols agree and **dashed where only the family does**.
+  A unit present in one hole only **pinches out to a point at the midpoint of
+  the span** (a dashed wedge). **A unit with no USCS family is neither matched
+  nor pinched**: "described, not classified" is what the graphic log's hatch
+  already says, and a wedge for it would claim the unit ends at mid-span, which
+  is a statement about ground nobody drilled.
+- **(c) A hole that did not reach a horizon** ends that band's polygon with a
+  dashed edge, as before.
+
+The rule is stated once on the drawing and once on the card: *class bands
+correlated linearly between adjacent holes · units matched by USCS family ·
+pinch-outs at mid-span · lidar ground Jan 2024*. The true hole-to-hole distance
+is printed once per span. Exports: the CSV gains the class-band top and base
+elevations per hole; the section DXF gains a **closed polyline per class band
+per span** on `FENCE-BAND-WASTE` / `-NATIVE` / `-BEDROCK` — which is what a
+drafter hatches — with the links and pinch-outs on `FENCE-UNITS`. The 3D strip
+follows automatically: it is textured from the same SVG.
+
+Acceptance (e2e **9ag**): `FENCE SB-9 SB-10 SB-11` gives three columns at
+offset 0 with stations equal to the cumulative hole-to-hole distances (against
+arithmetic the harness does itself); the band polygons are exactly one per
+class both holes of a span state; every family one hole of a span carries and
+the other does not appears as a pinch-out (a reference the harness computes
+independently, because no matching rule could pair it); the DXF band layers
+parse back through `js/dxf.js` as closed quadrilaterals; and a session round
+trip rebuilds the through-fence with zero jobs.
 
 ## 4. Phase C — the site: thickness, contact and the waste base
 
