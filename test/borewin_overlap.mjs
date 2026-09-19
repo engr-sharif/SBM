@@ -117,6 +117,13 @@ for (const w of WIDTHS) {
       for (const p of bad) show.push(`${id} · ${w} · "${p.a}" × "${p.b}"  (${p.ox}×${p.oy} px at ${p.at})`);
     }
   }
+  /* the fixed heading band is its own SVG above the drawing (v24 §2 item 2),
+     so it is measured on its own — a heading that runs into its neighbour is
+     the same defect wherever the element lives */
+  const bandBad = await page.evaluate(w =>
+    window.__ov.measureSvg(SBMM.borelogs.headingBand(w, { datum: "depth" }).svg), w);
+  for (const p of bandBad) { total++; perWidth.set(w, perWidth.get(w) + 1);
+    show.push(`heading band · ${w} · "${p.a}" × "${p.b}"`); }
   console.log(`  width ${w}: ${perWidth.get(w)} overlapping pairs`);
 }
 

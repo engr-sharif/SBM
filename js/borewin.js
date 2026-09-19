@@ -50,6 +50,7 @@ SBMM.borewin = (function () {
   let W = null;                         /* the ONE window state               */
   let cur = null, tab = "log", scale = 5, datum = "depth";
   let cmp = [];                         /* the compare selection, hole ids    */
+  let cmpCleared = false;               /* the user emptied it on purpose     */
 
   const ppf = () => DPI / scale;
   const has = () => !!(BL() && BL().has());
@@ -148,8 +149,13 @@ SBMM.borewin = (function () {
         <button class="minib" data-b="csv" title="Copy this hole's strata, SPT, penetrometer and lab tables">csv</button>
         <button class="minib" data-b="png" title="Save what is drawn as a PNG">png</button>
       </div>
-      <div class="bwhead"></div>
-      <div class="bwbody"><div class="bwcur" hidden><i></i><b></b></div><div class="bwart"></div></div>
+      <div class="bwhead">
+        <div class="bwfacts"></div>
+        <div class="bwmorebox" hidden></div>
+        <div class="bwcurrow"></div>
+        <div class="bwheadstrip" hidden></div>
+      </div>
+      <div class="bwbody"><div class="bwcur" hidden><i></i></div><div class="bwart"></div></div>
       <div class="shfoot">
         <span class="mono bwfoot">—</span>
         <span class="spacer"></span>
@@ -168,8 +174,11 @@ SBMM.borewin = (function () {
     el.style.zIndex = Z;
     if (maxed) el.classList.add("maxed");
 
-    W = { el, maxed, restore: null,
-          head: el.querySelector(".bwhead"), body: el.querySelector(".bwbody"),
+    W = { el, maxed, restore: null, pin: null,
+          head: el.querySelector(".bwhead"), facts: el.querySelector(".bwfacts"),
+          currow: el.querySelector(".bwcurrow"),
+          more: el.querySelector(".bwmorebox"), strip: el.querySelector(".bwheadstrip"),
+          body: el.querySelector(".bwbody"),
           art: el.querySelector(".bwart"), cursor: el.querySelector(".bwcur") };
     wireWindow();
 
@@ -303,8 +312,14 @@ SBMM.borewin = (function () {
     /* the depth cursor: one rule across every column, reading both axes and
        naming the stratum, the drive and the nearest test under it */
     W.body.addEventListener("mousemove", onCursor);
-    W.body.addEventListener("mouseleave", () => { if (W) W.cursor.hidden = true; });
-    W.body.addEventListener("click", onArtClick);
+    W.body.addEventListener("mouseleave", () => { if (W && W.pin == null) W.cursor.hidden = true; });
+    W.body.addEventListener("click", ev => {
+      if (tab === "log" && !(ev.target.closest && ev.target.closest("button, a, input, select"))) {
+        const y = ev.clientY - W.art.getBoundingClientRect().top;
+        if (y > 0 && y < W.art.offsetHeight) pinCursor(y);
+      }
+      onArtClick(ev);
+    });
     W.body.addEventListener("mouseover", onArtHover);
 
     /* keys. An arrow inside the window must never reach js/viewer3d.js's
@@ -331,6 +346,38 @@ SBMM.borewin = (function () {
       e.stopPropagation(); e.preventDefault();
     });
 
+    /* the heading band is a separate element, so it has to follow the body's
+       own horizontal scroll or it stops naming the columns under it */
+    W.body.addEventListener("scroll", () => {
+      if (W && W.strip) W.strip.scrollLeft = W.body.scrollLeft;
+    }, { passive: true });
+
+    /* CTRL+WHEEL ZOOMS ABOUT THE POINTER, keeping the depth under it fixed —
+       the same contract the map's wheel has. The scale menu is discrete
+       (1 in = 2 / 5 / 10 / 20 ft), so the step is one entry of it and the
+       scroll is re-solved for the depth that was under the pointer. */
+    W.body.addEventListener("wheel", e => {
+      if (!e.ctrlKey && !e.metaKey) return;
+      e.preventDefault();
+      if (tab !== "log" || !W.geom) return;
+      /* SOLVE IN SCREEN COORDINATES, not in scrollTop arithmetic. The drawing
+         sits inside a padded, scrolled box under a header whose height is not
+         a constant, and every one of those is a term the offsetTop form has to
+         get right; the client rectangle after the repaint already carries all
+         of them, so the correction is simply "how far did this depth move". */
+      /* AND THE DRAWING'S TOP MARGIN IS PART OF THE MAPPING. y = 0 in the
+         SVG is the top of the heading margin, not depth zero: leaving y0 out
+         of the inverse put the anchor PADT/ppf feet too deep — 1.56 ft at
+         1 in = 5 ft — and the depth under the pointer walked on every step. */
+      const ftAt = W.geom.top
+        + ((e.clientY - W.art.getBoundingClientRect().top) - W.geom.y0) / W.geom.ppf;
+      if (!setScale(e.deltaY < 0 ? -1 : 1)) return;
+      if (!W.geom) return;
+      const yWant = W.geom.y0 + (ftAt - W.geom.top) * W.geom.ppf;
+      W.body.scrollTop = Math.max(0,
+        W.body.scrollTop + (W.art.getBoundingClientRect().top + yWant) - e.clientY);
+    }, { passive: false });
+
     /* touch: pinch changes the scale, which is what a drawing scale means on a
        tablet. ONE recogniser (js/touch.js) — there is no second pinch here. */
     if (SBMM.touch && SBMM.touch.gestures) {
@@ -346,14 +393,40 @@ SBMM.borewin = (function () {
     }
   }
 
+  /* returns whether the scale actually moved — the wheel needs to know before
+     it re-solves the scroll position */
   function setScale(dir) {
     const i = SCALES.indexOf(scale);
     const j = clamp(i + dir, 0, SCALES.length - 1);
-    if (j === i) return;
+    if (j === i) return false;
     scale = SCALES[j];
     const sc = W && W.el.querySelector(".bwscale");
     if (sc) sc.value = String(scale);
     paint();
+    return true;
+  }
+
+  /* ---- states (v24 §2 item 6): a control with nothing to do says so ---- */
+  function syncButtons() {
+    if (!W) return;
+    const fence = tab === "fence" ? (SBMM.fence && SBMM.fence.currentFence()) : null;
+    const dis = (sel, off, why) => {
+      const b = W.el.querySelector(sel);
+      if (!b) return;
+      b.disabled = !!off;
+      b.classList.toggle("off", !!off);
+      if (off && why) b.dataset.why = why;
+    };
+    dis('[data-b="png"]', tab === "table" || (tab === "fence" && !fence),
+        tab === "table" ? "the table exports as CSV" : "no fence drawn yet");
+    dis('[data-b="csv"]', tab === "fence" && !fence, "no fence drawn yet");
+    dis('[data-b="print"]', tab === "fence" || tab === "compare", "the printed sheet is one hole");
+    dis('[data-b="printall"]', tab === "fence" || tab === "compare", "the printed sheet is one hole");
+    dis('[data-b="printarea"]', tab === "fence" || tab === "compare", "the printed sheet is one hole");
+    W.el.querySelectorAll(".bwstep").forEach(b => {
+      b.disabled = tab === "fence";
+      b.classList.toggle("off", tab === "fence");
+    });
   }
   function step(d) {
     const list = BL().ids();
@@ -361,6 +434,27 @@ SBMM.borewin = (function () {
     if (i < 0) return;
     cur = list[(i + d + list.length) % list.length];
     if (tab === "table") tab = "log";
+    paint();
+  }
+
+  /* pull a row into view inside the menu WITHOUT scrollIntoView, which moves
+     the page (the rule this app is under) */
+  function scrollRow(menu, row) {
+    const a = row.offsetTop, b = a + row.offsetHeight;
+    if (a < menu.scrollTop) menu.scrollTop = a - 4;
+    else if (b > menu.scrollTop + menu.clientHeight) menu.scrollTop = b - menu.clientHeight + 4;
+  }
+
+  /* one hole chosen, from the keyboard or the pointer: on Compare it joins or
+     leaves the selection, everywhere else it becomes the hole */
+  function takeRow(id) {
+    if (!id) return;
+    if (tab === "compare") {
+      const i = cmp.indexOf(id);
+      if (i >= 0) { if (cmp.length <= 2) { toast("compare needs two holes"); return; } cmp.splice(i, 1); }
+      else if (cmp.length < MAXCMP) cmp.push(id);
+      else { toast(`compare takes ${MAXCMP} holes at a time`); return; }
+    } else { cur = id; if (tab === "table") tab = "log"; }
     paint();
   }
 
@@ -393,26 +487,42 @@ SBMM.borewin = (function () {
     };
     inp.addEventListener("focus", show);
     inp.addEventListener("input", show);
+    /* up / down walk the list, Enter takes the highlighted row — a typeahead
+       whose only key is Enter is a text box with a menu behind it */
+    const move = d => {
+      if (menu.hidden) { show(); return; }
+      const rows = [...menu.querySelectorAll(".bwopt")];
+      if (!rows.length) return;
+      let i = rows.findIndex(r => r.classList.contains("sel"));
+      if (i < 0) i = rows.findIndex(r => r.classList.contains("on"));
+      i = clamp(i + d, 0, rows.length - 1);
+      rows.forEach(r => r.classList.remove("sel"));
+      rows[i].classList.add("sel");
+      rows[i].scrollIntoView ? scrollRow(menu, rows[i]) : 0;
+    };
     inp.addEventListener("keydown", e => {
+      if (e.key === "ArrowDown") { move(1); e.stopPropagation(); e.preventDefault(); return; }
+      if (e.key === "ArrowUp") { move(-1); e.stopPropagation(); e.preventDefault(); return; }
       if (e.key === "Enter") {
-        const first = menu.querySelector(".bwopt");
-        if (first) { cur = first.dataset.id; tab = tab === "table" ? "log" : tab; inp.value = ""; shut(); paint(); }
+        const row = menu.querySelector(".bwopt.sel") || menu.querySelector(".bwopt");
+        if (row) takeRow(row.dataset.id);
+        inp.value = ""; shut();
         e.stopPropagation(); e.preventDefault();
+        return;
       }
+      if (e.key === "Escape") { shut(); inp.blur(); e.stopPropagation(); e.preventDefault(); }
     });
     menu.addEventListener("mousedown", e => {
       const r = e.target.closest(".bwopt");
       if (!r) return;
       e.preventDefault();
-      if (tab === "compare") {
-        const i = cmp.indexOf(r.dataset.id);
-        if (i >= 0) cmp.splice(i, 1);
-        else if (cmp.length < MAXCMP) cmp.push(r.dataset.id);
-        else toast(`compare takes ${MAXCMP} holes at a time`);
-      } else cur = r.dataset.id;
-      inp.value = ""; shut(); paint();
+      takeRow(r.dataset.id);
+      inp.value = ""; shut();
     });
     inp.addEventListener("blur", () => setTimeout(shut, 120));
+    /* the id chip in the title bar is the other way in */
+    const chip = W.el.querySelector(".bwid");
+    if (chip) chip.onclick = () => { inp.focus(); inp.select(); show(); };
   }
 
   /* ------------------------------------------------------------------ */
@@ -428,45 +538,87 @@ SBMM.borewin = (function () {
     W.el.querySelectorAll(".bwtab").forEach(b => b.classList.toggle("active", b.dataset.t === tab));
     W.el.classList.toggle("bwtab-table", tab === "table");
     W.cursor.hidden = true;
-    if (tab === "log") { paintHead(h); paintLog(h); }
-    else if (tab === "compare") { W.head.innerHTML = ""; paintCompare(); }
-    else if (tab === "fence") { W.head.innerHTML = ""; paintFence(); }
-    else { W.head.innerHTML = ""; paintTable(); }
+    if (tab === "log") { paintHead(h); paintLog(h); paintStrip(h); }
+    else {
+      W.facts.innerHTML = ""; W.currow.innerHTML = ""; W.more.innerHTML = ""; W.more.hidden = true;
+      W.strip.hidden = true; W.strip.innerHTML = "";
+      if (tab === "compare") paintCompare();
+      else if (tab === "fence") paintFence();
+      else paintTable();
+    }
+    syncButtons();
   }
 
-  /* the header block — every fact a log sheet's header carries, as rows */
+  /* THE HEADER STRIP (v24 §2.2 item 2). Six labelled facts and nothing else:
+     the hole, its waste area, the ground elevation with the lidar difference,
+     the native contact, the bedrock top and the groundwater — the six a reader
+     checks before reading a single stratum. The other nine a log sheet's
+     header carries (coordinates, dates, driller, logger, method) are one click
+     away behind `details`, because they are looked up rather than read, and
+     the printed sheet prints all fifteen on every page.
+
+     The strip does not scroll: it is a flex sibling of the scrolling body, and
+     under it sits the fixed column-heading band (SBMM.borelogs.headingBand),
+     so the reader 80 ft down a log still knows which column is which. */
   function paintHead(h) {
-    if (!h) { W.head.innerHTML = ""; return; }
+    if (!h) { W.facts.innerHTML = ""; W.currow.innerHTML = ""; W.more.innerHTML = "";
+              W.more.hidden = true; return; }
     const d = BL().deltaLidar(h);
     const c = h.contacts || {}, w = h.water;
     const m0 = (h.methods || [])[0] || {};
     const area = BL().areaOf(h.id);
-    const cell = (k, v, extra) => `<div class="bwf"><span>${esc(k)}</span><b${extra || ""}>${v}</b></div>`;
-    W.head.innerHTML = `<div class="bwhrow">`
-      + `<div class="bwhid"><b class="mono">${esc(h.id)}</b>`
+    const cell = (k, v, cls) => `<div class="bwf${cls ? " " + cls : ""}"><span>${esc(k)}</span><b>${v}</b></div>`;
+    W.facts.innerHTML = `<div class="bwhid"><b class="mono">${esc(h.id)}</b>`
       + `<span class="mut">${esc(area || "waste area not assigned")}</span></div>`
       + cell("Ground", `${fmt(h.elev, 1)} ft`
           + (d ? ` <span class="${d.warn ? "warnpill" : "mut"}" title="Lidar (Jan 2024) reads `
-              + `${fmt(d.lidar, 1)} ft here">Δ lidar ${d.d > 0 ? "+" : ""}${fmt(d.d, 1)} ft</span>` : ""))
-      + cell("Total depth", `${fmt(h.depth, 1)} ft`)
-      + cell("Base", h.elev != null ? `${fmt(h.elev - h.depth, 1)} ft` : "—")
+              + `${fmt(d.lidar, 1)} ft here">Δ lidar ${d.d > 0 ? "+" : ""}${fmt(d.d, 1)}</span>` : ""))
       + cell("Native contact", c.native_contact == null ? "not stated"
           : `${fmt(c.native_contact, 1)} ft`
-            + (h.elev != null ? ` <span class="mut">${fmt(h.elev - c.native_contact, 1)} ft</span>` : ""))
+            + (h.elev != null ? ` <span class="mut">${fmt(h.elev - c.native_contact, 1)}</span>` : ""))
       + cell("Bedrock", c.bedrock_top == null ? "not reached" : `${fmt(c.bedrock_top, 1)} ft`)
       + cell("Groundwater", w && w.encountered && w.depth != null
           ? `${fmt(w.depth, 1)} ft${w.perched ? " · perched" : ""}` : "not encountered")
+      + ((c.flags || []).length
+          ? `<div class="bwflags warnpill" title="${esc(c.flags.join('; '))}">${esc(c.flags.join(" · "))}</div>`
+          : "");
+    W.currow.innerHTML = `<div class="bwf bwread" data-ft=""><span>Depth cursor</span><b>—</b></div>`
+      + `<button class="minib bwmoreb" aria-expanded="false"`
+      + ` title="The rest of the log header: coordinates, dates, driller and method">more</button>`;
+    W.more.innerHTML = cell("Total depth", `${fmt(h.depth, 1)} ft`)
+      + cell("Base", h.elev != null ? `${fmt(h.elev - h.depth, 1)} ft` : "—")
+      + cell("Waste base — strata", c.waste_base_strata == null ? "—"
+          : `${fmt(c.waste_base_strata, 1)} ft`)
+      + cell("Contact source", c.source === "remark" ? "logger's remark"
+          : c.source ? esc(c.source) : "—")
       + cell("E / N", `${fmt0(h.x)}, ${fmt0(h.y)}`)
       + cell("Lat / long", h.lat != null ? `${h.lat.toFixed(6)}, ${h.lon.toFixed(6)}` : "—")
       + cell("Drilled", `${h.date_start || "—"}`
           + (h.date_end && h.date_end !== h.date_start ? `–${h.date_end}` : ""))
       + cell("Method", esc(h.method_words || "—"))
       + cell("Logged / checked", `${esc(h.logger || "—")}${h.checked_by ? " · " + esc(h.checked_by) : ""}`)
-      + cell("Driller", esc([m0.driller, m0.contractor].filter(Boolean).join(" · ") || "—"))
-      + `</div>`
-      + ((c.flags || []).length
-          ? `<div class="bwflags warnpill" title="${esc(c.flags.join('; '))}">${esc(c.flags.join(" · "))}</div>`
-          : "");
+      + cell("Driller", esc([m0.driller, m0.contractor].filter(Boolean).join(" · ") || "—"));
+    const mb = W.currow.querySelector(".bwmoreb");
+    W.more.hidden = W.more.hidden !== false;      /* the panel keeps its state */
+    if (mb) {
+      mb.setAttribute("aria-expanded", String(!W.more.hidden));
+      mb.classList.toggle("on", !W.more.hidden);
+      mb.onclick = () => {
+        W.more.hidden = !W.more.hidden;
+        mb.setAttribute("aria-expanded", String(!W.more.hidden));
+        mb.classList.toggle("on", !W.more.hidden);
+      };
+    }
+  }
+
+  /* the fixed column-heading band under the facts — the same list column()
+     prints on paper, drawn once and never scrolled */
+  function paintStrip(h) {
+    if (!W) return;
+    if (tab !== "log" || !h) { W.strip.hidden = true; W.strip.innerHTML = ""; return; }
+    const b = BL().headingBand(artWidth(), { datum });
+    W.strip.innerHTML = b.svg;
+    W.strip.hidden = false;
   }
 
   function artWidth() {
@@ -481,8 +633,11 @@ SBMM.borewin = (function () {
     const h = typeof id === "string" ? BL().byId(id) : id;
     if (!h) return null;
     const oo = o || {};
+    /* the headings are drawn ONCE, in the window's fixed strip, and the
+       drawing keeps their margin so nothing is jammed against its own top;
+       the printed sheet passes headings:true because every page repeats them */
     const r = BL().column(h, { tier: "sheet", ppf: oo.ppf || ppf(), w: Math.max(360, w || 900),
-      datum: oo.datum || datum, headings: true,
+      datum: oo.datum || datum, headings: !!oo.headings, padTop: 30,
       zTop: h.elev, zBot: h.elev != null ? h.elev - h.depth : null });
     return { svg: `<svg class="bwsvg" viewBox="0 0 ${r.w} ${r.h}" width="${r.w}" height="${r.h}"`
       + ` xmlns="http://www.w3.org/2000/svg">`
@@ -510,17 +665,47 @@ SBMM.borewin = (function () {
       .slice(0, n).map(q => q.id);
   }
 
+  function chipsHtml() {
+    return `<div class="bwcmpsel">`
+      + `<button class="minib bwcmpclr" title="Take every hole off the comparison">clear</button>`
+      + `<button class="minib bwcmpnear" title="The four holes nearest ${esc(cur || "")}">nearest four</button>`
+      + BL().holes().map(h => `<label class="bwchip${cmp.includes(h.id) ? " on" : ""}">`
+        + `<input type="checkbox" data-id="${esc(h.id)}"${cmp.includes(h.id) ? " checked" : ""}>`
+        + `${esc(h.id)}</label>`).join("") + `</div>`;
+  }
+  function wireChips() {
+    const clr = W.art.querySelector(".bwcmpclr");
+    if (clr) clr.onclick = () => { cmp = []; cmpCleared = true; paint(); };
+    const nr = W.art.querySelector(".bwcmpnear");
+    if (nr) nr.onclick = () => { cmp = nearest(cur, Math.min(4, BL().holes().length));
+                                 cmpCleared = false; paint(); };
+    W.art.querySelectorAll(".bwcmpsel input").forEach(cb => cb.onchange = () => {
+      const id = cb.dataset.id, i = cmp.indexOf(id);
+      if (cb.checked) {
+        if (cmp.length >= MAXCMP) { cb.checked = false; toast(`compare takes ${MAXCMP} holes at a time`); return; }
+        cmp.push(id); cmpCleared = false;
+      } else if (i >= 0) cmp.splice(i, 1);
+      paint();
+    });
+  }
+
   function paintCompare() {
     let list = cmp.map(id => BL().byId(id)).filter(Boolean);
-    if (list.length < 2) {
+    if (list.length < 2 && !cmpCleared) {
       /* seed from the nearest holes rather than recursing: a payload with one
          hole in it would otherwise recurse for ever */
       cmp = nearest(cur, Math.min(4, BL().holes().length));
+      cmp = cmp.filter((id, i) => cmp.indexOf(id) === i);
       list = cmp.map(id => BL().byId(id)).filter(Boolean);
     }
     if (list.length < 2) {
-      W.art.innerHTML = `<div class="note">compare needs two holes</div>`;
-      W.el.querySelector(".bwfoot").textContent = `${list.length} hole`;
+      /* THE EMPTY STATE (v24 §2 item 6). A blank panel reads as a broken tab;
+         this one names what is missing and carries the two ways out. */
+      W.art.innerHTML = `<div class="bwempty"><b>${list.length ? "One hole chosen"
+        : "No holes chosen"}</b><span class="mut">Compare stands two to six logs on one`
+        + ` elevation datum.</span></div>` + chipsHtml();
+      wireChips();
+      W.el.querySelector(".bwfoot").textContent = `${list.length} of 2 holes`;
       return;
     }
     /* ONE elevation datum for every column — the tallest ground at the top.
@@ -629,16 +814,8 @@ SBMM.borewin = (function () {
       + `<style>text{font-family:"SF Mono",ui-monospace,Consolas,Menlo,monospace}</style>`
       + `<defs>${defs.join("").replace(/<\/?defs>/g, "")}</defs>`
       + parts.join("") + `</svg>`
-      + `<div class="bwcmpsel">${BL().holes().map(h => `<label class="bwchip${cmp.includes(h.id) ? " on" : ""}">`
-        + `<input type="checkbox" data-id="${esc(h.id)}"${cmp.includes(h.id) ? " checked" : ""}>`
-        + `${esc(h.id)}</label>`).join("")}</div>`;
-    W.art.querySelectorAll(".bwcmpsel input").forEach(cb => cb.onchange = () => {
-      const id = cb.dataset.id, i = cmp.indexOf(id);
-      if (cb.checked) { if (cmp.length >= MAXCMP) { cb.checked = false; toast(`compare takes ${MAXCMP} holes at a time`); return; } cmp.push(id); }
-      else if (i >= 0) cmp.splice(i, 1);
-      if (cmp.length < 2) { cmp.push(id); cb.checked = true; toast("compare needs two holes"); return; }
-      paint();
-    });
+      + chipsHtml();
+    wireChips();
     W.cmpLinks = links;
     W.el.querySelector(".bwfoot").textContent =
       `${cols.length} holes · datum ${fmt0(zBot)}–${fmt0(zTop)} ft NAVD88 · 1" = ${fmt0(DPI / P)}'`;
@@ -795,28 +972,51 @@ SBMM.borewin = (function () {
   /* the depth cursor, the stratum hover and the map flash               */
   /* ------------------------------------------------------------------ */
   function onCursor(e) {
-    if (!W || tab !== "log" || !W.geom) return;
-    const h = BL().byId(cur);
-    if (!h) return;
+    if (!W || tab !== "log" || !W.geom || W.pin != null) return;
     const r = W.art.getBoundingClientRect();
-    const y = e.clientY - r.top;
+    showCursor(e.clientY - r.top);
+  }
+
+  /* ONE readout, in the header strip, never a floating chip: a label that
+     follows the pointer is a label that can land on the drawing it describes,
+     which is the whole of what this round is about. A click pins the cursor
+     where it is; a second click releases it. */
+  function showCursor(y) {
+    if (!W || !W.geom) return;
+    const h = BL().byId(cur);
+    const out = W.el.querySelector(".bwread");
+    if (!h || !out) return;
     const ft = W.geom.top + (y - W.geom.y0) / W.geom.ppf;
     if (ft < 0 || ft > h.depth) { W.cursor.hidden = true; return; }
-    const s = (h.strata || []).find(q => q.primary && ft >= q.top && ft < q.base);
-    const drive = (h.spt || []).find(q => ft >= q.top && ft <= q.base);
+    const s2 = (h.strata || []).find(q => q.primary && ft >= q.top && ft < q.base);
+    const drive = (h.spt || []).find(q => ft >= q.top && ft <= q.base)
+      || (h.spt || []).slice().sort((a, b) => Math.abs((a.top + a.base) / 2 - ft)
+                                             - Math.abs((b.top + b.base) / 2 - ft))[0];
     const near = (h.tests || []).filter(t => t.depth != null)
       .sort((a, b) => Math.abs(a.depth - ft) - Math.abs(b.depth - ft))[0];
     W.cursor.hidden = false;
     W.cursor.style.top = (y + W.art.offsetTop) + "px";
-    W.cursor.querySelector("b").innerHTML =
-      `<span class="mono">${fmt(ft, 1)} ft</span>`
-      + (h.elev != null ? ` <span class="mono mut">${fmt(h.elev - ft, 1)} ft</span>` : "")
-      + (s ? ` · ${esc(s.uscs || "no USCS")} ${esc(BL().classWord(s.cls))}` : "")
-      + (drive ? ` · ${esc(drive.ref || "drive")} N ${esc(drive.n_text || "—")}` : "")
-      + (near && Math.abs(near.depth - ft) < 2
-          ? ` · ${esc(near.key)} ${fmt(near.value, near.value % 1 ? 2 : 0)}` : "");
     W.cursor.dataset.ft = ft.toFixed(2);
-    W.cursor.dataset.uscs = s ? (s.uscs || "") : "";
+    W.cursor.dataset.uscs = s2 ? (s2.uscs || "") : "";
+    out.dataset.ft = ft.toFixed(2);
+    out.querySelector("b").innerHTML =
+      `<span class="mono gold">${fmt(ft, 1)} ft</span>`
+      + (h.elev != null ? ` <span class="mono">${fmt(h.elev - ft, 1)} ft</span>` : "")
+      + (s2 ? ` <span class="mut">${esc(s2.uscs || "no USCS")} ${esc(BL().classWord(s2.cls))}</span>` : "")
+      + (drive ? ` <span class="mut">${esc(drive.ref || "drive")} N ${esc(drive.n_text || "—")}</span>` : "")
+      + (near ? ` <span class="mut">${esc(near.key)} ${fmt(near.value, near.value % 1 ? 2 : 0)}`
+          + ` @ ${fmt(near.depth, 1)}</span>` : "");
+  }
+
+  function pinCursor(y) {
+    if (!W || tab !== "log") return;
+    const lbl = W.el.querySelector(".bwread span");
+    if (W.pin != null) { W.pin = null; W.cursor.classList.remove("pinned");
+                         if (lbl) lbl.textContent = "Depth cursor"; return; }
+    W.pin = y;
+    W.cursor.classList.add("pinned");
+    if (lbl) lbl.textContent = "Depth cursor · pinned";
+    showCursor(y);
   }
 
   /* hovering a stratum highlights the same interval on the hole's 3D stick */
@@ -934,13 +1134,18 @@ SBMM.borewin = (function () {
         <div class="pgno">page ${page} of ${pages}<br>1&Prime; = 5&prime;<br>${new Date().toISOString().slice(0, 10)}</div>
       </div>
       <div class="grid">
+        ${/* THE PRINTED HEADER LEADS WITH THE SAME SIX FACTS THE WINDOW'S
+             STRIP DOES, in the same order (v24 §2 item 7): the hole and its
+             waste area are the title block above, then ground, contact,
+             bedrock and water. A sheet whose header reads in a different
+             order from the screen it was read on is a second document. */ ""}
         ${f("Ground elev", fmt(h.elev, 1) + " ft" + (d ? " (Δ lidar " + (d.d > 0 ? "+" : "") + fmt(d.d, 1) + ")" : ""))}
-        ${f("Total depth", fmt(h.depth, 1) + " ft")}
-        ${f("Base elev", h.elev != null ? fmt(h.elev - h.depth, 1) + " ft" : "—")}
         ${f("Native contact", c.native_contact == null ? "not stated" : fmt(c.native_contact, 1) + " ft")}
         ${f("Bedrock", c.bedrock_top == null ? "not reached" : fmt(c.bedrock_top, 1) + " ft")}
         ${f("Groundwater", w && w.encountered && w.depth != null
             ? fmt(w.depth, 1) + " ft" + (w.perched ? " perched" : "") : "not encountered")}
+        ${f("Total depth", fmt(h.depth, 1) + " ft")}
+        ${f("Base elev", h.elev != null ? fmt(h.elev - h.depth, 1) + " ft" : "—")}
         ${f("E / N", fmt0(h.x) + ", " + fmt0(h.y))}
         ${f("Lat / long", h.lat != null ? h.lat.toFixed(6) + ", " + h.lon.toFixed(6) : "—")}
         ${f("Drilled", (h.date_start || "—") + (h.date_end && h.date_end !== h.date_start ? "–" + h.date_end : ""))}
@@ -1039,12 +1244,25 @@ SBMM.borewin = (function () {
                            if (el) el.value = String(s); paint(); } return scale; },
     datum: d => { if (d) { datum = d; const el = W && W.el.querySelector(".bwdatum");
                            if (el) el.value = d; paint(); } return datum; },
-    compare: ids => { if (ids) { cmp = ids.slice(0, MAXCMP); tab = "compare"; paint(); } return cmp.slice(); },
+    compare: ids => { if (ids) { cmp = ids.slice(0, MAXCMP); cmpCleared = !cmp.length;
+                                 tab = "compare"; paint(); } return cmp.slice(); },
     current: () => cur, step,
     sheetHtml, printSheet, pagesFor, tableCsv, logSvg,
     /* the state a harness may read — FIELDS only, never the object: it holds
        DOM nodes and a page.evaluate cannot return one (CLAUDE.md) */
     stateOf: () => W ? { open: true, id: cur, tab, scale, datum, maxed: W.maxed,
-                         cmp: cmp.slice(), z: +W.el.style.zIndex || 0 } : { open: false }
+                         cmp: cmp.slice(), z: +W.el.style.zIndex || 0,
+                         pinned: W.pin != null,
+                         /* the drawing's own mapping, so a harness can ask what
+                            depth is at a screen y without driving a mousemove */
+                         geom: W.geom ? { ppf: W.geom.ppf, top: W.geom.top, y0: W.geom.y0 } : null }
+                      : { open: false },
+    /* the depth at a CLIENT y — the ctrl+wheel anchor is stated in exactly
+       these terms, so this is what proves it held (v24 §2 item 5) */
+    depthAtClientY: y => {
+      if (!W || !W.geom) return null;
+      const r = W.art.getBoundingClientRect();
+      return W.geom.top + ((y - r.top) - W.geom.y0) / W.geom.ppf;
+    }
   };
 })();
