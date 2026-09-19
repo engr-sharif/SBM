@@ -2216,6 +2216,11 @@ table.bltbl .cdot{display:inline-block;width:7px;height:7px;border-radius:2px;
 .blwin .bwheadstrip{flex:none;overflow:hidden;padding:0 var(--bl-u);background:var(--panel)}
 .blwin .bwheadstrip svg{display:block}
 
+/* the id chip names a HOLE; the Fence tab is not about one, and its title
+   carries the fence's own name */
+.blwin.bwtab-fence .bwid{display:none}
+.blwin .shtitle{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:46%}
+
 /* the drawing area */
 .blwin .bwbody{flex:1;position:relative;overflow:auto;background:#12191E;padding:var(--bl-u)}
 .blwin .bwart{position:relative}
