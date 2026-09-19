@@ -8200,6 +8200,11 @@ if (!bwGone.restored) { console.log("FAIL: the payload did not come back"); proc
 /* the window closes on Esc and leaves nothing behind — 9z runs next and it
    reloads the page, but the 3D view has to be as 9ae left it */
 {
+  /* was the 3D view open BEFORE? block 9ae leaves it open, and this asserts
+     that Esc on the window does not take it with it — but `--only 9af` has to
+     stand on its own (v18 §3) and there 9ae never ran, so the question does
+     not arise and a bare `isOpen()` would fail on a state nobody set. */
+  const had3d = await page.evaluate(() => SBMM.viewer3d.isOpen());
   await page.evaluate(() => { SBMM.borewin.open("SB-9"); document.querySelector(".blwin").focus(); });
   await page.waitForTimeout(200);
   await page.keyboard.press("Escape");
@@ -8208,9 +8213,9 @@ if (!bwGone.restored) { console.log("FAIL: the payload did not come back"); proc
     win: !!document.querySelector(".blwin"), st: SBMM.borewin.stateOf().open,
     threed: SBMM.viewer3d.isOpen()
   }));
-  console.log("after Esc:", JSON.stringify(left));
+  console.log("after Esc:", JSON.stringify({ ...left, had3d }));
   if (left.win || left.st) { console.log("FAIL: Esc did not close the log window", left); process.exit(1); }
-  if (!left.threed) { console.log("FAIL: closing the log window closed the 3D view"); process.exit(1); }
+  if (had3d && !left.threed) { console.log("FAIL: closing the log window closed the 3D view"); process.exit(1); }
 }
 
 if (errors.length !== errBeforeWin) {
