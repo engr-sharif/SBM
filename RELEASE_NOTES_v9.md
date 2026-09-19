@@ -17,6 +17,56 @@ All three are offline-only by design. Nothing in this app calls out to the inter
 
 ---
 
+## v9.30 — the log window, finished, and the fence that correlates (2026-09-18)
+
+You said the log viewer seemed unfinished — text sitting on other text — and that the
+fence did a poor job of connecting the borings. Both are fixed, and the first one is now
+something the tests will not let come back.
+
+**No text overlaps anything, anywhere.** Every label on a log — the sample references,
+the N values, the blows, the pH and penetrometer readings, the lab chips, the remarks,
+the water symbol, the contact lines — is placed through one rule: it takes the next free
+slot in its own column and, if there is no room, it is left off and its reading stays in
+the tooltip and the CSV rather than being printed through its neighbour. The horizon
+sentences that used to run across the whole sheet are short tags in the one lane that
+carries no other words. A sweep of all 44 holes at three window widths, plus six compare
+sets and the fence, measured **1,475 overlapping pairs before and none after**, and the
+same sweep runs in the test suite on every change.
+
+**The window itself.** One type scale instead of five; every number lines up in a column.
+The hole, its waste area, the ground elevation, the native contact, the bedrock and the
+groundwater are six labelled facts on one strip that stays put, with the rest of the log
+header one click away. Under it the column headings — now with their units — no longer
+scroll off the top when you are 80 ft down a log. The depth cursor reads out in that
+strip instead of a floating chip that could land on the drawing, and a click pins it.
+Ctrl+wheel zooms the drawing about the pointer and holds the depth you are pointing at.
+The hole picker walks on the arrow keys, is grouped by waste area and shows each hole's
+depth and contact. Compare says when you have not picked anything; a button with nothing
+to export is visibly out of service. The printed sheet leads with the same six facts in
+the same order, and SB-10 still comes out at three pages.
+
+**The fence connects the holes.** Two things are new. You can draw a fence **through**
+named holes — `FENCE SB-9 SB-10 SB-11`, or tick them in the Fence tab — and the line
+runs hole to hole with no swath, each boring at its own station. And on every fence the
+**classes are now correlated as shaded bands** between adjacent holes: the waste body
+reads as one band of varying thickness, native beneath it, rock under that, each joined
+straight from one hole's logged contact to the next, dashed where a hole stopped before
+it reached the next contact. Inside a band the logged units are matched in order where
+two holes carry the same USCS family — a thin line between them, dashed where the
+symbols differ — and a unit only one hole logged pinches out to a point half way across.
+A unit with no USCS symbol is not correlated at all, because "described, not classified"
+is not something to draw a wedge from. The true distance between each pair of holes is
+printed once, under the stations, and the drawing says in one line what it did.
+
+The CSV now carries each hole's class-band tops and bases; the section DXF carries a
+closed polyline per class band on its own layer (`FENCE-BAND-WASTE` and the rest) plus
+the pinch-outs, which is what you hatch in Civil 3D. The 3D strip picks all of it up
+automatically — it is textured from the same drawing.
+
+One real defect turned up while testing the new zoom: the anchor left the drawing's top
+margin out of its arithmetic, so the depth under the pointer crept by about a foot and a
+half at each step. It now holds to a fiftieth of a foot.
+
 ## v9.29 — the 3D view (2026-09-18)
 
 Three things you reported, in one round.
