@@ -533,12 +533,16 @@ SBMM.borewin = (function () {
   function paint() {
     if (!W) return;
     const h = BL().byId(cur);
-    W.el.querySelector(".bwid").textContent = tab === "fence" ? "Fence" : (cur || "—");
+    /* the id chip names the HOLE, and the Fence tab is not about one hole —
+       it is hidden there and the title carries the fence's own name instead */
+    const fnCur = tab === "fence" && SBMM.fence ? SBMM.fence.currentFence() : null;
+    W.el.querySelector(".bwid").textContent = cur || "—";
     W.el.querySelector(".shtitle").textContent =
       tab === "log" ? "Boring log" : tab === "compare" ? "Compare"
-        : tab === "fence" ? "Fence" : "All borings";
+        : tab === "fence" ? (fnCur && fnCur.name ? fnCur.name : "Fence") : "All borings";
     W.el.querySelectorAll(".bwtab").forEach(b => b.classList.toggle("active", b.dataset.t === tab));
     W.el.classList.toggle("bwtab-table", tab === "table");
+    W.el.classList.toggle("bwtab-fence", tab === "fence");
     W.cursor.hidden = true;
     if (tab === "log") { paintHead(h); paintLog(h); paintStrip(h); }
     else {
