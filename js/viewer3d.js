@@ -16,6 +16,19 @@ SBMM.viewer3d = (function () {
   let inited = false, open = false, split = false;
   let renderer, scene, camera, raycaster, nav;
   let terrainMeshes = [], overlayGroup = null, pointsObj = null, sketchObj = null;
+  /* v24 §3 — TWO HALVES OF THE OVERLAY, AND A SELECTION ONLY REBUILDS ONE.
+     `overlayGroup` is a container now: `projGroup` holds the read-only project
+     data (the DUs, the piles, EA's GIS and CAD, the storm network, the drainage
+     and accumulation maps, the survey, the datasets, the trees, the cultural
+     layers, the computed contours) and `featGroup` holds the user's own store
+     features, which are the only things a SELECTION can change. Measured before
+     this: a click rebuilt all of it — 805 draped polylines and 92,500 ground
+     samples — for 82-108 ms of main thread, on every select and deselect.
+     `addG` is the group the current phase adds to, and `SHW`/`OVL` are its
+     shadow sink and label list; the project half's stay put across a
+     selection-only rebuild, which is what makes one possible at all. */
+  let projGroup = null, featGroup = null, addG = null;
+  let SHW = [], OVL = [], SHW_P = [], OVL_P = [];
   let canopyMesh = null;   // kept out of terrainMeshes so picking stays on bare earth
   let contourGroup = null; // survey contours, built lazily on first check then just toggled
   let CX = 0, CY = 0, ZMID = 0;
@@ -39,6 +52,70 @@ SBMM.viewer3d = (function () {
   let lastPick = { x: -1e9, y: -1e9, p: null, t: 0 };
 
   const requestRender = () => { needsRender = true; };
+
+  /* ================================================================== */
+  /* v24 §3 — WHAT A FRAME COSTS ON THE MAIN THREAD                      */
+  /* ================================================================== */
+  /* The engineer reports on a real GPU; this box has none, so GPU frame time
+     cannot be judged here at all. What CAN be measured on either machine is
+     the main-thread work per frame and per interaction, which is what makes a
+     view feel sticky however fast the card is — and the whole point of putting
+     it on the "copy 3D diagnostics" line is that the next report arrives with
+     his numbers rather than an adjective.
+
+     One accumulator per span, a count and a maximum beside each mean, and
+     nothing allocated per frame. `frameStats()` reports and `frameStats(true)`
+     zeroes; the render loop is otherwise untouched. */
+  const FS = { t0: performance.now(), frames: 0,
+               render: 0, renderMax: 0, labels: 0, labelsMax: 0,
+               particles: 0, particlesMax: 0, sky: 0,
+               hoverN: 0, hover: 0, hoverMax: 0,
+               overlayN: 0, overlay: 0, overlayMax: 0, overlayLast: 0,
+               lodSelects: 0, lodSwaps: 0,
+               drapeN: 0, drapeMs: 0, drapePts: 0, drapeHit: 0, overlayFull: 0 };
+  function fsAdd(k, ms) {
+    FS[k] += ms;
+    if (ms > FS[k + "Max"]) FS[k + "Max"] = ms;
+  }
+  /* js/pick3d.js reports its hover raycast here rather than keeping a second
+     counter nobody would think to read (the hover is the one per-frame-adjacent
+     cost that does not live in this file). */
+  function noteHover(ms) { FS.hoverN++; fsAdd("hover", ms); }
+  function frameStats(reset) {
+    const dt = performance.now() - FS.t0;
+    const n = Math.max(1, FS.frames);
+    const t = SBMM.terrain3d && SBMM.terrain3d.available() && lodOn ? SBMM.terrain3d.stats() : null;
+    const out = {
+      seconds: +(dt / 1000).toFixed(1), frames: FS.frames,
+      fps: +(FS.frames / Math.max(0.001, dt / 1000)).toFixed(1),
+      renderMs: +(FS.render / n).toFixed(2), renderMaxMs: +FS.renderMax.toFixed(1),
+      labelsMs: +(FS.labels / n).toFixed(2), labelsMaxMs: +FS.labelsMax.toFixed(2),
+      particlesMs: +(FS.particles / n).toFixed(2), particlesMaxMs: +FS.particlesMax.toFixed(2),
+      skyMs: +(FS.sky / n).toFixed(3),
+      hovers: FS.hoverN, hoverMs: +(FS.hover / Math.max(1, FS.hoverN)).toFixed(2),
+      hoverMaxMs: +FS.hoverMax.toFixed(2),
+      drapedLines: FS.drapeN, drapeMs: +FS.drapeMs.toFixed(1), drapePts: FS.drapePts,
+      drapeCacheHits: FS.drapeHit,
+      overlayRebuilds: FS.overlayN, overlayFull: FS.overlayFull,
+      overlayMs: +(FS.overlay / Math.max(1, FS.overlayN)).toFixed(1),
+      overlayMaxMs: +FS.overlayMax.toFixed(1), overlayLastMs: +FS.overlayLast.toFixed(1),
+      terrainSelects: t ? t.selects - FS.lodSelects : 0,
+      terrainSwaps: t ? t.swaps - FS.lodSwaps : 0,
+      terrainBlockMs: t ? t.lastBuildBlockMs : null,
+      pixelRatio: renderer ? +renderer.getPixelRatio().toFixed(2) : null,
+      devicePixelRatio: +(window.devicePixelRatio || 1).toFixed(2)
+    };
+    if (reset) {
+      FS.t0 = performance.now(); FS.frames = 0;
+      FS.render = FS.renderMax = FS.labels = FS.labelsMax = 0;
+      FS.particles = FS.particlesMax = FS.sky = 0;
+      FS.hoverN = FS.hover = FS.hoverMax = 0;
+      FS.overlayN = FS.overlay = FS.overlayMax = 0;
+      FS.drapeN = FS.drapeMs = FS.drapePts = FS.drapeHit = FS.overlayFull = 0;
+      if (t) { FS.lodSelects = t.selects; FS.lodSwaps = t.swaps; }
+    }
+    return out;
+  }
 
   /* ================================================================== */
   /* v15 §3.2 — the environment                                          */
@@ -276,6 +353,25 @@ SBMM.viewer3d = (function () {
      get byte-identical textures, which is what keeps test/e2e.mjs and
      test/e2e_tablet.mjs unchanged. */
   const PHONE_TEX_PX = 2048;
+  /* v24 §3 — THE DEVICE PIXEL RATIO IS A FILL-RATE BUDGET.
+     A 4K laptop reports devicePixelRatio 2, so the renderer drew FOUR times the
+     pixels of the CSS canvas — and the terrain drape, the overlay lines and the
+     sky are all fill-bound, so that is four times the GPU work for a difference
+     nobody reports seeing on a 3D terrain. 1.5 is the default on a DESKTOP and
+     is remembered (SBMM.view.pref("pixelRatio"), any value 1..3), so it can be
+     raised on a machine that wants it without a build.
+     THE PHONE AND TABLET RULES DO NOT MOVE: they were min(2, dpr) and they
+     still are, which is what keeps test/e2e_phone.mjs, test/e2e_field.mjs and
+     test/e2e_tablet.mjs measuring the same app they measured before. */
+  const DESKTOP_PR = 1.5;
+  function pixelRatio() {
+    const dpr = window.devicePixelRatio || 1;
+    const touch = SBMM.touch && SBMM.touch.profile && SBMM.touch.profile() !== "desktop";
+    if (touch) return Math.min(2, dpr);
+    const pref = SBMM.view && SBMM.view.pref ? SBMM.view.pref("pixelRatio") : undefined;
+    const cap = (typeof pref === "number" && pref >= 1 && pref <= 3) ? pref : DESKTOP_PR;
+    return Math.min(cap, dpr);
+  }
   function texBudget() {
     return (SBMM.touch && SBMM.touch.profile && SBMM.touch.profile() === "phone")
       ? PHONE_TEX_PX : Infinity;
@@ -425,6 +521,8 @@ SBMM.viewer3d = (function () {
 
   function drapeZ(x, y, off = 2) { const [z] = SBMM.elev(x, y); return (isNaN(z) ? ZMID : z) - ZMID + off; }
   function drapedLine(pts, color, closed, off = 2, width) {
+    const _t = performance.now();
+    FS.drapeN++;
     const dense = [];
     const P = closed ? [...pts, pts[0]] : pts;
     for (let i = 1; i < P.length; i++) {
@@ -435,6 +533,8 @@ SBMM.viewer3d = (function () {
       }
     }
     const g = new THREE.BufferGeometry().setFromPoints(dense);
+    FS.drapePts += dense.length;
+    FS.drapeMs += performance.now() - _t;
     return new THREE.Line(g, new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.95, linewidth: width || 1 }));
   }
 
@@ -554,7 +654,7 @@ SBMM.viewer3d = (function () {
     obj.visible = animOn;
     /* §3.3: NOT pickable — no userData.pick, so pick3d.syncScene() ignores it
        and the flow's own draped line stays the pick target. */
-    overlayGroup.add(obj);
+    addG.add(obj);
     waterAnim.push({ fid: f.id, obj, attr, pos, tracks, pIdx, pBase, n: N });
     return obj;
   }
@@ -1535,10 +1635,32 @@ SBMM.viewer3d = (function () {
   let haloMats = [], pulseUntil = 0, lastSel = null, haloSettled = false;
 
   let lastCadSkip = 0;          // so the drape-budget toast fires once, not per rebuild
-  function rebuildOverlays() {
+  function rebuildOverlays(featuresOnly) {
+    const t0 = performance.now();
+    const full = !(!!featuresOnly && !!projGroup);
+    const r = rebuildOverlaysInner(!full);
+    FS.overlayN++;
+    if (full) FS.overlayFull++;
+    FS.overlayLast = performance.now() - t0;
+    fsAdd("overlay", FS.overlayLast);
+    return r;
+  }
+  function rebuildOverlaysInner(featuresOnly) {
     if (!scene) return;
-    if (overlayGroup) scene.remove(overlayGroup);
-    overlayGroup = new THREE.Group();
+    const PROJ = !featuresOnly;
+    if (PROJ) {
+      if (overlayGroup) scene.remove(overlayGroup);
+      overlayGroup = new THREE.Group();
+      projGroup = new THREE.Group(); featGroup = new THREE.Group();
+      overlayGroup.add(projGroup); overlayGroup.add(featGroup);
+      SHW_P = []; OVL_P = [];
+    } else {
+      /* the project half stays exactly as it is — objects, shadow and labels */
+      overlayGroup.remove(featGroup);
+      featGroup = new THREE.Group();
+      overlayGroup.add(featGroup);
+    }
+    addG = PROJ ? projGroup : featGroup;
     /* the particle streams live inside overlayGroup, so a rebuild throws the old
        ones away with it; the list has to go with them or the loop keeps writing
        into geometry nothing draws (v13 §3.1) */
@@ -1555,38 +1677,39 @@ SBMM.viewer3d = (function () {
       }
     const zx = exag();
     /* v15: the drop-shadow sink and the label specs this pass collects */
-    const SHW = [], OVL = [];
-    if (LS("framework", "dus")) {
+    SHW = SHW_P; OVL = OVL_P;
+    const SHW_F = [], OVL_F = [];
+    if (PROJ && LS("framework", "dus")) {
       const DU_COLOR = { "DU-1N": 0xE4796A, "DU-1S": 0xE4796A, "DU-2": 0x5B8FF9, "DU-3": 0x4FCE9B };
       for (const d of SBMM_DATA.dus)
-        overlayGroup.add(tag(addShadow(SHW, drapedLine(d.ring, DU_COLOR[d.name] || 0xcccccc, true, 3)),
+        addG.add(tag(addShadow(SHW, drapedLine(d.ring, DU_COLOR[d.name] || 0xcccccc, true, 3)),
                              "framework", "dus"));
     }
-    if (LS("framework", "piles")) {
+    if (PROJ && LS("framework", "piles")) {
       for (const p of SBMM_DATA.piles) {
         const traced = (p.name || "").includes("Fig 2");
-        overlayGroup.add(tag(addShadow(SHW, drapedLine(p.ring, traced ? 0xE8B34B : 0x8BE04B, true, 3)),
+        addG.add(tag(addShadow(SHW, drapedLine(p.ring, traced ? 0xE8B34B : 0x8BE04B, true, 3)),
                              "framework", "piles"));
       }
     }
     /* No 3D "design" master any more: designGIS.rings3d() and CadNative.rings3d()
        already return only the layers whose rows are on, so the 3D view draws the
        design the Layers tree says is showing — nothing more, nothing less. */
-    if (SBMM.designGIS) {
+    if (PROJ && SBMM.designGIS) {
       for (const r of SBMM.designGIS.rings3d()) {
         const o = drapedLine(r.ring, new THREE.Color(r.color).getHex(), true, 3);
         /* userData.pick is what js/pick3d.js walks the overlay group for; it is
            the only thing that makes a 3D click able to say what it hit (§8) */
         o.userData.pick = { kind: "gis", props: r.props, geom: r.geom };
         tag(addShadow(SHW, o), "design", "gis_" + ((r.props && r.props.layer) || "design"));
-        overlayGroup.add(o);
+        addG.add(o);
       }
     }
     /* v15 §3.1: the rest of EA's geodatabase — the design LINES (daylight,
        grade, haul) and the boundary / existing-conditions layers, which
        rings3d() never returned. Merged per layer: 580 features, ~10 draw calls,
        and a click still names the feature it hit. */
-    if (SBMM.designGIS && SBMM.designGIS.batch3d) {
+    if (PROJ && SBMM.designGIS && SBMM.designGIS.batch3d) {
       for (const b of SBMM.designGIS.batch3d()) {
         const col = new THREE.Color(b.color || "#cccccc").getHex();
         if (b.lines.length) {
@@ -1594,7 +1717,7 @@ SBMM.viewer3d = (function () {
           if (o) {
             o.userData.pick = { kind: "gisBatch", items: b.lines };
             tag(o, "design", "gis_" + b.key);
-            overlayGroup.add(o);
+            addG.add(o);
           }
         }
         if (b.points.length) {
@@ -1605,31 +1728,31 @@ SBMM.viewer3d = (function () {
           const po = new THREE.Points(gg, dotMaterial({ size: 8, color: col }));
           po.userData.pick = { kind: "gisPts", items: b.points };
           tag(po, "design", "gis_" + b.key);
-          overlayGroup.add(po);
+          addG.add(po);
         }
       }
     }
     /* the August-2026 survey linework (spec §10): the pipes, the sandbag wall
        and the pit contours, draped like the design polygons and pickable */
-    if (SBMM.survey && SBMM.survey.lines3d) {
+    if (PROJ && SBMM.survey && SBMM.survey.lines3d) {
       for (const r of SBMM.survey.lines3d()) {
         const o = drapedLine(r.ring, new THREE.Color(r.color).getHex(), false, r.width || 2);
         o.userData.pick = { kind: "gis", props: r.props, geom: r.geom };
         tag(addShadow(SHW, o), "invest", "survey_" + ((r.props && r.props.layer) || ""));
-        overlayGroup.add(o);
+        addG.add(o);
       }
     }
     /* the storm-drainage network (v12 §5.1): the conduits draped on the ground
        and a dot at every structure, in the storm colour rather than the water
        one — the pipes are infrastructure, the flow is the terrain's answer. */
-    if (SBMM.storm && SBMM.storm.lines3d) {
+    if (PROJ && SBMM.storm && SBMM.storm.lines3d) {
       const SC = new THREE.Color(SBMM.storm.COLOR || "#7FA7C9").getHex();
       for (const r of SBMM.storm.lines3d()) {
         const o = drapedLine(r.ring, new THREE.Color(r.color).getHex(), false, r.width || 2);
         o.userData.pick = { kind: "gis", props: r.props, geom: r.geom };
         tag(addShadow(SHW, o), "framework",
             (r.props && r.props.layer === "storm_inferred") ? "storm_inferred" : "storm_cad");
-        overlayGroup.add(o);
+        addG.add(o);
       }
       const sp = SBMM.storm.points3d();
       if (sp.length) {
@@ -1637,14 +1760,14 @@ SBMM.viewer3d = (function () {
         for (const q of sp) pos.push(q.x - CX, q.y - CY, drapeZ(q.x, q.y, 5));
         const gg = new THREE.BufferGeometry();
         gg.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
-        overlayGroup.add(tag(new THREE.Points(gg, dotMaterial({ size: 9, color: SC })),
+        addG.add(tag(new THREE.Points(gg, dotMaterial({ size: 9, color: SC })),
                              "framework", "storm_nodes"));
       }
     }
     /* the drainage map (v14 §4): the catchment polygons draped like the DUs and
        the longest flow path of each drawn as it runs. Read-only analysis, so the
        pick card is the same popup the 2D map binds. */
-    if (SBMM.drainage && SBMM.drainage.hasResult()) {
+    if (PROJ && SBMM.drainage && SBMM.drainage.hasResult()) {
       /* rings3d hands back OPEN RUNS, not closed rings: a catchment boundary
          that reaches the survey limit has no ground under the rest of it, and a
          closed drape there stands up as a curtain (js/drainage.js groundRuns) */
@@ -1653,54 +1776,54 @@ SBMM.viewer3d = (function () {
         o.userData.pick = { kind: "gis", props: r.props, geom: r.geom };
         tag(addShadow(SHW, o), "framework",
             (r.props && r.props.layer === "DRAIN-OUTLET") ? "drain_outlet" : "drain_first");
-        overlayGroup.add(o);
+        addG.add(o);
       }
       for (const r of SBMM.drainage.lines3d()) {
         const o = drapedLine(r.ring, new THREE.Color(r.color).getHex(), false, r.width || 2);
         o.userData.pick = { kind: "gis", props: r.props, geom: r.geom };
         tag(addShadow(SHW, o), "framework", "drain_paths");
-        overlayGroup.add(o);
+        addG.add(o);
       }
     }
     /* v22 §C: the four areas of "where does the water go", draped like the
        drainage catchments and through the same groundRuns rule, so a class
        boundary that reaches the survey limit stops there instead of standing
        up as a curtain over Clear Lake. */
-    if (SBMM.whereWater && SBMM.whereWater.hasResult()) {
+    if (PROJ && SBMM.whereWater && SBMM.whereWater.hasResult()) {
       for (const r of SBMM.whereWater.rings3d()) {
         const o = drapedLine(r.ring, new THREE.Color(r.color).getHex(), false, r.width || 3);
         o.userData.pick = { kind: "gis", props: r.props, geom: r.geom };
         tag(addShadow(SHW, o), "framework", "where_water");
-        overlayGroup.add(o);
+        addG.add(o);
       }
     }
     /* v19 §2: the stream network, draped like every other overlay line. A
        stream follows the ground by construction, but a link that ends at the
        survey limit still has its last vertex out over the water, so it goes
        through js/drainage.js groundRuns() like the catchment boundaries do. */
-    if (SBMM.accum && SBMM.accum.lines3d) {
+    if (PROJ && SBMM.accum && SBMM.accum.lines3d) {
       for (const r of SBMM.accum.lines3d()) {
         const o = drapedLine(r.ring, new THREE.Color(r.color).getHex(), false, r.width || 3);
         o.userData.pick = { kind: "gis", props: r.props, geom: r.geom };
         tag(addShadow(SHW, o), "framework", "accum_streams");
-        overlayGroup.add(o);
+        addG.add(o);
       }
     }
     /* the design storm (v14 Phase 2): the same catchment boundaries, coloured by
        this storm's runoff depth instead of by outlet, and picked with the same
        card the 2D choropleth opens. */
-    if (SBMM.runoff && SBMM.runoff.rings3d) {
+    if (PROJ && SBMM.runoff && SBMM.runoff.rings3d) {
       for (const r of SBMM.runoff.rings3d()) {
         const o = drapedLine(r.ring, new THREE.Color(r.color).getHex(), false, r.width || 3);
         o.userData.pick = { kind: "gis", props: r.props, geom: r.geom };
         tag(addShadow(SHW, o), "framework", "runoff_depth");
-        overlayGroup.add(o);
+        addG.add(o);
       }
     }
     /* EA native CAD design linework. designgis owns the authoritative polygons;
        these are the drafted lines around them, and they were previously visible
        in 2D only — which meant clicking one in 3D found nothing at all. */
-    if (SBMM.CadNative && SBMM.CadNative.rings3d) {
+    if (PROJ && SBMM.CadNative && SBMM.CadNative.rings3d) {
       /* drapedLine resamples every ring against the DEM at 10 ft, so the cost is
          per RING, not per group. v9 drapes on demand — only the groups that are
          actually on — against a budget rather than a blanket cap of 400: with
@@ -1720,14 +1843,14 @@ SBMM.viewer3d = (function () {
            array identity is enough for pick3d to find the CAD record again */
         o.userData.pick = { kind: "cad", coords: r.ring };
         tag(o, r.group || "design", "cad_" + (r.key || "misc"));
-        overlayGroup.add(o);
+        addG.add(o);
       }
       if (skipped && skipped !== lastCadSkip) {
         toast(`3D: ${fmt0(skipped)} CAD lines beyond the ${fmt0(BUDGET)}-line drape budget are not shown — switch a group off in Layers`, 5200);
       }
       lastCadSkip = skipped;
     }
-    if (SBMM.designEA && LS("design", "pdf_boundaries")) {
+    if (PROJ && SBMM.designEA && LS("design", "pdf_boundaries")) {
       const DCOL = { "area-validated": 0xFF6B4A, "unclassified": 0xE8B34B, "surveyed": 0x4FD2E8 };
       for (const r of SBMM.designEA.rings3d()) {
         const o = drapedLine(r.ring, DCOL[r.conf] || 0xcccccc, true, 3);
@@ -1738,9 +1861,10 @@ SBMM.viewer3d = (function () {
           props: r.props || { name: "EA boundary", layer: "pdf_boundaries", confidence: r.conf },
           geom: r.geom || { type: "Polygon", coordinates: [r.ring] } };
         tag(addShadow(SHW, o), "design", "pdf_boundaries");
-        overlayGroup.add(o);
+        addG.add(o);
       }
     }
+    addG = featGroup; SHW = SHW_F; OVL = OVL_F;      // the user's own features
     {
       const COLORS = { line: 0x4FB3CE, area: 0x4FB3CE, volume: 0x4FCE9B, profile: 0xC792EA,
                        dim: 0xE8B34B, text: 0xE8EEF1, flow: 0x55C1FF };
@@ -1760,7 +1884,7 @@ SBMM.viewer3d = (function () {
         const h = new THREE.Line(o.geometry, m);
         h.renderOrder = 7;
         haloMats.push(m);
-        overlayGroup.add(h);
+        addG.add(h);
       };
       for (const f of SBMM.store.features) {
         /* both masks: the feature's own visibility AND its My-work class row */
@@ -1773,7 +1897,7 @@ SBMM.viewer3d = (function () {
         const colCss = "#" + col.toString(16).padStart(6, "0");
         if (f.type === "dim" && f.pts.length > 1) {
           const o = own(addShadow(SHW, drapedLine(f.pts, col, false, sel ? 5 : 3.5)), f);
-          overlayGroup.add(o);
+          addG.add(o);
           if (sel) halo(o);
           const mx = (f.pts[0][0] + f.pts[1][0]) / 2, my = (f.pts[0][1] + f.pts[1][1]) / 2;
           /* v15 §2.3: through the label layer, so it is screen-sized, chipped,
@@ -1785,7 +1909,7 @@ SBMM.viewer3d = (function () {
           continue;
         }
         if (f.type === "text") {
-          if (f.pts.length > 1) overlayGroup.add(own(addShadow(SHW, drapedLine(f.pts, col, false, 3)), f));
+          if (f.pts.length > 1) addG.add(own(addShadow(SHW, drapedLine(f.pts, col, false, 3)), f));
           const [tx, ty] = f.pts[0];
           /* the anchor itself, not just the chip. A single-point annotation's
              label can lose the 60-chip collision budget, and a feature that is
@@ -1794,7 +1918,7 @@ SBMM.viewer3d = (function () {
           const anc = new THREE.Mesh(new THREE.SphereGeometry(sel ? 5 : 3.5, 8, 8),
             new THREE.MeshLambertMaterial({ color: col, emissive: sel ? 0x554400 : 0x000000 }));
           anc.position.set(tx - CX, ty - CY, drapeZ(tx, ty, 4));
-          overlayGroup.add(own(anc, f));
+          addG.add(own(anc, f));
           OVL.push({ key: "text:" + f.id, text: (f.props && f.props.text) || f.name || "text",
                      color: colCss, x: tx, y: ty, z: drapeZ(tx, ty, 6) + ZMID,
                      priority: sel ? 72 : 58, pick: { kind: "feature", fid: f.id },
@@ -1805,12 +1929,12 @@ SBMM.viewer3d = (function () {
            every station with its chainage — in 3D it was the baseline alone */
         if (f.type === "sections" && f._sec) {
           const R2 = f._sec;
-          overlayGroup.add(own(addShadow(SHW, drapedLine(f.pts, col, false, sel ? 4.5 : 3)), f));
+          addG.add(own(addShadow(SHW, drapedLine(f.pts, col, false, sel ? 4.5 : 3)), f));
           const every = R2.ns > 24 ? 4 : R2.ns > 12 ? 2 : 1;
           for (let st = 0; st < R2.ns; st++) {
             const a = [R2.cx[st] - R2.nx[st] * R2.half, R2.cy[st] - R2.ny[st] * R2.half];
             const b = [R2.cx[st] + R2.nx[st] * R2.half, R2.cy[st] + R2.ny[st] * R2.half];
-            overlayGroup.add(own(addShadow(SHW, drapedLine([a, b], col, false, 2.5)), f));
+            addG.add(own(addShadow(SHW, drapedLine([a, b], col, false, 2.5)), f));
             if (st % every === 0)
               OVL.push({ key: "sta:" + f.id + ":" + st,
                          text: SBMM.sections.staLabel ? SBMM.sections.staLabel(R2.sta[st])
@@ -1829,7 +1953,7 @@ SBMM.viewer3d = (function () {
           const ic = parseInt(String((f.props && f.props.color) || "#E4433A").slice(1), 16);
           const wmean = (f.props && f.props.widths && f.props.widths.length)
             ? f.props.widths.reduce((a, b) => a + b, 0) / f.props.widths.length : 0.55;
-          overlayGroup.add(own(drapedLine(f.pts, ic, false, 1.5 + 3.5 * wmean + (sel ? 2 : 0)), f));
+          addG.add(own(drapedLine(f.pts, ic, false, 1.5 + 3.5 * wmean + (sel ? 2 : 0)), f));
           continue;
         }
         /* v10: the run drapes like any line, and the two things that make it a
@@ -1848,14 +1972,14 @@ SBMM.viewer3d = (function () {
           let fl = null;
           for (const sq of flowStretches(f)) {
             const o = own(addShadow(SHW, drapedLine(sq, wcol, false, sel ? 4.5 : 3)), f);
-            overlayGroup.add(o);
+            addG.add(o);
             if (!fl) fl = o;
           }
           if (sel && fl) halo(fl);
           for (const pd of (pr.ponds || []))
             for (const ring of (pd.rings || []))
               if (ring && ring.length > 2) {
-                overlayGroup.add(own(drapedLine(ring, 0x55C1FF, true, 2), f));
+                addG.add(own(drapedLine(ring, 0x55C1FF, true, 2), f));
                 /* one label per pond, keyed by cell and level: three routes
                    across the same pond share it (v15 §2.3) */
                 const c = centroid(ring);
@@ -1881,7 +2005,7 @@ SBMM.viewer3d = (function () {
             const tot = cum[cum.length - 1] || 1;
             const gg = new THREE.BufferGeometry().setFromPoints(P.map((q, i) =>
               new THREE.Vector3(q[0] - CX, q[1] - CY, za + (zb - za) * (cum[i] / tot) + 1)));
-            overlayGroup.add(own(new THREE.Line(gg, new THREE.LineBasicMaterial(
+            addG.add(own(new THREE.Line(gg, new THREE.LineBasicMaterial(
               { color: 0x7FA7C9, transparent: true, opacity: .95 })), f));
           }
           const dp = pr.drop || f.pts[0];
@@ -1889,7 +2013,7 @@ SBMM.viewer3d = (function () {
             new THREE.MeshLambertMaterial({ color: sel ? 0xFFD34D : 0x9FDCFF,
               emissive: sel ? 0x554400 : 0x11333F }));
           sp.position.set(dp[0] - CX, dp[1] - CY, drapeZ(dp[0], dp[1], 6));
-          overlayGroup.add(own(sp, f));
+          addG.add(own(sp, f));
           /* v13 §3.1: and the water moving along it */
           addFlowParticles(f, sel);
           continue;
@@ -1899,7 +2023,7 @@ SBMM.viewer3d = (function () {
           const s = new THREE.Mesh(new THREE.SphereGeometry(sel ? 9 : 6, 10, 10),
             new THREE.MeshLambertMaterial({ color: col, emissive: sel ? 0x554400 : 0x000000 }));
           s.position.set(x - CX, y - CY, drapeZ(x, y, 4));
-          overlayGroup.add(own(s, f));
+          addG.add(own(s, f));
           continue;
         }
         /* v11 §4.4 — a field photo stands on the ground as a billboard of its
@@ -1910,11 +2034,11 @@ SBMM.viewer3d = (function () {
         if (f.type === "photo") {
           const [x, y] = f.pts[0];
           const sp = photoSprite(f, sel);
-          if (sp) { sp.position.set(x - CX, y - CY, drapeZ(x, y, 34)); overlayGroup.add(own(sp, f)); }
+          if (sp) { sp.position.set(x - CX, y - CY, drapeZ(x, y, 34)); addG.add(own(sp, f)); }
           const st = new THREE.Mesh(new THREE.SphereGeometry(sel ? 6 : 4, 8, 8),
             new THREE.MeshBasicMaterial({ color: sel ? 0xFFD34D : 0xE8B34B }));
           st.position.set(x - CX, y - CY, drapeZ(x, y, 4));
-          overlayGroup.add(own(st, f));
+          addG.add(own(st, f));
           continue;
         }
         /* v23 Phase B — the fence stands in the scene as a vertical strip:
@@ -1937,7 +2061,7 @@ SBMM.viewer3d = (function () {
         if (f.type === "fence" && SBMM.fence) {
           const R = f._fen || SBMM.fence.derive(f);
           if (R && f.pts.length > 1) {
-            overlayGroup.add(own(addShadow(SHW, drapedLine(f.pts, col, false, sel ? 4.5 : 3)), f));
+            addG.add(own(addShadow(SHW, drapedLine(f.pts, col, false, sel ? 4.5 : 3)), f));
             const wall = fenceWall(f, R);
             if (wall) {
               own(wall, f);
@@ -1945,7 +2069,7 @@ SBMM.viewer3d = (function () {
                  the hole list and the scene's centring constants */
               wall.userData.pick = { kind: "fence", fid: f.id, cx: CX, cy: CY,
                 holes: R.holes.map(q => ({ id: q.id, x: q.px, y: q.py })) };
-              overlayGroup.add(wall);
+              addG.add(wall);
             }
             for (const q of R.holes)
               OVL.push({ key: "fence:" + f.id + ":" + q.id, text: q.id,
@@ -1958,10 +2082,10 @@ SBMM.viewer3d = (function () {
         }
         const closed = f.type === "area" || f.type === "volume";
         const gen = own(addShadow(SHW, drapedLine(f.pts, col, closed, sel ? 4.5 : 3)), f);
-        overlayGroup.add(gen);
+        addG.add(gen);
         if (closed && f.pts.length < 400) {
           const fill = drapedFill(f.pts, col, sel ? 0.32 : 0.25);
-          if (fill) overlayGroup.add(own(fill, f));
+          if (fill) addG.add(own(fill, f));
         }
         if (sel) halo(gen);
       }
@@ -1986,7 +2110,7 @@ SBMM.viewer3d = (function () {
           ? new THREE.Color(f.style.color).getHex() : 0x4FD8E6, true, 4);
         o.userData.pick = { kind: "feature", fid: f.id };
         tag(addShadow(SHW, o), "mywork", SBMM.myWork.classOf(f));
-        overlayGroup.add(o);
+        addG.add(o);
         const c = centroid(f.pts);
         OVL.push({ key: "surf:" + f.id, text: f.name || "design surface", color: "#7CD0E6",
                    x: c[0], y: c[1], z: drapeZ(c[0], c[1], 10) + ZMID, priority: 42,
@@ -1998,9 +2122,10 @@ SBMM.viewer3d = (function () {
       if (m) {
         m.userData.pick = { kind: "feature", fid: f.id };
         tag(m, "mywork", SBMM.myWork.classOf(f));
-        overlayGroup.add(m);
+        addG.add(m);
       }
     }
+    addG = projGroup; SHW = SHW_P; OVL = OVL_P;      // back to the project half
 
     /* datasets: a billboard dot per record, plus — where the dataset has a depth
        attribute and sticks are switched on — a vertical line from the ground down
@@ -2008,7 +2133,7 @@ SBMM.viewer3d = (function () {
        the exaggeration slider like everything else, so a 40 ft boring stays 40 ft
        relative to the terrain it is standing in however hard the relief is pushed. */
     /* datasets: threeSpec() already returns only the datasets whose rows are on */
-    if (SBMM.datasets) {
+    if (PROJ && SBMM.datasets) {
       /* A boring's stick is the LOG, not a length (js/borelogs.js): where the
          2025 OpenGround logs give a class profile for this hole, the stick is
          drawn in segments coloured by that profile — waste, native, bedrock —
@@ -2081,7 +2206,7 @@ SBMM.viewer3d = (function () {
              the very popup its 2D marker opens */
           dots.userData.pick = { kind: "dataset", dsId: spec.id };
           tagKey(dots, spec.rowKey);
-          overlayGroup.add(dots);
+          addG.add(dots);
         }
         if (seg.length) {
           const g2 = new THREE.BufferGeometry();
@@ -2113,12 +2238,12 @@ SBMM.viewer3d = (function () {
              geometry is */
           stick.userData.pick = { kind: "dataset", dsId: spec.id, stick: true, idx: segPt };
           tagKey(stick, spec.rowKey);
-          overlayGroup.add(stick);
+          addG.add(stick);
         }
       }
     }
 
-    if (LS("invest", "samples")) {
+    if (PROJ && LS("invest", "samples")) {
       const pos = [], col = [];
       for (const p of SBMM.samples) {
         pos.push(p.x - CX, p.y - CY, drapeZ(p.x, p.y, 4));
@@ -2131,14 +2256,14 @@ SBMM.viewer3d = (function () {
       pointsObj = new THREE.Points(g, dotMaterial({ size: 16, vertexColors: true }));
       pointsObj.userData.pick = { kind: "sample" };
       tag(pointsObj, "invest", "samples");
-      overlayGroup.add(pointsObj);
+      addG.add(pointsObj);
     }
 
     /* detected trees, when the canopy detector has been run. One billboard per
        tree at crown top, so the 3D view can answer "what is that tree" the same
        way the 2D dot layer does. */
     const td = SBMM.trees && SBMM.trees.data;
-    if (td && td.n && LS("base", "trees_detected")) {
+    if (PROJ && td && td.n && LS("base", "trees_detected")) {
       const pos = [];
       for (let i = 0; i < td.n; i++) {
         const [z0] = SBMM.elev(td.x[i], td.y[i]);
@@ -2149,7 +2274,7 @@ SBMM.viewer3d = (function () {
       const tp = new THREE.Points(g, dotMaterial({ size: 12, color: 0x6FBF7F, opacity: .9 }));
       tp.userData.pick = { kind: "tree" };
       tag(tp, "base", "trees_detected");
-      overlayGroup.add(tp);
+      addG.add(tp);
     }
 
     /* cultural resources (§7) — CONFIDENTIAL, drawn only while the group is on.
@@ -2157,12 +2282,12 @@ SBMM.viewer3d = (function () {
        in the layer's own red/amber so it reads as a restricted overlay rather
        than as more design furniture. The stamp element over the 3D canvas is
        put up by js/cultural.js; the snapshot gets it burned in. */
-    if (SBMM.cultural && SBMM.cultural.visible()) {
+    if (PROJ && SBMM.cultural && SBMM.cultural.visible()) {
       for (const r of SBMM.cultural.rings3d()) {
         const o = drapedLine(r.ring, new THREE.Color(r.color).getHex(), true, 3);
         o.userData.pick = { kind: "cultural", feature: r.feature };
         tag(addShadow(SHW, o), "cultural", (r.feature && r.feature.layer) || "cultural");
-        overlayGroup.add(o);
+        addG.add(o);
       }
       /* one cloud per LAYER, not one merged cloud: an object can only claim one
          layer row, and §3.1's table asks each row for its own object */
@@ -2186,13 +2311,13 @@ SBMM.viewer3d = (function () {
         const cpo = new THREE.Points(g, dotMaterial({ size: 18, vertexColors: true }));
         cpo.userData.pick = { kind: "culturalPt", pts };
         tag(cpo, "cultural", k);
-        overlayGroup.add(cpo);
+        addG.add(cpo);
       }
     }
     /* v15 §3.1 — the computed contour set (js/analysis.js CONTOUR command). A
        contour's level IS its elevation, so no drape sampling is needed; one
        LineSegments per weight class, like the survey sets. */
-    if (LS("base", "contours_custom") && SBMM.analysis && SBMM.analysis.customContours3d) {
+    if (PROJ && LS("base", "contours_custom") && SBMM.analysis && SBMM.analysis.customContours3d) {
       const cl = SBMM.analysis.customContours3d();
       if (cl.length) {
         const byCol = new Map();
@@ -2209,25 +2334,31 @@ SBMM.viewer3d = (function () {
           if (!rec.v.length) continue;
           const gg = new THREE.BufferGeometry();
           gg.setAttribute("position", new THREE.Float32BufferAttribute(rec.v, 3));
-          overlayGroup.add(tag(new THREE.LineSegments(gg, new THREE.LineBasicMaterial({
+          addG.add(tag(new THREE.LineSegments(gg, new THREE.LineBasicMaterial({
             color: new THREE.Color(rec.color).getHex(), transparent: true,
             opacity: rec.heavy ? 0.85 : 0.5 })), "base", "contours_custom"));
         }
       }
     }
 
-    /* v15 §3.2 — the whole drop shadow in one draw call */
-    if (SHW.length) {
+    /* v15 §3.2 — the whole drop shadow in one draw call. TWO of them since v24,
+       one per half, because the project half's survives a selection-only
+       rebuild; same material, same renderOrder, so the picture is identical and
+       it is one more draw call, not one per line. */
+    const shadow = (v, into) => {
+      if (!v.length) return;
       const sg = new THREE.BufferGeometry();
-      sg.setAttribute("position", new THREE.Float32BufferAttribute(SHW, 3));
+      sg.setAttribute("position", new THREE.Float32BufferAttribute(v, 3));
       const sm = new THREE.LineSegments(sg, new THREE.LineBasicMaterial({
         color: 0x0A1014, transparent: true, opacity: 0.55 }));
       sm.renderOrder = 1;
-      overlayGroup.add(sm);
-    }
+      into.add(sm);
+    };
+    if (PROJ) shadow(SHW_P, projGroup);
+    shadow(SHW_F, featGroup);
     /* §3.1: the isopach heat map has no layer row of its own, so the only thing
        that can say the 3D drape IS the isopach is a label on it */
-    if (drapeMesh.isopach && SBMM.isopach && SBMM.isopach.drapeSpec) {
+    if (PROJ && drapeMesh.isopach && SBMM.isopach && SBMM.isopach.drapeSpec) {
       const sp2 = SBMM.isopach.drapeSpec();
       if (sp2 && sp2.bounds) {
         const bx = (sp2.bounds[0] + sp2.bounds[2]) / 2, by = (sp2.bounds[1] + sp2.bounds[3]) / 2;
@@ -2238,7 +2369,7 @@ SBMM.viewer3d = (function () {
     overlayGroup.scale.z = zx;
     scene.add(overlayGroup);
     /* v15 §2.3: this pass's labels, diffed by text against the ones already up */
-    setLabels3d("overlay", OVL);
+    setLabels3d("overlay", OVL_P.concat(OVL_F));
     /* §3.2: a bounded pulse when the selection changes — see HALO_MS */
     const selNow = SBMM.store.selected || null;
     if (haloMats.length && selNow !== lastSel) { pulseUntil = performance.now() + HALO_MS; haloSettled = false; }
@@ -3135,7 +3266,7 @@ SBMM.viewer3d = (function () {
        Help line), and this is the one hint the page can give it. */
     renderer = new THREE.WebGLRenderer({ canvas: $("v3dCanvas"), antialias: true, preserveDrawingBuffer: true,
                                          powerPreference: "high-performance" });
-    renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
+    renderer.setPixelRatio(pixelRatio());
     /* 2026-09-08: the renderer named where the user looks, and the diagnostics
        one click away (the Help line has both too) */
     setTimeout(() => {
@@ -3293,8 +3424,16 @@ SBMM.viewer3d = (function () {
     });
 
     /* live sync: any store change (draw/edit/delete/rename in either view) refreshes 3D */
-    SBMM.store.onChange(() => { if (open) rebuildOverlays(); });
-    SBMM.store.onSelect(() => { if (open) rebuildOverlays(); });
+    /* v24 §3: like onSelect — a store change adds, removes or edits one of the
+       user's own features, and the project half cannot be affected by it. A
+       module whose own data changed (the drainage map finishing, a dataset
+       arriving, the tree detector) asks for a FULL rebuild through
+       SBMM.viewer3d.refreshOverlays(), which is what that entry point is for. */
+    SBMM.store.onChange(() => { if (open) rebuildOverlays(true); });
+    /* v24 §3: a selection changes the user's own features and nothing else —
+       the colours, the widths, the halo, the label priorities and the flow
+       particles all live in that half — so the project half is left alone. */
+    SBMM.store.onSelect(() => { if (open) rebuildOverlays(true); });
 
     /* render on demand: idle views cost nothing */
     function loop() {
@@ -3308,7 +3447,9 @@ SBMM.viewer3d = (function () {
         const now = performance.now();
         if (!animLast) animLast = now - WATER_FPS_MS;
         if (now - animLast >= WATER_FPS_MS) {
+          const tp = performance.now();
           stepWaterAnim(Math.min(0.25, (now - animLast) / 1000));
+          fsAdd("particles", performance.now() - tp);
           animLast = now;
           needsRender = true;
         }
@@ -3352,11 +3493,16 @@ SBMM.viewer3d = (function () {
       if (moved || needsRender) {
         needsRender = false;
         renderCount++;
+        FS.frames++;
         /* v15 §2.3/§3.2: both of these are per-DRAW, not per-rAF — nothing here
            asks for a frame, so an idle view still issues none */
+        const tL = performance.now();
         updateLabels3d();
+        const tS = performance.now(); fsAdd("labels", tS - tL);
         updateSky();
+        const tR = performance.now(); FS.sky += tR - tS;
         renderer.render(scene, camera);
+        fsAdd("render", performance.now() - tR);
         updateCompass();
         /* the identify card is pinned to a point in the scene, so it has to be
            re-projected whenever the camera moves (§8) */
@@ -3749,6 +3895,10 @@ SBMM.viewer3d = (function () {
     const bh = bar ? bar.offsetHeight : 40;
     el.style.setProperty("--v3dbarH", bh + "px");   // the bar wraps on narrow docks
     const w = Math.max(1, el.clientWidth), h = Math.max(1, el.clientHeight - bh);
+    /* a window moved to another screen changes devicePixelRatio, and v24's
+       desktop cap is a preference that can move under us */
+    const pr = pixelRatio();
+    if (Math.abs(renderer.getPixelRatio() - pr) > 1e-3) renderer.setPixelRatio(pr);
     renderer.setSize(w, h, false);
     camera.aspect = w / h; camera.updateProjectionMatrix();
     requestRender();
@@ -4095,6 +4245,21 @@ SBMM.viewer3d = (function () {
     try { out.water = { analysis: !!(SBMM.water && SBMM.water.active && SBMM.water.active()), stage: stageInfo || null,
                         flows: SBMM.store.features.filter(f => f.type === "flow").length }; } catch (e) { /* none */ }
     try { out.layersDrawn = stats().layersDrawn; } catch (e) { /* none */ }
+    /* v24 §3 — the main-thread cost, FIRST in the pasted text and as one line,
+       because that is the part a reader can act on without reading the JSON.
+       It is not reset here: the reader wants the whole session's picture, and
+       SBMM.viewer3d.frameStats(true) is how you zero it before a measurement. */
+    try {
+      const f = out.frame = frameStats(false);
+      out.line = `3D · ${f.frames} frames / ${f.seconds}s (${f.fps} fps) · render ${f.renderMs} ms`
+        + ` (max ${f.renderMaxMs}) · labels ${f.labelsMs} · particles ${f.particlesMs}`
+        + ` · hover ${f.hoverMs} ms x${f.hovers} · overlays x${f.overlayRebuilds} (${f.overlayFull} full)`
+        + ` @ ${f.overlayMs} ms`
+        + ` (max ${f.overlayMaxMs}) · terrain selects ${f.terrainSelects}, block ${f.terrainBlockMs} ms`
+        + ` · pixelRatio ${f.pixelRatio} of ${f.devicePixelRatio}`
+        + ` · drape ${out.stats && out.stats.drapeFtPerPx ? out.stats.drapeFtPerPx.join("-") : "?"} ft/px`
+        + ` · ${out.stats && out.stats.gpuName ? out.stats.gpuName : "?"}`;
+    } catch (e) { out.frameErr = String(e); }
     return out;
   }
 
@@ -4142,6 +4307,9 @@ SBMM.viewer3d = (function () {
       const r = renderer.domElement.getBoundingClientRect();
       return [r.left + (v.x * 0.5 + 0.5) * r.width, r.top + (-v.y * 0.5 + 0.5) * r.height];
     },
-    requestRender, reflowBar
+    requestRender, reflowBar,
+    /* v24 §3 — the main-thread cost of a frame and of an interaction, and the
+       hook js/pick3d.js reports its hover raycast through */
+    frameStats, noteHover
   };
 })();
