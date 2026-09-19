@@ -2578,6 +2578,147 @@ four columns).
   same projection, exported, so the thickness control points do not get a second
   copy of it.
 
+## v24 — the borings round: zero overlaps, the refined window, the fence that correlates
+
+Contract: `docs/V23_BORINGS_SPEC.md` §2 and §3, updated in place. No kernel work
+(`js/compute.js` is not touched; `VERSION` stays 10). `js/borelogs.js`,
+`js/borewin.js`, `js/fence.js`, the `v23`/`v24` block in `css/app.css`; new
+harness `test/borewin_overlap.mjs`, new e2e block **9ah**, extended **9af** and
+**9ag**; shots `test/borewin_shots.mjs` (+ `borewin_log10`, `borewin_picker`)
+and `test/fence_shots.mjs` (+ `fence_through`).
+
+The engineer: *"something about it seems unfinished, some text are overlapping
+others … the fence does kind of a poor job connecting different borings
+together."*
+
+### THE LANE — every per-depth annotation goes through one, and elision is the rule
+
+`lane(gap)` in `js/borelogs.js` is the whole of "zero overlaps": one running
+stack per column, in depth order, that pushes the next box down by `gap` and
+returns **null** when the push would carry it past the limit the caller set.
+What is refused is **elided**, never overprinted, and its reading is already in
+the `<title>` of the shape it belongs to and in `csvFor()`. Every column uses
+one — description, USCS, sample N, blows, lab chips, remarks, the horizon tags
+— so the property is in the placer rather than in a set of hand-tuned offsets.
+
+**1,475 overlapping text pairs before, 0 after** (`node
+test/borewin_overlap.mjs`: 44 holes x 560/900/1240 px, six Compare sets, the
+fence at three widths, the heading band). Block **9ah** is the gate at 560 and
+1,240 px — 88 off-screen renders through `SBMM.borewin.logSvg()`, ~9,000 text
+elements, under 20 s.
+
+Seven things that will be walked into again:
+
+- **A `<title>` INSIDE a `<text>` is part of its `textContent`.** Every harness
+  and `voiceCheck` read that, so a labelled USCS symbol stops being `"SC"` and
+  a heading stops being findable. Titles go on the SHAPE — the horizon LINE,
+  the graphic-log rect — never inside the label. `line()`'s self-closing tag
+  takes one through `.replace("/>", "><title>…</title></line>")`.
+- **A word longer than its column does not wrap, it overflows.** SVG text does
+  not clip, so one long token printed straight through the column to its right
+  while `wrapText`'s own line count said it fitted. `wrapText` breaks a word
+  longer than the limit, and the limit comes from `perChars(w, size, mono)` —
+  0.62 em for the monospace faces, 0.58 for the sans, both deliberately wide.
+- **The USCS column prints a SYMBOL, never a word.** The payload carries
+  `"Bedrock"` where a hole logged rock rather than a group symbol: 42 px of
+  bold in a 36-px column. `uscsSymbol()` answers the symbol or an em dash, at
+  the sheet tier AND inside the graphic log at the stick tier.
+- **The horizon sentences became short tags in the one lane with no other
+  text** — from the depth axis across the method, class and graphic-log
+  columns, which at sheet tier hold patterns and no words. `NATIVE 7.5 ft`,
+  `BEDROCK 42.0 ft`, `WATER 32.0 ft`, `strata 9.0 ft`. The source, the strata
+  reading and the interlayered flag are each stated once in the window's header
+  strip and on the printed header; the full sentence is the line's own title.
+- **The terminated depth owns its label**: a round tick within 11 px of it
+  printed the same number twice, 2 px apart, on both axes.
+- **The pH scale's own 2 / 4 / 8 sat half a line under the heading band** and
+  collided with it at every width. The heading reads `pH 2–8 · 4` and the red
+  dashed rule IS the 4.
+- **A compare's hole id at 11 px on y 16 with its ground at 8.5 px on y 26 is
+  ten pixels for two boxes that need eleven**, and the fence's id/station pair
+  had the same defect. Both are nine-pixel gaps that read fine and measure bad.
+
+### The window (§2) — one scale, a strip that stays, a cursor that does not move
+
+Three sizes and one heading (`--bl-s` 11 / `--bl-m` 12.5 / `--bl-l` 14 /
+`--bl-h` 18) on an 8-px grid, tabular numerals everywhere, no ad-hoc
+`font-size` left in the block. Four things to keep:
+
+- **`.bwf > span` is the label, and the DIRECT child selector is load-bearing.**
+  The depth-cursor readout carries `<span>`s of its own inside its value, and
+  `display:block` on all of them stacked the whole reading down the strip.
+- **The column headings are drawn ONCE, by `SBMM.borelogs.headingBand()`**, into
+  a fixed strip that is a sibling of the scrolling body — the same list
+  `headingList()` gives `column()` for the printed page, which repeats it per
+  sheet. The strip follows the body's horizontal `scrollLeft` or it stops
+  naming the columns under it. `logSvg()` passes `headings:false, padTop:30` so
+  the drawing keeps the margin and does not draw them twice.
+- **THE ZOOM ANCHOR'S INVERSE MAPPING INCLUDES `y0`.** `y = 0` in the SVG is
+  the top of the heading margin, not depth zero: leaving `W.geom.y0` out of
+  `ftAt` put the anchor `PADT/ppf` feet too deep — **1.56 ft at 1 in = 5 ft** —
+  and the depth under the pointer walked on every Ctrl+wheel step. It holds to
+  0.02 ft now, and `SBMM.borewin.depthAtClientY(y)` is the hook that says so
+  (asking the cursor chip instead means driving a mousemove and trusting it
+  landed, which on a loaded software-GL box it does not).
+- **Solve the zoom's scroll in SCREEN coordinates**, not in `scrollTop`
+  arithmetic: the drawing sits in a padded, scrolled box under a header whose
+  height is not a constant, and the client rectangle after the repaint already
+  carries every one of those terms.
+- `page.mouse.wheel` carries **no modifier** — Control has to be HELD around it
+  for a harness to reach a ctrl+wheel branch.
+
+### The fence (§3) — class bands, matched units, pinch-outs
+
+**A fence THROUGH named holes**: `FENCE SB-9 SB-10 SB-11` (or the Fence tab's
+tick list) builds the alignment as the polyline hole-to-hole, `props.through`
+carries the ids, `projectHoles(pts, half, through)` takes THOSE holes and no
+others, and there is no swath — so every offset is 0 by construction and stays
+honest if the alignment is later edited. `mkFence` re-derives from `through`,
+so a session round trip is still **zero compute jobs**.
+
+**The correlation**, and each rule is a ruling:
+
+- **The class bands come from the LOGGED CONTACTS and nothing else** — waste is
+  ground to the logger's native contact, native is that to the top of bedrock,
+  bedrock is that to the terminated depth. Deriving them from the strata runs
+  would put the app's quieter second answer beside the one it leads with
+  everywhere, on the same drawing, for exactly the 18 holes whose two
+  statements disagree. `ended` marks a band that stops at a hole's own bottom
+  and is drawn with a dashed edge.
+- **Units are matched in order by USCS FAMILY** (`famOf`), by an LCS over the
+  families — deterministic, never crossing two links, and it cannot match a
+  sand to a clay. Confidence is the full symbol: same family AND same symbol is
+  a solid link, same family alone is dashed.
+- **A unit with no USCS family is neither matched NOR pinched.** "Described,
+  not classified" is what the graphic log's diagonal hatch already says, and a
+  wedge for it claims the unit ends at mid-span — a statement about ground
+  nobody drilled. Excluding them took a three-hole fence from **25 wedges to a
+  readable few**.
+- **`FOOT` is the footer stack and every row reads from it.** The first cut put
+  the span distances, the scale bar and the two keys at one y; the second cut
+  computed the class key from `H` and the scale bar from `PADT + drawH` and put
+  one straight through the other. Six rows, one table, `PADB` = its last row
+  plus a line (132).
+
+`spanCorrelation(a, b)` is the one answer the drawing, the CSV and the DXF all
+read: the CSV gains six class-band elevation columns per hole, the DXF a CLOSED
+polyline per class band on `FENCE-BAND-WASTE` / `-NATIVE` / `-BEDROCK` plus the
+links and wedges on `FENCE-UNITS`, and the 3D strip follows because it is
+textured from the same SVG.
+
+Recorded, `FENCE SB-9 SB-10 SB-11`: stations 0 / 463.70 / 869.19 ft (the
+cumulative hole-to-hole distances, offsets 0), **5 class bands** over 2 spans
+(SB-11 logs no bedrock), 9 unit links, and the spans printed at 464 and 405 ft.
+
+### What block 9ag and 9ah assert, and what they do not
+
+9ag's new section computes its own reference out of the payload — the stations
+by arithmetic, the expected band set from the contacts, and **the families one
+hole of a span carries and the other does not**, which can never be matched by
+any rule and therefore MUST appear as a pinch-out. 9ah measures glyph boxes; it
+does not look at colour, and it excludes a halo twin (the same string within
+1.5 px) and anything inside a `<title>`.
+
 ## Undo and redo (v9.4) — the both-closures rule and `readd`
 
 `SBMM.undo` is two stacks of `{ desc, undo, redo }`, 100 deep each way:
@@ -3467,6 +3608,10 @@ the bilinear spread beside the result so nobody has to rediscover this.
 the masters are on the user's machine, and `SBMM_TILES.index.source` says so in
 those words. 2,311 tiles, 52.0 MB, largest tile 119 kB (the spec's cap is 200):
 
+**Superseded in part by v24**: the ortho pyramid has three fine levels now, not
+one — z0, **z -1** and **z -2** (`cell = 2**z`, so 0.5 and 0.25 ft/px) — and the
+payload is **64.2 MB**, not 52.0. The table below is v20's.
+
 | layer | tiles | payload | levels |
 |---|---|---|---|
 | dem | 422 | 25.9 MB | z0 (1 ft) over the two 1-ft windows, z1..z6 site-wide |
@@ -3590,7 +3735,7 @@ formula in JS: **mean absolute difference 0.013 of 255** (the spec's bar is 2).
 ### The offline copy
 
 `index.html` names only the 30 kB tile index, so the offline copy would
-otherwise have no pyramid. **"terrain tiles (52 MB)"** beside the offline button
+otherwise have no pyramid. **"terrain tiles (64 MB)"** beside the offline button
 is the opt-in: `{type:"precache", tiles:true}` makes `sw.js` read the tile index
 out of the payload it just cached and add every tile it names — one list, not
 two, the same rule the script list follows. A tile that will not cache is a hole
@@ -3643,6 +3788,174 @@ and §4 asked for. **So the renderer switch was NOT built,
 The probe is committed so the next person can re-measure in one command rather
 than re-derive it.
 
+
+## v24 — the 3D round: the black band, the drape floor, and what a frame costs
+
+Contract: the engineer's own report after days on a real GPU — *"the base layers
+are pixelated up close; there seems to be a rendering issue with how smoothly I
+can view things in 3D; there is a black boundary between how you are stitching
+the mine area to the rest, a black border which sometimes goes away."* No kernel
+work (`js/compute.js` is not touched; `VERSION` stays 10). `tools/build_tiles.py`,
+`datajs/tiles/` (+823 files), `js/terrain3d.js`, `js/viewer3d.js`, `js/pick3d.js`;
+harness sections **band** and **frames** in `test/terrain3d.mjs` and two new shots
+in `test/terrain_shots.mjs`.
+
+### 1. THE BLACK BAND WAS IN THE PAYLOAD, NOT IN THE RENDERER
+
+`tools/build_tiles.py` cut the fine ortho level (z0, 1 ft/px) from the FINE
+SOURCES ALONE — `ortho_mine` and `ortho_abp` — and `build_image` starts each tile
+at `np.zeros`. A tile that straddles the edge of the 6-in photography therefore
+carried hard black outside it: **177 fully-black columns in `ortho/0/7/*`, 16 in
+`ortho/0/18/*`, 127 black rows in `ortho/0/12/32`, 80 in `ortho/0/12/17`.** And
+`drapeCompose` in `js/terrain3d.js` paints the fine tile OVER the stretched coarse
+ancestor, so the black won. `ortho_mine`'s rectangle IS `dem_abp`'s
+(E 6370069–6372941, N 2127238–2131120), which is why the line traced the 1-ft
+window on all four sides.
+
+**"Sometimes goes away" is the LOD, and it is the diagnostic.** Only a DEM tile
+fine enough for `drapePlan` to reach a fine ortho level drapes from one at all —
+at `std` over the whole site the drawn set is 32- and 64-ft tiles and there is no
+band. Measured, rendered, over the east edge at `high`: **158 ft of continuous
+black before, 6 ft after** (and the south edge 716 ft before, 78 ft after, all 78
+of it real conifer shadow — see the threshold rule below).
+
+The fix is `require` on `build_image`: paint EVERY source coarsest-first, and
+write the tile only where a required (fine) source reaches. The tile SET and the
+tile RANGE come from the required sources, so the level still exists only over
+the photography and the count did not move (192 z0 tiles, 2.76 → 2.80 MB).
+
+- **Do not re-introduce a fine level built from fine sources alone.** A JPEG has
+  no alpha, so an unpainted pixel is black and the renderer cannot tell it from
+  photography. The guard is `test/terrain3d.mjs --only band`.
+- **The harness threshold is BLACK (luma 14), not dark (40).** The 6-in ortho's
+  dense conifer canopy sits at luma 20-40 and runs for hundreds of feet on this
+  site; at 40 the first cut of the test reported 304 ft of "band" across a window
+  edge with nothing wrong with it. 14 is under every pixel of the photograph and
+  over none of the unpainted ones.
+- **And it is measured against SIX CONTROL LINES** at ±60, ±150 and ±300 ft, not
+  against an absolute: the band is ~16-86 ft wide and sits ON the boundary, so
+  every control is clear of it and over the same ground. One control at 150 ft
+  landed on open grass at the south edge and read the canopy as a band.
+- **The dist never had it.** A single-file build ships the 30 kB index and no tile
+  payloads, and `SBMM.tiles` `synthImage` draws every overlapping source with
+  `drawImage`'s own source-rect clipping — so the synthesised tile is complete.
+  The band was a FOLDER-build (and GitHub Pages) defect only.
+- **The overlay linework is switched off for the scan**, because the drape is what
+  is being measured; the layer state is snapshotted with
+  `SBMM.layerState.serialize()` and restored with `restore()`, never with
+  `setGroup(g, true)` — a master switch turns rows ON that were deliberately off
+  (the 1.5-ft site ortho, the drainage rasters) and the `map2d` section that runs
+  after it then fails on a coarse raster painted over a fine one.
+
+### 2. THE PYRAMID'S FLOOR IS 0.25 ft/px, AND NEGATIVE z IS THE SCHEME'S OWN RULE
+
+The ortho pyramid stopped at z0 = 1 ft/px while the 2D map draws the same ground
+at 0.5 (the 6-in mine ortho) and 0.25 (the 3-in ABP crop). `cell = 2**z`, so the
+finer levels are **z -1 and z -2**: every index key is a string and every reader
+takes `Number()`, so only `tools/build_tiles.py` and `drapePlan` had to learn
+about them (`sw.js`'s tile precache walks `for (const z in L.levels)` and was
+already general).
+
+| | before | after |
+|---|---|---|
+| DEM z0 tile (1 ft cell) over the ABP | 1 ft/px | **0.25 ft/px** |
+| DEM z0 tile over the mine window | 1 | **0.5** |
+| DEM z1 tile (2 ft cell) over the mine window | 2 | **0.5** |
+| DEM z2 tile (4 ft cell) | 4 | 1 |
+| payload | 52.0 MB | **64.2 MB** (+12.2: 713 z -1 tiles, 110 z -2) |
+| drawn-set texture | 22-50 MB | **69-88 MB** (the budget is 150) |
+
+- **`drapeK` still bounds the TEXTURE, and no texture grew.** `drapePlan`'s cap
+  was `min(drapeK, z)` — the tile's own level — and is `min(drapeK, z - floor)`
+  now, so the plan is still at most `4^k` sub-tiles into a `256 * 2^k` px image:
+  1,024 px on a desktop, exactly as in v22. What changed is which tiles can reach
+  `k = 2` at all.
+- **AND THE FLOOR IS A SECOND, PER-PROFILE NUMBER** (`DRAPE_FLOOR` in
+  `js/viewer3d.js`, `-2` desktop / `0` tablet / `0` phone), because `drapeK`
+  alone is not enough: a tablet's own `k = 1` would have started reaching z -1
+  the moment the level existed — a 1-ft tile draping at 0.5 instead of 1, its
+  texture 512 px instead of 256 — with nothing in the code saying so. The
+  sharper drape is a DESKTOP change. `texBudget()` and `DRAPE_K` are untouched,
+  and that pair is what keeps `test/e2e_phone.mjs`, `test/e2e_field.mjs` and
+  `test/e2e_tablet.mjs` measuring the same app they measured before.
+- **The dist gets the fine levels for free**, because `synthImage` is
+  level-agnostic: it cuts the tile out of `i_ortho_mine` / `i_ortho_abp` at
+  whatever `rect(z, x, y)` says, so a z -2 tile is a 64-ft square of the 3-in
+  crop at 1:1. That is where the engineer's double-clicked copy gets its drape.
+- **`tools/build_tiles.py --layer ortho` cuts ONE layer** (2 min against 35) and
+  MERGES the index with the one on disk. `--only` used to delete every tile in
+  `datajs/tiles/` and write an index naming only the layers of that run, which
+  silently threw the other four pyramids away.
+- **`texFromImage` states its filtering** — mipmaps, `LinearMipmapLinearFilter`,
+  the renderer's own anisotropy cap. They were three's defaults already; stated,
+  because a later `minFilter = Linear` would look like sharpening rather than the
+  aliasing it is.
+- The drape assertions are location-independent now: a tile's picture is never
+  coarser than its own DEM cell, and its texture never exceeds `256 * 2^k`. An
+  assertion that restated `drapePlan` would prove nothing.
+
+### 3. `SBMM.viewer3d.frameStats()`, AND THE SELECTION THAT REBUILT THE SCENE
+
+`frameStats()` accumulates the MAIN-THREAD cost — per frame `render`, `labels`,
+`particles`, `sky`; per interaction the hover raycast (reported in by
+`js/pick3d.js` through `SBMM.viewer3d.noteHover`), the overlay rebuilds with how
+many were FULL, the draped polylines and ground samples they cost, and the terrain
+selects and swaps. `frameStats(true)` zeroes it. `diag()` — the **copy 3D
+diagnostics** button — opens with one line of it. GPU frame time cannot be judged
+on this box at all (SwiftShader), and that is exactly why the numbers ship: the
+next report arrives with the engineer's.
+
+**What they said:** `rebuildOverlays()` threw the whole scene away and rebuilt it
+on EVERY selection change. With the layer groups on that is **4,085-5,971 draped
+polylines and 425,000-913,000 ground samples, 76-141 ms of main thread**, for a
+click that changes the colour and width of one line.
+
+So `overlayGroup` is a CONTAINER of two groups: **`projGroup`** holds the
+read-only project data (the DUs, the piles, EA's GIS and CAD, the storm network,
+the drainage / accumulation / runoff / where-the-water-goes maps, the survey, the
+datasets, the samples, the trees, the cultural layers, the computed contours) and
+**`featGroup`** holds the user's own store features, which are the only things a
+selection can change. `rebuildOverlays(true)` rebuilds the feature half alone:
+**0.6-1.7 ms and five draped polylines.**
+
+- **`addG` is the group the current phase adds to**, and `SHW` / `OVL` are its
+  shadow sink and label list. The project sections are guarded with `PROJ &&` on
+  their own opening `if` — seventeen one-line edits rather than re-indenting 400
+  lines — and two assignments flip the phase around the store-feature block and
+  the design-surface loop. There are now TWO merged drop shadows, one per half,
+  same material and same `renderOrder`; the labels are `OVL_P.concat(OVL_F)`.
+- **`onSelect` AND `onChange` both rebuild the feature half only.** A store change
+  adds, removes or edits one of the user's own features and cannot reach the
+  project half. **A module whose OWN data changed asks for a full rebuild through
+  `SBMM.viewer3d.refreshOverlays()`** — `js/drainage.js`, `js/wherewater.js`,
+  `js/trees.js`, `js/datasets.js` already do, and that is what that entry point is
+  for. A new project-data module that draws in 3D must call it too, or its
+  geometry appears only at the next layer toggle.
+- **A harness that measures a selection must wait for the drainage kernels.**
+  Turning the framework group on starts `drainage` and `whereWater`, each of which
+  calls `refreshOverlays()` when it lands; measuring through that reads 60-90 ms
+  and four full rebuilds and blames the selection. Block 9y waits on the same two
+  for the same reason.
+- **There is no GPU leak on a rebuild** — measured, because it was the obvious
+  suspect: `renderer.info.memory.geometries` is 4,654 before and 4,654 after ten
+  selection changes. Recorded so nobody re-derives it.
+- **The desktop pixel ratio is capped at `min(dpr, 1.5)`**, remembered in
+  `SBMM.view.pref("pixelRatio")` (1..3) and re-applied on `resize()` (a window
+  dragged to another screen changes `devicePixelRatio`). A 4K laptop reports 2 and
+  was drawing four times the pixels of its own canvas; the terrain drape, the
+  overlay lines and the sky are all fill-bound. **The phone and tablet rule is
+  byte-for-byte what it was** (`min(2, dpr)`), for the same reason `texBudget()`
+  is.
+- Idle is unchanged and must stay so: nothing here asks for a frame. Block **9e**
+  (at most one render over four idle seconds) and `test/perf.mjs`'s idle-render
+  count are the guards.
+
+**Shots:** `node test/terrain_shots.mjs` gained `window_seam.png` (top-down over
+the east edge of the 1-ft window — the band ran down the middle of this frame) and
+`drape_mine_6in.png` (the 6-in ortho at its own 0.5 ft/px, clear of the ABP crop),
+and prints the drawn set's ft/px and texture cost beside each shot. Not pass-fail —
+look at them.
+
 ## v22 §G — the desktop 3D: the drape, the hitch, and the GPU
 
 Contract: `docs/V22_SPEC.md` §G. No kernel work (`js/compute.js` is not touched;
@@ -3655,6 +3968,11 @@ The engineer: *"graphics are rendering a bit slow when I move around … the
 entire site topo looks a bit pixelated when zooming in … seems like the desktop
 isn't taking full advantage of the GPU."* Three answers, and the third one is
 partly "it is, and here is the number".
+
+**Superseded in part by v24**: the ft/px table below was capped by v20's
+`drapePlan` at the tile's own level, so the floor was 1 ft/px everywhere. It is
+the pyramid's finest level now — 0.5 over the mine window, 0.25 over the ABP —
+and the drawn-set texture cost rose from 22-50 MB to **69-88 MB** (budget 150).
 
 ### THE DRAPE LEVEL IS A TEXTURE BUDGET, NOT THE MESH LEVEL
 

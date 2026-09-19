@@ -2123,88 +2123,137 @@ table.bltbl .cdot{display:inline-block;width:7px;height:7px;border-radius:2px;
 .bllines span:first-child{color:var(--gold);font-weight:600}
 
 /* ====================================================================== */
-/* v23 Phase A — the boring-log window (js/borewin.js)                     */
+/* v23 Phase A — the boring-log window (js/borewin.js), refined in v24      */
 /* ====================================================================== */
 /* The chassis is the sheet window's (.shwin), so only what is different is
-   here: the toolbar, the sticky header block, the scrolling drawing area and
-   the depth cursor. It lives in the same 4000-4899 band. */
-.blwin{min-width:520px;min-height:340px}
-.blwin .bwtools{display:flex;align-items:center;gap:8px;flex:none;padding:5px 9px;
-  border-bottom:1px solid var(--line);background:var(--panel2);font-size:11px}
-.blwin .bwtools .minib{padding:2px 8px;font-size:11px}
+   here: the toolbar, the header strip, the fixed column-heading band, the
+   scrolling drawing area and the depth cursor. Same 4000-4899 band.
+
+   ONE TYPOGRAPHIC SCALE (v24 §2 item 1). Three sizes and one heading, on an
+   8-px spacing grid, and no ad-hoc font-size anywhere in this block. A window
+   carrying four sizes of small text reads as unfinished whatever else is right
+   about it, and that was half of what the engineer saw. Every number is
+   tabular — a column of figures that shifts as it updates is a column nobody
+   can scan. */
+.blwin{--bl-s:11px;--bl-m:12.5px;--bl-l:14px;--bl-h:18px;--bl-u:8px;
+  min-width:520px;min-height:340px}
+.blwin .bwtools{display:flex;align-items:center;gap:var(--bl-u);flex:none;
+  padding:6px var(--bl-u);border-bottom:1px solid var(--line);background:var(--panel2);
+  font-size:var(--bl-s)}
+.blwin .bwtools .minib{padding:3px 8px;font-size:var(--bl-s)}
 .blwin .bwlbl{display:inline-flex;align-items:center;gap:4px;color:var(--mut);white-space:nowrap}
 .blwin .bwlbl select{background:var(--panel3);color:var(--ink2);border:1px solid var(--line);
-  border-radius:4px;font:inherit;font-size:11px;padding:1px 4px}
+  border-radius:4px;font:inherit;font-size:var(--bl-s);padding:2px 4px}
 .blwin .bwtabs{display:inline-flex;gap:2px;padding:1px;background:var(--panel3);
   border:1px solid var(--line);border-radius:6px}
 .blwin .bwtabs .minib{background:none;border:0}
 .blwin .bwtabs .minib.active{background:var(--acc);color:#06222C;font-weight:650}
 
+/* STATES (v24 §2 item 6): every control answers the pointer and the keyboard,
+   and one with nothing to do is visibly out of service rather than silently
+   inert. :focus-visible only — a mouse click must not leave a ring behind. */
+.blwin .minib:hover:not(:disabled){border-color:var(--acc2);color:var(--acc2)}
+.blwin .minib:focus-visible,.blwin select:focus-visible,.blwin input:focus-visible,
+.blwin .bwchip:focus-within{outline:2px solid var(--acc);outline-offset:1px}
+.blwin .minib:disabled,.blwin .minib.off{opacity:.38;cursor:not-allowed}
+.blwin .minib:disabled:hover,.blwin .minib.off:hover{border-color:var(--line);color:var(--mut)}
+
 /* the hole picker */
 .blwin .bwpickwrap{position:relative;flex:none}
 .blwin .bwpick{width:104px;background:var(--panel3);border:1px solid var(--line);
-  border-radius:5px;color:var(--ink);font:inherit;font-size:11px;padding:3px 7px}
+  border-radius:5px;color:var(--ink);font:inherit;font-size:var(--bl-s);padding:3px 7px}
 .blwin .bwpick:focus{outline:none;border-color:var(--acc)}
-.blwin .bwmenu{position:absolute;top:100%;left:0;margin-top:4px;z-index:5;width:230px;
+.blwin .bwmenu{position:absolute;top:100%;left:0;margin-top:4px;z-index:5;width:248px;
   max-height:340px;overflow:auto;background:var(--panel2);border:1px solid var(--line2);
   border-radius:var(--r2);box-shadow:var(--sh3);padding:3px}
-.blwin .bwgrp{font-size:10px;text-transform:uppercase;letter-spacing:.07em;color:var(--mut2);
-  padding:5px 7px 2px}
-.blwin .bwopt{display:flex;align-items:center;gap:7px;padding:3px 7px;border-radius:4px;cursor:pointer}
-.blwin .bwopt:hover{background:var(--panel3)}
+.blwin .bwgrp{font-size:var(--bl-s);text-transform:uppercase;letter-spacing:.07em;
+  color:var(--mut2);padding:6px 7px 2px}
+.blwin .bwopt{display:flex;align-items:center;gap:7px;padding:4px 7px;border-radius:4px;cursor:pointer}
+.blwin .bwopt:hover,.blwin .bwopt.sel{background:var(--panel3)}
+.blwin .bwopt.sel{box-shadow:inset 0 0 0 1px var(--acc)}
 .blwin .bwopt.on{background:var(--accdim)}
-.blwin .bwopt b{font-size:11.5px;color:var(--ink)}
-.blwin .bwopt .mut{font-size:10px;margin-left:auto}
+.blwin .bwopt b{font-size:var(--bl-m);color:var(--ink);font-variant-numeric:tabular-nums}
+.blwin .bwopt .mut{font-size:var(--bl-s);margin-left:auto;font-variant-numeric:tabular-nums}
 .blwin .bwmini{flex:none;line-height:0}
+.blwin .bwid{cursor:pointer}
 
-/* the header block — sticky, because the identity of the hole must stay on
-   screen while 126 ft of log scrolls past it */
-.blwin .bwhead{flex:none;border-bottom:1px solid var(--line);background:var(--panel);
-  padding:6px 9px 7px}
-.blwin .bwhrow{display:flex;flex-wrap:wrap;gap:2px 0}
+/* THE HEADER STRIP: six facts, the depth-cursor readout, the rest behind
+   `more`, and under them the column headings, which do not scroll. */
+.blwin .bwhead{flex:none;border-bottom:1px solid var(--line);background:var(--panel)}
+.blwin .bwfacts{display:flex;flex-wrap:wrap;align-items:stretch;gap:2px 0;padding:6px var(--bl-u) 0}
+/* the depth-cursor readout gets its OWN row: it is the one fact that changes
+   as the pointer moves, and a fact that reflows the strip it sits in moves
+   every other fact with it */
+.blwin .bwcurrow{display:flex;align-items:center;gap:var(--bl-u);
+  padding:2px var(--bl-u) 6px}
+.blwin .bwmorebox{display:flex;flex-wrap:wrap;gap:2px 0;padding:0 var(--bl-u) 6px;
+  border-top:1px dashed var(--line)}
 .blwin .bwhid{flex:none;min-width:130px;padding:2px 12px 2px 2px;border-right:1px solid var(--line)}
-.blwin .bwhid b{font-size:17px;color:var(--acc2);letter-spacing:.4px;display:block;line-height:1.15}
-.blwin .bwhid .mut{font-size:10.5px}
+.blwin .bwhid b{font-size:var(--bl-h);color:var(--acc2);letter-spacing:.4px;display:block;
+  line-height:1.15;font-variant-numeric:tabular-nums}
+.blwin .bwhid .mut{font-size:var(--bl-s)}
 .blwin .bwf{flex:none;min-width:104px;padding:1px 11px;border-right:1px solid var(--line)}
 .blwin .bwf:last-child{border-right:0}
-.blwin .bwf span{display:block;font-size:9px;text-transform:uppercase;letter-spacing:.06em;
-  color:var(--mut2)}
-.blwin .bwf b{font-family:var(--mono);font-size:11.5px;color:var(--ink);font-weight:600;
-  font-variant-numeric:tabular-nums}
+/* DIRECT children only: the readout's own value carries <span>s of its own,
+   and `display:block` on those stacked the whole reading down the strip */
+.blwin .bwf > span{display:block;font-size:var(--bl-s);text-transform:uppercase;
+  letter-spacing:.06em;color:var(--mut2);line-height:1.5}
+.blwin .bwf b{font-family:var(--mono);font-size:var(--bl-m);color:var(--ink);font-weight:600;
+  font-variant-numeric:tabular-nums;line-height:1.4}
 .blwin .bwf .mut{font-weight:400}
-.blwin .bwf .warnpill{font-size:9px;padding:0 4px}
-.blwin .bwflags{display:inline-block;margin-top:5px;font-size:10px}
+.blwin .bwf .warnpill{font-size:var(--bl-s);padding:0 4px}
+/* the readout takes the rest of the row, so a long one never wraps the strip */
+.blwin .bwread{flex:1 1 auto;min-width:0;border-right:0;padding-left:2px;
+  display:flex;align-items:baseline;gap:var(--bl-u);overflow:hidden}
+.blwin .bwread > span{flex:none}
+.blwin .bwread b{font-weight:400;white-space:nowrap;overflow:hidden;
+  text-overflow:ellipsis;display:block;min-width:0}
+.blwin .bwread b span{display:inline}
+.blwin .bwread b .gold{color:var(--gold);font-weight:600}
+.blwin .bwread b .mut{color:var(--mut)}
+.blwin .bwmoreb{align-self:center;flex:none;margin-left:auto}
+.blwin .bwflags{flex:0 0 100%;margin-top:5px;font-size:var(--bl-s)}
+.blwin .bwheadstrip{flex:none;overflow:hidden;padding:0 var(--bl-u);background:var(--panel)}
+.blwin .bwheadstrip svg{display:block}
+
+/* the id chip names a HOLE; the Fence tab is not about one, and its title
+   carries the fence's own name */
+.blwin.bwtab-fence .bwid{display:none}
+.blwin .shtitle{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:46%}
 
 /* the drawing area */
-.blwin .bwbody{flex:1;position:relative;overflow:auto;background:#12191E;padding:8px}
+.blwin .bwbody{flex:1;position:relative;overflow:auto;background:#12191E;padding:var(--bl-u)}
 .blwin .bwart{position:relative}
 .blwin .bwsvg{display:block}
 .blwin .bwsvg text{font-variant-numeric:tabular-nums}
 .blwin .blgl:hover{stroke:var(--acc);stroke-width:1.6}
 
-/* the depth cursor: one rule across every column, with both axes in the chip */
+/* the depth cursor: a hairline only — its readout lives in the header strip,
+   where it cannot land on the drawing it describes */
 .blwin .bwcur{position:absolute;left:0;right:0;pointer-events:none;z-index:3}
 .blwin .bwcur i{position:absolute;left:0;right:0;top:0;height:1px;
   background:rgba(255,211,77,.75);display:block}
-.blwin .bwcur b{position:absolute;left:8px;top:-9px;background:rgba(13,18,21,.94);
-  border:1px solid var(--line2);border-radius:4px;padding:1px 7px;font-size:10.5px;
-  color:var(--ink);font-weight:400;white-space:nowrap;font-variant-numeric:tabular-nums}
-.blwin .bwcur b .mono{color:var(--gold);font-weight:600}
+.blwin .bwcur.pinned i{height:1px;background:var(--gold);box-shadow:0 0 0 1px rgba(255,211,77,.25)}
 
 /* compare */
-.blwin .bwcmpsel{display:flex;flex-wrap:wrap;gap:4px;margin-top:10px;padding-top:8px;
-  border-top:1px solid var(--line)}
-.blwin .bwchip{display:inline-flex;align-items:center;gap:4px;font-size:10.5px;
-  border:1px solid var(--line);border-radius:11px;padding:1px 8px 1px 5px;color:var(--mut);
-  cursor:pointer;font-family:var(--mono)}
+.blwin .bwempty{padding:28px var(--bl-u);text-align:center}
+.blwin .bwempty b{display:block;font-size:var(--bl-l);color:var(--ink2);margin-bottom:4px}
+.blwin .bwempty span{font-size:var(--bl-m)}
+.blwin .bwcmpsel{display:flex;flex-wrap:wrap;align-items:center;gap:4px;margin-top:16px;
+  padding-top:var(--bl-u);border-top:1px solid var(--line)}
+.blwin .bwchip{display:inline-flex;align-items:center;gap:4px;font-size:var(--bl-s);
+  border:1px solid var(--line);border-radius:11px;padding:2px 8px 2px 5px;color:var(--mut);
+  cursor:pointer;font-family:var(--mono);font-variant-numeric:tabular-nums}
+.blwin .bwchip:hover{border-color:var(--acc2);color:var(--ink2)}
 .blwin .bwchip.on{border-color:var(--acc);color:var(--acc2);background:var(--accdim)}
 .blwin .bwchip input{margin:0;width:11px;height:11px}
 
 /* the table tab */
-.blwin .bwtbar{display:flex;align-items:center;gap:12px;margin-bottom:7px;font-size:11px}
-.blwin .bwtbl{width:100%;font-size:11px}
+.blwin .bwtbar{display:flex;align-items:center;gap:12px;margin-bottom:var(--bl-u);
+  font-size:var(--bl-s)}
+.blwin .bwtbl{width:100%;font-size:var(--bl-s);font-variant-numeric:tabular-nums}
 .blwin .bwtbl th{position:sticky;top:-8px;background:var(--panel2);z-index:2;cursor:pointer;
-  white-space:nowrap;font-size:10px;text-transform:uppercase;letter-spacing:.05em}
+  white-space:nowrap;font-size:var(--bl-s);text-transform:uppercase;letter-spacing:.05em}
 .blwin .bwtbl th.on{color:var(--acc2)}
 .blwin .bwtbl tbody tr{cursor:pointer}
 .blwin .bwtbl tbody tr:hover{background:var(--panel3)}
@@ -2218,6 +2267,7 @@ body.touch .blwin .bwtools{flex-wrap:wrap;row-gap:4px}
 body.touch .blwin .bwtools .minib,
 body.touch .blwin .bwtabs .minib{min-height:36px;padding:0 11px}
 body.touch .blwin .bwcur{display:none}
+body.touch .blwin .bwread{display:none}
 body.field .blwin{border-radius:0}
 body.field .blwin .bwtools .minib[data-b="printall"],
 body.field .blwin .bwtools .minib[data-b="printarea"]{display:none}
