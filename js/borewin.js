@@ -1029,9 +1029,14 @@ SBMM.borewin = (function () {
       .sort((a, b) => Math.abs(a.depth - ft) - Math.abs(b.depth - ft))[0];
     W.cursor.hidden = false;
     W.cursor.style.top = (y + W.art.offsetTop) + "px";
-    W.cursor.dataset.ft = ft.toFixed(2);
+    /* FOUR DECIMALS, NOT TWO. The readout prints fmt(ft, 1) of the real value
+       and a harness re-derives that from this attribute — at two decimals a
+       depth of 6.2499 is stored as "6.25", which formats to 6.3 while the
+       readout says 6.2, and the assertion fails on a rounding boundary rather
+       than on anything about the cursor. */
+    W.cursor.dataset.ft = ft.toFixed(4);
     W.cursor.dataset.uscs = s2 ? (s2.uscs || "") : "";
-    out.dataset.ft = ft.toFixed(2);
+    out.dataset.ft = ft.toFixed(4);
     out.querySelector("b").innerHTML =
       `<span class="mono gold">${fmt(ft, 1)} ft</span>`
       + (h.elev != null ? ` <span class="mono">${fmt(h.elev - ft, 1)} ft</span>` : "")
