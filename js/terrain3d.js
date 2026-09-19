@@ -270,9 +270,25 @@ SBMM.terrain3d = (function () {
      and the rest of the site from the 2-ft one without either being asked for.
      Returns null when nothing finer than the tile's own level exists, and the
      single-texture path above answers instead. */
+  /* THE PYRAMID'S FLOOR IS NOT LEVEL 0 (v24). `cell = 2**z`, so z -1 is
+     0.5 ft/px and z -2 is 0.25 ft/px, and tools/build_tiles.py cuts both over
+     the 6-in mine ortho and the 3-in ABP crop. Capping k at `z` was what kept
+     the drape's floor at 1 ft/px while the 2D map drew the same ground at 0.5
+     and 0.25 — the "pixelated up close" report. The cap is the pyramid's own
+     finest level now; `drapeK` still bounds the TEXTURE (256 * 2^k px, so
+     1,024 px on a desktop exactly as in v22), which is why the memory does not
+     move. */
+  let _orthoFloor = null;
+  function orthoFloor() {
+    if (_orthoFloor == null) {
+      const lv = SBMM.tiles.levels("ortho");      // coarsest first
+      _orthoFloor = lv.length ? lv[lv.length - 1] : 0;
+    }
+    return _orthoFloor;
+  }
   function drapePlan(z, x, y) {
     if (!SBMM.tiles.levels("ortho").length) return null;
-    const kMax = Math.min(ctx.drapeK ? ctx.drapeK() : 0, z);
+    const kMax = Math.min(ctx.drapeK ? ctx.drapeK() : 0, z - orthoFloor());
     for (let k = kMax; k >= 1; k--) {
       const zf = z - k;
       if (!SBMM.tiles.levelInfo("ortho", zf)) continue;
@@ -339,10 +355,18 @@ SBMM.terrain3d = (function () {
     return { tex: texFromImage(cv), px: side, ftPerPx: SBMM.tiles.cellOf(plan.z), composed: true };
   }
 
+  /* Mipmaps, trilinear and the renderer's own anisotropy cap — stated rather
+     than left to three's defaults, because the three of them together are what
+     a drape at a grazing angle is made of and a future `minFilter = Linear`
+     would look like a sharpening rather than the aliasing it is. Every drape
+     here is 256, 512 or 1,024 px square, so mipmaps are always available. */
   function texFromImage(img) {
     const t = img instanceof HTMLCanvasElement ? new THREE.CanvasTexture(img) : new THREE.Texture(img);
     t.colorSpace = THREE.SRGBColorSpace;
     t.flipY = true;                    // image row 0 = north, uv v = 0 = south
+    t.generateMipmaps = true;
+    t.minFilter = THREE.LinearMipmapLinearFilter;
+    t.magFilter = THREE.LinearFilter;
     t.needsUpdate = true;
     t.anisotropy = ctx.maxAniso ? ctx.maxAniso() : 1;
     t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping;

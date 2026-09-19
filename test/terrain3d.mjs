@@ -19,6 +19,8 @@
 
      drape     the ground resolution of the picture on every drawn tile, and
                the texture memory the drawn set costs
+     band      the v24 black band: the 1-ft window's own boundary, rendered and
+               measured against a control line 150 ft inside it
      meshport  the tile mesh built in the worker against the same function
                called inline, element for element
      geomcache a camera move away and back rebuilds no geometry
@@ -27,13 +29,14 @@
    Slow under software GL on purpose — the timeouts come from test/lib/browser.mjs
    and SBMM_GPU=1 drops them. */
 import { launch, TIMEOUT } from "./lib/browser.mjs";
+import { decodePNG } from "./lib/png.mjs";
 import { pathToFileURL } from "node:url";
 import { resolve } from "node:path";
 import { unlock } from "./gate.mjs";
 
 const target = process.argv[2], label = process.argv[3] || "folder";
 const SECTIONS = ["lod", "quality", "onefoot", "idle", "gpu", "seams",
-                  "drape", "meshport", "geomcache", "map2d"];
+                  "drape", "band", "meshport", "geomcache", "map2d"];
 if (process.argv.includes("--list")) { console.log(SECTIONS.join(" ")); process.exit(0); }
 let only = null;
 if (process.argv.includes("--only")) only = new Set(process.argv[process.argv.indexOf("--only") + 1].split(","));
@@ -265,13 +268,21 @@ if (want("seams")) {
        required would be caught wherever it happened. */
 if (want("drape")) {
   console.log("\n== drape — feet per texel on the ground (v22 §G) ==");
-  const r = await page.evaluate(async () => {
+  /* SETTLE ON THE QUEUE, NOT ON THE CLOCK. The drape of a tile is composited
+     from up to 16 ortho tiles, each of which may still be loading; read too
+     early and the tile reports its coarse fallback (0.5 instead of 0.25 over
+     the ABP), which reads exactly like the pyramid not having the level. */
+  await page.evaluate(async () => {
     const sel = document.getElementById("v3dDetail");
     sel.value = "high"; await sel.onchange();
     SBMM.viewer3d.openAt(6371700, 2128900);
     await new Promise(r => setTimeout(r, 600));
     SBMM.viewer3d.frameBox(6371600, 2128800, 6371800, 2129000);
-    await new Promise(r => setTimeout(r, 3000));
+    await new Promise(r => setTimeout(r, 4500));
+  });
+  await page.waitForFunction(() => SBMM.tiles.stats().queued === 0, null, { timeout: TIMEOUT });
+  await page.waitForTimeout(1500);
+  const r = await page.evaluate(async () => {
     const m = SBMM.demAbp.m;
     const mine = [m.x0, m.y0, m.x0 + m.w * m.cell, m.y0 + m.h * m.cell];
     const over = t => !(t.rect[2] <= mine[0] || t.rect[0] >= mine[2]
@@ -301,12 +312,39 @@ if (want("drape")) {
   }
   console.log("   drawn-set texture memory:", r.texMB, "MB   (three reports",
     r.gpuTextures, "textures)");
-  ok("the tile under the view centre draws the mine imagery at 1 ft/px or better",
-    !!r.under && r.under.ftPerPx <= 1, r.under ? `z${r.under.z} ${r.under.ftPerPx} ft/px` : "no tile");
-  const bad = r.tiles.filter(t => t.ftPerPx != null
-    && t.ftPerPx > Math.max(1, t.cellFt / Math.pow(2, r.drapeK)));
-  ok("no tile drapes coarser than its own budget allows", bad.length === 0,
-    bad.length ? JSON.stringify(bad.slice(0, 3)) : 0);
+  /* v24: the pyramid's floor is 0.25 ft/px over the 3-in ABP crop and 0.5 over
+     the 6-in mine ortho — the 2D map's own two resolutions. Until v24 it was
+     1 ft/px everywhere, which is what "pixelated up close" was. */
+  ok("the tile under the view centre draws the ABP at 0.25 ft/px (the 3-in crop)",
+    !!r.under && r.under.ftPerPx <= 0.25, r.under ? `z${r.under.z} ${r.under.ftPerPx} ft/px` : "no tile");
+  await page.evaluate(async () => {
+    /* the mine window well outside the ABP crop: the 6-in ortho's own 0.5 ft/px */
+    SBMM.viewer3d.frameBox(6370400, 2130300, 6370600, 2130500);
+    await new Promise(r => setTimeout(r, 3500));
+  });
+  await page.waitForFunction(() => SBMM.tiles.stats().queued === 0, null, { timeout: TIMEOUT });
+  await page.waitForTimeout(1500);
+  const mineOnly = await page.evaluate(async () => {
+    const has = (t, x, y) => x >= t.rect[0] && x < t.rect[2] && y >= t.rect[1] && y < t.rect[3];
+    const t = SBMM.terrain3d.drawnTiles().filter(t => has(t, 6370500, 2130400))
+      .sort((a, b) => a.z - b.z)[0] || null;
+    return { t, floor: Math.pow(2, SBMM.tiles.levels("ortho").slice(-1)[0]) };
+  });
+  ok("a tile over the 6-in mine ortho drapes at 0.5 ft/px",
+    !!mineOnly.t && mineOnly.t.ftPerPx <= 0.5,
+    mineOnly.t ? `z${mineOnly.t.z} ${mineOnly.t.ftPerPx} ft/px` : "no tile");
+  ok("the ortho pyramid's finest level is 0.25 ft/px", mineOnly.floor === 0.25, mineOnly.floor);
+  /* Two location-independent halves, because the pyramid's floor is now a
+     property of WHERE a tile is (0.25 over the ABP, 0.5 over the mine window,
+     2 elsewhere) and an assertion that restates drapePlan proves nothing:
+     the picture is never coarser than the mesh under it, and the texture never
+     exceeds the profile's own 256 * 2^k px. */
+  const coarse = r.tiles.filter(t => t.ftPerPx != null && t.ftPerPx > t.cellFt);
+  ok("no tile's drape is coarser than its own DEM cell", coarse.length === 0,
+    coarse.length ? JSON.stringify(coarse.slice(0, 3).map(t => [t.z, t.cellFt, t.ftPerPx])) : 0);
+  const big = r.tiles.filter(t => t.texPx > 256 * Math.pow(2, r.drapeK));
+  ok("no tile's texture exceeds the profile's budget", big.length === 0,
+    big.length ? big.slice(0, 3).map(t => t.texPx).join("/") : 256 * Math.pow(2, r.drapeK));
   ok("every drawn tile got a drape", r.tiles.every(t => t.ftPerPx != null),
     r.tiles.filter(t => t.ftPerPx == null).length + " without");
   ok("the drawn set stays inside the 150 MB texture budget", r.texMB < 150, r.texMB);
@@ -317,6 +355,147 @@ if (want("drape")) {
    implementation — js/dem.js's demTileMeshMain, stringified into the worker
    and called inline as the fallback — so this compares the two THREADS rather
    than two loops, which is what makes "they cannot disagree" checkable. */
+/* ---------------------------------------------------------------- band ---- */
+/* v24 — THE BLACK BAND. The 1-ft mine window (dem_abp, which is also the 6-in
+   ortho's rectangle) was traced on the ground by a hard black line on all four
+   sides, "sometimes going away". The cause was in the PAYLOAD, not the
+   renderer: tools/build_tiles.py cut the fine ortho levels from the fine
+   sources ALONE, so every pixel of an edge tile outside the 6-in photography
+   was (0,0,0) — 177 black columns in ortho/0/7/*, 16 in ortho/0/18/*, 127 rows
+   in ortho/0/12/32 — and js/terrain3d.js composites the fine tile OVER the
+   stretched coarse ancestor, so the black won. "Sometimes" was the LOD: only a
+   DEM tile fine enough to reach a fine ortho level drapes from one at all.
+
+   MEASURED AGAINST A CONTROL LINE, never against an absolute. The photograph
+   has its own dark features — a tree shadow, the vegetation line, a wet ditch —
+   and an absolute "no dark pixel on this line" fails on the site itself. What a
+   band IS, and what a shadow is not, is a LONG CONTINUOUS straight dark run, so
+   the statistic is the longest run of consecutive boundary samples that are
+   dark, compared with the same run on a line 150 ft inside the window over the
+   same kind of ground. */
+if (want("band")) {
+  console.log("\n== band — the 1-ft window's boundary on the ground (v24) ==");
+  const W = [6370069, 2127238, 6372941, 2131120];          // dem_abp = ortho_mine
+  const STEP = 2;                                          // ft between samples
+
+  async function scan(detail, edge, box) {
+    await page.evaluate(async d => {
+      const sel = document.getElementById("v3dDetail");
+      if (sel.value !== d) { sel.value = d; await sel.onchange(); }
+      SBMM.viewer3d.preset("top");
+      await new Promise(r => setTimeout(r, 1200));
+    }, detail);
+    await page.evaluate(b => SBMM.viewer3d.frameBox(b[0], b[1], b[2], b[3]), box);
+    await page.waitForTimeout(3500);
+    await page.waitForFunction(() => SBMM.tiles.stats().queued === 0, null, { timeout: TIMEOUT });
+    await page.waitForTimeout(2000);
+
+    const geo = await page.evaluate(([w, edge, step]) => {
+      const r = document.getElementById("v3dCanvas").getBoundingClientRect();
+      const vert = edge === "E" || edge === "W";
+      const line = (off) => {                 // off ft INBOARD of the boundary
+        const out = [];
+        if (vert) {
+          const x = (edge === "E" ? w[2] - off : w[0] + off);
+          for (let y = w[1]; y <= w[3]; y += step) out.push([x, y]);
+        } else {
+          const y = (edge === "N" ? w[3] - off : w[1] + off);
+          for (let x = w[0]; x <= w[2]; x += step) out.push([x, y]);
+        }
+        return out.map(p => {
+          const e = SBMM.elev(p[0], p[1]);
+          const z = Array.isArray(e) ? e[0] : e;
+          if (z == null || isNaN(z)) return null;
+          const s = SBMM.viewer3d.screenAt(p[0], p[1], z);
+          return s && isFinite(s[0]) && isFinite(s[1]) ? [s[0], s[1]] : null;
+        });
+      };
+      const st = SBMM.viewer3d.stats();
+      /* SIX CONTROL LINES, not one. The band is at most ~23 ft wide and sits ON
+         the boundary, so a line 60 ft either side of it is clear of the band and
+         over the same ground; the photograph's own black (deep conifer shadow,
+         which really does go under luma 14 on this site) is on all seven. One
+         control at 150 ft happened to land on open ground at the south edge and
+         reported 78 ft of "band" where there is none. */
+      return { rect: [r.left, r.top, r.right, r.bottom], edgeLine: line(0),
+               ctrlLines: [60, 150, 300, -60, -150, -300].map(line),
+               byLevel: st.tiles.byLevel, ftpp: st.tiles.drapeFtPerPx };
+    }, [W, edge, STEP]);
+
+    const img = decodePNG(await page.screenshot());
+    const { w: iw, h: ih, channels: ch, data } = img;
+    const lum = (x, y) => {
+      x = Math.round(x); y = Math.round(y);
+      if (x < 0 || y < 0 || x >= iw || y >= ih) return null;
+      const k = (y * iw + x) * ch;
+      return 0.299 * data[k] + 0.587 * data[k + 1] + 0.114 * data[k + 2];
+    };
+    /* BLACK, NOT DARK. The band was literally (0,0,0) — an unpainted pixel in
+       a fine ortho tile. The 6-in photography's own dense conifer canopy sits
+       around luma 20-40 and runs for hundreds of feet on this site, so a
+       threshold anywhere near 40 measures the trees: the first cut of this
+       test read 304 ft of "band" across the south edge of a window with
+       nothing wrong with it. 14 is under every pixel of the photograph and
+       over none of the unpainted ones. */
+    const DARK = 14, PAD = 24;
+    const runOf = pts => {
+      let run = 0, best = 0, tested = 0;
+      for (const p of pts) {
+        if (!p || p[0] < geo.rect[0] + PAD || p[1] < geo.rect[1] + PAD
+              || p[0] > geo.rect[2] - PAD || p[1] > geo.rect[3] - PAD) { run = 0; continue; }
+        tested++;
+        let dark = false;
+        for (let d = -3; d <= 3 && !dark; d++)
+          for (const q of [[p[0] + d, p[1]], [p[0], p[1] + d]])
+            if ((lum(q[0], q[1]) ?? 255) < DARK) { dark = true; break; }
+        if (dark) { run++; if (run > best) best = run; } else run = 0;
+      }
+      return { best, tested };
+    };
+    const e = runOf(geo.edgeLine);
+    const cs = geo.ctrlLines.map(runOf);
+    const c = cs.reduce((a, b) => (b.best > a.best ? b : a), { best: 0, tested: 0 });
+    console.log(`   ${detail.padEnd(4)} ${edge}  byLevel ${JSON.stringify(geo.byLevel)}`
+      + ` ftpp ${JSON.stringify(geo.ftpp)}`
+      + `  boundary: longest black run ${e.best} samples (${e.best * STEP} ft) of ${e.tested}`
+      + `  ·  worst of 6 controls ±60/150/300 ft: ${c.best} (${c.best * STEP} ft)`
+      + `  [${cs.map(x => x.best).join(",")}]`);
+    return { edge: e, ctrl: c, detail, side: edge };
+  }
+
+  /* THE OVERLAYS ARE SWITCHED OFF FOR THIS SCAN. The band is on the GROUND —
+     it is the drape — and measuring the drape through the decision-unit
+     outlines, the storm network and the survey linework is measuring something
+     else. (They were not what made the first cut of this test fail; the dense
+     conifer canopy in the 6-in ortho was, which is what the threshold below is
+     for.) */
+  const GROUPS = ["framework", "design", "invest", "mywork", "cultural"];
+  await page.evaluate(async gs => {
+    for (const g of gs) SBMM.layerState.setGroup(g, false);
+    await new Promise(r => setTimeout(r, 1500));
+  }, GROUPS);
+  const mid = [(W[0] + W[2]) / 2, (W[1] + W[3]) / 2];
+  const runs = [];
+  runs.push(await scan("high", "E", [W[2] - 400, mid[1] - 260, W[2] + 400, mid[1] + 260]));
+  runs.push(await scan("std",  "E", [W[2] - 400, mid[1] - 260, W[2] + 400, mid[1] + 260]));
+  runs.push(await scan("high", "S", [mid[0] - 400, W[1] - 260, mid[0] + 400, W[1] + 260]));
+  /* 200 ft of continuous BLACK on the window edge is a band — before v24 the
+     east edge alone ran unbroken for the whole visible height of the frame. The
+     control lines carry the site's own black and set the second bar. */
+  const MAX_FT = 200;
+  for (const r of runs) {
+    const ft = r.edge.best * STEP;
+    ok(`no dark band on the ${r.side} edge at ${r.detail}`,
+      r.edge.tested > 40 && ft <= MAX_FT, `${ft} ft over ${r.edge.tested} samples`);
+    ok(`the ${r.side} edge at ${r.detail} is no blacker than the ground beside it`,
+      r.edge.best <= Math.max(20, r.ctrl.best * 1.5), `${r.edge.best} vs ${r.ctrl.best}`);
+  }
+  await page.evaluate(async gs => {
+    for (const g of gs) SBMM.layerState.setGroup(g, true);
+    await new Promise(r => setTimeout(r, 1500));
+  }, GROUPS);
+}
+
 if (want("meshport")) {
   console.log("\n== meshport — the mesh built in the worker against the same call inline ==");
   const r = await page.evaluate(async () => {

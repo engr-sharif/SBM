@@ -3,7 +3,7 @@
 Build the v20 tile pyramids:  data/*.png|jpg  ->  datajs/tiles/
 
     python tools/build_tiles.py                 # every layer
-    python tools/build_tiles.py --only dem,ortho
+    python tools/build_tiles.py --only dem,ortho   # or --layer ortho: one layer, index merged
     python tools/build_tiles.py --dry-run       # counts and bytes, writes nothing
 
 WHY THIS EXISTS (docs/V20_TERRAIN_SPEC.md section 2)
@@ -282,26 +282,52 @@ def build_dem(dems, dry):
             "levels": levels}
 
 
-def build_image(name, srcs, zlo, zhi, dry, mime="jpeg", quality=78, mode="RGB"):
-    """A drape pyramid: the finest source wins per pixel, box-averaged down."""
+def build_image(name, srcs, zlo, zhi, dry, mime="jpeg", quality=78, mode="RGB",
+                require=None):
+    """A drape pyramid: the finest source wins per pixel, box-averaged down.
+
+    `require` names the sources a tile must actually contain some of before it is
+    written -- the FINE-IMAGERY levels (ortho z0 and finer) exist only where the
+    6-in and 3-in photography does, so the tile SET comes from those sources and
+    the tile range with it.  Every source is still painted, coarsest first, so a
+    tile that straddles the edge of the fine imagery is completed from the site
+    ortho underneath instead of being left at (0, 0, 0).
+
+    THAT IS v24's BLACK BAND.  Until v24 the fine level was built from the fine
+    sources ALONE, so every pixel outside them was black -- 177 px of black in
+    ortho/0/7/*, 16 in ortho/0/18/*, 127 in ortho/0/12/32 -- and js/terrain3d.js
+    composites the fine tile OVER the stretched coarse ancestor, so the black won.
+    The result was a hard black line on the ground tracing the mine window on all
+    four sides.  Paint every source; write only where the fine one reaches."""
     levels = {}
+    reqs = [s for s in srcs if require and s.name in require]
     for z in range(zlo, zhi + 1):
-        rect = union_rects([s.rect() for s in srcs])
+        rect = union_rects([s.rect() for s in (reqs or srcs)])
         tx0, ty0, tx1, ty1 = tile_range(rect, z)
         tiles, total = [], 0
         for ty in range(ty0, ty1 + 1):
             for tx in range(tx0, tx1 + 1):
                 c = cell_of(z)
+                tr = (X0 + tx * TILE * c, Y0 + ty * TILE * c,
+                      X0 + (tx + 1) * TILE * c, Y0 + (ty + 1) * TILE * c)
+                if reqs and all(s.rect()[2] <= tr[0] or s.rect()[0] >= tr[2]
+                                or s.rect()[3] <= tr[1] or s.rect()[1] >= tr[3] for s in reqs):
+                    continue
                 X, Y = tile_coords(z, tx, ty)
                 out = np.zeros(X.shape + (3,), dtype=np.uint8)
                 have = np.zeros(X.shape, dtype=bool)
+                need = np.zeros(X.shape, dtype=bool)
                 # coarsest first so the finest imagery paints last
                 for s in srcs:
                     px, ok = s.sample_box(X, Y, c)
                     take = ok
                     out = np.where(take[:, :, None], px, out)
                     have |= take
+                    if reqs and s in reqs:
+                        need |= take
                 if not have.any():
+                    continue
+                if reqs and not need.any():
                     continue
                 blob, m = (encode_jpeg(out, quality) if mime == "jpeg"
                            else encode_png(out))
@@ -309,7 +335,8 @@ def build_image(name, srcs, zlo, zhi, dry, mime="jpeg", quality=78, mode="RGB"):
                 tiles.append([tx, ty, n]); total += n
         levels[str(z)] = {"cell": cell_of(z), "count": len(tiles), "partial": False,
                           "bytes": total, "tiles": tiles}
-        print(f"  {name:<9} z{z} cell {cell_of(z):>4.0f} ft  {len(tiles):>4} tiles  {total/1e6:6.2f} MB")
+        print(f"  {name:<9} z{z} cell {cell_of(z):>6.2f} ft  {len(tiles):>4} tiles  {total/1e6:6.2f} MB"
+              + ("  (fine imagery only)" if reqs else ""))
     return {"kind": "image", "mime": "image/" + ("jpeg" if mime == "jpeg" else "png"),
             "levels": levels}
 
@@ -407,13 +434,23 @@ def main():
         print(f"\nindex.js  {len(js)/1024:.0f} kB  (rebuilt from disk, no tile re-cut)")
         return
     only = None
-    if "--only" in args:
-        only = set(args[args.index("--only") + 1].split(","))
+    for flag in ("--only", "--layer"):          # --layer is --only's own name
+        if flag in args:
+            only = set(args[args.index(flag) + 1].split(","))
+    """A PARTIAL RUN REBUILDS ONE LAYER AND KEEPS THE REST (v24).  Before this the
+    delete below took every .js in datajs/tiles/ and the index written at the end
+    named only the layers of this run -- so `--only ortho` silently threw the DEM
+    pyramid away.  Now only the named layers' tiles are removed and the index is
+    merged onto the one on disk, which is what makes re-cutting one layer (35 min
+    for all five, ~4 for the ortho) a thing anyone will actually do."""
     if not dry:
         os.makedirs(OUT, exist_ok=True)
         for f in os.listdir(OUT):
-            if f.endswith(".js"):
-                os.remove(os.path.join(OUT, f))
+            if not f.endswith(".js") or f == "index.js":
+                continue
+            if only is not None and f.rsplit("_", 3)[0] not in only:
+                continue
+            os.remove(os.path.join(OUT, f))
 
     layers, warn = {}, []
 
@@ -440,12 +477,28 @@ def main():
             b = load_json(n)
             srcs.append(ImageSource(n, p, (b["x0"], b["y0"], b["x1"], b["y1"])))
         if srcs:
-            # z0 (1 ft) only where the 6-in and 3-in imagery is; z1..z6 site-wide
-            fine = [s for s in srcs if s.name != "ortho_site"]
+            """z1..z6 are site-wide; z0 and finer exist only where the 6-in and
+            3-in photography does, and are cut with `require` so the tile SET is
+            the fine imagery's while every pixel is still painted from the site
+            ortho underneath (v24 -- see build_image).
+
+            THE FINER LEVELS ARE NEGATIVE z, and that is the scheme's own rule
+            rather than an exception to it: cell = 2**z, so z -1 is 0.5 ft/px and
+            z -2 is 0.25 ft/px.  Those are the 2D map's own resolutions for the
+            6-in mine ortho and the 3-in ABP crop, and until v24 the 3D drape
+            floor was 1 ft/px -- which IS the "pixelated up close" report.  Every
+            index key is a string and every reader takes Number(), so nothing but
+            this file had to learn about them."""
+            mine = [s for s in srcs if s.name == "ortho_mine"]
+            abp = [s for s in srcs if s.name == "ortho_abp"]
+            fine = {s.name for s in srcs if s.name != "ortho_site"}
             lv = build_image("ortho", srcs, 1, 6, dry)
             if fine:
-                lv0 = build_image("ortho", fine, 0, 0, dry)
-                lv["levels"]["0"] = lv0["levels"]["0"]
+                for z, req in ((0, fine), (-1, fine), (-2, {"ortho_abp"} & fine)):
+                    if not req:
+                        continue
+                    one = build_image("ortho", srcs, z, z, dry, require=req)
+                    lv["levels"][str(z)] = one["levels"][str(z)]
             layers["ortho"] = lv
 
     if want("hillshade"):
@@ -474,18 +527,28 @@ def main():
         # lossy codec would invent classes that do not exist (tools/build_cover.py).
         layers["cover"] = build_image("cover", [s], 1, 4, dry, mime="png")
 
+    merged = dict(layers)
+    if only is not None:                       # keep the layers this run did not cut
+        old = os.path.join(OUT, "index.js")
+        if os.path.exists(old):
+            import re as _re
+            m = _re.search(r"SBMM_TILES\.index=(.*);\s*$", open(old).read(), _re.S)
+            if m:
+                prev = json.loads(m.group(1)).get("layers", {})
+                merged = dict(prev)
+                merged.update(layers)
     idx = {"version": 1, "built": datetime.date.today().isoformat(), "source": SOURCE,
            "origin": {"x0": X0, "y0": Y0}, "tileSize": TILE,
            "cellRule": "cell_ft = 2**z", "row0": "north",
-           "layers": layers}
+           "layers": merged}
     js = ('window.SBMM_TILES=window.SBMM_TILES||{};SBMM_TILES.index='
           + json.dumps(idx, separators=(",", ":")) + ';\n')
     if not dry:
         with open(os.path.join(OUT, "index.js"), "w") as f:
             f.write(js)
 
-    tot = sum(l["bytes"] for L in layers.values() for l in L["levels"].values())
-    cnt = sum(l["count"] for L in layers.values() for l in L["levels"].values())
+    tot = sum(l["bytes"] for L in merged.values() for l in L["levels"].values())
+    cnt = sum(l["count"] for L in merged.values() for l in L["levels"].values())
     big = [k for k in ()]
     print(f"\nindex.js  {len(js)/1024:.0f} kB")
     print(f"{cnt} tiles, {tot/1e6:.1f} MB of payload -> datajs/tiles/")
