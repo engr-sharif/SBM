@@ -379,7 +379,11 @@ SBMM.pick3d = (function () {
   function doHover(e) {
     if (!ctx || !ctx.isOpen() || !e) return;
     if (SBMM.tools.active()) { clearHover(); return; }   // a tool owns the cursor
+    /* v24 §3: the hover raycast is the one per-frame-adjacent cost that does
+       not live in js/viewer3d.js, so it reports itself into frameStats() */
+    const _t = performance.now();
     const got = raycast(e);
+    if (SBMM.viewer3d && SBMM.viewer3d.noteHover) SBMM.viewer3d.noteHover(performance.now() - _t);
     const id = got ? got.entry.id : null;
     const idx = got ? got.hit.index : null;
     if (hovered && hovered.id === id && hovered.index === idx) { moveTip(e); return; }

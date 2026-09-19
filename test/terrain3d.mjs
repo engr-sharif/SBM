@@ -21,6 +21,8 @@
                the texture memory the drawn set costs
      band      the v24 black band: the 1-ft window's own boundary, rendered and
                measured against a control line 150 ft inside it
+     frames    v24 §3: what a frame and an interaction cost on the main thread,
+               and that a selection change no longer rebuilds the whole scene
      meshport  the tile mesh built in the worker against the same function
                called inline, element for element
      geomcache a camera move away and back rebuilds no geometry
@@ -36,7 +38,7 @@ import { unlock } from "./gate.mjs";
 
 const target = process.argv[2], label = process.argv[3] || "folder";
 const SECTIONS = ["lod", "quality", "onefoot", "idle", "gpu", "seams",
-                  "drape", "band", "meshport", "geomcache", "map2d"];
+                  "drape", "band", "frames", "meshport", "geomcache", "map2d"];
 if (process.argv.includes("--list")) { console.log(SECTIONS.join(" ")); process.exit(0); }
 let only = null;
 if (process.argv.includes("--only")) only = new Set(process.argv[process.argv.indexOf("--only") + 1].split(","));
@@ -494,6 +496,68 @@ if (want("band")) {
     for (const g of gs) SBMM.layerState.setGroup(g, true);
     await new Promise(r => setTimeout(r, 1500));
   }, GROUPS);
+}
+
+/* -------------------------------------------------------------- frames ---- */
+/* v24 §3 — MAIN-THREAD COST. GPU frame time cannot be judged on a software-GL
+   box, and this one has no card; what CAN be measured anywhere is the work the
+   main thread does per frame and per interaction, which is what makes a view
+   feel sticky however fast the GPU is.
+
+   The one that mattered: rebuildOverlays() threw the whole scene away and
+   rebuilt it on EVERY selection change — 805 draped polylines and 92,500
+   ground samples, 82-108 ms of main thread, per click. The overlay is two
+   halves now and a selection rebuilds only the user's own features. */
+if (want("frames")) {
+  console.log("\n== frames — what a frame and a click cost on the main thread ==");
+  /* Turning the framework group on STARTS the drainage and where-the-water-goes
+     kernels, and each of them calls refreshOverlays() — a FULL rebuild — when it
+     lands. Measuring the selects while those are in flight reads 60-90 ms and
+     four full rebuilds and blames the selection. Block 9y of test/e2e.mjs waits
+     on exactly the same two for exactly the same reason. */
+  await page.evaluate(() => {
+    for (const g of ["base", "framework", "design", "invest", "mywork"])
+      SBMM.layerState.setGroup(g, true);
+  });
+  await page.waitForFunction(() => (!SBMM.drainage || SBMM.drainage.hasResult())
+    && (!SBMM.whereWater || SBMM.whereWater.hasResult()), null, { timeout: TIMEOUT });
+  await page.waitForTimeout(2500);
+  const r = await page.evaluate(async () => {
+    SBMM.viewer3d.refreshOverlays();                       // one FULL rebuild
+    await new Promise(r => setTimeout(r, 1500));
+    const full = SBMM.viewer3d.frameStats(false);
+    SBMM.viewer3d.frameStats(true);
+    let f = SBMM.store.features.find(x => x.type === "line" || x.type === "area");
+    if (!f) f = SBMM.store.add({ type: "line", pts: [[6371600, 2128800], [6371800, 2129000]] });
+    await new Promise(r => setTimeout(r, 800));
+    SBMM.viewer3d.frameStats(true);
+    const per = [];
+    for (let i = 0; i < 6; i++) {
+      SBMM.store.select(i % 2 ? f.id : null);
+      await new Promise(r => setTimeout(r, 350));
+      const q = SBMM.viewer3d.frameStats(false);
+      per.push([+q.overlayLastMs, q.overlayRebuilds, q.overlayFull]);
+    }
+    const sel = SBMM.viewer3d.frameStats(false);
+    return { fullMs: full.overlayLastMs, fullLines: full.drapedLines, per, sel,
+             fullPts: full.drapePts,
+             line: SBMM.viewer3d.diag().line };
+  });
+  console.log("   one FULL rebuild:", r.fullMs, "ms ·", r.fullLines, "draped polylines,",
+    r.fullPts, "ground samples");
+  console.log("   six selects     :", r.per.map(a => a.join("/")).join("  "), "(ms/rebuilds/full) ·",
+    r.sel.drapedLines, "draped polylines,", r.sel.drapePts, "ground samples in all six");
+  console.log("  ", r.line);
+  const worst = Math.max(...r.per.map(a => a[0]));
+  ok("a selection change no longer rebuilds the project half",
+    r.sel.drapedLines < 60 && r.sel.overlayFull === 0,
+    r.sel.drapedLines + " draped polylines, " + r.sel.overlayFull + " full rebuilds over six selects");
+  ok("a selection change costs under 20 ms of main thread", worst < 20, worst + " ms");
+  ok("the six selects really did rebuild the feature half",
+    r.sel.overlayRebuilds >= 4, r.sel.overlayRebuilds);
+  ok("frameStats reports a pixel ratio", r.sel.pixelRatio > 0, r.sel.pixelRatio);
+  ok("the diagnostics line carries the numbers",
+    /render .* · overlays x/.test(r.line), (r.line || "").slice(0, 60));
 }
 
 if (want("meshport")) {
