@@ -228,7 +228,7 @@ SBMM.viewer3d = (function () {
       scene, camera, renderer,
       center: () => ({ CX, CY, ZMID }),
       exag, requestRender, maxAniso,
-      quality: qualityPx, drapeK,
+      quality: qualityPx, drapeK, drapeFloor,
       zRange: () => SBMM._zrSite || SBMM.demSite.zRange(),
       onSwap: () => {
         terrainMeshes = SBMM.terrain3d.records();
@@ -404,6 +404,22 @@ SBMM.viewer3d = (function () {
      window every tile at level 2 or finer drapes at 1 ft/px, and outside it at
      2 ft/px — measured and asserted per tile in test/terrain3d.mjs. */
   const DRAPE_K = { desktop: 2, tablet: 1, phone: 0 };
+  /* v24 — HOW FAR DOWN THE PYRAMID A PROFILE MAY REACH, which is a different
+     question from how big its textures may be. `drapeK` bounds the TEXTURE
+     (256 * 2^k px); this bounds the LEVEL, and it exists because v24 added two
+     levels BELOW z0 (0.5 ft/px over the 6-in mine ortho, 0.25 over the 3-in ABP
+     crop). Without it a tablet's own k = 1 would silently start reaching z -1 —
+     a 1-ft tile would drape at 0.5 instead of 1 and its texture would go from
+     256 px to 512 — and the phone, field and tablet harnesses would be measuring
+     a different app from the one they measured before v24. The sharper drape is
+     a DESKTOP change; -2 there, 0 (v20's own floor) everywhere else. */
+  const DRAPE_FLOOR = { desktop: -2, tablet: 0, phone: 0 };
+  function drapeFloor() {
+    const pref = SBMM.view && SBMM.view.pref ? SBMM.view.pref("drapeFloor") : undefined;
+    if (typeof pref === "number" && pref >= -2 && pref <= 0) return pref;
+    const p = (SBMM.touch && SBMM.touch.profile) ? SBMM.touch.profile() : "desktop";
+    return DRAPE_FLOOR[p] == null ? DRAPE_FLOOR.desktop : DRAPE_FLOOR[p];
+  }
   function drapeK() {
     /* an explicit preference wins, so the number can be measured and lowered
        without a build (0 is v20's own behaviour) */
@@ -4112,7 +4128,7 @@ SBMM.viewer3d = (function () {
       /* v22 §G at the top level, where someone at the console will look for
          it: how sharp the picture on the terrain is and what it costs. The
          per-tile table is SBMM.terrain3d.drawnTiles(). */
-      drapeK: drapeK(),
+      drapeK: drapeK(), drapeFloor: drapeFloor(),
       drapeFtPerPx: (lodOn && SBMM.terrain3d) ? SBMM.terrain3d.stats().drapeFtPerPx : null,
       drapeTexMB: (lodOn && SBMM.terrain3d) ? SBMM.terrain3d.stats().texMB : null,
       gpuGeometries: (renderer && renderer.info) ? renderer.info.memory.geometries : null,

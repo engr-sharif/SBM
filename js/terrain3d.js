@@ -284,7 +284,11 @@ SBMM.terrain3d = (function () {
       const lv = SBMM.tiles.levels("ortho");      // coarsest first
       _orthoFloor = lv.length ? lv[lv.length - 1] : 0;
     }
-    return _orthoFloor;
+    /* the PROFILE's floor as well as the pyramid's: js/viewer3d.js drapeFloor()
+       keeps a tablet and a phone at v20's own z0 whatever the pyramid has, so
+       the three touch harnesses go on measuring the app they measured */
+    const pf = ctx && ctx.drapeFloor ? ctx.drapeFloor() : 0;
+    return Math.max(_orthoFloor, pf);
   }
   function drapePlan(z, x, y) {
     if (!SBMM.tiles.levels("ortho").length) return null;
