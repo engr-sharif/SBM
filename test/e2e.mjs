@@ -7656,8 +7656,24 @@ bwCols = await page.evaluate(() => {
     contact: svg.querySelector(".blcontact") ? +svg.querySelector(".blcontact").dataset.ft : null,
     contactSrc: svg.querySelector(".blcontact") ? svg.querySelector(".blcontact").dataset.src : null,
     rock: !!svg.querySelector(".blrockline"),
-    heads: ["FT BGS", "GRAPHIC LOG", "USCS", "DESCRIPTION", "SAMPLE · N", "PP tsf", "ELEV"]
-      .filter(h => txt.includes(h)),
+    /* v24: the headings are drawn ONCE, in the window's own fixed band, and
+       every one carries its unit — so the strings AND the element moved. The
+       FACT asserted is the same one (each §2.2 column is named, and the log
+       scrolls under a heading row that does not), which is rule 9 of the
+       voice spec. */
+    heads: (() => {
+      const b = document.querySelector(".blwin .bwheadstrip svg.bwheads");
+      const bt = b ? [...b.querySelectorAll("text")].map(t => t.textContent) : [];
+      return ["FT BGS", "GRAPHIC LOG", "USCS", "DESCRIPTION", "SAMPLE · N", "PP tsf",
+              "ELEV ft NAVD88", "pH 2–8 · 4", "BLOWS/6″"].filter(h => bt.includes(h));
+    })(),
+    /* the band is a sibling of the scrolling body, not inside it */
+    headsFixed: (() => {
+      const b = document.querySelector(".blwin .bwheadstrip");
+      const body = document.querySelector(".blwin .bwbody");
+      return !!(b && body && !body.contains(b));
+    })(),
+    headsInDrawing: txt.filter(t => t === "GRAPHIC LOG" || t === "DESCRIPTION").length,
     uscsCol: txt.filter(t => /^(SP|SP-SC|CL|ML|MH|SC|SM|GW|GP|GC)$/.test(t)).length,
     blows: txt.filter(t => /^\d+-\d+-\d+$/.test(t)).length,
     desc: txt.filter(t => /Poorly graded SAND|CLAYEY SAND/.test(t)).length,
@@ -7676,7 +7692,11 @@ if (!bwCols.ph4 || !bwCols.water || !bwCols.rock)
   { console.log("FAIL: the pH-4 rule, the water triangle or the bedrock line is missing", bwCols); process.exit(1); }
 if (bwCols.contact !== bwPay.nc || bwCols.contactSrc !== bwPay.src)
   { console.log("FAIL: the window's contact line does not match the payload", bwCols, bwPay); process.exit(1); }
-if (bwCols.heads.length < 7)
+if (!bwCols.headsFixed)
+  { console.log("FAIL: the column-heading band scrolls with the log"); process.exit(1); }
+if (bwCols.headsInDrawing)
+  { console.log("FAIL: the headings are drawn twice — once in the band and once in the drawing"); process.exit(1); }
+if (bwCols.heads.length < 9)
   { console.log("FAIL: a §2.2 column heading is missing:", bwCols.heads); process.exit(1); }
 /* the two OPTIONAL columns — the lab chips and the remarks — need a window
    wider than the harness's stage, and the layout drops them from the right in
@@ -7739,23 +7759,178 @@ if (bwAxes.missDepth > 1 || bwAxes.missElev > 1)
 }
 bwCur = await page.evaluate(() => {
   const c = document.querySelector(".blwin .bwcur");
+  const r = document.querySelector(".blwin .bwread");
   const h = SBMM.borelogs.byId("SB-9");
   const ft = +c.dataset.ft;
   const s = (h.strata || []).find(q => q.primary && ft >= q.top && ft < q.base);
-  /* the chip prints through the app's own fmt(), which groups thousands — so
-     the expected string is built the same way rather than with toFixed */
-  return { hidden: c.hidden, ft, txt: c.textContent, uscs: c.dataset.uscs,
+  /* v24 §2 item 4: the hairline stays on the drawing and its READING moved
+     into the header strip, where it cannot land on what it describes. Same
+     fact, new element — rule 9. The readout prints through the app's own
+     fmt(), which groups thousands, so the expected string is built that way. */
+  return { hidden: c.hidden, ft, txt: r ? r.textContent : "", uscs: c.dataset.uscs,
+           inStrip: !!(r && r.closest(".bwhead")),
+           floating: !!c.querySelector("b"),
            wantUscs: s ? (s.uscs || "") : null,
            wantDepth: fmt(ft, 1), wantElev: fmt(h.elev - ft, 1) };
 });
 console.log("the depth cursor:", JSON.stringify(bwCur));
 if (bwCur.hidden || !(bwCur.ft > 0)) { console.log("FAIL: the depth cursor did not follow the pointer", bwCur); process.exit(1); }
+if (!bwCur.inStrip || bwCur.floating)
+  { console.log("FAIL: the cursor's reading is not in the header strip", bwCur); process.exit(1); }
 if (bwCur.uscs !== bwCur.wantUscs)
   { console.log("FAIL: the cursor names the wrong stratum", bwCur); process.exit(1); }
 if (!bwCur.txt.includes(bwCur.wantDepth))
   { console.log("FAIL: the cursor does not print the depth it is at", bwCur); process.exit(1); }
 if (!bwCur.txt.includes(bwCur.wantElev))
   { console.log("FAIL: the cursor does not print the elevation of that depth", bwCur); process.exit(1); }
+
+/* ---- v24 §2: the strip's six facts, the pin, the picker, the zoom ---- */
+/* The refinement pass, asserted as behaviour rather than as CSS: the header
+   strip leads with the six facts a reader checks before reading a stratum and
+   keeps the rest one click away; a click pins the depth cursor; the picker is
+   navigable from the keyboard; Ctrl+wheel changes the drawing SCALE and keeps
+   the depth under the pointer; and a control with nothing to do is disabled
+   rather than silently inert. */
+const bwRefine = await page.evaluate(() => {
+  const el = document.querySelector(".blwin");
+  const facts = [...el.querySelectorAll(".bwfacts .bwf > span")].map(s2 => s2.textContent);
+  const more = el.querySelector(".bwmorebox");
+  const mb = el.querySelector(".bwmoreb");
+  const before = { hidden: more.hidden, n: more.querySelectorAll(".bwf").length };
+  mb.click();
+  const after = { hidden: more.hidden };
+  mb.click();
+  return { facts, id: !!el.querySelector(".bwhid b"),
+           more: before, moreOpens: !after.hidden, moreShuts: more.hidden,
+           /* one typographic scale: the tokens live on the window */
+           scale: ["--bl-s", "--bl-m", "--bl-l", "--bl-h"]
+             .map(k => getComputedStyle(el).getPropertyValue(k).trim()) };
+});
+console.log("the header strip:", JSON.stringify(bwRefine));
+{
+  const want = ["Ground", "Native contact", "Bedrock", "Groundwater"];
+  const missing = want.filter(f => !bwRefine.facts.includes(f));
+  if (!bwRefine.id || missing.length)
+    { console.log("FAIL: the header strip does not lead with the six facts", missing, bwRefine.facts); process.exit(1); }
+  if (bwRefine.facts.length > 6)
+    { console.log("FAIL: the header strip carries more than the six facts:", bwRefine.facts); process.exit(1); }
+}
+if (!(bwRefine.more.n >= 8) || !bwRefine.more.hidden || !bwRefine.moreOpens || !bwRefine.moreShuts)
+  { console.log("FAIL: the rest of the header is not behind `more`", bwRefine); process.exit(1); }
+if (bwRefine.scale.join() !== "11px,12.5px,14px,18px")
+  { console.log("FAIL: the window does not carry one typographic scale", bwRefine.scale); process.exit(1); }
+
+/* the pin: a click on the drawing holds the cursor where it is */
+{
+  const box = await page.locator(".blwin .blgl").nth(2).boundingBox();
+  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+  await page.waitForTimeout(200);
+  const pinned = await page.evaluate(() => {
+    const c = document.querySelector(".blwin .bwcur");
+    const ft = c.dataset.ft;
+    return { on: c.classList.contains("pinned"), ft,
+             label: document.querySelector(".blwin .bwread > span").textContent };
+  });
+  /* move well away: a pinned cursor does not follow */
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2 + 140);
+  await page.waitForTimeout(200);
+  const held = await page.evaluate(() => document.querySelector(".blwin .bwcur").dataset.ft);
+  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+  await page.waitForTimeout(150);
+  const released = await page.evaluate(() =>
+    document.querySelector(".blwin .bwcur").classList.contains("pinned"));
+  console.log("the pin:", JSON.stringify({ ...pinned, held, released }));
+  if (!pinned.on || !/pinned/.test(pinned.label))
+    { console.log("FAIL: a click did not pin the depth cursor", pinned); process.exit(1); }
+  if (held !== pinned.ft)
+    { console.log("FAIL: the pinned cursor followed the pointer", pinned.ft, "->", held); process.exit(1); }
+  if (released) { console.log("FAIL: a second click did not release the pin"); process.exit(1); }
+}
+
+/* the picker: down, down, Enter lands on the second row of the list */
+{
+  await page.evaluate(() => {
+    const i = document.querySelector(".blwin .bwpick");
+    i.value = ""; i.focus(); i.dispatchEvent(new Event("focus"));
+  });
+  await page.waitForTimeout(250);
+  const rows = await page.evaluate(() =>
+    [...document.querySelectorAll(".blwin .bwmenu .bwopt")].map(r => r.dataset.id));
+  await page.keyboard.press("ArrowDown");
+  await page.keyboard.press("ArrowDown");
+  await page.waitForTimeout(150);
+  const sel = await page.evaluate(() => {
+    const r = document.querySelector(".blwin .bwmenu .bwopt.sel");
+    return r ? r.dataset.id : null;
+  });
+  await page.keyboard.press("Enter");
+  await page.waitForTimeout(350);
+  const landed = await page.evaluate(() => SBMM.borewin.stateOf().id);
+  console.log("the picker keyboard:", JSON.stringify({ rows: rows.length, sel, landed }));
+  if (!(rows.length >= 40)) { console.log("FAIL: the picker does not list the holes", rows.length); process.exit(1); }
+  if (!sel || landed !== sel)
+    { console.log("FAIL: down/down/Enter did not open the highlighted hole", sel, landed); process.exit(1); }
+}
+await page.evaluate(() => SBMM.borewin.open("SB-9"));
+await page.waitForTimeout(400);
+
+/* Ctrl+wheel zooms about the pointer and keeps the depth under it */
+{
+  const box = await page.locator(".blwin .bwbody").boundingBox();
+  const px = box.x + box.width * 0.35, py = box.y + box.height * 0.6;
+  await page.mouse.move(px, py);
+  await page.waitForTimeout(200);
+  /* THE DEPTH AT A CLIENT Y, ASKED DIRECTLY. Reading it off the cursor chip
+     means driving a mousemove and trusting that it landed, which on a loaded
+     software-GL box it does not always; depthAtClientY states the drawing's
+     own mapping, which is exactly what the anchor is a claim about. */
+  const before = await page.evaluate(y =>
+    ({ scale: SBMM.borewin.scale(), ft: SBMM.borewin.depthAtClientY(y) }), py);
+  /* page.mouse.wheel carries no modifier of its own — Control has to be HELD
+     for the event to reach the window's ctrl+wheel branch */
+  await page.keyboard.down("Control");
+  await page.mouse.wheel(0, -240);
+  await page.keyboard.up("Control");
+  await page.waitForTimeout(600);
+  const after = await page.evaluate(y =>
+    ({ scale: SBMM.borewin.scale(), ft: SBMM.borewin.depthAtClientY(y) }), py);
+  console.log("ctrl+wheel zoom:", JSON.stringify({ before, after }));
+  if (!(after.scale < before.scale))
+    { console.log("FAIL: ctrl+wheel up did not zoom the drawing in", before, after); process.exit(1); }
+  if (Math.abs(after.ft - before.ft) > 0.25)
+    { console.log("FAIL: the depth under the pointer moved by", (after.ft - before.ft).toFixed(2), "ft"); process.exit(1); }
+  await page.evaluate(() => SBMM.borewin.scale(5));
+  await page.waitForTimeout(250);
+}
+
+/* states: a control with nothing to export is disabled, and Compare with no
+   holes chosen says so rather than drawing an empty panel */
+{
+  const st = await page.evaluate(() => {
+    const el = document.querySelector(".blwin");
+    const q = sel => { const b = el.querySelector(sel); return b ? b.disabled : null; };
+    const out = { logPng: q('[data-b="png"]'), logPrint: q('[data-b="print"]') };
+    SBMM.borewin.tab("table");
+    out.tablePng = q('[data-b="png"]');
+    SBMM.borewin.compare([]);
+    out.empty = !!el.querySelector(".bwempty");
+    out.emptyWords = el.querySelector(".bwempty") ? el.querySelector(".bwempty").textContent : "";
+    out.chips = el.querySelectorAll(".bwcmpsel .bwchip").length;
+    out.cmpPrint = q('[data-b="print"]');
+    return out;
+  });
+  console.log("states:", JSON.stringify(st));
+  if (st.logPng !== false || st.logPrint !== false)
+    { console.log("FAIL: the log tab's exports are disabled", st); process.exit(1); }
+  if (st.tablePng !== true)
+    { console.log("FAIL: the Table tab still offers a PNG of a table", st); process.exit(1); }
+  if (!st.empty || !/No holes chosen/i.test(st.emptyWords) || !(st.chips >= 40))
+    { console.log("FAIL: Compare with nothing chosen has no empty state", st); process.exit(1); }
+  if (st.cmpPrint !== true)
+    { console.log("FAIL: `print` is offered on a tab that prints one hole", st); process.exit(1); }
+  await page.evaluate(() => { SBMM.borewin.open("SB-9", { tab: "log" }); });
+  await page.waitForTimeout(400);
+}
 
 /* ---- the arrows walk holes, and do NOT orbit the 3D view ---- */
 /* block 9ae leaves the 3D view OPEN, and js/viewer3d.js's key handler is
@@ -8025,6 +8200,11 @@ if (!bwGone.restored) { console.log("FAIL: the payload did not come back"); proc
 /* the window closes on Esc and leaves nothing behind — 9z runs next and it
    reloads the page, but the 3D view has to be as 9ae left it */
 {
+  /* was the 3D view open BEFORE? block 9ae leaves it open, and this asserts
+     that Esc on the window does not take it with it — but `--only 9af` has to
+     stand on its own (v18 §3) and there 9ae never ran, so the question does
+     not arise and a bare `isOpen()` would fail on a state nobody set. */
+  const had3d = await page.evaluate(() => SBMM.viewer3d.isOpen());
   await page.evaluate(() => { SBMM.borewin.open("SB-9"); document.querySelector(".blwin").focus(); });
   await page.waitForTimeout(200);
   await page.keyboard.press("Escape");
@@ -8033,9 +8213,9 @@ if (!bwGone.restored) { console.log("FAIL: the payload did not come back"); proc
     win: !!document.querySelector(".blwin"), st: SBMM.borewin.stateOf().open,
     threed: SBMM.viewer3d.isOpen()
   }));
-  console.log("after Esc:", JSON.stringify(left));
+  console.log("after Esc:", JSON.stringify({ ...left, had3d }));
   if (left.win || left.st) { console.log("FAIL: Esc did not close the log window", left); process.exit(1); }
-  if (!left.threed) { console.log("FAIL: closing the log window closed the 3D view"); process.exit(1); }
+  if (had3d && !left.threed) { console.log("FAIL: closing the log window closed the 3D view"); process.exit(1); }
 }
 
 if (errors.length !== errBeforeWin) {
@@ -8280,7 +8460,11 @@ fnDraw = await page.evaluate(() => {
     hz: l.dataset.hz, miss: l.dataset.miss === "1", a: l.dataset.a, b: l.dataset.b,
     x1: +l.getAttribute("x1"), x2: +l.getAttribute("x2"),
     y1: +l.getAttribute("y1"), y2: +l.getAttribute("y2") }));
-  const waste = host.querySelectorAll(".fnwaste").length;
+  /* v24: the single shaded waste band became the CLASS bands (§3.4), one
+     filled polygon per class per span. The fact asserted — the waste body is
+     shaded between the holes — is the same one, read off the element it moved
+     to (voice rule 9). */
+  const waste = host.querySelectorAll('.fnband[data-cls="waste"]').length;
   const ticks = [...host.querySelectorAll(".fnelevtick")].map(l => ({
     hole: l.dataset.hole, elev: +l.dataset.elev, y: +l.getAttribute("y1") }));
   const note = (host.querySelector(".fnnote") || {}).textContent || "";
@@ -8315,9 +8499,9 @@ if (fnDraw.nSamp < 100)
   { console.log("FAIL: the ground line has too few samples to mean anything", fnDraw.nSamp); process.exit(1); }
 if (fnDraw.worstZ > 0.05)
   { console.log("FAIL: the ground line disagrees with SBMM.elev by", fnDraw.worstZ, "ft"); process.exit(1); }
-if (!fnDraw.waste) { console.log("FAIL: the waste band was not drawn"); process.exit(1); }
-if (!/correlated linearly/i.test(fnDraw.note) || !/lidar ground/i.test(fnDraw.note))
-  { console.log("FAIL: the drawing does not state its method:", JSON.stringify(fnDraw.note)); process.exit(1); }
+if (!fnDraw.waste) { console.log("FAIL: the waste class band was not drawn between the holes"); process.exit(1); }
+if (!/correlated linearly/i.test(fnDraw.note) || !/USCS family/i.test(fnDraw.note))
+  { console.log("FAIL: the drawing does not state the correlation rule:", JSON.stringify(fnDraw.note)); process.exit(1); }
 
 /* THE SHARED DATUM. column() maps zTop to padTop, so a hole's collar lands at
    padTop + (zTop - elev) * ppf and NOWHERE else. Adding the datum a second
@@ -8461,7 +8645,10 @@ console.log("   X (station ft)", fnDxf.x.map(v => +v.toFixed(2)),
             "| Y (elevation ft)", fnDxf.y.map(v => +v.toFixed(2)));
 if (!fnDxf.header) { console.log("FAIL: the fence DXF is not R12"); process.exit(1); }
 for (const lay of ["FENCE-GROUND", "FENCE-CONTACT", "FENCE-BEDROCK", "FENCE-WATER",
-                   "FENCE-WASTE", "FENCE-SB-9", "FENCE-SB-10", "FENCE-STATION"])
+                   "FENCE-WASTE", "FENCE-SB-9", "FENCE-SB-10", "FENCE-STATION",
+                   /* v24 Part 3: one layer per class band, and the pinch-outs
+                      on one layer of their own — what a drafter hatches */
+                   "FENCE-BAND-WASTE", "FENCE-BAND-NATIVE", "FENCE-UNITS"])
   if (!fnDxf.layers.includes(lay))
     { console.log("FAIL: the fence DXF has no", lay, "layer —", JSON.stringify(fnDxf.layers)); process.exit(1); }
 /* X is the STATION and Y is the ELEVATION — not State Plane. That is the whole
@@ -8643,6 +8830,225 @@ if (errors.length !== errBeforeFence) {
   console.log("FAIL: page errors around the fence:",
               errors.slice(errBeforeFence, errBeforeFence + 4)); process.exit(1); }
 
+/* ---- v24 Part 3: a fence THROUGH named holes, and the correlation ---- */
+/* The second way in: `FENCE SB-9 SB-10 SB-11` builds the alignment as the
+   polyline hole-to-hole, so every hole is a vertex, its offset is 0 and its
+   station is the cumulative distance — asserted against arithmetic this file
+   does itself out of the payload's own x, y. Then the correlation: one filled
+   class band per span per class BOTH holes state, unit links matched by USCS
+   family, and a pinch-out wedge for a unit whose family the neighbour does not
+   carry at all — which is a reference this file computes independently. */
+const fnThru = await page.evaluate(() => {
+  for (const g of SBMM.store.features.filter(q => q.type === "fence"))
+    SBMM.tools.deleteFeature(g);
+  SBMM.cmd.run("FENCE SB-9 SB-10 SB-11");
+  const f = SBMM.fence.currentFence();
+  if (!f) return { none: true };
+  const d = SBMM.fence.drawSvg(f, { w: 1100 });
+  const el = document.createElement("div");
+  el.innerHTML = d.svg;
+  const bandsDrawn = [...el.querySelectorAll(".fnband")]
+    .map(q => ({ cls: q.dataset.cls, a: q.dataset.a, b: q.dataset.b, ended: q.dataset.ended }));
+  const pinch = [...el.querySelectorAll(".fnpinch")]
+    .map(q => ({ cls: q.dataset.cls, side: q.dataset.side }));
+  const units = [...el.querySelectorAll(".fnunit")]
+    .map(q => ({ cls: q.dataset.cls, sure: q.dataset.sure }));
+  const spanTxt = [...el.querySelectorAll(".fnspan")].map(q => ({ ft: +q.dataset.ft,
+    a: q.dataset.a, b: q.dataset.b, words: q.textContent }));
+  const note = [...el.querySelectorAll(".fnnote")].map(q => q.textContent).join(" ");
+  return { st: SBMM.fence.stateOf(f), name: f.name,
+           swathRings: 0, bandsDrawn, pinch, units, spanTxt, note,
+           drew: { bands: d.bands, units: d.units, pinch: d.pinch, spans: d.spans } };
+});
+if (fnThru.none) { console.log("FAIL: FENCE with hole ids built no fence"); process.exit(1); }
+console.log("fence through holes:", JSON.stringify({ ...fnThru.st, name: fnThru.name }));
+console.log("  correlation:", JSON.stringify(fnThru.drew));
+
+/* the stations, against this file's own arithmetic */
+{
+  const ids = ["SB-9", "SB-10", "SB-11"];
+  const P = ids.map(i => fnPay.all.find(h => h.id === i));
+  let cum = 0;
+  const want = P.map((h, k) => { if (k) cum += Math.hypot(h.x - P[k - 1].x, h.y - P[k - 1].y);
+                                 return cum; });
+  const got = fnThru.st.holes;
+  console.log("  stations:", got.map(q => q.sta.toFixed(2)).join(", "),
+              "want", want.map(v => v.toFixed(2)).join(", "));
+  if (got.length !== 3) { console.log("FAIL: a fence through three holes found", got.length); process.exit(1); }
+  for (let i = 0; i < 3; i++) {
+    if (got[i].id !== ids[i]) { console.log("FAIL: hole", i, "is", got[i].id, "not", ids[i]); process.exit(1); }
+    if (Math.abs(got[i].sta - want[i]) > 0.05)
+      { console.log("FAIL: station", i, got[i].sta, "want", want[i]); process.exit(1); }
+    if (Math.abs(got[i].off) > 0.05)
+      { console.log("FAIL: a hole on the line has offset", got[i].off); process.exit(1); }
+  }
+  if (!fnThru.st.through || fnThru.st.through.join() !== ids.join())
+    { console.log("FAIL: props.through does not name the holes", fnThru.st.through); process.exit(1); }
+  if (fnThru.st.swath_ft !== 0)
+    { console.log("FAIL: a fence through named holes still carries a swath", fnThru.st.swath_ft); process.exit(1); }
+}
+
+/* the class bands: (n-1) spans x the classes BOTH holes of the span state,
+   with the reference built here from the payload's own contacts */
+{
+  const ref = await page.evaluate(() => {
+    const B = SBMM.borelogs;
+    const bandsRef = id => {
+      const h = B.byId(id), c = h.contacts || {};
+      const g = h.elev, td = h.elev - h.depth;
+      const nc = c.native_contact != null ? h.elev - c.native_contact : null;
+      const rk = c.bedrock_top != null ? h.elev - c.bedrock_top : null;
+      const out = {};
+      if (nc != null && nc < g - 0.01) out.waste = 1;
+      const nTop = nc != null ? nc : g, nBase = rk != null ? rk : td;
+      if (nBase < nTop - 0.01) out.native = 1;
+      if (rk != null && td < rk - 0.01) out.bedrock = 1;
+      return out;
+    };
+    const ids = ["SB-9", "SB-10", "SB-11"];
+    const want = [];
+    for (let i = 0; i + 1 < ids.length; i++) {
+      const a = bandsRef(ids[i]), b = bandsRef(ids[i + 1]);
+      for (const cls of ["waste", "native", "bedrock"])
+        if (a[cls] && b[cls]) want.push(cls + ":" + ids[i] + "-" + ids[i + 1]);
+    }
+    /* a unit family ONE hole of a span carries and the other does not cannot
+       be matched by any rule, so it MUST be drawn as a pinch-out */
+    const famsIn = (id, cls) => {
+      const h = B.byId(id), c = h.contacts || {};
+      const g = h.elev, td = h.elev - h.depth;
+      const nc = c.native_contact != null ? h.elev - c.native_contact : null;
+      const rk = c.bedrock_top != null ? h.elev - c.bedrock_top : null;
+      const box = cls === "waste" ? [g, nc]
+                : cls === "native" ? [nc != null ? nc : g, rk != null ? rk : td]
+                : [rk, td];
+      if (box[0] == null || box[1] == null) return [];
+      const out = [];
+      for (const s2 of (h.strata || [])) {
+        if (!s2.primary) continue;
+        const mid = h.elev - (s2.top + s2.base) / 2;
+        if (mid > box[0] + 0.01 || mid < box[1] - 0.01) continue;
+        const f2 = B.famOf(s2);
+        if (f2 !== "none") out.push(f2);
+      }
+      return out;
+    };
+    /* ONLY INSIDE A SHARED BAND. Where one hole of a span states no band of
+       that class at all there is nothing to correlate and nothing to pinch out
+       — SB-11 logs no bedrock, so SB-10's rock units are simply not part of
+       that span's correlation. */
+    const mustPinch = [];
+    for (let i = 0; i + 1 < ids.length; i++) {
+      const ba = bandsRef(ids[i]), bb = bandsRef(ids[i + 1]);
+      for (const cls of ["waste", "native", "bedrock"]) {
+        if (!ba[cls] || !bb[cls]) continue;
+        const A = famsIn(ids[i], cls), Bf = famsIn(ids[i + 1], cls);
+        for (const f2 of new Set(A)) if (!Bf.includes(f2)) mustPinch.push({ cls, side: "a", fam: f2 });
+        for (const f2 of new Set(Bf)) if (!A.includes(f2)) mustPinch.push({ cls, side: "b", fam: f2 });
+      }
+    }
+    return { want, mustPinch };
+  });
+  const got = fnThru.bandsDrawn.map(b => b.cls + ":" + b.a + "-" + b.b).sort();
+  const want = ref.want.slice().sort();
+  console.log("  class bands:", got.join(" | "));
+  if (got.join() !== want.join())
+    { console.log("FAIL: the class bands are not one per class both holes state",
+                  got, "want", want); process.exit(1); }
+  /* every band whose base is a hole's own bottom rather than a logged contact
+     is drawn with a dashed edge */
+  if (!fnThru.bandsDrawn.some(b => b.ended === "1") && !fnThru.bandsDrawn.length)
+    { console.log("FAIL: no class band was drawn at all"); process.exit(1); }
+
+  console.log("  pinch-outs drawn:", fnThru.pinch.length, "· families a neighbour lacks:",
+              ref.mustPinch.length,
+              ref.mustPinch.slice(0, 5).map(m => m.cls + "/" + m.side + "/" + m.fam).join(" "));
+  if (!ref.mustPinch.length)
+    { console.log("FAIL: this fence has no unmatched family — the pinch-out case is untested"); process.exit(1); }
+  for (const m of ref.mustPinch)
+    if (!fnThru.pinch.some(q => q.cls === m.cls && q.side === m.side))
+      { console.log("FAIL: no pinch-out drawn for", JSON.stringify(m), fnThru.pinch); process.exit(1); }
+  if (!(fnThru.units.length >= 1))
+    { console.log("FAIL: no units were correlated at all", fnThru.drew); process.exit(1); }
+}
+
+/* the span distance, printed once per span, and the rule stated once */
+{
+  const want = await page.evaluate(() => {
+    const B = SBMM.borelogs, ids = ["SB-9", "SB-10", "SB-11"];
+    const out = [];
+    for (let i = 0; i + 1 < ids.length; i++) {
+      const a = B.byId(ids[i]), b = B.byId(ids[i + 1]);
+      out.push(Math.hypot(a.x - b.x, a.y - b.y));
+    }
+    return out;
+  });
+  console.log("  spans:", JSON.stringify(fnThru.spanTxt));
+  if (fnThru.spanTxt.length !== want.length)
+    { console.log("FAIL:", fnThru.spanTxt.length, "span distances for", want.length, "spans"); process.exit(1); }
+  for (let i = 0; i < want.length; i++)
+    if (Math.abs(fnThru.spanTxt[i].ft - want[i]) > 0.2)
+      { console.log("FAIL: span", i, "printed", fnThru.spanTxt[i].ft, "want", want[i]); process.exit(1); }
+  for (const w of ["class bands correlated linearly", "USCS family", "pinch-out"])
+    if (!fnThru.note.includes(w))
+      { console.log("FAIL: the drawing does not state the correlation rule:", fnThru.note); process.exit(1); }
+}
+
+/* the CSV gains the class-band tops, and the DXF a layer per band */
+{
+  const ex = await page.evaluate(() => {
+    const f = SBMM.fence.currentFence();
+    const csv = SBMM.fence.csvText(f).split("\n");
+    const spec = SBMM.fence.dxfEntities(f);
+    const back = SBMM.dxf.parseDXF(SBMM.dxf.writeEntities(spec.layers, spec.entities));
+    const lays = [...new Set((back.entities || back || []).map(e => e.layer))];
+    const bandEnts = (back.entities || back || []).filter(e => /^FENCE-BAND-/.test(e.layer));
+    return { head: csv[0], row: csv[1], lays,
+             bands: bandEnts.length,
+             closed: bandEnts.filter(e => (e.pts || []).length >= 4).length };
+  });
+  console.log("  exports:", JSON.stringify({ lays: ex.lays.filter(l => /BAND|UNITS/.test(l)),
+                                             bands: ex.bands, closed: ex.closed }));
+  for (const c of ["waste_top_ft", "waste_base_ft", "native_top_ft", "bedrock_base_ft"])
+    if (!ex.head.includes(c))
+      { console.log("FAIL: the fence CSV has no", c, "column:", ex.head); process.exit(1); }
+  if (ex.row.split(",").length !== ex.head.split(",").length)
+    { console.log("FAIL: the fence CSV row and header disagree", ex.row); process.exit(1); }
+  if (ex.bands !== fnThru.bandsDrawn.length)
+    { console.log("FAIL: the DXF carries", ex.bands, "band polylines for", fnThru.bandsDrawn.length, "bands"); process.exit(1); }
+  if (ex.closed !== ex.bands)
+    { console.log("FAIL: a band polyline is not a closed quadrilateral", ex); process.exit(1); }
+}
+
+/* a session round trip rebuilds a THROUGH fence with zero jobs */
+{
+  const rt = await page.evaluate(() => {
+    /* the same route the fence round trip above takes: serialise, remove,
+       rebuildFeature. SBMM.compute.stats is a RECORD, not a function. */
+    const f = SBMM.store.features.find(q => q.type === "fence" && q.props.through);
+    const spec = SBMM.store.serialize().features.find(x => x.type === "fence" && x.props.through);
+    if (!f || !spec) return { none: true };
+    const jobs0 = SBMM.compute.stats.workerJobs + SBMM.compute.stats.syncJobs;
+    SBMM.store.remove(f);
+    const nf = SBMM.tools.rebuildFeature(spec);
+    const jobs1 = SBMM.compute.stats.workerJobs + SBMM.compute.stats.syncJobs;
+    SBMM.fence.setCurrent(nf.id);
+    return { jobs: jobs1 - jobs0,
+             through: nf.props.through ? nf.props.through.slice() : null,
+             swath: nf.props.swath_ft,
+             holes: nf._fen ? nf._fen.holes.map(q => q.id) : null,
+             stas: nf._fen ? nf._fen.holes.map(q => +q.sta.toFixed(2)) : null };
+  });
+  console.log("  through-fence round trip:", JSON.stringify(rt));
+  if (rt.none) { console.log("FAIL: no through-fence survived to the round trip"); process.exit(1); }
+  if (rt.jobs !== 0) { console.log("FAIL: a through-fence round trip ran", rt.jobs, "compute jobs"); process.exit(1); }
+  if (!rt.through || rt.through.join() !== "SB-9,SB-10,SB-11")
+    { console.log("FAIL: props.through did not survive the round trip", rt); process.exit(1); }
+  if (!rt.holes || rt.holes.join() !== "SB-9,SB-10,SB-11")
+    { console.log("FAIL: the rebuilt fence does not carry its three holes", rt); process.exit(1); }
+}
+await voiceCheck("9ag. the through fence card");
+
 /* leave the app the way 9z expects to find it: the Layers tab shown, the pane
    scrolled to the top (9z drags a row in #projLayers by its grip's PAGE
    position, and a scrolled pane puts those rows somewhere else), and the
@@ -8657,6 +9063,87 @@ await page.click('#leftTabs .dtab[data-tab="layers"]');
 await page.waitForTimeout(300);
 await page.evaluate(() => { const p = $("layers"); if (p) p.scrollTop = 0; });
 await page.waitForTimeout(200);
+});
+
+await block("9ah. no overlapping text", async () => {
+/* 9ah. ZERO TEXT OVERLAPS IN THE LOG DRAWING (v24 Part 1)              */
+/* ==================================================================== */
+/* The engineer: "some text are overlapping others". This is the assertion
+   that it never happens again — every one of the 44 holes, at the narrow
+   width and the wide one, with every rendered <text> measured by its client
+   rectangle and every pair tested.
+
+   It renders OFF-SCREEN through SBMM.borewin.logSvg(), the same builder the
+   Log tab paints: 88 renders in a hidden div cost seconds where 88 window
+   repaints cost minutes, and what is measured is byte-for-byte what ships.
+   test/borewin_overlap.mjs is the same sweep at three widths, over Compare
+   and the fence as well, and it prints the offenders; this is the gate.
+
+   The one deliberate duplicate — a halo twin, the same string at the same
+   spot — is excluded, and so is any text inside a <title> (never rendered). */
+const ovBefore = errors.length;
+const ov = await page.evaluate(() => {
+  const host = document.createElement("div");
+  host.style.cssText = "position:fixed;left:-20000px;top:0;width:2000px;"
+    + "font-family:'SF Mono',ui-monospace,Consolas,Menlo,monospace";
+  document.body.appendChild(host);
+  const boxes = root => {
+    const out = [];
+    for (const t of root.querySelectorAll("text")) {
+      if (t.closest("title, defs")) continue;
+      const s = (t.textContent || "").trim();
+      if (!s) continue;
+      const r = t.getBoundingClientRect();
+      if (r.width < 0.2 || r.height < 0.2) continue;
+      out.push({ s, x: r.left, y: r.top, w: r.width, h: r.height });
+    }
+    return out;
+  };
+  /* more than half a pixel on BOTH axes is an overlap */
+  const pairs = bx => {
+    const bad = [];
+    for (let i = 0; i < bx.length; i++) for (let j = i + 1; j < bx.length; j++) {
+      const a = bx[i], b = bx[j];
+      const ox = Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x);
+      const oy = Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y);
+      if (ox <= 0.5 || oy <= 0.5) continue;
+      if (a.s === b.s && Math.abs(a.x - b.x) < 1.5 && Math.abs(a.y - b.y) < 1.5) continue;
+      bad.push(`"${a.s}" × "${b.s}"`);
+    }
+    return bad;
+  };
+  const out = { holes: 0, texts: 0, bad: [], widths: {} };
+  for (const w of [560, 1240]) {
+    let n = 0;
+    for (const id of SBMM.borelogs.ids()) {
+      const d = SBMM.borewin.logSvg(id, w);
+      if (!d) { out.bad.push(`${id} · ${w} · no drawing`); continue; }
+      host.innerHTML = d.svg;
+      const bx = boxes(host);
+      out.texts += bx.length;
+      for (const s of pairs(bx)) { out.bad.push(`${id} · ${w} · ${s}`); n++; }
+      out.holes++;
+    }
+    out.widths[w] = n;
+  }
+  host.remove();
+  return out;
+});
+console.log("overlap sweep:", ov.holes, "renders ·", ov.texts, "text elements ·",
+            JSON.stringify(ov.widths));
+if (ov.holes < 88) { console.log("FAIL: the overlap sweep rendered", ov.holes, "of 88"); process.exit(1); }
+if (ov.texts < 4000) { console.log("FAIL: the sweep measured only", ov.texts, "text elements — "
+  + "the drawing did not draw"); process.exit(1); }
+if (ov.bad.length) {
+  console.log("FAIL: the log drawing overlaps its own text —", ov.bad.length, "pairs");
+  for (const b of ov.bad.slice(0, 25)) console.log("   ", b);
+  process.exit(1);
+}
+console.log("  no overlapping text in any of the 44 holes at 560 or 1,240 px");
+
+if (errors.length !== ovBefore) {
+  console.log("FAIL: page errors around the overlap sweep:", errors.slice(ovBefore, ovBefore + 3));
+  process.exit(1); }
 });
 
 await block("9z. the layer tree", async () => {

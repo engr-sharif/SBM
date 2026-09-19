@@ -17,6 +17,93 @@ All three are offline-only by design. Nothing in this app calls out to the inter
 
 ---
 
+## v9.30 — the log window, finished, and the fence that correlates (2026-09-18)
+
+You said the log viewer seemed unfinished — text sitting on other text — and that the
+fence did a poor job of connecting the borings. Both are fixed, and the first one is now
+something the tests will not let come back.
+
+**No text overlaps anything, anywhere.** Every label on a log — the sample references,
+the N values, the blows, the pH and penetrometer readings, the lab chips, the remarks,
+the water symbol, the contact lines — is placed through one rule: it takes the next free
+slot in its own column and, if there is no room, it is left off and its reading stays in
+the tooltip and the CSV rather than being printed through its neighbour. The horizon
+sentences that used to run across the whole sheet are short tags in the one lane that
+carries no other words. A sweep of all 44 holes at three window widths, plus six compare
+sets and the fence, measured **1,475 overlapping pairs before and none after**, and the
+same sweep runs in the test suite on every change.
+
+**The window itself.** One type scale instead of five; every number lines up in a column.
+The hole, its waste area, the ground elevation, the native contact, the bedrock and the
+groundwater are six labelled facts on one strip that stays put, with the rest of the log
+header one click away. Under it the column headings — now with their units — no longer
+scroll off the top when you are 80 ft down a log. The depth cursor reads out in that
+strip instead of a floating chip that could land on the drawing, and a click pins it.
+Ctrl+wheel zooms the drawing about the pointer and holds the depth you are pointing at.
+The hole picker walks on the arrow keys, is grouped by waste area and shows each hole's
+depth and contact. Compare says when you have not picked anything; a button with nothing
+to export is visibly out of service. The printed sheet leads with the same six facts in
+the same order, and SB-10 still comes out at three pages.
+
+**The fence connects the holes.** Two things are new. You can draw a fence **through**
+named holes — `FENCE SB-9 SB-10 SB-11`, or tick them in the Fence tab — and the line
+runs hole to hole with no swath, each boring at its own station. And on every fence the
+**classes are now correlated as shaded bands** between adjacent holes: the waste body
+reads as one band of varying thickness, native beneath it, rock under that, each joined
+straight from one hole's logged contact to the next, dashed where a hole stopped before
+it reached the next contact. Inside a band the logged units are matched in order where
+two holes carry the same USCS family — a thin line between them, dashed where the
+symbols differ — and a unit only one hole logged pinches out to a point half way across.
+A unit with no USCS symbol is not correlated at all, because "described, not classified"
+is not something to draw a wedge from. The true distance between each pair of holes is
+printed once, under the stations, and the drawing says in one line what it did.
+
+The CSV now carries each hole's class-band tops and bases; the section DXF carries a
+closed polyline per class band on its own layer (`FENCE-BAND-WASTE` and the rest) plus
+the pinch-outs, which is what you hatch in Civil 3D. The 3D strip picks all of it up
+automatically — it is textured from the same drawing.
+
+One real defect turned up while testing the new zoom: the anchor left the drawing's top
+margin out of its arithmetic, so the depth under the pointer crept by about a foot and a
+half at each step. It now holds to a fiftieth of a foot.
+
+## v9.29 — the 3D view (2026-09-18)
+
+Three things you reported, in one round.
+
+**The black line around the mine area is gone.** It traced the 1-ft survey window
+exactly, on all four sides, over water and marsh alike — and it was not the terrain. The
+3D view drapes each patch of ground with the sharpest photograph it has for that patch,
+and the sharp photography stops at that rectangle; where a tile of the drape straddled
+the edge, everything outside the rectangle had been left unpainted, which is black. It is
+painted from the site photograph now, so the picture simply carries on across the line.
+The reason it "sometimes went away" is that the sharp drape is only used when you are
+close enough to be given it — from far out you were seeing the site photograph on both
+sides and there was nothing to disagree.
+
+**The ground is as sharp in 3D as it is on the map.** The 3D drape could not go finer
+than 1 ft per pixel, while the map has been drawing the same ground at 6 inches over the
+mine area and 3 inches over the ABP. Both now reach the 3D view: **0.5 ft per pixel over
+the mine area and 0.25 ft over the ABP**, which is the photography's own resolution and
+the end of it. Nothing on a phone or a tablet changed — the sharper drape is desktop only,
+because it is four times the picture to hold.
+
+**Clicking something no longer stutters.** Selecting a feature used to redraw the entire
+3D scene — every decision unit, every EA design line, the storm network, the drainage
+map, the survey, the datasets: about 4,500 draped lines and 450,000 ground elevations,
+every time, for something that only changes the colour of one line. The scene is in two
+halves now and a selection redraws only your own drawings: **0.6 to 1.7 ms instead of 75
+to 140**. Editing a drawing is the same change.
+
+The 3D view also draws at 1.5 device pixels rather than 2 on a high-DPI screen, which is
+a quarter less work for the card and a difference I could not see on terrain; **View
+settings → copy 3D diagnostics** now opens with one line of numbers — frames, render
+time, hover cost, rebuilds, pixel ratio, drape resolution, the name of your card — so if
+any of this still feels slow on your machine, paste that line and it will say where the
+time goes.
+
+---
+
 ## v9.28 — the fence diagram (2026-09-10)
 
 Compare stands the holes side by side. A **fence** stands them on the ground they were
