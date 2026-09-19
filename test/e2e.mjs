@@ -7656,11 +7656,24 @@ bwCols = await page.evaluate(() => {
     contact: svg.querySelector(".blcontact") ? +svg.querySelector(".blcontact").dataset.ft : null,
     contactSrc: svg.querySelector(".blcontact") ? svg.querySelector(".blcontact").dataset.src : null,
     rock: !!svg.querySelector(".blrockline"),
-    /* v24: every heading carries its unit, so the strings moved with them —
-       the FACT asserted (each §2.2 column is named on the drawing) is the
-       same one, which is rule 9 of the voice spec */
-    heads: ["FT BGS", "GRAPHIC LOG", "USCS", "DESCRIPTION", "SAMPLE · N", "PP tsf",
-            "ELEV ft NAVD88", "pH 2–8 · 4", "BLOWS/6″"].filter(h => txt.includes(h)),
+    /* v24: the headings are drawn ONCE, in the window's own fixed band, and
+       every one carries its unit — so the strings AND the element moved. The
+       FACT asserted is the same one (each §2.2 column is named, and the log
+       scrolls under a heading row that does not), which is rule 9 of the
+       voice spec. */
+    heads: (() => {
+      const b = document.querySelector(".blwin .bwheadstrip svg.bwheads");
+      const bt = b ? [...b.querySelectorAll("text")].map(t => t.textContent) : [];
+      return ["FT BGS", "GRAPHIC LOG", "USCS", "DESCRIPTION", "SAMPLE · N", "PP tsf",
+              "ELEV ft NAVD88", "pH 2–8 · 4", "BLOWS/6″"].filter(h => bt.includes(h));
+    })(),
+    /* the band is a sibling of the scrolling body, not inside it */
+    headsFixed: (() => {
+      const b = document.querySelector(".blwin .bwheadstrip");
+      const body = document.querySelector(".blwin .bwbody");
+      return !!(b && body && !body.contains(b));
+    })(),
+    headsInDrawing: txt.filter(t => t === "GRAPHIC LOG" || t === "DESCRIPTION").length,
     uscsCol: txt.filter(t => /^(SP|SP-SC|CL|ML|MH|SC|SM|GW|GP|GC)$/.test(t)).length,
     blows: txt.filter(t => /^\d+-\d+-\d+$/.test(t)).length,
     desc: txt.filter(t => /Poorly graded SAND|CLAYEY SAND/.test(t)).length,
@@ -7679,6 +7692,10 @@ if (!bwCols.ph4 || !bwCols.water || !bwCols.rock)
   { console.log("FAIL: the pH-4 rule, the water triangle or the bedrock line is missing", bwCols); process.exit(1); }
 if (bwCols.contact !== bwPay.nc || bwCols.contactSrc !== bwPay.src)
   { console.log("FAIL: the window's contact line does not match the payload", bwCols, bwPay); process.exit(1); }
+if (!bwCols.headsFixed)
+  { console.log("FAIL: the column-heading band scrolls with the log"); process.exit(1); }
+if (bwCols.headsInDrawing)
+  { console.log("FAIL: the headings are drawn twice — once in the band and once in the drawing"); process.exit(1); }
 if (bwCols.heads.length < 9)
   { console.log("FAIL: a §2.2 column heading is missing:", bwCols.heads); process.exit(1); }
 /* the two OPTIONAL columns — the lab chips and the remarks — need a window
@@ -7742,23 +7759,178 @@ if (bwAxes.missDepth > 1 || bwAxes.missElev > 1)
 }
 bwCur = await page.evaluate(() => {
   const c = document.querySelector(".blwin .bwcur");
+  const r = document.querySelector(".blwin .bwread");
   const h = SBMM.borelogs.byId("SB-9");
   const ft = +c.dataset.ft;
   const s = (h.strata || []).find(q => q.primary && ft >= q.top && ft < q.base);
-  /* the chip prints through the app's own fmt(), which groups thousands — so
-     the expected string is built the same way rather than with toFixed */
-  return { hidden: c.hidden, ft, txt: c.textContent, uscs: c.dataset.uscs,
+  /* v24 §2 item 4: the hairline stays on the drawing and its READING moved
+     into the header strip, where it cannot land on what it describes. Same
+     fact, new element — rule 9. The readout prints through the app's own
+     fmt(), which groups thousands, so the expected string is built that way. */
+  return { hidden: c.hidden, ft, txt: r ? r.textContent : "", uscs: c.dataset.uscs,
+           inStrip: !!(r && r.closest(".bwhead")),
+           floating: !!c.querySelector("b"),
            wantUscs: s ? (s.uscs || "") : null,
            wantDepth: fmt(ft, 1), wantElev: fmt(h.elev - ft, 1) };
 });
 console.log("the depth cursor:", JSON.stringify(bwCur));
 if (bwCur.hidden || !(bwCur.ft > 0)) { console.log("FAIL: the depth cursor did not follow the pointer", bwCur); process.exit(1); }
+if (!bwCur.inStrip || bwCur.floating)
+  { console.log("FAIL: the cursor's reading is not in the header strip", bwCur); process.exit(1); }
 if (bwCur.uscs !== bwCur.wantUscs)
   { console.log("FAIL: the cursor names the wrong stratum", bwCur); process.exit(1); }
 if (!bwCur.txt.includes(bwCur.wantDepth))
   { console.log("FAIL: the cursor does not print the depth it is at", bwCur); process.exit(1); }
 if (!bwCur.txt.includes(bwCur.wantElev))
   { console.log("FAIL: the cursor does not print the elevation of that depth", bwCur); process.exit(1); }
+
+/* ---- v24 §2: the strip's six facts, the pin, the picker, the zoom ---- */
+/* The refinement pass, asserted as behaviour rather than as CSS: the header
+   strip leads with the six facts a reader checks before reading a stratum and
+   keeps the rest one click away; a click pins the depth cursor; the picker is
+   navigable from the keyboard; Ctrl+wheel changes the drawing SCALE and keeps
+   the depth under the pointer; and a control with nothing to do is disabled
+   rather than silently inert. */
+const bwRefine = await page.evaluate(() => {
+  const el = document.querySelector(".blwin");
+  const facts = [...el.querySelectorAll(".bwfacts .bwf > span")].map(s2 => s2.textContent);
+  const more = el.querySelector(".bwmorebox");
+  const mb = el.querySelector(".bwmoreb");
+  const before = { hidden: more.hidden, n: more.querySelectorAll(".bwf").length };
+  mb.click();
+  const after = { hidden: more.hidden };
+  mb.click();
+  return { facts, id: !!el.querySelector(".bwhid b"),
+           more: before, moreOpens: !after.hidden, moreShuts: more.hidden,
+           /* one typographic scale: the tokens live on the window */
+           scale: ["--bl-s", "--bl-m", "--bl-l", "--bl-h"]
+             .map(k => getComputedStyle(el).getPropertyValue(k).trim()) };
+});
+console.log("the header strip:", JSON.stringify(bwRefine));
+{
+  const want = ["Ground", "Native contact", "Bedrock", "Groundwater"];
+  const missing = want.filter(f => !bwRefine.facts.includes(f));
+  if (!bwRefine.id || missing.length)
+    { console.log("FAIL: the header strip does not lead with the six facts", missing, bwRefine.facts); process.exit(1); }
+  if (bwRefine.facts.length > 6)
+    { console.log("FAIL: the header strip carries more than the six facts:", bwRefine.facts); process.exit(1); }
+}
+if (!(bwRefine.more.n >= 8) || !bwRefine.more.hidden || !bwRefine.moreOpens || !bwRefine.moreShuts)
+  { console.log("FAIL: the rest of the header is not behind `more`", bwRefine); process.exit(1); }
+if (bwRefine.scale.join() !== "11px,12.5px,14px,18px")
+  { console.log("FAIL: the window does not carry one typographic scale", bwRefine.scale); process.exit(1); }
+
+/* the pin: a click on the drawing holds the cursor where it is */
+{
+  const box = await page.locator(".blwin .blgl").nth(2).boundingBox();
+  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+  await page.waitForTimeout(200);
+  const pinned = await page.evaluate(() => {
+    const c = document.querySelector(".blwin .bwcur");
+    const ft = c.dataset.ft;
+    return { on: c.classList.contains("pinned"), ft,
+             label: document.querySelector(".blwin .bwread > span").textContent };
+  });
+  /* move well away: a pinned cursor does not follow */
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2 + 140);
+  await page.waitForTimeout(200);
+  const held = await page.evaluate(() => document.querySelector(".blwin .bwcur").dataset.ft);
+  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+  await page.waitForTimeout(150);
+  const released = await page.evaluate(() =>
+    document.querySelector(".blwin .bwcur").classList.contains("pinned"));
+  console.log("the pin:", JSON.stringify({ ...pinned, held, released }));
+  if (!pinned.on || !/pinned/.test(pinned.label))
+    { console.log("FAIL: a click did not pin the depth cursor", pinned); process.exit(1); }
+  if (held !== pinned.ft)
+    { console.log("FAIL: the pinned cursor followed the pointer", pinned.ft, "->", held); process.exit(1); }
+  if (released) { console.log("FAIL: a second click did not release the pin"); process.exit(1); }
+}
+
+/* the picker: down, down, Enter lands on the second row of the list */
+{
+  await page.evaluate(() => {
+    const i = document.querySelector(".blwin .bwpick");
+    i.value = ""; i.focus(); i.dispatchEvent(new Event("focus"));
+  });
+  await page.waitForTimeout(250);
+  const rows = await page.evaluate(() =>
+    [...document.querySelectorAll(".blwin .bwmenu .bwopt")].map(r => r.dataset.id));
+  await page.keyboard.press("ArrowDown");
+  await page.keyboard.press("ArrowDown");
+  await page.waitForTimeout(150);
+  const sel = await page.evaluate(() => {
+    const r = document.querySelector(".blwin .bwmenu .bwopt.sel");
+    return r ? r.dataset.id : null;
+  });
+  await page.keyboard.press("Enter");
+  await page.waitForTimeout(350);
+  const landed = await page.evaluate(() => SBMM.borewin.stateOf().id);
+  console.log("the picker keyboard:", JSON.stringify({ rows: rows.length, sel, landed }));
+  if (!(rows.length >= 40)) { console.log("FAIL: the picker does not list the holes", rows.length); process.exit(1); }
+  if (!sel || landed !== sel)
+    { console.log("FAIL: down/down/Enter did not open the highlighted hole", sel, landed); process.exit(1); }
+}
+await page.evaluate(() => SBMM.borewin.open("SB-9"));
+await page.waitForTimeout(400);
+
+/* Ctrl+wheel zooms about the pointer and keeps the depth under it */
+{
+  const box = await page.locator(".blwin .bwbody").boundingBox();
+  const px = box.x + box.width * 0.35, py = box.y + box.height * 0.6;
+  await page.mouse.move(px, py);
+  await page.waitForTimeout(200);
+  /* THE DEPTH AT A CLIENT Y, ASKED DIRECTLY. Reading it off the cursor chip
+     means driving a mousemove and trusting that it landed, which on a loaded
+     software-GL box it does not always; depthAtClientY states the drawing's
+     own mapping, which is exactly what the anchor is a claim about. */
+  const before = await page.evaluate(y =>
+    ({ scale: SBMM.borewin.scale(), ft: SBMM.borewin.depthAtClientY(y) }), py);
+  /* page.mouse.wheel carries no modifier of its own — Control has to be HELD
+     for the event to reach the window's ctrl+wheel branch */
+  await page.keyboard.down("Control");
+  await page.mouse.wheel(0, -240);
+  await page.keyboard.up("Control");
+  await page.waitForTimeout(600);
+  const after = await page.evaluate(y =>
+    ({ scale: SBMM.borewin.scale(), ft: SBMM.borewin.depthAtClientY(y) }), py);
+  console.log("ctrl+wheel zoom:", JSON.stringify({ before, after }));
+  if (!(after.scale < before.scale))
+    { console.log("FAIL: ctrl+wheel up did not zoom the drawing in", before, after); process.exit(1); }
+  if (Math.abs(after.ft - before.ft) > 0.25)
+    { console.log("FAIL: the depth under the pointer moved by", (after.ft - before.ft).toFixed(2), "ft"); process.exit(1); }
+  await page.evaluate(() => SBMM.borewin.scale(5));
+  await page.waitForTimeout(250);
+}
+
+/* states: a control with nothing to export is disabled, and Compare with no
+   holes chosen says so rather than drawing an empty panel */
+{
+  const st = await page.evaluate(() => {
+    const el = document.querySelector(".blwin");
+    const q = sel => { const b = el.querySelector(sel); return b ? b.disabled : null; };
+    const out = { logPng: q('[data-b="png"]'), logPrint: q('[data-b="print"]') };
+    SBMM.borewin.tab("table");
+    out.tablePng = q('[data-b="png"]');
+    SBMM.borewin.compare([]);
+    out.empty = !!el.querySelector(".bwempty");
+    out.emptyWords = el.querySelector(".bwempty") ? el.querySelector(".bwempty").textContent : "";
+    out.chips = el.querySelectorAll(".bwcmpsel .bwchip").length;
+    out.cmpPrint = q('[data-b="print"]');
+    return out;
+  });
+  console.log("states:", JSON.stringify(st));
+  if (st.logPng !== false || st.logPrint !== false)
+    { console.log("FAIL: the log tab's exports are disabled", st); process.exit(1); }
+  if (st.tablePng !== true)
+    { console.log("FAIL: the Table tab still offers a PNG of a table", st); process.exit(1); }
+  if (!st.empty || !/No holes chosen/i.test(st.emptyWords) || !(st.chips >= 40))
+    { console.log("FAIL: Compare with nothing chosen has no empty state", st); process.exit(1); }
+  if (st.cmpPrint !== true)
+    { console.log("FAIL: `print` is offered on a tab that prints one hole", st); process.exit(1); }
+  await page.evaluate(() => { SBMM.borewin.open("SB-9", { tab: "log" }); });
+  await page.waitForTimeout(400);
+}
 
 /* ---- the arrows walk holes, and do NOT orbit the 3D view ---- */
 /* block 9ae leaves the 3D view OPEN, and js/viewer3d.js's key handler is

@@ -428,6 +428,15 @@ SBMM.borelogs = (function () {
   }
   const patId = (fam, cls) => "blp_" + fam.replace("+", "_") + "_" + cls;
 
+  /* A USCS SYMBOL, OR AN EM DASH. The payload carries the logged word where a
+     hole logged rock rather than a group symbol ("Bedrock"), and that word is
+     wider than the column it is printed in at every tier. The pattern and the
+     class tint already say what it is. (v24) */
+  function uscsSymbol(u) {
+    const t = String(u == null ? "" : u).trim().toUpperCase();
+    return /^[A-Z]{1,2}([-/][A-Z]{1,2})?$/.test(t) ? t : "\u2014";
+  }
+
   /* the <defs> for exactly the (family, class) pairs a drawing uses. Every
      colour in it is a presentation ATTRIBUTE — the PNG export serialises this
      SVG into an <img> and a document stylesheet does not travel with it. */
@@ -569,20 +578,8 @@ SBMM.borelogs = (function () {
        The two narrow left columns (12 px and 8 px) have no room for a word
        and are named by their tooltips. */
     if (o.headings && tier === "sheet") {
-      const hy = PADT - 13;
-      const hd = (x, s, anchor) => p.push(text(x, hy, s, T.hd, 8.5, anchor,
-        ' letter-spacing=".06em"'));
-      hd(0, useElev ? "ELEV ft" : "FT BGS");
-      if (L.gl) hd(L.gl[0], "GRAPHIC LOG");
-      if (L.uscs) hd(L.uscs[0], "USCS");
-      if (L.desc) hd(L.desc[0], "DESCRIPTION");
-      if (L.smp) hd(L.smp[0], "SAMPLE · N");
-      if (L.blows) hd(L.blows[0], "BLOWS/6\u2033");
-      if (L.pp) hd(L.pp[0], "PP tsf");
-      if (L.ph) hd(L.ph[0], "pH 2\u20138 · 4");
-      if (L.lab) hd(L.lab[0], "LAB");
-      if (L.rem) hd(L.rem[0], "REMARKS");
-      if (L.eax != null) hd(L.eax, useElev ? "FT BGS" : "ELEV ft NAVD88");
+      for (const [x, s2, anchor] of headingList(L, useElev))
+        p.push(text(x, PADT - 13, s2, T.hd, 8.5, anchor, ' letter-spacing=".06em"'));
       p.push(line(0, PADT - 6, W, PADT - 6, T.grid, 1));
     }
 
@@ -692,10 +689,16 @@ SBMM.borelogs = (function () {
         /* the USCS symbol goes in its own column at sheet width and inside the
            graphic log at stick width, where there is no room for a column */
         if (L.uscs == null && s.uscs && hh > 9) {
-          const gy = gLane.at(yOf((a + b) / 2) - 4.6, 9.4, null);
-          if (gy != null)
-            p.push(text(L.gl[0] + gw / 2, gy + 7.8, s.uscs, PINK, 8.5, "middle",
-              ' font-weight="700"'));
+          /* the same rule the USCS COLUMN is under: a symbol, never a word.
+             "Bedrock" is 42 px of bold in a 50-px stick column, and the brick
+             pattern under it already says rock. */
+          const sym = uscsSymbol(s.uscs);
+          if (sym !== "\u2014") {
+            const gy = gLane.at(yOf((a + b) / 2) - 4.6, 9.4, null);
+            if (gy != null)
+              p.push(text(L.gl[0] + gw / 2, gy + 7.8, sym, PINK, 8.5, "middle",
+                ' font-weight="700"'));
+          }
         }
       });
     }
@@ -718,8 +721,7 @@ SBMM.borelogs = (function () {
            than a USCS group — is 42 px of bold and ran into the description.
            The graphic log already draws rock as brick and tints it, so the
            word adds nothing; it stays in the title. */
-        const u = String(s.uscs || "").trim();
-        const sym = /^[A-Z]{1,2}([-/][A-Z]{1,2})?$/.test(u.toUpperCase()) ? u.toUpperCase() : "\u2014";
+        const sym = uscsSymbol(s.uscs);
         /* NO <title> INSIDE A <text>: a title is part of its parent's
            textContent, which is what every harness and the voice check read,
            so a labelled symbol would stop being "SC". The full word is on the
@@ -938,7 +940,7 @@ SBMM.borelogs = (function () {
     const tag = (y, words, col) => {
       if (tier !== "sheet") return;
       const txt = words.length > tagRoom ? words.slice(0, tagRoom - 1) + "…" : words;
-      const at = tagLane.at(y - 11, 10.5, null);
+      const at = tagLane.at(Math.max(PADT, y - 11), 10.5, null);
       p.push(text(across0 + 3, at + 8, txt, col, 8.5, null,
         ' font-weight="700" class="bltag"' + HL));
     };
@@ -1025,6 +1027,49 @@ SBMM.borelogs = (function () {
     L.desc = [uscs[1] + 6, x - 4];
     if (L.desc[1] - L.desc[0] < 60) L.desc = null;
     return L;
+  }
+
+  /* THE COLUMN HEADINGS, IN ONE PLACE AND WITH THEIR UNITS (v24 §2.2).
+     Two callers: column() draws them in its own top margin for the printed
+     page, where every sheet repeats them, and headingBand() draws the same
+     list into the window's own fixed strip, where they must not scroll away
+     with the log. Two copies of this list would drift the first time a column
+     moved. The two narrow left columns (12 px and 8 px) have no room for a
+     word and are named by their tooltips instead. */
+  function headingList(L, useElev) {
+    const out = [[0, useElev ? "ELEV ft" : "FT BGS", null]];
+    const put = (b, s) => { if (b) out.push([b[0], s, null]); };
+    put(L.gl, "GRAPHIC LOG");
+    put(L.uscs, "USCS");
+    put(L.desc, "DESCRIPTION");
+    put(L.smp, "SAMPLE · N");
+    put(L.blows, "BLOWS/6\u2033");
+    put(L.pp, "PP tsf");
+    put(L.ph, "pH 2\u20138 · 4");
+    put(L.lab, "LAB");
+    put(L.rem, "REMARKS");
+    if (L.eax != null) out.push([L.eax, useElev ? "FT BGS" : "ELEV ft NAVD88", null]);
+    return out;
+  }
+
+  /* the window's fixed heading strip: the same list, its own little SVG, so
+     the drawing below it can scroll under a heading row that stays put */
+  const HEAD_BAND_H = 22;
+  function headingBand(w, o) {
+    const oo = o || {};
+    const W = Math.max(360, Math.round(w || 900));
+    const T = oo.print ? THEME.print : THEME.dark;
+    const L = layoutFor("sheet", W);
+    const p = [];
+    for (const [x, s2, anchor] of headingList(L, oo.datum === "elev"))
+      p.push(`<text x="${x.toFixed(1)}" y="13" fill="${T.hd}" font-size="8.5"`
+        + `${anchor ? ` text-anchor="${anchor}"` : ""} letter-spacing=".06em">${esc(s2)}</text>`);
+    p.push(`<line x1="0" y1="${HEAD_BAND_H - 2.5}" x2="${W}" y2="${HEAD_BAND_H - 2.5}"`
+      + ` stroke="${T.grid}" stroke-width="1"/>`);
+    return { svg: `<svg class="bwheads" viewBox="0 0 ${W} ${HEAD_BAND_H}" width="${W}"`
+      + ` height="${HEAD_BAND_H}" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">`
+      + `<style>text{font-family:"SF Mono",ui-monospace,Consolas,Menlo,monospace}</style>`
+      + p.join("") + `</svg>`, w: W, h: HEAD_BAND_H };
   }
 
   /* a word wrapper for SVG text, which has none of its own.
@@ -1433,7 +1478,7 @@ SBMM.borelogs = (function () {
     /* v23 §1 — the column renderer, and the facts a view needs around it.
        Phase B's fence calls column(h, {tier:"stick", datum:"elev", zTop, zBot,
        ppf}) once per hole and places the returned <g> at its station. */
-    column, columnSvg, defsFor, famOf, patternId: patId, wrapText,
+    column, columnSvg, headingBand, headingList, defsFor, famOf, patternId: patId, wrapText,
     deltaLidar, areaOf, areas, differs, tickStep,
     CLASS_LIST: () => CLASSES.slice()
   };

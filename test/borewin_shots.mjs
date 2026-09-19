@@ -4,9 +4,11 @@
    node test/borewin_shots.mjs [index.html] [outdir]
 
    Writes borewin_log.png (SB-9's log sheet at 1" = 5', with the depth cursor
-   parked on a stratum), borewin_compare.png (four holes on one elevation datum
-   with the correlation lines) and borewin_print.png (the printed log sheet in
-   the report preview) into test/shots/.
+   parked on a stratum and its readout in the header strip), borewin_log10.png
+   (SB-10, the deepest hole), borewin_compare.png (four holes on one elevation
+   datum with the correlation lines), borewin_picker.png (the hole picker open
+   over the log) and borewin_print.png (the printed log sheet in the report
+   preview) into test/shots/.
 
    Both defaults are resolved from THIS FILE'S location, never from a hard-coded
    repo path: in an agent worktree a constant opens the planner's index.html and
@@ -18,8 +20,9 @@ import { launch, TIMEOUT } from "./lib/browser.mjs";
 import { unlock } from "./gate.mjs";
 
 const HERE = resolve(fileURLToPath(new URL(".", import.meta.url)));
-const APP = process.argv[2] || resolve(HERE, "..", "index.html");
-const OUT = process.argv[3] || resolve(HERE, "shots");
+const pos = process.argv.slice(2).filter(a => !a.startsWith("--"));
+const APP = pos[0] || resolve(HERE, "..", "index.html");
+const OUT = pos[1] || resolve(HERE, "shots");
 mkdirSync(OUT, { recursive: true });
 
 const wait = ms => new Promise(r => setTimeout(r, ms));
@@ -48,6 +51,23 @@ if (gl) await page.mouse.move(gl.x + gl.width / 2, gl.y + gl.height / 2);
 await wait(400);
 await page.screenshot({ path: resolve(OUT, "borewin_log.png") });
 console.log("wrote borewin_log.png");
+
+/* 1b — SB-10, the deepest hole, scrolled to its bedrock */
+await page.evaluate(() => { SBMM.borewin.open("SB-10"); });
+await wait(900);
+await page.screenshot({ path: resolve(OUT, "borewin_log10.png") });
+console.log("wrote borewin_log10.png");
+
+/* 1c — the hole picker, open and grouped by waste area */
+await page.evaluate(() => {
+  const i = document.querySelector(".blwin .bwpick");
+  i.focus(); i.dispatchEvent(new Event("focus"));
+});
+await wait(600);
+await page.screenshot({ path: resolve(OUT, "borewin_picker.png") });
+console.log("wrote borewin_picker.png");
+await page.evaluate(() => { document.querySelector(".blwin .bwpick").blur(); });
+await wait(300);
 
 /* 2 — compare, four holes on one elevation datum */
 await page.evaluate(() => { SBMM.borewin.compare(["SB-9", "SB-11", "SB-12", "SB-17"]); });
