@@ -51,6 +51,7 @@ SBMM.borewin = (function () {
   let cur = null, tab = "log", scale = 5, datum = "depth";
   let cmp = [];                         /* the compare selection, hole ids    */
   let cmpCleared = false;               /* the user emptied it on purpose     */
+  let fnPick = [];                      /* holes ticked for a through-fence   */
 
   const ppf = () => DPI / scale;
   const has = () => !!(BL() && BL().has());
@@ -420,6 +421,7 @@ SBMM.borewin = (function () {
     dis('[data-b="png"]', tab === "table" || (tab === "fence" && !fence),
         tab === "table" ? "the table exports as CSV" : "no fence drawn yet");
     dis('[data-b="csv"]', tab === "fence" && !fence, "no fence drawn yet");
+    dis(".fnthru", tab === "fence" && fnPick.length < 2, "tick two holes or more");
     dis('[data-b="print"]', tab === "fence" || tab === "compare", "the printed sheet is one hole");
     dis('[data-b="printall"]', tab === "fence" || tab === "compare", "the printed sheet is one hole");
     dis('[data-b="printarea"]', tab === "fence" || tab === "compare", "the printed sheet is one hole");
@@ -531,7 +533,7 @@ SBMM.borewin = (function () {
   function paint() {
     if (!W) return;
     const h = BL().byId(cur);
-    W.el.querySelector(".bwid").textContent = cur || "—";
+    W.el.querySelector(".bwid").textContent = tab === "fence" ? "Fence" : (cur || "—");
     W.el.querySelector(".shtitle").textContent =
       tab === "log" ? "Boring log" : tab === "compare" ? "Compare"
         : tab === "fence" ? "Fence" : "All borings";
@@ -833,11 +835,15 @@ SBMM.borewin = (function () {
     const f = FN.currentFence();
     const pick = `<div class="bwfnbar">`
       + `<button class="minib fnnew" title="Draw a fence alignment on the map (FENCE)">draw a fence</button>`
+      + `<button class="minib fnthru" title="A fence through the holes ticked below, in the order`
+      + ` they were ticked (FENCE SB-9 SB-10)">through ${fnPick.length || "the ticked"} holes</button>`
       + (all.length ? `<label class="bwlbl">fence <select class="fnpick">`
           + all.map(g => `<option value="${esc(g.id)}"${f && g.id === f.id ? " selected" : ""}>`
               + `${esc(g.name || "Fence")}</option>`).join("") + `</select></label>` : "")
-      + (f ? `<label class="bwlbl">swath <input type="number" class="fnsw" step="25" min="10"`
-          + ` style="width:64px" value="${f.props.swath_ft}"><span class="mut">ft either side</span></label>`
+      + (f ? (f.props.through
+            ? `<span class="mut">through ${esc(f.props.through.join(" · "))}</span>`
+            : `<label class="bwlbl">swath <input type="number" class="fnsw" step="25" min="10"`
+              + ` style="width:64px" value="${f.props.swath_ft}"><span class="mut">ft either side</span></label>`)
           + `<label class="bwlbl">vertical <select class="fnve">`
           + FN.VE_CHOICES.map(v => `<option value="${v}"${v === f.props.ve ? " selected" : ""}>${v}\u00d7</option>`).join("")
           + `</select></label>`
@@ -847,8 +853,16 @@ SBMM.borewin = (function () {
           + `<button class="minib" data-fb="dxf" title="Section coordinates: X = station ft, Y = elevation ft">dxf</button>`
         : "")
       + `</div>`;
+    /* the hole list: ticking two or more and pressing `through N holes` builds
+       the alignment hole-to-hole, which is the second way in (v24 §3.1) */
+    const chips = `<div class="bwcmpsel bwfnsel">`
+      + BL().holes().map(h => `<label class="bwchip${fnPick.includes(h.id) ? " on" : ""}">`
+        + `<input type="checkbox" data-id="${esc(h.id)}"${fnPick.includes(h.id) ? " checked" : ""}>`
+        + `${esc(h.id)}</label>`).join("") + `</div>`;
     if (!f) {
-      W.art.innerHTML = pick + `<div class="note">No fence drawn yet.</div>`;
+      W.art.innerHTML = pick + `<div class="bwempty"><b>No fence yet</b>`
+        + `<span class="mut">A fence is a section through the subsurface along a line.</span></div>`
+        + chips;
       W.el.querySelector(".bwfoot").textContent = "no fence";
     } else {
       /* a fence is drawn at the width it is READ at. On a phone the whole
@@ -856,14 +870,29 @@ SBMM.borewin = (function () {
          scale down — which shrinks the text and keeps the collisions, the
          same lesson the results-card strip log carries. */
       const d = FN.drawSvg(f, { w: Math.max(touchy() ? 330 : 560, W.body.clientWidth - 18) });
-      W.art.innerHTML = pick + (d ? d.svg : `<div class="note">this fence has no alignment</div>`);
+      W.art.innerHTML = pick + (d ? d.svg : `<div class="note">this fence has no alignment</div>`) + chips;
       W.el.querySelector(".bwfoot").textContent = d
         ? `${d.holes.length} borings \u00b7 ${fmt(d.total, 1)} ft \u00b7 `
-          + `${fmt0(d.zBot)}\u2013${fmt0(d.zTop)} ft NAVD88 \u00b7 ${f.props.ve}\u00d7 vertical`
+          + `${fmt0(d.zBot)}\u2013${fmt0(d.zTop)} ft NAVD88 \u00b7 ${f.props.ve}\u00d7 vertical \u00b7 `
+          + `${d.bands} class bands \u00b7 ${d.units} units correlated`
         : "\u2014";
     }
     const q = c => W.art.querySelector(c);
     if (q(".fnnew")) q(".fnnew").onclick = () => { SBMM.cmd.run("FENCE"); };
+    if (q(".fnthru")) {
+      const b = q(".fnthru");
+      b.disabled = fnPick.length < 2;
+      b.classList.toggle("off", fnPick.length < 2);
+      b.onclick = () => {
+        const made = FN.startThrough(fnPick.slice());
+        if (made) { fnPick = []; paintFence(); }
+      };
+    }
+    W.art.querySelectorAll(".bwfnsel input").forEach(cb => cb.onchange = () => {
+      const id = cb.dataset.id, i = fnPick.indexOf(id);
+      if (cb.checked) { if (i < 0) fnPick.push(id); } else if (i >= 0) fnPick.splice(i, 1);
+      paintFence();
+    });
     if (q(".fnpick")) q(".fnpick").onchange = e => { FN.setCurrent(e.target.value); paintFence(); };
     if (q(".fnsw")) q(".fnsw").onchange = e => {
       f.props.swath_ft = Math.max(10, parseFloat(e.target.value) || FN.DEFAULTS.swath_ft);
