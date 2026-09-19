@@ -347,9 +347,11 @@ SBMM.fence = (function () {
         + r.g + `</g>`);
       /* the id and the offset, above the collar, on a plate so they read over
          the ground line and the band */
-      p.push(text(x, Math.max(12, y0 - 12), q.id, C.ink, 10.5, "middle",
+      /* the id is 10.5 px and the station line 8.2 px: nine pixels apart is
+         one pixel short of the two glyph boxes, on every fence (v24) */
+      p.push(text(x, Math.max(11, y0 - 14), q.id, C.ink, 10.5, "middle",
         ' font-weight="700"' + HALO));
-      p.push(text(x, Math.max(21, y0 - 3),
+      p.push(text(x, Math.max(22, y0 - 3),
         `${staLabel(q.sta)} · ${fmt0(Math.abs(q.off))} ft${sideOf(q.off) ? " " + sideOf(q.off) : ""}`,
         C.hd, 8.2, "middle", HALO));
     }

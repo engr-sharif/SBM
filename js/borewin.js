@@ -473,16 +473,29 @@ SBMM.borewin = (function () {
     return Math.max(560, W.body.clientWidth - 18);
   }
 
-  function paintLog(h) {
-    if (!h) { W.art.innerHTML = ""; return; }
-    const w = artWidth();
-    const r = BL().column(h, { tier: "sheet", ppf: ppf(), w, datum, headings: true,
+  /* ONE builder for the Log tab's drawing, so the overlap harness can render
+     the same SVG off-screen at any width without opening a window
+     (test/borewin_overlap.mjs, and block 9ah of the e2e, which sweeps 44 holes
+     at three widths — repainting a real window 132 times costs minutes). */
+  function logSvg(id, w, o) {
+    const h = typeof id === "string" ? BL().byId(id) : id;
+    if (!h) return null;
+    const oo = o || {};
+    const r = BL().column(h, { tier: "sheet", ppf: oo.ppf || ppf(), w: Math.max(360, w || 900),
+      datum: oo.datum || datum, headings: true,
       zTop: h.elev, zBot: h.elev != null ? h.elev - h.depth : null });
-    W.art.innerHTML = `<svg class="bwsvg" viewBox="0 0 ${r.w} ${r.h}" width="${r.w}" height="${r.h}"`
+    return { svg: `<svg class="bwsvg" viewBox="0 0 ${r.w} ${r.h}" width="${r.w}" height="${r.h}"`
       + ` xmlns="http://www.w3.org/2000/svg">`
       + `<style>text{font-family:"SF Mono",ui-monospace,Consolas,Menlo,monospace}</style>`
-      + r.defs + r.g + `</svg>`;
-    W.geom = { ppf: r.ppf, top: r.top, y0: r.yOf(r.top), h: r.h };
+      + r.defs + r.g + `</svg>`, w: r.w, h: r.h, ppf: r.ppf, top: r.top, y0: r.yOf(r.top) };
+  }
+
+  function paintLog(h) {
+    if (!h) { W.art.innerHTML = ""; return; }
+    const d = logSvg(h, artWidth());
+    if (!d) { W.art.innerHTML = ""; return; }
+    W.art.innerHTML = d.svg;
+    W.geom = { ppf: d.ppf, top: d.top, y0: d.y0, h: d.h };
     W.el.querySelector(".bwfoot").textContent =
       `1" = ${scale}' · ${(h.strata || []).filter(s => s.primary).length} units · `
       + `${(h.spt || []).length} drives · ${(h.tests || []).length} lab values`;
@@ -582,9 +595,12 @@ SBMM.borewin = (function () {
          stratum's own top */
       parts.push(`<g class="bwcolwrap" data-hole="${esc(c.h.id)}" data-y0="${c.r.yOf(0).toFixed(2)}"`
         + ` data-elev="${c.h.elev}" transform="translate(${c.x},0)">${c.r.g}</g>`);
-      parts.push(`<text x="${c.x + CW / 2}" y="16" fill="#E8EEF1" font-size="11" text-anchor="middle"`
+      /* 11 px of id on y 16 and 8.5 px of ground on y 26 is ten pixels for two
+         glyph boxes that need eleven — they overlapped by a pixel on every
+         compare this app can draw (v24) */
+      parts.push(`<text x="${c.x + CW / 2}" y="15" fill="#E8EEF1" font-size="11" text-anchor="middle"`
         + ` font-weight="700">${esc(c.h.id)}</text>`);
-      parts.push(`<text x="${c.x + CW / 2}" y="26" fill="#6C7F8A" font-size="8.5" text-anchor="middle">`
+      parts.push(`<text x="${c.x + CW / 2}" y="27" fill="#6C7F8A" font-size="8.5" text-anchor="middle">`
         + `${fmt(c.h.elev, 1)} ft · ${fmt(c.h.depth, 1)} ft deep</text>`);
     }
     /* the true horizontal separation between neighbours, printed between them:
@@ -1025,7 +1041,7 @@ SBMM.borewin = (function () {
                            if (el) el.value = d; paint(); } return datum; },
     compare: ids => { if (ids) { cmp = ids.slice(0, MAXCMP); tab = "compare"; paint(); } return cmp.slice(); },
     current: () => cur, step,
-    sheetHtml, printSheet, pagesFor, tableCsv,
+    sheetHtml, printSheet, pagesFor, tableCsv, logSvg,
     /* the state a harness may read — FIELDS only, never the object: it holds
        DOM nodes and a page.evaluate cannot return one (CLAUDE.md) */
     stateOf: () => W ? { open: true, id: cur, tab, scale, datum, maxed: W.maxed,

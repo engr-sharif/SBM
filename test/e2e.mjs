@@ -7656,8 +7656,11 @@ bwCols = await page.evaluate(() => {
     contact: svg.querySelector(".blcontact") ? +svg.querySelector(".blcontact").dataset.ft : null,
     contactSrc: svg.querySelector(".blcontact") ? svg.querySelector(".blcontact").dataset.src : null,
     rock: !!svg.querySelector(".blrockline"),
-    heads: ["FT BGS", "GRAPHIC LOG", "USCS", "DESCRIPTION", "SAMPLE · N", "PP tsf", "ELEV"]
-      .filter(h => txt.includes(h)),
+    /* v24: every heading carries its unit, so the strings moved with them —
+       the FACT asserted (each §2.2 column is named on the drawing) is the
+       same one, which is rule 9 of the voice spec */
+    heads: ["FT BGS", "GRAPHIC LOG", "USCS", "DESCRIPTION", "SAMPLE · N", "PP tsf",
+            "ELEV ft NAVD88", "pH 2–8 · 4", "BLOWS/6″"].filter(h => txt.includes(h)),
     uscsCol: txt.filter(t => /^(SP|SP-SC|CL|ML|MH|SC|SM|GW|GP|GC)$/.test(t)).length,
     blows: txt.filter(t => /^\d+-\d+-\d+$/.test(t)).length,
     desc: txt.filter(t => /Poorly graded SAND|CLAYEY SAND/.test(t)).length,
@@ -7676,7 +7679,7 @@ if (!bwCols.ph4 || !bwCols.water || !bwCols.rock)
   { console.log("FAIL: the pH-4 rule, the water triangle or the bedrock line is missing", bwCols); process.exit(1); }
 if (bwCols.contact !== bwPay.nc || bwCols.contactSrc !== bwPay.src)
   { console.log("FAIL: the window's contact line does not match the payload", bwCols, bwPay); process.exit(1); }
-if (bwCols.heads.length < 7)
+if (bwCols.heads.length < 9)
   { console.log("FAIL: a §2.2 column heading is missing:", bwCols.heads); process.exit(1); }
 /* the two OPTIONAL columns — the lab chips and the remarks — need a window
    wider than the harness's stage, and the layout drops them from the right in
@@ -8657,6 +8660,87 @@ await page.click('#leftTabs .dtab[data-tab="layers"]');
 await page.waitForTimeout(300);
 await page.evaluate(() => { const p = $("layers"); if (p) p.scrollTop = 0; });
 await page.waitForTimeout(200);
+});
+
+await block("9ah. no overlapping text", async () => {
+/* 9ah. ZERO TEXT OVERLAPS IN THE LOG DRAWING (v24 Part 1)              */
+/* ==================================================================== */
+/* The engineer: "some text are overlapping others". This is the assertion
+   that it never happens again — every one of the 44 holes, at the narrow
+   width and the wide one, with every rendered <text> measured by its client
+   rectangle and every pair tested.
+
+   It renders OFF-SCREEN through SBMM.borewin.logSvg(), the same builder the
+   Log tab paints: 88 renders in a hidden div cost seconds where 88 window
+   repaints cost minutes, and what is measured is byte-for-byte what ships.
+   test/borewin_overlap.mjs is the same sweep at three widths, over Compare
+   and the fence as well, and it prints the offenders; this is the gate.
+
+   The one deliberate duplicate — a halo twin, the same string at the same
+   spot — is excluded, and so is any text inside a <title> (never rendered). */
+const ovBefore = errors.length;
+const ov = await page.evaluate(() => {
+  const host = document.createElement("div");
+  host.style.cssText = "position:fixed;left:-20000px;top:0;width:2000px;"
+    + "font-family:'SF Mono',ui-monospace,Consolas,Menlo,monospace";
+  document.body.appendChild(host);
+  const boxes = root => {
+    const out = [];
+    for (const t of root.querySelectorAll("text")) {
+      if (t.closest("title, defs")) continue;
+      const s = (t.textContent || "").trim();
+      if (!s) continue;
+      const r = t.getBoundingClientRect();
+      if (r.width < 0.2 || r.height < 0.2) continue;
+      out.push({ s, x: r.left, y: r.top, w: r.width, h: r.height });
+    }
+    return out;
+  };
+  /* more than half a pixel on BOTH axes is an overlap */
+  const pairs = bx => {
+    const bad = [];
+    for (let i = 0; i < bx.length; i++) for (let j = i + 1; j < bx.length; j++) {
+      const a = bx[i], b = bx[j];
+      const ox = Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x);
+      const oy = Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y);
+      if (ox <= 0.5 || oy <= 0.5) continue;
+      if (a.s === b.s && Math.abs(a.x - b.x) < 1.5 && Math.abs(a.y - b.y) < 1.5) continue;
+      bad.push(`"${a.s}" × "${b.s}"`);
+    }
+    return bad;
+  };
+  const out = { holes: 0, texts: 0, bad: [], widths: {} };
+  for (const w of [560, 1240]) {
+    let n = 0;
+    for (const id of SBMM.borelogs.ids()) {
+      const d = SBMM.borewin.logSvg(id, w);
+      if (!d) { out.bad.push(`${id} · ${w} · no drawing`); continue; }
+      host.innerHTML = d.svg;
+      const bx = boxes(host);
+      out.texts += bx.length;
+      for (const s of pairs(bx)) { out.bad.push(`${id} · ${w} · ${s}`); n++; }
+      out.holes++;
+    }
+    out.widths[w] = n;
+  }
+  host.remove();
+  return out;
+});
+console.log("overlap sweep:", ov.holes, "renders ·", ov.texts, "text elements ·",
+            JSON.stringify(ov.widths));
+if (ov.holes < 88) { console.log("FAIL: the overlap sweep rendered", ov.holes, "of 88"); process.exit(1); }
+if (ov.texts < 4000) { console.log("FAIL: the sweep measured only", ov.texts, "text elements — "
+  + "the drawing did not draw"); process.exit(1); }
+if (ov.bad.length) {
+  console.log("FAIL: the log drawing overlaps its own text —", ov.bad.length, "pairs");
+  for (const b of ov.bad.slice(0, 25)) console.log("   ", b);
+  process.exit(1);
+}
+console.log("  no overlapping text in any of the 44 holes at 560 or 1,240 px");
+
+if (errors.length !== ovBefore) {
+  console.log("FAIL: page errors around the overlap sweep:", errors.slice(ovBefore, ovBefore + 3));
+  process.exit(1); }
 });
 
 await block("9z. the layer tree", async () => {
