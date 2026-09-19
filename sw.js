@@ -26,7 +26,7 @@
    injected on demand by js/tiles.js, so index.html names only the 30 kB tile
    INDEX. "Download the terrain tiles too" is therefore an explicit opt-in —
    {type:"precache", tiles:true} — which reads that index out of the payload it
-   just cached and adds every tile file it names, 52 MB on top of the app. The
+   just cached and adds every tile file it names, 64 MB on top of the app. The
    list still comes from the shipped payload rather than from a second copy
    here, for the same reason the script list does.
 

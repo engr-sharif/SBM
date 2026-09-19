@@ -990,7 +990,7 @@ SBMM.touch = (function () {
         btn.disabled = true;
         /* v20: the terrain tiles are injected on demand, so index.html names
            only the 30 kB tile index and the offline copy would otherwise have
-           no pyramid at all. Opting in adds the whole 52 MB of it. */
+           no pyramid at all. Opting in adds the whole 64 MB of it (v24). */
         const tk = document.getElementById("offlineTiles");
         const r = await offline.precache(p => {
           if (line) line.textContent = `offline copy: ${p.done} of ${p.total} files · ${(p.bytes / 1e6).toFixed(0)} MB…`;

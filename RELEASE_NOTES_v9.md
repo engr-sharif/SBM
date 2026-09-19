@@ -17,6 +17,43 @@ All three are offline-only by design. Nothing in this app calls out to the inter
 
 ---
 
+## v9.29 — the 3D view (2026-09-18)
+
+Three things you reported, in one round.
+
+**The black line around the mine area is gone.** It traced the 1-ft survey window
+exactly, on all four sides, over water and marsh alike — and it was not the terrain. The
+3D view drapes each patch of ground with the sharpest photograph it has for that patch,
+and the sharp photography stops at that rectangle; where a tile of the drape straddled
+the edge, everything outside the rectangle had been left unpainted, which is black. It is
+painted from the site photograph now, so the picture simply carries on across the line.
+The reason it "sometimes went away" is that the sharp drape is only used when you are
+close enough to be given it — from far out you were seeing the site photograph on both
+sides and there was nothing to disagree.
+
+**The ground is as sharp in 3D as it is on the map.** The 3D drape could not go finer
+than 1 ft per pixel, while the map has been drawing the same ground at 6 inches over the
+mine area and 3 inches over the ABP. Both now reach the 3D view: **0.5 ft per pixel over
+the mine area and 0.25 ft over the ABP**, which is the photography's own resolution and
+the end of it. Nothing on a phone or a tablet changed — the sharper drape is desktop only,
+because it is four times the picture to hold.
+
+**Clicking something no longer stutters.** Selecting a feature used to redraw the entire
+3D scene — every decision unit, every EA design line, the storm network, the drainage
+map, the survey, the datasets: about 4,500 draped lines and 450,000 ground elevations,
+every time, for something that only changes the colour of one line. The scene is in two
+halves now and a selection redraws only your own drawings: **0.6 to 1.7 ms instead of 75
+to 140**. Editing a drawing is the same change.
+
+The 3D view also draws at 1.5 device pixels rather than 2 on a high-DPI screen, which is
+a quarter less work for the card and a difference I could not see on terrain; **View
+settings → copy 3D diagnostics** now opens with one line of numbers — frames, render
+time, hover cost, rebuilds, pixel ratio, drape resolution, the name of your card — so if
+any of this still feels slow on your machine, paste that line and it will say where the
+time goes.
+
+---
+
 ## v9.28 — the fence diagram (2026-09-10)
 
 Compare stands the holes side by side. A **fence** stands them on the ground they were
