@@ -3728,9 +3728,15 @@ already general).
   was `min(drapeK, z)` — the tile's own level — and is `min(drapeK, z - floor)`
   now, so the plan is still at most `4^k` sub-tiles into a `256 * 2^k` px image:
   1,024 px on a desktop, exactly as in v22. What changed is which tiles can reach
-  `k = 2` at all. **The phone and tablet caps are untouched** (`DRAPE_K` 0 and 1,
-  `texBudget()` unchanged), which is what keeps `test/e2e_phone.mjs`,
-  `test/e2e_field.mjs` and `test/e2e_tablet.mjs` measuring the same app.
+  `k = 2` at all.
+- **AND THE FLOOR IS A SECOND, PER-PROFILE NUMBER** (`DRAPE_FLOOR` in
+  `js/viewer3d.js`, `-2` desktop / `0` tablet / `0` phone), because `drapeK`
+  alone is not enough: a tablet's own `k = 1` would have started reaching z -1
+  the moment the level existed — a 1-ft tile draping at 0.5 instead of 1, its
+  texture 512 px instead of 256 — with nothing in the code saying so. The
+  sharper drape is a DESKTOP change. `texBudget()` and `DRAPE_K` are untouched,
+  and that pair is what keeps `test/e2e_phone.mjs`, `test/e2e_field.mjs` and
+  `test/e2e_tablet.mjs` measuring the same app they measured before.
 - **The dist gets the fine levels for free**, because `synthImage` is
   level-agnostic: it cuts the tile out of `i_ortho_mine` / `i_ortho_abp` at
   whatever `rect(z, x, y)` says, so a z -2 tile is a 64-ft square of the 3-in
