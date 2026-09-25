@@ -518,9 +518,13 @@ SBMM.pick3d = (function () {
   /* ------------------------------------------------------------------ */
   /* Returns true when the click was consumed. viewer3d calls this only after
      its own click-vs-drag threshold has passed and only when no tool is armed. */
-  function click(e) {
+  /* opts.objectsOnly: answer a registered object or nothing; opts.terrainOnly:
+     skip straight to the terrain card (js/viewer3d.js tests a draped sheet
+     between the two). No opts is both, in that order, as before. */
+  function click(e, opts) {
     if (!ctx) return false;
-    const got = raycast(e);
+    opts = opts || {};
+    const got = opts.terrainOnly ? null : raycast(e);
     if (got) {
       let info = null;
       try { info = got.entry.hit(got.hit); } catch (err) { console.error(err); }
@@ -531,6 +535,7 @@ SBMM.pick3d = (function () {
         return true;
       }
     }
+    if (opts.objectsOnly) return false;
     /* terrain fallback — the coordinate card §2 and §8 ask for; with an
        overtopping analysis open, the water and the rim band answer first */
     const p = ctx.pickWorld(e);

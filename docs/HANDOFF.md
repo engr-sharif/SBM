@@ -202,6 +202,14 @@ only where a number could be mistaken; no instructions in running text; assumpti
 
 ## Open items, in priority order
 
+**URGENT (2026-09-25) — the GitHub Pages site serves the whole repository publicly**,
+this file (and the gate password in it) and the NHPA-protected cultural payload
+included — checked from a machine with no GitHub login. Turn Pages off or restrict
+it, rotate the gate password, and keep the new one out of the repo.
+`docs/V25_REVIEW.md` §0. The same document is the ranked roadmap for v25 onwards
+(construction control first: as-built surfaces, per-lot comparison, Civil 3D
+exports).
+
 **C.0 — which polygons bound the waste-thickness interpolation?** (asked 2026-09-09, v23
 Phase C). The borings carry a *Waste area* attribute (South Waste Rock Pile 10, North Waste
 Rock Pile 8, Northwest Pit 5, Waste Rock Dam 5, Old Mine Building 4, Tailings Pile 2, West

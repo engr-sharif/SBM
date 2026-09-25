@@ -1640,7 +1640,17 @@ body.field #v3dNav .navpad{display:none !important}
    "3D" drape toggle) keeps it reachable — the hover toolbar sits to the LEFT
    of it instead of on top of it. The engineer: "the 3D button gets covered by
    the opacity, zoom, solo buttons". */
-.lyr:has(.d3d) .ltacts{right:46px}
+/* v25: a sheet row carries TWO trailing buttons (open the sheet, 3D), and the
+   toolbar at 46px sat on the open button. It clears both now. The row's inline
+   opacity slider goes too: it left the label ~30 px, so every sheet read
+   "C-..." and none could be told apart — the toolbar's own opacity control
+   (the half square) does the same job on hover. */
+.lyr:has(.d3d) .ltacts{right:68px}
+.lyr:has(.d3d) .opac{display:none}
+.lyr:has(.d3d) .shopen{margin-left:auto}
+/* a sheet that is draped but hidden by the "Sheets draped in 3D" master */
+.lyr .d3d.masteroff{background:transparent;color:var(--acc);box-shadow:0 0 0 1px var(--acc) inset;
+  opacity:.75;text-decoration:line-through}
 .ltb{background:none;border:0;color:var(--mut);font:inherit;font-size:11px;line-height:1;
   width:18px;height:18px;border-radius:3px;cursor:pointer;padding:0}
 /* a half-filled SQUARE, not the half-filled circle: at an 18-px button the

@@ -240,7 +240,8 @@ SBMM.store = {
     if (this._batch) { this._dirty = true; return; }
     try {
       localStorage.setItem("sbmm_session_auto", JSON.stringify(this.serialize()));
-    } catch (e) { /* file:// or quota — fine, explicit save/load still works */ }
+      storageGuard.ok("drawings");
+    } catch (e) { storageGuard.fail("drawings", e); }
   },
   loadAutosave() {
     try {

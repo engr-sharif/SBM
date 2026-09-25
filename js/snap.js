@@ -34,7 +34,26 @@ SBMM.snap = (function () {
   /* ------------------------------------------------------------------ */
   const CELL = 250;                       // ft — a few hundred segments per cell
 
-  function newIndex() { return { segs: [], pts: [], smap: new Map(), pmap: new Map() }; }
+  function newIndex() { return { segs: [], pts: [], sseg: [], spt: [], smap: new Map(), pmap: new Map() }; }
+
+  /* v25: WHICH LAYER each snap candidate came from, so a layer that is off does
+     not snap. Before this the static index held the 2-ft ABP contours (off by
+     default), the sample points (off by default) and the superseded PDF
+     boundaries (off since v8) — and every contour vertex is an endpoint, the
+     top-priority snap, so in the mine area the cursor jumped to invisible
+     vertices a few feet apart. `SRC[0]` is "always" (the user's own drawing,
+     and project linework with no single layer row behind it). */
+  const SRC = [null];
+  let curSrc = 0;
+  function srcOf(group, layer) {
+    let i = SRC.findIndex(q => q && q.g === group && q.l === layer);
+    if (i < 0) { SRC.push({ g: group, l: layer }); i = SRC.length - 1; }
+    return i;
+  }
+  function srcVisible(i) {
+    const q = SRC[i];
+    return !q || !SBMM.layerState || SBMM.layerState.isOn(q.g, q.l);
+  }
   const K = (i, j) => i + "," + j;
 
   function addSeg(ix, ax, ay, bx, by) {
@@ -42,6 +61,7 @@ SBMM.snap = (function () {
     if (ax === bx && ay === by) return;
     const id = ix.segs.length;
     ix.segs.push(ax, ay, bx, by);
+    ix.sseg.push(curSrc);
     const i0 = Math.floor(Math.min(ax, bx) / CELL), i1 = Math.floor(Math.max(ax, bx) / CELL);
     const j0 = Math.floor(Math.min(ay, by) / CELL), j1 = Math.floor(Math.max(ay, by) / CELL);
     /* a long contour "bridge" can span many cells; conservative bbox insert is fine */
@@ -52,6 +72,7 @@ SBMM.snap = (function () {
   function addPt(ix, x, y) {
     if (!(isFinite(x) && isFinite(y))) return;
     const id = ix.pts.length; ix.pts.push(x, y);
+    ix.spt.push(curSrc);
     const k = K(Math.floor(x / CELL), Math.floor(y / CELL));
     let a = ix.pmap.get(k); if (!a) ix.pmap.set(k, a = []); a.push(id);
   }
@@ -91,14 +112,20 @@ SBMM.snap = (function () {
     statix = newIndex();
     try {
       const D = window.SBMM_DATA || {};
+      curSrc = srcOf("framework", "dus");
       for (const d of (D.dus || [])) {
         addPath(statix, d.ring, true);
         for (const h of (d.holes || [])) addPath(statix, h, true);
       }
+      curSrc = srcOf("framework", "piles");
       for (const p of (D.piles || [])) addPath(statix, p.ring, true);
-      for (const key of ["contours_site", "contours_abp"])
+      for (const key of ["contours_site", "contours_abp"]) {
+        curSrc = srcOf("base", key);
         for (const row of (D[key] || [])) addPath(statix, row[1], false);
+      }
+      curSrc = srcOf("invest", "samples");
       for (const p of (SBMM.samples || [])) addPt(statix, p.x, p.y);
+      curSrc = 0;
       /* The native EA design geometry snaps like any other project linework —
          this is the one a drafter actually wants to snap to, so it goes in
          first. */
@@ -121,14 +148,17 @@ SBMM.snap = (function () {
       }
       /* EA design boundaries snap like any other project linework */
       if (SBMM.designEA) {
+        curSrc = srcOf("design", "pdf_boundaries");
         const dz = SBMM.designEA.snapPaths();
         for (const r of dz.rings) addPath(statix, r, true);
         for (const q of dz.pts) addPt(statix, q[0], q[1]);
       }
       /* imported and baked datasets snap like any other project point, so a
          drawing can be started exactly on a well head or a boring collar */
+      curSrc = 0;
       if (SBMM.datasets) for (const q of SBMM.datasets.snapPoints()) addPt(statix, q[0], q[1]);
     } catch (e) { console.warn("snap: static index failed", e); }
+    curSrc = 0;
     built = {
       segs: statix.segs.length / 4, pts: statix.pts.length / 2,
       ms: +(((performance && performance.now) ? performance.now() : 0) - t0).toFixed(1)
@@ -206,8 +236,12 @@ SBMM.snap = (function () {
     const segsFound = [];                                  // for pairwise intersections
 
     for (const ix of pools) {
-      for (const id of gatherPts(ix, x, y, tol)) take("end", ix.pts[id], ix.pts[id + 1]);
+      for (const id of gatherPts(ix, x, y, tol)) {
+        if (!srcVisible(ix.spt[id / 2])) continue;
+        take("end", ix.pts[id], ix.pts[id + 1]);
+      }
       for (const id of gather(ix, x, y, tol)) {
+        if (!srcVisible(ix.sseg[id / 4])) continue;
         const ax = ix.segs[id], ay = ix.segs[id + 1], bx = ix.segs[id + 2], by = ix.segs[id + 3];
         take("end", ax, ay); take("end", bx, by);
         take("mid", (ax + bx) / 2, (ay + by) / 2);

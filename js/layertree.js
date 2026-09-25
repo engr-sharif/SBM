@@ -842,7 +842,13 @@ SBMM.layerTree = (function () {
       for (const g of SBMM.layerState.groupList()) {
         if (g.id === "cultural") continue;
         for (const r of g.layers.values()) {
-          const want = b[2](r, g.id);
+          let want = b[2](r, g.id);
+          /* v25: a built-in preset may switch these ON but never OFF. "My
+             work" is the user's own drawings and the sheet drapes are per-sheet
+             choices; a preset that hid them was remembered in localStorage,
+             and next day a new drawing, a volume card or a draped sheet simply
+             did not appear, with no word anywhere. */
+          if (want === false && (g.id === "mywork" || (g.id === "design" && r.id === "sheets3d"))) want = null;
           if (want === null || want === undefined) continue;
           list.push({ group: g.id, layer: r.id, on: !!want });
         }

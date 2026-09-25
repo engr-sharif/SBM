@@ -134,17 +134,20 @@ SBMM.buildLayers = function () {
   /* ---------- decision units ---------- */
   const DU_COLOR = { "DU-1N": "#E4796A", "DU-1S": "#E4796A", "DU-2": "#5B8FF9", "DU-3": "#4FCE9B" };
   const duGrp = L.layerGroup();
-  for (const d of SBMM_DATA.dus) {
+  SBMM_DATA.dus.forEach((d, di) => {
     const c = DU_COLOR[d.name] || "#ccc";
     const rings = [d.ring.map(p => [p[1], p[0]]), ...(d.holes || []).map(h => h.map(p => [p[1], p[0]]))];
     const poly = L.polygon(rings, { pane: "vectors", color: c, weight: 2, fillColor: c, fillOpacity: .14 })
       .bindTooltip(d.name, { sticky: true, className: "ctip" }).addTo(duGrp);
     poly.on("click", () => {
-      const A = polyArea(d.ring);
-      poly.bindPopup(`<b>${esc(d.name)}</b><br>${fmt(A / 43560, 2)} ac · ${fmt0(A)} ft²
-        <div class="pop-actions"><span class="minib" onclick="SBMM.tools.volumeOfRing('${esc(d.name)}')">volume vs. perimeter TIN</span></div>`).openPopup();
+      /* net of its holes (DU-3 has two), and the volume button names THIS
+         polygon by index — two DUs share a name with a second, smaller part */
+      const A = polyArea(d.ring) - (d.holes || []).reduce((s, h) => s + polyArea(h), 0);
+      const parts = SBMM_DATA.dus.filter(q => q.name === d.name).length;
+      poly.bindPopup(`<b>${esc(d.name)}</b>${parts > 1 ? ` <span style="opacity:.7">· one of ${parts} parts</span>` : ""}<br>${fmt(A / 43560, 2)} ac · ${fmt0(A)} ft²
+        <div class="pop-actions"><span class="minib" onclick="SBMM.tools.volumeOfRing(${di})">volume vs. perimeter TIN</span></div>`).openPopup();
     });
-  }
+  });
   SBMM.addLayerRow("proj", "Decision units (rev7)", duGrp, { id: "dus", checked: true, swatch: "#E4796A" });
   SBMM.layers.duGrp = duGrp;
 

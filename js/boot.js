@@ -257,8 +257,33 @@ function wireWasmSwitch() {
     /* the one signal that every row is registered and every remembered layer
        is on the map (js/layertree.js re-applies the stored draw order on it) */
     try { if (SBMM.events && SBMM.events.emit) SBMM.events.emit("boot", {}); } catch (e) { console.error(e); }
+    wireErrorToast();
   } catch (e) {
     console.error(e);
     fail(e.message, e.stack ? String(e.stack).split("\n").slice(0, 4).join("\n") : "");
   }
 })();
+
+/* v25: after boot, an uncaught error SAYS so. Until now a thrown click handler
+   reached the console and nothing else, and the app's rule is that a failure
+   the user can cause raises a toast. Rate-limited, and a rejection counts only
+   when it is a real Error: a cancelled tile request rejects with a plain
+   {cancelled:true}, which every caller reads as "not an error". */
+function wireErrorToast() {
+  let last = 0;
+  const say = (msg) => {
+    const t = Date.now();
+    if (t - last < 4000) return;
+    last = t;
+    toast("Something failed: " + String(msg || "unknown error").slice(0, 140)
+          + " — the console (F12) has the detail", 6000);
+  };
+  window.addEventListener("error", e => {
+    if (e && e.target && e.target !== window && e.target.tagName) return;   // a resource, not a script error
+    say(e && (e.message || (e.error && e.error.message)));
+  });
+  window.addEventListener("unhandledrejection", e => {
+    const r = e && e.reason;
+    if (r instanceof Error) say(r.message);
+  });
+}

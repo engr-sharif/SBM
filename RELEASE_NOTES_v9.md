@@ -17,6 +17,47 @@ All three are offline-only by design. Nothing in this app calls out to the inter
 
 ---
 
+## v9.31 — the draped sheets, and nine things that failed without a word (2026-09-25)
+
+**The 3D sheet drapes work again, and they now say why when they are hidden.** A
+layer preset, a solo, or unticking the Design group switched off the row *Sheets
+draped in 3D*. That setting is remembered, so from then on a sheet's **3D** button
+lit up and nothing was drawn. Clicking **3D** now switches that row back on and tells
+you. While the row is off, a draped sheet's button is struck through. Presets leave
+it alone. The sheets you drape are remembered after a reload.
+
+In 3D, a click on a boring, a DU or a drawing inside a draped sheet now answers with
+that object's card instead of opening the drawing. The drape no longer sinks into
+the terrain when viewed from a distance.
+
+The sheet rows in Layers show their sheet numbers again (they all read "C-…"). The
+hover toolbar no longer covers the ⤢ open button.
+
+**Also fixed:**
+
+- A layer preset no longer hides your own drawings and results. They stayed hidden
+  the next day, with nothing to say so.
+- Object snap ignores layers that are switched off. The hidden 2-ft contours no
+  longer pull the cursor to invisible vertices.
+- The small parts of DU-1S and DU-2 measure their own volume, not the big part's.
+  The DU-3 popup area no longer counts its two holes.
+- If browser storage fills up (photos use it fastest), autosave now tells you to
+  export the session instead of silently stopping.
+- Stations round correctly: 1399.6 ft reads 14+00, not 13+100.
+- The 3D coordinate readout and point card give the DEM elevation. They used to
+  give the drawn tile's, which could be up to ~10 ft off from far away.
+- 3D stays smoother while you move the mouse: the terrain under the pointer is
+  looked up once per frame, and not at all while you orbit.
+- An unexpected error after start-up now shows a message instead of doing nothing.
+
+**Please act on this — it is not a code issue.** The GitHub Pages address serves
+the whole repository to anyone who has it. That includes the gate password (it is
+written in `docs/HANDOFF.md`) and the confidential cultural-resources layer.
+`docs/V25_REVIEW.md` §0 lists the three steps. The same document is the full
+review: every gap found, ranked, with a recommended order for the next rounds.
+
+---
+
 ## v9.30 — the log window, finished, and the fence that correlates (2026-09-18)
 
 You said the log viewer seemed unfinished — text sitting on other text — and that the
