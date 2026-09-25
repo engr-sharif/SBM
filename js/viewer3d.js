@@ -1237,7 +1237,7 @@ SBMM.viewer3d = (function () {
         new THREE.TextureLoader().load(url, res, undefined, rej));
       tex.colorSpace = THREE.SRGBColorSpace;
       tex.flipY = true;            // PNG row 0 = north = max Y; uv v=0 at min Y
-      tex.anisotropy = 4;
+      tex.anisotropy = maxAniso();   // v25: the device's own cap, as the terrain drape uses
       sheetTex.set(name, tex);
     }
     const nx = clamp(Math.ceil((r.x1 - r.x0) / SHEET_STEP_FT) + 1, 2, 400);
@@ -1277,9 +1277,14 @@ SBMM.viewer3d = (function () {
        depthWrite off + a high renderOrder keeps the transparent paper from
        punching holes in the terrain or the canopy behind it; alphaTest drops
        the fully-clear pixels outright so they never enter the blend at all. */
+    /* v25: polygonOffset as well as the stand-off. The stand-off is measured
+       against the 1-ft ground; a coarse quadtree tile drawn far away sits up to
+       ~10 ft above it in places, and a drape seen from there came out patchy.
+       The design meshes have carried the same offset since v9. */
     const mat = new THREE.MeshBasicMaterial({
       map: tex, transparent: true, depthWrite: false, depthTest: true,
-      alphaTest: 0.02, side: THREE.DoubleSide, toneMapped: false
+      alphaTest: 0.02, side: THREE.DoubleSide, toneMapped: false,
+      polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -8
     });
     const mesh = new THREE.Mesh(g, mat);
     mesh.renderOrder = 3;
@@ -1297,6 +1302,12 @@ SBMM.viewer3d = (function () {
     sheetMeshes.delete(name);
   }
 
+  /* v25: one build per sheet at a time, and the wish is re-read when it lands.
+     The texture decode is async (C-203 is 3.3 MB of data URL), and the old loop
+     awaited it inline: toggling a sheet off mid-decode left it draped with the
+     button off, and two quick toggles built the same sheet twice — the second
+     mesh orphaned in the group, never removable. */
+  const sheetBuilding = new Map();
   async function syncSheets() {
     if (!scene) return;            // desired state is replayed when 3D opens
     if (!sheetGroup) {
@@ -1305,13 +1316,27 @@ SBMM.viewer3d = (function () {
       scene.add(sheetGroup);
     }
     for (const n of [...sheetMeshes.keys()]) if (!wantSheets.has(n)) disposeSheetMesh(n);
+    const jobs = [];
     for (const n of wantSheets) {
-      if (sheetMeshes.has(n)) continue;
-      try {
-        const m = await buildSheetMesh(n);
-        if (m) { sheetMeshes.set(n, m); sheetGroup.add(m); }
-      } catch (e) { console.error("sheet drape " + n, e); toast("3D sheet failed: " + n); }
+      if (sheetMeshes.has(n) || sheetBuilding.has(n)) continue;
+      const job = buildSheetMesh(n).then(m => {
+        sheetBuilding.delete(n);
+        if (!m) {
+          toast(sheetRaster(n) ? `${n}: no surveyed terrain under the sheet — nothing to drape`
+                               : `${n}: the sheet raster is not in this build`);
+          return;
+        }
+        if (!wantSheets.has(n) || sheetMeshes.has(n)) { m.geometry.dispose(); m.material.dispose(); return; }
+        sheetMeshes.set(n, m); sheetGroup.add(m);
+        requestRender();
+      }, e => {
+        sheetBuilding.delete(n);
+        console.error("sheet drape " + n, e); toast("3D sheet failed: " + n);
+      });
+      sheetBuilding.set(n, job);
+      jobs.push(job);
     }
+    await Promise.all(jobs);
     sheetGroup.visible = sheetsOn();
     requestRender();
   }
@@ -3178,10 +3203,17 @@ SBMM.viewer3d = (function () {
   }
 
   /* same pick, expressed in State Plane feet + true elevation */
+  /* v25: the ELEVATION is the analysis DEM's, not the drawn mesh's. A mesh z
+     is whatever quadtree level happens to be drawn there — up to ~10 ft off on
+     a far 32-ft tile — and the status bar and the point card print it beside
+     "1-ft DEM". The mesh still decides WHERE the click landed; SBMM.elev says
+     how high the ground is there, which is the v20 two-sources rule. */
   function pickWorld(e) {
     const h = pickScene(e);
     if (!h) return null;
-    return [h.x + CX, h.y + CY, h.z / exag() + ZMID];
+    const x = h.x + CX, y = h.y + CY;
+    const ze = SBMM.elev ? SBMM.elev(x, y)[0] : NaN;
+    return [x, y, isNaN(ze) ? h.z / exag() + ZMID : ze];
   }
 
   /* ==================================================================== */
@@ -3384,7 +3416,19 @@ SBMM.viewer3d = (function () {
     const wasClick = e => !downAt
       || (Math.hypot(e.clientX - downAt[0], e.clientY - downAt[1]) <= CLICK_PX
           && performance.now() - downAt[2] <= CLICK_MS);
+    /* v25: one terrain raycast per FRAME, and none while a button is held.
+       This ran a brute-force raycast of every drawn 257x257 tile on every
+       mousemove, orbit drags included — the drag is the rig's, and the
+       readout it fed was overwritten before anyone could read it. */
+    let mmEv = null, mmQueued = false;
     canvas.addEventListener("mousemove", e => {
+      if (e.buttons) return;
+      mmEv = e;
+      if (mmQueued) return;
+      mmQueued = true;
+      requestAnimationFrame(() => { mmQueued = false; const ev = mmEv; mmEv = null; if (ev) hoverAt(ev); });
+    });
+    function hoverAt(e) {
       const p = pickWorld(e);
       $("v3dCoord").textContent = p ? `${fmt0(p[0])} E, ${fmt0(p[1])} N · ${fmt(p[2], 1)} ft` : "";
       /* the status bar reads the same numbers in both views (§2) — it is one
@@ -3392,7 +3436,7 @@ SBMM.viewer3d = (function () {
       if (p && SBMM.status) SBMM.status.at(p[0], p[1], p[2]);
       /* live rubber preview while sketching in 3D */
       if (p && SBMM.tools.active() && SBMM.draw.isDrawing()) SBMM.draw.previewAt(p[0], p[1]);
-    });
+    }
     /* v17 §3: a tap and a click do the same thing, so they call the same
        function. `SBMM.touch` routes a finger's tap here through the recogniser
        (the rig has already decided it was not an orbit), and the DOM `click`
@@ -3416,9 +3460,14 @@ SBMM.viewer3d = (function () {
          this can never steal a click from the terrain or from a drawing tool.
          Failing that, the pick registry answers — the same popup 2D would show,
          or a coordinate card on bare terrain (§8). */
+      /* v25: an object under the pointer wins over a draped sheet. The sheet
+         test used to run FIRST, so once a sheet was draped every DU, boring or
+         storm node inside its rectangle opened the drawing instead of its own
+         card. Now: a registered object, then the sheet, then the terrain card. */
       if (!t) {
+        if (SBMM.pick3d && SBMM.pick3d.click(e, { objectsOnly: true })) return;
         if (pickSheet(e)) return;
-        if (SBMM.pick3d && SBMM.pick3d.click(e)) return;
+        if (SBMM.pick3d && SBMM.pick3d.click(e, { terrainOnly: true })) return;
         return;
       }
       const p = pickWorld(e);

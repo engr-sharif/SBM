@@ -24,12 +24,13 @@ SBMM.sections = (function () {
 
   function list() { return SBMM.store.features.filter(f => f.type === "sections"); }
 
-  /* CAD stationing: 1350 ft -> "13+50" */
+  /* CAD stationing: 1350 ft -> "13+50". Round to the foot FIRST, then split:
+     splitting first rounded 1399.6 to "13+100" and 99.5 to "0+100" (v25). */
   function staLabel(s) {
     const sign = s < 0 ? "-" : "";
-    s = Math.abs(s);
-    const hun = Math.floor(s / 100), rem = s - hun * 100;
-    return `${sign}${hun}+${rem.toFixed(0).padStart(2, "0")}`;
+    const f = Math.round(Math.abs(s));
+    const hun = Math.floor(f / 100), rem = f - hun * 100;
+    return `${sign}${hun}+${String(rem).padStart(2, "0")}`;
   }
 
   /* ------------------------------------------------------------------ */

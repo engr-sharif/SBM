@@ -133,6 +133,26 @@ function toast(msg, ms = 2600) {
   t.textContent = msg; t.classList.add("show");
   clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove("show"), ms);
 }
+/* v25: an autosave that cannot write must SAY so, once. Both autosaves used to
+   swallow every error, and a session with a dozen field photos fills the ~5 MB
+   of localStorage — from then on nothing was saved and nothing said it. The
+   toast fires on the first failure, stays quiet while it keeps failing, and is
+   re-armed by the next write that succeeds. */
+const storageGuard = (function () {
+  const failing = new Set();
+  return {
+    ok(what) { failing.delete(what); },
+    fail(what, e) {
+      console.warn("autosave (" + what + ") failed", e);
+      if (failing.has(what)) return;
+      failing.add(what);
+      const full = e && (e.name === "QuotaExceededError" || e.code === 22 || /quota/i.test(e.message || ""));
+      toast(full
+        ? `Autosave stopped — browser storage is full (${what}). Export the session file to keep this work`
+        : `Autosave failed (${what}): ${(e && e.message) || e}. Export the session file to keep this work`, 7000);
+    }
+  };
+})();
 /* Every export in the app goes through here, which is why the iPad share sheet
    goes here too (v17 §5b). On a touch device with `navigator.share` and a file
    the platform will take, this opens Files / AirDrop / Mail — the only way a
