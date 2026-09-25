@@ -4150,3 +4150,64 @@ hillshade JPEGs are drawn over `Dem.bounds()`, an AREA rectangle, while the DEM
 is a NODE grid — a display-only half-cell north-east offset in two lines of
 `js/layers.js`. It was left alone here, deliberately, because it is not what §G
 asked about and it belongs in its own commit.
+
+## v25 — the review round: hidden drapes, and the failures that said nothing
+
+Contract: `docs/V25_REVIEW.md` (the whole-app audit and the ranked roadmap). No
+kernel work (`VERSION` stays 10). `js/designea.js`, `js/viewer3d.js`,
+`js/pick3d.js`, `js/layertree.js`, `js/snap.js`, `js/tools.js`, `js/layers.js`,
+`js/sections.js`, `js/util.js`, `js/state.js`, `js/datasets.js`, `js/boot.js`,
+`css/app.css`.
+
+**"The 3D draping of the sheets is not working" was a HIDDEN drape, not a broken
+one.** Four built-in presets, a solo and the Design group checkbox all switch off
+`design/sheets3d`, the layer state is remembered in localStorage, and from then on
+a sheet's **3D** button lit up and drew nothing. Rules now, and each is a trap
+if undone:
+
+- **An explicit per-sheet click ON switches the master back on and toasts**
+  (`setDrape` in `js/designea.js`). While the master is off a pressed button
+  carries `.masteroff` and says so in its title. The drape set is remembered in
+  `SBMM.view.pref("sheetDrapes")` and replayed at build.
+- **A built-in preset may switch `mywork/*` and `design/sheets3d` ON, never
+  OFF** (`applyPreset`). The same trap hid the user's own drawings and cards the
+  next day. User-saved presets are snapshots and are applied as saved.
+- **A 3D click tests a registered object FIRST, then a draped sheet, then the
+  terrain card.** `SBMM.pick3d.click(e, {objectsOnly})` / `{terrainOnly}` split
+  the old call so `js/viewer3d.js` can put the sheet test between them. With the
+  sheet first, every DU, boring or storm node inside a draped rectangle opened
+  the drawing.
+- **`syncSheets` builds each sheet once and re-reads the wish when the build
+  lands** (`sheetBuilding`). Awaiting the texture inline let a mid-decode toggle
+  leave a drape stuck on, and two quick toggles orphan a second mesh.
+- The drape material carries `polygonOffset` (-2 / -8) beside the 2.5-ft
+  stand-off: a coarse far tile sits up to ~10 ft above the 1-ft ground.
+
+**Four more silent failures, and the rule behind each:**
+
+- **Snap candidates carry their LAYER** (`SRC` / `sseg` / `spt` in
+  `js/snap.js`), and a layer that is off does not snap. The 2-ft ABP contours,
+  the samples and the superseded PDF boundaries are all off by default and every
+  contour vertex is an `end`, the top priority. Linework with no single layer row
+  (the GIS, the survey, the storm network, datasets, the user's own drawing) is
+  source 0, always on — a new static source with a layer row should get one.
+- **`pickWorld` returns `SBMM.elev`'s z, not the drawn mesh's.** The mesh
+  decides where the click landed; the analysis DEM says how high the ground is
+  (the v20 two-sources rule). A far 32-ft tile is ~10 ft off.
+- **`storageGuard` (js/util.js) is how an autosave fails**: once, with a toast
+  naming the fix, re-armed by the next success. Both autosaves used to swallow
+  every error, and a dozen field photos fill localStorage.
+- **After boot an uncaught error or an Error rejection toasts**
+  (`wireErrorToast`, js/boot.js), rate-limited. A rejection that is not an
+  `Error` is ignored on purpose: a cancelled tile request rejects with a plain
+  `{cancelled:true}`.
+
+Smaller: `SBMM.tools.volumeOfRing` takes the DU's INDEX (DU-1S and DU-2 are two
+polygons each; a name lookup measured the big part for the small one's popup);
+`staLabel` rounds to the foot before splitting (1399.6 printed "13+100"); the 3D
+mousemove readout is one raycast per frame and none while a button is held; sheet
+rows drop the inline opacity slider (the hover toolbar has one) and the toolbar
+clears both trailing buttons (`right:68px`).
+
+**The one finding that is not code** is `docs/V25_REVIEW.md` §0: the GitHub Pages
+site serves the whole tree publicly, gate password and cultural payload included.

@@ -183,7 +183,8 @@ SBMM.designEA = (function () {
        them. */
     SBMM.addLayerRow("design", "Sheets draped in 3D", null,
       { id: "sheets3d", checked: true, swatch: "#9FB6C2", sub: SHEET_SUB }).row.title =
-      "Show the design sheets you have draped (the \u26f0 button on each sheet row) on the 3D terrain.";
+      "Show the design sheets you have draped (the 3D button on each sheet row) on the 3D terrain.";
+    restoreDrapes();
   }
 
   /* ====================================================================== */
@@ -284,26 +285,85 @@ SBMM.designEA = (function () {
   /* Per-sheet "3D" toggle. It is deliberately independent of the row's own 2D
      checkbox: a sheet is often wanted draped in 3D while the 2D map shows the
      ortho underneath it, and vice versa. The button is a plain toggle so it
-     does not steal the click from the row's <label>. */
+     does not steal the click from the row's <label>.
+
+     v25 — "the 3D draping of the sheets is not working". It was working; it
+     was HIDDEN. Four of the six built-in layer presets, a solo and the Design
+     group's own master checkbox all switch `design/sheets3d` off, the layer
+     state is remembered in localStorage, and from then on this button lit up
+     and drew nothing with no word anywhere. Three rules now:
+       1. an explicit click ON is the user's latest word, so it switches the
+          master back on and says so;
+       2. while the master is off every pressed button says it is hidden
+          (`.masteroff` + its title), so the state is visible before a click;
+       3. the set of draped sheets is remembered (SBMM.view.pref), so a
+          reload does not quietly throw the choice away either. */
+  const DRAPE_PREF = "sheetDrapes";
+  const drapeBtns = new Map();
+  function savedDrapes() {
+    const v = SBMM.view && SBMM.view.pref ? SBMM.view.pref(DRAPE_PREF) : null;
+    return Array.isArray(v) ? v : [];
+  }
+  function saveDrapes() {
+    if (!(SBMM.view && SBMM.view.pref)) return;
+    SBMM.view.pref(DRAPE_PREF, [...drapeBtns.keys()].filter(n =>
+      drapeBtns.get(n).getAttribute("aria-pressed") === "true"));
+  }
+  function masterOn() { return SBMM.layerState.isOn("design", "sheets3d"); }
+  function paintDrapeBtns() {
+    const on = masterOn();
+    for (const [name, b] of drapeBtns) {
+      const pressed = b.getAttribute("aria-pressed") === "true";
+      b.classList.toggle("masteroff", pressed && !on);
+      b.title = pressed && !on
+        ? `${name} is draped but hidden — "Sheets draped in 3D" is off. Click to turn it off, or switch that row on`
+        : pressed ? `Remove ${name} from the 3D terrain`
+        : `Drape ${name} over the terrain in the 3D view`;
+    }
+  }
+  function setDrape(b, name, on, quiet) {
+    b.setAttribute("aria-pressed", on ? "true" : "false");
+    b.classList.toggle("active", on);
+    if (SBMM.viewer3d) SBMM.viewer3d.sheetDrape(name, on);
+    if (on && !masterOn()) {
+      SBMM.layerState.set("design", "sheets3d", { on: true });
+      if (!quiet) toast(`"Sheets draped in 3D" was off — switched back on`);
+    } else if (on && !quiet && SBMM.viewer3d && !SBMM.viewer3d.isOpen()) {
+      toast(`${name} will appear draped when you open the 3D view`);
+    }
+    paintDrapeBtns();
+  }
   function addDrapeButton(row, name) {
     const b = document.createElement("button");
     b.type = "button";
     b.className = "minib d3d";
     b.textContent = "3D";
-    b.title = `Drape ${name} over the terrain in the 3D view`;
     b.setAttribute("aria-pressed", "false");
     b.dataset.sheet = name;
     b.onclick = (e) => {
       e.preventDefault(); e.stopPropagation();
-      const on = b.getAttribute("aria-pressed") !== "true";
-      b.setAttribute("aria-pressed", on ? "true" : "false");
-      b.classList.toggle("active", on);
-      if (SBMM.viewer3d) SBMM.viewer3d.sheetDrape(name, on);
-      if (on && SBMM.viewer3d && !SBMM.viewer3d.isOpen())
-        toast(`${name} will appear draped when you open the 3D view`);
+      setDrape(b, name, b.getAttribute("aria-pressed") !== "true");
+      saveDrapes();
     };
     row.row.appendChild(b);
+    drapeBtns.set(name, b);
+    paintDrapeBtns();
     return b;
+  }
+  /* replay the remembered drapes once every row exists; the viewer queues
+     them until the 3D view opens (js/viewer3d.js syncSheets) */
+  function restoreDrapes() {
+    const want = new Set(savedDrapes());
+    for (const [name, b] of drapeBtns) {
+      if (!want.has(name)) continue;
+      b.setAttribute("aria-pressed", "true");
+      b.classList.add("active");
+      if (SBMM.viewer3d) SBMM.viewer3d.sheetDrape(name, true);
+    }
+    paintDrapeBtns();
+    SBMM.events.on("layers", ev => {
+      if (!ev || !ev.group || ev.group === "design") paintDrapeBtns();
+    });
   }
 
   function tip(p) {

@@ -672,9 +672,16 @@ SBMM.tools = (function () {
     const f = mkVolume(ring.map(p => p.slice()), label + " — volume");
     zoomTo(f);
   }
-  function volumeOfRing(duName) {
-    const d = SBMM_DATA.dus.find(q => q.name === duName); if (!d) return;
-    const f = mkVolume(d.ring.map(p => p.slice()), duName + " — volume");
+  /* `ref` is the DU's index in SBMM_DATA.dus, or (older callers) its name.
+     v25: DU-1S and DU-2 are each TWO polygons of one name, and a name lookup
+     always found the first — the small part's popup measured the big part. */
+  function volumeOfRing(ref) {
+    const D = SBMM_DATA.dus;
+    const d = typeof ref === "number" ? D[ref] : D.find(q => q.name === ref);
+    if (!d) { toast("That decision unit is not in this build"); return; }
+    const parts = D.filter(q => q.name === d.name).length;
+    const label = parts > 1 ? `${d.name} (part ${D.filter(q => q.name === d.name).indexOf(d) + 1} of ${parts})` : d.name;
+    const f = mkVolume(d.ring.map(p => p.slice()), label + " — volume");
     zoomTo(f);
   }
   /* same one-click preset for any read-only project ring (e.g. the EA design

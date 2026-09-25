@@ -604,8 +604,8 @@ SBMM.datasets = (function () {
     return n;
   }
   function autosave() {
-    try { localStorage.setItem(AUTOSAVE, JSON.stringify(serializeUser())); }
-    catch (e) { /* file:// or quota — session export still works */ }
+    try { localStorage.setItem(AUTOSAVE, JSON.stringify(serializeUser())); storageGuard.ok("imported datasets"); }
+    catch (e) { storageGuard.fail("imported datasets", e); }
   }
   function loadAutosave() {
     try {
