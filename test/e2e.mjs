@@ -199,6 +199,42 @@ await block("1a. THE PASSWORD GATE", async () => {
   console.log("unlocked: gate removed:", !g3.gate, "| token stored:", g3.token, "| locked:", g3.locked);
   if (g3.gate || !g3.token || g3.locked || !g3.stage) {
     console.log("FAIL: unlock did not complete cleanly", g3); process.exit(1); }
+
+  /* v26: the padlock in the top bar, and the idle lock. Default is 5 minutes;
+     here it is set to 0.03 min (1.8 s) so the lock can be watched fall — the
+     warning chip needs a limit over 45 s and is not asserted at this length. */
+  const g4 = await gp.evaluate(async () => {
+    const wait = ms => new Promise(r => setTimeout(r, ms));
+    const btn = document.getElementById("lockBtn");
+    const out = { btn: !!btn, defaultIdle: SBMM.gate.idle() };
+    btn.click(); await wait(100);
+    out.menuItems = [...document.querySelectorAll("#lockMenu [data-lk]")].map(x => x.getAttribute("data-lk"));
+    document.body.click();
+    SBMM.gate.setIdle(0.03);
+    await wait(900);
+    out.stillOpen = !SBMM.gate.locked();
+    await wait(2600);
+    out.lockedAfterIdle = SBMM.gate.locked();
+    out.gate = !!document.getElementById("gate");
+    out.token = localStorage.getItem("sbmm.gate.v1");
+    return out;
+  });
+  console.log("padlock:", g4.btn, "| menu", g4.menuItems.join(","), "| default idle", g4.defaultIdle,
+              "min | open at 0.9 s:", g4.stillOpen, "| locked after idle:", g4.lockedAfterIdle);
+  if (!g4.btn || g4.menuItems[0] !== "now" || g4.defaultIdle !== 5) {
+    console.log("FAIL: the top-bar padlock or its menu is missing", g4); process.exit(1); }
+  if (!g4.stillOpen || !g4.lockedAfterIdle || !g4.gate || g4.token) {
+    console.log("FAIL: the idle lock did not fall, or did not forget the unlock", g4); process.exit(1); }
+  /* and a reload after the limit asks again, although the 30-day token would not */
+  await gp.fill("#gatePw", gatePassword());
+  await gp.keyboard.press("Enter");
+  await gp.waitForFunction(() => !document.getElementById("gate"), null, { timeout: 4000 });
+  await gp.evaluate(() => { SBMM.gate.setIdle(1); localStorage.setItem("sbmm.gate.active", String(Date.now() - 120000)); });
+  const beforeReload = await gp.evaluate(() => SBMM.gate.locked());
+  await gp.reload();
+  await gp.waitForSelector("#gate", { timeout: 60000 });
+  console.log("idle lock survives a reload: open before it", !beforeReload, "| gate shown after it");
+  if (beforeReload) { console.log("FAIL: the page locked before the reload, so the reload path went untested"); process.exit(1); }
   if (gerr.length) { console.log("FAIL: errors on the gate page:", gerr.slice(0, 5)); process.exit(1); }
   await gp.close();
 }

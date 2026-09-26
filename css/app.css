@@ -2317,3 +2317,18 @@ tr:hover .dslog{opacity:1}
 .blwin svg.fnsvg .fncol{cursor:pointer}
 body.touch .blwin .bwfnbar{row-gap:6px}
 body.touch .blwin .bwfnbar .minib{min-height:36px;padding:0 11px}
+
+/* ===================================================================== */
+/* v26 — the padlock menu and the idle-lock warning (js/gate.js)         */
+/* ===================================================================== */
+/* The warning sits in the toast band's upper edge (7100: above the toast at
+   7000 so a toast cannot hide the countdown, below the gate at 9000). */
+#lockMenu{position:fixed;min-width:210px}
+#lockMenu .ci.on{color:var(--acc)}
+#idleWarn{position:fixed;left:50%;top:58px;transform:translate(-50%,-8px);z-index:7100;
+  background:var(--panel2);border:1px solid var(--acc);color:var(--ink);border-radius:999px;
+  padding:7px 16px;font-size:12.5px;box-shadow:0 6px 24px rgba(0,0,0,.45);
+  opacity:0;pointer-events:none;transition:opacity .2s ease,transform .2s ease;
+  font-variant-numeric:tabular-nums}
+#idleWarn.show{opacity:1;transform:translate(-50%,0)}
+@media (prefers-reduced-motion:reduce){#idleWarn{transition:none}}

@@ -17,6 +17,24 @@ All three are offline-only by design. Nothing in this app calls out to the inter
 
 ---
 
+## v9.32 — a lock at the top, a lock that falls by itself, and the redesign plan (2026-09-26)
+
+**A padlock in the top bar**, left of Help. It locks the app now, and its menu
+sets how long the app may sit idle before it locks itself: **5 minutes** unless
+you pick 15, 30, 60 or never. Thirty seconds before it falls, a small chip says
+so; any mouse movement or key keeps you in. A reload after the limit asks for the
+password too.
+
+**The UI audit** is in `docs/V26_UI_AUDIT.md`. It covers what works, what doesn't,
+what the app should open on, and a six-phase plan to rebuild the interface.
+Two working prototypes come with it, in `docs/ux/`:
+- the home screen;
+- the boring log as a real log sheet, which works for any of the 44 holes.
+
+Open both by double-click.
+
+---
+
 ## v9.31 — the draped sheets, and nine things that failed without a word (2026-09-25)
 
 **The 3D sheet drapes work again, and they now say why when they are hidden.** A
