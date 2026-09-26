@@ -2787,7 +2787,17 @@ was asked to do.
   you to rebuild the dist. `crypto.subtle` is used where it exists; a pure-JS SHA-256
   is the fallback, and `test/gate.mjs` checks it against node's crypto.
 - **A remembered unlock** is `localStorage["sbmm.gate.v1"] = {h: <hash>, t: <ms>}`, good
-  for 30 days. `LOCK` / `LOGOUT` in the command bar clears it and puts the screen back.
+  for 30 days. `LOCK` / `LOGOUT` in the command bar clears it and puts the screen back,
+  and since v26 so does the **padlock** left of Help (`#lockBtn`, built by
+  `js/gate.js` itself so it exists in every build).
+- **The idle lock (v26).** No input for `sbmm.gate.idle` minutes (default **5**; 15 /
+  30 / 60 / 0 = never from the padlock menu) locks the app, with a 30-second chip
+  (`#idleWarn`, z 7100) first when the limit is over 45 s. Input is stamped into
+  `sbmm.gate.active` at most every 15 s, and on boot a remembered unlock older than
+  the limit by that stamp is forgotten — **a reload must not step round the idle
+  lock**. `test/gate.mjs` sets the idle lock OFF for the harnesses (a user setting,
+  not a bypass: it unlocks nothing), and e2e block 1a turns it back on with
+  `SBMM.gate.setIdle(0.03)` to watch it fall and to prove the reload path.
   **There is no URL-parameter bypass and no test flag** — adding one would be the whole
   point thrown away.
 - **Keys are stopped in the capture phase on `document`**, and because gate.js is the

@@ -45,6 +45,11 @@ export async function unlock(page, repoRoot) {
   const hash = gateHash(repoRoot);
   await page.addInitScript(([key, h, wkey, forceJs]) => {
     try { localStorage.setItem(key, JSON.stringify({ h, t: Date.now() })); } catch (e) {}
+    /* v26: the idle lock OFF — a user setting, not a bypass (it unlocks
+       nothing). A harness drives the app through evaluate() for minutes at a
+       time with no real input, and a 5-minute lock would cover the page
+       halfway through. Block 1a turns it back on to test it. */
+    try { if (localStorage.getItem("sbmm.gate.idle") === null) localStorage.setItem("sbmm.gate.idle", "0"); } catch (e) {}
     try { if (forceJs) localStorage.setItem(wkey, "js"); else localStorage.removeItem(wkey); } catch (e) {}
   }, [GATE_KEY, hash, WASM_KEY, FORCE_JS]);
   return hash;
