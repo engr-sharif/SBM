@@ -36,6 +36,11 @@ SBMM.sheets = (function () {
      the viewport if the stage is somehow not there, so this can never be the
      reason a sheet fails to open. */
   function stageBox() {
+    /* v26: the stage runs full-bleed under floating panels, so the box a
+       window may live in is the FRAME — the stage less the chrome over it */
+    if (SBMM.shell && SBMM.shell.frame && !document.body.classList.contains("field")) {
+      try { return SBMM.shell.frame(); } catch (e) { /* fall through to the stage */ }
+    }
     const st = document.getElementById("stage");
     if (!st) return { x: 8, y: 8, w: Math.max(200, window.innerWidth - 16), h: Math.max(200, window.innerHeight - 16) };
     const r = st.getBoundingClientRect();

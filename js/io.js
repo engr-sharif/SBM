@@ -228,8 +228,8 @@ SBMM.io = (function () {
   function wire() {
     /* export menu */
     const menu = $("exportMenu");
-    $("exportBtn").onclick = e => { e.stopPropagation(); menu.style.display = menu.style.display === "block" ? "none" : "block"; };
-    document.addEventListener("click", () => menu.style.display = "none");
+    $("exportBtn").onclick = e => { e.stopPropagation(); SBMM.shell.toggleMenu($("exportBtn"), menu); };
+    document.addEventListener("click", () => { menu.style.display = "none"; $("exportBtn").setAttribute("aria-expanded", "false"); });
     menu.onclick = e => {
       const a = e.target.dataset.a; if (!a) return;
       menu.style.display = "none";

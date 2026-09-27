@@ -1125,6 +1125,9 @@ mapBox = await page.evaluate(() => {
 /* --- the layer tree's "⋯", a popup action by tap, the command bar --- */
 {
   const row = await page.evaluate(() => {
+    /* v26: the tree is the Layers pane's CATALOGUE face */
+    if (SBMM.shell && SBMM.shell.setTab) SBMM.shell.setTab("layers");
+    if (SBMM.layersPanel) SBMM.layersPanel.show("catalog");
     const r = document.querySelector("#layers .lyr");
     const b = r.querySelector(".ltmore");
     const box = b.getBoundingClientRect();

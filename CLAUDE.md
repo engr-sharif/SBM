@@ -2719,6 +2719,100 @@ any rule and therefore MUST appear as a pinch-out. 9ah measures glyph boxes; it
 does not look at colour, and it excludes a halo twin (the same string within
 1.5 px) and anything inside a `<title>`.
 
+## v26 — the redesign (the shell, the first visit, the log sheet)
+
+Contract: `docs/V26_UI_AUDIT.md` (the audit and its six phases). No kernel work
+(`VERSION` stays 10). New files `js/omni.js` (`SBMM.omni`), `js/home.js`
+(`SBMM.home`), `js/layerpanel.js` (`SBMM.layersPanel`), `js/cartography.js`
+(`SBMM.carto`), `css/fonts.css` (from `tools/build_fonts.py` over
+`vendor/fonts/`); the rest is the `v26` blocks in `css/app.css`, the top bar and
+Layers-pane markup in `index.html`, `js/shell.js`, `js/borewin.js`,
+`js/borelogs.js`, `js/viewer3d.js`. **Everything is scoped `body:not(.field)`**,
+so a phone and the field build keep v11's chrome and their harnesses unchanged.
+
+**The first visit is a DECISION, and it is applied once.** `CURATED_ON` in
+`js/home.js` (the three orthos + place names ON, every other row OFF, the
+cultural group and `design/sheets3d` untouched) goes through ONE
+`SBMM.layerState.batch` the first time a browser opens the app, and
+`sbmm.home.v1.defaults` records that it did — after that the remembered state
+wins. `test/gate.mjs` `unlock()` seeds `{defaults:1, freq:"never"}` when the key
+is absent, so every existing harness sees the app it always saw (a user setting,
+like the idle lock; it unlocks nothing). A test of the first visit itself must
+clear that key.
+
+Eight things that will be walked into again:
+
+- **The stage is full-bleed and the chrome FLOATS over the map.** The frame the
+  chrome leaves free is `SBMM.shell.frame()` (`{x, y, w, h}`, read off the CSS
+  variables through a probe), and every fit goes through
+  `SBMM.omni.fitPad()` — `flyTo`, the layer tree's zoom-to, the omnibox. A
+  harness that fits two points with a flat `padding` and then clicks them lands
+  on a dock (block 9ag's fence clicks did exactly that); pad into the frame. The
+  map's own `latLngToContainerPoint` is still right — it is the POINTER that
+  hits the dock.
+- **The Layers pane has two faces.** `#lpHome` (basemap tiles, *On the map*,
+  topics, views) is the default; `#lpCatalog` is the v16 tree, untouched. The
+  tree rows are `#layers .lyr` exactly as before and **nothing new uses `.lyr`**
+  (the on-map rows are `.omrow`), so every tree selector still counts the same
+  rows — but they are inside a hidden container on the home face. **A harness
+  that touches a tree row calls `SBMM.layersPanel.show("catalog")` first**
+  (block 9e/9z/9af do, after the tab click and after 9z's reload); a Playwright
+  locator otherwise waits its whole timeout on an invisible row. In field mode
+  the pane is always the catalogue.
+- **The top-bar tools moved into menus.** `#tableBtn`, `#logsMenuBtn`,
+  `#fenceMenuBtn`, `#sheetsTopBtn`, `#dsMenuBtn`, `#gotoBtn` are rows of the
+  **Data ▾** menu (`#siteMenu`); the measure modes are rows of **Measure ▾**
+  (`#measureMenu`); import and clear are in **File ▾**. The ids did not change,
+  so `.click()` from `evaluate` works; a real `page.click` has to open the menu
+  first. Every menu goes through `SBMM.shell.toggleMenu(btn, menu)`, which
+  positions it fixed under its button, sets `aria-expanded`, gives it
+  `role=menu` and walks it from the keyboard (`menuKeys`, capture phase: arrows,
+  Home/End, Esc back to the button).
+- **The command bar no longer opens itself on a first visit** — the omnibox
+  (Ctrl+K and `/`, `>` for a command) is the first control. The gate's focus
+  trap stays; it is still right for anything that grabs focus during boot.
+- **The ortho masks are computed, not shipped.** A JPEG has no alpha, so
+  `js/cartography.js` finds the neutral grey that owns an image's border (192 in
+  the orthos, 205 in the hillshades), flood-fills it IN from the border (a grey
+  roof inside the photo is kept), grows it one cell, and applies the result as a
+  CSS `mask-image` blob URL on the overlay's own `<img>`. It runs in a Blob
+  worker (`maskPixels.toString()`, the `js/dem.js` technique) because inline it
+  cost 1.3-2.5 s of main thread per image. Nothing that READS the image — the 3D
+  drape, the exports — sees a difference. Clear Lake is EA's polygon in a
+  `lakefill` pane at z 250, under the rasters.
+- **Density by zoom only ever SHRINKS, never hides.** Below zoom -1 the circle
+  markers of a group registered with `SBMM.carto.densify(g)` are drawn smaller
+  (to 55 %, floor 2.5 px; the builder's radius is kept on `_r0`) and
+  `#map.zoomsite` draws the storm symbols at 70 %. Hiding a point at a zoom is a
+  click some harness makes that silently stops landing.
+- **The boring-log window is maximised by default and is a sheet of PAPER.**
+  `logSvg` draws with `print: true` (the paper palette) inside `.bwpaper`; the
+  navigator (`.bwnav`, at ≥ 900 px on the Log and Compare tabs) and the rail
+  (`.bwrail`, ≥ 1,180 px on Log) are laid out by `layoutCols()`. The
+  descriptions are SANS now — `SANS_STYLE` is an inline style because the SVG's
+  own `<style>` sets the mono face on every `<text>` and beat the old
+  `font-family` attribute, so they had been silently monospace. **The new faces
+  are taller than the old ones**: the description line height is 13 at 10.2 px,
+  the lab chips 12 at 8.5 px mono, the remarks 10.8 at 8.6 px — at the old
+  values `test/borewin_overlap.mjs` counted 538 overlapping pairs, all of them
+  0.6-1.6 px of glyph box. Change a face or a size and re-run it.
+- **A harness pointer move must MOVE.** Block 9af's depth cursor failed only in
+  sequence: `page.mouse.move` to where the pointer already was dispatched
+  nothing, and a full run can leave it exactly there. It moves to a nearby point
+  first.
+
+**3D:** `SBMM.viewer3d.flyAround()` frames the mine window and walks the
+destination azimuth round once in 24 s through the rig's own damping; any
+pointer, wheel or key stops it (capture phase), and under
+`prefers-reduced-motion` it frames and does not turn. It asks for frames only
+while it runs, so block 9e holds. Saved views are
+`SBMM.viewer3d.saveBookmark/goBookmark/bookmarks` in
+`SBMM.view.pref("camBookmarks")` (12 kept), in View settings beside *fly the
+site*.
+
+**Exemptions:** `base/place_names` is a dated addition in block 9z's baseline
+and exempt in block 9y's parity table (2D labels; 3D has its own label layer).
+
 ## Undo and redo (v9.4) — the both-closures rule and `readd`
 
 `SBMM.undo` is two stacks of `{ desc, undo, redo }`, 100 deep each way:

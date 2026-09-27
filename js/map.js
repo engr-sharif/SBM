@@ -228,6 +228,8 @@ SBMM.initMap = function () {
   const ZOOM_LABELS = 0;
   function zoomClass() {
     $("map").classList.toggle("zoomfar", map.getZoom() < ZOOM_LABELS);
+    /* v26 §10: the whole-site view draws the point symbols smaller (CSS) */
+    $("map").classList.toggle("zoomsite", map.getZoom() < -1.5);
     if (SBMM.status) SBMM.status.scale();
   }
   map.on("zoomend", () => { drawScale(); zoomClass(); });
