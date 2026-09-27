@@ -235,6 +235,22 @@ SBMM.cmd = (function () {
         if (!SBMM.fence) { toast("this build has no fence diagram"); return; }
         SBMM.fence.cmd(v);
       } },
+    /* v27: the fence clip box — a trench dug along a fence in 3D */
+    { n: "CLIPBOX", a: ["SECTIONBOX"],
+      d: "clip box — cut the 3D ground away along the selected (or last) fence",
+      arg: "half-width ft, L / R, or off",
+      f: v => {
+        const a = String(v || "").trim().toLowerCase();
+        if (a === "off" || a === "0") { if (!SBMM.viewer3d.clipOff()) toast("the clip box is not on"); return; }
+        const o = {};
+        for (const w of a.split(/\s+/).filter(Boolean)) {
+          if (/^\d+(\.\d+)?$/.test(w)) o.half = +w;
+          else if (w === "l" || w === "left") o.side = "left";
+          else if (w === "r" || w === "right") o.side = "right";
+          else if (w === "both" || w === "b") o.side = "both";
+        }
+        SBMM.viewer3d.clipBox(null, o);
+      } },
     { n: "LOGS", a: ["BORELOGS", "BORINGS"],
       d: "every boring log in one table — the two contact statements per hole, and where they disagree",
       f: () => {

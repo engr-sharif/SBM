@@ -114,17 +114,20 @@ SBMM.terrain3d = (function () {
   const VERT = `
     #include <common>
     #include <fog_pars_vertex>
+    #include <clipping_planes_pars_vertex>
     varying vec2 vUv;
     void main() {
       vUv = uv;
       vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
       gl_Position = projectionMatrix * mvPosition;
+      #include <clipping_planes_vertex>
       #include <fog_vertex>
     }`;
   const FRAG = `
     precision highp float;
     #include <common>
     #include <fog_pars_fragment>
+    #include <clipping_planes_pars_fragment>
     varying vec2 vUv;
     uniform sampler2D uDem;
     uniform sampler2D uRamp;
@@ -144,6 +147,7 @@ SBMM.terrain3d = (function () {
       return l - s * min(l, 1.0 - l) * clamp(min(k - 3.0, 9.0 - k), -1.0, 1.0);
     }
     void main() {
+      #include <clipping_planes_fragment>
       float t = uTexel;
       float zc = zAt(vUv);
       if (zc < -1.0e8) discard;                      /* NoData is a hole, as in 2D */
@@ -239,7 +243,8 @@ SBMM.terrain3d = (function () {
         uSunAz: { value: sunAz }, uSunEl: { value: sunEl },
         uMode: { value: MODE[kind] == null ? 0 : MODE[kind] }
       }),
-      fog: true
+      fog: true,
+      clipping: true                             // v27: the fence clip box
     });
     m.extensions = { derivatives: true };       // dFdx/dFdy for the contour width
     return m;
