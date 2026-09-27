@@ -14,6 +14,8 @@
 
      --only <name,name>   run just these (exact, prefix, or substring)
      --from <name>        start here and run to the end
+     --until <name>       stop BEFORE this block (with --from: a half-open
+                          range — how the CI shards cut the harness, v27)
      --skip <name,name>   run everything except these
      --list               print the block names and exit (no browser)
 
@@ -49,7 +51,8 @@ const one = n => { const i = argv.indexOf(n); return i >= 0 ? (argv[i + 1] || ""
 const ONLY = listOf("--only");
 const SKIP = listOf("--skip");
 const FROM = one("--from");
-export const SELECTING = !!(ONLY.length || SKIP.length || FROM);
+const UNTIL = one("--until");
+export const SELECTING = !!(ONLY.length || SKIP.length || FROM || UNTIL);
 
 const norm = s => s.toLowerCase().replace(/\s+/g, " ").trim();
 const matches = (name, pat) => {
@@ -73,24 +76,33 @@ if (argv.includes("--list")) {
   process.exit(0);
 }
 
-/* --from resolves against the static list, so "start here" knows the order */
+/* --from / --until resolve against the static list, so "start here" knows
+   the order. An EXACT name wins over a prefix: two blocks share "9z." */
 const ALL = names();
-let fromIdx = -1;
-if (FROM) {
-  fromIdx = ALL.findIndex(n => matches(n, FROM));
-  if (fromIdx < 0) { console.log(`FAIL: --from ${FROM} matches no block in this harness`); process.exit(2); }
-}
+const resolveName = (pat, flagName) => {
+  let i = ALL.findIndex(n => norm(n) === norm(pat));
+  if (i < 0) i = ALL.findIndex(n => matches(n, pat));
+  if (i < 0) { console.log(`FAIL: ${flagName} ${pat} matches no block in this harness`); process.exit(2); }
+  return i;
+};
+const fromIdx = FROM ? resolveName(FROM, "--from") : -1;
+const untilIdx = UNTIL ? resolveName(UNTIL, "--until") : -1;
 if (ONLY.length) {
   const unmatched = ONLY.filter(p => !ALL.some(n => matches(n, p)));
   if (unmatched.length) { console.log(`FAIL: --only ${unmatched.join(",")} matches no block in this harness`); process.exit(2); }
 }
 
 let seen = 0, ran = 0, skipped = 0;
+/* SBMM_BLOCK_TIMES=1 prints each block's wall time — what the CI shards are
+   balanced on. Off by default, so a full run's output is unchanged. */
+const TIMES = process.env.SBMM_BLOCK_TIMES === "1" ? [] : null;
 export function wanted(name) {
   const i = ALL.indexOf(name);
   if (SKIP.some(p => matches(name, p))) return false;
   if (ONLY.length) return ONLY.some(p => matches(name, p));
-  if (fromIdx >= 0) return i < 0 || i >= fromIdx;
+  if (i < 0) return true;
+  if (fromIdx >= 0 && i < fromIdx) return false;
+  if (untilIdx >= 0 && i >= untilIdx) return false;
   return true;
 }
 
@@ -122,7 +134,10 @@ export async function block(name, fn, opts = {}) {
   if (SELECTING) console.log(`[blocks] run: ${name}`);
   await S.ensure(opts.needs);
   ran++;
-  return await fn();
+  if (!TIMES) return await fn();
+  const t0 = Date.now();
+  try { return await fn(); }
+  finally { TIMES.push([name, Date.now() - t0]); console.log(`[blocks] time: ${((Date.now() - t0) / 1000).toFixed(1)} s  ${name}`); }
 }
 
 export function stats() { return { seen, ran, skipped, selecting: SELECTING }; }

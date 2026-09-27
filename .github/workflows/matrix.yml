@@ -1,7 +1,8 @@
 # The test matrix on GitHub's runners (v18 §4).
 #
-# Seven jobs in parallel put the whole matrix at roughly the length of its
-# slowest step, instead of the 40-70 minutes it takes queued behind ONE
+# Fourteen jobs in parallel put the whole matrix at roughly the length of its
+# slowest step (v28: the desktop e2e is four shards per build — it was one
+# 30-40 minute job each), instead of the 40-70 minutes it takes queued behind ONE
 # browser on the two-core cloud box. Each job runs the same runner an agent
 # runs locally — test/run.mjs --only <step> — so there is one definition of
 # what a step is, and the logs and screenshots come back as artifacts.
@@ -35,10 +36,24 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - step: e2e:folder
+          # the desktop e2e in four shards per build (test/run.mjs E2E_CUTS);
+          # test/check.mjs fails if a shard here and a cut there disagree
+          - step: e2e:folder:1
             also: split3d:folder
-          - step: e2e:dist
+          - step: e2e:folder:2
+            also: ""
+          - step: e2e:folder:3
+            also: ""
+          - step: e2e:folder:4
+            also: ""
+          - step: e2e:dist:1
             also: split3d:dist
+          - step: e2e:dist:2
+            also: ""
+          - step: e2e:dist:3
+            also: ""
+          - step: e2e:dist:4
+            also: ""
           - step: field
             also: ""
           - step: tablet:file

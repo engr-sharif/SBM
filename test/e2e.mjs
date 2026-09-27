@@ -25,6 +25,14 @@ console.log(`\n=== ${label} ===`);
 await unlock(page);  /* the password gate — see test/gate.mjs */
 await page.goto(__furl(__res(target)).href);
 
+/* "the user's own features" — v9 puts EA's four read-only reference design
+   surfaces (§5) in the store ahead of anything drawn. A page helper read by
+   many blocks, so it is installed here, for every selection (v28: it lived in
+   block 8g, and a CI shard that starts later had no such function). The init
+   script keeps it across 9z's reload. */
+await page.addInitScript(() => { window.__mine = () => SBMM.store.features.filter(q => !(q.props && q.props.ref)); });
+await page.evaluate(() => { window.__mine = () => SBMM.store.features.filter(q => !(q.props && q.props.ref)); });
+
 /* ---- fixtures (v18 §3) -------------------------------------------------
    State that later blocks need, declared with the code that makes it, so a
    selected block can be given it without running the forty blocks in front.
@@ -36,6 +44,17 @@ S.define("pile1", () => page.evaluate(async () => {
   for (let i = 0; i < 200 && f.props.fill_yd3 == null; i++) await new Promise(r => setTimeout(r, 100));
   return f.props;
 }));
+
+/* v28 — the 3D view OPEN, as block 9 leaves it. Idempotent: in a full run the
+   view is already open and this does nothing; a CI shard that starts after
+   block 9 gets the view the blocks there were written against. */
+S.define("open3d", async () => {
+  if (!(await page.evaluate(() => SBMM.viewer3d.isOpen()))) await page.evaluate(() => SBMM.viewer3d.toggle());
+  await page.waitForFunction(() => document.getElementById("v3dStatus").textContent === "" &&
+    document.getElementById("view3d").style.display === "block", null, { timeout: 90000 });
+  await page.waitForTimeout(1200);
+  return true;
+});
 
 /* §9 of docs/V10_WATER_SPEC.md, and the distance helper the water blocks read it
    with. Constants and a pure function, read by four blocks — module scope, so
@@ -606,8 +625,8 @@ await page.waitForTimeout(150);
 /* "the first feature the user made" — v9 puts EA's four read-only reference
    design surfaces (§5) in the store ahead of anything drawn, so features[0] is
    no longer that. */
-await page.addInitScript(() => { window.__mine = () => SBMM.store.features.filter(q => !(q.props && q.props.ref)); });
-await page.evaluate(() => { window.__mine = () => SBMM.store.features.filter(q => !(q.props && q.props.ref)); });
+/* window.__mine is installed at the top of the harness (v28 — later blocks
+   use it too, and a CI shard never runs this one) */
 mine0 = () => { const f = window.__mine()[0];
                       return { visible: f.visible, onMap: SBMM.map.hasLayer(f.layer) }; };
 hidden = await page.evaluate(mine0);
@@ -1914,7 +1933,7 @@ if (drape.offN !== 0 || drape.offVerts !== 0) { console.log("FAIL: disabling a s
 if (errors.length !== errBeforeDrape) { console.log("FAIL: page errors during 3D sheet draping:", errors.slice(errBeforeDrape, errBeforeDrape + 4)); process.exit(1); }
 
 await page.click("#v3dClose");
-});
+}, { needs: ["open3d"] });   /* v28: a CI shard starts here with 3D closed */
 
 /* ==================================================================== */
 let errBeforeSheets, shIdx, pickRows, shOpen, zoomed, shClosed, fromMap, mapOpened, bpt, prio, prioOK;   /* hoisted — v18 §3 */
@@ -2135,6 +2154,18 @@ p3 = await page.evaluate(async () => {
      an earlier section happened to leave in the store. */
   const cb = document.getElementById("v3dPts");
   if (cb && !cb.checked) { cb.checked = true; cb.dispatchEvent(new Event("change")); }
+  /* v28: since v9 there is no 3D checkbox — the ONE layer state decides what
+     is drawn, in both views. In a full run earlier blocks have already put a
+     sample, a dataset and a GIS row on; a CI shard that starts at 9b has not,
+     so the block asks for each kind it counts (a no-op when already on). */
+  const LS = SBMM.layerState;
+  if (LS.rec("invest", "samples") && !LS.isOn("invest", "samples")) LS.set("invest", "samples", { on: true });
+  if (LS.rec("design", "gis_lots") && !LS.isOn("design", "gis_lots")) LS.set("design", "gis_lots", { on: true });
+  for (const d of SBMM.datasets.list()) {
+    if (d.rowRef && d.rowRef.cb && !d.rowRef.cb.checked) d.rowRef.cb.click();
+    break;
+  }
+  await new Promise(r => setTimeout(r, 1500));
   const probe = SBMM.tools.rebuildFeature({ type: "line",
     pts: [[6371380, 2128660], [6371460, 2128660]], name: "ZZ pick probe" });
   await new Promise(r => setTimeout(r, 500));
@@ -6614,6 +6645,9 @@ parity = await page.evaluate(async () => {
      than racing it, exactly as for the drainage map — its 3D drape is what the
      framework/where_water row of the table below is about. */
   for (let i = 0; i < 240 && SBMM.whereWater && !SBMM.whereWater.hasResult(); i++) await wait(500);
+  /* v28: and the flow accumulation — cached from block 9ab in a full run, but
+     a CI shard that starts here computes it on this same first tick */
+  for (let i = 0; i < 240 && SBMM.accum && !SBMM.accum.hasResult(); i++) await wait(500);
   /* the CAD groups parse their geometry lazily on first enable */
   await wait(4000);
   const wasOpen = SBMM.viewer3d.isOpen();
