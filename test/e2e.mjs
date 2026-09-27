@@ -25,6 +25,14 @@ console.log(`\n=== ${label} ===`);
 await unlock(page);  /* the password gate — see test/gate.mjs */
 await page.goto(__furl(__res(target)).href);
 
+/* "the user's own features" — v9 puts EA's four read-only reference design
+   surfaces (§5) in the store ahead of anything drawn. A page helper read by
+   many blocks, so it is installed here, for every selection (v28: it lived in
+   block 8g, and a CI shard that starts later had no such function). The init
+   script keeps it across 9z's reload. */
+await page.addInitScript(() => { window.__mine = () => SBMM.store.features.filter(q => !(q.props && q.props.ref)); });
+await page.evaluate(() => { window.__mine = () => SBMM.store.features.filter(q => !(q.props && q.props.ref)); });
+
 /* ---- fixtures (v18 §3) -------------------------------------------------
    State that later blocks need, declared with the code that makes it, so a
    selected block can be given it without running the forty blocks in front.
@@ -617,8 +625,8 @@ await page.waitForTimeout(150);
 /* "the first feature the user made" — v9 puts EA's four read-only reference
    design surfaces (§5) in the store ahead of anything drawn, so features[0] is
    no longer that. */
-await page.addInitScript(() => { window.__mine = () => SBMM.store.features.filter(q => !(q.props && q.props.ref)); });
-await page.evaluate(() => { window.__mine = () => SBMM.store.features.filter(q => !(q.props && q.props.ref)); });
+/* window.__mine is installed at the top of the harness (v28 — later blocks
+   use it too, and a CI shard never runs this one) */
 mine0 = () => { const f = window.__mine()[0];
                       return { visible: f.visible, onMap: SBMM.map.hasLayer(f.layer) }; };
 hidden = await page.evaluate(mine0);
