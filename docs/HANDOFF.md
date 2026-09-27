@@ -214,6 +214,19 @@ it, rotate the gate password, and keep the new one out of the repo.
 (construction control first: as-built surfaces, per-lot comparison, Civil 3D
 exports).
 
+**Suggested, not yet asked for (2026-09-27)** — ideas raised when he asked what else
+would improve the app, most useful first: (1) the waste model — a bottom-of-waste
+surface from the 44 logged contacts, thickness and volume per DU (this is C.0 below);
+(2) a takeoff sheet collecting every volume/area/length card into one table with
+subtotals and a CSV/XLSX; (3) a figure builder — title block, scale bar, north arrow,
+legend, true-scale PDF (the app's paper space); (4) named projects, restore points and
+a "send my view" file; (5) Hg/As exceedance surfaces over the samples with a time
+slider; (6) a station/offset tracker along a selected line; (7) interactive before the
+analysis grids land (the boot budget in the v20 section); (8) private hosting with real
+sign-in (the URGENT item above); (9) smaller comforts — an undo history panel,
+multi-select bulk edit, 3D vertical distance/slope/line of sight, copy-screenshot with a
+scale bar, a light print theme.
+
 **C.0 — which polygons bound the waste-thickness interpolation?** (asked 2026-09-09, v23
 Phase C). The borings carry a *Waste area* attribute (South Waste Rock Pile 10, North Waste
 Rock Pile 8, Northwest Pit 5, Waste Rock Dam 5, Old Mine Building 4, Tailings Pile 2, West

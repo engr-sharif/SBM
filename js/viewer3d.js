@@ -979,6 +979,7 @@ SBMM.viewer3d = (function () {
     if (!scene) return;
     if (!labelGroup) {
       labelGroup = new THREE.Group();
+      labelGroup.userData.noClip = true;
       labelGroup.renderOrder = 20;
       scene.add(labelGroup);
     }
@@ -2110,6 +2111,7 @@ SBMM.viewer3d = (function () {
                  the hole list and the scene's centring constants */
               wall.userData.pick = { kind: "fence", fid: f.id, cx: CX, cy: CY,
                 holes: R.holes.map(q => ({ id: q.id, x: q.px, y: q.py })) };
+              wall.userData.noClip = true;     // v27: it stands IN the clip box's trench
               addG.add(wall);
             }
             for (const q of R.holes)
@@ -2271,6 +2273,7 @@ SBMM.viewer3d = (function () {
             transparent: true, opacity: .85, depthTest: false, depthWrite: false
           }));
           stick.renderOrder = 2;
+          stick.userData.noClip = true;        // v27: below ground, shown in the trench
           /* the stick belongs to the same record as the dot above it — clicking
              the borehole, not just its cap, has to open the log */
           /* segPt[k] is the record the k-th SEGMENT belongs to — js/pick3d.js
@@ -2478,6 +2481,7 @@ SBMM.viewer3d = (function () {
         color: 0xFFD34D, transparent: true, opacity: .95, depthTest: false, depthWrite: false
       }));
       hiObj.renderOrder = 3;
+      hiObj.userData.noClip = true;
       hiObj.frustumCulled = false;
       scene.add(hiObj);
     }
@@ -3170,7 +3174,11 @@ SBMM.viewer3d = (function () {
     for (const [d, m] of list) {
       if (best && best.distance <= d) break;
       const hits = raycaster.intersectObject(m, false);
-      if (hits.length && (!best || hits[0].distance < best.distance)) best = hits[0];
+      /* v27: ground the clip box has cut away is not there to be picked — the
+         ray goes on to the first hit outside the box (the trench wall's far
+         bank) instead of landing on invisible terrain above the trench */
+      const h = CLIP.on ? hits.find(q => !clipContains(q.point.x + CX, q.point.y + CY)) : hits[0];
+      if (h && (!best || h.distance < best.distance)) best = h;
     }
     return best;
   }
@@ -3374,9 +3382,11 @@ SBMM.viewer3d = (function () {
     }
     applySun();
     skyMesh = buildSky();
+    skyMesh.userData.noClip = true;
     scene.add(skyMesh);
     envGroup = buildEnv();
     envGroup.scale.z = exag();
+    envGroup.userData.noClip = true;
     scene.add(envGroup);
 
     raycaster = new THREE.Raycaster();
@@ -3565,6 +3575,7 @@ SBMM.viewer3d = (function () {
         updateLabels3d();
         const tS = performance.now(); fsAdd("labels", tS - tL);
         updateSky();
+        clipBeforeDraw();
         const tR = performance.now(); FS.sky += tR - tS;
         renderer.render(scene, camera);
         fsAdd("render", performance.now() - tR);
@@ -3775,6 +3786,7 @@ SBMM.viewer3d = (function () {
         toast("snapshot cancelled");
         return;
       }
+      clipBeforeDraw();
       renderer.render(scene, camera);
       const out = SBMM.watermark.burnWebGL(renderer.domElement);
       out.toBlob(b => download("sbmm_3d_view.png", b));
@@ -4005,6 +4017,7 @@ SBMM.viewer3d = (function () {
   }
   function close() {
     open = false;
+    if (CLIP.on) clipOff();          // v27: the clip box is a 3D view state
     document.body.classList.remove("v3don");
     if (SBMM.trees) SBMM.trees.repaint();
     if (split) toggleSplit();
@@ -4039,6 +4052,7 @@ SBMM.viewer3d = (function () {
     sketchObj = drapedLine(P, 0xFFD34D, closed && P.length > 2, 3.5);
     sketchObj.material.transparent = true; sketchObj.material.opacity = .9;
     sketchObj.scale.z = exag();
+    sketchObj.userData.noClip = true;
     scene.add(sketchObj);
     requestRender();
   }
@@ -4330,6 +4344,330 @@ SBMM.viewer3d = (function () {
     return out;
   }
 
+  /* ------------------------------------------------------------------ */
+  /* v27 — the fence clip box (a section box along a fence)              */
+  /* ------------------------------------------------------------------ */
+  /* The fence strip stands UNDER the ground (its top edge is the lidar), so
+     from above the terrain draws over all of it. The clip box digs a trench
+     along the fence: an oriented prism, aligned with the fence's first-to-last
+     direction, inside which the terrain, the drapes and the draped linework
+     are not drawn. Four things make it read as a cut rather than a hole:
+
+       · THE CUT IS LOCAL CLIPPING WITH clipIntersection — four vertical planes
+         whose normals point OUT of the box, so a fragment is discarded only
+         when it is inside all four. The planes are vertical, so the relief
+         slider (a z-scale on every group) cannot move them.
+       · WHAT STANDS IN THE TRENCH IS EXEMPT: the fence strip, the borings'
+         depth sticks, the stratum cursor, the labels, the sky and the caps
+         carry userData.noClip, and a subtree under one is skipped whole.
+       · THE WALLS ARE SOIL, not a see-through slot: each face of the box gets
+         a cap from the analysis ground (SBMM.elev, the v20 two-sources rule)
+         down to the fence's own datum floor, plus a floor at that datum and a
+         bright line where the cut meets the ground.
+       · IT IS A VIEW, NOT DATA: nothing serialises, the fence's vertices drive
+         it, deleting the fence turns it off, and it asks for frames only when
+         it changes (block 9e's idle contract).
+
+     Materials are claimed lazily at DRAW time (clipClaim), because tiles swap
+     and overlays rebuild long after the box was set: a draw walks the scene
+     once and gives every new material the shared plane array. That walk costs
+     well under a millisecond and runs only while the box is on. */
+  const CLIP = { on: false, fid: null, half: 40, side: "both", planes: null,
+                 group: null, sig: "", poly: null, box: null, claimed: 0 };
+  function clipPlanes() {
+    if (!CLIP.planes) CLIP.planes = [0, 1, 2, 3].map(() => new THREE.Plane());
+    return CLIP.planes;
+  }
+  function clipFence() {
+    const f = CLIP.fid && SBMM.store && SBMM.store.byId ? SBMM.store.byId(CLIP.fid) : null;
+    return f && f.type === "fence" && f.pts && f.pts.length > 1 ? f : null;
+  }
+  /* the oriented box in State Plane feet: origin p0, axis u (first -> last
+     vertex), normal n (left of u); s along u, t along n */
+  function clipGeom(f) {
+    const P = f.pts, p0 = P[0], pl = P[P.length - 1];
+    let ux = pl[0] - p0[0], uy = pl[1] - p0[1], L = Math.hypot(ux, uy);
+    if (L < 1) { ux = P[1][0] - p0[0]; uy = P[1][1] - p0[1]; L = Math.hypot(ux, uy) || 1; }
+    ux /= L; uy /= L;
+    const nx = -uy, ny = ux;
+    let s0 = Infinity, s1 = -Infinity, t0 = Infinity, t1 = -Infinity;
+    for (const q of P) {
+      const dx = q[0] - p0[0], dy = q[1] - p0[1];
+      const s = dx * ux + dy * uy, t = dx * nx + dy * ny;
+      s0 = Math.min(s0, s); s1 = Math.max(s1, s); t0 = Math.min(t0, t); t1 = Math.max(t1, t);
+    }
+    const M = 15, h = CLIP.half;
+    s0 -= M; s1 += M;
+    if (CLIP.side === "left") { t0 -= 1; t1 += h; }
+    else if (CLIP.side === "right") { t0 -= h; t1 += 1; }
+    else { t0 -= h; t1 += h; }
+    const at = (s, t) => [p0[0] + ux * s + nx * t, p0[1] + uy * s + ny * t];
+    /* corners counter-clockwise: (s0,t0) (s1,t0) (s1,t1) (s0,t1) */
+    const corners = [at(s0, t0), at(s1, t0), at(s1, t1), at(s0, t1)];
+    const R = f._fen || (SBMM.fence && SBMM.fence.derive ? SBMM.fence.derive(f) : null);
+    return { p0, ux, uy, nx, ny, s0, s1, t0, t1, corners,
+             zBot: R && isFinite(R.zBot) ? R.zBot : null,
+             length: s1 - s0, width: t1 - t0 };
+  }
+  function clipSetPlanes(G) {
+    const [a, b, c, d] = clipPlanes();
+    const V = (xy) => new THREE.Vector3(xy[0] - CX, xy[1] - CY, 0);
+    const u = new THREE.Vector3(G.ux, G.uy, 0), n = new THREE.Vector3(G.nx, G.ny, 0);
+    /* normals point OUT of the box, so inside is negative for all four */
+    a.setFromNormalAndCoplanarPoint(u.clone().negate(), V(G.corners[0]));   // s = s0
+    b.setFromNormalAndCoplanarPoint(u.clone(), V(G.corners[1]));            // s = s1
+    c.setFromNormalAndCoplanarPoint(n.clone().negate(), V(G.corners[0]));   // t = t0
+    d.setFromNormalAndCoplanarPoint(n.clone(), V(G.corners[2]));            // t = t1
+  }
+  /* the soil walls, the floor and the ground line — in scene units, in a group
+     z-scaled by the relief slider like every other group */
+  function clipBuildCaps(G) {
+    if (CLIP.group) { scene.remove(CLIP.group); disposeTree(CLIP.group); CLIP.group = null; }
+    const grp = new THREE.Group();
+    grp.userData.noClip = true;
+    const zb = (G.zBot != null ? G.zBot : ZMID - 60) - ZMID;
+    const pos = [], col = [], idx = [], line = [];
+    /* a muted earth ramp — lighter at the ground line, dark at the datum —
+       so the cut reads as soil without competing with the section on it */
+    const top = new THREE.Color(0x5C4836), deep = new THREE.Color(0x1E1813);
+    const STEP = 4;
+    let vN = 0, ok = 0;
+    for (let e = 0; e < 4; e++) {
+      const A = G.corners[e], B = G.corners[(e + 1) % 4];
+      const len = dist2d(A, B), n = Math.max(1, Math.ceil(len / STEP));
+      let prev = -1;
+      for (let i = 0; i <= n; i++) {
+        const k = i / n, x = A[0] + (B[0] - A[0]) * k, y = A[1] + (B[1] - A[1]) * k;
+        const [z0] = SBMM.elev(x, y);
+        if (isNaN(z0)) { prev = -1; continue; }
+        const zt = z0 - ZMID;
+        pos.push(x - CX, y - CY, zt, x - CX, y - CY, zb);
+        col.push(top.r, top.g, top.b, deep.r, deep.g, deep.b);
+        const cur = vN; vN += 2;
+        if (prev >= 0) { idx.push(prev, prev + 1, cur, cur, prev + 1, cur + 1); ok++;
+                         line.push(pos[prev * 3], pos[prev * 3 + 1], pos[prev * 3 + 2] + 0.4,
+                                   pos[cur * 3], pos[cur * 3 + 1], pos[cur * 3 + 2] + 0.4); }
+        prev = cur;
+      }
+    }
+    if (ok) {
+      const g = new THREE.BufferGeometry();
+      g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+      g.setAttribute("color", new THREE.Float32BufferAttribute(col, 3));
+      g.setIndex(idx);
+      g.computeVertexNormals();
+      const walls = new THREE.Mesh(g, new THREE.MeshBasicMaterial({
+        vertexColors: true, side: THREE.DoubleSide,
+        polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 2 }));
+      walls.userData.noClip = true;
+      grp.add(walls);
+      const lg = new THREE.BufferGeometry();
+      lg.setAttribute("position", new THREE.Float32BufferAttribute(line, 3));
+      const gl = new THREE.LineSegments(lg, new THREE.LineBasicMaterial({ color: 0xF1CE7A }));
+      gl.userData.noClip = true;
+      grp.add(gl);
+    }
+    /* the floor of the trench, at the datum */
+    const fs = new THREE.Shape(G.corners.map(c => new THREE.Vector2(c[0] - CX, c[1] - CY)));
+    const fg = new THREE.ShapeGeometry(fs);
+    fg.translate(0, 0, zb);
+    const floor = new THREE.Mesh(fg, new THREE.MeshBasicMaterial({ color: 0x2C241D, side: THREE.DoubleSide }));
+    floor.userData.noClip = true;
+    grp.add(floor);
+    grp.scale.z = exag();
+    grp.userData.clipVerts = pos.length / 3;
+    scene.add(grp);
+    CLIP.group = grp;
+  }
+  function disposeTree(o) {
+    o.traverse(c => {
+      if (c.geometry) c.geometry.dispose();
+      if (c.material) (Array.isArray(c.material) ? c.material : [c.material]).forEach(m => m.dispose());
+    });
+  }
+  /* claim every clippable material in the scene for the box (or release it).
+     A subtree under a noClip object is skipped whole. */
+  function clipClaim(on) {
+    if (!scene) return 0;
+    const planes = on ? clipPlanes() : null;
+    let n = 0;
+    const visit = o => {
+      if (o.userData && o.userData.noClip) return;
+      if (o.isSprite) return;
+      const ms = o.material ? (Array.isArray(o.material) ? o.material : [o.material]) : null;
+      if (ms) for (const m of ms) {
+        if (on) {
+          if (m.clippingPlanes !== planes) {
+            m.clippingPlanes = planes; m.clipIntersection = true; m.needsUpdate = true;
+          }
+          n++;
+        } else if (m.clippingPlanes && m.clippingPlanes === CLIP.planes) {
+          m.clippingPlanes = null; m.clipIntersection = false; m.needsUpdate = true;
+        }
+      }
+      for (const c of o.children) visit(c);
+    };
+    for (const c of scene.children) visit(c);
+    return n;
+  }
+  /* called before every draw: keep the box in step with the fence, the relief
+     slider and whatever was built since the last draw */
+  function clipBeforeDraw() {
+    if (!CLIP.on) return;
+    const f = clipFence();
+    if (!f) { clipOff("the fence was removed — clip box off"); return; }
+    const sig = f.pts.map(p => p[0].toFixed(2) + "," + p[1].toFixed(2)).join(";")
+      + "|" + CLIP.half + "|" + CLIP.side + "|" + CX + "|" + CY;
+    if (sig !== CLIP.sig || !CLIP.group || CLIP.group.parent !== scene) {
+      CLIP.sig = sig;
+      const G = clipGeom(f);
+      CLIP.box = G;
+      clipSetPlanes(G);
+      clipBuildCaps(G);
+      clipPaint2d(G);
+      clipPaintChip(f);
+    }
+    CLIP.group.scale.z = exag();
+    CLIP.claimed = clipClaim(true);
+  }
+  /* the box on the 2D map: a dashed outline in the water pane (SVG, no
+     pointer events — the rule js/water.js's own renderer follows) */
+  let clipRenderer = null;
+  function clipPaint2d(G) {
+    const map = SBMM.map;
+    if (!map || typeof L === "undefined") return;
+    if (CLIP.poly) { map.removeLayer(CLIP.poly); CLIP.poly = null; }
+    if (!G) return;
+    if (!clipRenderer) clipRenderer = L.svg({ pane: map.getPane("water") ? "water" : "overlayPane" });
+    CLIP.poly = L.polygon(G.corners.map(c => [c[1], c[0]]), {
+      renderer: clipRenderer, pane: map.getPane("water") ? "water" : "overlayPane",
+      interactive: false, color: "#F1CE7A", weight: 1.5, dashArray: "6 5",
+      fill: true, fillColor: "#F1CE7A", fillOpacity: .06 }).addTo(map);
+  }
+  function clipPaintChip(f) {
+    const host = $("view3d");
+    if (!host) return;
+    let el = $("v3dClip");
+    if (!CLIP.on) { if (el) el.hidden = true; return; }
+    if (!el) {
+      el = document.createElement("div");
+      el.id = "v3dClip";
+      el.setAttribute("role", "group");
+      el.setAttribute("aria-label", "Clip box");
+      el.innerHTML =
+        `<span class="v3dclt">Clip box</span><span class="v3dcln"></span>` +
+        `<label class="v3dclw" title="Trench half-width either side of the fence line">` +
+          `<input type="range" min="10" max="200" step="5" aria-label="Half-width"> <span class="mono"></span></label>` +
+        `<span class="v3dcls" role="radiogroup" aria-label="Side">` +
+          `<button data-s="left" title="Cut the left side only (looking up-station)">L</button>` +
+          `<button data-s="both" title="Cut both sides — a trench">both</button>` +
+          `<button data-s="right" title="Cut the right side only">R</button></span>` +
+        `<button class="v3dclx" title="Put the ground back" aria-label="Clip box off">×</button>`;
+      host.appendChild(el);
+      const rng = el.querySelector("input");
+      rng.addEventListener("input", () => { CLIP.half = +rng.value; el.querySelector(".v3dclw .mono").textContent = rng.value + " ft"; requestRender(); });
+      el.querySelector(".v3dcls").addEventListener("click", e => {
+        const b = e.target.closest("button"); if (!b) return;
+        CLIP.side = b.dataset.s; clipPaintChip(clipFence()); requestRender();
+      });
+      el.querySelector(".v3dclx").addEventListener("click", () => clipOff());
+    }
+    el.hidden = false;
+    /* under the 3D toolbar, wherever the frame has put it */
+    const bar = host.querySelector(".v3dbar");
+    if (bar && !document.body.classList.contains("field")) {
+      const hb = host.getBoundingClientRect(), bb = bar.getBoundingClientRect();
+      el.style.top = Math.round(bb.bottom - hb.top + 10) + "px";
+    }
+    el.querySelector(".v3dcln").textContent = f ? (f.name || "fence") : "";
+    const rng = el.querySelector("input");
+    rng.value = String(CLIP.half);
+    el.querySelector(".v3dclw .mono").textContent = CLIP.half + " ft";
+    el.querySelectorAll(".v3dcls button").forEach(b => {
+      b.classList.toggle("on", b.dataset.s === CLIP.side);
+      b.setAttribute("aria-pressed", String(b.dataset.s === CLIP.side));
+    });
+  }
+  /* SBMM.viewer3d.clipBox(fence | id | null, {half, side}) */
+  async function clipBox(which, opts) {
+    const o = opts || {};
+    let f = null;
+    if (which && typeof which === "object") f = which;
+    else if (which) f = SBMM.store.byId(which);
+    if (!f) {
+      const sel = SBMM.store.selectedFeature && SBMM.store.selectedFeature();
+      f = sel && sel.type === "fence" ? sel
+        : SBMM.store.features.filter(g => g.type === "fence").pop() || null;
+    }
+    if (!f || f.type !== "fence" || !f.pts || f.pts.length < 2) {
+      toast("no fence to clip — draw one with FENCE first");
+      return false;
+    }
+    if (o.half != null && isFinite(o.half)) CLIP.half = Math.max(5, Math.min(400, +o.half));
+    if (o.side && /^(both|left|right)$/.test(o.side)) CLIP.side = o.side;
+    if (!open) await toggle();
+    if (!open || !scene) return false;
+    if (CLIP.on && CLIP.fid !== f.id) clipClaim(false);
+    CLIP.on = true; CLIP.fid = f.id; CLIP.sig = "";
+    if (!renderer.localClippingEnabled) renderer.localClippingEnabled = true;
+    clipBeforeDraw();
+    clipPaintChip(f);
+    /* frame the box, looking along the fence from its left bank */
+    const G = CLIP.box;
+    if (G && o.frame !== false) {
+      const xs = G.corners.map(c => c[0]), ys = G.corners.map(c => c[1]);
+      frameBox(Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys));
+      nav.st.dst.theta = Math.atan2(G.nx, G.ny);
+      nav.st.dst.phi = Math.min(nav.st.dst.phi, 0.95);
+    }
+    requestRender();
+    return true;
+  }
+  function clipOff(msg) {
+    if (!CLIP.on) return false;
+    CLIP.on = false;
+    clipClaim(false);
+    if (CLIP.group && scene) { scene.remove(CLIP.group); disposeTree(CLIP.group); }
+    CLIP.group = null; CLIP.sig = ""; CLIP.box = null; CLIP.claimed = 0;
+    clipPaint2d(null);
+    const el = $("v3dClip"); if (el) el.hidden = true;
+    if (msg) toast(msg);
+    requestRender();
+    return true;
+  }
+  function clipState() {
+    const G = CLIP.box;
+    return { on: CLIP.on, fid: CLIP.fid, half: CLIP.half, side: CLIP.side,
+             claimed: CLIP.claimed, planes: CLIP.planes ? CLIP.planes.length : 0,
+             capVerts: CLIP.group ? CLIP.group.userData.clipVerts || 0 : 0,
+             length: G ? +G.length.toFixed(1) : null, width: G ? +G.width.toFixed(1) : null,
+             zBot: G ? G.zBot : null, corners: G ? G.corners.map(c => c.map(v => +v.toFixed(2))) : null,
+             map2d: !!CLIP.poly, localClipping: !!(renderer && renderer.localClippingEnabled) };
+  }
+  /* what the box actually did to the scene — the harness asks this rather than
+     trusting a picture: is the terrain clipped, and are the fence strip and the
+     depth sticks NOT */
+  function clipProbe() {
+    const out = { terrain: 0, terrainClipped: 0, walls: 0, wallsClipped: 0, sticks: 0, sticksClipped: 0 };
+    const isC = m => !!(m && m.clippingPlanes && m.clippingPlanes.length === 4 && m.clipIntersection);
+    for (const t of terrainMeshes) if (t.mesh) { out.terrain++; if (isC(t.mesh.material)) out.terrainClipped++; }
+    if (scene) scene.traverse(o => {
+      const pk = o.userData && o.userData.pick;
+      if (!pk) return;
+      if (pk.kind === "fence") { out.walls++; if (isC(o.material)) out.wallsClipped++; }
+      if (pk.kind === "dataset" && pk.stick) { out.sticks++; if (isC(o.material)) out.sticksClipped++; }
+    });
+    return out;
+  }
+  /* is a scene point inside the box (for the harness, and the pick card) */
+  function clipContains(x, y) {
+    const G = CLIP.box;
+    if (!CLIP.on || !G) return false;
+    const dx = x - G.p0[0], dy = y - G.p0[1];
+    const s = dx * G.ux + dy * G.uy, t = dx * G.nx + dy * G.ny;
+    return s > G.s0 && s < G.s1 && t > G.t0 && t < G.t1;
+  }
+
   /* v26 — "fly the site": one slow orbit of the mine area, from the welcome
      card. It is the rig's OWN easing that moves the camera — this only walks
      the destination azimuth round — so it stops the instant anything else
@@ -4440,6 +4778,7 @@ SBMM.viewer3d = (function () {
   return {
     toggle, openAt, flyTo, isOpen: () => open, updateSketch, stats, resize, cameraWorld, diag,
     flyAround, stopFlyAround: () => stopTour(), flyingAround: () => !!tour,
+    clipBox, clipOff: () => clipOff(), clipState, clipContains, clipProbe,
     bookmarks, saveBookmark, goBookmark, removeBookmark, wireBookmarks,
     toggleFly, isFly: () => !!(nav && nav.mode() === "fly"),
     navMode: () => (nav ? nav.mode() : null),

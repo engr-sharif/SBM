@@ -102,6 +102,8 @@ jobs:
           name: logs-${{ strategy.job-index }}
           path: test/.logs/
           if-no-files-found: ignore
+          # .logs is a dot-directory: without this the step logs never upload
+          include-hidden-files: true
 
       - name: Upload screenshots
         if: always()

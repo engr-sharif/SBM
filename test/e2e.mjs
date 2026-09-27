@@ -8309,7 +8309,11 @@ if (!bwGone.restored) { console.log("FAIL: the payload did not come back"); proc
   await page.evaluate(() => { SBMM.borewin.open("SB-9"); document.querySelector(".blwin").focus(); });
   await page.waitForTimeout(200);
   await page.keyboard.press("Escape");
-  await page.waitForTimeout(400);
+  /* close() drops the state at once and removes the element 200 ms later on a
+     timer — wait on the condition, not the clock (a loaded runner overran a
+     fixed 400 ms with the state already closed) */
+  await page.waitForFunction(() => !document.querySelector(".blwin") && !SBMM.borewin.stateOf().open,
+    null, { timeout: 10000 }).catch(() => {});
   const left = await page.evaluate(() => ({
     win: !!document.querySelector(".blwin"), st: SBMM.borewin.stateOf().open,
     threed: SBMM.viewer3d.isOpen()
@@ -9174,6 +9178,147 @@ await page.evaluate(() => SBMM.layersPanel && SBMM.layersPanel.show("catalog"));
 await page.waitForTimeout(300);
 await page.evaluate(() => { const p = $("layers"); if (p) p.scrollTop = 0; });
 await page.waitForTimeout(200);
+});
+
+let clipRes;   /* hoisted — v18 §3 */
+await block("9ag2. the fence clip box", async () => {
+/* 9ag2. THE FENCE CLIP BOX (v27)                                         */
+/* A trench dug along a fence in 3D: the terrain inside an oriented box is  */
+/* clipped, the fence strip and the borings' depth sticks are NOT, the      */
+/* walls are soil caps, the box follows the fence and dies with it, and it  */
+/* renders nothing while idle. Asserted through clipState / clipProbe —     */
+/* what the box did to the scene, not a picture of it.                      */
+const errBeforeClip = errors.length;
+clipRes = await page.evaluate(async () => {
+  const wait = ms => new Promise(r => setTimeout(r, ms));
+  const said = [];
+  const orig = window.toast;
+  window.toast = function (m) { said.push(String(m)); return orig.apply(this, arguments); };
+  const out = { wasOpen: SBMM.viewer3d.isOpen() };
+  try {
+    for (const f of SBMM.store.features.filter(g => g.type === "fence")) SBMM.tools.deleteFeature(f);
+    /* no fence: the command refuses with a toast */
+    said.length = 0;
+    SBMM.cmd.run("CLIPBOX");
+    await wait(300);
+    out.noFence = said.slice();
+    out.offWhenNone = !SBMM.viewer3d.clipState().on;
+    /* a fence through three holes, then the box on it, both sides, 60 ft */
+    /* the borings row, whatever its slug: a dataset row's id is its LABEL's */
+    for (const r of SBMM.layerState.list("invest"))
+      if (/boring/i.test(r.label || r.id) && !r.on) SBMM.layerState.set("invest", r.id, { on: true });
+    SBMM.cmd.run("FENCE SB-9 SB-10 SB-11");
+    await wait(600);
+    const f = SBMM.store.features.filter(g => g.type === "fence").pop();
+    out.fence = !!f;
+    if (!f) return out;
+    out.ok = await SBMM.viewer3d.clipBox(f, { half: 60, side: "both" });
+    await wait(1500);
+    out.on = SBMM.viewer3d.clipState();
+    out.probe = SBMM.viewer3d.clipProbe();
+    const h10 = SBMM.borelogs.byId("SB-10");
+    out.containsSB10 = SBMM.viewer3d.clipContains(h10.x, h10.y);
+    out.outsideFar = SBMM.viewer3d.clipContains(h10.x + 2000, h10.y + 2000);
+    const chip = document.getElementById("v3dClip");
+    out.chip = chip ? { shown: !chip.hidden, text: chip.textContent, pressed:
+      [...chip.querySelectorAll(".v3dcls button")].filter(b => b.classList.contains("on")).map(b => b.dataset.s) } : null;
+    /* one side only: the across width drops to half + 1 */
+    await SBMM.viewer3d.clipBox(f, { side: "left", frame: false });
+    await wait(900);
+    out.left = SBMM.viewer3d.clipState();
+    /* the chip's slider drives the half-width */
+    await SBMM.viewer3d.clipBox(f, { side: "both", frame: false });
+    const rng = chip && chip.querySelector("input");
+    if (rng) { rng.value = "100"; rng.dispatchEvent(new Event("input", { bubbles: true })); }
+    await wait(1200);
+    out.wide = SBMM.viewer3d.clipState();
+    /* idle: settle, then at most one render in four seconds with the box on.
+       A visible raindrop route animates by contract (v13 §3.1: frames while a
+       flow is on screen and "animate water" is on) and earlier blocks leave
+       some on the map, so the particles are paused for the measurement and
+       put back after — the question is what the BOX costs, not the water. */
+    out.flows = SBMM.store.features.filter(q => q.type === "flow" && q.visible !== false).length;
+    const animWas = SBMM.viewer3d.animateWater();
+    SBMM.viewer3d.animateWater(false);
+    let prev = -1, same = 0;
+    for (let i = 0; i < 60; i++) {
+      await wait(1000);
+      const n = SBMM.viewer3d.stats().renderCount;
+      const q = SBMM.tiles.stats();
+      /* settled = no frame for two polls, no tile queued AND no terrain
+         rebuild in flight: the meshes build in a worker without a frame and
+         the swap renders afterwards (the dist run read that as 3 idle frames) */
+      const tb = SBMM.terrain3d && SBMM.terrain3d.stats ? SBMM.terrain3d.stats().building : false;
+      if (n === prev && !((q.queued || 0) + (q.running || 0)) && !tb) { if (++same >= 2) break; } else { same = 0; prev = n; }
+    }
+    const a = SBMM.viewer3d.stats().renderCount;
+    SBMM.viewer3d.frameStats(true);
+    await wait(4000);
+    out.idleRenders = SBMM.viewer3d.stats().renderCount - a;
+    /* what drew them, if anything did — a failure has to say who asked */
+    SBMM.viewer3d.animateWater(animWas);
+    out.idleWhy = { flows: out.flows,  frame: SBMM.viewer3d.frameStats(false), tiles: SBMM.tiles.stats(),
+                    terrain: SBMM.terrain3d && SBMM.terrain3d.stats ? (({ building, selects, swaps }) => ({ building, selects, swaps }))(SBMM.terrain3d.stats()) : null };
+    /* off: every claimed material released, the 2D outline and the chip gone */
+    SBMM.viewer3d.clipOff();
+    await wait(500);
+    out.off = SBMM.viewer3d.clipState();
+    out.offProbe = SBMM.viewer3d.clipProbe();
+    out.chipHiddenAfter = !chip || chip.hidden;
+    /* the box dies with its fence */
+    await SBMM.viewer3d.clipBox(f, { frame: false });
+    await wait(600);
+    said.length = 0;
+    SBMM.tools.deleteFeature(f);
+    await wait(1500);
+    out.afterDelete = SBMM.viewer3d.clipState();
+    out.deleteSaid = said.slice();
+  } finally {
+    window.toast = orig;
+    for (const g of SBMM.store.features.filter(q => q.type === "fence")) SBMM.tools.deleteFeature(g);
+    if (SBMM.viewer3d.clipState().on) SBMM.viewer3d.clipOff();
+    if (!out.wasOpen && SBMM.viewer3d.isOpen()) SBMM.viewer3d.toggle();
+  }
+  return out;
+});
+console.log("clip box:", JSON.stringify({ ok: clipRes.ok, on: clipRes.on && {
+  on: clipRes.on.on, planes: clipRes.on.planes, capVerts: clipRes.on.capVerts, claimed: clipRes.on.claimed,
+  length: clipRes.on.length, width: clipRes.on.width, map2d: clipRes.on.map2d }, probe: clipRes.probe,
+  contains: clipRes.containsSB10, chip: clipRes.chip && clipRes.chip.pressed,
+  left: clipRes.left && clipRes.left.width, wide: clipRes.wide && clipRes.wide.width,
+  idle: clipRes.idleRenders, off: clipRes.off && clipRes.off.on, offProbe: clipRes.offProbe,
+  afterDelete: clipRes.afterDelete && clipRes.afterDelete.on, noFence: clipRes.noFence, deleteSaid: clipRes.deleteSaid }));
+if (!clipRes.noFence || !clipRes.noFence.some(m => /no fence/i.test(m)) || !clipRes.offWhenNone)
+  { console.log("FAIL: CLIPBOX with no fence did not refuse with a toast", clipRes.noFence); process.exit(1); }
+if (!clipRes.fence) { console.log("FAIL: FENCE SB-9 SB-10 SB-11 built no fence"); process.exit(1); }
+const C = clipRes.on || {};
+if (!clipRes.ok || !C.on || C.planes !== 4 || !(C.capVerts > 0) || !(C.claimed > 0) || !C.map2d || !C.localClipping)
+  { console.log("FAIL: the clip box did not come on with its planes, caps, outline and local clipping", C); process.exit(1); }
+const P = clipRes.probe || {};
+if (!P.terrain || P.terrainClipped !== P.terrain)
+  { console.log("FAIL: the terrain is not clipped by the box", P); process.exit(1); }
+if (!P.walls || P.wallsClipped || P.sticksClipped)
+  { console.log("FAIL: the fence strip or a depth stick was clipped — they must stand IN the trench", P); process.exit(1); }
+if (!clipRes.containsSB10 || clipRes.outsideFar)
+  { console.log("FAIL: the box does not contain the fence's own middle hole, or contains ground far off it"); process.exit(1); }
+if (!clipRes.chip || !clipRes.chip.shown || !/Clip box/.test(clipRes.chip.text) || clipRes.chip.pressed.join() !== "both")
+  { console.log("FAIL: the clip box chip is missing or does not show the state", clipRes.chip); process.exit(1); }
+/* the fence is 0 ft across (through-holes, one polyline): both sides at 60 ft
+   is ~120 plus the vertices' own spread; one side is ~61 of it; 100 ft is wider */
+if (!(clipRes.left.width < C.width - 40) || !(clipRes.wide.width > C.width + 60))
+  { console.log("FAIL: the side switch or the half-width slider did not move the box",
+                { both: C.width, left: clipRes.left.width, wide: clipRes.wide.width }); process.exit(1); }
+if (clipRes.idleRenders > 1)
+  { const w = clipRes.idleWhy || {}, fr = w.frame || {};
+    console.log("FAIL: the clip box keeps the 3D view rendering while idle", clipRes.idleRenders,
+      `flows=${w.flows} particlesMs=${fr.particlesMs} overlays=${fr.overlayRebuilds} swaps=${fr.terrainSwaps} hovers=${fr.hovers}`,
+      JSON.stringify(w)); process.exit(1); }
+if (clipRes.off.on || clipRes.off.map2d || clipRes.offProbe.terrainClipped || !clipRes.chipHiddenAfter)
+  { console.log("FAIL: switching the clip box off left something behind", clipRes.off, clipRes.offProbe); process.exit(1); }
+if (clipRes.afterDelete.on || !clipRes.deleteSaid.some(m => /clip box off/i.test(m)))
+  { console.log("FAIL: deleting the fence did not take the clip box with it (and say so)", clipRes.deleteSaid); process.exit(1); }
+if (errors.length !== errBeforeClip)
+  { console.log("FAIL: the clip box raised page errors:", errors.slice(errBeforeClip, errBeforeClip + 4)); process.exit(1); }
 });
 
 await block("9ah. no overlapping text", async () => {
