@@ -37,6 +37,17 @@ S.define("pile1", () => page.evaluate(async () => {
   return f.props;
 }));
 
+/* v28 — the 3D view OPEN, as block 9 leaves it. Idempotent: in a full run the
+   view is already open and this does nothing; a CI shard that starts after
+   block 9 gets the view the blocks there were written against. */
+S.define("open3d", async () => {
+  if (!(await page.evaluate(() => SBMM.viewer3d.isOpen()))) await page.evaluate(() => SBMM.viewer3d.toggle());
+  await page.waitForFunction(() => document.getElementById("v3dStatus").textContent === "" &&
+    document.getElementById("view3d").style.display === "block", null, { timeout: 90000 });
+  await page.waitForTimeout(1200);
+  return true;
+});
+
 /* §9 of docs/V10_WATER_SPEC.md, and the distance helper the water blocks read it
    with. Constants and a pure function, read by four blocks — module scope, so
    that "--only 9t" has them without running 9w. */
