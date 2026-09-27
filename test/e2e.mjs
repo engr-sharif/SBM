@@ -266,8 +266,14 @@ await block("1a. THE PASSWORD GATE", async () => {
   await gp.fill("#gatePw", gatePassword());
   await gp.keyboard.press("Enter");
   await gp.waitForFunction(() => !document.getElementById("gate"), null, { timeout: 4000 });
-  await gp.evaluate(() => { SBMM.gate.setIdle(1); localStorage.setItem("sbmm.gate.active", String(Date.now() - 120000)); });
-  const beforeReload = await gp.evaluate(() => SBMM.gate.locked());
+  /* one synchronous call: the idle timer cannot tick between backdating the
+     stamp and reading the lock (on a fast runner it did, and the page locked
+     itself before the reload it exists to test) */
+  const beforeReload = await gp.evaluate(() => {
+    SBMM.gate.setIdle(1);
+    localStorage.setItem("sbmm.gate.active", String(Date.now() - 120000));
+    return SBMM.gate.locked();
+  });
   await gp.reload();
   await gp.waitForSelector("#gate", { timeout: 60000 });
   console.log("idle lock survives a reload: open before it", !beforeReload, "| gate shown after it");
