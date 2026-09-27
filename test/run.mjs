@@ -106,6 +106,30 @@ const STEPS = [
     cmd: [NODE, [R("test/boot_time.mjs"), INDEX, "3"]], desc: "boot to first interaction + the stage table" },
 ];
 
+/* THE DESKTOP E2E IN SHARDS (v28) — the CI matrix runs one per machine.
+   test/e2e.mjs is one page and ~40 minutes under software GL; its blocks are
+   named (v18 §3) and each stands on its own through fixtures, so a shard is a
+   half-open range `--from A --until B`. The cut points were chosen from
+   SBMM_BLOCK_TIMES=1 wall times so the four come out at 8-16 minutes each. A
+   block's cost depends on what ran before it — 9ae is 56 s alone and ~870 s
+   after the water blocks have loaded the 3D scene — so re-time after moving one. The full run (`e2e:folder`, `e2e:dist`) stays the local
+   default and is unchanged; a new block lands in whichever shard its
+   position puts it in, with no edit here. */
+export const E2E_CUTS = [
+  "9b. EA residential Final Design payload",
+  "9y. 3D parity",
+  "9ae. boring logs",
+];
+for (const [build, file] of [["folder", INDEX], ["dist", DIST]])
+  E2E_CUTS.concat([null]).forEach((until, i) => {
+    const from = i ? E2E_CUTS[i - 1] : null;
+    const sel = [...(from ? ["--from", from] : []), ...(until ? ["--until", until] : [])];
+    STEPS.push({ name: `e2e:${build}:${i + 1}`, build, browser: true, matrix: false,
+                 needs: [build === "dist" ? "build:dist" : "check"],
+                 cmd: [NODE, [R("test/e2e.mjs"), file, build, ...sel]],
+                 desc: `desktop e2e shard ${i + 1}/${E2E_CUTS.length + 1}: ${from || "start"} → ${until || "end"}` });
+  });
+
 /* the screenshot scripts: --shots, or --only shots:water. Not pass-fail —
    they are run so the pictures exist, and you look at them. */
 const SHOTS = [

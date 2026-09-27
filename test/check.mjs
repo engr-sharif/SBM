@@ -214,5 +214,38 @@ const bad  = (n, msg, rows = []) => { fails++; console.log(`FAIL ${n} — ${msg}
   }
 }
 
+/* 10. the e2e shard cuts (v28). test/run.mjs cuts test/e2e.mjs into CI shards
+   at named blocks; a cut that names no block — a block renamed — would fail
+   that shard with exit 2, and a cut matching two would shift the range. Each
+   must be EXACTLY one block name, in harness order, and the workflow must run
+   one job per shard of each build. Read as text: importing run.mjs runs it. */
+{
+  const runTxt = readFileSync(resolve(ROOT, "test/run.mjs"), "utf8");
+  const m = runTxt.match(/export const E2E_CUTS = \[([\s\S]*?)\];/);
+  const cuts = m ? [...m[1].matchAll(/"((?:[^"\\]|\\.)*)"/g)].map(x => x[1]) : null;
+  const e2e = readFileSync(resolve(ROOT, "test/e2e.mjs"), "utf8");
+  const names = [...e2e.matchAll(/\bblock\(\s*"((?:[^"\\]|\\.)*)"/g)].map(x => x[1]);
+  const wf = existsSync(resolve(ROOT, ".github/workflows/matrix.yml"))
+    ? readFileSync(resolve(ROOT, ".github/workflows/matrix.yml"), "utf8") : "";
+  const rows = [];
+  if (!cuts) rows.push("no E2E_CUTS array in test/run.mjs");
+  else {
+    let last = -1;
+    for (const c of cuts) {
+      const at = names.map((n, i) => n === c ? i : -1).filter(i => i >= 0);
+      if (at.length !== 1) rows.push(`cut "${c}" matches ${at.length} block names in test/e2e.mjs`);
+      else if (at[0] <= last) rows.push(`cut "${c}" is out of harness order`);
+      else last = at[0];
+    }
+    for (const b of ["folder", "dist"])
+      for (let k = 1; k <= cuts.length + 1; k++)
+        if (wf && !new RegExp(`step: e2e:${b}:${k}\\b`).test(wf)) rows.push(`.github/workflows/matrix.yml has no job for e2e:${b}:${k}`);
+    for (const m of wf.matchAll(/step: e2e:(folder|dist):(\d+)/g))
+      if (+m[2] > cuts.length + 1) rows.push(`.github/workflows/matrix.yml runs e2e:${m[1]}:${m[2]}, which test/run.mjs does not define`);
+  }
+  rows.length ? bad("shards", "the e2e shard cuts do not match the harness", rows)
+              : ok("shards", `${cuts.length + 1} shards per build, every cut one block, every shard a CI job`);
+}
+
 console.log(fails ? `\ncheck: ${fails} FAILED` : "\ncheck: all preflight checks passed");
 process.exit(fails ? 1 : 0);
