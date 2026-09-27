@@ -8309,7 +8309,11 @@ if (!bwGone.restored) { console.log("FAIL: the payload did not come back"); proc
   await page.evaluate(() => { SBMM.borewin.open("SB-9"); document.querySelector(".blwin").focus(); });
   await page.waitForTimeout(200);
   await page.keyboard.press("Escape");
-  await page.waitForTimeout(400);
+  /* close() drops the state at once and removes the element 200 ms later on a
+     timer — wait on the condition, not the clock (a loaded runner overran a
+     fixed 400 ms with the state already closed) */
+  await page.waitForFunction(() => !document.querySelector(".blwin") && !SBMM.borewin.stateOf().open,
+    null, { timeout: 10000 }).catch(() => {});
   const left = await page.evaluate(() => ({
     win: !!document.querySelector(".blwin"), st: SBMM.borewin.stateOf().open,
     threed: SBMM.viewer3d.isOpen()
