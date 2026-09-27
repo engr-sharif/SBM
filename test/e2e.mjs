@@ -1911,7 +1911,7 @@ drape = await page.evaluate(async () => {
     offN: off.sheetDrapes.length, offVerts: off.sheetDrapeVerts,
     footprintFt: [Math.round(r.x1 - r.x0), Math.round(r.y1 - r.y0)]
   };
-}, { needs: ["open3d"] });   /* v28: a CI shard starts here with 3D closed */
+});
 console.log("3D sheet drape:", drape.missing ? "NO TOGGLE FOUND"
   : `${drape.name} ${drape.beforeN}->${drape.onN} meshes, ${drape.verts} verts`
     + `, footprint ${drape.footprintFt[0]}x${drape.footprintFt[1]} ft`
@@ -1925,7 +1925,7 @@ if (drape.offN !== 0 || drape.offVerts !== 0) { console.log("FAIL: disabling a s
 if (errors.length !== errBeforeDrape) { console.log("FAIL: page errors during 3D sheet draping:", errors.slice(errBeforeDrape, errBeforeDrape + 4)); process.exit(1); }
 
 await page.click("#v3dClose");
-});
+}, { needs: ["open3d"] });   /* v28: a CI shard starts here with 3D closed */
 
 /* ==================================================================== */
 let errBeforeSheets, shIdx, pickRows, shOpen, zoomed, shClosed, fromMap, mapOpened, bpt, prio, prioOK;   /* hoisted — v18 §3 */
