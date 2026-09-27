@@ -130,6 +130,15 @@ function scrollIntoPane(el) {
 function toast(msg, ms = 2600) {
   let t = $("toast");
   if (!t) { t = document.createElement("div"); t.id = "toast"; document.body.appendChild(t); }
+  /* v26: the toast is a live region (a screen reader hears it), and every
+     message is kept — the open-items chip lists the recent ones, so one that
+     was overwritten by the next is not lost */
+  if (!t.hasAttribute("role")) { t.setAttribute("role", "status"); t.setAttribute("aria-live", "polite"); }
+  if (window.SBMM) {
+    const log = SBMM.toastLog || (SBMM.toastLog = []);
+    log.push({ t: Date.now(), msg: String(msg) });
+    if (log.length > 60) log.splice(0, log.length - 60);
+  }
   t.textContent = msg; t.classList.add("show");
   clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove("show"), ms);
 }

@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>SBMM — home v26 prototype</title>
+<!-- v26 UI audit, prototype A: the shell and the first thirty seconds.
+     Static: the map is a screenshot of the real app (assets/map_clean.jpg) with
+     the curated default layers of docs/V26_UI_AUDIT.md §4 and the grey no-data
+     fill masked out, which is what the ortho alpha fix would give. Everything
+     else is the proposed chrome. Open over file://. -->
+<style>
+:root{
+  --bg:#0C1216; --glass:rgba(17,26,31,.82); --glass2:rgba(24,35,42,.9); --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+  --ink:#EAF1F4; --ink2:#C6D3DA; --mut:#8EA2AE; --mut2:#667985; --acc:#5CC0DB; --acc2:#8BD8EA; --warn:#E6A93F; --bad:#E5584C; --ok:#6DBB7A;
+  --sans:"Inter","Segoe UI Variable","Segoe UI",system-ui,-apple-system,sans-serif;
+  --mono:"JetBrains Mono","Cascadia Mono",Consolas,ui-monospace,monospace;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font:13px/1.45 var(--sans);-webkit-font-smoothing:antialiased;overflow:hidden}
+.num{font-family:var(--mono);font-variant-numeric:tabular-nums}
+#map{position:absolute;inset:0;background:#16303B url(assets/map_clean.jpg) no-repeat;background-size:1400px auto;background-position:167px 62px}
+#map::before{content:"";position:absolute;left:0;bottom:0;width:380px;height:240px;background:linear-gradient(0deg,#16303B 55%,transparent);z-index:1}
+#map::after{content:"";position:absolute;inset:0;background:radial-gradient(1200px 700px at 58% 45%,transparent 40%,rgba(8,14,18,.55) 100%)}
+.glass{background:var(--glass);backdrop-filter:blur(14px) saturate(1.2);-webkit-backdrop-filter:blur(14px) saturate(1.2);border:1px solid var(--line);box-shadow:0 10px 40px rgba(0,0,0,.35)}
+/* ---------- top bar ---------- */
+#top{position:absolute;left:12px;right:12px;top:12px;height:52px;border-radius:14px;display:flex;align-items:center;gap:10px;padding:0 10px 0 14px;z-index:5}
+.brand{display:flex;align-items:center;gap:10px;min-width:210px}
+.brand svg{flex:none}
+.brand b{font-size:14px;letter-spacing:.2px}
+.brand small{display:block;color:var(--mut);font-size:11px;margin-top:-1px}
+.omni{flex:1;max-width:560px;margin:0 auto;display:flex;align-items:center;gap:10px;height:36px;padding:0 12px;border-radius:10px;background:rgba(255,255,255,.05);border:1px solid var(--line2);color:var(--mut)}
+.omni kbd{margin-left:auto;font:11px var(--mono);color:var(--mut);border:1px solid var(--line2);border-radius:5px;padding:1px 6px}
+.tools{display:flex;gap:2px;background:rgba(255,255,255,.04);border:1px solid var(--line);border-radius:10px;padding:3px}
+.tools span{display:flex;align-items:center;gap:6px;padding:6px 10px;border-radius:7px;color:var(--ink2);font-weight:500}
+.tools span.on{background:rgba(92,192,219,.16);color:var(--acc2)}
+.tools svg{opacity:.9}
+.view{display:flex;border:1px solid var(--line);border-radius:10px;padding:3px;background:rgba(255,255,255,.04)}
+.view span{padding:6px 11px;border-radius:7px;color:var(--mut);font-weight:600;font-size:12px}
+.view span.on{background:var(--ink);color:#0C1216}
+.attn{display:flex;align-items:center;gap:7px;padding:6px 11px;border-radius:999px;border:1px solid rgba(230,169,63,.45);background:rgba(230,169,63,.1);color:#F2C77E;font-weight:600;font-size:12px}
+.attn i{width:7px;height:7px;border-radius:50%;background:var(--warn)}
+.iconb{width:34px;height:34px;border-radius:9px;display:flex;align-items:center;justify-content:center;color:var(--ink2);border:1px solid var(--line)}
+.me{width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,#2E6E80,#1B3F4A);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;border:1px solid var(--line2)}
+/* ---------- layer panel ---------- */
+#layers{position:absolute;left:12px;top:76px;bottom:52px;width:316px;border-radius:14px;z-index:4;display:flex;flex-direction:column;overflow:hidden}
+.ph{display:flex;align-items:center;justify-content:space-between;padding:14px 16px 8px}
+.ph h2{margin:0;font-size:13px;font-weight:650;letter-spacing:.2px}
+.ph span{color:var(--mut);font-size:12px}
+.maps{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;padding:4px 16px 12px}
+.mapt{border-radius:9px;overflow:hidden;border:1.5px solid transparent;font-size:11px;color:var(--mut);text-align:center}
+.mapt .th{height:48px;border-radius:7px;margin-bottom:4px}
+.mapt.on{color:var(--ink)}
+.mapt.on .th{box-shadow:0 0 0 2px var(--acc)}
+.sec{padding:10px 16px 4px;color:var(--mut2);font-size:10.5px;letter-spacing:1px;text-transform:uppercase;font-weight:650;display:flex;justify-content:space-between}
+.lrow{display:grid;grid-template-columns:18px 1fr auto;align-items:center;gap:10px;padding:8px 16px}
+.lrow .sw{width:16px;height:12px;border-radius:3px}
+.lrow .n{color:var(--ink);font-weight:500}
+.lrow .d{color:var(--mut);font-size:11.5px}
+.tog{width:30px;height:18px;border-radius:9px;background:var(--acc);position:relative}
+.tog::after{content:"";position:absolute;right:2px;top:2px;width:14px;height:14px;border-radius:50%;background:#fff}
+.tog.off{background:rgba(255,255,255,.14)}.tog.off::after{left:2px;right:auto;background:#AFC0C9}
+.topics{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:6px 16px 14px}
+.topic{border:1px solid var(--line);border-radius:10px;padding:10px 11px;background:rgba(255,255,255,.025)}
+.topic b{display:block;font-size:12.5px;font-weight:600}
+.topic span{color:var(--mut);font-size:11.5px}
+.topic .lk{float:right;color:var(--bad);font-size:10px;font-weight:700;letter-spacing:.6px}
+.scroll{overflow:auto;flex:1}
+/* ---------- welcome ---------- */
+#hello{position:absolute;right:12px;top:76px;width:392px;border-radius:16px;z-index:4;overflow:hidden}
+.hero{padding:18px 20px 14px;background:linear-gradient(160deg,rgba(92,192,219,.14),transparent 60%)}
+.hero .k{font-size:11px;color:var(--acc2);letter-spacing:1px;text-transform:uppercase;font-weight:650}
+.hero h1{margin:6px 0 4px;font-size:21px;line-height:1.2;font-weight:650;letter-spacing:.1px}
+.hero p{margin:0;color:var(--mut);font-size:12.5px}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+.stats div{padding:10px 12px;border-right:1px solid var(--line)}
+.stats div:last-child{border-right:0}
+.stats b{display:block;font:600 16px var(--mono)}
+.stats span{color:var(--mut);font-size:11px}
+.blk{padding:12px 20px 4px}
+.blk h3{margin:0 0 8px;font-size:10.5px;letter-spacing:1px;text-transform:uppercase;color:var(--mut2);font-weight:650}
+.cont{display:grid;grid-template-columns:32px 1fr auto;gap:10px;align-items:center;padding:7px 0}
+.cont .ic{width:32px;height:32px;border-radius:9px;background:rgba(255,255,255,.05);border:1px solid var(--line);display:flex;align-items:center;justify-content:center}
+.cont b{font-weight:550}
+.cont span{color:var(--mut);font-size:11.5px;display:block}
+.cont em{font-style:normal;color:var(--mut);font-size:11.5px}
+.quick{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:4px 20px 14px}
+.q{border:1px solid var(--line);border-radius:11px;padding:11px 10px 9px;background:rgba(255,255,255,.03)}
+.q svg{display:block;margin-bottom:8px}
+.q b{font-size:12.5px;font-weight:550;display:block}
+.q span{color:var(--mut);font-size:11px}
+.todo{padding:0 20px 16px}
+.todo div{display:flex;gap:10px;align-items:flex-start;padding:7px 0;border-top:1px solid var(--line);font-size:12.5px;color:var(--ink2)}
+.todo i{flex:none;width:8px;height:8px;border-radius:50%;margin-top:5px}
+/* ---------- map furniture ---------- */
+.plabel{position:absolute;z-index:3;color:#fff;font-weight:650;font-size:12px;letter-spacing:.3px;text-shadow:0 1px 3px rgba(0,0,0,.9),0 0 12px rgba(0,0,0,.6)}
+.plabel small{display:block;font-weight:500;font-size:10.5px;color:#CFE3EA;letter-spacing:.2px}
+.plabel.lake{color:#9CCBDB;font-style:italic;font-weight:500;font-size:14px;letter-spacing:3px;text-transform:uppercase}
+#status{position:absolute;left:340px;bottom:12px;height:32px;border-radius:10px;display:flex;align-items:center;gap:16px;padding:0 14px;z-index:4;color:var(--ink2);font-size:12px}
+#status .sep{width:1px;height:14px;background:var(--line2)}
+#scale{position:absolute;right:420px;bottom:14px;z-index:4;color:#fff;font:11px var(--mono);text-shadow:0 1px 2px #000}
+#scale i{display:block;width:120px;height:5px;border:1.5px solid #fff;border-top:0;margin-top:3px}
+#zoom{position:absolute;right:420px;bottom:52px;z-index:4;border-radius:10px;display:flex;flex-direction:column}
+#zoom span{width:36px;height:34px;display:flex;align-items:center;justify-content:center;color:var(--ink2);font-size:17px}
+#zoom span+span{border-top:1px solid var(--line)}
+</style>
+</head>
+<body>
+<div id="map"></div>
+
+<svg width="0" height="0" style="position:absolute">
+  <symbol id="g-log" viewBox="0 0 18 18"><rect x="5" y="2" width="8" height="14" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M5 7h8M5 11h8" stroke="currentColor" stroke-width="1.4"/></symbol>
+  <symbol id="g-vol" viewBox="0 0 18 18"><path d="M2 14 7 5l3 5 2-3 4 7z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></symbol>
+  <symbol id="g-drop" viewBox="0 0 18 18"><path d="M9 2.5s-5 5.3-5 8.6a5 5 0 0 0 10 0C14 7.8 9 2.5 9 2.5z" fill="none" stroke="currentColor" stroke-width="1.4"/></symbol>
+  <symbol id="g-sheet" viewBox="0 0 18 18"><path d="M4 2.5h7l3 3v10H4z M11 2.5v3h3" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></symbol>
+  <symbol id="g-3d" viewBox="0 0 18 18"><path d="M9 2 15.5 5.7v6.6L9 16 2.5 12.3V5.7zM2.5 5.7 9 9.4l6.5-3.7M9 9.4V16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></symbol>
+  <symbol id="g-fence" viewBox="0 0 18 18"><path d="M2 12 7 6l4 3 5-5" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M2 15h14" stroke="currentColor" stroke-width="1.4"/></symbol>
+  <symbol id="g-search" viewBox="0 0 16 16"><circle cx="7" cy="7" r="4.6" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="m10.5 10.5 3.4 3.4" stroke="currentColor" stroke-width="1.5"/></symbol>
+  <symbol id="g-hand" viewBox="0 0 16 16"><path d="M5.2 8.4V3.9a1.15 1.15 0 0 1 2.3 0v3.3M7.5 7.2V2.9a1.15 1.15 0 0 1 2.3 0v4.3M9.8 7.4V4.2a1.15 1.15 0 0 1 2.3 0v5.1c0 2.7-1.7 4.6-4.2 4.6-2.2 0-3.3-1-4.1-2.5L2.6 9.6a1.1 1.1 0 0 1 1.8-1.2z" fill="none" stroke="currentColor" stroke-width="1.3"/></symbol>
+  <symbol id="g-ruler" viewBox="0 0 16 16"><path d="M2 11 11 2l3 3-9 9zM5 8l1.5 1.5M7 6l1.5 1.5M9 4l1.5 1.5" fill="none" stroke="currentColor" stroke-width="1.3"/></symbol>
+  <symbol id="g-pen" viewBox="0 0 16 16"><path d="M2.5 13.5 3 10.8 10.8 3a1.5 1.5 0 0 1 2.2 2.2L5.2 13z" fill="none" stroke="currentColor" stroke-width="1.3"/></symbol>
+  <symbol id="g-chart" viewBox="0 0 16 16"><path d="M2.5 13.5h11M4.5 11V7M8 11V4M11.5 11V8.5" fill="none" stroke="currentColor" stroke-width="1.5"/></symbol>
+  <symbol id="g-lock" viewBox="0 0 16 16"><rect x="3.5" y="7" width="9" height="6.5" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2" fill="none" stroke="currentColor" stroke-width="1.4"/></symbol>
+</svg>
+
+<div id="top" class="glass">
+  <div class="brand">
+    <svg width="30" height="30" viewBox="0 0 30 30"><circle cx="15" cy="15" r="14" fill="#123440" stroke="#2F6E80"/><path d="M6 17c4-5 7 1 10-3s5-4 8-2M6 21c4-4 7 1 10-2s5-3 8-1M7 12c3-3 6 0 9-2s4-3 7-2" fill="none" stroke="#8BD8EA" stroke-width="1.3" stroke-linecap="round"/></svg>
+    <div><b>SBMM Site Explorer</b><small>OU1 · Sulphur Bank Mercury Mine</small></div>
+  </div>
+  <div class="tools">
+    <span class="on"><svg width="15" height="15"><use href="#g-hand"/></svg>Navigate</span>
+    <span><svg width="15" height="15"><use href="#g-ruler"/></svg>Measure</span>
+    <span><svg width="15" height="15"><use href="#g-pen"/></svg>Draw</span>
+    <span><svg width="15" height="15"><use href="#g-chart"/></svg>Analyze</span>
+    <span><svg width="15" height="15"><use href="#g-drop"/></svg>Water</span>
+  </div>
+  <div class="omni"><svg width="15" height="15"><use href="#g-search"/></svg>Go to a place, boring, sheet, layer or command…<kbd>Ctrl K</kbd></div>
+  <div class="view"><span class="on">2D</span><span>3D</span><span>Split</span></div>
+  <div class="attn"><i></i>3 open items</div>
+  <div class="iconb"><svg width="15" height="15"><use href="#g-lock"/></svg></div>
+  <div class="me">MS</div>
+</div>
+
+<aside id="layers" class="glass">
+  <div class="ph"><h2>Map</h2><span>Layers · Legend</span></div>
+  <div class="maps">
+    <div class="mapt on"><div class="th" style="background:linear-gradient(135deg,#46532F,#6E7A45 40%,#3B4A2B 70%,#8C8F66)"></div>Imagery</div>
+    <div class="mapt"><div class="th" style="background:linear-gradient(135deg,#9AA3A8,#E6E9EA 45%,#6F7A80 75%,#C9CED1)"></div>Hillshade</div>
+    <div class="mapt"><div class="th" style="background:linear-gradient(135deg,#2F6D5D,#E0C271 45%,#C9764E 75%,#F2EDE6)"></div>Elevation</div>
+    <div class="mapt"><div class="th" style="background:#DCDCD6;background-image:repeating-linear-gradient(0deg,transparent 0 7px,#B8B8AE 7px 8px)"></div>Plan</div>
+  </div>
+  <div class="scroll">
+    <div class="sec"><span>On the map</span><span>4</span></div>
+    <div class="lrow"><span class="sw" style="border:2px solid #E4796A;background:rgba(228,121,106,.18)"></span><div><div class="n">Decision units</div><div class="d">rev 7 · 6 polygons</div></div><span class="tog"></span></div>
+    <div class="lrow"><span class="sw" style="border:2px solid #F0503C"></span><div><div class="n">Limits of excavation</div><div class="d">EA Final · 15 lots · 1.0 / 0.5 ft</div></div><span class="tog"></span></div>
+    <div class="lrow"><span class="sw" style="background:#E8B34B;border-radius:50%;width:12px;height:12px;margin-left:2px"></span><div><div class="n">Soil borings 2025</div><div class="d">44 holes · coloured by class</div></div><span class="tog"></span></div>
+    <div class="lrow"><span class="sw" style="background:linear-gradient(90deg,#46532F,#8C8F66)"></span><div><div class="n">Imagery</div><div class="d">3 in · 6 in · 1.5 ft, seamless</div></div><span class="tog"></span></div>
+    <div class="sec"><span>Add from</span><span>12 more</span></div>
+    <div class="topics">
+      <div class="topic"><b>Site framework</b><span>piles · storm · drainage</span></div>
+      <div class="topic"><b>Residential design</b><span>EA native · 14 sheets</span></div>
+      <div class="topic"><b>Investigations</b><span>samples · survey · logs</span></div>
+      <div class="topic"><b>Water</b><span>catchments · streams</span></div>
+      <div class="topic"><b>Terrain</b><span>contours · slope · CHM</span></div>
+      <div class="topic"><span class="lk">GATED</span><b>Cultural</b><span>acknowledge first</span></div>
+    </div>
+    <div class="sec"><span>Views</span><span>+ save</span></div>
+    <div class="lrow"><span class="sw" style="background:#5CC0DB;opacity:.6"></span><div><div class="n">Design review</div><div class="d">EA geometry over the framework</div></div><span class="tog off"></span></div>
+    <div class="lrow"><span class="sw" style="background:#2A7DC4;opacity:.7"></span><div><div class="n">Water & drainage</div><div class="d">network, catchments, your runs</div></div><span class="tog off"></span></div>
+  </div>
+</aside>
+
+<div class="plabel lake" style="left:372px;top:540px">Clear Lake</div>
+<div class="plabel" style="left:720px;top:444px">Herman Impoundment<small>1,336.45 ft · Aug 2026</small></div>
+<div class="plabel" style="left:520px;top:150px">Residential lots<small>15 excavation limits</small></div>
+<div class="plabel" style="left:880px;top:318px">Mine area</div>
+
+<aside id="hello" class="glass">
+  <div class="hero">
+    <div class="k">Friday · OU1 workbench</div>
+    <h1>Sulphur Bank Mercury Mine</h1>
+    <p>Lidar Jan 2024 · EA Final design Sep 2025 · 2025 borings</p>
+  </div>
+  <div class="stats">
+    <div><b>978</b><span>acres surveyed</span></div>
+    <div><b>44</b><span>borings</span></div>
+    <div><b>140</b><span>samples</span></div>
+    <div><b>15</b><span>lots to dig</span></div>
+  </div>
+  <div class="blk"><h3>Pick up where you left off</h3>
+    <div class="cont"><span class="ic"><svg width="16" height="16"><use href="#g-fence"/></svg></span><div><b>Fence SB-9 → SB-10 → SB-11</b><span>869 ft · 5 class bands</span></div><em>yesterday</em></div>
+    <div class="cont"><span class="ic"><svg width="16" height="16"><use href="#g-vol"/></svg></span><div><b>Pile 1 — volume</b><span class="num">278 yd³ fill · −48 net</span></div><em>Tue</em></div>
+    <div class="cont"><span class="ic"><svg width="16" height="16"><use href="#g-drop"/></svg></span><div><b>Herman — overtopping</b><span>pipes discharge at 1,341.55 ft</span></div><em>Sep 18</em></div>
+  </div>
+  <div class="blk" style="padding-bottom:0"><h3>Start</h3></div>
+  <div class="quick">
+    <div class="q"><svg width="18" height="18"><use href="#g-log"/></svg><b>Boring logs</b><span>44 holes</span></div>
+    <div class="q"><svg width="18" height="18"><use href="#g-sheet"/></svg><b>Sheets</b><span>20 drawings</span></div>
+    <div class="q"><svg width="18" height="18"><use href="#g-vol"/></svg><b>Volume</b><span>vs any surface</span></div>
+    <div class="q"><svg width="18" height="18"><use href="#g-drop"/></svg><b>Water</b><span>where it goes</span></div>
+    <div class="q"><svg width="18" height="18"><use href="#g-fence"/></svg><b>Fence</b><span>through holes</span></div>
+    <div class="q"><svg width="18" height="18"><use href="#g-3d"/></svg><b>Fly the site</b><span>3D tour</span></div>
+  </div>
+  <div class="blk" style="padding-bottom:4px"><h3>Open items</h3></div>
+  <div class="todo">
+    <div><i style="background:var(--warn)"></i><span>Rainfall depths are provisional — Atlas 14 export pending</span></div>
+    <div><i style="background:var(--warn)"></i><span>18 of 44 boring contacts: remark and strata differ</span></div>
+    <div><i style="background:var(--mut)"></i><span>Pipe capacity: no conduit rated yet — inverts not surveyed</span></div>
+  </div>
+</aside>
+
+<div id="status" class="glass">
+  <span class="num">E 6,371,842 · N 2,128,311</span><span class="sep"></span><span class="num">1,412.6 ft</span><span class="sep"></span><span>1-ft lidar</span><span class="sep"></span><span class="num">1″ = 180 ft</span>
+</div>
+<div id="zoom" class="glass"><span>+</span><span>−</span></div>
+<div id="scale">1,000 ft<i></i></div>
+</body>
+</html>

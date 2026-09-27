@@ -57,6 +57,25 @@ page.on("pageerror", e => { errors.push(e.message); console.log("pageerror:", e.
 await unlock(page);
 await page.goto(pathToFileURL(resolve(target)).href);
 await page.waitForSelector("#loading", { state: "hidden", timeout: TIMEOUT });
+/* v26: a SETTLED view is a condition, not a clock. The 3D canvas is full-bleed
+   under the floating chrome, so a software-GL frame covers more pixels and the
+   rig's ease (~30 frames) outlasts the fixed waits this harness used to take;
+   the selection was then read off a camera still on its way in. Settled = the
+   render count unchanged for two polls AND the tile queue empty. */
+await page.evaluate(() => {
+  window.__settle3d = async () => {
+    const wait = ms => new Promise(r => setTimeout(r, ms));
+    let last = -1, same = 0;
+    for (let i = 0; i < 60; i++) {
+      await wait(1000);
+      const n = SBMM.viewer3d.stats().renderCount;
+      const q = SBMM.tiles.stats();
+      const busy = (q.queued || 0) + (q.running || 0);
+      if (n === last && !busy) { if (++same >= 2) return i; } else { same = 0; last = n; }
+    }
+    return -1;
+  };
+});
 
 const idx = await page.evaluate(() => SBMM.tiles.stats());
 console.log(`\n[${label}] tile index:`, idx.ready ? "yes" : "NO",
@@ -127,7 +146,7 @@ if (want("onefoot")) {
     SBMM.viewer3d.openAt(6371700, 2128900);
     await new Promise(r => setTimeout(r, 400));
     SBMM.viewer3d.frameBox(6371600, 2128800, 6371800, 2129000);
-    await new Promise(r => setTimeout(r, 2500));
+    await window.__settle3d();
     return SBMM.viewer3d.stats();
   });
   console.log("   drawn:", JSON.stringify({ tiles: s.tiles.tiles, byLevel: s.tiles.byLevel,
@@ -280,7 +299,7 @@ if (want("drape")) {
     SBMM.viewer3d.openAt(6371700, 2128900);
     await new Promise(r => setTimeout(r, 600));
     SBMM.viewer3d.frameBox(6371600, 2128800, 6371800, 2129000);
-    await new Promise(r => setTimeout(r, 4500));
+    await window.__settle3d();
   });
   await page.waitForFunction(() => SBMM.tiles.stats().queued === 0, null, { timeout: TIMEOUT });
   await page.waitForTimeout(1500);
@@ -322,7 +341,7 @@ if (want("drape")) {
   await page.evaluate(async () => {
     /* the mine window well outside the ABP crop: the 6-in ortho's own 0.5 ft/px */
     SBMM.viewer3d.frameBox(6370400, 2130300, 6370600, 2130500);
-    await new Promise(r => setTimeout(r, 3500));
+    await window.__settle3d();
   });
   await page.waitForFunction(() => SBMM.tiles.stats().queued === 0, null, { timeout: TIMEOUT });
   await page.waitForTimeout(1500);
@@ -388,7 +407,7 @@ if (want("band")) {
       await new Promise(r => setTimeout(r, 1200));
     }, detail);
     await page.evaluate(b => SBMM.viewer3d.frameBox(b[0], b[1], b[2], b[3]), box);
-    await page.waitForTimeout(3500);
+    await page.evaluate(() => window.__settle3d());
     await page.waitForFunction(() => SBMM.tiles.stats().queued === 0, null, { timeout: TIMEOUT });
     await page.waitForTimeout(2000);
 
@@ -629,7 +648,7 @@ if (want("geomcache")) {
     const st = () => SBMM.viewer3d.stats().tiles;
     const go = async (x, y) => {
       SBMM.viewer3d.openAt(x, y);
-      await new Promise(r => setTimeout(r, 3500));
+      await window.__settle3d();
       const s = st();
       return { tiles: s.tiles, hits: s.geomHits, misses: s.geomMisses,
                cpuMs: s.lastBuildCpuMs, blockMs: s.lastBuildBlockMs,
@@ -655,8 +674,12 @@ if (want("geomcache")) {
   ok("returning to A hits the cache", r.c.hits > r.b.hits, `${r.b.hits} -> ${r.c.hits}`);
   ok("returning to A builds no new geometry", r.c.misses === r.b.misses,
     `${r.b.misses} -> ${r.c.misses}`);
-  ok("the rebuild's main-thread cost stays small (recorded from this commit: < 60 ms)",
-    r.c.cpuMs < 60, r.c.cpuMs);
+  /* re-recorded in v26: the 3D canvas is full-bleed under the floating chrome,
+     so a view holds ~29 tiles where it held ~20 and a rebuild composes more
+     drapes; the per-tile cost is unchanged. Measured 77.8 / 82.8 ms on the
+     two-core build box with nothing else running. */
+  ok("the rebuild's main-thread cost stays small (recorded from v26: < 120 ms)",
+    r.c.cpuMs < 120, r.c.cpuMs);
 }
 
 /* ----------------------------------------------------------------- map2d -- */

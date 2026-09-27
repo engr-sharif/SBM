@@ -139,6 +139,18 @@ console.log("\n-- long-press --");
   await new Promise(res => setTimeout(res, 620));
   T0 = 2700; r.up(P(1, 90, 50));
   ok("a moved press raises no longpress", seen.length, 1);
+
+  /* v26: a STARVED timer — the lift arrives 700 ms after the press by the event
+     clock, but the main thread never ran the 500 ms timer in between (a long
+     frame). The press was long, so it is a long press, fired at the lift, once. */
+  T0 = 3000; r.down(P(1, 60, 60)); T0 = 3700; r.up(P(1, 60, 60));
+  ok("a starved long press fires at the lift", seen[1], ["long", 60]);
+  ok("and is not also a tap", seen.length, 2);
+  await new Promise(res => setTimeout(res, 620));
+  ok("and does not fire twice", seen.length, 2);
+  /* a quick press whose timer is starved is still a tap */
+  T0 = 4000; r.down(P(1, 60, 60)); T0 = 4120; r.up(P(1, 60, 60));
+  ok("a 120 ms press is still a tap", seen[2], ["tap"]);
 }
 
 console.log("\n-- pan and flick --");

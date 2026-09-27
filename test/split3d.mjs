@@ -32,6 +32,7 @@ await page.waitForFunction(() => document.getElementById("v3dStatus").textConten
 await page.waitForTimeout(1000);
 await page.click("#v3dSplit");
 await page.waitForTimeout(600);
+await page.click("#measureMenuBtn");   /* v26: the measuring tools live under Measure ▾ */
 await page.click('.toolbtn[data-tool="volume"]');
 const c = await page.$("#v3dCanvas");
 const bb = await c.boundingBox();

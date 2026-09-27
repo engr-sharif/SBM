@@ -3759,6 +3759,8 @@ SBMM.viewer3d = (function () {
       const aw = $("v3dAnimWater");
       if (aw) { aw.checked = animOn; aw.onchange = e => setAnimWater(e.target.checked); }
     }
+    wireBookmarks();
+    { const tb = $("v3dTourBtn"); if (tb) tb.onclick = e => { e.stopPropagation(); setTimeout(() => flyAround(), 0); }; }
 
     /* replay the whole state the first time the view is built, so opening 3D
        shows what 2D has been showing all along */
@@ -4328,8 +4330,117 @@ SBMM.viewer3d = (function () {
     return out;
   }
 
+  /* v26 — "fly the site": one slow orbit of the mine area, from the welcome
+     card. It is the rig's OWN easing that moves the camera — this only walks
+     the destination azimuth round — so it stops the instant anything else
+     touches the view: any pointer, wheel or key, the 3D view closing, or 24 s.
+     It asks for frames only while it runs, so block 9e's idle contract holds
+     the moment it ends. Under prefers-reduced-motion the site is framed and
+     nothing turns. */
+  let tour = null;
+  function stopTour(why) {
+    if (!tour) return;
+    const t = tour; tour = null;
+    cancelAnimationFrame(t.raf);
+    for (const [ev, fn] of t.off) document.removeEventListener(ev, fn, true);
+    if (why === "done") toast("fly-through finished");
+  }
+  async function flyAround(opts) {
+    const o = opts || {};
+    stopTour();
+    if (!open) await toggle();
+    if (!open || !nav) return false;
+    if (nav.mode() === "fly") nav.setMode("orbit");
+    const m = SBMM.demAbp.m;
+    frameBox(m.x0, m.y0, m.x0 + (m.w - 1) * m.cell, m.y0 + (m.h - 1) * m.cell);
+    nav.st.dst.phi = Math.min(nav.st.dst.phi, 1.0);
+    const reduced = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (reduced && !o.force) { requestRender(); return false; }
+    const dur = o.ms || 24000, w = (2 * Math.PI) / dur;
+    const t = { raf: 0, off: [], t0: performance.now(), last: performance.now() };
+    const halt = () => stopTour("input");
+    for (const ev of ["pointerdown", "wheel", "keydown"]) {
+      document.addEventListener(ev, halt, true); t.off.push([ev, halt]);
+    }
+    const step = now => {
+      if (tour !== t) return;
+      if (!open) { stopTour(); return; }
+      const dt = Math.min(100, now - t.last); t.last = now;
+      nav.st.dst.theta += w * dt;
+      requestRender();
+      if (now - t.t0 >= dur) { stopTour("done"); return; }
+      t.raf = requestAnimationFrame(step);
+    };
+    tour = t;
+    /* the framing eases in first; the turn starts once it is under way */
+    setTimeout(() => { if (tour === t) { t.last = performance.now(); t.raf = requestAnimationFrame(step); } }, 900);
+    return true;
+  }
+
+  /* v26 — camera bookmarks: a named orbit state, remembered with the view
+     prefs. `go` eases there with the rig's own damping. */
+  function bookmarks() {
+    const b = SBMM.view && SBMM.view.pref ? SBMM.view.pref("camBookmarks") : null;
+    return Array.isArray(b) ? b.filter(x => x && x.name && isFinite(x.r)) : [];
+  }
+  function saveBookmark(name) {
+    if (!open || !nav) { toast("open the 3D view first"); return null; }
+    const nm = String(name || "").trim().slice(0, 40) || ("View " + (bookmarks().length + 1));
+    const s = nav.orbitState();
+    const rec = { name: nm, tx: s.tx + CX, ty: s.ty + CY, tz: s.tz, r: s.r, theta: s.theta, phi: s.phi, ex: exag() };
+    const list = bookmarks().filter(b => b.name !== nm);
+    list.push(rec);
+    SBMM.view.pref("camBookmarks", list.slice(-12));
+    toast("saved 3D view “" + nm + "”");
+    paintBookmarks();
+    return nm;
+  }
+  async function goBookmark(name) {
+    const b = bookmarks().find(x => x.name === name);
+    if (!b) { toast("no saved 3D view called “" + name + "”"); return false; }
+    if (!open) await toggle();
+    if (!nav) return false;
+    stopTour();
+    nav.place(new THREE.Vector3(b.tx - CX, b.ty - CY, b.tz * (exag() / (b.ex || exag()))), b.r, b.theta, b.phi);
+    return true;
+  }
+  function removeBookmark(name) {
+    SBMM.view.pref("camBookmarks", bookmarks().filter(b => b.name !== name));
+    paintBookmarks();
+  }
+  function paintBookmarks() {
+    const host = $("v3dMarks");
+    if (!host) return;
+    const list = bookmarks();
+    host.innerHTML = list.length
+      ? list.map(b => `<div class="v3dmk"><button class="v3dmkgo" data-n="${esc(b.name)}">${esc(b.name)}</button>`
+                     + `<button class="v3dmkx" data-n="${esc(b.name)}" title="Forget this view" aria-label="Forget ${esc(b.name)}">×</button></div>`).join("")
+      : `<div class="v3dmk0">No saved views</div>`;
+  }
+  function wireBookmarks() {
+    const host = $("v3dMarks"), save = $("v3dMarkSave");
+    if (save && !save._w) {
+      save._w = 1;
+      save.addEventListener("click", () => {
+        const nm = window.prompt("Name this 3D view", "View " + (bookmarks().length + 1));
+        if (nm !== null) saveBookmark(nm);
+      });
+    }
+    if (host && !host._w) {
+      host._w = 1;
+      host.addEventListener("click", e => {
+        const g = e.target.closest(".v3dmkgo"), x = e.target.closest(".v3dmkx");
+        if (g) goBookmark(g.dataset.n);
+        else if (x) removeBookmark(x.dataset.n);
+      });
+    }
+    paintBookmarks();
+  }
+
   return {
     toggle, openAt, flyTo, isOpen: () => open, updateSketch, stats, resize, cameraWorld, diag,
+    flyAround, stopFlyAround: () => stopTour(), flyingAround: () => !!tour,
+    bookmarks, saveBookmark, goBookmark, removeBookmark, wireBookmarks,
     toggleFly, isFly: () => !!(nav && nav.mode() === "fly"),
     navMode: () => (nav ? nav.mode() : null),
     preset, frame: frameSelectionOrSite, frameBox, northUp: () => nav && nav.northUp(),

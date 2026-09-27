@@ -26,6 +26,14 @@
      days. LOCK / LOGOUT in the command bar clears it. There is no URL bypass.
    - The test harnesses pre-set that key (test/gate.mjs) — the gate is never
      weakened for them.
+   - v26: the lock is ALSO reachable from the top bar (the padlock left of
+     Help), and the app LOCKS ITSELF after a stretch with no input — 5 minutes
+     by default, 15 / 30 / 60 or off from the same menu, remembered in
+     "sbmm.gate.idle" (minutes; "0" is off). The last input is stamped into
+     "sbmm.gate.active", so a reload after the limit asks for the password
+     too — otherwise a refresh would be a way round the idle lock. Turning the
+     idle lock off is a user setting, not a bypass: it unlocks nothing, which
+     is why test/gate.mjs may set it for the long harness runs.
    ------------------------------------------------------------------------ */
 (function () {
   "use strict";
@@ -36,6 +44,9 @@
 
   var LSKEY  = "sbmm.gate.v1";
   var MAXAGE = 30 * 24 * 3600 * 1000;   /* 30 days */
+  var IDLEKEY = "sbmm.gate.idle";       /* minutes; "0" = never */
+  var ACTKEY  = "sbmm.gate.active";     /* last input, ms since epoch */
+  var IDLE_DEFAULT = 5;
 
   window.SBMM = window.SBMM || {};
 
@@ -496,6 +507,7 @@
 
   function unlockAnimation() {
     remember();
+    touchActive(true);
     if (inp) inp.disabled = true;
     if (card) card.classList.add("gone");
     if (reduce) {
@@ -604,13 +616,150 @@
     else document.addEventListener("DOMContentLoaded", build);
   }
 
+  /* ==================================================================== */
+  /* v26 — the idle lock and the top-bar padlock                           */
+  /* ==================================================================== */
+  function idleMinutes() {
+    try {
+      var v = localStorage.getItem(IDLEKEY);
+      if (v === null || v === "") return IDLE_DEFAULT;
+      var n = parseFloat(v);
+      return isFinite(n) && n >= 0 ? n : IDLE_DEFAULT;
+    } catch (e) { return IDLE_DEFAULT; }
+  }
+  function setIdle(min) {
+    try { localStorage.setItem(IDLEKEY, String(min)); } catch (e) {}
+    lastAct = Date.now(); warned = false;
+    paintLockMenu();
+  }
+  var lastAct = Date.now(), lastSaved = 0, warned = false;
+  function lastActive() {
+    try { var t = parseFloat(localStorage.getItem(ACTKEY)); return isFinite(t) ? t : null; }
+    catch (e) { return null; }
+  }
+  /* The stamp is written at most every 15 s — an input event is the hottest
+     path in the app and localStorage is synchronous. */
+  function touchActive(force) {
+    if (locked) return;
+    var t = Date.now();
+    lastAct = t;
+    if (warned) { warned = false; hideWarn(); }
+    if (force || t - lastSaved > 15000) {
+      lastSaved = t;
+      try { localStorage.setItem(ACTKEY, String(t)); } catch (e) {}
+    }
+  }
+  function idleLock() {
+    hideWarn();
+    forget();
+    show();
+  }
+  /* 30 s before the lock, one quiet chip says so — a lock that falls while
+     someone is reading a log with their hands off the mouse is rude. */
+  var warnEl = null;
+  function showWarn(secs) {
+    if (!document.body) return;
+    if (!warnEl) {
+      warnEl = document.createElement("div");
+      warnEl.id = "idleWarn";
+      warnEl.setAttribute("role", "status");
+      document.body.appendChild(warnEl);
+    }
+    warnEl.textContent = "Locking in " + secs + " s — move the mouse or press a key to stay";
+    warnEl.className = "show";
+  }
+  function hideWarn() { if (warnEl) warnEl.className = ""; }
+  function tick() {
+    if (locked) return;
+    var lim = idleMinutes();
+    if (!(lim > 0)) { if (warned) { warned = false; hideWarn(); } return; }
+    var left = lim * 60000 - (Date.now() - lastAct);
+    if (left <= 0) { idleLock(); return; }
+    if (left <= 30000 && lim * 60000 > 45000) { warned = true; showWarn(Math.ceil(left / 1000)); }
+  }
+  ["pointerdown", "pointermove", "keydown", "wheel", "touchstart"].forEach(function (ev) {
+    window.addEventListener(ev, function () { touchActive(false); }, { capture: true, passive: true });
+  });
+  document.addEventListener("visibilitychange", function () {
+    if (document.visibilityState === "visible") tick();
+  });
+  setInterval(tick, 1000);
+
+  var lockMenu = null;
+  var IDLE_CHOICES = [[5, "5 minutes"], [15, "15 minutes"], [30, "30 minutes"], [60, "1 hour"], [0, "Never"]];
+  function paintLockMenu() {
+    if (!lockMenu) return;
+    var cur = idleMinutes(), h = "";
+    h += '<div class="ci" data-lk="now">Lock now <kbd>LOCK</kbd></div>';
+    h += '<div class="ci hd sep">Lock when idle for</div>';
+    for (var i = 0; i < IDLE_CHOICES.length; i++) {
+      var c = IDLE_CHOICES[i], on = Math.abs(cur - c[0]) < 1e-9;
+      h += '<div class="ci' + (on ? " on" : "") + '" data-lk="' + c[0] + '">'
+        + (on ? "\u2713 " : "\u2003") + c[1] + "</div>";
+    }
+    lockMenu.innerHTML = h;
+  }
+  function wireLockButton() {
+    var help = document.getElementById("helpBtn");
+    if (!help || document.getElementById("lockBtn")) return;
+    var b = document.createElement("button");
+    b.className = "toolbtn ghost iconly";
+    b.id = "lockBtn";
+    b.type = "button";
+    b.title = "Lock the app — and when it locks itself (LOCK)";
+    b.setAttribute("aria-label", "Lock");
+    b.setAttribute("aria-haspopup", "true");
+    b.innerHTML = '<svg class="ic16"><use href="#i-lock"/></svg>';
+    help.parentNode.insertBefore(b, help);
+    lockMenu = document.createElement("div");
+    lockMenu.id = "lockMenu";
+    lockMenu.className = "menu";
+    document.body.appendChild(lockMenu);
+    paintLockMenu();
+    b.addEventListener("click", function (e) {
+      e.stopPropagation();
+      if (lockMenu.classList.contains("open")) { lockMenu.classList.remove("open"); return; }
+      paintLockMenu();
+      var r = b.getBoundingClientRect();
+      lockMenu.style.top = (r.bottom + 6) + "px";
+      lockMenu.style.right = Math.max(8, window.innerWidth - r.right) + "px";
+      lockMenu.style.left = "auto";
+      lockMenu.classList.add("open");
+    });
+    lockMenu.addEventListener("click", function (e) {
+      var it = e.target.closest ? e.target.closest("[data-lk]") : null;
+      if (!it) return;
+      lockMenu.classList.remove("open");
+      var v = it.getAttribute("data-lk");
+      if (v === "now") { SBMM.gate.lock(); return; }
+      setIdle(parseFloat(v));
+      if (typeof toast === "function")
+        toast(parseFloat(v) > 0 ? "Locks after " + it.textContent.replace(/^\W+/, "") + " idle" : "Idle lock off");
+    });
+    document.addEventListener("click", function (e) {
+      if (lockMenu.classList.contains("open") && !lockMenu.contains(e.target) && e.target !== b)
+        lockMenu.classList.remove("open");
+    });
+  }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", wireLockButton);
+  else wireLockButton();
+
   SBMM.gate = {
     locked: function () { return locked; },
-    lock: function () { forget(); show(); },
+    lock: function () { hideWarn(); forget(); show(); },
     forget: forget,
-    hash: function () { return HASH; }
+    hash: function () { return HASH; },
+    idle: idleMinutes,
+    setIdle: setIdle,
+    idleLeftMs: function () { var l = idleMinutes(); return l > 0 ? Math.max(0, l * 60000 - (Date.now() - lastAct)) : Infinity; }
   };
 
+  /* A remembered unlock does not survive a gap longer than the idle limit —
+     otherwise closing the tab (or reloading) would step round the idle lock. */
+  (function () {
+    var lim = idleMinutes(), la = lastActive();
+    if (remembered() && lim > 0 && la !== null && Date.now() - la > lim * 60000) forget();
+  })();
   if (!remembered()) show();
 
 })();

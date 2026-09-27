@@ -511,6 +511,9 @@ SBMM.borelogs = (function () {
      because a line that overflows its column lands on its neighbour and a line
      that stops short only looks airy. */
   const MONO_EM = 0.62, SANS_EM = 0.58;
+  /* the reading face, as an inline style (see the description column for why
+     an attribute is not enough) */
+  const SANS_STYLE = ` style="font-family:'SBMM Inter',system-ui,-apple-system,'Segoe UI',sans-serif"`;
   const perChars = (w, size, mono) => Math.max(4, Math.floor(w / (size * (mono ? MONO_EM : SANS_EM))));
   function lane(gap) {
     let last = -1e9;
@@ -740,9 +743,16 @@ SBMM.borelogs = (function () {
        which is what used to land on the unit below. */
     if (L.desc) {
       const dw = L.desc[1] - L.desc[0];
-      const LH = 11.2, FS = 9.4;
+      /* v26: the description is the part an engineer READS, so it is set in
+         the sans at a reading size, sentence case as logged, with the group
+         name in bold the way a log sheet is written. And the face is an inline
+         STYLE, not a font-family attribute: every drawing carries a <style>
+         that sets text{font-family: mono}, a stylesheet rule beats a
+         presentation attribute, and so for three rounds these "sans"
+         descriptions were quietly drawn in 9-px monospace. */
+      const LH = 13, FS = 10.2;
       const per = perChars(dw, FS, false), perSub = perChars(dw - 7, FS, false);
-      const SANS = ' font-family="system-ui,-apple-system,Segoe UI,sans-serif"';
+      const SANS = SANS_STYLE;
       const items = (h.strata || []).map((s, i) => ({ s, i }))
         .filter(({ s }) => {
           const a = Math.max(cTop, s.top), b = Math.min(cBot, s.base);
@@ -766,8 +776,21 @@ SBMM.borelogs = (function () {
         const shown = lines.slice(0, room);
         if (lines.length > shown.length && shown.length)
           shown[shown.length - 1] = shown[shown.length - 1].replace(/\s*$/, "") + "…";
-        shown.forEach((ln, j) =>
-          p.push(text(L.desc[0] + (sub ? 7 : 0), y + j * LH, ln, sub ? T.ax : T.ink, FS, null, SANS)));
+        /* the group name — everything up to the "(SC)" that closes it — in
+           bold, however many lines it runs to */
+        const m = !sub ? String(s.desc || "").match(/^(.*?\([A-Z]{2}(?:[-/][A-Z]{2})?\))/) : null;
+        let boldLeft = m ? m[1].length : 0;
+        shown.forEach((ln, j) => {
+          const x = L.desc[0] + (sub ? 7 : 0), yy = y + j * LH;
+          if (boldLeft <= 0) {
+            p.push(text(x, yy, ln, sub ? T.ax : T.ink, FS, null, SANS + (sub ? ' font-style="italic"' : "")));
+            return;
+          }
+          const k = Math.min(ln.length, boldLeft);
+          boldLeft -= ln.length + 1;
+          p.push(`<text x="${x.toFixed(1)}" y="${yy.toFixed(1)}" fill="${T.ink}" font-size="${FS}"${SANS}>`
+            + `<tspan font-weight="700">${esc2(ln.slice(0, k))}</tspan>${esc2(ln.slice(k))}</text>`);
+        });
         dl.at(y + (shown.length - 1) * LH, LH, null);   /* claim what was drawn */
       });
     }
@@ -776,6 +799,7 @@ SBMM.borelogs = (function () {
     if (L.smp) {
       const sw = L.smp[1] - L.smp[0], nw = sw - 20;
       const nLane = lane(1.6);
+      const nPts = [];
       for (const s of (h.spt || [])) {
         const a = Math.max(cTop, s.top), b = Math.min(cBot, s.base);
         if (b - a < 1e-6) continue;
@@ -800,6 +824,7 @@ SBMM.borelogs = (function () {
         if (L.smp[1] - L.smp[0] > 30) {
           const ym = (ya + yb) / 2;
           const bw = ref ? nw : Math.max(1.5, nw * clamp(s.n / N_MAX, 0, 1));
+          nPts.push([L.smp[0] + 16 + bw, ym, ref]);
           p.push(`<rect class="blspt" data-n="${s.n == null ? "" : s.n}" data-refusal="${ref ? 1 : 0}"`
             + ` x="${L.smp[0] + 16}" y="${(ym - 3).toFixed(1)}" width="${bw.toFixed(1)}" height="6"`
             + ` fill="${ref ? "#E4796A" : "#4FB3CE"}" fill-opacity="${ref ? ".9" : ".8"}"/>`);
@@ -810,6 +835,12 @@ SBMM.borelogs = (function () {
             p.push(text(L.smp[1], yn + 7, s.n_text || "—", ref ? "#E4796A" : T.ink, 8.5, "end"));
         }
       }
+      /* v26: the bars' ends joined — N read as a PROFILE down the hole, the
+         trend being the reason to look at it at all (sheet tier only) */
+      if (tier === "sheet" && nPts.length > 1)
+        p.push(`<polyline class="blnline" points="${nPts.map(q => q[0].toFixed(1) + "," + q[1].toFixed(1)).join(" ")}"`
+          + ` fill="none" stroke="${o.print ? "#1E6FA8" : "#7CD0E6"}" stroke-width="1.1" stroke-opacity=".75"`
+          + ` stroke-linejoin="round" pointer-events="none"/>`);
     }
     /* ---- blows per 6 in ---- */
     if (L.blows) {
@@ -866,7 +897,7 @@ SBMM.borelogs = (function () {
         at.get(k).v.push(`${t.key} ${fmt(t.value, t.value % 1 ? 2 : 0)}${t.unit ? " " + t.unit : ""}`);
       }
       const per = perChars(L.lab[1] - L.lab[0] - 6, 8.5, true);
-      const LH = 10.4;
+      const LH = 12;
       const ll = lane(2.5);
       const recs = [...at.values()].sort((a2, b2) => a2.d - b2.d);
       for (const rec of recs) {
@@ -897,7 +928,7 @@ SBMM.borelogs = (function () {
     /* ---- remarks at depth ---- */
     if (L.rem) {
       const per = perChars(L.rem[1] - L.rem[0], 8.6, false);
-      const LH = 10.2;
+      const LH = 10.8;
       const rl = lane(2.2);
       const notes = (h.notes || []).filter(n => n.depth != null && n.depth >= cTop && n.depth <= cBot)
         .sort((a2, b2) => a2.depth - b2.depth);
@@ -908,7 +939,7 @@ SBMM.borelogs = (function () {
           "").replace("/>", `><title>${esc2(fmt(n.depth, 1) + " ft — " + n.text)}</title></line>`));
         if (y == null) continue;
         lines.forEach((ln, k) => p.push(text(L.rem[0], y + 7 + k * LH, ln, T.ax, 8.6, null,
-          ' font-family="system-ui,-apple-system,Segoe UI,sans-serif"')));
+          SANS_STYLE + ' font-style="italic"')));
       }
     }
 

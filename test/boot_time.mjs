@@ -33,6 +33,7 @@ for (let i = 0; i < runs; i++) {
   await unlock(page);  /* the password gate — see test/gate.mjs */
   await page.goto(__furl(__res(target)).href);
   await page.waitForSelector("#loading", { state: "hidden", timeout: 300000 });
+  await page.click("#measureMenuBtn");   /* v26: under Measure ▾ */
   await page.click('.toolbtn[data-mode="measure.area"]');
   await page.waitForFunction(() => SBMM.mode.current() === "measure.area", null, { timeout: 30000 });
   wall.push(Date.now() - t0);

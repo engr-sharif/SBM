@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>SBMM — boring log v26 prototype</title>
+<!-- v26 UI audit, prototype B: the boring log as a real log sheet.
+     Standalone: reads the SAME payloads the app ships (datajs/), so every one
+     of the 44 holes renders from its OpenGround record. Open over file://.
+     ?hole=SB-9  picks the hole; ?cursor=20.75 pins the depth cursor (for the
+     screenshot). Not wired into the app yet — this is the design contract. -->
+<script src="../../datajs/d_borings_logs.js"></script>
+<script src="../../datajs/d_datasets.js"></script>
+<style>
+:root{
+  --bg:#0C1216; --chrome:#111A1F; --panel:#151F25; --panel2:#1B262D; --line:#243039; --line2:#2E3C46;
+  --ink:#E7EEF2; --ink2:#C3D0D8; --mut:#8599A6; --mut2:#62747F; --acc:#5CC0DB;
+  --paper:#FBFAF6; --pink:#1C2126; --pmut:#5E6770; --prule:#D8D4CA; --pfaint:#EEEBE3;
+  --waste:#D5703F; --wasteT:#F7DCCB; --native:#5E9A61; --nativeT:#DDEDD8; --rock:#7C6BB3; --rockT:#E4DFF2;
+  --water:#2A7DC4; --acid:#C8382E; --warn:#E0A43A;
+  --sans:"Inter","Segoe UI Variable","Segoe UI",system-ui,-apple-system,sans-serif;
+  --mono:"JetBrains Mono","Cascadia Mono",Consolas,ui-monospace,monospace;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font:13px/1.45 var(--sans);-webkit-font-smoothing:antialiased}
+.num{font-family:var(--mono);font-variant-numeric:tabular-nums}
+/* ---------- app frame ---------- */
+#app{display:grid;grid-template-rows:52px 1fr;height:100%}
+#bar{display:flex;align-items:center;gap:14px;padding:0 16px;background:var(--chrome);border-bottom:1px solid var(--line)}
+.crumb{display:flex;align-items:center;gap:8px;color:var(--mut);font-size:13px}
+.crumb b{color:var(--ink);font-weight:600;font-size:15px;letter-spacing:.2px}
+.crumb .sep{color:var(--mut2)}
+.seg{display:flex;background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:3px;margin-left:18px}
+.seg span{padding:5px 14px;border-radius:6px;color:var(--mut);font-weight:500}
+.seg span.on{background:var(--panel2);color:var(--ink);box-shadow:0 1px 0 rgba(255,255,255,.04) inset,0 1px 3px rgba(0,0,0,.4)}
+.sp{flex:1}
+.btn{border:1px solid var(--line2);background:var(--panel);color:var(--ink2);border-radius:7px;padding:6px 12px;font:500 12.5px var(--sans)}
+.btn.pri{background:var(--acc);border-color:var(--acc);color:#06222B}
+.ic{display:inline-flex;width:30px;height:30px;align-items:center;justify-content:center;border:1px solid var(--line2);border-radius:7px;color:var(--ink2)}
+#body{display:grid;grid-template-columns:268px 1fr 352px;min-height:0}
+/* ---------- navigator ---------- */
+#nav{border-right:1px solid var(--line);background:var(--chrome);display:flex;flex-direction:column;min-height:0}
+.search{margin:14px 14px 8px;display:flex;align-items:center;gap:8px;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:8px 10px;color:var(--mut)}
+.filters{display:flex;gap:6px;padding:0 14px 10px;flex-wrap:wrap}
+.chip{font-size:11.5px;padding:3px 9px;border-radius:999px;border:1px solid var(--line2);color:var(--mut)}
+.chip.on{border-color:var(--acc);color:var(--acc);background:rgba(92,192,219,.08)}
+#holes{overflow:auto;padding:0 8px 16px}
+.grp{font-size:11px;color:var(--mut2);text-transform:uppercase;letter-spacing:.9px;padding:12px 8px 6px;display:flex;justify-content:space-between}
+.hrow{display:grid;grid-template-columns:52px 1fr 36px;align-items:center;gap:8px;padding:6px 8px;border-radius:7px;color:var(--ink2)}
+.hrow.sel{background:var(--panel2);color:var(--ink);box-shadow:inset 3px 0 0 var(--acc)}
+.hrow .id{font-family:var(--mono);font-size:12px}
+.hrow .dp{font-family:var(--mono);font-size:11px;color:var(--mut);text-align:right}
+.mbar{display:flex;height:7px;border-radius:4px;overflow:hidden;background:var(--line)}
+.flag{width:6px;height:6px;border-radius:50%;background:var(--warn);display:inline-block;margin-left:4px;vertical-align:1px}
+/* ---------- sheet ---------- */
+#desk{overflow:auto;background:radial-gradient(1200px 600px at 50% -200px,#1A252C 0,var(--bg) 70%);padding:22px 28px 40px}
+#sheet{width:900px;margin:0 auto;background:var(--paper);color:var(--pink);border-radius:3px;
+  box-shadow:0 1px 0 rgba(255,255,255,.06),0 20px 60px rgba(0,0,0,.55),0 2px 8px rgba(0,0,0,.4);position:relative}
+.hdr{display:grid;grid-template-columns:1.35fr 1fr 1fr;border-bottom:1.5px solid var(--pink)}
+.hdr .t{grid-column:1/4;display:flex;align-items:baseline;justify-content:space-between;padding:16px 20px 10px;border-bottom:1px solid var(--prule)}
+.hdr .t h1{margin:0;font:700 22px/1 var(--sans);letter-spacing:.4px}
+.hdr .t h1 span{font-weight:500;color:var(--pmut);font-size:14px;margin-left:10px;letter-spacing:0}
+.hdr .t .proj{font-size:11.5px;color:var(--pmut);text-align:right;line-height:1.35}
+.cell{padding:8px 20px 9px;border-right:1px solid var(--prule);border-bottom:1px solid var(--prule)}
+.cell:nth-child(3n+1){border-right:0}
+.k{font-size:9.5px;letter-spacing:.9px;text-transform:uppercase;color:var(--pmut);font-weight:600}
+.v{font-size:12.5px;margin-top:1px}
+.v .num{font-size:12px}
+svg text{font-family:var(--sans)}
+.foot{display:flex;justify-content:space-between;padding:10px 20px 14px;border-top:1.5px solid var(--pink);font-size:10.5px;color:var(--pmut)}
+/* ---------- insight rail ---------- */
+#rail{border-left:1px solid var(--line);background:var(--chrome);overflow:auto;padding:16px 18px 30px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 14px 12px;margin-bottom:12px}
+.card h3{margin:0 0 10px;font-size:11px;letter-spacing:1px;text-transform:uppercase;color:var(--mut);font-weight:600;display:flex;justify-content:space-between}
+.story{display:grid;grid-template-columns:18px 1fr auto;gap:0 10px;align-items:stretch}
+.story .bar{grid-row:1/99;border-radius:5px;overflow:hidden;display:flex;flex-direction:column}
+.story .row{display:contents}
+.srow{padding:4px 0 7px}
+.srow .h{font-weight:600;font-size:13px}
+.srow .s{color:var(--mut);font-size:12px}
+.srow .r{font-family:var(--mono);font-size:12px;color:var(--ink2);text-align:right}
+.ok{display:flex;gap:8px;align-items:flex-start;font-size:12.5px;color:var(--ink2);padding:9px 10px;border-radius:8px;background:rgba(94,154,97,.1);border:1px solid rgba(94,154,97,.35)}
+.ok.bad{background:rgba(224,164,58,.1);border-color:rgba(224,164,58,.4)}
+.cur{font-size:12.5px}
+.cur .big{font-family:var(--mono);font-size:22px;color:var(--ink);font-weight:600}
+.cur .grid{display:grid;grid-template-columns:auto 1fr;gap:3px 12px;margin-top:8px}
+.cur .grid div:nth-child(odd){color:var(--mut)}
+.loc{width:100%;height:170px;display:block}
+.legend{display:flex;gap:12px;flex-wrap:wrap;font-size:11.5px;color:var(--mut);margin-top:6px}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:-1px}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="bar">
+    <div class="crumb"><span>Borings</span><span class="sep">/</span><span id="cArea">—</span><span class="sep">/</span><b id="cHole">—</b></div>
+    <div class="seg"><span class="on">Log</span><span>Compare</span><span>Fence</span><span>Table</span></div>
+    <div class="sp"></div>
+    <span class="ic" title="Previous hole">‹</span><span class="ic" title="Next hole">›</span>
+    <button class="btn">Show in 3D</button><button class="btn">CSV</button><button class="btn pri">Print log sheet</button>
+  </div>
+  <div id="body">
+    <aside id="nav">
+      <div class="search">⌕ <span>Search holes, areas, USCS…</span></div>
+      <div class="filters"><span class="chip on">All 44</span><span class="chip">Contacts differ</span><span class="chip">Water</span><span class="chip">Refusal</span></div>
+      <div id="holes"></div>
+    </aside>
+    <main id="desk"><div id="sheet"></div></main>
+    <aside id="rail"></aside>
+  </div>
+</div>
+<script>
+"use strict";
+const D = window.SBMM_DATA.borings_logs;
+const DS = (window.SBMM_DATA.datasets || []).find(d => d.kind === "borings");
+const Q = new URLSearchParams(location.search);
+const HOLES = D.holes;
+const area = id => { const p = DS && DS.points.find(q => q.id === id); return (p && p.a["Waste area"]) || "Not in a waste area"; };
+const hole = HOLES.find(h => h.id === (Q.get("hole") || "SB-9")) || HOLES[0];
+const CURSOR = Q.has("cursor") ? +Q.get("cursor") : null;
+const f1 = v => (Math.round(v * 10) / 10).toFixed(1);
+const f0 = v => Math.round(v).toLocaleString("en-US");
+const esc = s => String(s == null ? "" : s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const CLS = { waste: ["var(--waste)", "var(--wasteT)", "Mine waste"], native: ["var(--native)", "var(--nativeT)", "Native soil"], bedrock: ["var(--rock)", "var(--rockT)", "Bedrock"] };
+const HEX = { waste: "#D5703F", native: "#5E9A61", bedrock: "#7C6BB3" };
+
+/* ---------------- navigator ---------------- */
+(function nav() {
+  const by = {};
+  for (const h of HOLES) (by[area(h.id)] = by[area(h.id)] || []).push(h);
+  const order = Object.keys(by).sort((a, b) => by[b].length - by[a].length);
+  let out = "";
+  for (const a of order) {
+    out += `<div class="grp"><span>${esc(a)}</span><span>${by[a].length}</span></div>`;
+    for (const h of by[a].sort((x, y) => (+x.id.replace(/\D/g, "")) - (+y.id.replace(/\D/g, "")))) {
+      const segs = (h.profile || []).map(p => `<span style="flex:${p.base - p.top};background:${HEX[p.cls] || "#555"}"></span>`).join("");
+      const flag = (h.contacts && h.contacts.flags && h.contacts.flags.length) ? '<span class="flag" title="the two contact statements differ"></span>' : "";
+      out += `<div class="hrow${h === hole ? " sel" : ""}"><span class="id">${h.id}${flag}</span><span class="mbar">${segs}</span><span class="dp">${f0(h.depth)}′</span></div>`;
+    }
+  }
+  document.getElementById("holes").innerHTML = out;
+  document.getElementById("cArea").textContent = area(hole.id);
+  requestAnimationFrame(() => { const box = document.getElementById("holes"), sel = box.querySelector(".sel");
+    if (sel) box.scrollTop = sel.offsetTop - box.offsetTop - 120; });
+  document.getElementById("cHole").textContent = hole.id;
+})();
+
+/* ---------------- the sheet ---------------- */
+const PPF = 13;                       /* px per ft on screen; print is 1 in = 5 ft */
+const COLS = [                        /* x, width */
+  ["elev", 0, 50], ["depth", 50, 34], ["cls", 84, 9], ["samp", 93, 64], ["blows", 157, 58],
+  ["n", 215, 88], ["gfx", 303, 58], ["uscs", 361, 40], ["desc", 401, 310], ["lab", 711, 189]
+];
+const X = Object.fromEntries(COLS.map(c => [c[0], { x: c[1], w: c[2] }]));
+const W = 900, HEAD = 34, TOP = HEAD + 8;
+const depthMax = Math.ceil(hole.depth / 5) * 5;
+const y = d => TOP + d * PPF;
+const H = y(depthMax) + 30;
+
+function fam(u) {
+  u = String(u || "").toUpperCase();
+  if (/BEDROCK|ROCK/.test(u)) return "rock";
+  if (/^G/.test(u)) return "gravel";
+  if (/^S[PW]/.test(u) && !/C|M/.test(u.slice(2))) return "sand";
+  if (/^S/.test(u)) return "sandc";
+  if (/^(ML|MH)/.test(u)) return "silt";
+  if (/^CH/.test(u)) return "fatclay";
+  if (/^C/.test(u)) return "clay";
+  return "none";
+}
+function patterns() {
+  const p = [];
+  const ink = "#2A2F35";
+  p.push(`<pattern id="p_sand" width="8" height="8" patternUnits="userSpaceOnUse"><circle cx="2" cy="2" r=".9" fill="${ink}"/><circle cx="6" cy="6" r=".9" fill="${ink}"/></pattern>`);
+  p.push(`<pattern id="p_sandc" width="10" height="8" patternUnits="userSpaceOnUse"><circle cx="2" cy="2" r=".9" fill="${ink}"/><circle cx="7" cy="2" r=".9" fill="${ink}"/><path d="M0 6h10" stroke="${ink}" stroke-width=".8"/></pattern>`);
+  p.push(`<pattern id="p_clay" width="10" height="5" patternUnits="userSpaceOnUse"><path d="M0 2.5h10" stroke="${ink}" stroke-width=".8"/></pattern>`);
+  p.push(`<pattern id="p_fatclay" width="10" height="4" patternUnits="userSpaceOnUse"><path d="M0 2h10" stroke="${ink}" stroke-width="1.3"/></pattern>`);
+  p.push(`<pattern id="p_silt" width="12" height="6" patternUnits="userSpaceOnUse"><path d="M0 3h5M7 3h4" stroke="${ink}" stroke-width=".8"/></pattern>`);
+  p.push(`<pattern id="p_gravel" width="12" height="12" patternUnits="userSpaceOnUse"><circle cx="3.5" cy="3.5" r="2.2" fill="none" stroke="${ink}" stroke-width=".8"/><circle cx="9" cy="9" r="1.6" fill="none" stroke="${ink}" stroke-width=".8"/></pattern>`);
+  p.push(`<pattern id="p_rock" width="16" height="8" patternUnits="userSpaceOnUse"><path d="M0 .5h16M0 4.5h16M4 .5v4M12 4.5v4" stroke="${ink}" stroke-width=".8"/></pattern>`);
+  p.push(`<pattern id="p_none" width="7" height="7" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><path d="M0 0v7" stroke="${ink}" stroke-width=".5" opacity=".55"/></pattern>`);
+  return p.join("");
+}
+/* the tall description is the reading column; keep it in sentence case with the
+   group name in bold, the way a log sheet is actually written */
+function descHTML(s) {
+  const d = String(s.desc || "");
+  const m = d.match(/^(.*?\([A-Z]{2}(?:-[A-Z]{2})?\))(.*)$/);
+  if (m) return `<b>${esc(m[1])}</b>${esc(m[2])}`;
+  if (!s.uscs) return `<i>${esc(d)}</i>`;
+  return esc(d);
+}
+function wrap(text, width, size) {
+  const per = Math.floor(width / (size * .57));
+  const words = text.split(/\s+/), lines = [];
+  let cur = "";
+  for (const w of words) { if ((cur + " " + w).trim().length > per) { if (cur) lines.push(cur); cur = w; } else cur = (cur + " " + w).trim(); }
+  if (cur) lines.push(cur);
+  return lines;
+}
+function lane(gap, blocked) {
+  let end = -1e9;
+  return (want, h, limit) => {
+    let at = Math.max(want, end + gap);
+    for (const b of (blocked || [])) if (at < b[1] && at + h > b[0]) at = b[1] + 2;
+    if (limit != null && at + h > limit) return null;
+    end = at + h; return at;
+  };
+}
+
+function sheet() {
+  const h = hole, P = [];
+  P.push(`<defs>${patterns()}</defs>`);
+  /* column heads */
+  const heads = { elev: "ELEV<tspan x='%x' dy='11'>ft</tspan>", depth: "DEPTH<tspan x='%x' dy='11'>ft</tspan>", samp: "SAMPLE<tspan x='%x' dy='11'>rec</tspan>", blows: "BLOWS<tspan x='%x' dy='11'>/ 6 in</tspan>", n: "SPT N", gfx: "GRAPHIC", uscs: "USCS", desc: "MATERIAL DESCRIPTION", lab: "LABORATORY  ·  REMARKS" };
+  for (const [k, c] of Object.entries(X)) {
+    if (!heads[k]) continue;
+    const cx = k === "desc" || k === "lab" ? c.x + 8 : c.x + c.w / 2;
+    P.push(`<text x="${cx}" y="14" font-size="9" font-weight="700" letter-spacing=".8" fill="#5E6770" text-anchor="${k === "desc" || k === "lab" ? "start" : "middle"}">${heads[k].replace(/%x/g, cx)}</text>`);
+  }
+  P.push(`<line x1="0" x2="${W}" y1="${HEAD}" y2="${HEAD}" stroke="#1C2126" stroke-width="1"/>`);
+  /* N scale */
+  const nx = v => X.n.x + 6 + Math.min(v, 50) / 50 * (X.n.w - 12);
+  for (const v of [0, 10, 20, 30, 40, 50]) {
+    P.push(`<line x1="${nx(v)}" x2="${nx(v)}" y1="${TOP}" y2="${y(depthMax)}" stroke="#EEEBE3"/>`);
+    P.push(`<text x="${nx(v)}" y="${HEAD - 3}" font-size="7.5" fill="#8A929A" text-anchor="middle" class="num">${v}</text>`);
+  }
+  /* depth rows: every 5 ft a rule across the sheet */
+  for (let d = 0; d <= depthMax; d += 1) {
+    const major = d % 5 === 0;
+    P.push(`<line x1="${X.depth.x + (major ? 0 : 24)}" x2="${X.depth.x + X.depth.w}" y1="${y(d)}" y2="${y(d)}" stroke="#B9B4A8" stroke-width="${major ? .8 : .5}"/>`);
+    if (major) {
+      P.push(`<line x1="${X.samp.x}" x2="${W}" y1="${y(d)}" y2="${y(d)}" stroke="#F1EEE7"/>`);
+      P.push(`<text x="${X.depth.x + X.depth.w - 5}" y="${y(d) + 3.5}" font-size="10" text-anchor="end" fill="#1C2126" class="num">${d}</text>`);
+      P.push(`<text x="${X.elev.x + X.elev.w - 6}" y="${y(d) + 3.5}" font-size="10" text-anchor="end" fill="#5E6770" class="num">${f0(h.elev - d)}</text>`);
+    }
+  }
+  /* class rail */
+  for (const p of h.profile) {
+    P.push(`<rect x="${X.cls.x + 1}" y="${y(p.top)}" width="${X.cls.w - 2}" height="${(p.base - p.top) * PPF}" fill="${HEX[p.cls]}"/>`);
+  }
+  /* graphic log + USCS, one rect per primary stratum */
+  const prim = h.strata.filter(s => s.uscs);
+  for (const s of h.strata) {
+    const tint = { waste: "#F7DCCB", native: "#DDEDD8", bedrock: "#E4DFF2" }[s.cls] || "#EEE";
+    if (!s.uscs && prim.some(p => p !== s && p.top <= s.top && p.base >= s.base)) continue;   // modifier row
+    const t = y(s.top), hh = (s.base - s.top) * PPF;
+    P.push(`<rect x="${X.gfx.x + 4}" y="${t}" width="${X.gfx.w - 8}" height="${hh}" fill="${tint}"/>`);
+    P.push(`<rect x="${X.gfx.x + 4}" y="${t}" width="${X.gfx.w - 8}" height="${hh}" fill="url(#p_${fam(s.uscs)})"/>`);
+    P.push(`<line x1="${X.gfx.x + 4}" x2="${W}" y1="${t}" y2="${t}" stroke="#1C2126" stroke-width=".7" opacity=".55"/>`);
+    const sym = /bedrock/i.test(s.uscs || "") ? "ROCK" : (s.uscs || "—");
+    if (hh > 12) P.push(`<text x="${X.uscs.x + X.uscs.w / 2}" y="${t + 13}" font-size="10.5" font-weight="700" text-anchor="middle" fill="#1C2126">${esc(sym)}</text>`);
+  }
+  P.push(`<rect x="${X.gfx.x + 4}" y="${TOP}" width="${X.gfx.w - 8}" height="${h.depth * PPF}" fill="none" stroke="#1C2126" stroke-width=".9"/>`);
+  /* descriptions: a lane, sentence case, the group name in bold */
+  const L = lane(6);
+  for (const s of h.strata) {
+    const base = s.uscs ? "" : `At ${f1(s.top)} ft: `;
+    const text = base + String(s.desc || "");
+    const lines = wrap(text, X.desc.w - 16, 10.5);
+    const hh = lines.length * 13.5;
+    const at = L(y(s.top) + 3, hh, y(h.depth) + 4);
+    if (at == null) continue;
+    /* pushed down by the text above it: a leader back to where it belongs */
+    if (at - (y(s.top) + 3) > 5) P.push(`<path d="M${X.desc.x + 1} ${y(s.top)}h3v${at - y(s.top) + 5}h3" fill="none" stroke="#9AA1A8" stroke-width=".7"/>`);
+    const m = String(s.desc || "").match(/^(.*?\([A-Z]{2}(?:-[A-Z]{2})?\))/);
+    const boldLen = m ? (base + m[1]).length : 0;
+    let used = 0;
+    const tl = lines.map((ln, i) => {
+      const a = used, b = used + ln.length; used = b + 1;
+      let html;
+      if (boldLen > b) html = `<tspan font-weight="700">${esc(ln)}</tspan>`;
+      else if (boldLen > a) html = `<tspan font-weight="700">${esc(ln.slice(0, boldLen - a))}</tspan>${esc(ln.slice(boldLen - a))}`;
+      else html = esc(ln);
+      return `<tspan x="${X.desc.x + 8}" dy="${i ? 13.5 : 0}"${s.uscs ? "" : ' font-style="italic" fill="#4A535B"'}>${html}</tspan>`;
+    }).join("");
+    P.push(`<text x="${X.desc.x + 8}" y="${at + 10}" font-size="10.5" fill="#1C2126">${tl}</text>`);
+  }
+  /* samples: type, id, recovery bar; blows; N profile */
+  const npts = [];
+  for (const sp of h.spt) {
+    const t = y(sp.top), hh = Math.max(9, (sp.base - sp.top) * PPF);
+    const type = String(sp.ref || "").replace(/-.*/, "");
+    P.push(`<rect x="${X.samp.x + 6}" y="${t}" width="14" height="${hh}" fill="#fff" stroke="#1C2126" stroke-width=".8"/>`);
+    const rec = Math.max(0, Math.min(1, (sp.rec_pct || 0) / 100));
+    P.push(`<rect x="${X.samp.x + 6}" y="${t}" width="14" height="${hh * rec}" fill="${type === "MC" ? "#9AA6AF" : "#5E6770"}"/>`);
+    P.push(`<text x="${X.samp.x + 25}" y="${t + 8}" font-size="8.5" fill="#1C2126" class="num">${esc(sp.ref)}</text>`);
+    P.push(`<text x="${X.samp.x + 25}" y="${t + 17}" font-size="7.5" fill="#8A929A" class="num">${sp.rec_pct != null ? Math.round(sp.rec_pct) + "%" : ""}</text>`);
+    const bl = (sp.blows_6in || []).map(b => b == null ? "–" : Math.round(b)).join("-");
+    P.push(`<text x="${X.blows.x + X.blows.w / 2}" y="${t + 8}" font-size="9.5" text-anchor="middle" fill="#1C2126" class="num">${bl}</text>`);
+    const yy = y((sp.top + sp.base) / 2);
+    if (sp.refusal) {
+      P.push(`<text x="${X.n.x + X.n.w - 3}" y="${yy + 3}" font-size="8.5" text-anchor="end" fill="#C8382E" font-weight="700" class="num">${esc(sp.n_text)}</text>`);
+      npts.push([nx(50), yy, true]);
+    } else if (sp.n != null) {
+      npts.push([nx(sp.n), yy, false]);
+      P.push(`<text x="${nx(sp.n) + 5}" y="${yy - 4}" font-size="8.5" fill="#1C2126" class="num">${sp.n}</text>`);
+    }
+  }
+  if (npts.length > 1) P.push(`<polyline points="${npts.map(p => p[0].toFixed(1) + "," + p[1].toFixed(1)).join(" ")}" fill="none" stroke="#2A7DC4" stroke-width="1.3" stroke-linejoin="round"/>`);
+  for (const p of npts) P.push(`<circle cx="${p[0]}" cy="${p[1]}" r="${p[2] ? 3.2 : 2.6}" fill="${p[2] ? "#C8382E" : "#2A7DC4"}" stroke="#fff" stroke-width="1"/>`);
+  /* lab chips per interval, then remarks */
+  const c = h.contacts || {};
+  const HZ = [];
+  if (c.native_contact > 0) HZ.push([c.native_contact, "#B85A2B", null, `NATIVE ${f1(c.native_contact)} FT`, 1.6]);
+  if (c.waste_base_strata != null && c.native_contact != null && Math.abs(c.waste_base_strata - c.native_contact) > .05)
+    HZ.push([c.waste_base_strata, "#D0902A", "5 3", `STRATA ${f1(c.waste_base_strata)} FT`, 1.1]);
+  if (c.bedrock_top != null && c.bedrock_top < h.depth) HZ.push([c.bedrock_top, "#6B5BA6", "7 4", `BEDROCK ${f1(c.bedrock_top)} FT`, 1.6]);
+  const byD = {};
+  for (const t of h.tests) (byD[t.depth] = byD[t.depth] || []).push(t);
+  const LL = lane(5, HZ.map(z => [y(z[0]) - 9, y(z[0]) + 9]));
+  const order = ["WC", "LL", "PI", "Fines", "Gravel", "Sand", "DD", "PP", "Su", "C", "phi", "Cc", "Cr", "pH"];
+  const unit = { WC: "%", Fines: "%", Gravel: "%", Sand: "%", DD: " pcf", PP: " tsf", Su: " psf", C: " psf", phi: "°" };
+  for (const d of Object.keys(byD).map(Number).sort((a, b) => a - b)) {
+    const ts = byD[d].sort((a, b) => order.indexOf(a.key) - order.indexOf(b.key));
+    const at = LL(y(d) - 5, 14, y(h.depth) + 6); if (at == null) continue;
+    let x = X.lab.x + 8;
+    for (const t of ts) {
+      if (t.key === "PP" || t.key === "Cc" || t.key === "Cr" || t.key === "Gravel" || t.key === "Sand") continue;
+      const acid = t.key === "pH" && t.value < 4;
+      const lbl = `${t.key === "Fines" ? "F" : t.key} ${t.key === "pH" ? t.value.toFixed(1) : Math.round(t.value)}${unit[t.key] || ""}`;
+      const w = lbl.length * 5.6 + 8;
+      if (x + w > W - 6) break;
+      P.push(`<rect x="${x}" y="${at}" width="${w}" height="13" rx="3" fill="${acid ? "#FBE3E0" : "#F1EEE6"}" stroke="${acid ? "#C8382E" : "none"}" stroke-width=".7"/>`);
+      P.push(`<text x="${x + 4}" y="${at + 9.5}" font-size="8.5" fill="${acid ? "#A0271F" : "#3A424A"}" class="num">${esc(lbl)}</text>`);
+      x += w + 4;
+    }
+  }
+  for (const n of h.notes) {
+    if (n.depth > h.depth) continue;
+    const lines = wrap(n.text, X.lab.w - 16, 9);
+    const at = LL(y(n.depth) - 4, lines.length * 11 + 2, y(h.depth) + 40); if (at == null) continue;
+    P.push(`<text x="${X.lab.x + 8}" y="${at + 9}" font-size="9" font-style="italic" fill="#5E6770">${lines.map((l, i) => `<tspan x="${X.lab.x + 8}" dy="${i ? 11 : 0}">${esc(l)}</tspan>`).join("")}</text>`);
+  }
+  /* horizons across the sheet: solid through the columns that carry
+     graphics, faint under the description (a line through words is noise),
+     and labelled in the lab column, whose lane steps round the label */
+  for (const [d, color, dash, label, w] of HZ) {
+    const yy = y(d), da = dash ? `stroke-dasharray="${dash}"` : "";
+    P.push(`<line x1="${X.cls.x}" x2="${X.desc.x}" y1="${yy}" y2="${yy}" stroke="${color}" stroke-width="${w}" ${da}/>`);
+    P.push(`<line x1="${X.desc.x}" x2="${X.lab.x}" y1="${yy}" y2="${yy}" stroke="${color}" stroke-width=".8" opacity=".35" ${da}/>`);
+    P.push(`<line x1="${X.lab.x}" x2="${W}" y1="${yy}" y2="${yy}" stroke="${color}" stroke-width="${w}" ${da}/>`);
+    const tw = label.length * 5.6 + 14;
+    P.push(`<rect x="${W - tw - 6}" y="${yy - 8}" width="${tw}" height="16" rx="8" fill="${color}"/>`);
+    P.push(`<text x="${W - tw / 2 - 6}" y="${yy + 3.5}" font-size="8.5" font-weight="700" fill="#fff" text-anchor="middle" letter-spacing=".5">${esc(label)}</text>`);
+  }
+  if (h.water && h.water.encountered) {
+    const wy = y(h.water.depth);
+    P.push(`<line x1="${X.gfx.x}" x2="${X.desc.x + X.desc.w}" y1="${wy}" y2="${wy}" stroke="#2A7DC4" stroke-width="1.1" stroke-dasharray="2 3"/>`);
+    P.push(`<path d="M${X.gfx.x + X.gfx.w / 2 - 6} ${wy - 11}h12l-6 9z" fill="#2A7DC4"/>`);
+    P.push(`<text x="${X.gfx.x + X.gfx.w / 2 + 10}" y="${wy - 4}" font-size="8.5" font-weight="700" fill="#2A7DC4">${f1(h.water.depth)} ft${h.water.perched ? " perched" : ""} · ATD</text>`);
+  }
+  /* termination */
+  const ty = y(h.depth);
+  P.push(`<line x1="${X.cls.x}" x2="${W}" y1="${ty}" y2="${ty}" stroke="#1C2126" stroke-width="2"/>`);
+  const refusal = h.spt.some(s => s.refusal && s.top >= h.depth - 1);
+  P.push(`<text x="${X.desc.x + 8}" y="${ty + 16}" font-size="10" font-weight="700" fill="#1C2126">Bottom of hole ${f1(h.depth)} ft${refusal ? " — SPT and coring refusal" : ""}</text>`);
+  /* depth cursor (hover state, pinned for the screenshot) */
+  if (CURSOR != null) {
+    const cy = y(CURSOR);
+    P.push(`<rect x="0" y="${cy - 7}" width="${W}" height="14" fill="#5CC0DB" opacity=".13"/>`);
+    P.push(`<line x1="0" x2="${W}" y1="${cy}" y2="${cy}" stroke="#1E8FB0" stroke-width="1"/>`);
+    P.push(`<rect x="2" y="${cy - 9}" width="80" height="18" rx="9" fill="#1E8FB0"/><text x="42" y="${cy + 4}" font-size="10" font-weight="700" text-anchor="middle" fill="#fff" class="num">${f1(CURSOR)} ft</text>`);
+  }
+  /* column rules */
+  for (const k of ["depth", "cls", "samp", "blows", "n", "gfx", "uscs", "desc", "lab"]) P.push(`<line x1="${X[k].x}" x2="${X[k].x}" y1="0" y2="${H - 30}" stroke="#D8D4CA"/>`);
+  return `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">${P.join("")}</svg>`;
+}
+
+function header() {
+  const h = hole, m = h.methods || [];
+  const meth = m.map(x => `${x.method} ${f1(x.top)}–${f1(x.base)}`).join(" · ");
+  const eq = (m.find(x => x.equipment) || {}).equipment || "";
+  const drill = (m[0] || {}).contractor ? `${m[0].contractor} (${m[0].driller})` : "";
+  const w = h.water && h.water.encountered ? `${f1(h.water.depth)} ft${h.water.perched ? " perched" : ""} · at time of drilling` : "not encountered";
+  const cell = (k, v) => `<div class="cell"><div class="k">${k}</div><div class="v">${v}</div></div>`;
+  return `<div class="hdr">
+    <div class="t"><h1>LOG OF BORING ${esc(h.id)}<span>${esc(area(h.id))}</span></h1>
+      <div class="proj">Sulphur Bank Mercury Mine · OU1<br>2025 Jacobs geotechnical investigation</div></div>
+    ${cell("Location", `<span class="num">E ${f0(h.x)} · N ${f0(h.y)}</span> <span style="color:#5E6770">ftUS, CA Z2</span>`)}
+    ${cell("Ground surface", `<span class="num">${h.elev.toFixed(1)} ft</span> NAVD88`)}
+    ${cell("Total depth", `<span class="num">${f1(h.depth)} ft</span> · base ${f0(h.elev - h.depth)}`)}
+    ${cell("Drilling", `${esc(meth)}${eq ? `<br><span style="color:#5E6770">${esc(eq)}</span>` : ""}`)}
+    ${cell("Drilled", `<span class="num">${esc(h.date_start)}${h.date_end && h.date_end !== h.date_start ? " → " + esc(h.date_end) : ""}</span><br><span style="color:#5E6770">${esc(drill)}</span>`)}
+    ${cell("Logged · checked", `${esc(h.logger)} · ${esc(h.checked_by)}`)}
+    ${cell("Groundwater", `<span style="color:#2A7DC4">▼</span> ${esc(w)}`)}
+    ${cell("Samples", `<span class="num">${h.spt.length}</span> drives · <span class="num">${h.tests.length}</span> lab values`)}
+    ${cell("Scale", `1 in = 5 ft printed`)}
+  </div>`;
+}
+
+document.getElementById("sheet").innerHTML = header() + sheet() +
+  `<div class="foot"><span>OpenGround export · approved logs · coordinates from the baked December-2025 set</span><span>Sheet 1 of 1</span></div>`;
+
+/* ---------------- insight rail ---------------- */
+(function rail() {
+  const h = hole, c = h.contacts || {};
+  const bar = h.profile.map(p => `<div style="flex:${p.base - p.top};background:${HEX[p.cls]}"></div>`).join("");
+  const rows = h.profile.map(p => `<div class="srow"><div class="h" style="color:${HEX[p.cls]}">${CLS[p.cls][2]}</div><div class="s">${f1(p.top)} – ${f1(p.base)} ft</div></div><div class="srow r">${f1(p.base - p.top)} ft</div>`).join("");
+  const agree = !(c.flags && c.flags.length);
+  const cur = CURSOR != null ? cursorCard(CURSOR) : "";
+  const R = [];
+  R.push(`<div class="card"><h3><span>What this hole found</span><span>${f1(h.depth)} ft</span></h3>
+    <div class="story"><div class="bar">${bar}</div>${rows}</div>
+    <div class="legend"><span><i style="background:#2A7DC4"></i>water ${h.water && h.water.encountered ? f1(h.water.depth) + " ft" : "none"}</span><span><i style="background:#C8382E"></i>${h.spt.filter(s => s.refusal).length} refusals</span></div></div>`);
+  R.push(`<div class="card"><h3><span>Contact statements</span></h3><div class="ok${agree ? "" : " bad"}">${agree ? "✓" : "!"}<div>${agree
+    ? `Logger's remark and the strata agree at <b class="num">${f1(c.native_contact)} ft</b>.`
+    : `Remark says <b class="num">${f1(c.native_contact)} ft</b>, strata say <b class="num">${f1(c.waste_base_strata)} ft</b>. ${esc((c.flags || []).join("; "))}.`}</div></div></div>`);
+  if (cur) R.push(cur);
+  R.push(`<div class="card"><h3><span>Profiles</span><span>ft bgs</span></h3>${profiles()}<div class="legend"><span><i style="background:#2A7DC4"></i>SPT N</span><span><i style="background:#C8382E"></i>pH &lt; 4</span><span><i style="background:#8FA3B0"></i>WC · LL band</span></div></div>`);
+  R.push(`<div class="card"><h3><span>Location</span><span>${esc(area(h.id))}</span></h3>${locator()}</div>`);
+  document.getElementById("rail").innerHTML = R.join("");
+})();
+
+function cursorCard(d) {
+  const h = hole;
+  const s = h.strata.filter(x => x.top <= d && x.base > d).pop();
+  const sname = s ? (s.uscs ? s.uscs + " · " : "") + (s.name || String(s.desc || "").split(",")[0]) : "—";
+  const sp = h.spt.find(x => x.top <= d + .01 && x.base >= d - .76);
+  const lab = h.tests.filter(t => Math.abs(t.depth - d) < .6).map(t => `${t.key} ${t.key === "pH" ? t.value.toFixed(1) : Math.round(t.value)}${t.unit === "%" ? "%" : ""}`);
+  const p = h.profile.find(x => x.top <= d && x.base > d);
+  return `<div class="card cur"><h3><span>Depth cursor</span><span class="num">${esc(hole.id)}</span></h3>
+    <div><span class="big">${f1(d)}</span> ft bgs · <span class="num">${f1(h.elev - d)}</span> ft</div>
+    <div class="grid">
+      <div>Class</div><div style="color:${HEX[p.cls]}">${CLS[p.cls][2]}</div>
+      <div>Stratum</div><div>${esc(sname)}</div>
+      <div>Sample</div><div class="num">${sp ? `${esc(sp.ref)} · ${sp.n_text ? "N " + esc(sp.n_text) : ({ ST: "Shelby tube", MC: "Mod. Cal.", SS: "split spoon" }[String(sp.ref).slice(0, 2)] || "no N")} · ${Math.round(sp.rec_pct)}% rec` : "—"}</div>
+      <div>Lab</div><div class="num">${lab.length ? esc(lab.join(" · ")) : "—"}</div>
+    </div></div>`;
+}
+
+function profiles() {
+  const h = hole, Wd = 316, Hh = 240, top = 22, bot = Hh - 14, dmax = Math.ceil(h.depth / 10) * 10;
+  const yy = d => top + d / dmax * (bot - top);
+  const P = [];
+  const panel = (x0, w, title, ticks, fx) => {
+    P.push(`<text x="${x0}" y="10" font-size="10" font-weight="600" fill="#C3D0D8">${title}</text>`);
+    ticks.forEach((t, i) => {
+      P.push(`<line x1="${fx(t)}" x2="${fx(t)}" y1="${top}" y2="${bot}" stroke="#243039"/>`);
+      P.push(`<text x="${fx(t)}" y="${bot + 11}" font-size="8" fill="#62747F" text-anchor="${i === 0 ? "start" : i === ticks.length - 1 ? "end" : "middle"}">${t}</text>`);
+    });
+  };
+  for (let d = 0; d <= dmax; d += 20) P.push(`<text x="0" y="${yy(d) + 3}" font-size="8" fill="#62747F">${d}</text>`);
+  for (const p of h.profile) P.push(`<rect x="16" y="${yy(p.top)}" width="4" height="${yy(p.base) - yy(p.top)}" fill="${HEX[p.cls]}"/>`);
+  /* N */
+  const nx = v => 26 + Math.min(v, 50) / 50 * 78;
+  panel(26, 78, "SPT N", [0, 25, 50], nx);
+  const pts = h.spt.map(s => [s.refusal ? nx(50) : nx(s.n || 0), yy((s.top + s.base) / 2), s.refusal]);
+  P.push(`<polyline points="${pts.map(p => p[0] + "," + p[1]).join(" ")}" fill="none" stroke="#2A7DC4" stroke-width="1.4"/>`);
+  for (const p of pts) P.push(`<circle cx="${p[0]}" cy="${p[1]}" r="2.4" fill="${p[2] ? "#C8382E" : "#5CC0DB"}"/>`);
+  /* pH */
+  const px = v => 126 + (v - 2) / 6 * 72;
+  panel(126, 72, "pH", [2, 4, 6, 8], px);
+  P.push(`<rect x="${px(2)}" y="${top}" width="${px(4) - px(2)}" height="${bot - top}" fill="#C8382E" opacity=".12"/>`);
+  for (const t of h.tests.filter(t => t.key === "pH")) P.push(`<circle cx="${px(Math.max(2, Math.min(8, t.value)))}" cy="${yy(t.depth)}" r="2.6" fill="${t.value < 4 ? "#E5584C" : "#C3D0D8"}"/>`);
+  /* WC with LL / PL */
+  const wx = v => 222 + Math.min(v, 60) / 60 * 88;
+  panel(222, 88, "WC · PL–LL", [0, 30, 60], wx);
+  const byD = {};
+  for (const t of h.tests) (byD[t.depth] = byD[t.depth] || {})[t.key] = t.value;
+  for (const d in byD) {
+    const o = byD[d], yv = yy(+d);
+    if (o.LL != null && o.PI != null) P.push(`<line x1="${wx(o.LL - o.PI)}" x2="${wx(o.LL)}" y1="${yv}" y2="${yv}" stroke="#8FA3B0" stroke-width="3" stroke-linecap="round" opacity=".6"/>`);
+    if (o.WC != null) P.push(`<circle cx="${wx(o.WC)}" cy="${yv}" r="2.6" fill="#E7EEF2"/>`);
+  }
+  if (h.water && h.water.encountered) P.push(`<line x1="16" x2="${Wd}" y1="${yy(h.water.depth)}" y2="${yy(h.water.depth)}" stroke="#2A7DC4" stroke-dasharray="3 3"/>`);
+  return `<svg width="${Wd}" height="${Hh}" style="display:block">${P.join("")}</svg>`;
+}
+
+function locator() {
+  const xs = HOLES.map(h => h.x), ys = HOLES.map(h => h.y);
+  const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
+  const Wd = 316, Hh = 170, pad = 14, s = Math.min((Wd - 2 * pad) / (x1 - x0), (Hh - 2 * pad) / (y1 - y0));
+  const px = x => pad + (x - x0) * s + ((Wd - 2 * pad) - (x1 - x0) * s) / 2, py = y => Hh - pad - (y - y0) * s;
+  const P = [`<rect width="${Wd}" height="${Hh}" rx="8" fill="#0F171C"/>`];
+  for (const h of HOLES) {
+    const me = h === hole, c = HEX[(h.profile[0] || {}).cls] || "#888";
+    P.push(`<circle cx="${px(h.x)}" cy="${py(h.y)}" r="${me ? 6 : 3}" fill="${me ? "#5CC0DB" : c}" opacity="${me ? 1 : .7}" ${me ? 'stroke="#fff" stroke-width="1.5"' : ""}/>`);
+  }
+  const me = hole;
+  P.push(`<text x="${px(me.x) + 9}" y="${py(me.y) + 4}" font-size="11" font-weight="700" fill="#E7EEF2">${me.id}</text>`);
+  P.push(`<text x="${Wd - 10}" y="${Hh - 8}" font-size="9" fill="#62747F" text-anchor="end">dot colour = class at the surface</text>`);
+  return `<svg class="loc" viewBox="0 0 ${Wd} ${Hh}">${P.join("")}</svg>`;
+}
+</script>
+</body>
+</html>
