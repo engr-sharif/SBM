@@ -9238,7 +9238,11 @@ clipRes = await page.evaluate(async () => {
       await wait(1000);
       const n = SBMM.viewer3d.stats().renderCount;
       const q = SBMM.tiles.stats();
-      if (n === prev && !((q.queued || 0) + (q.running || 0))) { if (++same >= 2) break; } else { same = 0; prev = n; }
+      /* settled = no frame for two polls, no tile queued AND no terrain
+         rebuild in flight: the meshes build in a worker without a frame and
+         the swap renders afterwards (the dist run read that as 3 idle frames) */
+      const tb = SBMM.terrain3d && SBMM.terrain3d.stats ? SBMM.terrain3d.stats().building : false;
+      if (n === prev && !((q.queued || 0) + (q.running || 0)) && !tb) { if (++same >= 2) break; } else { same = 0; prev = n; }
     }
     const a = SBMM.viewer3d.stats().renderCount;
     await wait(4000);
