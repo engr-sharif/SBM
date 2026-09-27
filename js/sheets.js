@@ -36,10 +36,15 @@ SBMM.sheets = (function () {
      the viewport if the stage is somehow not there, so this can never be the
      reason a sheet fails to open. */
   function stageBox() {
-    /* v26: the stage runs full-bleed under floating panels, so the box a
-       window may live in is the FRAME — the stage less the chrome over it */
-    if (SBMM.shell && SBMM.shell.frame && !document.body.classList.contains("field")) {
-      try { return SBMM.shell.frame(); } catch (e) { /* fall through to the stage */ }
+    /* v26: the stage runs full-bleed under floating chrome. A window floats
+       ABOVE the docks (its band is 4000-4899), so the box it may live in is the
+       whole stage below the top bar, with a small margin — a maximised drawing
+       squeezed between the two docks was 504 px wide on an iPad. */
+    const tbEl = document.getElementById("topbar");
+    if (tbEl && !document.body.classList.contains("field")) {
+      const M = 6, tb = tbEl.getBoundingClientRect();
+      const y = Math.round(tb.bottom + M);
+      return { x: M, y, w: Math.max(200, innerWidth - 2 * M), h: Math.max(200, innerHeight - y - M) };
     }
     const st = document.getElementById("stage");
     if (!st) return { x: 8, y: 8, w: Math.max(200, window.innerWidth - 16), h: Math.max(200, window.innerHeight - 16) };
@@ -284,9 +289,11 @@ SBMM.sheets = (function () {
     const vw = st.view.clientWidth, vh = st.view.clientHeight;
     const w = st.iw * st.scale, h = st.ih * st.scale;
     const mx = Math.max(0, w - vw), my = Math.max(0, h - vh);
-    const padx = w < vw ? (vw - w) / 2 : 0, pady = h < vh ? (vh - h) / 2 : 0;
-    st.tx = w < vw ? padx : clamp(st.tx, -mx, 0);
-    st.ty = h < vh ? pady : clamp(st.ty, -my, 0);
+    /* a drawing smaller than the view is kept INSIDE it, not forced to its
+       centre: re-centring on every zoom step moved the point under the pointer
+       (or between two fingers) — fit() is what centres (v26) */
+    st.tx = w < vw ? clamp(st.tx, 0, vw - w) : clamp(st.tx, -mx, 0);
+    st.ty = h < vh ? clamp(st.ty, 0, vh - h) : clamp(st.ty, -my, 0);
   }
   function fit(st) {
     const vw = st.view.clientWidth, vh = st.view.clientHeight;

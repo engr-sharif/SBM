@@ -2801,6 +2801,21 @@ Eight things that will be walked into again:
   nothing, and a full run can leave it exactly there. It moves to a nearby point
   first.
 
+- **A floating window lives in the whole stage below the top bar**, not in the
+  frame between the docks: `SBMM.sheets.stageBox()` is the one answer (6-px
+  margin) and `js/borewin.js` asks it too. Windows sit in the 4000-4899 band
+  above the docks, and a maximised drawing squeezed between them was 504 px
+  wide on an iPad. And `clampPan` keeps a drawing smaller than its view INSIDE
+  the view rather than re-centring it on every zoom step, which moved the point
+  under a pinch; `fit()` is what centres.
+- **A long press is decided by the glass even when its timer is starved.** A
+  software-GL frame on the full-bleed canvas can outlast the 500-ms timer, so
+  the lift was handled first and cancelled it; `up()` in `js/touch.js` now
+  fires the long press at the lift when the event clock says the hold was long
+  enough (`test/touch_unit.mjs`, four checks). And a 3D harness step reads the
+  camera after it SETTLES (`settle3d()` in `test/e2e_tablet.mjs`), never after a
+  fixed wait.
+
 **3D:** `SBMM.viewer3d.flyAround()` frames the mine window and walks the
 destination azimuth round once in 24 s through the rig's own damping; any
 pointer, wheel or key stops it (capture phase), and under
