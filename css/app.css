@@ -2645,7 +2645,7 @@ body.homeopen #undoPill{left:calc(50% - 200px)}
 #lpTop{position:sticky;top:0;z-index:5;margin:0 -12px 8px;padding:10px 12px 8px;
   background:linear-gradient(180deg,rgba(20,29,34,.97) 70%,rgba(20,29,34,0))}
 #lpTop .ltsearchrow{background:rgba(255,255,255,.05);border:1px solid var(--glassb);border-radius:9px;padding:6px 9px}
-#lpTop .ltsearchrow input{font-size:12.5px}
+body:not(.touch) #lpTop .ltsearchrow input{font-size:12.5px}
 #lpCrumb{display:flex;align-items:center;gap:8px;margin-top:8px}
 #lpCrumb b{font-size:13px;font-weight:620}
 .lpback{display:inline-flex;align-items:center;gap:2px;background:none;border:0;color:var(--acc2);font:inherit;
