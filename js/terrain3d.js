@@ -856,6 +856,9 @@ SBMM.terrain3d = (function () {
       }
       return {
         on: drawn.size > 0, tiles: drawn.size, verts, triangles: tris, bytes,
+        /* a rebuild in flight — a harness's "settled" must wait for it: the
+           meshes build in a worker and the set swaps in (and renders) later */
+        building: !!busy,
         finestLevel: drawn.size ? finest : null, finestCellFt: drawn.size ? Math.pow(2, finest) : null,
         coarsestLevel: drawn.size ? coarsest : null, byLevel,
         style, targetPx: ctx ? ctx.quality() : null,
