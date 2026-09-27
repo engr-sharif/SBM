@@ -9232,7 +9232,14 @@ clipRes = await page.evaluate(async () => {
     if (rng) { rng.value = "100"; rng.dispatchEvent(new Event("input", { bubbles: true })); }
     await wait(1200);
     out.wide = SBMM.viewer3d.clipState();
-    /* idle: settle, then at most one render in four seconds with the box on */
+    /* idle: settle, then at most one render in four seconds with the box on.
+       A visible raindrop route animates by contract (v13 §3.1: frames while a
+       flow is on screen and "animate water" is on) and earlier blocks leave
+       some on the map, so the particles are paused for the measurement and
+       put back after — the question is what the BOX costs, not the water. */
+    out.flows = SBMM.store.features.filter(q => q.type === "flow" && q.visible !== false).length;
+    const animWas = SBMM.viewer3d.animateWater();
+    SBMM.viewer3d.animateWater(false);
     let prev = -1, same = 0;
     for (let i = 0; i < 60; i++) {
       await wait(1000);
@@ -9249,7 +9256,8 @@ clipRes = await page.evaluate(async () => {
     await wait(4000);
     out.idleRenders = SBMM.viewer3d.stats().renderCount - a;
     /* what drew them, if anything did — a failure has to say who asked */
-    out.idleWhy = { frame: SBMM.viewer3d.frameStats(false), tiles: SBMM.tiles.stats(),
+    SBMM.viewer3d.animateWater(animWas);
+    out.idleWhy = { flows: out.flows,  frame: SBMM.viewer3d.frameStats(false), tiles: SBMM.tiles.stats(),
                     terrain: SBMM.terrain3d && SBMM.terrain3d.stats ? (({ building, selects, swaps }) => ({ building, selects, swaps }))(SBMM.terrain3d.stats()) : null };
     /* off: every claimed material released, the 2D outline and the chip gone */
     SBMM.viewer3d.clipOff();
@@ -9301,7 +9309,10 @@ if (!(clipRes.left.width < C.width - 40) || !(clipRes.wide.width > C.width + 60)
   { console.log("FAIL: the side switch or the half-width slider did not move the box",
                 { both: C.width, left: clipRes.left.width, wide: clipRes.wide.width }); process.exit(1); }
 if (clipRes.idleRenders > 1)
-  { console.log("FAIL: the clip box keeps the 3D view rendering while idle", clipRes.idleRenders, JSON.stringify(clipRes.idleWhy)); process.exit(1); }
+  { const w = clipRes.idleWhy || {}, fr = w.frame || {};
+    console.log("FAIL: the clip box keeps the 3D view rendering while idle", clipRes.idleRenders,
+      `flows=${w.flows} particlesMs=${fr.particlesMs} overlays=${fr.overlayRebuilds} swaps=${fr.terrainSwaps} hovers=${fr.hovers}`,
+      JSON.stringify(w)); process.exit(1); }
 if (clipRes.off.on || clipRes.off.map2d || clipRes.offProbe.terrainClipped || !clipRes.chipHiddenAfter)
   { console.log("FAIL: switching the clip box off left something behind", clipRes.off, clipRes.offProbe); process.exit(1); }
 if (clipRes.afterDelete.on || !clipRes.deleteSaid.some(m => /clip box off/i.test(m)))
