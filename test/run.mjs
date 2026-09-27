@@ -110,15 +110,15 @@ const STEPS = [
    test/e2e.mjs is one page and ~40 minutes under software GL; its blocks are
    named (v18 §3) and each stands on its own through fixtures, so a shard is a
    half-open range `--from A --until B`. The cut points were chosen from
-   SBMM_BLOCK_TIMES=1 wall times so no shard is much longer than 9y, which
-   cannot be split. The full run (`e2e:folder`, `e2e:dist`) stays the local
+   SBMM_BLOCK_TIMES=1 wall times so the four come out at 8-16 minutes each. A
+   block's cost depends on what ran before it — 9ae is 56 s alone and ~870 s
+   after the water blocks have loaded the 3D scene — so re-time after moving one. The full run (`e2e:folder`, `e2e:dist`) stays the local
    default and is unchanged; a new block lands in whichever shard its
    position puts it in, with no edit here. */
 export const E2E_CUTS = [
   "9b. EA residential Final Design payload",
   "9y. 3D parity",
-  "9z. labels",
-  "9af. the log window",
+  "9ae. boring logs",
 ];
 for (const [build, file] of [["folder", INDEX], ["dist", DIST]])
   E2E_CUTS.concat([null]).forEach((until, i) => {

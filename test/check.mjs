@@ -240,6 +240,8 @@ const bad  = (n, msg, rows = []) => { fails++; console.log(`FAIL ${n} — ${msg}
     for (const b of ["folder", "dist"])
       for (let k = 1; k <= cuts.length + 1; k++)
         if (wf && !new RegExp(`step: e2e:${b}:${k}\\b`).test(wf)) rows.push(`.github/workflows/matrix.yml has no job for e2e:${b}:${k}`);
+    for (const m of wf.matchAll(/step: e2e:(folder|dist):(\d+)/g))
+      if (+m[2] > cuts.length + 1) rows.push(`.github/workflows/matrix.yml runs e2e:${m[1]}:${m[2]}, which test/run.mjs does not define`);
   }
   rows.length ? bad("shards", "the e2e shard cuts do not match the harness", rows)
               : ok("shards", `${cuts.length + 1} shards per build, every cut one block, every shard a CI job`);
