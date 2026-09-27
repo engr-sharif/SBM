@@ -1911,7 +1911,7 @@ drape = await page.evaluate(async () => {
     offN: off.sheetDrapes.length, offVerts: off.sheetDrapeVerts,
     footprintFt: [Math.round(r.x1 - r.x0), Math.round(r.y1 - r.y0)]
   };
-});
+}, { needs: ["open3d"] });   /* v28: a CI shard starts here with 3D closed */
 console.log("3D sheet drape:", drape.missing ? "NO TOGGLE FOUND"
   : `${drape.name} ${drape.beforeN}->${drape.onN} meshes, ${drape.verts} verts`
     + `, footprint ${drape.footprintFt[0]}x${drape.footprintFt[1]} ft`
@@ -6625,6 +6625,9 @@ parity = await page.evaluate(async () => {
      than racing it, exactly as for the drainage map — its 3D drape is what the
      framework/where_water row of the table below is about. */
   for (let i = 0; i < 240 && SBMM.whereWater && !SBMM.whereWater.hasResult(); i++) await wait(500);
+  /* v28: and the flow accumulation — cached from block 9ab in a full run, but
+     a CI shard that starts here computes it on this same first tick */
+  for (let i = 0; i < 240 && SBMM.accum && !SBMM.accum.hasResult(); i++) await wait(500);
   /* the CAD groups parse their geometry lazily on first enable */
   await wait(4000);
   const wasOpen = SBMM.viewer3d.isOpen();
