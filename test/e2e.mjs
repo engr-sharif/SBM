@@ -9245,8 +9245,12 @@ clipRes = await page.evaluate(async () => {
       if (n === prev && !((q.queued || 0) + (q.running || 0)) && !tb) { if (++same >= 2) break; } else { same = 0; prev = n; }
     }
     const a = SBMM.viewer3d.stats().renderCount;
+    SBMM.viewer3d.frameStats(true);
     await wait(4000);
     out.idleRenders = SBMM.viewer3d.stats().renderCount - a;
+    /* what drew them, if anything did — a failure has to say who asked */
+    out.idleWhy = { frame: SBMM.viewer3d.frameStats(false), tiles: SBMM.tiles.stats(),
+                    terrain: SBMM.terrain3d && SBMM.terrain3d.stats ? (({ building, selects, swaps }) => ({ building, selects, swaps }))(SBMM.terrain3d.stats()) : null };
     /* off: every claimed material released, the 2D outline and the chip gone */
     SBMM.viewer3d.clipOff();
     await wait(500);
@@ -9297,7 +9301,7 @@ if (!(clipRes.left.width < C.width - 40) || !(clipRes.wide.width > C.width + 60)
   { console.log("FAIL: the side switch or the half-width slider did not move the box",
                 { both: C.width, left: clipRes.left.width, wide: clipRes.wide.width }); process.exit(1); }
 if (clipRes.idleRenders > 1)
-  { console.log("FAIL: the clip box keeps the 3D view rendering while idle", clipRes.idleRenders); process.exit(1); }
+  { console.log("FAIL: the clip box keeps the 3D view rendering while idle", clipRes.idleRenders, JSON.stringify(clipRes.idleWhy)); process.exit(1); }
 if (clipRes.off.on || clipRes.off.map2d || clipRes.offProbe.terrainClipped || !clipRes.chipHiddenAfter)
   { console.log("FAIL: switching the clip box off left something behind", clipRes.off, clipRes.offProbe); process.exit(1); }
 if (clipRes.afterDelete.on || !clipRes.deleteSaid.some(m => /clip box off/i.test(m)))
