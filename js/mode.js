@@ -251,8 +251,8 @@ SBMM.mode = (function () {
      could see what they were in but not where it came from or how to leave it
      (F7). The parent button now lights up and wears the mode's name. */
   function paintMenuButtons() {
-    for (const [btnId, menuId] of [["drawMenuBtn", "drawMenu"], ["designMenuBtn", "designMenu"],
-                                   ["waterMenuBtn", "waterMenu"]]) {
+    for (const [btnId, menuId] of [["measureMenuBtn", "measureMenu"], ["drawMenuBtn", "drawMenu"],
+                                   ["designMenuBtn", "designMenu"], ["waterMenuBtn", "waterMenu"]]) {
       const btn = document.getElementById(btnId), menu = document.getElementById(menuId);
       if (!btn || !menu) continue;
       const lbl = btn.querySelector(".tlbl");
@@ -264,7 +264,10 @@ SBMM.mode = (function () {
       /* mode names carry dots ("measure.area"); the value is quoted in the
          attribute selector, so it needs no escaping — and CSS.escape here
          would actively break it */
-      const owns = [...menu.querySelectorAll(".ci[data-m]")].some(ci => ci.dataset.m === cur);
+      /* v26: the Measure menu holds the measuring modes' own buttons
+         (data-mode), the others hold menu rows (data-m) */
+      const owns = [...menu.querySelectorAll(".ci[data-m]")].some(ci => ci.dataset.m === cur) ||
+                   [...menu.querySelectorAll("[data-mode]")].some(b => b.dataset.mode === cur);
       btn.classList.toggle("active", owns);
       lbl.textContent = owns ? def(cur).label + " ▾" : btn.dataset.homeLabel;
       btn.title = owns
@@ -360,7 +363,8 @@ SBMM.mode = (function () {
        of the device that is in front of the user */
     SBMM.events.on("field", () => paintHud());
 
-    /* the two top-bar drop-downs */
+    /* the top-bar drop-downs */
+    wireMenu("measureMenuBtn", "measureMenu");
     wireMenu("drawMenuBtn", "drawMenu");
     wireMenu("designMenuBtn", "designMenu");
 
@@ -431,18 +435,12 @@ SBMM.mode = (function () {
     if (!btn || !menu) return;
     btn.onclick = e => {
       e.stopPropagation();
-      const open = menu.style.display === "block";
-      document.querySelectorAll("#drawMenu,#designMenu,#waterMenu,#exportMenu,#ovfMenu").forEach(m => m.style.display = "none");
-      menu.style.display = open ? "none" : "block";
-      if (!open) {
-        const r = btn.getBoundingClientRect();
-        menu.style.left = Math.max(8, Math.min(r.left, window.innerWidth - 260)) + "px";
-        menu.style.right = "auto";
-      }
+      SBMM.shell.toggleMenu(btn, menu);
     };
     menu.addEventListener("click", ev => {
       const ci = ev.target.closest(".ci");
       menu.style.display = "none";
+      btn.setAttribute("aria-expanded", "false");
       if (!ci) return;
       if (ci.dataset.m) { set(ci.dataset.m); return; }
       const a = ci.dataset.a;
@@ -455,7 +453,9 @@ SBMM.mode = (function () {
       else if (a === "layerman") SBMM.layerMan.open();
     });
     document.addEventListener("click", e => {
-      if (!menu.contains(e.target) && e.target !== btn) menu.style.display = "none";
+      if (!menu.contains(e.target) && !btn.contains(e.target) && menu.style.display === "block") {
+        menu.style.display = "none"; btn.setAttribute("aria-expanded", "false");
+      }
     });
   }
 

@@ -66,7 +66,20 @@ SBMM.borewin = (function () {
   /* ------------------------------------------------------------------ */
   /* geometry — the stage box, borrowed from js/sheets.js                */
   /* ------------------------------------------------------------------ */
+  /* v26 (docs/V26_UI_AUDIT.md §5, §8): A SPECIALIST VIEW TAKES THE STAGE. The
+     log window opens over the whole stage below the top bar — the floating
+     layer panel included — because a log sheet, its navigator and its rail
+     need the width, and the map is one Esc away. In field mode (the phone) the
+     stage is the stage, as it always was. */
   function stageBox() {
+    const b = document.body;
+    if (!b.classList.contains("field") && document.getElementById("topbar")) {
+      const cs = getComputedStyle(b);
+      const gap = parseFloat(cs.getPropertyValue("--gap")) || 12;
+      const tb = document.getElementById("topbar").getBoundingClientRect();
+      const y = Math.round(tb.bottom + gap);
+      return { x: gap, y, w: Math.max(200, innerWidth - 2 * gap), h: Math.max(200, innerHeight - y - gap) };
+    }
     if (SBMM.sheets && SBMM.sheets.stageBox) return SBMM.sheets.stageBox();
     return { x: 8, y: 8, w: Math.max(200, innerWidth - 16), h: Math.max(200, innerHeight - 16) };
   }
@@ -114,26 +127,22 @@ SBMM.borewin = (function () {
     el.dataset.borewin = "1";
     el.innerHTML = `
       <div class="shbar">
-        <span class="shno bwid">—</span>
+        <span class="bwcrumb"><span>Borings</span><i>/</i><span class="bwarea0">—</span><i>/</i></span>
+        <span class="shno bwid" title="Find a boring">—</span>
         <span class="shtitle">Boring log</span>
         <span class="spacer"></span>
-        <button class="minib bwstep" data-d="-1" title="Previous boring (Left arrow)">‹</button>
-        <button class="minib bwstep" data-d="1" title="Next boring (Right arrow)">›</button>
+        <button class="minib bwstep" data-d="-1" title="Previous boring (Left arrow)" aria-label="Previous boring">‹</button>
+        <button class="minib bwstep" data-d="1" title="Next boring (Right arrow)" aria-label="Next boring">›</button>
         <span class="vsep"></span>
-        <button class="minib shmax bwmax" title="Maximise to the stage">⤢</button>
-        <span class="ic x bwclose" title="Close (Esc)">✕</span>
+        <button class="minib shmax bwmax" title="Restore the window to its previous size" aria-label="Maximise">⤢</button>
+        <span class="ic x bwclose" title="Close (Esc)" role="button" aria-label="Close">✕</span>
       </div>
       <div class="bwtools">
-        <span class="bwpickwrap">
-          <input class="bwpick" type="text" placeholder="hole" autocomplete="off"
-                 title="Find a boring by id or waste area">
-          <div class="bwmenu" hidden></div>
-        </span>
-        <span class="bwtabs">
-          <button class="minib bwtab" data-t="log" title="The log sheet for one hole">Log</button>
-          <button class="minib bwtab" data-t="compare" title="Two to six holes on one elevation datum">Compare</button>
-          <button class="minib bwtab" data-t="fence" title="A section through the borings along a drawn line">Fence</button>
-          <button class="minib bwtab" data-t="table" title="Every hole, sortable and filterable by waste area">Table</button>
+        <span class="bwtabs" role="tablist">
+          <button class="minib bwtab" data-t="log" role="tab" title="The log sheet for one hole">Log</button>
+          <button class="minib bwtab" data-t="compare" role="tab" title="Two to six holes on one elevation datum">Compare</button>
+          <button class="minib bwtab" data-t="fence" role="tab" title="A section through the borings along a drawn line">Fence</button>
+          <button class="minib bwtab" data-t="table" role="tab" title="Every hole, sortable and filterable by waste area">Table</button>
         </span>
         <label class="bwlbl">scale
           <select class="bwscale" title="Drawing scale (+ / − to change)">
@@ -144,38 +153,68 @@ SBMM.borewin = (function () {
             <option value="depth">depth</option><option value="elev">elevation</option>
           </select></label>
         <span class="spacer"></span>
-        <button class="minib" data-b="print" title="Printed log sheet (Print → PDF)">print</button>
-        <button class="minib" data-b="printall" title="Every log in id order, as one document">print all</button>
-        <button class="minib" data-b="printarea" title="Every log in this hole's waste area">print area</button>
-        <button class="minib" data-b="csv" title="Copy this hole's strata, SPT, penetrometer and lab tables">csv</button>
-        <button class="minib" data-b="png" title="Save what is drawn as a PNG">png</button>
+        <button class="minib bwghost" data-b="story" aria-pressed="false" title="What this hole found, both contact statements, the profiles and the location — as a panel over the sheet">summary</button>
+        <button class="minib bwghost" data-b="map" title="Show this boring on the map and on its 3D stick">show on map</button>
+        <button class="minib bwghost" data-b="csv" title="Copy this hole's strata, SPT, penetrometer and lab tables">csv</button>
+        <button class="minib bwghost" data-b="png" title="Save what is drawn as a PNG">png</button>
+        <button class="minib bwghost" data-b="printarea" title="Every log in this hole's waste area">print area</button>
+        <button class="minib bwghost" data-b="printall" title="Every log in id order, as one document">print all</button>
+        <button class="minib bwpri" data-b="print" title="Printed log sheet at 1 in = 5 ft (Print → PDF)">Print log sheet</button>
       </div>
-      <div class="bwhead">
-        <div class="bwfacts"></div>
-        <div class="bwmorebox" hidden></div>
-        <div class="bwcurrow"></div>
-        <div class="bwheadstrip" hidden></div>
+      <div class="bwmain">
+        <aside class="bwnav" aria-label="Borings">
+          <span class="bwpickwrap">
+            <input class="bwpick" type="search" placeholder="Search holes, areas, USCS…" autocomplete="off"
+                   spellcheck="false" title="Find a boring by id, waste area or USCS symbol">
+            <div class="bwflt" role="group" aria-label="Filter">
+              <button class="bwfc on" data-f="">All</button>
+              <button class="bwfc" data-f="differ" title="The logger's remark and the strata rows put the contact at different depths">Contacts differ</button>
+              <button class="bwfc" data-f="water">Water</button>
+              <button class="bwfc" data-f="refusal">Refusal</button>
+            </div>
+            <div class="bwmenu" role="listbox"></div>
+          </span>
+        </aside>
+        <section class="bwcenter">
+          <div class="bwpaper">
+            <div class="bwhead">
+              <div class="bwfacts"></div>
+              <div class="bwmorebox" hidden></div>
+              <div class="bwcurrow"></div>
+              <div class="bwheadstrip" hidden></div>
+            </div>
+            <div class="bwbody"><div class="bwcur" hidden><i></i></div><div class="bwart"></div></div>
+          </div>
+        </section>
+        <aside class="bwrail" aria-label="What this hole found"></aside>
       </div>
-      <div class="bwbody"><div class="bwcur" hidden><i></i></div><div class="bwart"></div></div>
       <div class="shfoot">
         <span class="mono bwfoot">—</span>
         <span class="spacer"></span>
-        <span class="mut bwprov">OpenGround logs · 2025 Jacobs investigation</span>
+        <span class="mut bwprov">OpenGround logs · 2025 Jacobs investigation · approved</span>
       </div>
       <div class="shgrip" title="Drag to resize"></div>`;
     document.body.appendChild(el);
 
     const b = stageBox();
-    const maxed = !!(SBMM.touch && SBMM.touch.on());
+    /* v26: the stage view is the default everywhere; ⤢ restores a floating
+       window for anyone who wants the map beside the log */
+    const maxed = true;
     const w = maxed ? Math.round(b.w - 8) : Math.round(clamp(b.w * 0.94, minW(), Math.max(minW(), b.w - 16)));
     const hh = maxed ? Math.round(b.h - 8) : Math.round(clamp(b.h * 0.92, minH(), Math.max(minH(), b.h - 16)));
     el.style.width = w + "px"; el.style.height = hh + "px";
     el.style.left = Math.round(clamp(b.x + (b.w - w) / 2, b.x + 6, Math.max(b.x + 6, b.x + b.w - w - 6))) + "px";
     el.style.top = Math.round(clamp(b.y + (b.h - hh) / 2, b.y + 6, Math.max(b.y + 6, b.y + b.h - hh - 6))) + "px";
     el.style.zIndex = Z;
-    if (maxed) el.classList.add("maxed");
+    if (maxed) {
+      el.classList.add("maxed");
+      const bt = el.querySelector(".bwmax");
+      if (bt) { bt.textContent = "⤡"; bt.classList.add("on"); }
+    }
 
-    W = { el, maxed, restore: null, pin: null,
+    W = { el, maxed, restore: maxed ? { l: Math.round(b.x + b.w * 0.08), t: Math.round(b.y + b.h * 0.05),
+                                         w: Math.round(b.w * 0.84), h: Math.round(b.h * 0.9) } : null, pin: null,
+          nav: el.querySelector(".bwnav"), rail: el.querySelector(".bwrail"), center: el.querySelector(".bwcenter"),
           head: el.querySelector(".bwhead"), facts: el.querySelector(".bwfacts"),
           currow: el.querySelector(".bwcurrow"),
           more: el.querySelector(".bwmorebox"), strip: el.querySelector(".bwheadstrip"),
@@ -275,6 +314,13 @@ SBMM.borewin = (function () {
           : tab === "fence" ? "the fence copied as CSV" : `${cur} log copied as CSV`);
       }
       if (b === "png") exportPng();
+      if (b === "story") {
+        const on = !W.el.classList.contains("bwpeek");
+        W.el.classList.toggle("bwpeek", on);
+        ev.target.setAttribute("aria-pressed", String(on));
+        if (on) paintRail(BL().byId(cur));
+      }
+      if (b === "map") showOnMap();
     });
     wirePicker();
 
@@ -313,7 +359,9 @@ SBMM.borewin = (function () {
     /* the depth cursor: one rule across every column, reading both axes and
        naming the stratum, the drive and the nearest test under it */
     W.body.addEventListener("mousemove", onCursor);
-    W.body.addEventListener("mouseleave", () => { if (W && W.pin == null) W.cursor.hidden = true; });
+    W.body.addEventListener("mouseleave", () => {
+      if (W && W.pin == null) { W.cursor.hidden = true; railCursor(null, null); }
+    });
     W.body.addEventListener("click", ev => {
       if (tab === "log" && !(ev.target.closest && ev.target.closest("button, a, input, select"))) {
         const y = ev.clientY - W.art.getBoundingClientRect().top;
@@ -322,6 +370,18 @@ SBMM.borewin = (function () {
       onArtClick(ev);
     });
     W.body.addEventListener("mouseover", onArtHover);
+    W.rail.addEventListener("click", e => {
+      const d = e.target.closest && e.target.closest(".bwloc");
+      if (d) { cur = d.dataset.id; paint(); }
+    });
+    if (window.ResizeObserver) {
+      let rq = 0;
+      new ResizeObserver(() => { cancelAnimationFrame(rq); rq = requestAnimationFrame(() => {
+        if (!W) return;
+        const had = W.el.className; layoutCols();
+        if (W.el.className !== had) paint();
+      }); }).observe(el);
+    }
 
     /* keys. An arrow inside the window must never reach js/viewer3d.js's
        orbit — its handler already leaves a focused element outside #stage
@@ -460,33 +520,76 @@ SBMM.borewin = (function () {
     paint();
   }
 
-  /* ---- the hole picker: a typeahead over ids and waste areas -------- */
+  /* ---- the navigator (v26 §8): every hole, grouped by waste area -------
+     It used to be a typeahead that showed the list only while its box had
+     focus. The list is the first step of every log task — which hole, which
+     neighbours to compare, which to put on a fence — so it is ALWAYS there:
+     44 rows, each with a class bar drawn to depth (waste / native / bedrock by
+     the logger's own contact), the total depth, and an amber dot where the two
+     contact statements differ. The search box and the four filter chips narrow
+     it; ↑ ↓ Enter walk it from the box. On Compare a row ticks the hole in or
+     out of the comparison rather than opening it. On a narrow window the
+     navigator folds and the list drops down from the box, as the picker did. */
+  let navQ = "", navF = "";
+  function navHoles() {
+    const q = navQ.trim().toLowerCase();
+    const hit = h => {
+      if (navF === "differ" && !((h.contacts || {}).flags || []).length) return false;
+      if (navF === "water" && !(h.water && h.water.encountered)) return false;
+      if (navF === "refusal" && !(h.spt || []).some(s => s.refusal)) return false;
+      if (!q) return true;
+      const id = h.id.toLowerCase();
+      if (id.includes(q) || id.replace(/^sb-/, "") === q.replace(/^sb-?/, "")) return true;
+      if ((BL().areaOf(h.id) || "").toLowerCase().includes(q)) return true;
+      return (h.strata || []).some(s => String(s.uscs || "").toLowerCase() === q);
+    };
+    const out = [];
+    for (const [area, ids] of BL().areas()) {
+      const list = ids.map(id => BL().byId(id)).filter(h => h && hit(h))
+        .sort((x, y) => (+x.id.replace(/\D/g, "")) - (+y.id.replace(/\D/g, "")));
+      if (list.length) out.push([area, list]);
+    }
+    return out.sort((a, b) => b[1].length - a[1].length);
+  }
+  function classBar(h) {
+    const d = h.depth || 1;
+    return `<span class="bwbar">` + (h.profile || []).map(p =>
+      `<i style="flex:${Math.max(0.01, (p.base - p.top) / d).toFixed(3)};background:${BL().classColor(p.cls)}"></i>`).join("")
+      + `</span>`;
+  }
+  function paintNav() {
+    if (!W) return;
+    const menu = W.el.querySelector(".bwmenu");
+    if (!menu) return;
+    const groups = navHoles();
+    const selId = (menu.querySelector(".bwopt.sel") || {}).dataset ? (menu.querySelector(".bwopt.sel") || {}).dataset.id : null;
+    const out = [];
+    for (const [area, list] of groups) {
+      out.push(`<div class="bwgrp"><span>${esc(area)}</span><span class="mono">${list.length}</span></div>`);
+      for (const h of list) {
+        const on = tab === "compare" ? cmp.includes(h.id) : h.id === cur;
+        const flag = ((h.contacts || {}).flags || []).length;
+        out.push(`<div class="bwopt${on ? " on" : ""}${h.id === selId ? " sel" : ""}" data-id="${esc(h.id)}" role="option"`
+          + ` aria-selected="${on}" title="${esc(h.id + " — " + fmt(h.depth, 1) + " ft" + (flag ? " · the two contact statements differ" : ""))}">`
+          + (tab === "compare" ? `<span class="bwtick">${on ? "✓" : ""}</span>` : "")
+          + `<b class="mono">${esc(h.id)}${flag ? '<i class="bwdot"></i>' : ""}</b>`
+          + classBar(h)
+          + `<span class="mut">${fmt0(h.depth)}′</span></div>`);
+      }
+    }
+    menu.innerHTML = out.join("") || `<div class="bwgrp">no match</div>`;
+    W.el.querySelectorAll(".bwfc").forEach(b => b.classList.toggle("on", b.dataset.f === navF));
+    /* keep the open hole in view without moving the page (scrollIntoPane) */
+    const onRow = menu.querySelector(".bwopt.on");
+    if (onRow && navDocked() && !menu.dataset.kept) { menu.dataset.kept = "1"; scrollRow(menu, onRow); }
+  }
+  /* the navigator is docked when the window is wide enough to give it a column */
+  const navDocked = () => !!(W && W.el.classList.contains("bwnavon"));
+
   function wirePicker() {
     const inp = W.el.querySelector(".bwpick"), menu = W.el.querySelector(".bwmenu");
-    const shut = () => { menu.hidden = true; };
-    const show = () => {
-      const q = inp.value.trim().toLowerCase();
-      const by = BL().areas();
-      const out = [];
-      for (const [area, ids] of by) {
-        const hit = ids.filter(id => !q || id.toLowerCase().includes(q)
-          || id.replace(/^SB-/i, "").toLowerCase() === q || area.toLowerCase().includes(q));
-        if (!hit.length) continue;
-        out.push(`<div class="bwgrp">${esc(area)} · ${hit.length}</div>`);
-        for (const id of hit) {
-          const h = BL().byId(id);
-          out.push(`<div class="bwopt${id === cur ? " on" : ""}" data-id="${esc(id)}">`
-            + `<span class="bwmini">${BL().columnSvg(h, { tier: "mini", ppf: 26 / (h.depth || 1),
-                 padTop: 1, cssW: 14, cssH: 28 })}</span>`
-            + `<b class="mono">${esc(id)}</b>`
-            + `<span class="mut">${fmt(h.depth, 1)} ft`
-            + `${h.contacts && h.contacts.native_contact != null
-                 ? " · contact " + fmt(h.contacts.native_contact, 1) : ""}</span></div>`);
-        }
-      }
-      menu.innerHTML = out.join("") || `<div class="bwgrp">no match</div>`;
-      menu.hidden = false;
-    };
+    const shut = () => { if (!navDocked()) menu.hidden = true; };
+    const show = () => { navQ = inp.value; paintNav(); menu.hidden = false; };
     inp.addEventListener("focus", show);
     inp.addEventListener("input", show);
     /* up / down walk the list, Enter takes the highlighted row — a typeahead
@@ -500,7 +603,7 @@ SBMM.borewin = (function () {
       i = clamp(i + d, 0, rows.length - 1);
       rows.forEach(r => r.classList.remove("sel"));
       rows[i].classList.add("sel");
-      rows[i].scrollIntoView ? scrollRow(menu, rows[i]) : 0;
+      scrollRow(menu, rows[i]);
     };
     inp.addEventListener("keydown", e => {
       if (e.key === "ArrowDown") { move(1); e.stopPropagation(); e.preventDefault(); return; }
@@ -508,23 +611,168 @@ SBMM.borewin = (function () {
       if (e.key === "Enter") {
         const row = menu.querySelector(".bwopt.sel") || menu.querySelector(".bwopt");
         if (row) takeRow(row.dataset.id);
-        inp.value = ""; shut();
+        inp.value = ""; navQ = ""; shut(); paintNav();
         e.stopPropagation(); e.preventDefault();
         return;
       }
-      if (e.key === "Escape") { shut(); inp.blur(); e.stopPropagation(); e.preventDefault(); }
+      if (e.key === "Escape") { if (inp.value) { inp.value = ""; navQ = ""; paintNav(); } else { shut(); inp.blur(); }
+                                e.stopPropagation(); e.preventDefault(); }
     });
     menu.addEventListener("mousedown", e => {
       const r = e.target.closest(".bwopt");
       if (!r) return;
       e.preventDefault();
       takeRow(r.dataset.id);
-      inp.value = ""; shut();
+      if (!navDocked()) { inp.value = ""; navQ = ""; shut(); }
     });
     inp.addEventListener("blur", () => setTimeout(shut, 120));
+    W.el.querySelector(".bwflt").addEventListener("click", e => {
+      const b = e.target.closest(".bwfc");
+      if (!b) return;
+      navF = b.dataset.f || "";
+      paintNav();
+    });
     /* the id chip in the title bar is the other way in */
     const chip = W.el.querySelector(".bwid");
     if (chip) chip.onclick = () => { inp.focus(); inp.select(); show(); };
+  }
+
+  /* ---- the insight rail (v26 §8): the hole in one glance -------------- */
+  const HEXC = cls => BL().classColor(cls);
+  function story(h) {
+    /* ONE SENTENCE PER HOLE, generated from the record, not from a model:
+       the three class intervals, the water and the refusal, in the order a
+       geologist would say them */
+    const P = h.profile || [];
+    const bits = [];
+    const words = { waste: "mine waste", native: "native soil", bedrock: "bedrock" };
+    const first = P[0];
+    if (first) {
+      const nc = (h.contacts || {}).native_contact;
+      if (first.cls === "waste" && nc != null) bits.push(`${fmt(nc, 1)} ft of mine waste`);
+      else bits.push(`${words[first.cls] || "unclassed ground"} at the surface`);
+    }
+    const bed = (h.contacts || {}).bedrock_top;
+    const nat = P.find(p => p.cls === "native");
+    if (nat && first && first.cls !== "native") {
+      const s = (h.strata || []).find(q => q.primary && q.cls === "native" && q.uscs);
+      bits.push(`over native ${s ? (s.name || s.uscs).replace(/\s*\(.*$/, "").toLowerCase() : "soil"}`);
+    }
+    if (bed != null) bits.push(`bedrock at ${fmt(bed, 1)} ft`);
+    const w = h.water;
+    if (w && w.encountered && w.depth != null) bits.push(`${w.perched ? "perched " : ""}water at ${fmt(w.depth, 1)} ft`);
+    const ref = (h.spt || []).filter(s => s.refusal);
+    if (ref.length) bits.push(`refusal at ${fmt(ref[0].top, 1)} ft`);
+    bits.push(`bottom of hole ${fmt(h.depth, 1)} ft`);
+    const s = bits.join("; ");
+    return s.charAt(0).toUpperCase() + s.slice(1) + ".";
+  }
+  function paintRail(h) {
+    if (!W || !W.rail) return;
+    if (tab !== "log" || !h) { W.rail.innerHTML = ""; return; }
+    const c = h.contacts || {};
+    const bar = (h.profile || []).map(p =>
+      `<i style="flex:${Math.max(.01, p.base - p.top)};background:${HEXC(p.cls)}"></i>`).join("");
+    const rows = (h.profile || []).map(p =>
+      `<div class="bwsr"><b style="color:${HEXC(p.cls)}">${esc(BL().classWord(p.cls).replace(/^./, m => m.toUpperCase()))}</b>`
+      + `<span class="mono">${fmt(p.top, 1)} – ${fmt(p.base, 1)} ft</span><em class="mono">${fmt(p.base - p.top, 1)} ft</em></div>`).join("");
+    const agree = !(c.flags && c.flags.length);
+    const nRef = (h.spt || []).filter(s => s.refusal).length;
+    const R = [];
+    R.push(`<div class="bwcard bwstory"><h3><span>What this hole found</span><span class="mono">${fmt(h.depth, 1)} ft</span></h3>`
+      + `<p class="bwsent">${esc(story(h))}</p>`
+      + `<div class="bwstrow"><div class="bwsbar">${bar}</div><div>${rows}</div></div>`
+      + `<div class="bwleg"><span><i style="background:#2A7DC4"></i>water ${h.water && h.water.encountered && h.water.depth != null ? fmt(h.water.depth, 1) + " ft" : "none"}</span>`
+      + `<span><i style="background:var(--bad)"></i>${nRef} refusal${nRef === 1 ? "" : "s"}</span></div></div>`);
+    R.push(`<div class="bwcard"><h3><span>Contact statements</span></h3><div class="bwagree${agree ? "" : " bad"}"`
+      + ` data-agree="${agree ? "1" : "0"}"><i>${agree ? "✓" : "!"}</i><div>`
+      + (agree
+        ? `The logger's remark and the strata agree at <b class="mono">${fmt(c.native_contact, 1)} ft</b>.`
+        : `Remark <b class="mono">${c.native_contact == null ? "—" : fmt(c.native_contact, 1) + " ft"}</b> · strata `
+          + `<b class="mono">${c.waste_base_strata == null ? "—" : fmt(c.waste_base_strata, 1) + " ft"}</b> · not reconciled`)
+      + `</div></div></div>`);
+    R.push(`<div class="bwcard bwcurcard"><h3><span>Depth cursor</span><span class="mono">${esc(h.id)}</span></h3>`
+      + `<div class="bwcurbody"><span class="mut">point at the log</span></div></div>`);
+    R.push(`<div class="bwcard"><h3><span>Profiles</span><span>ft bgs</span></h3>${profilesSvg(h)}`
+      + `<div class="bwleg"><span><i style="background:#5CC0DB"></i>SPT N</span><span><i style="background:#E5584C"></i>pH &lt; 4</span>`
+      + `<span><i style="background:#8FA3B0"></i>WC · PL–LL</span></div></div>`);
+    R.push(`<div class="bwcard"><h3><span>Location</span><span>${esc(BL().areaOf(h.id) || "")}</span></h3>${locatorSvg(h)}</div>`);
+    W.rail.innerHTML = R.join("");
+  }
+  function railCursor(h, ft) {
+    if (!W || !W.rail) return;
+    const box = W.rail.querySelector(".bwcurbody");
+    if (!box) return;
+    if (ft == null || !h) { box.innerHTML = `<span class="mut">—</span>`; return; }
+    const s = (h.strata || []).filter(q => q.primary && q.top <= ft && q.base > ft).pop();
+    const p = (h.profile || []).find(q => q.top <= ft && q.base > ft);
+    const sp = (h.spt || []).find(q => q.top <= ft + .01 && q.base >= ft - .01);
+    const lab = (h.tests || []).filter(t => t.depth != null && Math.abs(t.depth - ft) < .6)
+      .map(t => `${t.key} ${t.key === "pH" ? fmt(t.value, 1) : fmt0(t.value)}${t.unit === "%" ? "%" : ""}`);
+    const kind = sp ? ({ ST: "Shelby tube", MC: "Mod. California", SS: "split spoon" }[String(sp.ref || "").slice(0, 2)] || "drive") : "";
+    box.innerHTML = `<div><span class="bwbig mono">${fmt(ft, 1)}</span> ft bgs`
+      + (h.elev != null ? ` · <span class="mono">${fmt(h.elev - ft, 1)}</span> ft` : "") + `</div>`
+      + `<div class="bwgrid">`
+      + `<span>Class</span><b style="color:${p ? HEXC(p.cls) : "inherit"}">${p ? esc(BL().classWord(p.cls)) : "—"}</b>`
+      + `<span>Stratum</span><b>${s ? esc((s.uscs ? s.uscs + " · " : "") + (s.name || String(s.desc || "").split(",")[0])) : "—"}</b>`
+      + `<span>Sample</span><b class="mono">${sp ? esc(sp.ref + " · " + (sp.n_text ? "N " + sp.n_text : kind) + (sp.rec_pct != null ? " · " + fmt0(sp.rec_pct) + "% rec" : "")) : "—"}</b>`
+      + `<span>Lab</span><b class="mono">${lab.length ? esc(lab.join(" · ")) : "—"}</b></div>`;
+  }
+  function profilesSvg(h) {
+    const Wd = 300, Hh = 236, top = 22, bot = Hh - 14, dmax = Math.ceil((h.depth || 1) / 10) * 10;
+    const yy = d => top + d / dmax * (bot - top);
+    const P = [];
+    const panel = (x0, title, ticks, fx) => {
+      P.push(`<text x="${x0}" y="10" font-size="10" font-weight="600" fill="#C6D3DA">${title}</text>`);
+      ticks.forEach((t, i) => {
+        P.push(`<line x1="${fx(t).toFixed(1)}" x2="${fx(t).toFixed(1)}" y1="${top}" y2="${bot}" stroke="#26343C"/>`);
+        P.push(`<text x="${fx(t).toFixed(1)}" y="${bot + 11}" font-size="8" fill="#6F838E" text-anchor="${i === 0 ? "start" : i === ticks.length - 1 ? "end" : "middle"}">${t}</text>`);
+      });
+    };
+    for (let d = 0; d <= dmax; d += dmax > 60 ? 20 : 10) P.push(`<text x="0" y="${(yy(d) + 3).toFixed(1)}" font-size="8" fill="#6F838E">${d}</text>`);
+    for (const p of (h.profile || [])) P.push(`<rect x="17" y="${yy(p.top).toFixed(1)}" width="4" height="${Math.max(.5, yy(p.base) - yy(p.top)).toFixed(1)}" fill="${HEXC(p.cls)}"/>`);
+    const nx = v => 27 + Math.min(v, 50) / 50 * 74;
+    panel(27, "SPT N", [0, 25, 50], nx);
+    const pts = (h.spt || []).filter(s => s.n != null || s.refusal)
+      .map(s => [s.refusal ? nx(50) : nx(s.n || 0), yy((s.top + s.base) / 2), s.refusal]);
+    if (pts.length > 1) P.push(`<polyline points="${pts.map(p => p[0].toFixed(1) + "," + p[1].toFixed(1)).join(" ")}" fill="none" stroke="#5CC0DB" stroke-width="1.4" stroke-linejoin="round"/>`);
+    for (const p of pts) P.push(`<circle cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="2.4" fill="${p[2] ? "#E5584C" : "#8BD8EA"}"/>`);
+    const px = v => 121 + (Math.max(2, Math.min(8, v)) - 2) / 6 * 70;
+    panel(121, "pH", [2, 4, 6, 8], px);
+    P.push(`<rect x="${px(2)}" y="${top}" width="${(px(4) - px(2)).toFixed(1)}" height="${bot - top}" fill="#E5584C" opacity=".12"/>`);
+    for (const t of (h.tests || []).filter(t => t.key === "pH" && t.depth != null))
+      P.push(`<circle cx="${px(t.value).toFixed(1)}" cy="${yy(t.depth).toFixed(1)}" r="2.6" fill="${t.value < 4 ? "#E5584C" : "#C6D3DA"}"><title>pH ${fmt(t.value, 1)} @ ${fmt(t.depth, 1)} ft</title></circle>`);
+    const wx = v => 212 + Math.min(v, 60) / 60 * 84;
+    panel(212, "WC · PL–LL", [0, 30, 60], wx);
+    const byD = {};
+    for (const t of (h.tests || [])) if (t.depth != null) (byD[t.depth] = byD[t.depth] || {})[t.key] = t.value;
+    for (const d in byD) {
+      const o = byD[d], yv = yy(+d);
+      if (o.LL != null && o.PI != null) P.push(`<line x1="${wx(o.LL - o.PI).toFixed(1)}" x2="${wx(o.LL).toFixed(1)}" y1="${yv.toFixed(1)}" y2="${yv.toFixed(1)}" stroke="#8FA3B0" stroke-width="3" stroke-linecap="round" opacity=".6"/>`);
+      if (o.WC != null) P.push(`<circle cx="${wx(o.WC).toFixed(1)}" cy="${yv.toFixed(1)}" r="2.6" fill="#EAF1F4"><title>WC ${fmt0(o.WC)}% @ ${fmt(+d, 1)} ft</title></circle>`);
+    }
+    if (h.water && h.water.encountered && h.water.depth != null)
+      P.push(`<line x1="17" x2="${Wd}" y1="${yy(h.water.depth).toFixed(1)}" y2="${yy(h.water.depth).toFixed(1)}" stroke="#2A7DC4" stroke-dasharray="3 3"/>`);
+    return `<svg class="bwprof" viewBox="0 0 ${Wd} ${Hh}" width="100%" style="display:block;font-family:var(--sans)">${P.join("")}</svg>`;
+  }
+  function locatorSvg(me) {
+    const HS = BL().holes();
+    const xs = HS.map(h => h.x), ys = HS.map(h => h.y);
+    const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
+    const Wd = 300, Hh = 170, pad = 16, s = Math.min((Wd - 2 * pad) / Math.max(1, x1 - x0), (Hh - 2 * pad) / Math.max(1, y1 - y0));
+    const ox = ((Wd - 2 * pad) - (x1 - x0) * s) / 2, oy = ((Hh - 2 * pad) - (y1 - y0) * s) / 2;
+    const px = x => pad + ox + (x - x0) * s, py = y => Hh - pad - oy - (y - y0) * s;
+    const P = [`<rect width="${Wd}" height="${Hh}" rx="8" fill="#0F171C"/>`];
+    for (const h of HS) {
+      if (h === me) continue;
+      const c = HEXC(((h.profile || [])[0] || {}).cls || "unknown");
+      P.push(`<circle class="bwloc" data-id="${esc(h.id)}" cx="${px(h.x).toFixed(1)}" cy="${py(h.y).toFixed(1)}" r="3.4" fill="${c}" opacity=".8" style="cursor:pointer"><title>${esc(h.id)}</title></circle>`);
+    }
+    P.push(`<circle cx="${px(me.x).toFixed(1)}" cy="${py(me.y).toFixed(1)}" r="6.5" fill="#5CC0DB" stroke="#fff" stroke-width="1.5"/>`);
+    const lx = px(me.x) + 10 > Wd - 44 ? px(me.x) - 10 : px(me.x) + 10;
+    P.push(`<text x="${lx.toFixed(1)}" y="${(py(me.y) + 4).toFixed(1)}" font-size="11" font-weight="700" fill="#EAF1F4" text-anchor="${lx < px(me.x) ? "end" : "start"}">${esc(me.id)}</text>`);
+    P.push(`<text x="${Wd - 10}" y="${Hh - 8}" font-size="9" fill="#6F838E" text-anchor="end">dot colour = class at the surface</text>`);
+    return `<svg class="bwlocsvg" viewBox="0 0 ${Wd} ${Hh}" width="100%" style="display:block;font-family:var(--sans)">${P.join("")}</svg>`;
   }
 
   /* ------------------------------------------------------------------ */
@@ -540,19 +788,46 @@ SBMM.borewin = (function () {
     W.el.querySelector(".shtitle").textContent =
       tab === "log" ? "Boring log" : tab === "compare" ? "Compare"
         : tab === "fence" ? (fnCur && fnCur.name ? fnCur.name : "Fence") : "All borings";
-    W.el.querySelectorAll(".bwtab").forEach(b => b.classList.toggle("active", b.dataset.t === tab));
+    W.el.querySelectorAll(".bwtab").forEach(b => {
+      b.classList.toggle("active", b.dataset.t === tab);
+      b.setAttribute("aria-selected", b.dataset.t === tab ? "true" : "false");
+    });
     W.el.classList.toggle("bwtab-table", tab === "table");
     W.el.classList.toggle("bwtab-fence", tab === "fence");
+    W.el.classList.toggle("bwtab-log", tab === "log");
+    W.el.classList.toggle("bwtab-compare", tab === "compare");
+    const ar = W.el.querySelector(".bwarea0");
+    if (ar) ar.textContent = tab === "log" && h ? (BL().areaOf(h.id) || "not in a waste area")
+      : tab === "compare" ? "Compare" : tab === "fence" ? "Fence" : "All holes";
+    layoutCols();
     W.cursor.hidden = true;
-    if (tab === "log") { paintHead(h); paintLog(h); paintStrip(h); }
+    paintNav();
+    if (tab === "log") { paintHead(h); paintLog(h); paintStrip(h); paintRail(h); }
     else {
       W.facts.innerHTML = ""; W.currow.innerHTML = ""; W.more.innerHTML = ""; W.more.hidden = true;
       W.strip.hidden = true; W.strip.innerHTML = "";
+      paintRail(null);
       if (tab === "compare") paintCompare();
       else if (tab === "fence") paintFence();
       else paintTable();
     }
     syncButtons();
+  }
+
+  /* v26: which of the three columns the window has room for. The navigator
+     needs ~900 px of window to leave the log a real width, the rail ~1,180;
+     below those they fold, and the navigator's list drops down from its search
+     box the way the picker always did. */
+  function layoutCols() {
+    if (!W) return;
+    const w = W.el.clientWidth;
+    const navOn = w >= 900 && (tab === "log" || tab === "compare");
+    const railOn = w >= 1180 && tab === "log";
+    W.el.classList.toggle("bwnavon", navOn);
+    W.el.classList.toggle("bwrailon", railOn);
+    const menu = W.el.querySelector(".bwmenu");
+    if (menu && navOn) menu.hidden = false;
+    else if (menu && document.activeElement !== W.el.querySelector(".bwpick")) menu.hidden = true;
   }
 
   /* THE HEADER STRIP (v24 §2.2 item 2). Six labelled facts and nothing else:
@@ -575,7 +850,8 @@ SBMM.borewin = (function () {
     const area = BL().areaOf(h.id);
     const cell = (k, v, cls) => `<div class="bwf${cls ? " " + cls : ""}"><span>${esc(k)}</span><b>${v}</b></div>`;
     W.facts.innerHTML = `<div class="bwhid"><b class="mono">${esc(h.id)}</b>`
-      + `<span class="mut">${esc(area || "waste area not assigned")}</span></div>`
+      + `<span class="mut">${esc(area || "waste area not assigned")}</span>`
+      + `<small>SBMM OU1 · 2025 geotechnical investigation</small></div>`
       + cell("Ground", `${fmt(h.elev, 1)} ft`
           + (d ? ` <span class="${d.warn ? "warnpill" : "mut"}" title="Lidar (Jan 2024) reads `
               + `${fmt(d.lidar, 1)} ft here">Δ lidar ${d.d > 0 ? "+" : ""}${fmt(d.d, 1)}</span>` : ""))
@@ -622,7 +898,7 @@ SBMM.borewin = (function () {
   function paintStrip(h) {
     if (!W) return;
     if (tab !== "log" || !h) { W.strip.hidden = true; W.strip.innerHTML = ""; return; }
-    const b = BL().headingBand(artWidth(), { datum });
+    const b = BL().headingBand(artWidth(), { datum, print: true });
     W.strip.innerHTML = b.svg;
     W.strip.hidden = false;
   }
@@ -642,12 +918,15 @@ SBMM.borewin = (function () {
     /* the headings are drawn ONCE, in the window's fixed strip, and the
        drawing keeps their margin so nothing is jammed against its own top;
        the printed sheet passes headings:true because every page repeats them */
+    /* v26: on PAPER — the print palette, black ink on white, on screen as in
+       the printed appendix. A log is read on paper; the dark panel around it
+       is the desk it lies on. */
     const r = BL().column(h, { tier: "sheet", ppf: oo.ppf || ppf(), w: Math.max(360, w || 900),
-      datum: oo.datum || datum, headings: !!oo.headings, padTop: 30,
+      datum: oo.datum || datum, headings: !!oo.headings, padTop: 30, print: oo.print != null ? !!oo.print : true,
       zTop: h.elev, zBot: h.elev != null ? h.elev - h.depth : null });
     return { svg: `<svg class="bwsvg" viewBox="0 0 ${r.w} ${r.h}" width="${r.w}" height="${r.h}"`
       + ` xmlns="http://www.w3.org/2000/svg">`
-      + `<style>text{font-family:"SF Mono",ui-monospace,Consolas,Menlo,monospace}</style>`
+      + `<style>text{font-family:"SBMM Mono","SF Mono",ui-monospace,Consolas,Menlo,monospace}</style>`
       + r.defs + r.g + `</svg>`, w: r.w, h: r.h, ppf: r.ppf, top: r.top, y0: r.yOf(r.top) };
   }
 
@@ -1036,6 +1315,12 @@ SBMM.borewin = (function () {
        than on anything about the cursor. */
     W.cursor.dataset.ft = ft.toFixed(4);
     W.cursor.dataset.uscs = s2 ? (s2.uscs || "") : "";
+    /* v26 §8: the cursor is LINKED — the rail reads it out, and the stratum
+       under it lights on the hole's 3D stick (one reusable object, moved) */
+    railCursor(h, ft);
+    if (s2 && SBMM.viewer3d && SBMM.viewer3d.highlightStratum && W.hiS !== s2) {
+      W.hiS = s2; SBMM.viewer3d.highlightStratum(cur, s2.top, s2.base);
+    }
     out.dataset.ft = ft.toFixed(4);
     out.querySelector("b").innerHTML =
       `<span class="mono gold">${fmt(ft, 1)} ft</span>`
@@ -1080,6 +1365,16 @@ SBMM.borewin = (function () {
       k++; mk.setStyle({ radius: k % 2 ? 7 : 13, opacity: k % 2 ? .5 : 1 });
       if (k >= 6) { clearInterval(t); SBMM.map.removeLayer(mk); }
     }, 220);
+  }
+
+  /* show the hole: fly the map (and 3D, when it is open) to it and ring it */
+  function showOnMap() {
+    const h = BL().byId(cur);
+    if (!h) return;
+    if (SBMM.omni && SBMM.omni.flyPoint) SBMM.omni.flyPoint(h.x, h.y);
+    else if (SBMM.map) SBMM.map.setView([h.y, h.x], Math.max(SBMM.map.getZoom(), 3));
+    if (SBMM.viewer3d && SBMM.viewer3d.isOpen() && SBMM.viewer3d.flyTo) SBMM.viewer3d.flyTo(h.x, h.y);
+    if (W && W.maxed) maximise(false);
   }
 
   /* ------------------------------------------------------------------ */

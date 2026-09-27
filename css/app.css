@@ -20,14 +20,20 @@
    All colour and metric tokens live at the top; nothing below hard-codes a hue. */
 
 :root{
+  /* v26 (docs/V26_UI_AUDIT.md §9): the token set the redesign is built on.
+     The NAMES are the v9 ones every rule below already reads; the values
+     moved to the v26 palette — a deeper ground, glass panels that let the map
+     read through, and one accent. Nothing below hard-codes a hue. */
   /* surfaces */
-  --bg:#0E1418; --panel:#161E23; --panel2:#1E2A31; --panel3:#26343D;
-  --line:#2C3B45; --line2:#3A4C58;
+  --bg:#0C1216; --panel:#141D22; --panel2:#1B262D; --panel3:#243239;
+  --glass:rgba(17,26,31,.84); --glass2:rgba(24,35,42,.92); --glassb:rgba(255,255,255,.08);
+  --line:#26343C; --line2:#35474F;
   /* ink */
-  --ink:#E8EEF1; --ink2:#C3D0D7; --mut:#8FA3AE; --mut2:#6C7F8A;
+  --ink:#EAF1F4; --ink2:#C6D3DA; --mut:#93A7B2; --mut2:#6F838E;
   /* accents */
-  --acc:#4FB3CE; --acc2:#7CD0E6; --accdim:rgba(79,179,206,.16);
-  --green:#5FBF8F; --red:#E4796A; --amber:#E8B34B; --gold:#FFD34D; --violet:#C792EA;
+  --acc:#5CC0DB; --acc2:#8BD8EA; --accdim:rgba(92,192,219,.16);
+  --green:#6DBB7A; --red:#E5584C; --amber:#E6A93F; --gold:#FFD34D; --violet:#C792EA;
+  --ok:#6DBB7A; --warn:#E6A93F; --bad:#E5584C;
   /* water (v10 §7) — nothing else in the app uses these hues, which is the
      point: water reads as water in 2D, in 3D, on the cards and in the legend */
   --water:#55C1FF; --water2:#9FDCFF; --water3:#DFF4FF;
@@ -43,16 +49,21 @@
      blue, the storm steel and the sample green — a boring is neither. */
   --bl-waste:#E0733F; --bl-native:#7FC77A; --bl-rock:#9B8BD6;
   --bl-unknown:#6C7F8A; --bl-contact:#FFD34D;
+  /* type (v26 §9): one sans for words, one mono for numbers — both bundled
+     in css/fonts.css as data: URLs, with the platform faces behind them */
+  --sans:"SBMM Inter","Segoe UI Variable","Segoe UI",system-ui,-apple-system,sans-serif;
+  --mono:"SBMM Mono","Cascadia Mono","SF Mono",ui-monospace,Consolas,Menlo,monospace;
+  --fs1:11px; --fs2:12.5px; --fs3:14px; --fs4:18px; --fs5:22px;
   /* metrics */
   --topH:48px; --statusH:30px; --railW:44px; --gripW:5px; --cmdH:0px;
   --botH:calc(var(--statusH) + var(--cmdH));
   --dockLW:272px; --dockRW:352px;
-  --r:8px; --r2:6px;
+  --r:10px; --r2:7px; --r3:14px;
   --sh1:0 1px 2px rgba(0,0,0,.35);
   --sh2:0 6px 22px rgba(0,0,0,.45);
   --sh3:0 14px 44px rgba(0,0,0,.6);
+  --shg:0 10px 40px rgba(0,0,0,.38);
   --ease:cubic-bezier(.22,.61,.36,1);
-  --mono:"SF Mono",ui-monospace,Consolas,Menlo,monospace;
   --dockL:calc(var(--railW) + var(--dockLW) + var(--gripW));
   --dockR:calc(var(--railW) + var(--dockRW) + var(--gripW));
 }
@@ -63,8 +74,8 @@ body.rcol{ --dockR:var(--railW) }
 /* author rules beat the UA sheet, so [hidden] has to be restated for styled elements */
 [hidden]{display:none !important}
 html,body{height:100%;overflow:hidden}
-body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Arial,sans-serif;
-  background:var(--bg);color:var(--ink);font-size:13.5px;line-height:1.45;
+body{font-family:var(--sans);
+  background:var(--bg);color:var(--ink);font-size:13px;line-height:1.45;
   -webkit-font-smoothing:antialiased}
 .mut{color:var(--mut)} .mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
 .spacer{flex:1}
@@ -616,7 +627,7 @@ table.cmdhelp td.cmda{font-family:var(--mono);color:var(--mut2);white-space:nowr
   font-family:var(--mono);font-size:11.5px;font-weight:600;
   text-shadow:0 0 3px #0E1418,0 0 3px #0E1418,0 0 5px #0E1418}
 .annolbl .anntxt{position:absolute;left:0;top:0;transform:translate(-50%,-50%);white-space:nowrap;
-  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Arial,sans-serif;font-weight:600;
+  font-family:var(--sans);font-weight:600;
   letter-spacing:.2px;text-shadow:0 0 3px #0E1418,0 0 3px #0E1418,0 0 6px #0E1418}
 
 /* ==================================================================== */
@@ -1876,20 +1887,18 @@ body.touch .shview{touch-action:none}
    test/e2e_field.mjs, which has to pass unchanged. The genuinely shared pieces —
    overscroll, dvh, touch-action, the 16-px control fonts, the loupe, the Done bar,
    the tooltip chip and the ink palette — are NOT scoped and apply to both. */
-body.touch:not(.field) #topbar{padding-left:calc(10px + env(safe-area-inset-left,0px));
-  padding-right:calc(10px + env(safe-area-inset-right,0px));
-  padding-top:env(safe-area-inset-top,0px);
-  height:calc(var(--topH) + env(safe-area-inset-top,0px))}
-body.touch:not(.field) #leftdock,body.touch:not(.field) #rightdock,body.touch:not(.field) #stage{top:calc(var(--topH) + env(safe-area-inset-top,0px))}
-body.touch:not(.field) #leftdock{padding-left:env(safe-area-inset-left,0px)}
-body.touch:not(.field) #rightdock{padding-right:env(safe-area-inset-right,0px)}
-body.touch:not(.field) #status{height:calc(var(--statusH) + env(safe-area-inset-bottom,0px));
-  padding-bottom:env(safe-area-inset-bottom,0px);
-  padding-left:calc(14px + env(safe-area-inset-left,0px));
-  padding-right:calc(14px + env(safe-area-inset-right,0px))}
-body.touch:not(.field) #toast{bottom:calc(var(--botH) + 52px + env(safe-area-inset-bottom,0px))}
-body.touch:not(.field) #v3dNav{bottom:calc(30px + env(safe-area-inset-bottom,0px));
-  right:calc(14px + env(safe-area-inset-right,0px))}
+/* v26: the chrome floats, so a safe area adds to the floating gap rather
+   than padding a bar that runs edge to edge */
+body.touch:not(.field){--topH:58px}
+body.touch:not(.field) #topbar{top:calc(var(--gap) + env(safe-area-inset-top,0px));
+  left:calc(var(--gap) + env(safe-area-inset-left,0px));right:calc(var(--gap) + env(safe-area-inset-right,0px))}
+body.touch:not(.field) #leftdock,body.touch:not(.field) #rightdock{top:calc(var(--fT) + env(safe-area-inset-top,0px))}
+body.touch:not(.field) #leftdock{left:calc(var(--gap) + env(safe-area-inset-left,0px))}
+body.touch:not(.field) #rightdock{right:calc(var(--gap) + env(safe-area-inset-right,0px))}
+body.touch:not(.field) #status{bottom:calc(var(--gap) + env(safe-area-inset-bottom,0px))}
+body.touch:not(.field) #toast{bottom:calc(var(--botH) + 56px + env(safe-area-inset-bottom,0px))}
+body.touch:not(.field) #v3dNav{bottom:calc(var(--botH) + env(safe-area-inset-bottom,0px));
+  right:calc(var(--dockR) + env(safe-area-inset-right,0px))}
 body.touch:not(.field) #view3d .v3dbar{padding-left:calc(10px + env(safe-area-inset-left,0px));
   padding-right:calc(10px + env(safe-area-inset-right,0px))}
 body.touch:not(.field) #watermark{right:calc(10px + env(safe-area-inset-right,0px))}
@@ -2031,7 +2040,6 @@ body.touch .inksw{width:40px;height:40px}
 /* the Field menu (v17 §5b) uses the app's own menu chrome; only its width is
    its own, because its items are sentences rather than commands */
 #fieldMenu{min-width:212px}
-=======
 /* ---- v14 Phase 2: the design storm ------------------------------------- */
 /* The cover legend under the Land-cover row: a swatch and the class's curve
    number, because the whole point of the layer is which CN a cell got. */
@@ -2332,3 +2340,538 @@ body.touch .blwin .bwfnbar .minib{min-height:36px;padding:0 11px}
   font-variant-numeric:tabular-nums}
 #idleWarn.show{opacity:1;transform:translate(-50%,0)}
 @media (prefers-reduced-motion:reduce){#idleWarn{transition:none}}
+
+/* ===================================================================== */
+/* v26 — THE SHELL, REBUILT (docs/V26_UI_AUDIT.md §5, §9)                 */
+/* ===================================================================== */
+/* The map is the product: it runs full-bleed under everything, and the chrome
+   FLOATS over it as glass — the top bar, the two panels, the status pill. The
+   area none of them covers is "the frame", and every overlay that used to be
+   positioned against the stage's edges (the Mode HUD, the drawers, the 3D bar,
+   the Leaflet controls, the floating windows) now lines up with the frame.
+
+   The frame is four variables. --dockL / --dockR / --botH keep the names every
+   rule above already reads, and MEAN what they always meant — "how much of the
+   left / right / bottom is taken" — they just now include the floating gaps.
+   --fT is new: the top bar no longer sits on the stage, it floats over it.
+
+   All of it is scoped `body:not(.field)`: field mode (the phone) lays out its
+   own chrome — slim bar, bottom sheets, action bar — and test/e2e_field.mjs and
+   test/e2e_phone.mjs have to pass unchanged. */
+body:not(.field){
+  --gap:12px; --topH:52px; --statusH:34px;
+  --fT:calc(var(--gap) * 2 + var(--topH));
+  --dockL:calc(var(--gap) * 2 + var(--dockLW) + var(--gripW));
+  --dockR:calc(var(--gap) * 2 + var(--dockRW) + var(--gripW));
+  --botH:calc(var(--gap) * 2 + var(--statusH) + var(--cmdH));
+}
+body.lcol:not(.field){--dockL:calc(var(--gap) * 2 + var(--railW))}
+body.rcol:not(.field){--dockR:calc(var(--gap) * 2 + var(--railW))}
+/* the right panel is CONTEXTUAL (§5): hidden until it has a selection or a
+   result to show, and back out of the way when it has neither */
+body.rauto:not(.field){--dockR:var(--gap)}
+
+/* ---------- glass, the one surface the chrome is made of ---------- */
+body:not(.field) #topbar,
+body:not(.field) #leftdock,
+body:not(.field) #rightdock,
+body:not(.field) #status,
+body:not(.field) #view3d .v3dbar,
+.glass{background:var(--glass);border:1px solid var(--glassb);box-shadow:var(--shg);
+  -webkit-backdrop-filter:blur(14px) saturate(1.2);backdrop-filter:blur(14px) saturate(1.2)}
+
+/* ---------- the stage: full-bleed ---------- */
+body:not(.field) #stage{top:0;left:0;right:0;bottom:0}
+
+/* ---------- the top bar ---------- */
+body:not(.field) #topbar{top:var(--gap);left:var(--gap);right:var(--gap);height:var(--topH);
+  border-radius:var(--r3);padding:0 8px 0 8px;gap:8px}
+#topbar .brand{display:flex;align-items:center;gap:9px;background:none;border:0;color:var(--ink);
+  font:inherit;cursor:pointer;padding:4px 10px 4px 4px;border-radius:10px;margin-right:2px;
+  border-right:0;text-align:left;flex:none}
+#topbar .brand:hover{background:rgba(255,255,255,.05)}
+#topbar .brand .logo{width:30px;height:30px;flex:none}
+#topbar .brand .bt{display:flex;flex-direction:column;line-height:1.15;white-space:nowrap}
+#topbar .brand b{font-size:13.5px;font-weight:650;letter-spacing:.15px;color:var(--ink)}
+#topbar .brand b span{color:var(--acc2);font-weight:600}
+#topbar .brand small{font-size:11px;color:var(--mut)}
+body.barnokbd #topbar .brand small{display:none}
+body.barnokbd #topbar .brand b span{display:inline}
+body.barcompact #topbar .brand .bt{display:none}
+
+/* segmented groups: the task menus and the three views */
+#topbar .tgroup{padding:0;gap:2px}
+#topbar .tgroup + .tgroup::before{display:none}
+#topbar .tgroup.tasks,#topbar .tgroup.seg{background:rgba(255,255,255,.04);border:1px solid var(--glassb);
+  border-radius:11px;padding:3px}
+#topbar .toolbtn{background:transparent;border:1px solid transparent;border-radius:8px;
+  color:var(--ink2);font-weight:520;padding:6px 10px;gap:6px}
+#topbar .toolbtn:hover{background:rgba(255,255,255,.06);color:var(--ink);border-color:transparent}
+#topbar .toolbtn.active{background:rgba(92,192,219,.18);color:var(--acc2);border-color:transparent;
+  box-shadow:none;font-weight:600}
+#topbar .toolbtn.menub[aria-expanded="true"]{background:rgba(255,255,255,.08)}
+#topbar .seg .segb{padding:6px 12px;font-weight:600;font-size:12px;color:var(--mut)}
+#topbar .seg .segb.on{background:var(--ink);color:#0C1216}
+#topbar .seg .segb.active:not(.on){background:transparent;color:var(--mut)}
+#topbar .toolbtn.ghost{color:var(--mut)}
+#topbar .toolbtn.iconly{padding:8px}
+/* the open-items chip: amber, because it is the app saying what it does not know */
+#topbar .toolbtn.attn{border:1px solid rgba(230,169,63,.45);background:rgba(230,169,63,.1);color:#F2C77E;
+  border-radius:999px;font-weight:600;font-size:12px;padding:5px 12px}
+#topbar .toolbtn.attn i{width:7px;height:7px;border-radius:50%;background:var(--warn);flex:none}
+#topbar .toolbtn.attn:hover{background:rgba(230,169,63,.18);color:#F7D79E}
+#topbar .toolbtn.attn.quiet{border-color:var(--glassb);background:transparent;color:var(--mut)}
+#topbar .toolbtn.attn.quiet i{background:var(--mut2)}
+
+/* ---------- the omnibox ---------- */
+#omni{flex:1 1 220px;min-width:150px;max-width:520px;margin:0 auto;display:flex;align-items:center;gap:9px;
+  height:36px;padding:0 10px 0 12px;border-radius:10px;background:rgba(255,255,255,.05);
+  border:1px solid var(--line2);color:var(--mut);position:relative;cursor:text;
+  transition:border-color .13s var(--ease),background .13s var(--ease)}
+#omni:hover{border-color:#44575F}
+#omni.focus{border-color:var(--acc);background:rgba(255,255,255,.07)}
+#omniIn{flex:1;min-width:0;background:transparent;border:0;outline:0;color:var(--ink);font:inherit;
+  font-size:13px;padding:0}
+#omniIn::placeholder{color:var(--mut)}
+#omniIn::-webkit-search-cancel-button{display:none}
+#omni kbd.omnik{font:11px var(--mono);color:var(--mut);background:transparent;border:1px solid var(--line2);
+  border-radius:5px;padding:1px 6px;flex:none}
+#omni.focus kbd.omnik{display:none}
+body.barghost #omni kbd.omnik{display:none}
+#omniList{position:fixed;z-index:2450;background:var(--glass2);border:1px solid var(--line2);border-radius:12px;
+  box-shadow:var(--sh3);padding:6px;max-height:min(460px,70vh);overflow:auto;display:none;
+  -webkit-backdrop-filter:blur(16px);backdrop-filter:blur(16px)}
+#omniList.on{display:block}
+#omniList .ogrp{padding:8px 10px 4px;font-size:10.5px;letter-spacing:1px;text-transform:uppercase;
+  color:var(--mut2);font-weight:650}
+#omniList .oitem{display:grid;grid-template-columns:22px 1fr auto;align-items:center;gap:10px;
+  padding:7px 10px;border-radius:8px;cursor:pointer;color:var(--ink2)}
+#omniList .oitem .oi{width:22px;height:22px;border-radius:6px;display:flex;align-items:center;
+  justify-content:center;background:rgba(255,255,255,.05);color:var(--mut)}
+#omniList .oitem .oi svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:1.4;
+  stroke-linecap:round;stroke-linejoin:round}
+#omniList .oitem b{font-weight:560;color:var(--ink);display:block;white-space:nowrap;overflow:hidden;
+  text-overflow:ellipsis}
+#omniList .oitem small{display:block;color:var(--mut);font-size:11.5px;white-space:nowrap;overflow:hidden;
+  text-overflow:ellipsis}
+#omniList .oitem .ok{font:11px var(--mono);color:var(--mut2);white-space:nowrap}
+#omniList .oitem.sel{background:rgba(92,192,219,.14)}
+#omniList .oitem.sel .oi{color:var(--acc2)}
+#omniList .oempty{padding:14px 12px;color:var(--mut);font-size:12.5px}
+#omniList .ofoot{padding:8px 10px 4px;border-top:1px solid var(--line);margin-top:4px;color:var(--mut2);
+  font-size:11px;display:flex;gap:14px}
+#omniList .ofoot kbd{font-size:10px}
+
+/* ---------- menus: one look for every drop-down ---------- */
+.menu{background:var(--glass2);border:1px solid var(--line2);border-radius:12px;padding:5px;
+  -webkit-backdrop-filter:blur(16px);backdrop-filter:blur(16px)}
+.menu .ci{padding:7px 11px;border-radius:7px}
+.menu .ci:hover{background:rgba(255,255,255,.07)}
+.menu .ci.hd{border-bottom:0;margin-bottom:0;font-family:inherit;font-size:10.5px;letter-spacing:1px;
+  text-transform:uppercase;color:var(--mut2);font-weight:650;padding:8px 11px 3px}
+.menu .ci.danger{color:#F0958B}
+.menu .ci.danger:hover{background:rgba(229,88,76,.14);color:#F6B1A9}
+.menu.tmenu{min-width:252px;position:fixed}
+.menu.tmenu .toolbtn{width:100%;justify-content:flex-start;background:transparent;border:1px solid transparent;
+  color:var(--ink2);border-radius:7px;padding:7px 10px;font-weight:500}
+.menu.tmenu .toolbtn .tlbl{flex:1;text-align:left;display:inline !important}
+.menu.tmenu .toolbtn kbd{display:inline-block !important}
+.menu.tmenu .toolbtn:hover{background:rgba(255,255,255,.07);color:var(--ink)}
+.menu.tmenu .toolbtn.active{background:rgba(92,192,219,.16);color:var(--acc2);box-shadow:none}
+#drawMenu,#designMenu,#waterMenu,#exportMenu,#fieldMenu,#ovfMenu{position:fixed}
+
+/* ---------- the two panels ---------- */
+body:not(.field) #leftdock,body:not(.field) #rightdock{top:var(--fT);bottom:var(--botH);
+  border-radius:var(--r3);overflow:hidden}
+body:not(.field) #leftdock{left:var(--gap);width:calc(var(--dockLW) + var(--gripW));border-right:1px solid var(--glassb)}
+body:not(.field) #rightdock{right:var(--gap);width:calc(var(--dockRW) + var(--gripW));border-left:1px solid var(--glassb)}
+/* expanded, a panel is its tabs and its body; the rail is what it folds to */
+body:not(.field):not(.lcol) #leftRail,body:not(.field):not(.rcol) #rightRail{display:none}
+body.lcol:not(.field) #leftdock{width:var(--railW);bottom:auto;padding-bottom:4px}
+body.rcol:not(.field) #rightdock{width:var(--railW);bottom:auto;padding-bottom:4px}
+body.rauto:not(.field) #rightdock{transform:translateX(calc(100% + 24px));opacity:0;pointer-events:none}
+body:not(.field) #rightdock{transition:transform .22s var(--ease),opacity .18s var(--ease),width .18s var(--ease)}
+body:not(.field) .dockrail{background:transparent;border:0}
+body:not(.field) .docktabs{background:transparent;border-bottom:1px solid var(--glassb);height:42px;padding:0 8px}
+body:not(.field) .dtab{font-size:12.5px;font-weight:550;padding:10px 10px 9px}
+body:not(.field) .dockgrip{position:absolute;top:0;bottom:0;width:8px;z-index:3}
+body:not(.field) #leftGrip{right:0}
+body:not(.field) #rightGrip{left:0}
+body:not(.field) .dockpane{padding:10px 12px 14px}
+
+/* ---------- the status pill ---------- */
+body:not(.field) #status{left:var(--dockL);right:var(--dockR);bottom:var(--gap);height:var(--statusH);
+  border-radius:11px;padding:0 12px;gap:14px;font-size:11.5px;color:var(--ink2)}
+body:not(.field) #status b{color:var(--ink)}
+/* the drafting toggles are drafting controls: shown while a drafting tool is
+   armed, or while one of them is switched on */
+body:not(.field):not(.drafting) #status .statsnap:not(:has(.statbtn.on)),
+body:not(.field):not(.drafting) #status #polarBtn:not(.on){display:none}
+body:not(.field) #cmdbar{left:var(--dockL);right:var(--dockR);bottom:calc(var(--gap) + var(--statusH) + 6px);
+  height:32px;border-radius:10px;border:1px solid var(--glassb);background:var(--glass2);
+  box-shadow:var(--shg);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px)}
+body.cmdopen:not(.field){--cmdH:38px}
+
+/* ---------- things that line up with the frame ---------- */
+body:not(.field) #sketchTip{top:var(--fT)}
+body:not(.field) .restorebar{top:var(--fT)}
+body:not(.field) #gotoBox{top:var(--fT);right:var(--dockR)}
+body:not(.field) #toast{bottom:calc(var(--botH) + 56px)}
+body:not(.field) .leaflet-top{top:calc(var(--fT) - 10px)}
+body:not(.field) .leaflet-bottom{bottom:calc(var(--botH) - 10px)}
+body:not(.field) .leaflet-left{left:calc(var(--dockL) - 10px)}
+body:not(.field) .leaflet-right{right:calc(var(--dockR) - 10px)}
+body:not(.field) .leaflet-left,body:not(.field) .leaflet-right,
+body:not(.field) .leaflet-top,body:not(.field) .leaflet-bottom{transition:left .2s var(--ease),right .2s var(--ease)}
+/* the zoom buttons: one glass stack, bottom-right, beside the thumb */
+body:not(.field) .leaflet-control-zoom{border:1px solid var(--glassb) !important;border-radius:10px !important;
+  box-shadow:var(--shg) !important}
+body:not(.field) .leaflet-control-zoom a{background:var(--glass) !important;color:var(--ink2) !important;
+  border-color:var(--glassb) !important;width:34px !important;height:32px !important;line-height:32px !important;
+  -webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px)}
+
+/* ---------- the 3D view inside the frame ---------- */
+body:not(.field) #v3dCanvas{top:0;height:100%}
+body:not(.field) #view3d .v3dbar{top:var(--fT);left:var(--dockL);right:var(--dockR);border-radius:12px;
+  min-height:42px;padding:5px 10px}
+body.v3dsplit:not(.field) #view3d .v3dbar{left:12px}
+body:not(.field) #v3dNav{right:var(--dockR);bottom:var(--botH)}
+body:not(.field) #v3dViewPop,body:not(.field) #v3dHelpPop{right:var(--dockR);bottom:calc(var(--botH) + 176px)}
+body:not(.field) .navrow{background:var(--glass);border-color:var(--glassb);border-radius:10px;
+  box-shadow:var(--shg)}
+body:not(.field) #v3dCompass{background:var(--glass);border-color:var(--glassb)}
+
+/* ---------- panels: the few controls, restyled ---------- */
+.res{background:rgba(255,255,255,.035);border-color:var(--glassb);border-radius:12px}
+.res h4{font-size:13px;color:var(--ink);font-weight:620}
+.minib{border-radius:7px;background:rgba(255,255,255,.05);border-color:var(--glassb);color:var(--ink2)}
+.minib:hover{background:rgba(255,255,255,.1);border-color:var(--line2)}
+.popover{background:var(--glass2);border-color:var(--line2);border-radius:12px;
+  -webkit-backdrop-filter:blur(16px);backdrop-filter:blur(16px)}
+#toast{background:var(--glass2);border-color:var(--line2);border-radius:12px;
+  -webkit-backdrop-filter:blur(16px);backdrop-filter:blur(16px)}
+#modeHud{background:var(--glass);border-color:var(--glassb);border-radius:999px;
+  -webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px)}
+#modeHud.nav{background:rgba(17,26,31,.6)}
+
+@media (prefers-reduced-motion:reduce){
+  body:not(.field) #rightdock,body:not(.field) .leaflet-left,body:not(.field) .leaflet-right{transition:none}
+}
+body:not(.field) #mapLegend{left:var(--dockL);bottom:var(--botH);transition:left .2s var(--ease)}
+
+/* ---------- v26: the welcome card (js/home.js) ---------- */
+#homeCard{position:absolute;right:var(--gap);top:var(--fT);width:392px;max-width:calc(100vw - 24px);
+  max-height:calc(100% - var(--fT) - var(--botH));overflow:auto;border-radius:16px;z-index:1150;
+  opacity:0;transform:translateY(-6px) scale(.985);pointer-events:none;
+  transition:opacity .2s var(--ease),transform .2s var(--ease)}
+#homeCard.on{opacity:1;transform:none;pointer-events:auto}
+body.field #homeCard{display:none}
+#homeCard .hclose{position:absolute;right:10px;top:10px;width:28px;height:28px;border-radius:8px;border:0;
+  background:transparent;color:var(--mut);font-size:18px;line-height:1;cursor:pointer}
+#homeCard .hclose:hover{background:rgba(255,255,255,.07);color:var(--ink)}
+#homeCard .hero{padding:18px 20px 14px;background:linear-gradient(160deg,rgba(92,192,219,.14),transparent 60%)}
+#homeCard .hero .k{font-size:11px;color:var(--acc2);letter-spacing:1px;text-transform:uppercase;font-weight:650}
+#homeCard .hero h1{margin:6px 0 4px;font-size:21px;line-height:1.2;font-weight:650;letter-spacing:.1px}
+#homeCard .hero p{margin:0;color:var(--mut);font-size:12.5px}
+#homeCard .hstats{display:grid;grid-template-columns:repeat(4,1fr);border-top:1px solid var(--glassb);
+  border-bottom:1px solid var(--glassb)}
+#homeCard .hstats div{padding:10px 12px;border-right:1px solid var(--glassb)}
+#homeCard .hstats div:last-child{border-right:0}
+#homeCard .hstats b{display:block;font-size:16px;font-weight:600}
+#homeCard .hstats span{color:var(--mut);font-size:11px;line-height:1.25;display:block}
+#homeCard h3{margin:0 0 6px;font-size:10.5px;letter-spacing:1px;text-transform:uppercase;color:var(--mut2);font-weight:650}
+#homeCard .hblk{padding:12px 20px 2px}
+#homeCard .hcont{display:grid;grid-template-columns:32px 1fr;gap:10px;align-items:center;padding:6px 6px;
+  margin:0 -6px;width:calc(100% + 12px);background:none;border:0;color:inherit;font:inherit;text-align:left;
+  cursor:pointer;border-radius:9px}
+#homeCard .hcont:hover{background:rgba(255,255,255,.05)}
+#homeCard .hic{width:32px;height:32px;border-radius:9px;background:rgba(255,255,255,.05);border:1px solid var(--glassb);
+  display:flex;align-items:center;justify-content:center;color:var(--ink2)}
+#homeCard svg{fill:none;stroke:currentColor;stroke-width:1.4;stroke-linecap:round;stroke-linejoin:round}
+#homeCard .hcont b{font-weight:560;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#homeCard .hcont small{color:var(--mut);font-size:11.5px;display:block}
+#homeCard .hquick{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:4px 20px 14px}
+#homeCard .hq{border:1px solid var(--glassb);border-radius:11px;padding:11px 10px 9px;background:rgba(255,255,255,.03);
+  color:var(--ink2);font:inherit;text-align:left;cursor:pointer;transition:background .13s var(--ease),border-color .13s var(--ease)}
+#homeCard .hq:hover{background:rgba(92,192,219,.1);border-color:rgba(92,192,219,.4);color:var(--ink)}
+#homeCard .hq svg{display:block;margin-bottom:8px;color:var(--acc2)}
+#homeCard .hq b{font-size:12.5px;font-weight:560;display:block;color:var(--ink)}
+#homeCard .hq span{color:var(--mut);font-size:11px}
+#homeCard .htodo{padding:2px 20px 12px}
+#homeCard .htd{display:flex;gap:10px;align-items:flex-start;padding:7px 0;border:0;border-top:1px solid var(--glassb);
+  width:100%;background:none;color:var(--ink2);font:inherit;font-size:12.5px;text-align:left;cursor:pointer}
+#homeCard .htd:hover{color:var(--ink)}
+#homeCard .htd i,#openItemsPop .oirow i{flex:none;width:8px;height:8px;border-radius:50%;margin-top:5px;background:var(--mut2)}
+#homeCard .htd i.warn,#openItemsPop .oirow i.warn{background:var(--warn)}
+#homeCard .htd i.info,#openItemsPop .oirow i.info{background:var(--acc)}
+#homeCard .hfoot{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 20px 14px;
+  border-top:1px solid var(--glassb);color:var(--mut);font-size:11.5px}
+#homeCard .hfoot select{font-size:11.5px;padding:2px 4px;background:transparent;border-color:var(--glassb);color:var(--ink2)}
+@media (max-width:1100px){#homeCard{width:340px}}
+
+/* ---------- v26: open items + recent messages ---------- */
+#openItemsPop{min-width:340px;max-width:420px;max-height:70vh;overflow:auto}
+#openItemsPop .oirow{display:flex;gap:10px;padding:8px 11px;border-radius:8px;cursor:pointer}
+#openItemsPop .oirow:hover{background:rgba(255,255,255,.06)}
+#openItemsPop .oirow b{display:block;font-weight:560;color:var(--ink)}
+#openItemsPop .oirow small{display:block;color:var(--mut);font-size:11.5px;margin-top:1px}
+#openItemsPop .oilog{padding:5px 11px;color:var(--ink2);font-size:12px;display:flex;gap:9px}
+#openItemsPop .oilog .mono{color:var(--mut2);font-size:11px;flex:none}
+
+/* ---------- v26: the Undo that rides on a delete ---------- */
+#undoPill{position:absolute;left:50%;bottom:calc(var(--botH) + 12px);transform:translate(-50%,10px);z-index:7050;
+  display:flex;align-items:center;gap:12px;padding:6px 6px 6px 14px;border-radius:999px;
+  background:var(--glass2);border:1px solid var(--line2);box-shadow:var(--sh3);font-size:12.5px;
+  opacity:0;pointer-events:none;transition:opacity .18s var(--ease),transform .18s var(--ease);
+  -webkit-backdrop-filter:blur(16px);backdrop-filter:blur(16px)}
+#undoPill.show{opacity:1;transform:translate(-50%,0);pointer-events:auto}
+#undoPill button{border:0;border-radius:999px;background:rgba(92,192,219,.18);color:var(--acc2);font:inherit;
+  font-weight:650;padding:5px 12px;cursor:pointer}
+#undoPill button[data-x]{background:transparent;color:var(--mut);padding:5px 9px}
+body.homeopen #undoPill{left:calc(50% - 200px)}
+
+/* ---------- v26: place names ---------- */
+.plicon{background:none;border:0}
+.plname{position:absolute;left:0;top:0;transform:translate(-50%,-50%);white-space:nowrap;text-align:center;
+  color:#fff;font-weight:650;font-size:12px;letter-spacing:.3px;pointer-events:none;
+  text-shadow:0 1px 3px rgba(0,0,0,.9),0 0 10px rgba(0,0,0,.6)}
+.plname small{display:block;font-weight:500;font-size:10.5px;color:#CFE3EA;letter-spacing:.2px}
+.plname.lake{color:#A8D3E2;font-style:italic;font-weight:500;font-size:14px;letter-spacing:3px;text-transform:uppercase}
+.plname.water{color:#BFE6F5;font-style:italic;font-weight:560}
+.plname.pile{font-size:11px;font-weight:600;color:#F3E6C8}
+
+/* ---------- v26: the Layers pane — the map face and the catalogue (js/layerpanel.js) ---------- */
+#layers{padding-top:0}
+#lpTop{position:sticky;top:0;z-index:5;margin:0 -12px 8px;padding:10px 12px 8px;
+  background:linear-gradient(180deg,rgba(20,29,34,.97) 70%,rgba(20,29,34,0))}
+#lpTop .ltsearchrow{background:rgba(255,255,255,.05);border:1px solid var(--glassb);border-radius:9px;padding:6px 9px}
+#lpTop .ltsearchrow input{font-size:12.5px}
+#lpCrumb{display:flex;align-items:center;gap:8px;margin-top:8px}
+#lpCrumb b{font-size:13px;font-weight:620}
+.lpback{display:inline-flex;align-items:center;gap:2px;background:none;border:0;color:var(--acc2);font:inherit;
+  font-size:12.5px;cursor:pointer;padding:3px 6px 3px 2px;border-radius:6px}
+.lpback:hover{background:rgba(92,192,219,.12)}
+#layers.lpv-home #lpCatalog{display:none}
+#layers.lpv-cat #lpHome{display:none}
+body.field #lpHome{display:none !important}
+body.field #lpCatalog{display:block !important}
+#layers[data-topic] #lpCatalog .lsec:not(.lthide){display:none}
+#layers[data-topic="base"] #lpCatalog .lsec[data-sec="base"],
+#layers[data-topic="framework"] #lpCatalog .lsec[data-sec="framework"],
+#layers[data-topic="design"] #lpCatalog .lsec[data-sec="design"],
+#layers[data-topic="invest"] #lpCatalog .lsec[data-sec="invest"],
+#layers[data-topic="cultural"] #lpCatalog .lsec[data-sec="cultural"],
+#layers[data-topic="mywork"] #lpCatalog .lsec[data-sec="mywork"]{display:block}
+.lyr.lpflash{animation:lpflash 1.4s var(--ease)}
+@keyframes lpflash{0%,40%{background:rgba(92,192,219,.28)}100%{background:transparent}}
+
+#areaNav{display:flex;gap:6px;margin:0 0 4px}
+#areaNav .areabtn{flex:1;border-radius:999px;border:1px solid var(--glassb);border-left-width:1px;background:rgba(255,255,255,.04);
+  font-size:11.5px;padding:5px 6px;color:var(--ink2)}
+#areaNav .areabtn:hover{background:rgba(255,255,255,.08)}
+#areaNav .areabtn.on{border-color:rgba(92,192,219,.5);color:var(--acc2);background:rgba(92,192,219,.12)}
+.lphd{display:flex;justify-content:space-between;align-items:center;padding:12px 2px 6px;color:var(--mut2);
+  font-size:10.5px;letter-spacing:1px;text-transform:uppercase;font-weight:650}
+.lphd .mono{letter-spacing:0;text-transform:none;font-weight:500}
+.lplink{background:none;border:0;color:var(--acc2);font:inherit;font-size:11px;letter-spacing:0;text-transform:none;
+  font-weight:550;cursor:pointer;padding:2px 4px;border-radius:5px}
+.lplink:hover{background:rgba(92,192,219,.12)}
+
+#bmTiles{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.bmt{background:none;border:0;padding:0;color:var(--mut);font:inherit;font-size:11px;cursor:pointer;text-align:center}
+.bmth{display:block;height:48px;border-radius:8px;background:#1B262D center/cover no-repeat;margin-bottom:4px;
+  box-shadow:inset 0 0 0 1px var(--glassb);transition:box-shadow .13s var(--ease)}
+.bmt:hover .bmth{box-shadow:inset 0 0 0 1px var(--line2)}
+.bmt.on{color:var(--ink);font-weight:560}
+.bmt.on .bmth{box-shadow:0 0 0 2px var(--acc)}
+
+.omrow{display:grid;grid-template-columns:20px 1fr auto auto;align-items:center;gap:9px;padding:7px 4px 7px 6px;
+  border-radius:8px;cursor:pointer}
+.omrow:hover{background:rgba(255,255,255,.05)}
+.omsw{display:flex;align-items:center;justify-content:center;width:20px;height:16px}
+.omsw svg{width:18px;height:14px}
+.omt{min-width:0}
+.omt b{display:block;font-weight:520;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:12.5px}
+.omt small{display:block;color:var(--mut);font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.omsw2{width:30px;height:18px;border-radius:9px;background:var(--acc);border:0;position:relative;cursor:pointer;padding:0}
+.omsw2::after{content:"";position:absolute;right:2px;top:2px;width:14px;height:14px;border-radius:50%;background:#fff}
+.ommore{width:24px;height:24px;border-radius:6px;border:0;background:transparent;color:var(--mut);cursor:pointer;font-size:14px;line-height:1}
+.ommore:hover{background:rgba(255,255,255,.08);color:var(--ink)}
+.omempty{color:var(--mut);font-size:12px;padding:6px 4px 4px;line-height:1.5}
+#omMenu{min-width:230px}
+#omMenu .omop{display:flex;align-items:center;gap:8px;padding:6px 11px;color:var(--mut);font-size:12px}
+#omMenu .omop input{flex:1}
+
+#lpTopics{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.lptopic{position:relative;border:1px solid var(--glassb);border-radius:10px;padding:9px 10px;background:rgba(255,255,255,.025);
+  color:var(--ink2);font:inherit;text-align:left;cursor:pointer;transition:background .13s var(--ease),border-color .13s var(--ease)}
+.lptopic:hover{background:rgba(92,192,219,.08);border-color:rgba(92,192,219,.35)}
+.lptopic b{display:block;font-size:12.5px;font-weight:600;color:var(--ink);padding-right:30px}
+.lptopic span{color:var(--mut);font-size:11px}
+.lptopic .tn{position:absolute;right:9px;top:9px;font-size:10.5px;color:var(--acc2)}
+.lptopic .tn.dim{color:var(--mut2)}
+.lptopic .lk{position:absolute;right:9px;top:9px;color:var(--bad);font-size:9.5px;font-weight:700;letter-spacing:.6px}
+.lptopic.gated b{color:#F0B4AC}
+#lpViews{display:flex;flex-direction:column;gap:2px}
+.lpview{display:block;border:0;background:none;color:inherit;font:inherit;text-align:left;cursor:pointer;
+  padding:7px 8px;border-radius:8px}
+.lpview:hover{background:rgba(255,255,255,.05)}
+.lpview b{display:block;font-weight:540;font-size:12.5px}
+.lpview span{display:block;color:var(--mut);font-size:11px}
+#lpViewName{width:100%;margin:0 0 6px}
+/* the catalogue is the v16 tree; the map face replaces the floating legend,
+   so the legend card stays shut unless asked for from the catalogue */
+body:not(.field) #mapLegend.closed{display:none}
+.lptopic b{padding-right:34px}
+
+/* ===================================================================== */
+/* v26 — the boring log as a log sheet (js/borewin.js, V26_UI_AUDIT §8)   */
+/* ===================================================================== */
+/* Three columns: the navigator (every hole), the SHEET on paper, and the
+   insight rail. The window is a stage view — it opens over the whole stage —
+   and the sheet is white paper on a dark desk, because a log is read on paper
+   and the printed appendix is the same drawing. */
+.shwin{border-radius:14px;border-color:var(--line2)}
+.shwin .shbar{background:var(--glass2);border-bottom-color:var(--glassb);padding:8px 10px 8px 14px}
+.blwin{background:#0F171C}
+.blwin.maxed{border-radius:14px}
+.blwin .shbar{font-size:13px;min-height:42px}
+.blwin .bwcrumb{display:flex;align-items:center;gap:7px;color:var(--mut);white-space:nowrap}
+.blwin .bwcrumb i{font-style:normal;color:var(--mut2)}
+.blwin .shbar .shno{font-size:15px;color:var(--ink);letter-spacing:.2px}
+.blwin .shbar .shtitle{color:var(--mut);font-size:12px}
+.blwin.bwtab-log .shbar .shtitle{display:none}
+.blwin .bwtools{background:transparent;border-bottom:1px solid var(--glassb);padding:7px 12px;gap:10px}
+.blwin .bwtabs{background:rgba(255,255,255,.04);border:1px solid var(--glassb);border-radius:9px;padding:3px}
+.blwin .bwtabs .minib{padding:4px 13px;font-size:12px;border-radius:6px;color:var(--mut);font-weight:520}
+.blwin .bwtabs .minib.active{background:var(--panel3);color:var(--ink);font-weight:600;box-shadow:0 1px 3px rgba(0,0,0,.4)}
+.blwin .bwtools .bwghost{background:transparent;border-color:transparent;color:var(--ink2)}
+.blwin .bwtools .bwghost:hover:not(:disabled){background:rgba(255,255,255,.06);border-color:transparent;color:var(--ink)}
+.blwin .bwtools .bwpri{background:var(--acc);border-color:var(--acc);color:#06222B;font-weight:650;padding:4px 12px}
+.blwin .bwtools .bwpri:hover:not(:disabled){filter:brightness(1.08);color:#06222B}
+
+.blwin .bwmain{flex:1;min-height:0;display:grid;grid-template-columns:0 1fr 0}
+.blwin.bwnavon .bwmain{grid-template-columns:244px 1fr 0}
+.blwin.bwrailon .bwmain{grid-template-columns:0 1fr 316px}
+.blwin.bwnavon.bwrailon .bwmain{grid-template-columns:244px 1fr 316px}
+.blwin .bwnav,.blwin .bwrail{min-width:0;overflow:hidden}
+.blwin:not(.bwnavon) .bwnav{overflow:visible}
+.blwin .bwcenter{min-width:0;min-height:0;display:flex;flex-direction:column;
+  background:radial-gradient(1200px 600px at 50% -200px,#1A252C 0,#0F171C 70%)}
+
+/* ---- the navigator ---- */
+.blwin .bwnav{border-right:1px solid var(--glassb);display:flex;flex-direction:column;background:rgba(0,0,0,.12)}
+.blwin .bwnav .bwpickwrap{display:flex;flex-direction:column;min-height:0;flex:1}
+.blwin .bwpick{width:auto;margin:12px 12px 8px;background:rgba(255,255,255,.05);border:1px solid var(--glassb);
+  border-radius:8px;padding:7px 10px;color:var(--ink);font-size:12.5px}
+.blwin .bwflt{display:flex;gap:5px;flex-wrap:wrap;padding:0 12px 8px}
+.blwin .bwfc{font:inherit;font-size:11px;padding:2px 9px;border-radius:999px;border:1px solid var(--line2);
+  background:none;color:var(--mut);cursor:pointer}
+.blwin .bwfc.on{border-color:var(--acc);color:var(--acc2);background:rgba(92,192,219,.1)}
+.blwin.bwnavon .bwmenu{position:static;display:block;width:auto;margin:0;flex:1;overflow:auto;
+  background:none;border:0;box-shadow:none;padding:0 6px 14px;max-height:none;border-radius:0}
+.blwin .bwgrp{display:flex;justify-content:space-between;padding:10px 8px 5px;font-size:10.5px;letter-spacing:.9px;
+  text-transform:uppercase;color:var(--mut2);font-weight:650}
+.blwin .bwopt{display:grid;grid-template-columns:auto 1fr 34px;align-items:center;gap:8px;padding:5px 8px;border-radius:7px;color:var(--ink2)}
+.blwin.bwtab-compare .bwopt{grid-template-columns:14px auto 1fr 34px}
+.blwin .bwopt b{font-size:12px;font-weight:560;display:flex;align-items:center;gap:4px;min-width:50px}
+.blwin .bwopt .mut{margin:0;text-align:right;font-size:11px}
+.blwin .bwopt.on{background:var(--panel3);color:var(--ink);box-shadow:inset 3px 0 0 var(--acc)}
+.blwin .bwopt.sel{box-shadow:inset 0 0 0 1px var(--acc)}
+.blwin .bwopt:hover{background:rgba(255,255,255,.05)}
+.blwin .bwtick{color:var(--acc2);font-size:11px;text-align:center}
+.blwin .bwbar{display:flex;height:7px;border-radius:4px;overflow:hidden;background:var(--line)}
+.blwin .bwbar i{display:block;min-width:1px}
+.blwin .bwdot{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--warn)}
+.blwin:not(.bwnavon) .bwnav{border:0;background:none}
+.blwin:not(.bwnavon) .bwflt{display:none}
+
+/* ---- the paper ---- */
+.blwin .bwpaper{flex:1;min-height:0;display:flex;flex-direction:column;margin:16px auto 0;width:calc(100% - 40px);
+  max-width:1060px;background:#FBFAF6;color:#1C2126;border-radius:4px 4px 0 0;
+  box-shadow:0 1px 0 rgba(255,255,255,.06),0 20px 60px rgba(0,0,0,.55),0 2px 8px rgba(0,0,0,.4)}
+.blwin.bwtab-compare .bwpaper,.blwin.bwtab-fence .bwpaper,.blwin.bwtab-table .bwpaper{
+  background:var(--panel);color:var(--ink);max-width:none;width:100%;margin:0;border-radius:0;box-shadow:none}
+.blwin.bwtab-log .bwhead{background:transparent;border-bottom:1.5px solid #1C2126;color:#1C2126}
+.blwin.bwtab-log .bwfacts{padding:14px 18px 8px;gap:0}
+.blwin.bwtab-log .bwhid{border-right:1px solid #D8D4CA;min-width:180px;padding:0 16px 0 0}
+.blwin.bwtab-log .bwhid b{color:#1C2126;font-size:21px;font-family:var(--sans);font-weight:700;letter-spacing:.3px}
+.blwin.bwtab-log .bwhid .mut{color:#5E6770;font-size:12px}
+.blwin.bwtab-log .bwhid small{display:block;color:#8A929A;font-size:10.5px;margin-top:2px}
+.blwin.bwtab-log .bwf{border-right:1px solid #D8D4CA;padding:0 14px}
+.blwin.bwtab-log .bwf > span{color:#5E6770;letter-spacing:.8px;font-weight:650;font-size:9.5px}
+.blwin.bwtab-log .bwf b{color:#1C2126}
+.blwin.bwtab-log .bwf .mut{color:#5E6770}
+.blwin.bwtab-log .bwf .warnpill{background:#F7E3B5;color:#6A4A00}
+.blwin.bwtab-log .bwflags{background:#FBEFD6;color:#7A5200;border:1px solid #E7C675;border-radius:6px;padding:2px 8px}
+.blwin.bwtab-log .bwcurrow{padding:0 18px 8px;border-top:0}
+.blwin.bwtab-log .bwread{color:#1C2126}
+.blwin.bwtab-log .bwread > span{color:#5E6770;font-size:9.5px;letter-spacing:.8px;text-transform:uppercase;font-weight:650}
+.blwin.bwtab-log .bwread b .gold{color:#1E8FB0}
+.blwin.bwtab-log .bwread b .mut{color:#5E6770}
+.blwin.bwtab-log .bwmoreb{background:#F1EEE6;border-color:#D8D4CA;color:#3A424A}
+.blwin.bwtab-log .bwmorebox{padding:0 18px 10px}
+.blwin.bwtab-log .bwmorebox .bwf{min-width:140px;margin-top:6px}
+.blwin.bwtab-log .bwheadstrip{background:#FBFAF6;border-bottom:1px solid #D8D4CA;padding:0 8px}
+.blwin.bwtab-log .bwbody{background:#FBFAF6;padding:6px 8px 24px}
+.blwin.bwtab-log .blgl:hover{stroke:#1E8FB0}
+.blwin.bwtab-log .bwcur i{background:#1E8FB0;box-shadow:0 0 0 7px rgba(92,192,219,.13)}
+.blwin.bwtab-log .bwcur.pinned i{background:#1E8FB0;box-shadow:0 0 0 7px rgba(92,192,219,.22)}
+.blwin.bwtab-log .bwbody::-webkit-scrollbar-thumb{background:#D8D4CA}
+
+/* ---- the insight rail ---- */
+.blwin .bwrail{border-left:1px solid var(--glassb);overflow:auto;padding:14px 14px 30px;background:rgba(0,0,0,.12)}
+.blwin .bwcard{background:var(--panel);border:1px solid var(--glassb);border-radius:12px;padding:12px 13px 11px;margin-bottom:11px}
+.blwin .bwcard h3{margin:0 0 9px;font-size:10.5px;letter-spacing:1px;text-transform:uppercase;color:var(--mut);
+  font-weight:650;display:flex;justify-content:space-between}
+.blwin .bwsent{margin:0 0 10px;color:var(--ink);font-size:12.5px;line-height:1.5}
+.blwin .bwstrow{display:grid;grid-template-columns:14px 1fr;gap:10px}
+.blwin .bwsbar{display:flex;flex-direction:column;border-radius:5px;overflow:hidden}
+.blwin .bwsr{display:grid;grid-template-columns:1fr auto;gap:0 8px;padding:3px 0 6px}
+.blwin .bwsr b{font-weight:620;font-size:12.5px;grid-column:1}
+.blwin .bwsr span{grid-column:1;color:var(--mut);font-size:11.5px}
+.blwin .bwsr em{grid-column:2;grid-row:1/3;align-self:center;font-style:normal;color:var(--ink2);font-size:12px}
+.blwin .bwleg{display:flex;gap:12px;flex-wrap:wrap;font-size:11px;color:var(--mut);margin-top:6px}
+.blwin .bwleg i{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:5px;vertical-align:-1px}
+.blwin .bwagree{display:flex;gap:9px;align-items:flex-start;font-size:12.5px;color:var(--ink2);padding:9px 10px;
+  border-radius:8px;background:rgba(109,187,122,.1);border:1px solid rgba(109,187,122,.35)}
+.blwin .bwagree i{font-style:normal;font-weight:700;color:var(--ok)}
+.blwin .bwagree.bad{background:rgba(230,169,63,.1);border-color:rgba(230,169,63,.4)}
+.blwin .bwagree.bad i{color:var(--warn)}
+.blwin .bwcurbody{font-size:12.5px;color:var(--ink2)}
+.blwin .bwbig{font-size:21px;color:var(--ink);font-weight:600}
+.blwin .bwgrid{display:grid;grid-template-columns:auto 1fr;gap:3px 12px;margin-top:8px}
+.blwin .bwgrid span{color:var(--mut)}
+.blwin .bwgrid b{font-weight:500;color:var(--ink2);min-width:0;overflow:hidden;text-overflow:ellipsis}
+.blwin .bwcard svg text{font-family:var(--sans)}
+
+/* v26 — saved 3D views */
+.v3dmarks{margin-top:8px;border-top:1px solid var(--line,rgba(255,255,255,.08));padding-top:8px}
+.v3dmkh{display:flex;align-items:center;gap:6px;font-weight:600;font-size:var(--fs2,12px)}
+.v3dmkh .minib:first-of-type{margin-left:auto}
+#v3dMarks{display:flex;flex-direction:column;gap:2px;margin-top:6px;max-height:160px;overflow:auto}
+.v3dmk{display:flex;align-items:center}
+.v3dmkgo{flex:1;text-align:left;background:none;border:0;color:inherit;padding:4px 6px;border-radius:6px;cursor:pointer;font:inherit}
+.v3dmkgo:hover,.v3dmkgo:focus-visible{background:rgba(255,255,255,.07)}
+.v3dmkx{background:none;border:0;color:var(--mut,#8a99a6);cursor:pointer;padding:2px 6px;font-size:14px}
+.v3dmk0{color:var(--mut,#8a99a6);font-size:var(--fs1,11px);padding:2px 6px}
+
+/* v26 a11y — one visible focus ring for the keyboard, on every control the
+   redesign added; the mouse never sees it (:focus-visible) */
+:is(.toolbtn,.segb,.bmt,.lptopic,.lpview,.omsw2,.bwopt,.bwtab,.bwfc,.menu .ci,.menu button,#homeCard button,#homeCard select,.v3dmkgo,#brandBtn,#openItemsBtn):focus-visible{
+  outline:2px solid var(--acc);outline-offset:2px;border-radius:var(--r2,7px)}
+@media (prefers-reduced-motion:reduce){
+  #homeCard,#omniList,.menu.tmenu,#undoPill,.blwin{transition:none!important;animation:none!important}
+}
+/* v26 §10 — density by zoom: at the whole-site view the storm structures are
+   drawn at 70 %, hover restores them; nothing is hidden, nothing stops being
+   clickable (js/cartography.js does the same for the circle markers) */
+#map.zoomsite .stormnode svg{transform:scale(.7);transform-origin:50% 50%;transition:transform .12s}
+#map.zoomsite .stormnode:hover svg{transform:none}
+/* v26 §11 — below 1,180 px the rail is not a column; "summary" lays it over
+   the sheet as a panel (the narrow window's and the tablet's version of it) */
+.blwin:not(.bwtab-log) [data-b=story],.blwin.bwrailon [data-b=story]{display:none}
+.blwin [data-b=story][aria-pressed=true]{background:rgba(88,196,221,.16);color:var(--ink)}
+.blwin .bwmain{position:relative}
+.blwin.bwpeek.bwtab-log:not(.bwrailon) .bwrail{position:absolute;right:0;top:0;bottom:0;width:min(316px,100%);
+  z-index:6;overflow:auto;background:#121A1F;box-shadow:-12px 0 32px rgba(0,0,0,.45)}

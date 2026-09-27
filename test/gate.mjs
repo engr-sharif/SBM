@@ -51,6 +51,14 @@ export async function unlock(page, repoRoot) {
        halfway through. Block 1a turns it back on to test it. */
     try { if (localStorage.getItem("sbmm.gate.idle") === null) localStorage.setItem("sbmm.gate.idle", "0"); } catch (e) {}
     try { if (forceJs) localStorage.setItem(wkey, "js"); else localStorage.removeItem(wkey); } catch (e) {}
+    /* v26: the first visit marked DONE — also a user setting, not a bypass. A
+       person's first visit gets the curated layers (js/home.js) and the
+       welcome card; every harness here was written against the rows' own
+       defaults and clicks the map where the card would sit, so it boots as a
+       returning user who chose "only from the logo". Block 1a's second page,
+       which seeds nothing, is the first visit and asserts both. */
+    try { if (localStorage.getItem("sbmm.home.v1") === null)
+      localStorage.setItem("sbmm.home.v1", JSON.stringify({ defaults: 1, freq: "never" })); } catch (e) {}
   }, [GATE_KEY, hash, WASM_KEY, FORCE_JS]);
   return hash;
 }

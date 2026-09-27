@@ -2259,15 +2259,7 @@ SBMM.water = (function () {
     if (!btn || !menu) return;
     btn.onclick = e => {
       e.stopPropagation();
-      const open = menu.style.display === "block";
-      document.querySelectorAll("#drawMenu,#designMenu,#waterMenu,#exportMenu,#ovfMenu")
-        .forEach(m => m.style.display = "none");
-      menu.style.display = open ? "none" : "block";
-      if (!open) {
-        const r = btn.getBoundingClientRect();
-        menu.style.left = Math.max(8, Math.min(r.left, window.innerWidth - 300)) + "px";
-        menu.style.right = "auto";
-      }
+      SBMM.shell.toggleMenu(btn, menu);
     };
     menu.addEventListener("click", ev => {
       const ci = ev.target.closest(".ci");

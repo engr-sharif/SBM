@@ -17,6 +17,52 @@ All three are offline-only by design. Nothing in this app calls out to the inter
 
 ---
 
+## v9.33 — the redesign, built (2026-09-27)
+
+The interface in `docs/V26_UI_AUDIT.md`, built. The engine, the numbers and the
+commands are unchanged; what you see and where things live is new.
+
+**It opens on the site, not on a list of layers.** The 1.5-ft site aerial and
+the 6-inch mine-area aerial are on, with the site's place names; the decision
+units, the piles, the borings, the limits of excavation and your own drawings
+start off (anything you draw switches its own class back on). This happens once
+per browser; after that the app opens the way you left it. The photographs no
+longer sit in grey boxes, and Clear Lake is drawn as water.
+
+**A welcome card**, the first time you open the app each day: the site in four
+numbers, your recent work, six ways in, and the open items the project is still
+waiting on (the provisional rainfall, the contact disagreements, the pipe
+inverts, the unplaced sheet). The logo brings it back; its own menu sets how
+often it shows.
+
+**One search box** in the top bar (Ctrl+K or /): places, borings, samples,
+sheets, layers, commands and coordinates, and `>` for the command line.
+
+**The chrome floats over the map**: a slimmer top bar grouped by task (Measure,
+Draw, Design, Water, Data, File), the Layers and Results panels as cards over
+the map, and the Results panel stays out of the way until there is a result.
+Every message goes into the list behind the open-items chip, and a delete offers
+Undo right where it happened.
+
+**Layers** opens on what matters: the basemap as four tiles, what is on the map
+now (with a switch and a menu per row), topics to add from, and saved views. The
+full catalogue is one tap away and searching goes straight to it.
+
+**The boring log is a log sheet**: paper, at 1 in = 5 ft, with a hole navigator
+on the left (filters for contact disagreements, water, refusal), and a rail on
+the right that says what the hole found in a sentence, both contact statements,
+the depth cursor's reading, the site profile and the hole's location. The cursor
+lights the stratum on the hole's 3D stick.
+
+**3D**: *fly the site* (one slow orbit; any input stops it) and saved views, both
+in View settings.
+
+**Keyboard and accessibility**: the menus are menus (arrow keys, Home/End, Esc
+returns to the button), every control shows a focus ring for the keyboard, the
+toast is announced, and reduced-motion is honoured throughout.
+
+---
+
 ## v9.32 — a lock at the top, a lock that falls by itself, and the redesign plan (2026-09-26)
 
 **A padlock in the top bar**, left of Help. It locks the app now, and its menu
