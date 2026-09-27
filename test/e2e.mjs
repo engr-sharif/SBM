@@ -2146,6 +2146,18 @@ p3 = await page.evaluate(async () => {
      an earlier section happened to leave in the store. */
   const cb = document.getElementById("v3dPts");
   if (cb && !cb.checked) { cb.checked = true; cb.dispatchEvent(new Event("change")); }
+  /* v28: since v9 there is no 3D checkbox — the ONE layer state decides what
+     is drawn, in both views. In a full run earlier blocks have already put a
+     sample, a dataset and a GIS row on; a CI shard that starts at 9b has not,
+     so the block asks for each kind it counts (a no-op when already on). */
+  const LS = SBMM.layerState;
+  if (LS.rec("invest", "samples") && !LS.isOn("invest", "samples")) LS.set("invest", "samples", { on: true });
+  if (LS.rec("design", "gis_lots") && !LS.isOn("design", "gis_lots")) LS.set("design", "gis_lots", { on: true });
+  for (const d of SBMM.datasets.list()) {
+    if (d.rowRef && d.rowRef.cb && !d.rowRef.cb.checked) d.rowRef.cb.click();
+    break;
+  }
+  await new Promise(r => setTimeout(r, 1500));
   const probe = SBMM.tools.rebuildFeature({ type: "line",
     pts: [[6371380, 2128660], [6371460, 2128660]], name: "ZZ pick probe" });
   await new Promise(r => setTimeout(r, 500));
