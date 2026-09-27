@@ -514,7 +514,8 @@ SBMM.layerTree = (function () {
         : "nothing to zoom to — switch the layer on first");
       return false;
     }
-    SBMM.map.flyToBounds(b, { padding: [30, 30], duration: 0.7 });
+    /* v26: into the frame the floating panels leave */
+    SBMM.map.flyToBounds(b, Object.assign({ duration: 0.7 }, SBMM.omni && SBMM.omni.fitPad ? SBMM.omni.fitPad() : { padding: [30, 30] }));
     if (SBMM.viewer3d && SBMM.viewer3d.isOpen())
       SBMM.viewer3d.frameBox(b.getWest(), b.getSouth(), b.getEast(), b.getNorth());
     return true;

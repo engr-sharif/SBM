@@ -134,6 +134,7 @@ function wireWasmSwitch() {
     SBMM.draw.wire();
     SBMM.tools.wire();
     SBMM.cmd.wire();
+    if (SBMM.omni) SBMM.omni.wire();
     SBMM.io.wire();
     SBMM.table.wire();
     SBMM.design.wire();
@@ -147,6 +148,8 @@ function wireWasmSwitch() {
     if (SBMM.borelogs) SBMM.borelogs.wire();
     if (SBMM.borewin) SBMM.borewin.wire();
     SBMM.layersUI.wire();
+    if (SBMM.carto) SBMM.carto.wire();
+    if (SBMM.layersPanel) SBMM.layersPanel.wire();
     SBMM.watermark.wire();
     SBMM.sheetMarks.wire();
     if (SBMM.survey) SBMM.survey.wire();
@@ -183,6 +186,10 @@ function wireWasmSwitch() {
     /* the tool-mode machine owns the tool buttons, the cursor, the mode HUD and
        every single-key shortcut (§2) */
     SBMM.mode.wire();
+    /* v26: the first-visit layers, the open-items chip and the Undo pill.
+       After every module has registered its rows — the curated defaults are
+       applied across the whole tree in one batch. */
+    if (SBMM.home) SBMM.home.wire();
     SBMM_PERF.mark("wire-modules");
 
     /* Right dock auto-switch (§3): selecting anything is a question about that
@@ -249,11 +256,14 @@ function wireWasmSwitch() {
     let hinted = true;
     try { hinted = localStorage.getItem("sbmm_v9hint") === "1"; localStorage.setItem("sbmm_v9hint", "1"); }
     catch (e) { hinted = false; }
-    if (!hinted) setTimeout(() => toast("Esc always returns to Navigate", 5200), 900);
+    /* v26: not over the welcome card, which says what to do in its own way */
+    if (!hinted) setTimeout(() => { if (!(SBMM.home && SBMM.home.isOpen())) toast("Esc always returns to Navigate", 5200); }, 900);
 
     SBMM_PERF.mark("boot-done");
     if (/[?&]perf/.test(location.search)) console.table(SBMM_PERF.report());
     $("loading").style.display = "none";
+    /* v26: the welcome card, the first thing the eye lands on */
+    try { if (SBMM.home) SBMM.home.start(); } catch (e) { console.error(e); }
     /* the one signal that every row is registered and every remembered layer
        is on the map (js/layertree.js re-applies the stored draw order on it) */
     try { if (SBMM.events && SBMM.events.emit) SBMM.events.emit("boot", {}); } catch (e) { console.error(e); }

@@ -199,6 +199,85 @@ await block("1a. THE PASSWORD GATE", async () => {
   console.log("unlocked: gate removed:", !g3.gate, "| token stored:", g3.token, "| locked:", g3.locked);
   if (g3.gate || !g3.token || g3.locked || !g3.stage) {
     console.log("FAIL: unlock did not complete cleanly", g3); process.exit(1); }
+
+  /* v26: the FIRST visit. This page is a fresh browser (no sbmm.home.v1), so it
+     must open on the curated view — the site photography and the place names on,
+     the decision units, piles, borings, limits of excavation and My work off —
+     with the welcome card up, and the choice recorded so it happens once. */
+  await gp.waitForSelector("#loading", { state: "hidden", timeout: 300000 });
+  await gp.waitForFunction(() => !!document.getElementById("homeCard")
+    && getComputedStyle(document.getElementById("homeCard")).display !== "none", null, { timeout: 20000 }).catch(() => {});
+  const fv = await gp.evaluate(() => {
+    const on = (g, l) => SBMM.layerState.isOn(g, l);
+    let rec = null; try { rec = JSON.parse(localStorage.getItem("sbmm.home.v1") || "null"); } catch (e) {}
+    const hc = document.getElementById("homeCard");
+    const mine = SBMM.layerState.groupList().find(g => g.id === "mywork");
+    const all = [];
+    for (const g of SBMM.layerState.groupList()) for (const r of g.layers.values()) all.push({ group: g.id, id: r.id, on: r.on });
+    return {
+      site: on("base", "ortho_site_1_5_ft"), mine6: on("base", "ortho_mine_area_6_in"),
+      places: on("base", "place_names"),
+      dus: on("framework", "dus"), piles: on("framework", "piles"), samples: on("invest", "samples"),
+      exc: all.filter(r => /^gis_exc/.test(r.id) && r.on).map(r => r.id),
+      borings: all.filter(r => r.group === "invest" && /boring/.test(r.id) && r.on).map(r => r.id),
+      nOn: all.filter(r => r.on).map(r => r.group + "/" + r.id),
+      myworkOn: mine ? [...mine.layers.values()].filter(r => r.on).map(r => r.id) : [],
+      cultural: all.filter(r => r.group === "cultural" && r.on).length,
+      card: !!(hc && getComputedStyle(hc).display !== "none"),
+      recorded: !!(rec && rec.defaults)
+    };
+  });
+  console.log("first visit:", JSON.stringify(fv));
+  if (!fv.site || !fv.mine6 || fv.dus || fv.piles || fv.exc.length || fv.borings.length
+      || fv.myworkOn.length || fv.cultural || !fv.recorded) {
+    console.log("FAIL: the first visit did not open on the curated view", fv); process.exit(1); }
+  if (!fv.card) { console.log("FAIL: the welcome card did not open on the first visit"); process.exit(1); }
+  await gp.keyboard.press("Escape");
+  await gp.waitForTimeout(300);
+  const fvEsc = await gp.evaluate(() => SBMM.home.isOpen());
+  if (fvEsc) { console.log("FAIL: Esc did not close the welcome card"); process.exit(1); }
+
+  /* v26: the padlock in the top bar, and the idle lock. Default is 5 minutes;
+     here it is set to 0.03 min (1.8 s) so the lock can be watched fall — the
+     warning chip needs a limit over 45 s and is not asserted at this length. */
+  const g4 = await gp.evaluate(async () => {
+    const wait = ms => new Promise(r => setTimeout(r, ms));
+    const btn = document.getElementById("lockBtn");
+    const out = { btn: !!btn, defaultIdle: SBMM.gate.idle() };
+    btn.click(); await wait(100);
+    out.menuItems = [...document.querySelectorAll("#lockMenu [data-lk]")].map(x => x.getAttribute("data-lk"));
+    document.body.click();
+    SBMM.gate.setIdle(0.03);
+    await wait(900);
+    out.stillOpen = !SBMM.gate.locked();
+    await wait(2600);
+    out.lockedAfterIdle = SBMM.gate.locked();
+    out.gate = !!document.getElementById("gate");
+    out.token = localStorage.getItem("sbmm.gate.v1");
+    return out;
+  });
+  console.log("padlock:", g4.btn, "| menu", g4.menuItems.join(","), "| default idle", g4.defaultIdle,
+              "min | open at 0.9 s:", g4.stillOpen, "| locked after idle:", g4.lockedAfterIdle);
+  if (!g4.btn || g4.menuItems[0] !== "now" || g4.defaultIdle !== 5) {
+    console.log("FAIL: the top-bar padlock or its menu is missing", g4); process.exit(1); }
+  if (!g4.stillOpen || !g4.lockedAfterIdle || !g4.gate || g4.token) {
+    console.log("FAIL: the idle lock did not fall, or did not forget the unlock", g4); process.exit(1); }
+  /* and a reload after the limit asks again, although the 30-day token would not */
+  await gp.fill("#gatePw", gatePassword());
+  await gp.keyboard.press("Enter");
+  await gp.waitForFunction(() => !document.getElementById("gate"), null, { timeout: 4000 });
+  /* one synchronous call: the idle timer cannot tick between backdating the
+     stamp and reading the lock (on a fast runner it did, and the page locked
+     itself before the reload it exists to test) */
+  const beforeReload = await gp.evaluate(() => {
+    SBMM.gate.setIdle(1);
+    localStorage.setItem("sbmm.gate.active", String(Date.now() - 120000));
+    return SBMM.gate.locked();
+  });
+  await gp.reload();
+  await gp.waitForSelector("#gate", { timeout: 60000 });
+  console.log("idle lock survives a reload: open before it", !beforeReload, "| gate shown after it");
+  if (beforeReload) { console.log("FAIL: the page locked before the reload, so the reload path went untested"); process.exit(1); }
   if (gerr.length) { console.log("FAIL: errors on the gate page:", gerr.slice(0, 5)); process.exit(1); }
   await gp.close();
 }
@@ -325,7 +404,9 @@ console.log("features in store:", gj.nFeatures);
 
 let rows, rowsF;   /* hoisted — v18 §3 */
 await block("6. sample table", async () => {
-/* 6. sample table */
+/* 6. sample table — v26: the Samples table lives under the Data ▾ menu now,
+   so the click goes the way a person's does: open the menu, pick the row */
+await page.click("#siteMenuBtn");
 await page.click("#tableBtn");
 await page.waitForTimeout(300);
 rows = await page.evaluate(() => document.querySelectorAll("#tblBody tr").length);
@@ -4335,9 +4416,17 @@ w13d = await page.evaluate(async () => {
      so the loop asking for ~30 fps is served at two or three. What is asserted is
      that it keeps asking and the water keeps moving, against an idle view that
      issues none at all (the same measurement block 9e makes). */
+  /* v26: at least four seconds and until three renders, at most twenty — the
+     3D canvas is full-bleed under the floating chrome, so a software-GL frame
+     covers more pixels and takes longer; the fact asserted (the loop keeps
+     asking while water moves) is unchanged, and an idle view still issues none */
   const a = SBMM.viewer3d.stats();
-  await wait(4000);
-  const a2 = SBMM.viewer3d.stats();
+  let a2 = a;
+  for (let i = 0; i < 40; i++) {
+    await wait(500);
+    a2 = SBMM.viewer3d.stats();
+    if (i >= 7 && a2.renderCount - a.renderCount >= 3) break;
+  }
   out.rendersWithFlow = a2.renderCount - a.renderCount;
   out.animAdvance = +(a2.waterAnimT - a.waterAnimT).toFixed(2);
   out.moved = a.waterSample && a2.waterSample
@@ -5037,7 +5126,9 @@ await block("9e. layers tab information architecture", async () => {
 /* 9e. layers tab information architecture                               */
 /* ==================================================================== */
 /* the left dock was left on another tab by an earlier section */
+await page.evaluate(() => { if (SBMM.borewin && SBMM.borewin.isOpen && SBMM.borewin.isOpen()) SBMM.borewin.close(); });
 await page.click('#leftTabs .dtab[data-tab="layers"]');
+await page.evaluate(() => SBMM.layersPanel && SBMM.layersPanel.show("catalog"));
 await page.waitForTimeout(400);
 
 ia = await page.evaluate(() => {
@@ -6580,6 +6671,7 @@ exemptReason = function exemptReason(r) {
   if (r.group === "base" && /^(Hillshade|Ortho|Slope|Aspect|Elevation tint)/.test(r.label))
     return "the 3D terrain drape (toolbar picker)";
   if (r.group === "design" && r.id === "sheets3d") return "master switch for the per-sheet drapes";
+  if (r.group === "base" && r.id === "place_names") return "2D map labels (v26); the 3D view has its own label layer";
   if (r.group === "design" && r.id === "sheet_footprints") return "2D click targets; in 3D you click the drape";
   if (r.group === "design" && /^C-\d|^G-\d/.test(r.label)) return "a plan sheet, draped on request (⛰)";
   if (CAD_BASEMAP.has(r.id)) return "EA CAD base map — 2D only (drape budget, see the block header)";
@@ -7555,7 +7647,7 @@ if (errors.length !== errBeforeLog) {
 await voiceCheck("9ae. the boring-log card");
 });
 
-let bwOpen, bwCols, bwAxes, bwCur, bwWalk, bwCmp, bwPrint, bwSeams, bwActs, bwIdle, bwGone, errBeforeWin;
+let bwCurAt = [0, 0], bwOpen, bwCols, bwAxes, bwCur, bwWalk, bwCmp, bwPrint, bwSeams, bwActs, bwIdle, bwGone, errBeforeWin;
 await block("9af. the log window", async () => {
 /* 9af. the boring-log window (js/borewin.js, v23 Phase A)               */
 /* ==================================================================== */
@@ -7754,10 +7846,16 @@ if (bwAxes.missDepth > 1 || bwAxes.missElev > 1)
 {
   const box = await page.locator(".blwin .blgl").nth(2).boundingBox();
   if (!box) { console.log("FAIL: no graphic-log box to put the cursor on"); process.exit(1); }
-  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  /* two moves, to two different points: a move to where the pointer already
+     is dispatches nothing, and a full run can leave it exactly there */
+  await page.mouse.move(box.x + box.width / 2 + 3, box.y + box.height / 2 - 4);
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2, { steps: 2 });
   await page.waitForTimeout(300);
+  bwCurAt = [box.x + box.width / 2, box.y + box.height / 2];
 }
-bwCur = await page.evaluate(() => {
+bwCur = await page.evaluate(([px, py]) => {
+  const u = document.elementFromPoint(px, py);
+  const under = u ? (u.tagName + "#" + u.id + "." + String(u.className && u.className.baseVal !== undefined ? u.className.baseVal : u.className)).slice(0, 80) : null;
   const c = document.querySelector(".blwin .bwcur");
   const r = document.querySelector(".blwin .bwread");
   const h = SBMM.borelogs.byId("SB-9");
@@ -7771,8 +7869,9 @@ bwCur = await page.evaluate(() => {
            inStrip: !!(r && r.closest(".bwhead")),
            floating: !!c.querySelector("b"),
            wantUscs: s ? (s.uscs || "") : null,
-           wantDepth: fmt(ft, 1), wantElev: fmt(h.elev - ft, 1) };
-});
+           wantDepth: fmt(ft, 1), wantElev: fmt(h.elev - ft, 1), under,
+           st: c.hidden ? SBMM.borewin.stateOf() : null, dAt: c.hidden ? SBMM.borewin.depthAtClientY(py) : null };
+}, bwCurAt);
 console.log("the depth cursor:", JSON.stringify(bwCur));
 if (bwCur.hidden || !(bwCur.ft > 0)) { console.log("FAIL: the depth cursor did not follow the pointer", bwCur); process.exit(1); }
 if (!bwCur.inStrip || bwCur.floating)
@@ -8102,7 +8201,9 @@ if (bwSeams.geoms > 1)
   /* the left dock may be on My work or Sheets by now — a full run leaves it
      wherever the last block put it, and a locator waits 180 s for a row inside
      a hidden pane before it says so */
-  await page.click('#leftTabs .dtab[data-tab="layers"]');
+  await page.evaluate(() => { if (SBMM.borewin && SBMM.borewin.isOpen && SBMM.borewin.isOpen()) SBMM.borewin.close(); });
+await page.click('#leftTabs .dtab[data-tab="layers"]');
+await page.evaluate(() => SBMM.layersPanel && SBMM.layersPanel.show("catalog"));
   await page.waitForTimeout(250);
   const row = page.locator("#layers .lyr:has(.dsgear)").first();
   await row.scrollIntoViewIfNeeded();
@@ -8321,7 +8422,15 @@ await page.evaluate(([a, b]) => {
   if (SBMM.viewer3d.isOpen()) SBMM.viewer3d.toggle();
   SBMM.map.invalidateSize();
   SBMM.map.fitBounds([[Math.min(a.y, b.y), Math.min(a.x, b.x)],
-                      [Math.max(a.y, b.y), Math.max(a.x, b.x)]], { animate: false, padding: [90, 90] });
+                      [Math.max(a.y, b.y), Math.max(a.x, b.x)]],
+                     Object.assign({ animate: false }, (() => {
+                       /* v26: the map is full-bleed under floating docks, so
+                          the fit is padded into the FRAME the chrome leaves */
+                       const P = SBMM.omni.fitPad();
+                       if (!P.paddingTopLeft) return { padding: [90, 90] };
+                       return { paddingTopLeft: P.paddingTopLeft.map(v => v + 66),
+                                paddingBottomRight: P.paddingBottomRight.map(v => v + 66) };
+                     })()));
 }, [fnAim[0], fnAim[1]]);
 await page.waitForTimeout(1400);
 await page.evaluate(() => { SBMM.cmd.run("FENCE 260"); });
@@ -9059,7 +9168,9 @@ await page.evaluate(() => {
   for (const f of SBMM.store.features.filter(g => g.type === "fence")) SBMM.tools.deleteFeature(f);
   SBMM.mode.navigate();
 });
+await page.evaluate(() => { if (SBMM.borewin && SBMM.borewin.isOpen && SBMM.borewin.isOpen()) SBMM.borewin.close(); });
 await page.click('#leftTabs .dtab[data-tab="layers"]');
+await page.evaluate(() => SBMM.layersPanel && SBMM.layersPanel.show("catalog"));
 await page.waitForTimeout(300);
 await page.evaluate(() => { const p = $("layers"); if (p) p.scrollTop = 0; });
 await page.waitForTimeout(200);
@@ -9161,7 +9272,9 @@ await block("9z. the layer tree", async () => {
 errBeforeTree = errors.length;
 /* block 10 left the left dock on the My-work tab; the tree needs to be on
    screen for a real drag and for keyboard focus to mean anything */
+await page.evaluate(() => { if (SBMM.borewin && SBMM.borewin.isOpen && SBMM.borewin.isOpen()) SBMM.borewin.close(); });
 await page.click('#leftTabs .dtab[data-tab="layers"]');
+await page.evaluate(() => SBMM.layersPanel && SBMM.layersPanel.show("catalog"));
 await page.waitForTimeout(400);
 
 /* ---- every row that existed before v16 exists after, same (group, id) ----
@@ -9217,7 +9330,10 @@ treeMissing = treeBase.keys.filter(k => !treeKeys.has(k));
        registers every class row through SBMM.addLayerRow, and this one was
        APPENDED to CLASSES after the baseline was dumped — CLASSES[4] is
        "imported wins" and that index is load-bearing, so nothing may be
-       inserted before it. */
+       inserted before it.
+     · the "Place names" row (v26), in the base group. The site's own place
+       labels (Herman impoundment, Clear Lake, the ponds, the lots) drawn by
+       js/home.js through SBMM.labels, registered through SBMM.addLayerRow. */
 treeNew = tree.keys.filter(k => treeBase.keys.indexOf(k) < 0);
 treeUnexplained = treeNew.filter(k => !/^invest\//.test(k) && !/^base\/contours_/.test(k)
                                          && k !== "framework/runoff_cover"
@@ -9227,7 +9343,8 @@ treeUnexplained = treeNew.filter(k => !/^invest\//.test(k) && !/^base\/contours_
                                          && k !== "framework/accum_raster"
                                          && k !== "framework/accum_streams"
                                          && k !== "framework/where_water"
-                                         && k !== "mywork/borings");
+                                         && k !== "mywork/borings"
+                                         && k !== "base/place_names");
 console.log("layer tree:", tree.rows.length, "rows in the state,", tree.domRows, "in the DOM,",
             tree.subs.length, "sub-groups |", tree.swatches, "symbology swatches |",
             "baseline", treeBase.keys.length, "rows — missing", treeMissing.length,
@@ -9577,7 +9694,11 @@ treeLegend = await page.evaluate(async () => {
   const on = [];
   for (const g of SBMM.layerState.groupList())
     for (const r of g.layers.values()) if (r.on) on.push(g.id + "/" + r.id);
-  const box = el.getBoundingClientRect(), stage = document.getElementById("stage").getBoundingClientRect();
+  /* v26: the stage is full-bleed under floating docks, so "bottom-left" is
+     measured against the FRAME the chrome leaves free, not the stage */
+  const box = el.getBoundingClientRect(), sr = document.getElementById("stage").getBoundingClientRect();
+  const F = SBMM.shell && SBMM.shell.frame ? SBMM.shell.frame() : null;
+  const stage = F ? { left: F.x, bottom: F.y + F.h } : sr;
   SBMM.layerTree.legend.toggle(false);
   return { listed, on: on.sort(), z: getComputedStyle(el).zIndex,
            bottomLeft: box.left - stage.left < 40 && stage.bottom - box.bottom < 80,
@@ -9611,6 +9732,7 @@ await page.waitForTimeout(400);
 errBeforeReload = errors.length;
 await page.reload();
 await page.waitForSelector("#loading", { state: "hidden", timeout: 300000 });
+await page.evaluate(() => SBMM.layersPanel && SBMM.layersPanel.show("catalog"));
 /* v18: wait on the CONDITION, not on a clock. The rows re-register and the
    tree re-applies its draw order after the loader hides, and under a parallel
    matrix that took longer than the fixed 1.5 s this used to wait (the one flake

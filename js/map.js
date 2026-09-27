@@ -9,6 +9,22 @@ SBMM.initMap = function () {
   });
   L.control.zoom({ position: "bottomright" }).addTo(map);
   SBMM.map = map;
+  /* v26: the stage is full-bleed and the chrome floats over it, so a fit with
+     no padding of its own would put the ground under the docks. Every such
+     fit — the app's and anybody else's — is padded into the free frame
+     (SBMM.omni.fitPad). A caller that passes padding keeps it exactly. */
+  {
+    const fb = map.fitBounds.bind(map), ftb = map.flyToBounds.bind(map);
+    const pad = o => {
+      o = o || {};
+      if (o.padding || o.paddingTopLeft || o.paddingBottomRight) return o;
+      if (document.body.classList.contains("field") || !SBMM.omni || !SBMM.omni.fitPad) return o;
+      const P = SBMM.omni.fitPad();
+      return P.paddingTopLeft ? Object.assign({}, o, P) : o;
+    };
+    map.fitBounds = (b, o) => fb(b, pad(o));
+    map.flyToBounds = (b, o) => ftb(b, pad(o));
+  }
 
   /* panes to keep z-order sane: analysis rasters under vectors, drawings on top */
   map.createPane("raster");   map.getPane("raster").style.zIndex = 260;
@@ -228,6 +244,8 @@ SBMM.initMap = function () {
   const ZOOM_LABELS = 0;
   function zoomClass() {
     $("map").classList.toggle("zoomfar", map.getZoom() < ZOOM_LABELS);
+    /* v26 §10: the whole-site view draws the point symbols smaller (CSS) */
+    $("map").classList.toggle("zoomsite", map.getZoom() < -1.5);
     if (SBMM.status) SBMM.status.scale();
   }
   map.on("zoomend", () => { drawScale(); zoomClass(); });

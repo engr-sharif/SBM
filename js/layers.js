@@ -35,8 +35,12 @@ SBMM.buildLayers = function () {
   const bS = SBMM.demSite.bounds(), bA = SBMM.demAbp.bounds();
 
   /* ---------- basemaps ---------- */
-  SBMM.addLayerRow("base", "Hillshade — site", L.imageOverlay(SBMM_DATA.hs_site_jpg || SBMM_DATA.hs_site_png, bS, { pane: "raster", opacity: 1 }), { opacity: 1 });
-  SBMM.addLayerRow("base", "Hillshade — mine area (1 ft)", L.imageOverlay(SBMM_DATA.hs_abp_jpg || SBMM_DATA.hs_abp_png, bA, { pane: "raster", opacity: 1 }), { opacity: 1 });
+  /* v26: the two hillshades are kept by reference so js/cartography.js can
+     mask their no-data grey (the orthos below always were) */
+  SBMM.layers.hsSite = L.imageOverlay(SBMM_DATA.hs_site_jpg || SBMM_DATA.hs_site_png, bS, { pane: "raster", opacity: 1 });
+  SBMM.layers.hsAbp = L.imageOverlay(SBMM_DATA.hs_abp_jpg || SBMM_DATA.hs_abp_png, bA, { pane: "raster", opacity: 1 });
+  SBMM.addLayerRow("base", "Hillshade — site", SBMM.layers.hsSite, { opacity: 1 });
+  SBMM.addLayerRow("base", "Hillshade — mine area (1 ft)", SBMM.layers.hsAbp, { opacity: 1 });
   /* the three orthophotos share the raster pane, so give them explicit z-order —
      finest imagery on top — instead of letting DOM insertion order decide */
   if (SBMM_DATA.ortho_abp && SBMM_DATA.ortho_abp_jpg) {
@@ -252,6 +256,9 @@ SBMM.buildLayers = function () {
 
   /* ---------- My work (§4 group 6) ---------- */
   SBMM.myWork.build();
+
+  /* ---------- v26: place names, last row of Base ---------- */
+  if (SBMM.home) SBMM.home.build();
 };
 
 
@@ -383,7 +390,9 @@ SBMM.layersUI = (function () {
   function flyTo(area) {
     const e = extents()[area];
     if (!e) return;
-    SBMM.map.flyToBounds(e, { padding: [24, 24], duration: 0.8 });
+    /* v26: into the FRAME — the part of the map no floating panel covers */
+    const pad = SBMM.omni && SBMM.omni.fitPad ? SBMM.omni.fitPad() : { padding: [24, 24] };
+    SBMM.map.flyToBounds(e, Object.assign({ duration: 0.8 }, pad));
     if (SBMM.viewer3d && SBMM.viewer3d.isOpen())
       SBMM.viewer3d.frameBox(e[0][1], e[0][0], e[1][1], e[1][0]);
     document.querySelectorAll("#areaNav .areabtn")
@@ -541,6 +550,7 @@ SBMM.symbolizePoints = function (mode, filter) {
       .addTo(grp);
     SBMM.pointMarkers[p.id] = mk;
   }
+  if (SBMM.carto && SBMM.carto.densify) SBMM.carto.densify(grp);
   const leg = $("ptLegend");
   if (leg) {
     if (mode === "exc") leg.innerHTML = `<span class="chip" style="background:#E4796A"></span>exceeds RG <span class="chip" style="background:#5FBF8F"></span>below`;

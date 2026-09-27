@@ -33,6 +33,7 @@ await page.screenshot({ path: "/tmp/shot_3d_abp.png" });
 
 /* sample table with graduated symbology */
 await page.evaluate(() => document.getElementById("v3dClose").click());
+await page.click("#siteMenuBtn");
 await page.click("#tableBtn");
 await page.selectOption("#tblSym", "Hg");
 await page.waitForTimeout(500);
