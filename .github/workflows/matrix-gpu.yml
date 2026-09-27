@@ -1,0 +1,94 @@
+# The test matrix on a REAL GPU (v28) — optional, manual, self-hosted.
+#
+# GitHub's own GPU runners are sold to Team / Enterprise organisations only;
+# this repository belongs to a personal account, so the only GPU CI can reach
+# is a machine you register yourself: Settings → Actions → Runners → New
+# self-hosted runner, and give it the extra label `gpu`. Until a runner with
+# that label exists this workflow simply never starts — the hosted matrix in
+# matrix.yml is unaffected either way.
+#
+# What changes on a GPU: SBMM_GPU=1 makes test/lib/browser.mjs drop SwiftShader
+# for ANGLE (d3d11 on Windows) and the 180-s software-GL timeouts for 60 s, and
+# one browser per core pair is safe, so the whole matrix runs in one job with
+# the runner's own parallelism. The `[browser]` line in each log names the
+# renderer it actually got — if it says software, the machine has no usable GPU.
+#
+# It runs ONLY on demand (Actions → "test matrix (GPU)" → Run workflow), never
+# on pull_request: a self-hosted runner executes whatever the branch contains,
+# on your machine, with your user's rights.
+#
+# The machine needs: Node 22, Python 3.12 (on PATH as `python`, or set PYTHON),
+# git with Git Bash on Windows (the steps are bash), and a GPU driver.
+
+name: test matrix (GPU)
+
+on:
+  workflow_dispatch:
+    inputs:
+      steps:
+        description: "steps to run (test/run.mjs --only); empty = the whole matrix"
+        required: false
+        default: ""
+      parallel:
+        description: "browser slots"
+        required: false
+        default: "2"
+
+concurrency:
+  group: matrix-gpu-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  gpu:
+    runs-on: [self-hosted, gpu]
+    timeout-minutes: 120
+    defaults:
+      run:
+        shell: bash
+    env:
+      SBMM_GPU: "1"
+      PYTHON: ${{ runner.os == 'Windows' && 'python' || 'python3' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install test dependencies
+        working-directory: test
+        run: npm install --no-audit --no-fund
+
+      - name: Install Chromium
+        working-directory: test
+        run: npx playwright install chromium
+
+      - name: Preflight
+        run: node test/run.mjs --only check
+
+      - name: Run the matrix on the GPU
+        env:
+          STEPS: ${{ inputs.steps }}
+          SLOTS: ${{ inputs.parallel }}
+        run: |
+          if [ -n "$STEPS" ]; then
+            node test/run.mjs --only "$STEPS" --parallel "$SLOTS"
+          else
+            node test/run.mjs --parallel "$SLOTS"
+          fi
+
+      - name: Job summary
+        if: always()
+        run: |
+          {
+            echo '### GPU matrix'
+            echo '```'
+            grep -h '^\[browser\]' test/.logs/*.log 2>/dev/null | sort -u | head -3
+            tail -n 40 test/.logs/PROGRESS 2>/dev/null || echo 'no PROGRESS file'
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gpu-logs
+          path: test/.logs/
+          if-no-files-found: ignore
+          include-hidden-files: true
