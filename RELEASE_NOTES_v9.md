@@ -17,6 +17,19 @@ All three are offline-only by design. Nothing in this app calls out to the inter
 
 ---
 
+## v9.34 — the fence clip box (2026-09-27)
+
+**A fence can now be seen in 3D without looking underground.** *Clip 3D* on a
+fence's popup (or `CLIPBOX` in the command bar) digs a trench along it: the
+ground, the photo draped on it and the map linework inside the box are cut
+away, the trench walls are drawn as soil down to the fence's datum, and the
+fence section and each boring's coloured depth stick stand in the cut. A chip
+at the top of the 3D view sets the half-width (10–200 ft), cuts one side or
+both, and puts the ground back. The box shows as a dashed outline on the 2D
+map, follows the fence if you edit it, and goes when the fence does.
+
+---
+
 ## v9.33 — the redesign, built (2026-09-27)
 
 The interface in `docs/V26_UI_AUDIT.md`, built. The engine, the numbers and the

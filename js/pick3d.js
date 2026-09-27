@@ -314,7 +314,12 @@ SBMM.pick3d = (function () {
       try { ctx.raycaster.intersectObject(entry.object3d, false, HITS); }
       catch (err) { continue; }
       if (!HITS.length) continue;
-      const h = HITS[0];
+      /* v27: an object the fence clip box has cut away is not there to click */
+      const V = SBMM.viewer3d, C0 = ctx.center ? ctx.center() : null;
+      const cut = V && V.clipContains && C0 && !(entry.object3d.userData && entry.object3d.userData.noClip)
+        ? q => V.clipContains(q.point.x + C0.CX, q.point.y + C0.CY) : null;
+      const h = cut ? HITS.find(q => !cut(q)) : HITS[0];
+      if (!h) continue;
       /* Priority first, distance second. Two objects the ray genuinely passes
          through at almost the same depth (a depth stick and its marker cap) are
          resolved by what the user is more likely to be aiming at. */
