@@ -64,15 +64,16 @@ node test/run.mjs --list           # every step, its build, what it needs
 SBMM_GPU=1 node test/run.mjs       # render on a real GPU (§2 below)
 ```
 
-- **CI runs the desktop e2e in SHARDS (v28), five per build** — `e2e:folder:1..5` and
-  `e2e:dist:1..5`, cut at the block names in `E2E_CUTS` in `test/run.mjs` and run as
+- **CI runs the desktop e2e in SHARDS (v28), four per build** — `e2e:folder:1..4` and
+  `e2e:dist:1..4`, cut at the block names in `E2E_CUTS` in `test/run.mjs` and run as
   `--from A --until B` (a half-open range; `--until` is new in `test/lib/blocks.mjs`,
   and an EXACT block name wins over a prefix because two blocks start "9z."). Locally
   the full `e2e:folder` / `e2e:dist` are still the default and are unchanged.
   **A shard starts on a fresh page, so the block it starts at must stand alone**: the
-  cut blocks got what they used to inherit — `open3d` (an idempotent fixture) on 9c,
-  and 9y now waits for the accumulation beside the drainage and where-the-water-goes
-  kernels. Move a cut and run that shard alone before pushing. `test/check.mjs`
+  cut blocks got what they used to inherit — `open3d` (an idempotent fixture) on 9c;
+  9f-2 switches on the rows it counts through the layer state (it ticked a 3D checkbox
+  gone since v9); 9y waits for the accumulation beside the other two kernels; and
+  `window.__mine` is installed at the top of the harness, not in block 8g. Move a cut and run that shard alone before pushing. `test/check.mjs`
   (`shards`) fails if a cut stops naming exactly one block or the workflow lacks a
   job for a shard. `SBMM_BLOCK_TIMES=1` prints each block's wall time — what the cuts
   are balanced on. **`.github/workflows/matrix-gpu.yml`** is the same runner on a
