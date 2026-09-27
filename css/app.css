@@ -2875,3 +2875,23 @@ body:not(.field) #mapLegend.closed{display:none}
 .blwin .bwmain{position:relative}
 .blwin.bwpeek.bwtab-log:not(.bwrailon) .bwrail{position:absolute;right:0;top:0;bottom:0;width:min(316px,100%);
   z-index:6;overflow:auto;background:#121A1F;box-shadow:-12px 0 32px rgba(0,0,0,.45)}
+
+/* v27 — the fence clip box chip, top-centre of the 3D view */
+#v3dClip{position:absolute;left:50%;transform:translateX(-50%);top:calc(var(--v3dBarH,44px) + 12px);z-index:6;
+  display:flex;align-items:center;gap:10px;padding:6px 8px 6px 12px;border-radius:999px;
+  background:var(--glass,rgba(16,22,26,.82));border:1px solid var(--glassb,rgba(255,255,255,.1));
+  backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);box-shadow:0 6px 24px rgba(0,0,0,.35);
+  font-size:var(--fs2,12px);color:var(--ink);white-space:nowrap}
+#v3dClip[hidden]{display:none}
+#v3dClip .v3dclt{font-weight:650;color:#F1CE7A}
+#v3dClip .v3dcln{color:var(--ink2);max-width:160px;overflow:hidden;text-overflow:ellipsis}
+#v3dClip .v3dclw{display:flex;align-items:center;gap:6px;color:var(--mut)}
+#v3dClip .v3dclw input{width:110px;accent-color:#F1CE7A}
+#v3dClip .v3dclw .mono{min-width:44px;color:var(--ink2)}
+#v3dClip .v3dcls{display:inline-flex;border:1px solid var(--line2);border-radius:999px;overflow:hidden}
+#v3dClip .v3dcls button{background:none;border:0;color:var(--ink2);padding:3px 9px;font:inherit;cursor:pointer}
+#v3dClip .v3dcls button.on{background:rgba(241,206,122,.18);color:#F1CE7A}
+#v3dClip .v3dclx{background:none;border:0;color:var(--mut);font-size:16px;line-height:1;padding:2px 6px;cursor:pointer;border-radius:50%}
+#v3dClip .v3dclx:hover,#v3dClip .v3dcls button:hover{color:var(--ink)}
+#v3dClip :is(button,input):focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+body.field #v3dClip{top:auto;bottom:calc(var(--botH,60px) + 10px);max-width:calc(100% - 24px);flex-wrap:wrap;border-radius:14px}

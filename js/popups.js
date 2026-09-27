@@ -335,6 +335,7 @@ SBMM.popups = (function () {
     }
     if (f.type === "fence" && SBMM.fence) {
       acts.push(btn("fence", () => SBMM.fence.openInWindow(f), "Open the drawing in the log window"));
+      acts.push(btn("clip 3D", () => SBMM.viewer3d.clipBox(f), "Dig a trench along this fence in 3D, so the section and the borings show below the ground"));
       acts.push(btn("CSV", () => SBMM.fence.exportCsv(f), "Station, offset and every horizon, per hole"));
       acts.push(btn("DXF", () => SBMM.fence.exportDxf(f), "Section coordinates: X = station ft, Y = elevation ft"));
     }

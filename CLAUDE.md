@@ -2828,6 +2828,54 @@ site*.
 **Exemptions:** `base/place_names` is a dated addition in block 9z's baseline
 and exempt in block 9y's parity table (2D labels; 3D has its own label layer).
 
+## v27 — the fence clip box (a section box along a fence)
+
+No kernel work (`VERSION` stays 10). All of it is in `js/viewer3d.js` (the
+`v27 — the fence clip box` section), plus the clipping chunks in
+`js/terrain3d.js`'s raster shader, the `CLIPBOX` command (`SECTIONBOX`), the
+fence popup's **clip 3D** button, a skip in `js/pick3d.js`'s raycast and the
+`#v3dClip` chip CSS. E2E block **"9ag2. the fence clip box"**.
+
+`SBMM.viewer3d.clipBox(fence | id | null, {half, side, frame})` digs a trench
+along a fence: an oriented prism on the fence's first-to-last axis, ±`half` ft
+across (`side`: `both` / `left` / `right`, looking up-station), 15 ft past each
+end. `clipOff()`, `clipState()`, `clipProbe()` and `clipContains(x, y)` are the
+rest of it. Six things will be walked into again:
+
+- **It is LOCAL clipping with `clipIntersection`.** Four vertical planes with
+  normals pointing OUT of the box, so a fragment is discarded only when it is
+  inside all four. Global `renderer.clippingPlanes` cannot do this: they
+  union, which keeps the inside and removes the world. The planes are
+  vertical, so the relief slider (a z-scale on every group) cannot move them.
+- **Materials are claimed at DRAW time**, not when the box is set:
+  `clipBeforeDraw()` runs before every render while the box is on, rebuilds the
+  planes and caps when the fence or the settings changed (a signature), and
+  walks the scene giving every material the shared plane array. Tiles swap and
+  overlays rebuild long after the box was set, and this is what keeps them all
+  cut. It asks for no frame of its own, so block 9e and the idle count hold.
+- **What stands in the trench carries `userData.noClip`**, and a subtree under
+  one is skipped whole: the fence strip, the datasets' depth sticks, the stratum
+  cursor, the label group, the sky, `envGroup`, the sketch and the caps
+  themselves. **A new object that must show below ground gets the flag.**
+- **The terrain's own ShaderMaterial needs the clipping chunks** (and
+  `clipping: true`): a built-in material gets clipping for free, a
+  ShaderMaterial silently ignores `clippingPlanes` without
+  `clipping_planes_pars_*` / `clipping_planes_vertex` / `_fragment`, and the
+  hillshade/slope/aspect drapes would then draw straight through the trench.
+- **The caps are drawn from `SBMM.elev`, the ANALYSIS ground** (the v20
+  two-sources rule), down to the fence's own `zBot`; a point with no ground
+  breaks the wall, as everywhere else in the 3D view. The floor is the box at
+  that datum, and a bright line marks where the cut meets the ground.
+- **A raycast must not land on ground the box cut away** — raycasting ignores
+  clipping. `raycastTerrain()` and `js/pick3d.js`'s `raycast()` take the first
+  hit OUTSIDE the box (anything flagged `noClip` is exempt), so a click into the
+  trench answers with the fence or the far bank, not with invisible terrain.
+
+It is a VIEW, not data: nothing serialises. Deleting the fence turns it off
+with a toast; closing 3D turns it off; the 2D map shows the box as a dashed
+outline in the `water` pane (its own `L.svg` renderer, no pointer events —
+the rule that pane already lives by).
+
 ## Undo and redo (v9.4) — the both-closures rule and `readd`
 
 `SBMM.undo` is two stacks of `{ desc, undo, redo }`, 100 deep each way:
