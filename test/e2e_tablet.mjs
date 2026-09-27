@@ -298,11 +298,13 @@ await block("2. profiles", async () => {
 /* 2. profiles                                                           */
 /* ===================================================================== */
 await page.setViewportSize({ width: 507, height: 834 });
-await wait(500);
+/* a condition, not a clock: the resize handler is debounced and the layout
+   switch lands whenever the main thread gets to it */
+await page.waitForFunction(() => document.body.classList.contains("field"), null, { timeout: 15000 }).catch(() => {});
 small = await page.evaluate(() => ({ profile: SBMM.touch.profile(),
   field: document.body.classList.contains("field"), touch: document.body.classList.contains("touch") }));
 await page.setViewportSize({ width: 1194, height: 834 });
-await wait(500);
+await page.waitForFunction(() => !document.body.classList.contains("field"), null, { timeout: 15000 }).catch(() => {});
 back = await page.evaluate(() => ({ profile: SBMM.touch.profile(),
   field: document.body.classList.contains("field"), touch: document.body.classList.contains("touch") }));
 console.log(`profiles: 507 px -> ${small.profile} (field ${small.field}) · 1194 px -> ${back.profile} (field ${back.field})`);
@@ -351,6 +353,22 @@ box = await page.evaluate(() => {
            left: Math.round(r.left), top: Math.round(r.top) };
 });
 orbit = () => page.evaluate(() => SBMM.viewer3d.stats().orbit);
+/* v26: wait for the 3D view to SETTLE — a quiet second with the tile queue
+   empty. The canvas is full-bleed under the floating chrome, so a software-GL
+   frame is slower and the rig's easing outlasts a fixed wait; reading the orbit
+   mid-ease measures the easing, not the gesture. A condition, not a clock. */
+const settle3d = () => page.evaluate(async () => {
+  const wait = ms => new Promise(r => setTimeout(r, ms));
+  let prev = SBMM.viewer3d.stats().renderCount;
+  for (let i = 0; i < 40; i++) {
+    await wait(1000);
+    const now = SBMM.viewer3d.stats().renderCount;
+    const q = SBMM.tiles && SBMM.tiles.stats ? SBMM.tiles.stats() : { queued: 0, running: 0 };
+    if (now - prev <= 1 && !(q.queued + q.running)) return i + 1;
+    prev = now;
+  }
+  return 40;
+});
 
 /* --- one-finger orbit --- */
 {
@@ -517,14 +535,34 @@ orbit = () => page.evaluate(() => SBMM.viewer3d.stats().orbit);
 /* --- long-press identifies, and drags a vertex handle --- */
 {
   await page.evaluate(() => { SBMM.viewer3d.frame(); });
-  await wait(2000);
+  /* settled is a CONDITION (v26): frame() eases the camera and the quadtree
+     swaps tiles as it arrives; a long press while the drawn set is mid-swap
+     raycasts nothing. Wait for a quiet second with the tile queue empty, the
+     same rule the flick section above applies. */
+  await page.evaluate(async () => {
+    const wait = ms => new Promise(r => setTimeout(r, ms));
+    let prev = SBMM.viewer3d.stats().renderCount;
+    for (let i = 0; i < 40; i++) {
+      await wait(1000);
+      const now = SBMM.viewer3d.stats().renderCount;
+      const q = SBMM.tiles && SBMM.tiles.stats ? SBMM.tiles.stats() : { queued: 0, running: 0 };
+      if (now - prev <= 1 && !(q.queued + q.running)) break;
+      prev = now;
+    }
+  });
   await clearToasts();
   await longPress(box.cx, box.cy);
   await wait(900);
   const card = await page.evaluate(() => ({ open: SBMM.pick3d.cardOpen(),
                                             html: (SBMM.pick3d.cardHtml() || "").slice(0, 90) }));
   console.log(`3D long-press: identify card open ${card.open} — ${JSON.stringify(card.html)}`);
-  if (!card.open) fail("a long press on the terrain opened no identify card");
+  if (!card.open) {
+    const under = await page.evaluate(([x, y]) => {
+      const e = document.elementFromPoint(x, y);
+      return e ? (e.tagName + "#" + e.id + "." + String(e.className && e.className.baseVal !== undefined ? e.className.baseVal : e.className)).slice(0, 90) : null;
+    }, [box.cx, box.cy]);
+    fail("a long press on the terrain opened no identify card", { under, at: [box.cx, box.cy] });
+  }
   await page.evaluate(() => { SBMM.pick3d.closeCard(); });
 }
 {
@@ -571,11 +609,12 @@ orbit = () => page.evaluate(() => SBMM.viewer3d.stats().orbit);
 
 /* --- §5a: the pen in 3D --- */
 {
+  await settle3d();
   const a = await orbit();
   await pen("down", box.cx, box.cy);
   for (let i = 1; i <= 8; i++) { await pen("move", box.cx - i * 12, box.cy - i * 3); await wait(35); }
   await pen("up", box.cx - 96, box.cy - 24);
-  await wait(1500);
+  await settle3d();
   const b = await orbit();
   console.log(`3D pen drag: theta ${a.theta.toFixed(3)} -> ${b.theta.toFixed(3)}`);
   if (Math.abs(b.theta - a.theta) < 0.03) fail("a pen drag did not orbit", { a, b });
@@ -583,11 +622,24 @@ orbit = () => page.evaluate(() => SBMM.viewer3d.stats().orbit);
   /* pen + one held finger = pan */
   const tg0 = await page.evaluate(() => (SBMM.viewer3d.targetXY ? SBMM.viewer3d.targetXY() : null));
   await pen("down", box.cx, box.cy);
-  await touch("touchStart", [{ x: box.left + 40, y: box.top + 40, id: 5 }]);
+  /* the held finger goes inside the FREE frame (v26: the canvas corner is
+     under the floating top bar and the left dock) */
+  const hold = await page.evaluate(() => {
+    const F = SBMM.shell && SBMM.shell.frame ? SBMM.shell.frame() : null;
+    if (!F) return null;
+    /* a point on the CANVAS itself: clear of the 3D toolbar along the top */
+    const c = document.getElementById("v3dCanvas");
+    for (const fy of [0.6, 0.5, 0.7, 0.4]) {
+      const p = { x: Math.round(F.x + 40), y: Math.round(F.y + F.h * fy) };
+      if (document.elementFromPoint(p.x, p.y) === c) return p;
+    }
+    return { x: Math.round(F.x + 40), y: Math.round(F.y + F.h * 0.6) };
+  });
+  await touch("touchStart", [{ x: hold ? hold.x : box.left + 40, y: hold ? hold.y : box.top + 40, id: 5 }]);
   for (let i = 1; i <= 8; i++) { await pen("move", box.cx + i * 10, box.cy + i * 6); await wait(35); }
   await pen("up", box.cx + 80, box.cy + 48);
   await touch("touchEnd", []);
-  await wait(1400);
+  await settle3d();
   const tg1 = await page.evaluate(() => (SBMM.viewer3d.targetXY ? SBMM.viewer3d.targetXY() : null));
   if (tg0 && tg1) {
     const moved = Math.hypot(tg1[0] - tg0[0], tg1[1] - tg0[1]);

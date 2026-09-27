@@ -4410,8 +4410,11 @@ w13d = await page.evaluate(async () => {
      so the loop asking for ~30 fps is served at two or three. What is asserted is
      that it keeps asking and the water keeps moving, against an idle view that
      issues none at all (the same measurement block 9e makes). */
+  /* v26: six seconds — the 3D canvas is full-bleed under the floating chrome,
+     so a software-GL frame covers more pixels and takes longer; the fact
+     asserted (the loop keeps asking while water moves) is unchanged */
   const a = SBMM.viewer3d.stats();
-  await wait(4000);
+  await wait(6000);
   const a2 = SBMM.viewer3d.stats();
   out.rendersWithFlow = a2.renderCount - a.renderCount;
   out.animAdvance = +(a2.waterAnimT - a.waterAnimT).toFixed(2);

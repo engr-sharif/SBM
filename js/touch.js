@@ -388,8 +388,20 @@ SBMM.touch = (function () {
          every tap and the whole gesture out on a slow drag that ends between
          two moves */
       if (e.clientX != null) { p.x = e.clientX; p.y = e.clientY; }
+      /* A STARVED LONG PRESS (v26). The press is timed by the glass (v20), but
+         its timer runs on the main thread: a frame that outlasts the hold lets
+         the lift be handled FIRST, clearLong() kills the pending timer, and a
+         finger held 700 ms by the event clock silently becomes nothing. If the
+         timer is still pending when the only finger lifts and the event clock
+         says the hold was long enough, the long press fires here, at the lift. */
+      const starved = longTimer && !isCancel && !cancelled && !moved && !longFired
+        && pts.size === 1 && maxN === 1 && (t - startT) >= o.longPressMs;
       pts.delete(e.pointerId);
       clearLong();
+      if (starved) {
+        longFired = true;
+        call("longpress", { x: p.x, y: p.y, pointerType: p.type, orig: e.orig || e, late: true });
+      }
 
       if (mode === "pinch" && pts.size < 2) {
         call("pinchend", { cancelled: !!isCancel });

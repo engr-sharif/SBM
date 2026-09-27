@@ -72,14 +72,7 @@ SBMM.borewin = (function () {
      need the width, and the map is one Esc away. In field mode (the phone) the
      stage is the stage, as it always was. */
   function stageBox() {
-    const b = document.body;
-    if (!b.classList.contains("field") && document.getElementById("topbar")) {
-      const cs = getComputedStyle(b);
-      const gap = parseFloat(cs.getPropertyValue("--gap")) || 12;
-      const tb = document.getElementById("topbar").getBoundingClientRect();
-      const y = Math.round(tb.bottom + gap);
-      return { x: gap, y, w: Math.max(200, innerWidth - 2 * gap), h: Math.max(200, innerHeight - y - gap) };
-    }
+    /* one answer for every floating window: js/sheets.js's (v26) */
     if (SBMM.sheets && SBMM.sheets.stageBox) return SBMM.sheets.stageBox();
     return { x: 8, y: 8, w: Math.max(200, innerWidth - 16), h: Math.max(200, innerHeight - 16) };
   }
