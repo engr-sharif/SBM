@@ -7771,11 +7771,16 @@ logGone = await page.evaluate(async () => {
   const d = SBMM.datasets.byId("borings2025");
   const p = d.points.find(q => q.id === "SB-9");
   try { out.popBtn = /boring log/.test(SBMM.popups.forDataset(d, p)); } catch (e) { out.threw4 = String(e); }
-  /* and 3D falls back to the plain single-colour stick */
+  /* and 3D falls back to the plain single-colour stick. The v28 lab metals
+     colour a hole with Hg intervals but no log, so they go too for this check
+     (9f5 asserts the metals colouring itself). */
+  const keepLM = SBMM_DATA.lab_metals;
+  delete SBMM_DATA.lab_metals;
   try { SBMM.viewer3d.refreshOverlays(); } catch (e) { out.threw5 = String(e); }
   await wait(1500);
   const b = SBMM.viewer3d.datasetSticks().find(s => s.dsId === "borings2025");
   out.plainColors = b ? b.colors.length : null;
+  SBMM_DATA.lab_metals = keepLM;
   SBMM_DATA.borings_logs = keep;
   SBMM.viewer3d.refreshOverlays();
   await wait(1500);
