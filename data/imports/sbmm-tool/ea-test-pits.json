@@ -1,0 +1,42 @@
+[
+  {
+    "id": "ABWP02-01-TP1",
+    "lat": 39.00749,
+    "lon": -122.66675,
+    "depth": 4,
+    "ph": "5.38-5.51",
+    "notes": "Andesite contact at 0.5 ft"
+  },
+  {
+    "id": "ABWP02-02-TP1",
+    "lat": 39.00755,
+    "lon": -122.66541,
+    "depth": 4,
+    "ph": "4.76-4.81",
+    "notes": "Lots of rock/boulders"
+  },
+  {
+    "id": "ABWP02-03-TP1",
+    "lat": 39.00642,
+    "lon": -122.66579,
+    "depth": 4,
+    "ph": "5.42-5.61",
+    "notes": "Andesite contact 0.25-0.5 ft"
+  },
+  {
+    "id": "ABWP02-04-TP1",
+    "lat": 39.00594,
+    "lon": -122.66631,
+    "depth": 4,
+    "ph": "3.86-4.35",
+    "notes": "Most acidic - possible waste rock"
+  },
+  {
+    "id": "ABWP02-05-TP1",
+    "lat": 39.00571,
+    "lon": -122.66558,
+    "depth": 4,
+    "ph": "4.99-5.06",
+    "notes": "Sulfur smell at 4ft"
+  }
+]

@@ -1,0 +1,80 @@
+{
+ "id": "ea_testpits",
+ "defaultOn": false,
+ "name": "Test pits \u2014 EA (2023)",
+ "kind": "borings",
+ "idField": "Test pit",
+ "depthField": "Total depth (ft)",
+ "style": {
+  "color": "#B07A9E",
+  "shape": "square",
+  "size": 5,
+  "labels": false,
+  "stick3d": true
+ },
+ "source": "EA Engineering's ABP test pits, from engr-sharif/sbmm-tool @ 819de60 (data/ea-test-pits.json). tools/build_imports.py.",
+ "points": [
+  {
+   "id": "ABWP02-01-TP1",
+   "x": 6372209.4,
+   "y": 2129426.05,
+   "a": {
+    "Total depth (ft)": 4,
+    "pH": "5.38-5.51",
+    "Notes": "Andesite contact at 0.5 ft",
+    "Latitude": 39.00749,
+    "Longitude": -122.66675
+   }
+  },
+  {
+   "id": "ABWP02-02-TP1",
+   "x": 6372590.35,
+   "y": 2129445.12,
+   "a": {
+    "Total depth (ft)": 4,
+    "pH": "4.76-4.81",
+    "Notes": "Lots of rock/boulders",
+    "Latitude": 39.00755,
+    "Longitude": -122.66541
+   }
+  },
+  {
+   "id": "ABWP02-03-TP1",
+   "x": 6372479.36,
+   "y": 2129034.38,
+   "a": {
+    "Total depth (ft)": 4,
+    "pH": "5.42-5.61",
+    "Notes": "Andesite contact 0.25-0.5 ft",
+    "Latitude": 39.00642,
+    "Longitude": -122.66579
+   }
+  },
+  {
+   "id": "ABWP02-04-TP1",
+   "x": 6372330.31,
+   "y": 2128860.65,
+   "a": {
+    "Total depth (ft)": 4,
+    "pH": "3.86-4.35",
+    "Notes": "Most acidic - possible waste rock",
+    "Latitude": 39.00594,
+    "Longitude": -122.66631
+   }
+  },
+  {
+   "id": "ABWP02-05-TP1",
+   "x": 6372537.14,
+   "y": 2128775.37,
+   "a": {
+    "Total depth (ft)": 4,
+    "pH": "4.99-5.06",
+    "Notes": "Sulfur smell at 4ft",
+    "Latitude": 39.00571,
+    "Longitude": -122.66558
+   }
+  }
+ ],
+ "crs": "EPSG:6418 (NAD83(2011) CA SP Zone 2, ftUS)",
+ "baked": true
+}

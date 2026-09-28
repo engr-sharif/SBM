@@ -183,6 +183,7 @@ SBMM.datasets = (function () {
       name: ds.name || "Dataset " + (list.length + 1),
       kind,
       baked: !!ds.baked,
+      defaultOn: ds.defaultOn !== false,
       source: ds.source || "",
       crs: ds.crs || "EPSG:6418 (NAD83(2011) CA SP Zone 2, ftUS)",
       idField: ds.idField || "ID",
@@ -323,8 +324,11 @@ SBMM.datasets = (function () {
 
   /* ---------- the Layers row ---------- */
   function buildRow(d) {
+    /* v28: a baked dataset may start OFF (`defaultOn: false` in its JSON) —
+       context layers brought over from the earlier apps should not all land
+       on the map at once. The remembered layer state still wins. */
     const ref = SBMM.addLayerRow("data", `${esc(d.name)} (${d.points.length})`, d.layer,
-      { checked: true, swatch: d.style.color });
+      { checked: d.defaultOn !== false, swatch: d.style.color });
     ref.row.title = (d.source || "imported dataset") + (d.baked ? "" : " — imported this session");
     d.rowRef = ref;
 

@@ -1110,6 +1110,11 @@ window.SBMM_HEAVY = [
 <!-- the 2025 boring logs from the OpenGround export (tools/build_borings.py):
      strata, SPT, pocket penetrometer, lab values, water; ~300 kB, in every build -->
 <script src="datajs/d_borings_logs.js"></script>
+<!-- v28: from the earlier SBMM apps (tools/build_imports.py): metals by depth
+     for the 2025 borings and test pits and the full ABP/EA results (~115 kB),
+     and the named site areas of SBMM.kmz (~3 kB); in every build -->
+<script src="datajs/d_lab_metals.js"></script>
+<script src="datajs/d_site_areas.js"></script>
 <script src="datajs/d_cultural.js"></script>
 
 <script src="js/compute.js"></script>
@@ -1136,6 +1141,7 @@ window.SBMM_HEAVY = [
 <script src="js/designea.js"></script>
 <script src="js/designgis.js"></script>
 <script src="js/survey.js"></script>
+<script src="js/siteareas.js"></script>
 <script src="js/cadnative.js"></script>
 <script src="js/sheets.js"></script>
 <script src="js/datasets.js"></script>
@@ -1145,6 +1151,7 @@ window.SBMM_HEAVY = [
      borings dataset — and before viewer3d.js, whose depth sticks ask it for the
      class profile and the palette. -->
 <script src="js/borelogs.js"></script>
+<script src="js/labmetals.js"></script>
 <!-- v23 Phase A: the boring-log window. After js/borelogs.js (whose column
      renderer draws every face of it) and before js/viewer3d.js, whose stratum
      highlight it drives. -->

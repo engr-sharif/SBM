@@ -1,0 +1,6676 @@
+{
+  "type": "FeatureCollection",
+  "metadata": {
+    "generated_at": "2026-03-26T20:09:54.168Z",
+    "campaigns": {
+      "previous": 101,
+      "y2025": 95
+    }
+  },
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.667746,
+          39.0040355
+        ]
+      },
+      "properties": {
+        "id": "DR-1-SB",
+        "campaign": "previous",
+        "subproject": "North Cell Subproject",
+        "type": "Unknown",
+        "is_mw": false,
+        "year": null,
+        "company": "Unknown",
+        "firm": "Unknown",
+        "elevation_ft": null,
+        "elevation_estimated": false,
+        "depth_ft": 45,
+        "gw_depth_ft": null,
+        "screen_interval_ft": null,
+        "casing_in": null,
+        "installation_date": null,
+        "condition": null,
+        "notes": null,
+        "source_polygon_label": "Site Overlay; Borings; Historical Wells; HP Borings; Borings2; BoringPlan3; roadway; QAPP Overlay; QAPP Rev1",
+        "source_doc": "Summary of Existing Explorations / EA Engineering / Historical Boring Info / SBMM.kmz",
+        "source_page": null,
+        "confidence_score": 0.9,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.667535,
+          39.004545
+        ]
+      },
+      "properties": {
+        "id": "DR-2-SB",
+        "campaign": "previous",
+        "subproject": "North Cell Subproject",
+        "type": "Unknown",
+        "is_mw": false,
+        "year": null,
+        "company": "Unknown",
+        "firm": "Unknown",
+        "elevation_ft": null,
+        "elevation_estimated": false,
+        "depth_ft": 55,
+        "gw_depth_ft": null,
+        "screen_interval_ft": null,
+        "casing_in": null,
+        "installation_date": null,
+        "condition": null,
+        "notes": null,
+        "source_polygon_label": "Site Overlay; Borings; Historical Wells; HP Borings; Borings2; BoringPlan3; QAPP Overlay; QAPP Rev1",
+        "source_doc": "Summary of Existing Explorations / EA Engineering / Historical Boring Info / SBMM.kmz",
+        "source_page": null,
+        "confidence_score": 0.9,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.6680905,
+          39.0032112
+        ]
+      },
+      "properties": {
+        "id": "HP-10",
+        "campaign": "previous",
+        "subproject": "South Cell Subproject",
+        "type": "Piezometer",
+        "is_mw": false,
+        "year": "1998",
+        "company": "ICF Kaiser",
+        "firm": "ICF Kaiser",
+        "elevation_ft": 1336.7,
+        "elevation_estimated": false,
+        "depth_ft": 10,
+        "gw_depth_ft": 4,
+        "screen_interval_ft": "5-10",
+        "casing_in": 0.75,
+        "installation_date": "25-Mar-98",
+        "condition": "Good",
+        "notes": null,
+        "source_polygon_label": "West Rock Dam",
+        "source_doc": "Summary of Existing Explorations / EA Engineering / Historical Boring Info / SBMM.kmz",
+        "source_page": null,
+        "confidence_score": 0.9,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.662243,
+          39.007792
+        ]
+      },
+      "properties": {
+        "id": "HP-13",
+        "campaign": "previous",
+        "subproject": "North Cell Subproject",
+        "type": "Unknown",
+        "is_mw": false,
+        "year": "1998",
+        "company": "ICF Kaiser",
+        "firm": "ICF Kaiser",
+        "elevation_ft": null,
+        "elevation_estimated": false,
+        "depth_ft": 14,
+        "gw_depth_ft": 7.5,
+        "screen_interval_ft": "9-14",
+        "casing_in": null,
+        "installation_date": null,
+        "condition": null,
+        "notes": null,
+        "source_polygon_label": "Site Overlay; Borings; Historical Wells; HP Borings; Borings2; BoringPlan3; QAPP Overlay; QAPP Rev1; Topo",
+        "source_doc": "Summary of Existing Explorations / EA Engineering / Historical Boring Info / SBMM.kmz",
+        "source_page": null,
+        "confidence_score": 0.9,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.6695678,
+          39.002237
+        ]
+      },
+      "properties": {
+        "id": "HP-14",
+        "campaign": "previous",
+        "subproject": "South Cell Subproject",
+        "type": "Piezometer",
+        "is_mw": false,
+        "year": "1998",
+        "company": "ICF Kaiser",
+        "firm": "ICF Kaiser",
+        "elevation_ft": 1333.1,
+        "elevation_estimated": false,
+        "depth_ft": 15,
+        "gw_depth_ft": 4,
+        "screen_interval_ft": "5-15",
+        "casing_in": 0.75,
+        "installation_date": "25-Mar-98",
+        "condition": "Good",
+        "notes": null,
+        "source_polygon_label": "West Waste Rock Cell",
+        "source_doc": "Summary of Existing Explorations / EA Engineering / Historical Boring Info / SBMM.kmz",
+        "source_page": null,
+        "confidence_score": 0.9,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.6676164,
+          39.0020376
+        ]
+      },
+      "properties": {
+        "id": "HP-15",
+        "campaign": "previous",
+        "subproject": "South Cell Subproject",
+        "type": "Piezometer",
+        "is_mw": false,
+        "year": "1998",
+        "company": "ICF Kaiser",
+        "firm": "ICF Kaiser",
+        "elevation_ft": 1336,
+        "elevation_estimated": false,
+        "depth_ft": 7.5,
+        "gw_depth_ft": 0,
+        "screen_interval_ft": "4.5-7.5",
+        "casing_in": 0.75,
+        "installation_date": "25-Mar-98",
+        "condition": "Good",
+        "notes": null,
+        "source_polygon_label": "Outside all polygons",
+        "source_doc": "Summary of Existing Explorations / EA Engineering / Historical Boring Info / SBMM.kmz",
+        "source_page": null,
+        "confidence_score": 0.9,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.6710446,
+          39.0053846
+        ]
+      },
+      "properties": {
+        "id": "MW-1",
+        "campaign": "previous",
+        "subproject": "Northwest Cell Subproject",
+        "type": "Monitoring Well",
+        "is_mw": true,
+        "year": "1999",
+        "company": "EPA",
+        "firm": "EPA/CH2M Hill",
+        "elevation_ft": 1331.4,
+        "elevation_estimated": false,
+        "depth_ft": 25,
+        "gw_depth_ft": 11,
+        "screen_interval_ft": "9-24",
+        "casing_in": 2,
+        "installation_date": "17-Sep-92",
+        "condition": "Good",
+        "notes": null,
+        "source_polygon_label": "Site Overlay; Borings; Historical Wells; HP Borings; Borings2; BoringPlan3; QAPP Overlay; QAPP Rev1",
+        "source_doc": "Summary of Existing Explorations / EA Engineering / Historical Boring Info / SBMM.kmz",
+        "source_page": null,
+        "confidence_score": 0.9,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.6706088,
+          39.0044038
+        ]
+      },
+      "properties": {
+        "id": "MW-2",
+        "campaign": "previous",
+        "subproject": "Disturbed Rock and Northern Waste Rock Dam Subproject",
+        "type": "Monitoring Well",
+        "is_mw": true,
+        "year": "1999",
+        "company": "EPA",
+        "firm": "EPA/CH2M Hill",
+        "elevation_ft": 1340.6,
+        "elevation_estimated": false,
+        "depth_ft": 36,
+        "gw_depth_ft": 20,
+        "screen_interval_ft": "15-35",
+        "casing_in": 2,
+        "installation_date": "18-Sep-92",
+        "condition": "Good. Bladder pump in place.",
+        "notes": null,
+        "source_polygon_label": "West Rock Dam",
+        "source_doc": "Summary of Existing Explorations / EA Engineering / Historical Boring Info / SBMM.kmz",
+        "source_page": null,
+        "confidence_score": 0.9,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.6701578,
+          39.0028206
+        ]
+      },
+      "properties": {
+        "id": "MW-3",
+        "campaign": "previous",
+        "subproject": "South Cell Subproject",
+        "type": "Monitoring Well",
+        "is_mw": true,
+        "year": "1999",
+        "company": "EPA",
+        "firm": "EPA/CH2M Hill",
+        "elevation_ft": 1344.4,
+        "elevation_estimated": false,
+        "depth_ft": 36,
+        "gw_depth_ft": 24.5,
+        "screen_interval_ft": "20-35",
+        "casing_in": 2,
+        "installation_date": "1-Sep-92",
+        "condition": "Good - Partial blockage in well (per E2) or well casing stated by field technician in 2014 to be bent, preventing tools (water level meter?) from going downhole.",
+        "notes": null,
+        "source_polygon_label": "West Rock Dam",
+        "source_doc": "Summary of Existing Explorations / EA Engineering / Historical Boring Info / SBMM.kmz",
+        "source_page": null,
+        "confidence_score": 0.9,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.670021,
+          39.0025661
+        ]
+      },
+      "properties": {
+        "id": "MW-3D",
+        "campaign": "previous",
+        "subproject": "South Cell Subproject",
+        "type": "Monitoring Well",
+        "is_mw": true,
+        "year": "1999",
+        "company": "Tetra Tech",
+        "firm": "EPA/CH2M Hill",
+        "elevation_ft": 1356.1,
+        "elevation_estimated": false,
+        "depth_ft": 179.5,
+        "gw_depth_ft": 35,
+        "screen_interval_ft": "161.5-179.5",
+        "casing_in": 4.5,
+        "installation_date": "3-Nov-99",
+        "condition": "Good. Bladder pump in place.",
+        "notes": null,
+        "source_polygon_label": "West Rock Dam",
+        "source_doc": "Summary of Existing Explorations / EA Engineering / Historical Boring Info / SBMM.kmz",
+        "source_page": null,
+        "confidence_score": 0.9,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.6699697,
+          39.0025765
+        ]
+      },
+      "properties": {
+        "id": "MW-3I",
+        "campaign": "previous",
+        "subproject": "South Cell Subproject",
+        "type": "Monitoring Well",
+        "is_mw": true,
+        "year": "1999",
+        "company": "Tetra Tech",
+        "firm": "EPA/CH2M Hill",
+        "elevation_ft": 1355.8,
+        "elevation_estimated": false,
+        "depth_ft": 151.5,
+        "gw_depth_ft": 35.7,
+        "screen_interval_ft": "140-150",
+        "casing_in": 4.5,
+        "installation_date": "5-Nov-99",
+        "condition": "Good. Partial blockage in well.",
+        "notes": null,
+        "source_polygon_label": "West Rock Dam",
+        "source_doc": "Summary of Existing Explorations / EA Engineering / Historical Boring Info / SBMM.kmz",
+        "source_page": null,
+        "confidence_score": 0.9,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.6699201,
+          39.0025793
+        ]
+      },
+      "properties": {
+        "id": "MW-3S",
+        "campaign": "previous",
+        "subproject": "South Cell Subproject",
+        "type": "Monitoring Well",
+        "is_mw": true,
+        "year": "1999",
+        "company": "Tetra Tech",
+        "firm": "EPA/CH2M Hill",
+        "elevation_ft": 1355.2,
+        "elevation_estimated": false,
+        "depth_ft": 63.5,
+        "gw_depth_ft": 35,
+        "screen_interval_ft": "43-63",
+        "casing_in": 4,
+        "installation_date": "6-Nov-99",
+        "condition": "Well in question - screened below mining waste.",
+        "notes": null,
+        "source_polygon_label": "West Rock Dam",
+        "source_doc": "Summary of Existing Explorations / EA Engineering / Historical Boring Info / SBMM.kmz",
+        "source_page": null,
+        "confidence_score": 0.9,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.6701616,
+          39.0015007
+        ]
+      },
+      "properties": {
+        "id": "MW-4",
+        "campaign": "previous",
+        "subproject": "South Cell Subproject",
+        "type": "Monitoring Well",
+        "is_mw": true,
+        "year": "1999",
+        "company": "EPA",
+        "firm": "EPA/CH2M Hill",
+        "elevation_ft": 1329.2,
+        "elevation_estimated": false,
+        "depth_ft": 21,
+        "gw_depth_ft": 8.5,
+        "screen_interval_ft": "8-18",
+        "casing_in": 2,
+        "installation_date": "19-Sep-92",
+        "condition": "Good",
+        "notes": null,
+        "source_polygon_label": "West Waste Rock Cell",
+        "source_doc": "Summary of Existing Explorations / EA Engineering / Historical Boring Info / SBMM.kmz",
+        "source_page": null,
+        "confidence_score": 0.9,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.6696447,
+          39.0038171
+        ]
+      },
+      "properties": {
+        "id": "MW-5",
+        "campaign": "previous",
+        "subproject": "North Cell Subproject",
+        "type": "Monitoring Well",
+        "is_mw": true,
+        "year": "1999",
+        "company": "EPA",
+        "firm": "EPA/CH2M Hill",
+        "elevation_ft": 1379.9,
+        "elevation_estimated": false,
+        "depth_ft": 65,
+        "gw_depth_ft": 56,
+        "screen_interval_ft": "54-64",
+        "casing_in": 2,
+        "installation_date": "11-Sep-92",
+        "condition": "Good",
+        "notes": null,
+        "source_polygon_label": "Outside all polygons",
+        "source_doc": "Summary of Existing Explorations / EA Engineering / Historical Boring Info / SBMM.kmz",
+        "source_page": null,
+        "confidence_score": 0.9,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.6691828,
+          39.0028716
+        ]
+      },
+      "properties": {
+        "id": "MW-6",
+        "campaign": "previous",
+        "subproject": "South Cell Subproject",
+        "type": "Monitoring Well",
+        "is_mw": true,
+        "year": "1999",
+        "company": "EPA",
+        "firm": "EPA/CH2M Hill",
+        "elevation_ft": 1351,
+        "elevation_estimated": false,
+        "depth_ft": 41,
+        "gw_depth_ft": 30.5,
+        "screen_interval_ft": "25-40",
+        "casing_in": 4,
+        "installation_date": "12-Sep-92",
+        "condition": "Good. Bladder pump in place.",
+        "notes": null,
+        "source_polygon_label": "Outside all polygons",
+        "source_doc": "Summary of Existing Explorations / EA Engineering / Historical Boring Info / SBMM.kmz",
+        "source_page": null,
+        "confidence_score": 0.9,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.6687998,
+          39.0029292
+        ]
+      },
+      "properties": {
+        "id": "MW-7",
+        "campaign": "previous",
+        "subproject": "South Cell Subproject",
+        "type": "Monitoring Well",
+        "is_mw": true,
+        "year": "1999",
+        "company": "EPA",
+        "firm": "EPA/CH2M Hill",
+        "elevation_ft": 1347.1,
+        "elevation_estimated": false,
+        "depth_ft": 36,
+        "gw_depth_ft": 24.5,
+        "screen_interval_ft": "20-35",
+        "casing_in": 2,
+        "installation_date": "1-Sep-92",
+        "condition": "Good. Bladder pump in place.",
+        "notes": null,
+        "source_polygon_label": "West Rock Dam",
+        "source_doc": "Summary of Existing Explorations / EA Engineering / Historical Boring Info / SBMM.kmz",
+        "source_page": null,
+        "confidence_score": 0.9,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.667583,
+          39.0018941
+        ]
+      },
+      "properties": {
+        "id": "MW-8",
+        "campaign": "previous",
+        "subproject": "South Cell Subproject",
+        "type": "Monitoring Well",
+        "is_mw": true,
+        "year": "1999",
+        "company": "EPA",
+        "firm": "EPA/CH2M Hill",
+        "elevation_ft": 1343.3,
+        "elevation_estimated": false,
+        "depth_ft": 31,
+        "gw_depth_ft": 15,
+        "screen_interval_ft": "10-30",
+        "casing_in": 2,
+        "installation_date": "19-Sep-92",
+        "condition": "Good.",
+        "notes": null,
+        "source_polygon_label": "Outside all polygons",
+        "source_doc": "Summary of Existing Explorations / EA Engineering / Historical Boring Info / SBMM.kmz",
+        "source_page": null,
+        "confidence_score": 0.9,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.6683407,
+          39.002986
+        ]
+      },
+      "properties": {
+        "id": "MW-9",
+        "campaign": "previous",
+        "subproject": "South Cell Subproject",
+        "type": "Monitoring Well",
+        "is_mw": true,
+        "year": "1999",
+        "company": "EPA",
+        "firm": "EPA/CH2M Hill",
+        "elevation_ft": 1342.2,
+        "elevation_estimated": false,
+        "depth_ft": 36,
+        "gw_depth_ft": 20,
+        "screen_interval_ft": "15-35",
+        "casing_in": 2,
+        "installation_date": "14-Sep-92",
+        "condition": "Good.",
+        "notes": null,
+        "source_polygon_label": "West Rock Dam",
+        "source_doc": "Summary of Existing Explorations / EA Engineering / Historical Boring Info / SBMM.kmz",
+        "source_page": null,
+        "confidence_score": 0.9,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.6682394,
+          39.0036645
+        ]
+      },
+      "properties": {
+        "id": "MW-10",
+        "campaign": "previous",
+        "subproject": "North Cell Subproject",
+        "type": "Monitoring Well",
+        "is_mw": true,
+        "year": "1999",
+        "company": "ICF Kaiser",
+        "firm": "EPA/CH2M Hill",
+        "elevation_ft": 1351.9,
+        "elevation_estimated": false,
+        "depth_ft": 40,
+        "gw_depth_ft": 20,
+        "screen_interval_ft": "19-39",
+        "casing_in": 2,
+        "installation_date": "27-Apr-98",
+        "condition": "Good. Bladder pump in place.",
+        "notes": null,
+        "source_polygon_label": "Outside all polygons",
+        "source_doc": "Summary of Existing Explorations / EA Engineering / Historical Boring Info / SBMM.kmz",
+        "source_page": null,
+        "confidence_score": 0.9,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.6699621,
+          39.0046761
+        ]
+      },
+      "properties": {
+        "id": "MW-11",
+        "campaign": "previous",
+        "subproject": "Disturbed Rock and Northern Waste Rock Dam Subproject",
+        "type": "Monitoring Well",
+        "is_mw": true,
+        "year": "1999",
+        "company": "ICF Kaiser",
+        "firm": "EPA/CH2M Hill",
+        "elevation_ft": 1390.7,
+        "elevation_estimated": false,
+        "depth_ft": 72.5,
+        "gw_depth_ft": 63.5,
+        "screen_interval_ft": "52.5-72.5",
+        "casing_in": 2,
+        "installation_date": "28-Apr-98",
+        "condition": "Sampled as of 2016",
+        "notes": null,
+        "source_polygon_label": "West Rock Dam",
+        "source_doc": "Summary of Existing Explorations / EA Engineering / Historical Boring Info / SBMM.kmz",
+        "source_page": null,
+        "confidence_score": 0.9,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.6700107,
+          39.0046761
+        ]
+      },
+      "properties": {
+        "id": "MW-11D",
+        "campaign": "previous",
+        "subproject": "Disturbed Rock and Northern Waste Rock Dam Subproject",
+        "type": "Monitoring Well",
+        "is_mw": true,
+        "year": "1999",
+        "company": "Tetra Tech",
+        "firm": "EPA/CH2M Hill",
+        "elevation_ft": 1391.2,
+        "elevation_estimated": false,
+        "depth_ft": 205,
+        "gw_depth_ft": 70.2,
+        "screen_interval_ft": "181-191.2",
+        "casing_in": 4.5,
+        "installation_date": "23-Oct-99",
+        "condition": "Good. Bladder pump in place.",
+        "notes": null,
+        "source_polygon_label": "West Rock Dam",
+        "source_doc": "Summary of Existing Explorations / EA Engineering / Historical Boring Info / SBMM.kmz",
+        "source_page": null,
+        "confidence_score": 0.9,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.669898,
+          39.0046731
+        ]
+      },
+      "properties": {
+        "id": "MW-11I",
+        "campaign": "previous",
+        "subproject": "Disturbed Rock and Northern Waste Rock Dam Subproject",
+        "type": "Monitoring Well",
+        "is_mw": true,
+        "year": "1999",
+        "company": "Tetra Tech",
+        "firm": "EPA/CH2M Hill",
+        "elevation_ft": 1390.1,
+        "elevation_estimated": false,
+        "depth_ft": 144,
+        "gw_depth_ft": 70.2,
+        "screen_interval_ft": "120-140",
+        "casing_in": 4.5,
+        "installation_date": "2-Nov-99",
+        "condition": "Good",
+        "notes": null,
+        "source_polygon_label": "West Rock Dam",
+        "source_doc": "Summary of Existing Explorations / EA Engineering / Historical Boring Info / SBMM.kmz",
+        "source_page": null,
+        "confidence_score": 0.9,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.669805,
+          39.0035451
+        ]
+      },
+      "properties": {
+        "id": "MW-13",
+        "campaign": "previous",
+        "subproject": "Disturbed Rock and Northern Waste Rock Dam Subproject",
+        "type": "Monitoring Well",
+        "is_mw": true,
+        "year": "1999",
+        "company": "ICF Kaiser",
+        "firm": "EPA/CH2M Hill",
+        "elevation_ft": 1374.5,
+        "elevation_estimated": false,
+        "depth_ft": 66,
+        "gw_depth_ft": 47,
+        "screen_interval_ft": "45-65",
+        "casing_in": 2,
+        "installation_date": "29-Apr-98",
+        "condition": "Good. Bladder pump in place.",
+        "notes": null,
+        "source_polygon_label": "West Rock Dam",
+        "source_doc": "Summary of Existing Explorations / EA Engineering / Historical Boring Info / SBMM.kmz",
+        "source_page": null,
+        "confidence_score": 0.9,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.6696595,
+          39.0031865
+        ]
+      },
+      "properties": {
+        "id": "MW-14",
+        "campaign": "previous",
+        "subproject": "South Cell Subproject",
+        "type": "Monitoring Well",
+        "is_mw": true,
+        "year": "1999",
+        "company": "ICF Kaiser",
+        "firm": "EPA/CH2M Hill",
+        "elevation_ft": 1367.4,
+        "elevation_estimated": false,
+        "depth_ft": 44.5,
+        "gw_depth_ft": 39.5,
+        "screen_interval_ft": "34.5-44.5",
+        "casing_in": 2,
+        "installation_date": "30-Apr-98",
+        "condition": "Good",
+        "notes": null,
+        "source_polygon_label": "West Rock Dam",
+        "source_doc": "Summary of Existing Explorations / EA Engineering / Historical Boring Info / SBMM.kmz",
+        "source_page": null,
+        "confidence_score": 0.9,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.6678327,
+          39.0010182
+        ]
+      },
+      "properties": {
+        "id": "MW-15D",
+        "campaign": "previous",
+        "subproject": "South Cell Subproject",
+        "type": "Monitoring Well",
+        "is_mw": true,
+        "year": "1999",
+        "company": "Tetra Tech",
+        "firm": "EPA/CH2M Hill",
+        "elevation_ft": 1345.4,
+        "elevation_estimated": false,
+        "depth_ft": 102,
+        "gw_depth_ft": 14.3,
+        "screen_interval_ft": "70-90",
+        "casing_in": 4.5,
+        "installation_date": "24-Oct-99",
+        "condition": "Good",
+        "notes": null,
+        "source_polygon_label": "West Waste Rock Cell",
+        "source_doc": "Summary of Existing Explorations / EA Engineering / Historical Boring Info / SBMM.kmz",
+        "source_page": null,
+        "confidence_score": 0.9,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.6682394,
+          39.0012316
+        ]
+      },
+      "properties": {
+        "id": "MW-15NWS",
+        "campaign": "previous",
+        "subproject": "South Cell Subproject",
+        "type": "Monitoring Well",
+        "is_mw": true,
+        "year": "1999",
+        "company": "Tetra Tech",
+        "firm": "EPA/CH2M Hill",
+        "elevation_ft": 1343,
+        "elevation_estimated": false,
+        "depth_ft": 61,
+        "gw_depth_ft": null,
+        "screen_interval_ft": "35-55",
+        "casing_in": 4,
+        "installation_date": "19-Nov-99",
+        "condition": "Good",
+        "notes": null,
+        "source_polygon_label": "West Waste Rock Cell",
+        "source_doc": "Summary of Existing Explorations / EA Engineering / Historical Boring Info / SBMM.kmz",
+        "source_page": null,
+        "confidence_score": 0.9,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.6678194,
+          39.0010586
+        ]
+      },
+      "properties": {
+        "id": "MW-15USE",
+        "campaign": "previous",
+        "subproject": "South Cell Subproject",
+        "type": "Monitoring Well",
+        "is_mw": true,
+        "year": "1999",
+        "company": "Tetra Tech",
+        "firm": "EPA/CH2M Hill",
+        "elevation_ft": 1344.8,
+        "elevation_estimated": false,
+        "depth_ft": 27.5,
+        "gw_depth_ft": null,
+        "screen_interval_ft": "17-22.6",
+        "casing_in": 4,
+        "installation_date": "25-Oct-99",
+        "condition": "Good. Bladder pump in place.",
+        "notes": null,
+        "source_polygon_label": "West Waste Rock Cell",
+        "source_doc": "Summary of Existing Explorations / EA Engineering / Historical Boring Info / SBMM.kmz",
+        "source_page": null,
+        "confidence_score": 0.9,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.6682555,
+          39.0026421
+        ]
+      },
+      "properties": {
+        "id": "MW-16D",
+        "campaign": "previous",
+        "subproject": "South Cell Subproject",
+        "type": "Monitoring Well",
+        "is_mw": true,
+        "year": "1999",
+        "company": "Tetra Tech",
+        "firm": "EPA/CH2M Hill",
+        "elevation_ft": 1342.5,
+        "elevation_estimated": false,
+        "depth_ft": 145,
+        "gw_depth_ft": 9.8,
+        "screen_interval_ft": "125-135",
+        "casing_in": 4.5,
+        "installation_date": "16-Nov-99",
+        "condition": "Good. Bladder pump in place.",
+        "notes": null,
+        "source_polygon_label": "West Rock Dam",
+        "source_doc": "Summary of Existing Explorations / EA Engineering / Historical Boring Info / SBMM.kmz",
+        "source_page": null,
+        "confidence_score": 0.9,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.6682345,
+          39.0026527
+        ]
+      },
+      "properties": {
+        "id": "MW-16I",
+        "campaign": "previous",
+        "subproject": "South Cell Subproject",
+        "type": "Monitoring Well",
+        "is_mw": true,
+        "year": "1999",
+        "company": "Tetra Tech",
+        "firm": "EPA/CH2M Hill",
+        "elevation_ft": 1342.2,
+        "elevation_estimated": false,
+        "depth_ft": 76,
+        "gw_depth_ft": null,
+        "screen_interval_ft": "55-75",
+        "casing_in": 4.5,
+        "installation_date": "16-Nov-99",
+        "condition": "Good",
+        "notes": null,
+        "source_polygon_label": "West Rock Dam",
+        "source_doc": "Summary of Existing Explorations / EA Engineering / Historical Boring Info / SBMM.kmz",
+        "source_page": null,
+        "confidence_score": 0.9,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.6682921,
+          39.0026386
+        ]
+      },
+      "properties": {
+        "id": "MW-16S",
+        "campaign": "previous",
+        "subproject": "South Cell Subproject",
+        "type": "Monitoring Well",
+        "is_mw": true,
+        "year": "1999",
+        "company": "Tetra Tech",
+        "firm": "EPA/CH2M Hill",
+        "elevation_ft": 1342.7,
+        "elevation_estimated": false,
+        "depth_ft": 29,
+        "gw_depth_ft": 18.2,
+        "screen_interval_ft": "17-27",
+        "casing_in": 4,
+        "installation_date": "17-Nov-99",
+        "condition": "Good",
+        "notes": null,
+        "source_polygon_label": "West Rock Dam",
+        "source_doc": "Summary of Existing Explorations / EA Engineering / Historical Boring Info / SBMM.kmz",
+        "source_page": null,
+        "confidence_score": 0.9,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.665747,
+          39.0040909
+        ]
+      },
+      "properties": {
+        "id": "MW-17D",
+        "campaign": "previous",
+        "subproject": "North Cell Subproject",
+        "type": "Monitoring Well",
+        "is_mw": true,
+        "year": "1999",
+        "company": "Tetra Tech",
+        "firm": "EPA/CH2M Hill",
+        "elevation_ft": 1372.7,
+        "elevation_estimated": false,
+        "depth_ft": 150,
+        "gw_depth_ft": 100,
+        "screen_interval_ft": "130-150",
+        "casing_in": 4.5,
+        "installation_date": "9-Nov-99",
+        "condition": "Heavy corrosion. Well head in poor condition. Groundwater temperature high.",
+        "notes": null,
+        "source_polygon_label": "Site Overlay; Borings; Historical Wells; HP Borings; Borings2; BoringPlan3; QAPP Overlay; QAPP Rev1; Topo",
+        "source_doc": "Summary of Existing Explorations / EA Engineering / Historical Boring Info / SBMM.kmz",
+        "source_page": null,
+        "confidence_score": 0.9,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.6657049,
+          39.0041052
+        ]
+      },
+      "properties": {
+        "id": "MW-17S",
+        "campaign": "previous",
+        "subproject": "North Cell Subproject",
+        "type": "Monitoring Well",
+        "is_mw": true,
+        "year": "1999",
+        "company": "Tetra Tech",
+        "firm": "EPA/CH2M Hill",
+        "elevation_ft": 1372.9,
+        "elevation_estimated": false,
+        "depth_ft": 65.5,
+        "gw_depth_ft": 38,
+        "screen_interval_ft": "55-65",
+        "casing_in": 4.5,
+        "installation_date": "10-Nov-99",
+        "condition": "Heavy corrosion. Well head in poor condition. Groundwater temperature high.",
+        "notes": null,
+        "source_polygon_label": "Site Overlay; Borings; Historical Wells; HP Borings; Borings2; BoringPlan3; QAPP Overlay; QAPP Rev1; Topo",
+        "source_doc": "Summary of Existing Explorations / EA Engineering / Historical Boring Info / SBMM.kmz",
+        "source_page": null,
+        "confidence_score": 0.9,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.6649786,
+          39.0056124
+        ]
+      },
+      "properties": {
+        "id": "MW-18D",
+        "campaign": "previous",
+        "subproject": "North Cell Subproject",
+        "type": "Monitoring Well",
+        "is_mw": true,
+        "year": "1999",
+        "company": "Tetra Tech",
+        "firm": "EPA/CH2M Hill",
+        "elevation_ft": 1405,
+        "elevation_estimated": false,
+        "depth_ft": 145,
+        "gw_depth_ft": 100,
+        "screen_interval_ft": "121-141",
+        "casing_in": 4.5,
+        "installation_date": "11-Nov-99",
+        "condition": "Heavy corrosion. Well head in poor condition. Groundwater temperature high. Hydrogen sulfide smell.",
+        "notes": null,
+        "source_polygon_label": "Outside all polygons",
+        "source_doc": "Summary of Existing Explorations / EA Engineering / Historical Boring Info / SBMM.kmz",
+        "source_page": null,
+        "confidence_score": 0.9,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.6639438,
+          39.0043637
+        ]
+      },
+      "properties": {
+        "id": "MW-19D",
+        "campaign": "previous",
+        "subproject": "North Cell Subproject",
+        "type": "Monitoring Well",
+        "is_mw": true,
+        "year": "1999",
+        "company": "Tetra Tech",
+        "firm": "EPA/CH2M Hill",
+        "elevation_ft": 1374.3,
+        "elevation_estimated": false,
+        "depth_ft": 145,
+        "gw_depth_ft": 38.9,
+        "screen_interval_ft": "85-105",
+        "casing_in": 4.5,
+        "installation_date": "8-Nov-99",
+        "condition": "Heavy corrosion. Well head in poor condition. Groundwater temperature high. Hydrogen sulfide smell. Well cap stuck in the well pipe. Possible to take depth readings.",
+        "notes": null,
+        "source_polygon_label": "Outside all polygons",
+        "source_doc": "Summary of Existing Explorations / EA Engineering / Historical Boring Info / SBMM.kmz",
+        "source_page": null,
+        "confidence_score": 0.9,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.666751,
+          39.0081378
+        ]
+      },
+      "properties": {
+        "id": "MW-20D",
+        "campaign": "previous",
+        "subproject": "North Cell Subproject",
+        "type": "Monitoring Well",
+        "is_mw": true,
+        "year": "1999",
+        "company": "Tetra Tech",
+        "firm": "EPA/CH2M Hill",
+        "elevation_ft": 1350.6,
+        "elevation_estimated": false,
+        "depth_ft": 95,
+        "gw_depth_ft": 30.3,
+        "screen_interval_ft": "75-95",
+        "casing_in": 4.5,
+        "installation_date": "30-Nov-99",
+        "condition": "Good.",
+        "notes": null,
+        "source_polygon_label": "Outside all polygons",
+        "source_doc": "Summary of Existing Explorations / EA Engineering / Historical Boring Info / SBMM.kmz",
+        "source_page": null,
+        "confidence_score": 0.9,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.6667572,
+          39.0081581
+        ]
+      },
+      "properties": {
+        "id": "MW-20S",
+        "campaign": "previous",
+        "subproject": "North Cell Subproject",
+        "type": "Monitoring Well",
+        "is_mw": true,
+        "year": "1999",
+        "company": "Tetra Tech",
+        "firm": "EPA/CH2M Hill",
+        "elevation_ft": 1350.3,
+        "elevation_estimated": false,
+        "depth_ft": 47,
+        "gw_depth_ft": 30.9,
+        "screen_interval_ft": "25-45",
+        "casing_in": 4,
+        "installation_date": "30-Nov-99",
+        "condition": "Good",
+        "notes": null,
+        "source_polygon_label": "Site Overlay; Borings; Historical Wells; HP Borings; Borings2; BoringPlan3; QAPP Overlay; QAPP Rev1",
+        "source_doc": "Summary of Existing Explorations / EA Engineering / Historical Boring Info / SBMM.kmz",
+        "source_page": null,
+        "confidence_score": 0.9,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.6650509,
+          39.0076198
+        ]
+      },
+      "properties": {
+        "id": "MW-21S",
+        "campaign": "previous",
+        "subproject": "North Cell Subproject",
+        "type": "Monitoring Well",
+        "is_mw": true,
+        "year": "1999",
+        "company": "Tetra Tech",
+        "firm": "EPA/CH2M Hill",
+        "elevation_ft": 1344,
+        "elevation_estimated": false,
+        "depth_ft": 47,
+        "gw_depth_ft": 23.2,
+        "screen_interval_ft": "24.5-44.5",
+        "casing_in": 4,
+        "installation_date": "6-Dec-99",
+        "condition": "Good.",
+        "notes": null,
+        "source_polygon_label": "Site Overlay; Borings; Historical Wells; HP Borings; Borings2; BoringPlan3; QAPP Overlay; QAPP Rev1; Topo",
+        "source_doc": "Summary of Existing Explorations / EA Engineering / Historical Boring Info / SBMM.kmz",
+        "source_page": null,
+        "confidence_score": 0.9,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.6643861,
+          39.0087875
+        ]
+      },
+      "properties": {
+        "id": "MW-22D",
+        "campaign": "previous",
+        "subproject": "North Cell Subproject",
+        "type": "Monitoring Well",
+        "is_mw": true,
+        "year": "1999",
+        "company": "Tetra Tech",
+        "firm": "EPA/CH2M Hill",
+        "elevation_ft": 1330.5,
+        "elevation_estimated": false,
+        "depth_ft": 83,
+        "gw_depth_ft": 10.7,
+        "screen_interval_ft": "60-80",
+        "casing_in": 4.5,
+        "installation_date": "1-Dec-99",
+        "condition": "Good",
+        "notes": null,
+        "source_polygon_label": "Site Overlay; Borings; Historical Wells; HP Borings; Borings2; BoringPlan3; QAPP Rev1",
+        "source_doc": "Summary of Existing Explorations / EA Engineering / Historical Boring Info / SBMM.kmz",
+        "source_page": null,
+        "confidence_score": 0.9,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.6643901,
+          39.0088001
+        ]
+      },
+      "properties": {
+        "id": "MW-22S",
+        "campaign": "previous",
+        "subproject": "North Cell Subproject",
+        "type": "Monitoring Well",
+        "is_mw": true,
+        "year": "1999",
+        "company": "Tetra Tech",
+        "firm": "EPA/CH2M Hill",
+        "elevation_ft": 1330.5,
+        "elevation_estimated": false,
+        "depth_ft": 30,
+        "gw_depth_ft": null,
+        "screen_interval_ft": "20-30",
+        "casing_in": 4,
+        "installation_date": "2-Dec-99",
+        "condition": "Good.",
+        "notes": null,
+        "source_polygon_label": "Site Overlay; Borings; Historical Wells; HP Borings; Borings2; BoringPlan3; QAPP Rev1",
+        "source_doc": "Summary of Existing Explorations / EA Engineering / Historical Boring Info / SBMM.kmz",
+        "source_page": null,
+        "confidence_score": 0.9,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.6623985,
+          39.0077433
+        ]
+      },
+      "properties": {
+        "id": "MW-23S",
+        "campaign": "previous",
+        "subproject": "North Cell Subproject",
+        "type": "Monitoring Well",
+        "is_mw": true,
+        "year": "1999",
+        "company": "Tetra Tech",
+        "firm": "EPA/CH2M Hill",
+        "elevation_ft": 1347.7,
+        "elevation_estimated": false,
+        "depth_ft": 44,
+        "gw_depth_ft": null,
+        "screen_interval_ft": "23.5-43.5",
+        "casing_in": 4,
+        "installation_date": "8-Dec-99",
+        "condition": "Good",
+        "notes": null,
+        "source_polygon_label": "North Waste Rock Cell",
+        "source_doc": "Summary of Existing Explorations / EA Engineering / Historical Boring Info / SBMM.kmz",
+        "source_page": null,
+        "confidence_score": 0.9,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.658936,
+          39.0061737
+        ]
+      },
+      "properties": {
+        "id": "MW-24S",
+        "campaign": "previous",
+        "subproject": "North Cell Subproject",
+        "type": "Monitoring Well",
+        "is_mw": true,
+        "year": "1999",
+        "company": "Tetra Tech",
+        "firm": "EPA/CH2M Hill",
+        "elevation_ft": 1388.3,
+        "elevation_estimated": false,
+        "depth_ft": 55,
+        "gw_depth_ft": null,
+        "screen_interval_ft": "34.5-54.5",
+        "casing_in": 4,
+        "installation_date": "7-Dec-99",
+        "condition": "Good. Bladder pump in place.",
+        "notes": null,
+        "source_polygon_label": "Outside all polygons",
+        "source_doc": "Summary of Existing Explorations / EA Engineering / Historical Boring Info / SBMM.kmz",
+        "source_page": null,
+        "confidence_score": 0.9,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.6593177,
+          39.0046794
+        ]
+      },
+      "properties": {
+        "id": "MW-25D",
+        "campaign": "previous",
+        "subproject": "South Cell Subproject",
+        "type": "Monitoring Well",
+        "is_mw": true,
+        "year": "1999",
+        "company": "Tetra Tech",
+        "firm": "CH2M Hill, Inc.",
+        "elevation_ft": 1413.1,
+        "elevation_estimated": false,
+        "depth_ft": 205,
+        "gw_depth_ft": 31.6,
+        "screen_interval_ft": "148-168",
+        "casing_in": 4.5,
+        "installation_date": "23-Nov-99",
+        "condition": "No Information",
+        "notes": null,
+        "source_polygon_label": "Site Overlay; Borings; Historical Wells; HP Borings; Borings2; BoringPlan3; QAPP Overlay; QAPP Rev1; Topo; EA",
+        "source_doc": "Summary of Existing Explorations / EA Engineering / Historical Boring Info / SBMM.kmz",
+        "source_page": null,
+        "confidence_score": 0.9,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.6664705,
+          39.0017649
+        ]
+      },
+      "properties": {
+        "id": "MW-26D",
+        "campaign": "previous",
+        "subproject": "South Cell Subproject",
+        "type": "Monitoring Well",
+        "is_mw": true,
+        "year": "2001",
+        "company": "Tetra Tech",
+        "firm": "CH2M Hill",
+        "elevation_ft": 1358.7,
+        "elevation_estimated": false,
+        "depth_ft": 110,
+        "gw_depth_ft": 21.5,
+        "screen_interval_ft": "89-109",
+        "casing_in": 4.5,
+        "installation_date": "20-Nov-99",
+        "condition": "No information",
+        "notes": null,
+        "source_polygon_label": "West Waste Rock Cell",
+        "source_doc": "Summary of Existing Explorations / EA Engineering / Historical Boring Info / SBMM.kmz",
+        "source_page": null,
+        "confidence_score": 0.9,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.6664672,
+          39.0017509
+        ]
+      },
+      "properties": {
+        "id": "MW-26S",
+        "campaign": "previous",
+        "subproject": "South Cell Subproject",
+        "type": "Monitoring Well",
+        "is_mw": true,
+        "year": "2001",
+        "company": "Tetra Tech",
+        "firm": "CH2M Hill",
+        "elevation_ft": 1359.3,
+        "elevation_estimated": false,
+        "depth_ft": 27,
+        "gw_depth_ft": null,
+        "screen_interval_ft": "15-25",
+        "casing_in": 4,
+        "installation_date": "21-Nov-99",
+        "condition": "No Information",
+        "notes": null,
+        "source_polygon_label": "West Waste Rock Cell",
+        "source_doc": "Summary of Existing Explorations / EA Engineering / Historical Boring Info / SBMM.kmz",
+        "source_page": null,
+        "confidence_score": 0.9,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.665904,
+          39.0013955
+        ]
+      },
+      "properties": {
+        "id": "MW-27S",
+        "campaign": "previous",
+        "subproject": "South Cell Subproject",
+        "type": "Monitoring Well",
+        "is_mw": true,
+        "year": "2001",
+        "company": "Tetra Tech",
+        "firm": "CH2M Hill",
+        "elevation_ft": 1360.3,
+        "elevation_estimated": false,
+        "depth_ft": 27,
+        "gw_depth_ft": null,
+        "screen_interval_ft": "10-15",
+        "casing_in": 4,
+        "installation_date": "3-Dec-99",
+        "condition": "Good.",
+        "notes": null,
+        "source_polygon_label": "Site Overlay; Borings; Historical Wells; HP Borings; Borings2; BoringPlan3; roadway; QAPP Overlay; QAPP Rev1",
+        "source_doc": "Summary of Existing Explorations / EA Engineering / Historical Boring Info / SBMM.kmz",
+        "source_page": null,
+        "confidence_score": 0.9,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.6671793,
+          39.0013671
+        ]
+      },
+      "properties": {
+        "id": "MW-28S",
+        "campaign": "previous",
+        "subproject": "South Cell Subproject",
+        "type": "Monitoring Well",
+        "is_mw": true,
+        "year": "2001",
+        "company": "Tetra Tech",
+        "firm": "CH2M Hill",
+        "elevation_ft": 1345.3,
+        "elevation_estimated": false,
+        "depth_ft": 30,
+        "gw_depth_ft": 8,
+        "screen_interval_ft": "15-25",
+        "casing_in": 4,
+        "installation_date": "4-Dec-99",
+        "condition": "No information.",
+        "notes": null,
+        "source_polygon_label": "West Waste Rock Cell",
+        "source_doc": "Summary of Existing Explorations / EA Engineering / Historical Boring Info / SBMM.kmz",
+        "source_page": null,
+        "confidence_score": 0.9,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.6688376,
+          39.0003712
+        ]
+      },
+      "properties": {
+        "id": "MW-29S",
+        "campaign": "previous",
+        "subproject": "South Cell Subproject",
+        "type": "Monitoring Well",
+        "is_mw": true,
+        "year": "2001",
+        "company": "Tetra Tech",
+        "firm": "CH2M Hill",
+        "elevation_ft": 1344.8,
+        "elevation_estimated": false,
+        "depth_ft": 27,
+        "gw_depth_ft": null,
+        "screen_interval_ft": "16-26",
+        "casing_in": 4,
+        "installation_date": "5-Dec-99",
+        "condition": "Good.",
+        "notes": null,
+        "source_polygon_label": "West Waste Rock Cell",
+        "source_doc": "Summary of Existing Explorations / EA Engineering / Historical Boring Info / SBMM.kmz",
+        "source_page": null,
+        "confidence_score": 0.9,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.6651228,
+          38.9999405
+        ]
+      },
+      "properties": {
+        "id": "MW-30D",
+        "campaign": "previous",
+        "subproject": "South Cell Subproject",
+        "type": "Monitoring Well",
+        "is_mw": true,
+        "year": "1999",
+        "company": "Tetra Tech",
+        "firm": "CH2M Hill, Inc.",
+        "elevation_ft": 1371,
+        "elevation_estimated": false,
+        "depth_ft": 144,
+        "gw_depth_ft": 105,
+        "screen_interval_ft": "121-141",
+        "casing_in": 4.5,
+        "installation_date": "14-Dec-99",
+        "condition": "Good.",
+        "notes": null,
+        "source_polygon_label": "Site Overlay; Borings; Historical Wells; HP Borings; Borings2; BoringPlan3; QAPP Overlay; QAPP Rev1; EA borrow",
+        "source_doc": "Summary of Existing Explorations / EA Engineering / Historical Boring Info / SBMM.kmz",
+        "source_page": null,
+        "confidence_score": 0.9,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.6636369,
+          39.0019079
+        ]
+      },
+      "properties": {
+        "id": "MW-30S",
+        "campaign": "previous",
+        "subproject": "South Cell Subproject",
+        "type": "Monitoring Well",
+        "is_mw": true,
+        "year": "1999",
+        "company": "Tetra Tech",
+        "firm": "CH2M Hill, Inc.",
+        "elevation_ft": 1371.2,
+        "elevation_estimated": false,
+        "depth_ft": 59.5,
+        "gw_depth_ft": null,
+        "screen_interval_ft": "39-59",
+        "casing_in": 4,
+        "installation_date": "15-Dec-99",
+        "condition": "Good.",
+        "notes": null,
+        "source_polygon_label": "South Waste Rock Cell; West Waste Rock Cell",
+        "source_doc": "Summary of Existing Explorations / EA Engineering / Historical Boring Info / SBMM.kmz",
+        "source_page": null,
+        "confidence_score": 0.9,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.6651228,
+          38.9999405
+        ]
+      },
+      "properties": {
+        "id": "MW-31D",
+        "campaign": "previous",
+        "subproject": "South Cell Subproject",
+        "type": "Monitoring Well",
+        "is_mw": true,
+        "year": "1999",
+        "company": "Tetra Tech",
+        "firm": "CH2M Hill, Inc.",
+        "elevation_ft": 1459.9,
+        "elevation_estimated": false,
+        "depth_ft": 100,
+        "gw_depth_ft": 85,
+        "screen_interval_ft": "78-98",
+        "casing_in": 4.5,
+        "installation_date": "16-Dec-99",
+        "condition": "Good.",
+        "notes": null,
+        "source_polygon_label": "Site Overlay; Borings; Historical Wells; HP Borings; Borings2; BoringPlan3; QAPP Overlay; QAPP Rev1; EA borrow",
+        "source_doc": "Summary of Existing Explorations / EA Engineering / Historical Boring Info / SBMM.kmz",
+        "source_page": null,
+        "confidence_score": 0.9,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.6651247,
+          38.9999537
+        ]
+      },
+      "properties": {
+        "id": "MW-31S",
+        "campaign": "previous",
+        "subproject": "South Cell Subproject",
+        "type": "Monitoring Well",
+        "is_mw": true,
+        "year": "1999",
+        "company": "Tetra Tech",
+        "firm": "CH2M Hill, Inc.",
+        "elevation_ft": 1459.7,
+        "elevation_estimated": false,
+        "depth_ft": 40.5,
+        "gw_depth_ft": null,
+        "screen_interval_ft": "20-40",
+        "casing_in": 4,
+        "installation_date": "16-Dec-99",
+        "condition": "Good.",
+        "notes": null,
+        "source_polygon_label": "Outside all polygons",
+        "source_doc": "Summary of Existing Explorations / EA Engineering / Historical Boring Info / SBMM.kmz",
+        "source_page": null,
+        "confidence_score": 0.9,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.6696751,
+          39.0068132
+        ]
+      },
+      "properties": {
+        "id": "MW-32D",
+        "campaign": "previous",
+        "subproject": "North Cell Subproject",
+        "type": "Monitoring Well",
+        "is_mw": true,
+        "year": "2001",
+        "company": "Tetra Tech",
+        "firm": "CH2M Hill",
+        "elevation_ft": 1376.1,
+        "elevation_estimated": false,
+        "depth_ft": 157,
+        "gw_depth_ft": 42,
+        "screen_interval_ft": "130-150",
+        "casing_in": 4.5,
+        "installation_date": "13-Jun-01",
+        "condition": "Good.",
+        "notes": null,
+        "source_polygon_label": "Outside all polygons",
+        "source_doc": "Summary of Existing Explorations / EA Engineering / Historical Boring Info / SBMM.kmz",
+        "source_page": null,
+        "confidence_score": 0.9,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.6696561,
+          39.006849
+        ]
+      },
+      "properties": {
+        "id": "MW-32S",
+        "campaign": "previous",
+        "subproject": "North Cell Subproject",
+        "type": "Monitoring Well",
+        "is_mw": true,
+        "year": "2001",
+        "company": "Tetra Tech",
+        "firm": "CH2M Hill",
+        "elevation_ft": 1376.2,
+        "elevation_estimated": false,
+        "depth_ft": 164,
+        "gw_depth_ft": 26,
+        "screen_interval_ft": "50-70",
+        "casing_in": 4,
+        "installation_date": "11-Jun-01",
+        "condition": "Good.",
+        "notes": null,
+        "source_polygon_label": "Site Overlay; Borings; Historical Wells; HP Borings; Borings2; BoringPlan3; QAPP Overlay; QAPP Rev1",
+        "source_doc": "Summary of Existing Explorations / EA Engineering / Historical Boring Info / SBMM.kmz",
+        "source_page": null,
+        "confidence_score": 0.9,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.6689117,
+          39.0062519
+        ]
+      },
+      "properties": {
+        "id": "MW-33",
+        "campaign": "previous",
+        "subproject": "North Cell Subproject",
+        "type": "Monitoring Well",
+        "is_mw": true,
+        "year": "2001",
+        "company": "Tetra Tech",
+        "firm": "CH2M Hill",
+        "elevation_ft": 1388.4,
+        "elevation_estimated": false,
+        "depth_ft": 84,
+        "gw_depth_ft": 56,
+        "screen_interval_ft": "62-82",
+        "casing_in": 4,
+        "installation_date": "14-Jun-01",
+        "condition": "Good",
+        "notes": null,
+        "source_polygon_label": "Site Overlay; Borings; Historical Wells; HP Borings; Borings2; BoringPlan3; QAPP Overlay; QAPP Rev1",
+        "source_doc": "Summary of Existing Explorations / EA Engineering / Historical Boring Info / SBMM.kmz",
+        "source_page": null,
+        "confidence_score": 0.9,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.6673079,
+          39.0077008
+        ]
+      },
+      "properties": {
+        "id": "MW-34",
+        "campaign": "previous",
+        "subproject": "North Cell Subproject",
+        "type": "Monitoring Well",
+        "is_mw": true,
+        "year": "2001",
+        "company": "Tetra Tech",
+        "firm": "CH2M Hill",
+        "elevation_ft": 1354.8,
+        "elevation_estimated": false,
+        "depth_ft": 56,
+        "gw_depth_ft": 34,
+        "screen_interval_ft": "36-56",
+        "casing_in": 4,
+        "installation_date": "17-Jun-01",
+        "condition": "Good. Bladder pump in place.",
+        "notes": null,
+        "source_polygon_label": "Site Overlay; Borings; Historical Wells; HP Borings; Borings2; BoringPlan3; QAPP Overlay; QAPP Rev1",
+        "source_doc": "Summary of Existing Explorations / EA Engineering / Historical Boring Info / SBMM.kmz",
+        "source_page": null,
+        "confidence_score": 0.9,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.6593972,
+          39.0074388
+        ]
+      },
+      "properties": {
+        "id": "MW-35",
+        "campaign": "previous",
+        "subproject": "North Cell Subproject",
+        "type": "Monitoring Well",
+        "is_mw": true,
+        "year": "2001",
+        "company": "Tetra Tech",
+        "firm": "CH2M Hill",
+        "elevation_ft": 1357.2,
+        "elevation_estimated": false,
+        "depth_ft": 50,
+        "gw_depth_ft": 18.5,
+        "screen_interval_ft": "30-50",
+        "casing_in": 4,
+        "installation_date": "15-Jun-01",
+        "condition": "Good. Bladder pump in place.",
+        "notes": null,
+        "source_polygon_label": "Site Overlay; Borings; Historical Wells; HP Borings; Borings2; BoringPlan3; QAPP Overlay; QAPP Rev1; Topo",
+        "source_doc": "Summary of Existing Explorations / EA Engineering / Historical Boring Info / SBMM.kmz",
+        "source_page": null,
+        "confidence_score": 0.9,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.670543,
+          39.0003815
+        ]
+      },
+      "properties": {
+        "id": "MW-36",
+        "campaign": "previous",
+        "subproject": "South Cell Subproject",
+        "type": "Monitoring Well",
+        "is_mw": true,
+        "year": "2001",
+        "company": "Tetra Tech",
+        "firm": "CH2M Hill",
+        "elevation_ft": 1328.2,
+        "elevation_estimated": false,
+        "depth_ft": 27,
+        "gw_depth_ft": 8.5,
+        "screen_interval_ft": "13-23",
+        "casing_in": 4,
+        "installation_date": "17-Jun-01",
+        "condition": "Good.",
+        "notes": null,
+        "source_polygon_label": "Site Overlay; Borings; Historical Wells; HP Borings; Borings2; BoringPlan3; roadway; QAPP Overlay; QAPP Rev1; EA borrow",
+        "source_doc": "Summary of Existing Explorations / EA Engineering / Historical Boring Info / SBMM.kmz",
+        "source_page": null,
+        "confidence_score": 0.9,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.6694934,
+          39.0014718
+        ]
+      },
+      "properties": {
+        "id": "MW-37",
+        "campaign": "previous",
+        "subproject": "South Cell Subproject",
+        "type": "Monitoring Well",
+        "is_mw": true,
+        "year": "2001",
+        "company": "Tetra Tech",
+        "firm": "CH2M Hill",
+        "elevation_ft": 1342.8,
+        "elevation_estimated": false,
+        "depth_ft": 67,
+        "gw_depth_ft": 22,
+        "screen_interval_ft": "57-67",
+        "casing_in": 4,
+        "installation_date": "19-Jun-01",
+        "condition": "Good.",
+        "notes": null,
+        "source_polygon_label": "West Waste Rock Cell",
+        "source_doc": "Summary of Existing Explorations / EA Engineering / Historical Boring Info / SBMM.kmz",
+        "source_page": null,
+        "confidence_score": 0.9,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.6694403,
+          39.0018184
+        ]
+      },
+      "properties": {
+        "id": "MW-41",
+        "campaign": "previous",
+        "subproject": "South Cell Subproject",
+        "type": "Unknown",
+        "is_mw": true,
+        "year": "2013",
+        "company": "CH2M Hill",
+        "firm": "CH2M Hill",
+        "elevation_ft": 1375.9,
+        "elevation_estimated": false,
+        "depth_ft": 40,
+        "gw_depth_ft": null,
+        "screen_interval_ft": "13-23",
+        "casing_in": null,
+        "installation_date": null,
+        "condition": null,
+        "notes": null,
+        "source_polygon_label": "West Waste Rock Cell",
+        "source_doc": "Summary of Existing Explorations / EA Engineering / Historical Boring Info / SBMM.kmz",
+        "source_page": null,
+        "confidence_score": 0.9,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.6700914,
+          39.0032744
+        ]
+      },
+      "properties": {
+        "id": "MW-42",
+        "campaign": "previous",
+        "subproject": "South Cell Subproject",
+        "type": "Unknown",
+        "is_mw": true,
+        "year": "2013",
+        "company": "CH2M Hill",
+        "firm": "CH2M Hill",
+        "elevation_ft": 1373.8,
+        "elevation_estimated": false,
+        "depth_ft": 50,
+        "gw_depth_ft": null,
+        "screen_interval_ft": "25.5-35.5",
+        "casing_in": null,
+        "installation_date": null,
+        "condition": null,
+        "notes": null,
+        "source_polygon_label": "West Rock Dam",
+        "source_doc": "Summary of Existing Explorations / EA Engineering / Historical Boring Info / SBMM.kmz",
+        "source_page": null,
+        "confidence_score": 0.9,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.6689903,
+          39.0033859
+        ]
+      },
+      "properties": {
+        "id": "MW-43",
+        "campaign": "previous",
+        "subproject": "South Cell Subproject",
+        "type": "Unknown",
+        "is_mw": true,
+        "year": "2013",
+        "company": "CH2M Hill",
+        "firm": "CH2M Hill",
+        "elevation_ft": 1356.4,
+        "elevation_estimated": false,
+        "depth_ft": 30,
+        "gw_depth_ft": null,
+        "screen_interval_ft": "7-17",
+        "casing_in": null,
+        "installation_date": null,
+        "condition": null,
+        "notes": null,
+        "source_polygon_label": "West Rock Dam",
+        "source_doc": "Summary of Existing Explorations / EA Engineering / Historical Boring Info / SBMM.kmz",
+        "source_page": null,
+        "confidence_score": 0.9,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.6687655,
+          39.0025714
+        ]
+      },
+      "properties": {
+        "id": "MW-44",
+        "campaign": "previous",
+        "subproject": "South Cell Subproject",
+        "type": "Unknown",
+        "is_mw": true,
+        "year": "2013",
+        "company": "CH2M Hill",
+        "firm": "CH2M Hill",
+        "elevation_ft": 1351.7,
+        "elevation_estimated": false,
+        "depth_ft": 30,
+        "gw_depth_ft": null,
+        "screen_interval_ft": "9.5-19.5",
+        "casing_in": null,
+        "installation_date": null,
+        "condition": null,
+        "notes": null,
+        "source_polygon_label": "West Rock Dam",
+        "source_doc": "Summary of Existing Explorations / EA Engineering / Historical Boring Info / SBMM.kmz",
+        "source_page": null,
+        "confidence_score": 0.9,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.6686193,
+          39.0052472
+        ]
+      },
+      "properties": {
+        "id": "MW-45",
+        "campaign": "previous",
+        "subproject": "North Cell Subproject",
+        "type": "Unknown",
+        "is_mw": true,
+        "year": "2013",
+        "company": "CH2M Hill",
+        "firm": "CH2M Hill",
+        "elevation_ft": 1387.1,
+        "elevation_estimated": false,
+        "depth_ft": 35,
+        "gw_depth_ft": null,
+        "screen_interval_ft": "20-35",
+        "casing_in": null,
+        "installation_date": null,
+        "condition": null,
+        "notes": null,
+        "source_polygon_label": "Site Overlay; Borings; Historical Wells; HP Borings; Borings2; BoringPlan3; QAPP Overlay; QAPP Rev1",
+        "source_doc": "Summary of Existing Explorations / EA Engineering / Historical Boring Info / SBMM.kmz",
+        "source_page": null,
+        "confidence_score": 0.9,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.6680307,
+          39.0021318
+        ]
+      },
+      "properties": {
+        "id": "MW-46",
+        "campaign": "previous",
+        "subproject": "South Cell Subproject",
+        "type": "Unknown",
+        "is_mw": true,
+        "year": "2013",
+        "company": "CH2M Hill",
+        "firm": "CH2M Hill",
+        "elevation_ft": 1338,
+        "elevation_estimated": false,
+        "depth_ft": 33,
+        "gw_depth_ft": null,
+        "screen_interval_ft": "21-31",
+        "casing_in": null,
+        "installation_date": null,
+        "condition": null,
+        "notes": null,
+        "source_polygon_label": "West Rock Dam",
+        "source_doc": "Summary of Existing Explorations / EA Engineering / Historical Boring Info / SBMM.kmz",
+        "source_page": null,
+        "confidence_score": 0.9,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.66981,
+          39.0028067
+        ]
+      },
+      "properties": {
+        "id": "MW-47I",
+        "campaign": "previous",
+        "subproject": "South Cell Subproject",
+        "type": "Unknown",
+        "is_mw": true,
+        "year": "2013",
+        "company": "CH2M Hill",
+        "firm": "CH2M Hill",
+        "elevation_ft": 1363,
+        "elevation_estimated": false,
+        "depth_ft": 55,
+        "gw_depth_ft": null,
+        "screen_interval_ft": "41.5-51.5",
+        "casing_in": null,
+        "installation_date": null,
+        "condition": null,
+        "notes": null,
+        "source_polygon_label": "West Rock Dam",
+        "source_doc": "Summary of Existing Explorations / EA Engineering / Historical Boring Info / SBMM.kmz",
+        "source_page": null,
+        "confidence_score": 0.9,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.6697437,
+          39.0028258
+        ]
+      },
+      "properties": {
+        "id": "MW-47S",
+        "campaign": "previous",
+        "subproject": "South Cell Subproject",
+        "type": "Unknown",
+        "is_mw": true,
+        "year": "2013",
+        "company": "CH2M Hill",
+        "firm": "CH2M Hill",
+        "elevation_ft": 1363.2,
+        "elevation_estimated": false,
+        "depth_ft": 32.5,
+        "gw_depth_ft": null,
+        "screen_interval_ft": "20-30",
+        "casing_in": null,
+        "installation_date": null,
+        "condition": null,
+        "notes": null,
+        "source_polygon_label": "West Rock Dam",
+        "source_doc": "Summary of Existing Explorations / EA Engineering / Historical Boring Info / SBMM.kmz",
+        "source_page": null,
+        "confidence_score": 0.9,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.671131,
+          39.004877
+        ]
+      },
+      "properties": {
+        "id": "MW-48",
+        "campaign": "previous",
+        "subproject": "Disturbed Rock and Northern Waste Rock Dam Subproject",
+        "type": "Unknown",
+        "is_mw": true,
+        "year": "2013",
+        "company": "CH2M Hill",
+        "firm": "CH2M Hill",
+        "elevation_ft": null,
+        "elevation_estimated": false,
+        "depth_ft": 25,
+        "gw_depth_ft": null,
+        "screen_interval_ft": null,
+        "casing_in": null,
+        "installation_date": null,
+        "condition": null,
+        "notes": null,
+        "source_polygon_label": "West Rock Dam",
+        "source_doc": "Summary of Existing Explorations / EA Engineering / Historical Boring Info / SBMM.kmz",
+        "source_page": null,
+        "confidence_score": 0.9,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.6711305,
+          39.0057229
+        ]
+      },
+      "properties": {
+        "id": "MW-48A",
+        "campaign": "previous",
+        "subproject": "Northwest Cell Subproject",
+        "type": "Unknown",
+        "is_mw": true,
+        "year": "2013",
+        "company": "CH2M Hill",
+        "firm": "CH2M Hill",
+        "elevation_ft": 1338.4,
+        "elevation_estimated": false,
+        "depth_ft": 35,
+        "gw_depth_ft": null,
+        "screen_interval_ft": "15-30",
+        "casing_in": null,
+        "installation_date": null,
+        "condition": null,
+        "notes": null,
+        "source_polygon_label": "Site Overlay; Borings; Historical Wells; HP Borings; Borings2; BoringPlan3; QAPP Overlay; QAPP Rev1",
+        "source_doc": "Summary of Existing Explorations / EA Engineering / Historical Boring Info / SBMM.kmz",
+        "source_page": null,
+        "confidence_score": 0.9,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.6653384,
+          39.0070212
+        ]
+      },
+      "properties": {
+        "id": "MW-49",
+        "campaign": "previous",
+        "subproject": "North Cell Subproject",
+        "type": "Unknown",
+        "is_mw": true,
+        "year": "2013",
+        "company": "CH2M Hill",
+        "firm": "CH2M Hill",
+        "elevation_ft": 1366.6,
+        "elevation_estimated": false,
+        "depth_ft": 62,
+        "gw_depth_ft": null,
+        "screen_interval_ft": "36-51",
+        "casing_in": null,
+        "installation_date": null,
+        "condition": null,
+        "notes": null,
+        "source_polygon_label": "Site Overlay; Borings; Historical Wells; HP Borings; Borings2; BoringPlan3; QAPP Overlay; QAPP Rev1; Topo",
+        "source_doc": "Summary of Existing Explorations / EA Engineering / Historical Boring Info / SBMM.kmz",
+        "source_page": null,
+        "confidence_score": 0.9,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.6670088,
+          39.007182
+        ]
+      },
+      "properties": {
+        "id": "MW-50",
+        "campaign": "previous",
+        "subproject": "North Cell Subproject",
+        "type": "Unknown",
+        "is_mw": true,
+        "year": "2013",
+        "company": "CH2M Hill",
+        "firm": "CH2M Hill",
+        "elevation_ft": null,
+        "elevation_estimated": false,
+        "depth_ft": null,
+        "gw_depth_ft": null,
+        "screen_interval_ft": null,
+        "casing_in": null,
+        "installation_date": null,
+        "condition": null,
+        "notes": null,
+        "source_polygon_label": "Site Overlay; Borings; Historical Wells; HP Borings; Borings2; BoringPlan3; QAPP Overlay; QAPP Rev1",
+        "source_doc": "Summary of Existing Explorations / EA Engineering / Historical Boring Info / SBMM.kmz",
+        "source_page": null,
+        "confidence_score": 0.9,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.6679002,
+          39.0075516
+        ]
+      },
+      "properties": {
+        "id": "MW-51",
+        "campaign": "previous",
+        "subproject": "North Cell Subproject",
+        "type": "Unknown",
+        "is_mw": true,
+        "year": "2013",
+        "company": "CH2M Hill",
+        "firm": "CH2M Hill",
+        "elevation_ft": null,
+        "elevation_estimated": false,
+        "depth_ft": null,
+        "gw_depth_ft": null,
+        "screen_interval_ft": null,
+        "casing_in": null,
+        "installation_date": null,
+        "condition": null,
+        "notes": null,
+        "source_polygon_label": "Outside all polygons",
+        "source_doc": "Summary of Existing Explorations / EA Engineering / Historical Boring Info / SBMM.kmz",
+        "source_page": null,
+        "confidence_score": 0.9,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.666747,
+          39.004987
+        ]
+      },
+      "properties": {
+        "id": "MW-53",
+        "campaign": "previous",
+        "subproject": "North Cell Subproject",
+        "type": "Unknown",
+        "is_mw": true,
+        "year": "2013",
+        "company": "CH2M Hill",
+        "firm": "CH2M Hill",
+        "elevation_ft": null,
+        "elevation_estimated": false,
+        "depth_ft": 53,
+        "gw_depth_ft": null,
+        "screen_interval_ft": "36-51",
+        "casing_in": null,
+        "installation_date": null,
+        "condition": null,
+        "notes": null,
+        "source_polygon_label": "Site Overlay; Borings; Historical Wells; HP Borings; Borings2; BoringPlan3; QAPP Overlay; QAPP Rev1",
+        "source_doc": "Summary of Existing Explorations / EA Engineering / Historical Boring Info / SBMM.kmz",
+        "source_page": null,
+        "confidence_score": 0.9,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.6638641,
+          39.0047563
+        ]
+      },
+      "properties": {
+        "id": "MW-54",
+        "campaign": "previous",
+        "subproject": "North Cell Subproject",
+        "type": "Unknown",
+        "is_mw": true,
+        "year": "2013",
+        "company": "CH2M Hill",
+        "firm": "CH2M Hill",
+        "elevation_ft": 1375.8,
+        "elevation_estimated": false,
+        "depth_ft": 63,
+        "gw_depth_ft": null,
+        "screen_interval_ft": "25-40",
+        "casing_in": null,
+        "installation_date": null,
+        "condition": null,
+        "notes": null,
+        "source_polygon_label": "Site Overlay; Borings; Historical Wells; HP Borings; Borings2; BoringPlan3; QAPP Overlay; QAPP Rev1; Topo",
+        "source_doc": "Summary of Existing Explorations / EA Engineering / Historical Boring Info / SBMM.kmz",
+        "source_page": null,
+        "confidence_score": 0.9,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.6638075,
+          39.0070543
+        ]
+      },
+      "properties": {
+        "id": "MW-55",
+        "campaign": "previous",
+        "subproject": "North Cell Subproject",
+        "type": "Unknown",
+        "is_mw": true,
+        "year": "2013",
+        "company": "CH2M Hill",
+        "firm": "CH2M Hill",
+        "elevation_ft": 1417.6,
+        "elevation_estimated": false,
+        "depth_ft": 109,
+        "gw_depth_ft": 95,
+        "screen_interval_ft": "92-107",
+        "casing_in": null,
+        "installation_date": null,
+        "condition": null,
+        "notes": null,
+        "source_polygon_label": "North Waste Rock Cell",
+        "source_doc": "Summary of Existing Explorations / EA Engineering / Historical Boring Info / SBMM.kmz",
+        "source_page": null,
+        "confidence_score": 0.9,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.6607438,
+          39.0068167
+        ]
+      },
+      "properties": {
+        "id": "MW-56",
+        "campaign": "previous",
+        "subproject": "North Cell Subproject",
+        "type": "Unknown",
+        "is_mw": true,
+        "year": "2013",
+        "company": "CH2M Hill",
+        "firm": "CH2M Hill",
+        "elevation_ft": 1441.2,
+        "elevation_estimated": false,
+        "depth_ft": 115,
+        "gw_depth_ft": null,
+        "screen_interval_ft": "98-113",
+        "casing_in": null,
+        "installation_date": null,
+        "condition": null,
+        "notes": null,
+        "source_polygon_label": "North Waste Rock Cell",
+        "source_doc": "Summary of Existing Explorations / EA Engineering / Historical Boring Info / SBMM.kmz",
+        "source_page": null,
+        "confidence_score": 0.9,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.6611876,
+          39.0053808
+        ]
+      },
+      "properties": {
+        "id": "MW-57",
+        "campaign": "previous",
+        "subproject": "North Cell Subproject",
+        "type": "Unknown",
+        "is_mw": true,
+        "year": "2013",
+        "company": "CH2M Hill",
+        "firm": "CH2M Hill",
+        "elevation_ft": 1413.2,
+        "elevation_estimated": false,
+        "depth_ft": 110,
+        "gw_depth_ft": null,
+        "screen_interval_ft": "75-90",
+        "casing_in": null,
+        "installation_date": null,
+        "condition": null,
+        "notes": null,
+        "source_polygon_label": "North Waste Rock Cell",
+        "source_doc": "Summary of Existing Explorations / EA Engineering / Historical Boring Info / SBMM.kmz",
+        "source_page": null,
+        "confidence_score": 0.9,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.6607897,
+          39.0027536
+        ]
+      },
+      "properties": {
+        "id": "MW-58",
+        "campaign": "previous",
+        "subproject": "South Cell Subproject",
+        "type": "Unknown",
+        "is_mw": true,
+        "year": "2023",
+        "company": "EA Engineering",
+        "firm": "EA Engineering",
+        "elevation_ft": 1431.8,
+        "elevation_estimated": false,
+        "depth_ft": 120,
+        "gw_depth_ft": null,
+        "screen_interval_ft": "70-85",
+        "casing_in": null,
+        "installation_date": null,
+        "condition": null,
+        "notes": null,
+        "source_polygon_label": "South Waste Rock Cell",
+        "source_doc": "Summary of Existing Explorations / EA Engineering / Historical Boring Info / SBMM.kmz",
+        "source_page": null,
+        "confidence_score": 0.9,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.6631695,
+          39.0021305
+        ]
+      },
+      "properties": {
+        "id": "MW-59",
+        "campaign": "previous",
+        "subproject": "South Cell Subproject",
+        "type": "Unknown",
+        "is_mw": true,
+        "year": "2023",
+        "company": "EA Engineering",
+        "firm": "EA Engineering",
+        "elevation_ft": 1380.7,
+        "elevation_estimated": false,
+        "depth_ft": 65,
+        "gw_depth_ft": null,
+        "screen_interval_ft": "45-60",
+        "casing_in": null,
+        "installation_date": null,
+        "condition": null,
+        "notes": null,
+        "source_polygon_label": "South Waste Rock Cell",
+        "source_doc": "Summary of Existing Explorations / EA Engineering / Historical Boring Info / SBMM.kmz",
+        "source_page": null,
+        "confidence_score": 0.9,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.6640752,
+          39.0008826
+        ]
+      },
+      "properties": {
+        "id": "MW-60",
+        "campaign": "previous",
+        "subproject": "South Cell Subproject",
+        "type": "Unknown",
+        "is_mw": true,
+        "year": "2023",
+        "company": "EA Engineering",
+        "firm": "EA Engineering",
+        "elevation_ft": 1417.9,
+        "elevation_estimated": false,
+        "depth_ft": 98,
+        "gw_depth_ft": null,
+        "screen_interval_ft": "74-89",
+        "casing_in": null,
+        "installation_date": null,
+        "condition": null,
+        "notes": null,
+        "source_polygon_label": "Outside all polygons",
+        "source_doc": "Summary of Existing Explorations / EA Engineering / Historical Boring Info / SBMM.kmz",
+        "source_page": null,
+        "confidence_score": 0.9,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.6701902,
+          39.009636
+        ]
+      },
+      "properties": {
+        "id": "MW-69",
+        "campaign": "previous",
+        "subproject": "Northwest Cell Subproject",
+        "type": "Unknown",
+        "is_mw": true,
+        "year": "2023",
+        "company": "EA Engineering",
+        "firm": "EA Engineering",
+        "elevation_ft": 1334,
+        "elevation_estimated": false,
+        "depth_ft": 30,
+        "gw_depth_ft": null,
+        "screen_interval_ft": "15-25",
+        "casing_in": null,
+        "installation_date": null,
+        "condition": null,
+        "notes": null,
+        "source_polygon_label": "Outside all polygons",
+        "source_doc": "Summary of Existing Explorations / EA Engineering / Historical Boring Info / SBMM.kmz",
+        "source_page": null,
+        "confidence_score": 0.9,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.6674029,
+          39.0084065
+        ]
+      },
+      "properties": {
+        "id": "MW-70",
+        "campaign": "previous",
+        "subproject": "North Cell Subproject",
+        "type": "Unknown",
+        "is_mw": true,
+        "year": "2023",
+        "company": "EA Engineering",
+        "firm": "EA Engineering",
+        "elevation_ft": 1335,
+        "elevation_estimated": false,
+        "depth_ft": 30,
+        "gw_depth_ft": 15,
+        "screen_interval_ft": "12-22",
+        "casing_in": null,
+        "installation_date": null,
+        "condition": null,
+        "notes": null,
+        "source_polygon_label": "Site Overlay; Borings; Historical Wells; HP Borings; Borings2; BoringPlan3; QAPP Rev1",
+        "source_doc": "Summary of Existing Explorations / EA Engineering / Historical Boring Info / SBMM.kmz",
+        "source_page": null,
+        "confidence_score": 0.9,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.6627452,
+          39.009784
+        ]
+      },
+      "properties": {
+        "id": "MW-72",
+        "campaign": "previous",
+        "subproject": "North Cell Subproject",
+        "type": "Unknown",
+        "is_mw": true,
+        "year": "2023",
+        "company": "EA Engineering",
+        "firm": "EA Engineering",
+        "elevation_ft": 1329.4,
+        "elevation_estimated": false,
+        "depth_ft": 25,
+        "gw_depth_ft": 8.5,
+        "screen_interval_ft": "12-22",
+        "casing_in": null,
+        "installation_date": null,
+        "condition": null,
+        "notes": null,
+        "source_polygon_label": "BoringPlan3",
+        "source_doc": "Summary of Existing Explorations / EA Engineering / Historical Boring Info / SBMM.kmz",
+        "source_page": null,
+        "confidence_score": 0.9,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.6607254,
+          39.0085049
+        ]
+      },
+      "properties": {
+        "id": "MW-73",
+        "campaign": "previous",
+        "subproject": "North Cell Subproject",
+        "type": "Unknown",
+        "is_mw": true,
+        "year": "2023",
+        "company": "EA Engineering",
+        "firm": "EA Engineering",
+        "elevation_ft": 1339.9,
+        "elevation_estimated": false,
+        "depth_ft": 30,
+        "gw_depth_ft": 15,
+        "screen_interval_ft": "17-27",
+        "casing_in": null,
+        "installation_date": null,
+        "condition": null,
+        "notes": null,
+        "source_polygon_label": "Site Overlay; Borings; Historical Wells; HP Borings; Borings2; BoringPlan3; QAPP Rev1",
+        "source_doc": "Summary of Existing Explorations / EA Engineering / Historical Boring Info / SBMM.kmz",
+        "source_page": null,
+        "confidence_score": 0.9,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.6591246,
+          39.0038664
+        ]
+      },
+      "properties": {
+        "id": "MW-74",
+        "campaign": "previous",
+        "subproject": "South Cell Subproject",
+        "type": "Unknown",
+        "is_mw": true,
+        "year": "2023",
+        "company": "EA Engineering",
+        "firm": "EA Engineering",
+        "elevation_ft": 1406,
+        "elevation_estimated": false,
+        "depth_ft": 55,
+        "gw_depth_ft": 25.5,
+        "screen_interval_ft": "36-51",
+        "casing_in": null,
+        "installation_date": null,
+        "condition": null,
+        "notes": null,
+        "source_polygon_label": "Site Overlay; Borings; Historical Wells; HP Borings; Borings2; BoringPlan3; QAPP Overlay; QAPP Rev1; Topo",
+        "source_doc": "Summary of Existing Explorations / EA Engineering / Historical Boring Info / SBMM.kmz",
+        "source_page": null,
+        "confidence_score": 0.9,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.6614043,
+          39.0010666
+        ]
+      },
+      "properties": {
+        "id": "MW-75",
+        "campaign": "previous",
+        "subproject": "South Cell Subproject",
+        "type": "Unknown",
+        "is_mw": true,
+        "year": "2023",
+        "company": "EA Engineering",
+        "firm": "EA Engineering",
+        "elevation_ft": 1394,
+        "elevation_estimated": false,
+        "depth_ft": 45,
+        "gw_depth_ft": 23,
+        "screen_interval_ft": "27-37",
+        "casing_in": null,
+        "installation_date": null,
+        "condition": null,
+        "notes": null,
+        "source_polygon_label": "Site Overlay; Borings; Historical Wells; HP Borings; Borings2; BoringPlan3; QAPP Overlay; QAPP Rev1",
+        "source_doc": "Summary of Existing Explorations / EA Engineering / Historical Boring Info / SBMM.kmz",
+        "source_page": null,
+        "confidence_score": 0.9,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.6664711,
+          39.008462
+        ]
+      },
+      "properties": {
+        "id": "NWPZ-1",
+        "campaign": "previous",
+        "subproject": "North Cell Subproject",
+        "type": "Unknown",
+        "is_mw": false,
+        "year": null,
+        "company": "CH2M Hill",
+        "firm": "Unknown",
+        "elevation_ft": null,
+        "elevation_estimated": false,
+        "depth_ft": null,
+        "gw_depth_ft": null,
+        "screen_interval_ft": null,
+        "casing_in": 1,
+        "installation_date": "9-Dec-13",
+        "condition": "Good.",
+        "notes": null,
+        "source_polygon_label": "Site Overlay; Borings; Historical Wells; HP Borings; Borings2; BoringPlan3; QAPP Rev1",
+        "source_doc": "Summary of Existing Explorations / EA Engineering / Historical Boring Info / SBMM.kmz",
+        "source_page": null,
+        "confidence_score": 0.9,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.6606223,
+          39.0061952
+        ]
+      },
+      "properties": {
+        "id": "NWRP-1-SB",
+        "campaign": "previous",
+        "subproject": "North Cell Subproject",
+        "type": "Unknown",
+        "is_mw": false,
+        "year": "2023",
+        "company": "EA Engineering",
+        "firm": "EA Engineering",
+        "elevation_ft": null,
+        "elevation_estimated": false,
+        "depth_ft": 65,
+        "gw_depth_ft": null,
+        "screen_interval_ft": null,
+        "casing_in": null,
+        "installation_date": null,
+        "condition": null,
+        "notes": null,
+        "source_polygon_label": "North Waste Rock Cell",
+        "source_doc": "Summary of Existing Explorations / EA Engineering / Historical Boring Info / SBMM.kmz",
+        "source_page": null,
+        "confidence_score": 0.9,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.6621854,
+          39.0067102
+        ]
+      },
+      "properties": {
+        "id": "NWRP-2-SB",
+        "campaign": "previous",
+        "subproject": "North Cell Subproject",
+        "type": "Unknown",
+        "is_mw": false,
+        "year": "2023",
+        "company": "EA Engineering",
+        "firm": "EA Engineering",
+        "elevation_ft": null,
+        "elevation_estimated": false,
+        "depth_ft": 85,
+        "gw_depth_ft": null,
+        "screen_interval_ft": null,
+        "casing_in": null,
+        "installation_date": null,
+        "condition": null,
+        "notes": null,
+        "source_polygon_label": "North Waste Rock Cell",
+        "source_doc": "Summary of Existing Explorations / EA Engineering / Historical Boring Info / SBMM.kmz",
+        "source_page": null,
+        "confidence_score": 0.9,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.6675463,
+          39.0080517
+        ]
+      },
+      "properties": {
+        "id": "NWWRP-1-SB",
+        "campaign": "previous",
+        "subproject": "North Cell Subproject",
+        "type": "Unknown",
+        "is_mw": false,
+        "year": "2023",
+        "company": "EA Engineering",
+        "firm": "EA Engineering",
+        "elevation_ft": null,
+        "elevation_estimated": false,
+        "depth_ft": 40,
+        "gw_depth_ft": null,
+        "screen_interval_ft": null,
+        "casing_in": null,
+        "installation_date": null,
+        "condition": null,
+        "notes": null,
+        "source_polygon_label": "Site Overlay; Borings; Historical Wells; HP Borings; Borings2; BoringPlan3; QAPP Overlay; QAPP Rev1",
+        "source_doc": "Summary of Existing Explorations / EA Engineering / Historical Boring Info / SBMM.kmz",
+        "source_page": null,
+        "confidence_score": 0.9,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.6670088,
+          39.0071824
+        ]
+      },
+      "properties": {
+        "id": "NWWRP-2-SB",
+        "campaign": "previous",
+        "subproject": "North Cell Subproject",
+        "type": "Unknown",
+        "is_mw": false,
+        "year": "2023",
+        "company": "EA Engineering",
+        "firm": "EA Engineering",
+        "elevation_ft": 1391.6,
+        "elevation_estimated": false,
+        "depth_ft": 80,
+        "gw_depth_ft": null,
+        "screen_interval_ft": "61-76",
+        "casing_in": null,
+        "installation_date": null,
+        "condition": null,
+        "notes": null,
+        "source_polygon_label": "Site Overlay; Borings; Historical Wells; HP Borings; Borings2; BoringPlan3; QAPP Overlay; QAPP Rev1",
+        "source_doc": "Summary of Existing Explorations / EA Engineering / Historical Boring Info / SBMM.kmz",
+        "source_page": null,
+        "confidence_score": 0.9,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.6689130211583,
+          39.00269367979408
+        ]
+      },
+      "properties": {
+        "id": "PZ-40",
+        "campaign": "previous",
+        "subproject": "South Cell Subproject",
+        "type": "Unknown",
+        "is_mw": false,
+        "year": null,
+        "company": "Unknown",
+        "firm": "Unknown",
+        "elevation_ft": 1353.9,
+        "elevation_estimated": true,
+        "depth_ft": null,
+        "gw_depth_ft": null,
+        "screen_interval_ft": null,
+        "casing_in": null,
+        "installation_date": null,
+        "condition": null,
+        "notes": null,
+        "source_polygon_label": "West Rock Dam",
+        "source_doc": "Summary of Existing Explorations / EA Engineering / Historical Boring Info / SBMM.kmz",
+        "source_page": null,
+        "confidence_score": 0.9,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.6686510431691,
+          39.00258049378843
+        ]
+      },
+      "properties": {
+        "id": "PZ-41",
+        "campaign": "previous",
+        "subproject": "South Cell Subproject",
+        "type": "Unknown",
+        "is_mw": false,
+        "year": null,
+        "company": "Unknown",
+        "firm": "Unknown",
+        "elevation_ft": 1351.3,
+        "elevation_estimated": true,
+        "depth_ft": null,
+        "gw_depth_ft": null,
+        "screen_interval_ft": null,
+        "casing_in": null,
+        "installation_date": null,
+        "condition": null,
+        "notes": null,
+        "source_polygon_label": "West Rock Dam",
+        "source_doc": "Summary of Existing Explorations / EA Engineering / Historical Boring Info / SBMM.kmz",
+        "source_page": null,
+        "confidence_score": 0.9,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.6691175447381,
+          39.00277047440817
+        ]
+      },
+      "properties": {
+        "id": "PZ-42",
+        "campaign": "previous",
+        "subproject": "South Cell Subproject",
+        "type": "Unknown",
+        "is_mw": false,
+        "year": null,
+        "company": "Unknown",
+        "firm": "Unknown",
+        "elevation_ft": 1354.4,
+        "elevation_estimated": true,
+        "depth_ft": null,
+        "gw_depth_ft": null,
+        "screen_interval_ft": null,
+        "casing_in": null,
+        "installation_date": null,
+        "condition": null,
+        "notes": null,
+        "source_polygon_label": "West Rock Dam",
+        "source_doc": "Summary of Existing Explorations / EA Engineering / Historical Boring Info / SBMM.kmz",
+        "source_page": null,
+        "confidence_score": 0.9,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.6678604206127,
+          39.00283960894042
+        ]
+      },
+      "properties": {
+        "id": "PZ-43",
+        "campaign": "previous",
+        "subproject": "South Cell Subproject",
+        "type": "Unknown",
+        "is_mw": false,
+        "year": null,
+        "company": "Unknown",
+        "firm": "Unknown",
+        "elevation_ft": 1339.9,
+        "elevation_estimated": true,
+        "depth_ft": null,
+        "gw_depth_ft": null,
+        "screen_interval_ft": null,
+        "casing_in": null,
+        "installation_date": null,
+        "condition": null,
+        "notes": null,
+        "source_polygon_label": "West Rock Dam",
+        "source_doc": "Summary of Existing Explorations / EA Engineering / Historical Boring Info / SBMM.kmz",
+        "source_page": null,
+        "confidence_score": 0.9,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.6684369,
+          39.0033679
+        ]
+      },
+      "properties": {
+        "id": "SB-8D",
+        "campaign": "previous",
+        "subproject": "South Cell Subproject",
+        "type": "Monitoring Well",
+        "is_mw": false,
+        "year": "2024",
+        "company": "Columbia",
+        "firm": "CH2M Hill (Jacobs)",
+        "elevation_ft": 1336.2,
+        "elevation_estimated": false,
+        "depth_ft": 165,
+        "gw_depth_ft": null,
+        "screen_interval_ft": "108-118",
+        "casing_in": 2,
+        "installation_date": "7-Jun-88",
+        "condition": "Good. Bladder Pump in place - pump tube is too long.",
+        "notes": null,
+        "source_polygon_label": "West Rock Dam",
+        "source_doc": "Summary of Existing Explorations / EA Engineering / Historical Boring Info / SBMM.kmz",
+        "source_page": null,
+        "confidence_score": 0.9,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.6685158,
+          39.0033054
+        ]
+      },
+      "properties": {
+        "id": "SB-8I",
+        "campaign": "previous",
+        "subproject": "South Cell Subproject",
+        "type": "Monitoring Well",
+        "is_mw": false,
+        "year": "1988",
+        "company": "Columbia?",
+        "firm": "EPA",
+        "elevation_ft": 1335,
+        "elevation_estimated": false,
+        "depth_ft": 87,
+        "gw_depth_ft": null,
+        "screen_interval_ft": null,
+        "casing_in": 2,
+        "installation_date": "Well SB-8S and SB-8D installed in 1988 to 8D depth. 8I screened interval stalled later - not sure when??",
+        "condition": "Good.",
+        "notes": null,
+        "source_polygon_label": "West Rock Dam",
+        "source_doc": "Summary of Existing Explorations / EA Engineering / Historical Boring Info / SBMM.kmz",
+        "source_page": null,
+        "confidence_score": 0.9,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.6685158,
+          39.0033054
+        ]
+      },
+      "properties": {
+        "id": "SB-8S",
+        "campaign": "previous",
+        "subproject": "South Cell Subproject",
+        "type": "Monitoring Well",
+        "is_mw": false,
+        "year": "2024",
+        "company": "Columbia",
+        "firm": "CH2M Hill (Jacobs)",
+        "elevation_ft": 1335.3,
+        "elevation_estimated": false,
+        "depth_ft": 87,
+        "gw_depth_ft": null,
+        "screen_interval_ft": "5-15",
+        "casing_in": 2,
+        "installation_date": "7-Jun-88",
+        "condition": "Good.",
+        "notes": null,
+        "source_polygon_label": "West Rock Dam",
+        "source_doc": "Summary of Existing Explorations / EA Engineering / Historical Boring Info / SBMM.kmz",
+        "source_page": null,
+        "confidence_score": 0.9,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.6670575,
+          39.0071923
+        ]
+      },
+      "properties": {
+        "id": "SWRP-1-SB",
+        "campaign": "previous",
+        "subproject": "North Cell Subproject",
+        "type": "Unknown",
+        "is_mw": false,
+        "year": "2023",
+        "company": "EA Engineering",
+        "firm": "EA Engineering",
+        "elevation_ft": null,
+        "elevation_estimated": false,
+        "depth_ft": 30,
+        "gw_depth_ft": null,
+        "screen_interval_ft": null,
+        "casing_in": null,
+        "installation_date": null,
+        "condition": null,
+        "notes": null,
+        "source_polygon_label": "Site Overlay; Borings; Historical Wells; HP Borings; Borings2; BoringPlan3; QAPP Overlay; QAPP Rev1",
+        "source_doc": "Summary of Existing Explorations / EA Engineering / Historical Boring Info / SBMM.kmz",
+        "source_page": null,
+        "confidence_score": 0.9,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.6637596,
+          39.0002833
+        ]
+      },
+      "properties": {
+        "id": "SWRP-2-SB",
+        "campaign": "previous",
+        "subproject": "South Cell Subproject",
+        "type": "Unknown",
+        "is_mw": false,
+        "year": "2023",
+        "company": "EA Engineering",
+        "firm": "EA Engineering",
+        "elevation_ft": 1455.1,
+        "elevation_estimated": true,
+        "depth_ft": 40,
+        "gw_depth_ft": null,
+        "screen_interval_ft": null,
+        "casing_in": null,
+        "installation_date": null,
+        "condition": null,
+        "notes": null,
+        "source_polygon_label": "Outside all polygons",
+        "source_doc": "Summary of Existing Explorations / EA Engineering / Historical Boring Info / SBMM.kmz",
+        "source_page": null,
+        "confidence_score": 0.9,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.668647,
+          39.001318
+        ]
+      },
+      "properties": {
+        "id": "WWRP-1-SB",
+        "campaign": "previous",
+        "subproject": "South Cell Subproject",
+        "type": "Unknown",
+        "is_mw": false,
+        "year": "2023",
+        "company": "EA Engineering",
+        "firm": "EA Engineering",
+        "elevation_ft": 1345.2,
+        "elevation_estimated": true,
+        "depth_ft": 30,
+        "gw_depth_ft": null,
+        "screen_interval_ft": null,
+        "casing_in": null,
+        "installation_date": null,
+        "condition": null,
+        "notes": null,
+        "source_polygon_label": "West Waste Rock Cell",
+        "source_doc": "Summary of Existing Explorations / EA Engineering / Historical Boring Info / SBMM.kmz",
+        "source_page": null,
+        "confidence_score": 0.9,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.6698464,
+          39.0008482
+        ]
+      },
+      "properties": {
+        "id": "WWRP-2-SB",
+        "campaign": "previous",
+        "subproject": "South Cell Subproject",
+        "type": "Unknown",
+        "is_mw": false,
+        "year": "2023",
+        "company": "EA Engineering",
+        "firm": "EA Engineering",
+        "elevation_ft": 1343.1,
+        "elevation_estimated": true,
+        "depth_ft": 30,
+        "gw_depth_ft": null,
+        "screen_interval_ft": null,
+        "casing_in": null,
+        "installation_date": null,
+        "condition": null,
+        "notes": null,
+        "source_polygon_label": "Outside all polygons",
+        "source_doc": "Summary of Existing Explorations / EA Engineering / Historical Boring Info / SBMM.kmz",
+        "source_page": null,
+        "confidence_score": 0.9,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.667422,
+          39.000029
+        ]
+      },
+      "properties": {
+        "id": "SB-1",
+        "campaign": "2025",
+        "subproject": "South Cell Subproject",
+        "type": "Soil Boring",
+        "is_mw": false,
+        "year": "2025",
+        "company": "Jacobs",
+        "firm": "Jacobs",
+        "elevation_ft": 1450,
+        "elevation_estimated": false,
+        "depth_ft": null,
+        "gw_depth_ft": null,
+        "screen_interval_ft": null,
+        "casing_in": null,
+        "installation_date": "2025",
+        "condition": null,
+        "notes": null,
+        "source_polygon_label": null,
+        "source_doc": "SBMM Geotechnical Report in progress",
+        "source_page": null,
+        "confidence_score": 0.95,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.666822,
+          38.999538
+        ]
+      },
+      "properties": {
+        "id": "SB-2",
+        "campaign": "2025",
+        "subproject": "South Cell Subproject",
+        "type": "Soil Boring",
+        "is_mw": false,
+        "year": "2025",
+        "company": "Jacobs",
+        "firm": "Jacobs",
+        "elevation_ft": 1482,
+        "elevation_estimated": false,
+        "depth_ft": null,
+        "gw_depth_ft": null,
+        "screen_interval_ft": null,
+        "casing_in": null,
+        "installation_date": "2025",
+        "condition": null,
+        "notes": null,
+        "source_polygon_label": null,
+        "source_doc": "SBMM Geotechnical Report in progress",
+        "source_page": null,
+        "confidence_score": 0.95,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.666619,
+          39.000552
+        ]
+      },
+      "properties": {
+        "id": "SB-3",
+        "campaign": "2025",
+        "subproject": "South Cell Subproject",
+        "type": "Soil Boring",
+        "is_mw": false,
+        "year": "2025",
+        "company": "Jacobs",
+        "firm": "Jacobs",
+        "elevation_ft": 1427,
+        "elevation_estimated": false,
+        "depth_ft": null,
+        "gw_depth_ft": null,
+        "screen_interval_ft": null,
+        "casing_in": null,
+        "installation_date": "2025",
+        "condition": null,
+        "notes": null,
+        "source_polygon_label": null,
+        "source_doc": "SBMM Geotechnical Report in progress",
+        "source_page": null,
+        "confidence_score": 0.95,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.666241,
+          39.000385
+        ]
+      },
+      "properties": {
+        "id": "SB-4",
+        "campaign": "2025",
+        "subproject": "South Cell Subproject",
+        "type": "Soil Boring",
+        "is_mw": false,
+        "year": "2025",
+        "company": "Jacobs",
+        "firm": "Jacobs",
+        "elevation_ft": 1427,
+        "elevation_estimated": false,
+        "depth_ft": null,
+        "gw_depth_ft": null,
+        "screen_interval_ft": null,
+        "casing_in": null,
+        "installation_date": "2025",
+        "condition": null,
+        "notes": null,
+        "source_polygon_label": null,
+        "source_doc": "SBMM Geotechnical Report in progress",
+        "source_page": null,
+        "confidence_score": 0.95,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.663672,
+          39.000015
+        ]
+      },
+      "properties": {
+        "id": "SB-5",
+        "campaign": "2025",
+        "subproject": "South Cell Subproject",
+        "type": "Soil Boring",
+        "is_mw": false,
+        "year": "2025",
+        "company": "Jacobs",
+        "firm": "Jacobs",
+        "elevation_ft": 1457,
+        "elevation_estimated": false,
+        "depth_ft": null,
+        "gw_depth_ft": null,
+        "screen_interval_ft": null,
+        "casing_in": null,
+        "installation_date": "2025",
+        "condition": null,
+        "notes": null,
+        "source_polygon_label": null,
+        "source_doc": "SBMM Geotechnical Report in progress",
+        "source_page": null,
+        "confidence_score": 0.95,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.66079,
+          39.001953
+        ]
+      },
+      "properties": {
+        "id": "SB-6A",
+        "campaign": "2025",
+        "subproject": "South Cell Subproject",
+        "type": "Soil Boring",
+        "is_mw": false,
+        "year": "2025",
+        "company": "Jacobs",
+        "firm": "Jacobs",
+        "elevation_ft": 1399,
+        "elevation_estimated": false,
+        "depth_ft": null,
+        "gw_depth_ft": null,
+        "screen_interval_ft": null,
+        "casing_in": null,
+        "installation_date": "2025",
+        "condition": null,
+        "notes": null,
+        "source_polygon_label": null,
+        "source_doc": "SBMM Geotechnical Report in progress",
+        "source_page": null,
+        "confidence_score": 0.95,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.663774,
+          39.00119
+        ]
+      },
+      "properties": {
+        "id": "SB-7",
+        "campaign": "2025",
+        "subproject": "South Cell Subproject",
+        "type": "Soil Boring",
+        "is_mw": false,
+        "year": "2025",
+        "company": "Jacobs",
+        "firm": "Jacobs",
+        "elevation_ft": 1405,
+        "elevation_estimated": false,
+        "depth_ft": null,
+        "gw_depth_ft": null,
+        "screen_interval_ft": null,
+        "casing_in": null,
+        "installation_date": "2025",
+        "condition": null,
+        "notes": null,
+        "source_polygon_label": null,
+        "source_doc": "SBMM Geotechnical Report in progress",
+        "source_page": null,
+        "confidence_score": 0.95,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.665112,
+          39.001546
+        ]
+      },
+      "properties": {
+        "id": "SB-8",
+        "campaign": "2025",
+        "subproject": "South Cell Subproject",
+        "type": "Soil Boring",
+        "is_mw": false,
+        "year": "2025",
+        "company": "Jacobs",
+        "firm": "Jacobs",
+        "elevation_ft": 1363.5,
+        "elevation_estimated": false,
+        "depth_ft": null,
+        "gw_depth_ft": null,
+        "screen_interval_ft": null,
+        "casing_in": null,
+        "installation_date": "2025",
+        "condition": null,
+        "notes": null,
+        "source_polygon_label": null,
+        "source_doc": "SBMM Geotechnical Report in progress",
+        "source_page": null,
+        "confidence_score": 0.95,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.664212,
+          39.001937
+        ]
+      },
+      "properties": {
+        "id": "SB-9",
+        "campaign": "2025",
+        "subproject": "South Cell Subproject",
+        "type": "Soil Boring",
+        "is_mw": false,
+        "year": "2025",
+        "company": "Jacobs",
+        "firm": "Jacobs",
+        "elevation_ft": 1366.5,
+        "elevation_estimated": false,
+        "depth_ft": null,
+        "gw_depth_ft": null,
+        "screen_interval_ft": null,
+        "casing_in": null,
+        "installation_date": "2025",
+        "condition": null,
+        "notes": null,
+        "source_polygon_label": null,
+        "source_doc": "SBMM Geotechnical Report in progress",
+        "source_page": null,
+        "confidence_score": 0.95,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.662609,
+          39.0017
+        ]
+      },
+      "properties": {
+        "id": "SB-10",
+        "campaign": "2025",
+        "subproject": "South Cell Subproject",
+        "type": "Soil Boring",
+        "is_mw": false,
+        "year": "2025",
+        "company": "Jacobs",
+        "firm": "Jacobs",
+        "elevation_ft": 1418.5,
+        "elevation_estimated": false,
+        "depth_ft": null,
+        "gw_depth_ft": null,
+        "screen_interval_ft": null,
+        "casing_in": null,
+        "installation_date": "2025",
+        "condition": null,
+        "notes": null,
+        "source_polygon_label": null,
+        "source_doc": "SBMM Geotechnical Report in progress",
+        "source_page": null,
+        "confidence_score": 0.95,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.661293,
+          39.002132
+        ]
+      },
+      "properties": {
+        "id": "SB-11",
+        "campaign": "2025",
+        "subproject": "South Cell Subproject",
+        "type": "Soil Boring",
+        "is_mw": false,
+        "year": "2025",
+        "company": "Jacobs",
+        "firm": "Jacobs",
+        "elevation_ft": 1427.5,
+        "elevation_estimated": false,
+        "depth_ft": null,
+        "gw_depth_ft": null,
+        "screen_interval_ft": null,
+        "casing_in": null,
+        "installation_date": "2025",
+        "condition": null,
+        "notes": null,
+        "source_polygon_label": null,
+        "source_doc": "SBMM Geotechnical Report in progress",
+        "source_page": null,
+        "confidence_score": 0.95,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.662324,
+          39.00262
+        ]
+      },
+      "properties": {
+        "id": "SB-12",
+        "campaign": "2025",
+        "subproject": "South Cell Subproject",
+        "type": "Soil Boring",
+        "is_mw": false,
+        "year": "2025",
+        "company": "Jacobs",
+        "firm": "Jacobs",
+        "elevation_ft": 1387,
+        "elevation_estimated": false,
+        "depth_ft": null,
+        "gw_depth_ft": null,
+        "screen_interval_ft": null,
+        "casing_in": null,
+        "installation_date": "2025",
+        "condition": null,
+        "notes": null,
+        "source_polygon_label": null,
+        "source_doc": "SBMM Geotechnical Report in progress",
+        "source_page": null,
+        "confidence_score": 0.95,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.661474,
+          39.002997
+        ]
+      },
+      "properties": {
+        "id": "SB-13",
+        "campaign": "2025",
+        "subproject": "South Cell Subproject",
+        "type": "Soil Boring",
+        "is_mw": false,
+        "year": "2025",
+        "company": "Jacobs",
+        "firm": "Jacobs",
+        "elevation_ft": 1392,
+        "elevation_estimated": false,
+        "depth_ft": null,
+        "gw_depth_ft": null,
+        "screen_interval_ft": null,
+        "casing_in": null,
+        "installation_date": "2025",
+        "condition": null,
+        "notes": null,
+        "source_polygon_label": null,
+        "source_doc": "SBMM Geotechnical Report in progress",
+        "source_page": null,
+        "confidence_score": 0.95,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.660811,
+          39.003279
+        ]
+      },
+      "properties": {
+        "id": "SB-14",
+        "campaign": "2025",
+        "subproject": "South Cell Subproject",
+        "type": "Soil Boring",
+        "is_mw": false,
+        "year": "2025",
+        "company": "Jacobs",
+        "firm": "Jacobs",
+        "elevation_ft": 1404,
+        "elevation_estimated": false,
+        "depth_ft": null,
+        "gw_depth_ft": null,
+        "screen_interval_ft": null,
+        "casing_in": null,
+        "installation_date": "2025",
+        "condition": null,
+        "notes": null,
+        "source_polygon_label": null,
+        "source_doc": "SBMM Geotechnical Report in progress",
+        "source_page": null,
+        "confidence_score": 0.95,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.66027,
+          39.004268
+        ]
+      },
+      "properties": {
+        "id": "SB-15",
+        "campaign": "2025",
+        "subproject": "South Cell Subproject",
+        "type": "Soil Boring",
+        "is_mw": false,
+        "year": "2025",
+        "company": "Jacobs",
+        "firm": "Jacobs",
+        "elevation_ft": 1408,
+        "elevation_estimated": false,
+        "depth_ft": null,
+        "gw_depth_ft": null,
+        "screen_interval_ft": null,
+        "casing_in": null,
+        "installation_date": "2025",
+        "condition": null,
+        "notes": null,
+        "source_polygon_label": null,
+        "source_doc": "SBMM Geotechnical Report in progress",
+        "source_page": null,
+        "confidence_score": 0.95,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.658943,
+          39.004618
+        ]
+      },
+      "properties": {
+        "id": "SB-16",
+        "campaign": "2025",
+        "subproject": "South Cell Subproject",
+        "type": "Soil Boring",
+        "is_mw": false,
+        "year": "2025",
+        "company": "Jacobs",
+        "firm": "Jacobs",
+        "elevation_ft": 1415,
+        "elevation_estimated": false,
+        "depth_ft": null,
+        "gw_depth_ft": null,
+        "screen_interval_ft": null,
+        "casing_in": null,
+        "installation_date": "2025",
+        "condition": null,
+        "notes": null,
+        "source_polygon_label": null,
+        "source_doc": "SBMM Geotechnical Report in progress",
+        "source_page": null,
+        "confidence_score": 0.95,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.6610165,
+          39.0050875
+        ]
+      },
+      "properties": {
+        "id": "SB-17",
+        "campaign": "2025",
+        "subproject": "North Cell Subproject",
+        "type": "Soil Boring",
+        "is_mw": false,
+        "year": "2025",
+        "company": "Jacobs",
+        "firm": "Jacobs",
+        "elevation_ft": 1403,
+        "elevation_estimated": false,
+        "depth_ft": null,
+        "gw_depth_ft": null,
+        "screen_interval_ft": null,
+        "casing_in": null,
+        "installation_date": "2025",
+        "condition": null,
+        "notes": null,
+        "source_polygon_label": null,
+        "source_doc": "SBMM Geotechnical Report in progress",
+        "source_page": null,
+        "confidence_score": 0.95,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.6614311,
+          39.0063079
+        ]
+      },
+      "properties": {
+        "id": "SB-18",
+        "campaign": "2025",
+        "subproject": "North Cell Subproject",
+        "type": "Soil Boring",
+        "is_mw": false,
+        "year": "2025",
+        "company": "Jacobs",
+        "firm": "Jacobs",
+        "elevation_ft": 1431,
+        "elevation_estimated": false,
+        "depth_ft": null,
+        "gw_depth_ft": null,
+        "screen_interval_ft": null,
+        "casing_in": null,
+        "installation_date": "2025",
+        "condition": null,
+        "notes": null,
+        "source_polygon_label": null,
+        "source_doc": "SBMM Geotechnical Report in progress",
+        "source_page": null,
+        "confidence_score": 0.95,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.6615207,
+          39.0070725
+        ]
+      },
+      "properties": {
+        "id": "SB-19",
+        "campaign": "2025",
+        "subproject": "North Cell Subproject",
+        "type": "Soil Boring",
+        "is_mw": false,
+        "year": "2025",
+        "company": "Jacobs",
+        "firm": "Jacobs",
+        "elevation_ft": 1442,
+        "elevation_estimated": false,
+        "depth_ft": null,
+        "gw_depth_ft": null,
+        "screen_interval_ft": null,
+        "casing_in": null,
+        "installation_date": "2025",
+        "condition": null,
+        "notes": null,
+        "source_polygon_label": null,
+        "source_doc": "SBMM Geotechnical Report in progress",
+        "source_page": null,
+        "confidence_score": 0.95,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.6596332,
+          39.007119
+        ]
+      },
+      "properties": {
+        "id": "SB-20",
+        "campaign": "2025",
+        "subproject": "North Cell Subproject",
+        "type": "Soil Boring",
+        "is_mw": false,
+        "year": "2025",
+        "company": "Jacobs",
+        "firm": "Jacobs",
+        "elevation_ft": 1372,
+        "elevation_estimated": false,
+        "depth_ft": null,
+        "gw_depth_ft": null,
+        "screen_interval_ft": null,
+        "casing_in": null,
+        "installation_date": "2025",
+        "condition": null,
+        "notes": null,
+        "source_polygon_label": null,
+        "source_doc": "SBMM Geotechnical Report in progress",
+        "source_page": null,
+        "confidence_score": 0.95,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.6633595,
+          39.0067117
+        ]
+      },
+      "properties": {
+        "id": "SB-21",
+        "campaign": "2025",
+        "subproject": "North Cell Subproject",
+        "type": "Soil Boring",
+        "is_mw": false,
+        "year": "2025",
+        "company": "Jacobs",
+        "firm": "Jacobs",
+        "elevation_ft": 1405,
+        "elevation_estimated": false,
+        "depth_ft": null,
+        "gw_depth_ft": null,
+        "screen_interval_ft": null,
+        "casing_in": null,
+        "installation_date": "2025",
+        "condition": null,
+        "notes": null,
+        "source_polygon_label": null,
+        "source_doc": "SBMM Geotechnical Report in progress",
+        "source_page": null,
+        "confidence_score": 0.95,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.664861,
+          39.006574
+        ]
+      },
+      "properties": {
+        "id": "SB-22",
+        "campaign": "2025",
+        "subproject": "North Cell Subproject",
+        "type": "Soil Boring",
+        "is_mw": false,
+        "year": "2025",
+        "company": "Jacobs",
+        "firm": "Jacobs",
+        "elevation_ft": 1380,
+        "elevation_estimated": false,
+        "depth_ft": null,
+        "gw_depth_ft": null,
+        "screen_interval_ft": null,
+        "casing_in": null,
+        "installation_date": "2025",
+        "condition": null,
+        "notes": null,
+        "source_polygon_label": null,
+        "source_doc": "SBMM Geotechnical Report in progress",
+        "source_page": null,
+        "confidence_score": 0.95,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.663986,
+          39.005753
+        ]
+      },
+      "properties": {
+        "id": "SB-23",
+        "campaign": "2025",
+        "subproject": "North Cell Subproject",
+        "type": "Soil Boring",
+        "is_mw": false,
+        "year": "2025",
+        "company": "Jacobs",
+        "firm": "Jacobs",
+        "elevation_ft": 1400,
+        "elevation_estimated": false,
+        "depth_ft": null,
+        "gw_depth_ft": null,
+        "screen_interval_ft": null,
+        "casing_in": null,
+        "installation_date": "2025",
+        "condition": null,
+        "notes": null,
+        "source_polygon_label": null,
+        "source_doc": "SBMM Geotechnical Report in progress",
+        "source_page": null,
+        "confidence_score": 0.95,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.666126,
+          39.004665
+        ]
+      },
+      "properties": {
+        "id": "SB-24",
+        "campaign": "2025",
+        "subproject": "Disturbed Rock and Northern Waste Rock Dam Subproject",
+        "type": "Soil Boring",
+        "is_mw": false,
+        "year": "2025",
+        "company": "Jacobs",
+        "firm": "Jacobs",
+        "elevation_ft": 1389.5,
+        "elevation_estimated": false,
+        "depth_ft": null,
+        "gw_depth_ft": null,
+        "screen_interval_ft": null,
+        "casing_in": null,
+        "installation_date": "2025",
+        "condition": null,
+        "notes": null,
+        "source_polygon_label": null,
+        "source_doc": "SBMM Geotechnical Report in progress",
+        "source_page": null,
+        "confidence_score": 0.95,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.666923,
+          39.005533
+        ]
+      },
+      "properties": {
+        "id": "SB-25",
+        "campaign": "2025",
+        "subproject": "Disturbed Rock and Northern Waste Rock Dam Subproject",
+        "type": "Soil Boring",
+        "is_mw": false,
+        "year": "2025",
+        "company": "Jacobs",
+        "firm": "Jacobs",
+        "elevation_ft": 1393,
+        "elevation_estimated": false,
+        "depth_ft": null,
+        "gw_depth_ft": null,
+        "screen_interval_ft": null,
+        "casing_in": null,
+        "installation_date": "2025",
+        "condition": null,
+        "notes": null,
+        "source_polygon_label": null,
+        "source_doc": "SBMM Geotechnical Report in progress",
+        "source_page": null,
+        "confidence_score": 0.95,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.6663502,
+          39.0070307
+        ]
+      },
+      "properties": {
+        "id": "SB-26",
+        "campaign": "2025",
+        "subproject": "North Cell Subproject",
+        "type": "Soil Boring",
+        "is_mw": false,
+        "year": "2025",
+        "company": "Jacobs",
+        "firm": "Jacobs",
+        "elevation_ft": 1368.5,
+        "elevation_estimated": false,
+        "depth_ft": null,
+        "gw_depth_ft": null,
+        "screen_interval_ft": null,
+        "casing_in": null,
+        "installation_date": "2025",
+        "condition": null,
+        "notes": null,
+        "source_polygon_label": null,
+        "source_doc": "SBMM Geotechnical Report in progress",
+        "source_page": null,
+        "confidence_score": 0.95,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.6605459,
+          39.007693
+        ]
+      },
+      "properties": {
+        "id": "SB-28",
+        "campaign": "2025",
+        "subproject": "North Cell Subproject",
+        "type": "Soil Boring",
+        "is_mw": false,
+        "year": "2025",
+        "company": "Jacobs",
+        "firm": "Jacobs",
+        "elevation_ft": 1356,
+        "elevation_estimated": false,
+        "depth_ft": null,
+        "gw_depth_ft": null,
+        "screen_interval_ft": null,
+        "casing_in": null,
+        "installation_date": "2025",
+        "condition": null,
+        "notes": null,
+        "source_polygon_label": null,
+        "source_doc": "SBMM Geotechnical Report in progress",
+        "source_page": null,
+        "confidence_score": 0.95,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.6636534,
+          39.007754
+        ]
+      },
+      "properties": {
+        "id": "SB-29",
+        "campaign": "2025",
+        "subproject": "North Cell Subproject",
+        "type": "Soil Boring",
+        "is_mw": false,
+        "year": "2025",
+        "company": "Jacobs",
+        "firm": "Jacobs",
+        "elevation_ft": 1350.5,
+        "elevation_estimated": false,
+        "depth_ft": null,
+        "gw_depth_ft": null,
+        "screen_interval_ft": null,
+        "casing_in": null,
+        "installation_date": "2025",
+        "condition": null,
+        "notes": null,
+        "source_polygon_label": null,
+        "source_doc": "SBMM Geotechnical Report in progress",
+        "source_page": null,
+        "confidence_score": 0.95,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.667587,
+          39.006464
+        ]
+      },
+      "properties": {
+        "id": "SB-31",
+        "campaign": "2025",
+        "subproject": "North Cell Subproject",
+        "type": "Soil Boring",
+        "is_mw": true,
+        "year": "2025",
+        "company": "Jacobs",
+        "firm": "Jacobs",
+        "elevation_ft": 1379,
+        "elevation_estimated": false,
+        "depth_ft": 65,
+        "gw_depth_ft": 46,
+        "screen_interval_ft": "43-65 ft bgs",
+        "casing_in": null,
+        "installation_date": "2025",
+        "condition": null,
+        "notes": null,
+        "source_polygon_label": null,
+        "source_doc": "SBMM Geotechnical Report in progress",
+        "source_page": null,
+        "confidence_score": 0.95,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.67026,
+          39.003506
+        ]
+      },
+      "properties": {
+        "id": "SB-32",
+        "campaign": "2025",
+        "subproject": "South Cell Subproject",
+        "type": "Soil Boring",
+        "is_mw": false,
+        "year": "2025",
+        "company": "Jacobs",
+        "firm": "Jacobs",
+        "elevation_ft": 1375,
+        "elevation_estimated": false,
+        "depth_ft": null,
+        "gw_depth_ft": null,
+        "screen_interval_ft": null,
+        "casing_in": null,
+        "installation_date": "2025",
+        "condition": null,
+        "notes": null,
+        "source_polygon_label": null,
+        "source_doc": "SBMM Geotechnical Report in progress",
+        "source_page": null,
+        "confidence_score": 0.95,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.6685013,
+          39.0057742
+        ]
+      },
+      "properties": {
+        "id": "SB-33",
+        "campaign": "2025",
+        "subproject": "Disturbed Rock and Northern Waste Rock Dam Subproject",
+        "type": "Soil Boring",
+        "is_mw": false,
+        "year": "2025",
+        "company": "Jacobs",
+        "firm": "Jacobs",
+        "elevation_ft": 1397,
+        "elevation_estimated": false,
+        "depth_ft": null,
+        "gw_depth_ft": null,
+        "screen_interval_ft": null,
+        "casing_in": null,
+        "installation_date": "2025",
+        "condition": null,
+        "notes": null,
+        "source_polygon_label": null,
+        "source_doc": "SBMM Geotechnical Report in progress",
+        "source_page": null,
+        "confidence_score": 0.95,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.670854,
+          39.004495
+        ]
+      },
+      "properties": {
+        "id": "SB-34",
+        "campaign": "2025",
+        "subproject": "Disturbed Rock Subproject",
+        "type": "Soil Boring",
+        "is_mw": false,
+        "year": "2025",
+        "company": "Jacobs",
+        "firm": "Jacobs",
+        "elevation_ft": 1342.5,
+        "elevation_estimated": false,
+        "depth_ft": null,
+        "gw_depth_ft": null,
+        "screen_interval_ft": null,
+        "casing_in": null,
+        "installation_date": "2025",
+        "condition": null,
+        "notes": null,
+        "source_polygon_label": null,
+        "source_doc": "SBMM Geotechnical Report in progress",
+        "source_page": null,
+        "confidence_score": 0.95,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.669622,
+          39.001484
+        ]
+      },
+      "properties": {
+        "id": "SB-35",
+        "campaign": "2025",
+        "subproject": "South Cell Subproject",
+        "type": "Soil Boring",
+        "is_mw": false,
+        "year": "2025",
+        "company": "Jacobs",
+        "firm": "Jacobs",
+        "elevation_ft": 1347,
+        "elevation_estimated": false,
+        "depth_ft": null,
+        "gw_depth_ft": null,
+        "screen_interval_ft": null,
+        "casing_in": null,
+        "installation_date": "2025",
+        "condition": null,
+        "notes": null,
+        "source_polygon_label": null,
+        "source_doc": "SBMM Geotechnical Report in progress",
+        "source_page": null,
+        "confidence_score": 0.95,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.669911,
+          39.002704
+        ]
+      },
+      "properties": {
+        "id": "SB-36",
+        "campaign": "2025",
+        "subproject": "South Cell Subproject",
+        "type": "Soil Boring",
+        "is_mw": false,
+        "year": "2025",
+        "company": "Jacobs",
+        "firm": "Jacobs",
+        "elevation_ft": 1357,
+        "elevation_estimated": false,
+        "depth_ft": null,
+        "gw_depth_ft": null,
+        "screen_interval_ft": null,
+        "casing_in": null,
+        "installation_date": "2025",
+        "condition": null,
+        "notes": null,
+        "source_polygon_label": null,
+        "source_doc": "SBMM Geotechnical Report in progress",
+        "source_page": null,
+        "confidence_score": 0.95,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.669273,
+          39.002837
+        ]
+      },
+      "properties": {
+        "id": "SB-37",
+        "campaign": "2025",
+        "subproject": "South Cell Subproject",
+        "type": "Soil Boring",
+        "is_mw": true,
+        "year": "2025",
+        "company": "Jacobs",
+        "firm": "Jacobs",
+        "elevation_ft": 1355,
+        "elevation_estimated": false,
+        "depth_ft": 60,
+        "gw_depth_ft": 29.6,
+        "screen_interval_ft": "23-53 ft bgs",
+        "casing_in": null,
+        "installation_date": "2025",
+        "condition": null,
+        "notes": null,
+        "source_polygon_label": null,
+        "source_doc": "SBMM Geotechnical Report in progress",
+        "source_page": null,
+        "confidence_score": 0.95,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.668733,
+          39.003179
+        ]
+      },
+      "properties": {
+        "id": "SB-38",
+        "campaign": "2025",
+        "subproject": "South Cell Subproject",
+        "type": "Soil Boring",
+        "is_mw": false,
+        "year": "2025",
+        "company": "Jacobs",
+        "firm": "Jacobs",
+        "elevation_ft": 1347.5,
+        "elevation_estimated": false,
+        "depth_ft": null,
+        "gw_depth_ft": null,
+        "screen_interval_ft": null,
+        "casing_in": null,
+        "installation_date": "2025",
+        "condition": null,
+        "notes": null,
+        "source_polygon_label": null,
+        "source_doc": "SBMM Geotechnical Report in progress",
+        "source_page": null,
+        "confidence_score": 0.95,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.668733,
+          39.002646
+        ]
+      },
+      "properties": {
+        "id": "SB-39",
+        "campaign": "2025",
+        "subproject": "South Cell Subproject",
+        "type": "Soil Boring",
+        "is_mw": true,
+        "year": "2025",
+        "company": "Jacobs",
+        "firm": "Jacobs",
+        "elevation_ft": 1351,
+        "elevation_estimated": false,
+        "depth_ft": 50,
+        "gw_depth_ft": 24.1,
+        "screen_interval_ft": "23-53 ft bgs",
+        "casing_in": null,
+        "installation_date": "2025",
+        "condition": null,
+        "notes": null,
+        "source_polygon_label": null,
+        "source_doc": "SBMM Geotechnical Report in progress",
+        "source_page": null,
+        "confidence_score": 0.95,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.669122,
+          39.002786
+        ]
+      },
+      "properties": {
+        "id": "SB-40",
+        "campaign": "2025",
+        "subproject": "South Cell Subproject",
+        "type": "Soil Boring",
+        "is_mw": false,
+        "year": "2025",
+        "company": "Jacobs",
+        "firm": "Jacobs",
+        "elevation_ft": 1354.5,
+        "elevation_estimated": false,
+        "depth_ft": 50,
+        "gw_depth_ft": 30,
+        "screen_interval_ft": "35-50 ft bgs",
+        "casing_in": null,
+        "installation_date": "2025",
+        "condition": null,
+        "notes": null,
+        "source_polygon_label": null,
+        "source_doc": "SBMM Geotechnical Report in progress",
+        "source_page": null,
+        "confidence_score": 0.95,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.668159,
+          39.002754
+        ]
+      },
+      "properties": {
+        "id": "SB-41",
+        "campaign": "2025",
+        "subproject": "South Cell Subproject",
+        "type": "Soil Boring",
+        "is_mw": false,
+        "year": "2025",
+        "company": "Jacobs",
+        "firm": "Jacobs",
+        "elevation_ft": 1344,
+        "elevation_estimated": false,
+        "depth_ft": null,
+        "gw_depth_ft": null,
+        "screen_interval_ft": null,
+        "casing_in": null,
+        "installation_date": "2025",
+        "condition": null,
+        "notes": null,
+        "source_polygon_label": null,
+        "source_doc": "SBMM Geotechnical Report in progress",
+        "source_page": null,
+        "confidence_score": 0.95,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.667851,
+          39.002811
+        ]
+      },
+      "properties": {
+        "id": "SB-42",
+        "campaign": "2025",
+        "subproject": "South Cell Subproject",
+        "type": "Soil Boring",
+        "is_mw": false,
+        "year": "2025",
+        "company": "Jacobs",
+        "firm": "Jacobs",
+        "elevation_ft": 1340,
+        "elevation_estimated": false,
+        "depth_ft": 50,
+        "gw_depth_ft": 11.4,
+        "screen_interval_ft": "15-30 ft bgs",
+        "casing_in": null,
+        "installation_date": "2025",
+        "condition": null,
+        "notes": null,
+        "source_polygon_label": null,
+        "source_doc": "SBMM Geotechnical Report in progress",
+        "source_page": null,
+        "confidence_score": 0.95,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.668407,
+          39.001791
+        ]
+      },
+      "properties": {
+        "id": "SB-43",
+        "campaign": "2025",
+        "subproject": "South Cell Subproject",
+        "type": "Soil Boring",
+        "is_mw": false,
+        "year": "2025",
+        "company": "Jacobs",
+        "firm": "Jacobs",
+        "elevation_ft": 1362,
+        "elevation_estimated": false,
+        "depth_ft": null,
+        "gw_depth_ft": null,
+        "screen_interval_ft": null,
+        "casing_in": null,
+        "installation_date": "2025",
+        "condition": null,
+        "notes": null,
+        "source_polygon_label": null,
+        "source_doc": "SBMM Geotechnical Report in progress",
+        "source_page": null,
+        "confidence_score": 0.95,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.669506,
+          39.001857
+        ]
+      },
+      "properties": {
+        "id": "SB-44",
+        "campaign": "2025",
+        "subproject": "South Cell Subproject",
+        "type": "Soil Boring",
+        "is_mw": false,
+        "year": "2025",
+        "company": "Jacobs",
+        "firm": "Jacobs",
+        "elevation_ft": 1376.5,
+        "elevation_estimated": false,
+        "depth_ft": null,
+        "gw_depth_ft": null,
+        "screen_interval_ft": null,
+        "casing_in": null,
+        "installation_date": "2025",
+        "condition": null,
+        "notes": null,
+        "source_polygon_label": null,
+        "source_doc": "SBMM Geotechnical Report in progress",
+        "source_page": null,
+        "confidence_score": 0.95,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.668867,
+          39.002683
+        ]
+      },
+      "properties": {
+        "id": "SB-45",
+        "campaign": "2025",
+        "subproject": "South Cell Subproject",
+        "type": "Soil Boring",
+        "is_mw": false,
+        "year": "2025",
+        "company": "Jacobs",
+        "firm": "Jacobs",
+        "elevation_ft": 1352,
+        "elevation_estimated": false,
+        "depth_ft": 46,
+        "gw_depth_ft": 26.5,
+        "screen_interval_ft": "25-45 ft bgs",
+        "casing_in": null,
+        "installation_date": "2025",
+        "condition": null,
+        "notes": null,
+        "source_polygon_label": null,
+        "source_doc": "SBMM Geotechnical Report in progress",
+        "source_page": null,
+        "confidence_score": 0.95,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.668651,
+          39.002604
+        ]
+      },
+      "properties": {
+        "id": "SB-46",
+        "campaign": "2025",
+        "subproject": "South Cell Subproject",
+        "type": "Soil Boring",
+        "is_mw": false,
+        "year": "2025",
+        "company": "Jacobs",
+        "firm": "Jacobs",
+        "elevation_ft": 1351,
+        "elevation_estimated": false,
+        "depth_ft": 43,
+        "gw_depth_ft": 24.1,
+        "screen_interval_ft": "31-46 ft bgs",
+        "casing_in": null,
+        "installation_date": "2025",
+        "condition": null,
+        "notes": null,
+        "source_polygon_label": null,
+        "source_doc": "SBMM Geotechnical Report in progress",
+        "source_page": null,
+        "confidence_score": 0.95,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.666821,
+          39.007695
+        ]
+      },
+      "properties": {
+        "id": "TP01",
+        "campaign": "2025",
+        "subproject": "North Cell Subproject",
+        "type": "Test Pit",
+        "is_mw": false,
+        "year": "2025",
+        "company": "Jacobs",
+        "firm": "Jacobs",
+        "elevation_ft": 1351,
+        "elevation_estimated": false,
+        "depth_ft": null,
+        "gw_depth_ft": null,
+        "screen_interval_ft": null,
+        "casing_in": null,
+        "installation_date": "2025",
+        "condition": null,
+        "notes": null,
+        "source_polygon_label": null,
+        "source_doc": "SBMM Geotechnical Report in progress",
+        "source_page": null,
+        "confidence_score": 0.95,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.667213,
+          39.007297
+        ]
+      },
+      "properties": {
+        "id": "TP02",
+        "campaign": "2025",
+        "subproject": "North Cell Subproject",
+        "type": "Test Pit",
+        "is_mw": false,
+        "year": "2025",
+        "company": "Jacobs",
+        "firm": "Jacobs",
+        "elevation_ft": 1394.5,
+        "elevation_estimated": false,
+        "depth_ft": null,
+        "gw_depth_ft": null,
+        "screen_interval_ft": null,
+        "casing_in": null,
+        "installation_date": "2025",
+        "condition": null,
+        "notes": null,
+        "source_polygon_label": null,
+        "source_doc": "SBMM Geotechnical Report in progress",
+        "source_page": null,
+        "confidence_score": 0.95,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.667409,
+          39.00722
+        ]
+      },
+      "properties": {
+        "id": "TP03",
+        "campaign": "2025",
+        "subproject": "North Cell Subproject",
+        "type": "Test Pit",
+        "is_mw": false,
+        "year": "2025",
+        "company": "Jacobs",
+        "firm": "Jacobs",
+        "elevation_ft": 1371,
+        "elevation_estimated": false,
+        "depth_ft": null,
+        "gw_depth_ft": null,
+        "screen_interval_ft": null,
+        "casing_in": null,
+        "installation_date": "2025",
+        "condition": null,
+        "notes": null,
+        "source_polygon_label": null,
+        "source_doc": "SBMM Geotechnical Report in progress",
+        "source_page": null,
+        "confidence_score": 0.95,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.666685,
+          39.007025
+        ]
+      },
+      "properties": {
+        "id": "TP05",
+        "campaign": "2025",
+        "subproject": "North Cell Subproject",
+        "type": "Test Pit",
+        "is_mw": false,
+        "year": "2025",
+        "company": "Jacobs",
+        "firm": "Jacobs",
+        "elevation_ft": 1379.5,
+        "elevation_estimated": false,
+        "depth_ft": null,
+        "gw_depth_ft": null,
+        "screen_interval_ft": null,
+        "casing_in": null,
+        "installation_date": "2025",
+        "condition": null,
+        "notes": null,
+        "source_polygon_label": null,
+        "source_doc": "SBMM Geotechnical Report in progress",
+        "source_page": null,
+        "confidence_score": 0.95,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.66655,
+          39.007317
+        ]
+      },
+      "properties": {
+        "id": "TP07",
+        "campaign": "2025",
+        "subproject": "North Cell Subproject",
+        "type": "Test Pit",
+        "is_mw": false,
+        "year": "2025",
+        "company": "Jacobs",
+        "firm": "Jacobs",
+        "elevation_ft": 1363,
+        "elevation_estimated": false,
+        "depth_ft": null,
+        "gw_depth_ft": null,
+        "screen_interval_ft": null,
+        "casing_in": null,
+        "installation_date": "2025",
+        "condition": null,
+        "notes": null,
+        "source_polygon_label": null,
+        "source_doc": "SBMM Geotechnical Report in progress",
+        "source_page": null,
+        "confidence_score": 0.95,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.664256,
+          39.004994
+        ]
+      },
+      "properties": {
+        "id": "TP08",
+        "campaign": "2025",
+        "subproject": "Disturbed Rock and Northern Waste Rock Dam Subproject",
+        "type": "Test Pit",
+        "is_mw": false,
+        "year": "2025",
+        "company": "Jacobs",
+        "firm": "Jacobs",
+        "elevation_ft": 1378,
+        "elevation_estimated": false,
+        "depth_ft": null,
+        "gw_depth_ft": null,
+        "screen_interval_ft": null,
+        "casing_in": null,
+        "installation_date": "2025",
+        "condition": null,
+        "notes": null,
+        "source_polygon_label": null,
+        "source_doc": "SBMM Geotechnical Report in progress",
+        "source_page": null,
+        "confidence_score": 0.95,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.661525,
+          39.00459
+        ]
+      },
+      "properties": {
+        "id": "TP12",
+        "campaign": "2025",
+        "subproject": "North Cell Subproject",
+        "type": "Test Pit",
+        "is_mw": false,
+        "year": "2025",
+        "company": "Jacobs",
+        "firm": "Jacobs",
+        "elevation_ft": 1372,
+        "elevation_estimated": false,
+        "depth_ft": null,
+        "gw_depth_ft": null,
+        "screen_interval_ft": null,
+        "casing_in": null,
+        "installation_date": "2025",
+        "condition": null,
+        "notes": null,
+        "source_polygon_label": null,
+        "source_doc": "SBMM Geotechnical Report in progress",
+        "source_page": null,
+        "confidence_score": 0.95,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.665252,
+          39.001977
+        ]
+      },
+      "properties": {
+        "id": "TP15",
+        "campaign": "2025",
+        "subproject": "South Cell Subproject",
+        "type": "Test Pit",
+        "is_mw": false,
+        "year": "2025",
+        "company": "Jacobs",
+        "firm": "Jacobs",
+        "elevation_ft": 1360,
+        "elevation_estimated": false,
+        "depth_ft": null,
+        "gw_depth_ft": null,
+        "screen_interval_ft": null,
+        "casing_in": null,
+        "installation_date": "2025",
+        "condition": null,
+        "notes": null,
+        "source_polygon_label": null,
+        "source_doc": "SBMM Geotechnical Report in progress",
+        "source_page": null,
+        "confidence_score": 0.95,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.666289,
+          39.001901
+        ]
+      },
+      "properties": {
+        "id": "TP17",
+        "campaign": "2025",
+        "subproject": "South Cell Subproject",
+        "type": "Test Pit",
+        "is_mw": false,
+        "year": "2025",
+        "company": "Jacobs",
+        "firm": "Jacobs",
+        "elevation_ft": 1360,
+        "elevation_estimated": false,
+        "depth_ft": null,
+        "gw_depth_ft": null,
+        "screen_interval_ft": null,
+        "casing_in": null,
+        "installation_date": "2025",
+        "condition": null,
+        "notes": null,
+        "source_polygon_label": null,
+        "source_doc": "SBMM Geotechnical Report in progress",
+        "source_page": null,
+        "confidence_score": 0.95,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.668123,
+          39.002155
+        ]
+      },
+      "properties": {
+        "id": "TP21",
+        "campaign": "2025",
+        "subproject": "South Cell Subproject",
+        "type": "Test Pit",
+        "is_mw": false,
+        "year": "2025",
+        "company": "Jacobs",
+        "firm": "Jacobs",
+        "elevation_ft": 1339,
+        "elevation_estimated": false,
+        "depth_ft": null,
+        "gw_depth_ft": null,
+        "screen_interval_ft": null,
+        "casing_in": null,
+        "installation_date": "2025",
+        "condition": null,
+        "notes": null,
+        "source_polygon_label": null,
+        "source_doc": "SBMM Geotechnical Report in progress",
+        "source_page": null,
+        "confidence_score": 0.95,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.67006,
+          39.001558
+        ]
+      },
+      "properties": {
+        "id": "TP23",
+        "campaign": "2025",
+        "subproject": "South Cell Subproject",
+        "type": "Test Pit",
+        "is_mw": false,
+        "year": "2025",
+        "company": "Jacobs",
+        "firm": "Jacobs",
+        "elevation_ft": 1334.5,
+        "elevation_estimated": false,
+        "depth_ft": null,
+        "gw_depth_ft": null,
+        "screen_interval_ft": null,
+        "casing_in": null,
+        "installation_date": "2025",
+        "condition": null,
+        "notes": null,
+        "source_polygon_label": null,
+        "source_doc": "SBMM Geotechnical Report in progress",
+        "source_page": null,
+        "confidence_score": 0.95,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.669742,
+          39.001492
+        ]
+      },
+      "properties": {
+        "id": "TP24",
+        "campaign": "2025",
+        "subproject": "South Cell Subproject",
+        "type": "Test Pit",
+        "is_mw": false,
+        "year": "2025",
+        "company": "Jacobs",
+        "firm": "Jacobs",
+        "elevation_ft": 1348.5,
+        "elevation_estimated": false,
+        "depth_ft": null,
+        "gw_depth_ft": null,
+        "screen_interval_ft": null,
+        "casing_in": null,
+        "installation_date": "2025",
+        "condition": null,
+        "notes": null,
+        "source_polygon_label": null,
+        "source_doc": "SBMM Geotechnical Report in progress",
+        "source_page": null,
+        "confidence_score": 0.95,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.670131,
+          39.000365
+        ]
+      },
+      "properties": {
+        "id": "TP27",
+        "campaign": "2025",
+        "subproject": "South Cell Subproject",
+        "type": "Test Pit",
+        "is_mw": false,
+        "year": "2025",
+        "company": "Jacobs",
+        "firm": "Jacobs",
+        "elevation_ft": 1328.5,
+        "elevation_estimated": false,
+        "depth_ft": null,
+        "gw_depth_ft": null,
+        "screen_interval_ft": null,
+        "casing_in": null,
+        "installation_date": "2025",
+        "condition": null,
+        "notes": null,
+        "source_polygon_label": null,
+        "source_doc": "SBMM Geotechnical Report in progress",
+        "source_page": null,
+        "confidence_score": 0.95,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.669218,
+          39.000529
+        ]
+      },
+      "properties": {
+        "id": "TP28",
+        "campaign": "2025",
+        "subproject": "South Cell Subproject",
+        "type": "Test Pit",
+        "is_mw": false,
+        "year": "2025",
+        "company": "Jacobs",
+        "firm": "Jacobs",
+        "elevation_ft": 1339,
+        "elevation_estimated": false,
+        "depth_ft": null,
+        "gw_depth_ft": null,
+        "screen_interval_ft": null,
+        "casing_in": null,
+        "installation_date": "2025",
+        "condition": null,
+        "notes": null,
+        "source_polygon_label": null,
+        "source_doc": "SBMM Geotechnical Report in progress",
+        "source_page": null,
+        "confidence_score": 0.95,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.668928,
+          39.000202
+        ]
+      },
+      "properties": {
+        "id": "TP29",
+        "campaign": "2025",
+        "subproject": "South Cell Subproject",
+        "type": "Test Pit",
+        "is_mw": false,
+        "year": "2025",
+        "company": "Jacobs",
+        "firm": "Jacobs",
+        "elevation_ft": 1336.5,
+        "elevation_estimated": false,
+        "depth_ft": null,
+        "gw_depth_ft": null,
+        "screen_interval_ft": null,
+        "casing_in": null,
+        "installation_date": "2025",
+        "condition": null,
+        "notes": null,
+        "source_polygon_label": null,
+        "source_doc": "SBMM Geotechnical Report in progress",
+        "source_page": null,
+        "confidence_score": 0.95,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.668626,
+          38.999622
+        ]
+      },
+      "properties": {
+        "id": "TP31",
+        "campaign": "2025",
+        "subproject": "South Cell Subproject",
+        "type": "Test Pit",
+        "is_mw": false,
+        "year": "2025",
+        "company": "Jacobs",
+        "firm": "Jacobs",
+        "elevation_ft": 1361,
+        "elevation_estimated": false,
+        "depth_ft": null,
+        "gw_depth_ft": null,
+        "screen_interval_ft": null,
+        "casing_in": null,
+        "installation_date": "2025",
+        "condition": null,
+        "notes": null,
+        "source_polygon_label": null,
+        "source_doc": "SBMM Geotechnical Report in progress",
+        "source_page": null,
+        "confidence_score": 0.95,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.667801,
+          39.000878
+        ]
+      },
+      "properties": {
+        "id": "TP33",
+        "campaign": "2025",
+        "subproject": "South Cell Subproject",
+        "type": "Test Pit",
+        "is_mw": false,
+        "year": "2025",
+        "company": "Jacobs",
+        "firm": "Jacobs",
+        "elevation_ft": 1353.5,
+        "elevation_estimated": false,
+        "depth_ft": null,
+        "gw_depth_ft": null,
+        "screen_interval_ft": null,
+        "casing_in": null,
+        "installation_date": "2025",
+        "condition": null,
+        "notes": null,
+        "source_polygon_label": null,
+        "source_doc": "SBMM Geotechnical Report in progress",
+        "source_page": null,
+        "confidence_score": 0.95,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.667373,
+          39.000928
+        ]
+      },
+      "properties": {
+        "id": "TP34",
+        "campaign": "2025",
+        "subproject": "South Cell Subproject",
+        "type": "Test Pit",
+        "is_mw": false,
+        "year": "2025",
+        "company": "Jacobs",
+        "firm": "Jacobs",
+        "elevation_ft": 1353.5,
+        "elevation_estimated": false,
+        "depth_ft": null,
+        "gw_depth_ft": null,
+        "screen_interval_ft": null,
+        "casing_in": null,
+        "installation_date": "2025",
+        "condition": null,
+        "notes": null,
+        "source_polygon_label": null,
+        "source_doc": "SBMM Geotechnical Report in progress",
+        "source_page": null,
+        "confidence_score": 0.95,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.667191,
+          39.00126
+        ]
+      },
+      "properties": {
+        "id": "TP35",
+        "campaign": "2025",
+        "subproject": "South Cell Subproject",
+        "type": "Test Pit",
+        "is_mw": false,
+        "year": "2025",
+        "company": "Jacobs",
+        "firm": "Jacobs",
+        "elevation_ft": 1351,
+        "elevation_estimated": false,
+        "depth_ft": null,
+        "gw_depth_ft": null,
+        "screen_interval_ft": null,
+        "casing_in": null,
+        "installation_date": "2025",
+        "condition": null,
+        "notes": null,
+        "source_polygon_label": null,
+        "source_doc": "SBMM Geotechnical Report in progress",
+        "source_page": null,
+        "confidence_score": 0.95,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.666868,
+          39.001375
+        ]
+      },
+      "properties": {
+        "id": "TP36",
+        "campaign": "2025",
+        "subproject": "South Cell Subproject",
+        "type": "Test Pit",
+        "is_mw": false,
+        "year": "2025",
+        "company": "Jacobs",
+        "firm": "Jacobs",
+        "elevation_ft": 1350,
+        "elevation_estimated": false,
+        "depth_ft": null,
+        "gw_depth_ft": null,
+        "screen_interval_ft": null,
+        "casing_in": null,
+        "installation_date": "2025",
+        "condition": null,
+        "notes": null,
+        "source_polygon_label": null,
+        "source_doc": "SBMM Geotechnical Report in progress",
+        "source_page": null,
+        "confidence_score": 0.95,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.669628,
+          39.0059
+        ]
+      },
+      "properties": {
+        "id": "TP37",
+        "campaign": "2025",
+        "subproject": "North Cell Subproject",
+        "type": "Test Pit",
+        "is_mw": false,
+        "year": "2025",
+        "company": "Jacobs",
+        "firm": "Jacobs",
+        "elevation_ft": 1385.5,
+        "elevation_estimated": false,
+        "depth_ft": null,
+        "gw_depth_ft": null,
+        "screen_interval_ft": null,
+        "casing_in": null,
+        "installation_date": "2025",
+        "condition": null,
+        "notes": null,
+        "source_polygon_label": null,
+        "source_doc": "SBMM Geotechnical Report in progress",
+        "source_page": null,
+        "confidence_score": 0.95,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.668993,
+          39.005561
+        ]
+      },
+      "properties": {
+        "id": "TP38",
+        "campaign": "2025",
+        "subproject": "Disturbed Rock and Northern Waste Rock Dam Subproject",
+        "type": "Test Pit",
+        "is_mw": false,
+        "year": "2025",
+        "company": "Jacobs",
+        "firm": "Jacobs",
+        "elevation_ft": 1391,
+        "elevation_estimated": false,
+        "depth_ft": null,
+        "gw_depth_ft": null,
+        "screen_interval_ft": null,
+        "casing_in": null,
+        "installation_date": "2025",
+        "condition": null,
+        "notes": null,
+        "source_polygon_label": null,
+        "source_doc": "SBMM Geotechnical Report in progress",
+        "source_page": null,
+        "confidence_score": 0.95,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.669467,
+          39.00517
+        ]
+      },
+      "properties": {
+        "id": "TP39",
+        "campaign": "2025",
+        "subproject": "Disturbed Rock and Northern Waste Rock Dam Subproject",
+        "type": "Test Pit",
+        "is_mw": false,
+        "year": "2025",
+        "company": "Jacobs",
+        "firm": "Jacobs",
+        "elevation_ft": 1375,
+        "elevation_estimated": false,
+        "depth_ft": null,
+        "gw_depth_ft": null,
+        "screen_interval_ft": null,
+        "casing_in": null,
+        "installation_date": "2025",
+        "condition": null,
+        "notes": null,
+        "source_polygon_label": null,
+        "source_doc": "SBMM Geotechnical Report in progress",
+        "source_page": null,
+        "confidence_score": 0.95,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.671035,
+          39.005216
+        ]
+      },
+      "properties": {
+        "id": "TP40",
+        "campaign": "2025",
+        "subproject": "North Cell Subproject",
+        "type": "Test Pit",
+        "is_mw": false,
+        "year": "2025",
+        "company": "Jacobs",
+        "firm": "Jacobs",
+        "elevation_ft": 1341,
+        "elevation_estimated": false,
+        "depth_ft": null,
+        "gw_depth_ft": null,
+        "screen_interval_ft": null,
+        "casing_in": null,
+        "installation_date": "2025",
+        "condition": null,
+        "notes": null,
+        "source_polygon_label": null,
+        "source_doc": "SBMM Geotechnical Report in progress",
+        "source_page": null,
+        "confidence_score": 0.95,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.669224,
+          39.004626
+        ]
+      },
+      "properties": {
+        "id": "TP41",
+        "campaign": "2025",
+        "subproject": "Disturbed Rock and Northern Waste Rock Dam Subproject",
+        "type": "Test Pit",
+        "is_mw": false,
+        "year": "2025",
+        "company": "Jacobs",
+        "firm": "Jacobs",
+        "elevation_ft": 1387,
+        "elevation_estimated": false,
+        "depth_ft": null,
+        "gw_depth_ft": null,
+        "screen_interval_ft": null,
+        "casing_in": null,
+        "installation_date": "2025",
+        "condition": null,
+        "notes": null,
+        "source_polygon_label": null,
+        "source_doc": "SBMM Geotechnical Report in progress",
+        "source_page": null,
+        "confidence_score": 0.95,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.664915,
+          39.005451
+        ]
+      },
+      "properties": {
+        "id": "TP46",
+        "campaign": "2025",
+        "subproject": "Disturbed Rock and Northern Waste Rock Dam Subproject",
+        "type": "Test Pit",
+        "is_mw": false,
+        "year": "2025",
+        "company": "Jacobs",
+        "firm": "Jacobs",
+        "elevation_ft": 1413,
+        "elevation_estimated": false,
+        "depth_ft": null,
+        "gw_depth_ft": null,
+        "screen_interval_ft": null,
+        "casing_in": null,
+        "installation_date": "2025",
+        "condition": null,
+        "notes": null,
+        "source_polygon_label": null,
+        "source_doc": "SBMM Geotechnical Report in progress",
+        "source_page": null,
+        "confidence_score": 0.95,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.665958,
+          39.00433
+        ]
+      },
+      "properties": {
+        "id": "TP47",
+        "campaign": "2025",
+        "subproject": "Disturbed Rock and Northern Waste Rock Dam Subproject",
+        "type": "Test Pit",
+        "is_mw": false,
+        "year": "2025",
+        "company": "Jacobs",
+        "firm": "Jacobs",
+        "elevation_ft": 1374,
+        "elevation_estimated": false,
+        "depth_ft": null,
+        "gw_depth_ft": null,
+        "screen_interval_ft": null,
+        "casing_in": null,
+        "installation_date": "2025",
+        "condition": null,
+        "notes": null,
+        "source_polygon_label": null,
+        "source_doc": "SBMM Geotechnical Report in progress",
+        "source_page": null,
+        "confidence_score": 0.95,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.663994,
+          39.004956
+        ]
+      },
+      "properties": {
+        "id": "TP49",
+        "campaign": "2025",
+        "subproject": "North Cell Subproject",
+        "type": "Test Pit",
+        "is_mw": false,
+        "year": "2025",
+        "company": "Jacobs",
+        "firm": "Jacobs",
+        "elevation_ft": 1378.5,
+        "elevation_estimated": false,
+        "depth_ft": null,
+        "gw_depth_ft": null,
+        "screen_interval_ft": null,
+        "casing_in": null,
+        "installation_date": "2025",
+        "condition": null,
+        "notes": null,
+        "source_polygon_label": null,
+        "source_doc": "SBMM Geotechnical Report in progress",
+        "source_page": null,
+        "confidence_score": 0.95,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.663959,
+          39.004134
+        ]
+      },
+      "properties": {
+        "id": "TP50",
+        "campaign": "2025",
+        "subproject": "North Cell Subproject",
+        "type": "Test Pit",
+        "is_mw": false,
+        "year": "2025",
+        "company": "Jacobs",
+        "firm": "Jacobs",
+        "elevation_ft": 1354.5,
+        "elevation_estimated": false,
+        "depth_ft": null,
+        "gw_depth_ft": null,
+        "screen_interval_ft": null,
+        "casing_in": null,
+        "installation_date": "2025",
+        "condition": null,
+        "notes": null,
+        "source_polygon_label": null,
+        "source_doc": "SBMM Geotechnical Report in progress",
+        "source_page": null,
+        "confidence_score": 0.95,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.663883,
+          39.005901
+        ]
+      },
+      "properties": {
+        "id": "TP51",
+        "campaign": "2025",
+        "subproject": "North Cell Subproject",
+        "type": "Test Pit",
+        "is_mw": false,
+        "year": "2025",
+        "company": "Jacobs",
+        "firm": "Jacobs",
+        "elevation_ft": 1399,
+        "elevation_estimated": false,
+        "depth_ft": null,
+        "gw_depth_ft": null,
+        "screen_interval_ft": null,
+        "casing_in": null,
+        "installation_date": "2025",
+        "condition": null,
+        "notes": null,
+        "source_polygon_label": null,
+        "source_doc": "SBMM Geotechnical Report in progress",
+        "source_page": null,
+        "confidence_score": 0.95,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.661577,
+          39.003978
+        ]
+      },
+      "properties": {
+        "id": "TP52",
+        "campaign": "2025",
+        "subproject": "Disturbed Rock and Northern Waste Rock Dam Subproject",
+        "type": "Test Pit",
+        "is_mw": false,
+        "year": "2025",
+        "company": "Jacobs",
+        "firm": "Jacobs",
+        "elevation_ft": 1359,
+        "elevation_estimated": false,
+        "depth_ft": null,
+        "gw_depth_ft": null,
+        "screen_interval_ft": null,
+        "casing_in": null,
+        "installation_date": "2025",
+        "condition": null,
+        "notes": null,
+        "source_polygon_label": null,
+        "source_doc": "SBMM Geotechnical Report in progress",
+        "source_page": null,
+        "confidence_score": 0.95,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.667917,
+          39.003808
+        ]
+      },
+      "properties": {
+        "id": "TP53",
+        "campaign": "2025",
+        "subproject": "Disturbed Rock and Northern Waste Rock Dam Subproject",
+        "type": "Test Pit",
+        "is_mw": false,
+        "year": "2025",
+        "company": "Jacobs",
+        "firm": "Jacobs",
+        "elevation_ft": 1349.5,
+        "elevation_estimated": false,
+        "depth_ft": null,
+        "gw_depth_ft": null,
+        "screen_interval_ft": null,
+        "casing_in": null,
+        "installation_date": "2025",
+        "condition": null,
+        "notes": null,
+        "source_polygon_label": null,
+        "source_doc": "SBMM Geotechnical Report in progress",
+        "source_page": null,
+        "confidence_score": 0.95,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.66947,
+          39.001745
+        ]
+      },
+      "properties": {
+        "id": "TP57",
+        "campaign": "2025",
+        "subproject": "South Cell Subproject",
+        "type": "Test Pit",
+        "is_mw": false,
+        "year": "2025",
+        "company": "Jacobs",
+        "firm": "Jacobs",
+        "elevation_ft": 1379,
+        "elevation_estimated": false,
+        "depth_ft": null,
+        "gw_depth_ft": null,
+        "screen_interval_ft": null,
+        "casing_in": null,
+        "installation_date": "2025",
+        "condition": null,
+        "notes": null,
+        "source_polygon_label": null,
+        "source_doc": "SBMM Geotechnical Report in progress",
+        "source_page": null,
+        "confidence_score": 0.95,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.668382,
+          39.001906
+        ]
+      },
+      "properties": {
+        "id": "TP58",
+        "campaign": "2025",
+        "subproject": "South Cell Subproject",
+        "type": "Test Pit",
+        "is_mw": false,
+        "year": "2025",
+        "company": "Jacobs",
+        "firm": "Jacobs",
+        "elevation_ft": 1366,
+        "elevation_estimated": false,
+        "depth_ft": null,
+        "gw_depth_ft": null,
+        "screen_interval_ft": null,
+        "casing_in": null,
+        "installation_date": "2025",
+        "condition": null,
+        "notes": null,
+        "source_polygon_label": null,
+        "source_doc": "SBMM Geotechnical Report in progress",
+        "source_page": null,
+        "confidence_score": 0.95,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.668452,
+          39.001556
+        ]
+      },
+      "properties": {
+        "id": "TP59",
+        "campaign": "2025",
+        "subproject": "South Cell Subproject",
+        "type": "Test Pit",
+        "is_mw": false,
+        "year": "2025",
+        "company": "Jacobs",
+        "firm": "Jacobs",
+        "elevation_ft": 1368.5,
+        "elevation_estimated": false,
+        "depth_ft": null,
+        "gw_depth_ft": null,
+        "screen_interval_ft": null,
+        "casing_in": null,
+        "installation_date": "2025",
+        "condition": null,
+        "notes": null,
+        "source_polygon_label": null,
+        "source_doc": "SBMM Geotechnical Report in progress",
+        "source_page": null,
+        "confidence_score": 0.95,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.668238,
+          38.999595
+        ]
+      },
+      "properties": {
+        "id": "TP60",
+        "campaign": "2025",
+        "subproject": "South Cell Subproject",
+        "type": "Test Pit",
+        "is_mw": false,
+        "year": "2025",
+        "company": "Jacobs",
+        "firm": "Jacobs",
+        "elevation_ft": 1387,
+        "elevation_estimated": false,
+        "depth_ft": null,
+        "gw_depth_ft": null,
+        "screen_interval_ft": null,
+        "casing_in": null,
+        "installation_date": "2025",
+        "condition": null,
+        "notes": null,
+        "source_polygon_label": null,
+        "source_doc": "SBMM Geotechnical Report in progress",
+        "source_page": null,
+        "confidence_score": 0.95,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.667914,
+          38.999181
+        ]
+      },
+      "properties": {
+        "id": "TP61",
+        "campaign": "2025",
+        "subproject": "South Cell Subproject",
+        "type": "Test Pit",
+        "is_mw": false,
+        "year": "2025",
+        "company": "Jacobs",
+        "firm": "Jacobs",
+        "elevation_ft": 1409,
+        "elevation_estimated": false,
+        "depth_ft": null,
+        "gw_depth_ft": null,
+        "screen_interval_ft": null,
+        "casing_in": null,
+        "installation_date": "2025",
+        "condition": null,
+        "notes": null,
+        "source_polygon_label": null,
+        "source_doc": "SBMM Geotechnical Report in progress",
+        "source_page": null,
+        "confidence_score": 0.95,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.667264,
+          38.999049
+        ]
+      },
+      "properties": {
+        "id": "TP62",
+        "campaign": "2025",
+        "subproject": "South Cell Subproject",
+        "type": "Test Pit",
+        "is_mw": false,
+        "year": "2025",
+        "company": "Jacobs",
+        "firm": "Jacobs",
+        "elevation_ft": 1456,
+        "elevation_estimated": false,
+        "depth_ft": null,
+        "gw_depth_ft": null,
+        "screen_interval_ft": null,
+        "casing_in": null,
+        "installation_date": "2025",
+        "condition": null,
+        "notes": null,
+        "source_polygon_label": null,
+        "source_doc": "SBMM Geotechnical Report in progress",
+        "source_page": null,
+        "confidence_score": 0.95,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.66689,
+          38.999677
+        ]
+      },
+      "properties": {
+        "id": "TP65",
+        "campaign": "2025",
+        "subproject": "South Cell Subproject",
+        "type": "Test Pit",
+        "is_mw": false,
+        "year": "2025",
+        "company": "Jacobs",
+        "firm": "Jacobs",
+        "elevation_ft": 1483,
+        "elevation_estimated": false,
+        "depth_ft": null,
+        "gw_depth_ft": null,
+        "screen_interval_ft": null,
+        "casing_in": null,
+        "installation_date": "2025",
+        "condition": null,
+        "notes": null,
+        "source_polygon_label": null,
+        "source_doc": "SBMM Geotechnical Report in progress",
+        "source_page": null,
+        "confidence_score": 0.95,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.667148,
+          39.000063
+        ]
+      },
+      "properties": {
+        "id": "TP66",
+        "campaign": "2025",
+        "subproject": "South Cell Subproject",
+        "type": "Test Pit",
+        "is_mw": false,
+        "year": "2025",
+        "company": "Jacobs",
+        "firm": "Jacobs",
+        "elevation_ft": 1465.5,
+        "elevation_estimated": false,
+        "depth_ft": null,
+        "gw_depth_ft": null,
+        "screen_interval_ft": null,
+        "casing_in": null,
+        "installation_date": "2025",
+        "condition": null,
+        "notes": null,
+        "source_polygon_label": null,
+        "source_doc": "SBMM Geotechnical Report in progress",
+        "source_page": null,
+        "confidence_score": 0.95,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.6671306,
+          39.0003546
+        ]
+      },
+      "properties": {
+        "id": "TP68",
+        "campaign": "2025",
+        "subproject": "South Cell Subproject",
+        "type": "Test Pit",
+        "is_mw": false,
+        "year": "2025",
+        "company": "Jacobs",
+        "firm": "Jacobs",
+        "elevation_ft": 1442.5,
+        "elevation_estimated": false,
+        "depth_ft": null,
+        "gw_depth_ft": null,
+        "screen_interval_ft": null,
+        "casing_in": null,
+        "installation_date": "2025",
+        "condition": null,
+        "notes": null,
+        "source_polygon_label": null,
+        "source_doc": "SBMM Geotechnical Report in progress",
+        "source_page": null,
+        "confidence_score": 0.95,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.661971,
+          39.000548
+        ]
+      },
+      "properties": {
+        "id": "TP70",
+        "campaign": "2025",
+        "subproject": "South Cell Subproject",
+        "type": "Test Pit",
+        "is_mw": false,
+        "year": "2025",
+        "company": "Jacobs",
+        "firm": "Jacobs",
+        "elevation_ft": 1416,
+        "elevation_estimated": false,
+        "depth_ft": null,
+        "gw_depth_ft": null,
+        "screen_interval_ft": null,
+        "casing_in": null,
+        "installation_date": "2025",
+        "condition": null,
+        "notes": null,
+        "source_polygon_label": null,
+        "source_doc": "SBMM Geotechnical Report in progress",
+        "source_page": null,
+        "confidence_score": 0.95,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.671422,
+          38.999067
+        ]
+      },
+      "properties": {
+        "id": "TP71",
+        "campaign": "2025",
+        "subproject": "South Cell Subproject",
+        "type": "Test Pit",
+        "is_mw": false,
+        "year": "2025",
+        "company": "Jacobs",
+        "firm": "Jacobs",
+        "elevation_ft": 1336,
+        "elevation_estimated": false,
+        "depth_ft": null,
+        "gw_depth_ft": null,
+        "screen_interval_ft": null,
+        "casing_in": null,
+        "installation_date": "2025",
+        "condition": null,
+        "notes": null,
+        "source_polygon_label": null,
+        "source_doc": "SBMM Geotechnical Report in progress",
+        "source_page": null,
+        "confidence_score": 0.95,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.670237,
+          38.99901
+        ]
+      },
+      "properties": {
+        "id": "TP72",
+        "campaign": "2025",
+        "subproject": "South Cell Subproject",
+        "type": "Test Pit",
+        "is_mw": false,
+        "year": "2025",
+        "company": "Jacobs",
+        "firm": "Jacobs",
+        "elevation_ft": 1359,
+        "elevation_estimated": false,
+        "depth_ft": null,
+        "gw_depth_ft": null,
+        "screen_interval_ft": null,
+        "casing_in": null,
+        "installation_date": "2025",
+        "condition": null,
+        "notes": null,
+        "source_polygon_label": null,
+        "source_doc": "SBMM Geotechnical Report in progress",
+        "source_page": null,
+        "confidence_score": 0.95,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.665206,
+          39.001075
+        ]
+      },
+      "properties": {
+        "id": "TP74",
+        "campaign": "2025",
+        "subproject": "South Cell Subproject",
+        "type": "Test Pit",
+        "is_mw": false,
+        "year": "2025",
+        "company": "Jacobs",
+        "firm": "Jacobs",
+        "elevation_ft": 1377.5,
+        "elevation_estimated": false,
+        "depth_ft": null,
+        "gw_depth_ft": null,
+        "screen_interval_ft": null,
+        "casing_in": null,
+        "installation_date": "2025",
+        "condition": null,
+        "notes": null,
+        "source_polygon_label": null,
+        "source_doc": "SBMM Geotechnical Report in progress",
+        "source_page": null,
+        "confidence_score": 0.95,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.664463,
+          39.001531
+        ]
+      },
+      "properties": {
+        "id": "TP75",
+        "campaign": "2025",
+        "subproject": "South Cell Subproject",
+        "type": "Test Pit",
+        "is_mw": false,
+        "year": "2025",
+        "company": "Jacobs",
+        "firm": "Jacobs",
+        "elevation_ft": 1370.5,
+        "elevation_estimated": false,
+        "depth_ft": null,
+        "gw_depth_ft": null,
+        "screen_interval_ft": null,
+        "casing_in": null,
+        "installation_date": "2025",
+        "condition": null,
+        "notes": null,
+        "source_polygon_label": null,
+        "source_doc": "SBMM Geotechnical Report in progress",
+        "source_page": null,
+        "confidence_score": 0.95,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.66963,
+          39.004544
+        ]
+      },
+      "properties": {
+        "id": "TP76",
+        "campaign": "2025",
+        "subproject": "Disturbed Rock and Northern Waste Rock Dam Subproject",
+        "type": "Test Pit",
+        "is_mw": false,
+        "year": "2025",
+        "company": "Jacobs",
+        "firm": "Jacobs",
+        "elevation_ft": 1391,
+        "elevation_estimated": false,
+        "depth_ft": null,
+        "gw_depth_ft": null,
+        "screen_interval_ft": null,
+        "casing_in": null,
+        "installation_date": "2025",
+        "condition": null,
+        "notes": null,
+        "source_polygon_label": null,
+        "source_doc": "SBMM Geotechnical Report in progress",
+        "source_page": null,
+        "confidence_score": 0.95,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.670771,
+          38.999976
+        ]
+      },
+      "properties": {
+        "id": "TP77",
+        "campaign": "2025",
+        "subproject": "South Cell Subproject",
+        "type": "Test Pit",
+        "is_mw": false,
+        "year": "2025",
+        "company": "Jacobs",
+        "firm": "Jacobs",
+        "elevation_ft": 1331,
+        "elevation_estimated": false,
+        "depth_ft": null,
+        "gw_depth_ft": null,
+        "screen_interval_ft": null,
+        "casing_in": null,
+        "installation_date": "2025",
+        "condition": null,
+        "notes": null,
+        "source_polygon_label": null,
+        "source_doc": "SBMM Geotechnical Report in progress",
+        "source_page": null,
+        "confidence_score": 0.95,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.66977,
+          39.001036
+        ]
+      },
+      "properties": {
+        "id": "TP78",
+        "campaign": "2025",
+        "subproject": "South Cell Subproject",
+        "type": "Test Pit",
+        "is_mw": false,
+        "year": "2025",
+        "company": "Jacobs",
+        "firm": "Jacobs",
+        "elevation_ft": 1343,
+        "elevation_estimated": false,
+        "depth_ft": null,
+        "gw_depth_ft": null,
+        "screen_interval_ft": null,
+        "casing_in": null,
+        "installation_date": "2025",
+        "condition": null,
+        "notes": null,
+        "source_polygon_label": null,
+        "source_doc": "SBMM Geotechnical Report in progress",
+        "source_page": null,
+        "confidence_score": 0.95,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.668016,
+          39.001175
+        ]
+      },
+      "properties": {
+        "id": "TP79",
+        "campaign": "2025",
+        "subproject": "South Cell Subproject",
+        "type": "Test Pit",
+        "is_mw": false,
+        "year": "2025",
+        "company": "Jacobs",
+        "firm": "Jacobs",
+        "elevation_ft": 1346,
+        "elevation_estimated": false,
+        "depth_ft": null,
+        "gw_depth_ft": null,
+        "screen_interval_ft": null,
+        "casing_in": null,
+        "installation_date": "2025",
+        "condition": null,
+        "notes": null,
+        "source_polygon_label": null,
+        "source_doc": "SBMM Geotechnical Report in progress",
+        "source_page": null,
+        "confidence_score": 0.95,
+        "last_verified_at": "2026-03-26"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.670099,
+          39.001529
+        ]
+      },
+      "properties": {
+        "id": "TP80",
+        "campaign": "2025",
+        "subproject": "South Cell Subproject",
+        "type": "Test Pit",
+        "is_mw": false,
+        "year": "2025",
+        "company": "Jacobs",
+        "firm": "Jacobs",
+        "elevation_ft": 1333,
+        "elevation_estimated": false,
+        "depth_ft": null,
+        "gw_depth_ft": null,
+        "screen_interval_ft": null,
+        "casing_in": null,
+        "installation_date": "2025",
+        "condition": null,
+        "notes": null,
+        "source_polygon_label": null,
+        "source_doc": "SBMM Geotechnical Report in progress",
+        "source_page": null,
+        "confidence_score": 0.95,
+        "last_verified_at": "2026-03-26"
+      }
+    }
+  ]
+}

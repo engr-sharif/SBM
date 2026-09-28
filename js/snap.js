@@ -139,6 +139,11 @@ SBMM.snap = (function () {
         const sv = SBMM.survey.snapPaths();
         for (const r of sv.rings) addPath(statix, r, false);
       }
+      /* v28: the named site areas of SBMM.kmz */
+      if (SBMM.siteAreas) {
+        const sa = SBMM.siteAreas.snapPaths();
+        for (const r of sa.rings) addPath(statix, r, true);
+      }
       /* the storm network (v12): the conduits as paths, the structures as points
          — a grate is exactly the kind of thing a drafter starts a line from */
       if (SBMM.storm) {

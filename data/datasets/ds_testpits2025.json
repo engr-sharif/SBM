@@ -1,0 +1,833 @@
+{
+ "id": "testpits2025",
+ "name": "Test pits (2025)",
+ "kind": "borings",
+ "idField": "Test pit",
+ "depthField": "Total depth (ft)",
+ "style": {
+  "color": "#C98B4F",
+  "shape": "square",
+  "size": 6,
+  "labels": false,
+  "stick3d": true
+ },
+ "source": "2025 Jacobs test pits: coordinates, ground elevation and metals by depth interval from engr-sharif/sbmm-tool @ 819de60 (data/test-pits-2025.json); the same 51 pits in engr-sharif/sbmm-explorer-v2 @ fe82042 agree to 0.18 ft. tools/build_imports.py.",
+ "points": [
+  {
+   "id": "TP01",
+   "x": 6372189.77,
+   "y": 2129500.85,
+   "a": {
+    "Ground elev (ft)": 1351,
+    "Total depth (ft)": 10,
+    "Intervals sampled": 2,
+    "Max Hg (mg/kg)": 28,
+    "Max As (mg/kg)": 3.6,
+    "Exceeds ROD": "none",
+    "Subproject": "North Cell Subproject",
+    "Latitude": 39.007695,
+    "Longitude": -122.666821
+   }
+  },
+  {
+   "id": "TP02",
+   "x": 6372077.32,
+   "y": 2129356.72,
+   "a": {
+    "Ground elev (ft)": 1394.5,
+    "Total depth (ft)": 5,
+    "Intervals sampled": 1,
+    "Max Hg (mg/kg)": 410,
+    "Max As (mg/kg)": 4.4,
+    "Exceeds ROD": "Hg",
+    "Subproject": "North Cell Subproject",
+    "Latitude": 39.007297,
+    "Longitude": -122.667213
+   }
+  },
+  {
+   "id": "TP03",
+   "x": 6372021.41,
+   "y": 2129329.09,
+   "a": {
+    "Ground elev (ft)": 1371,
+    "Total depth (ft)": 6,
+    "Intervals sampled": 2,
+    "Max Hg (mg/kg)": 1000,
+    "Max As (mg/kg)": 16,
+    "Exceeds ROD": "Hg, As",
+    "Subproject": "North Cell Subproject",
+    "Latitude": 39.00722,
+    "Longitude": -122.667409
+   }
+  },
+  {
+   "id": "TP05",
+   "x": 6372226.63,
+   "y": 2129256.57,
+   "a": {
+    "Ground elev (ft)": 1379.5,
+    "Total depth (ft)": 10,
+    "Intervals sampled": 2,
+    "Max Hg (mg/kg)": 54,
+    "Max As (mg/kg)": 1.7,
+    "Exceeds ROD": "none",
+    "Subproject": "North Cell Subproject",
+    "Latitude": 39.007025,
+    "Longitude": -122.666685
+   }
+  },
+  {
+   "id": "TP07",
+   "x": 6372265.77,
+   "y": 2129362.63,
+   "a": {
+    "Ground elev (ft)": 1363,
+    "Total depth (ft)": 5,
+    "Intervals sampled": 1,
+    "Max Hg (mg/kg)": 110,
+    "Max As (mg/kg)": 4.8,
+    "Exceeds ROD": "none",
+    "Subproject": "North Cell Subproject",
+    "Latitude": 39.007317,
+    "Longitude": -122.66655
+   }
+  },
+  {
+   "id": "TP08",
+   "x": 6372911.48,
+   "y": 2128511.87,
+   "a": {
+    "Ground elev (ft)": 1378,
+    "Total depth (ft)": 1,
+    "Intervals sampled": 1,
+    "Max Hg (mg/kg)": 7100,
+    "Max As (mg/kg)": 3,
+    "Exceeds ROD": "Hg",
+    "Subproject": "Disturbed Rock and Northern Waste Rock Dam Subproject",
+    "Latitude": 39.004994,
+    "Longitude": -122.664256
+   }
+  },
+  {
+   "id": "TP12",
+   "x": 6373686.47,
+   "y": 2128359.07,
+   "a": {
+    "Ground elev (ft)": 1372,
+    "Total depth (ft)": 20,
+    "Intervals sampled": 5,
+    "Max Hg (mg/kg)": 2,
+    "Max As (mg/kg)": 13,
+    "Exceeds ROD": "As",
+    "Subproject": "North Cell Subproject",
+    "Latitude": 39.00459,
+    "Longitude": -122.661525
+   }
+  },
+  {
+   "id": "TP15",
+   "x": 6372620.41,
+   "y": 2127415.2,
+   "a": {
+    "Ground elev (ft)": 1360,
+    "Total depth (ft)": 20,
+    "Intervals sampled": 4,
+    "Max Hg (mg/kg)": 2400,
+    "Max As (mg/kg)": 100,
+    "Exceeds ROD": "Hg, As, Sb",
+    "Subproject": "South Cell Subproject",
+    "Latitude": 39.001977,
+    "Longitude": -122.665252
+   }
+  },
+  {
+   "id": "TP17",
+   "x": 6372325.53,
+   "y": 2127389.67,
+   "a": {
+    "Ground elev (ft)": 1360,
+    "Total depth (ft)": 20,
+    "Intervals sampled": 4,
+    "Max Hg (mg/kg)": 990,
+    "Max As (mg/kg)": 92,
+    "Exceeds ROD": "Hg, As, Sb",
+    "Subproject": "South Cell Subproject",
+    "Latitude": 39.001901,
+    "Longitude": -122.666289
+   }
+  },
+  {
+   "id": "TP21",
+   "x": 6371805.04,
+   "y": 2127485.98,
+   "a": {
+    "Ground elev (ft)": 1339,
+    "Total depth (ft)": 10,
+    "Intervals sampled": 3,
+    "Max Hg (mg/kg)": 580,
+    "Max As (mg/kg)": 610,
+    "Exceeds ROD": "Hg, As",
+    "Subproject": "South Cell Subproject",
+    "Latitude": 39.002155,
+    "Longitude": -122.668123
+   }
+  },
+  {
+   "id": "TP23",
+   "x": 6371253.01,
+   "y": 2127272.59,
+   "a": {
+    "Ground elev (ft)": 1334.5,
+    "Total depth (ft)": 10,
+    "Intervals sampled": 2,
+    "Max Hg (mg/kg)": 280,
+    "Max As (mg/kg)": 35,
+    "Exceeds ROD": "Hg, As",
+    "Subproject": "South Cell Subproject",
+    "Latitude": 39.001558,
+    "Longitude": -122.67006
+   }
+  },
+  {
+   "id": "TP24",
+   "x": 6371343.2,
+   "y": 2127247.89,
+   "a": {
+    "Ground elev (ft)": 1348.5,
+    "Total depth (ft)": 15,
+    "Intervals sampled": 3,
+    "Max Hg (mg/kg)": 2400,
+    "Max As (mg/kg)": 31,
+    "Exceeds ROD": "Hg, As",
+    "Subproject": "South Cell Subproject",
+    "Latitude": 39.001492,
+    "Longitude": -122.669742
+   }
+  },
+  {
+   "id": "TP27",
+   "x": 6371229.66,
+   "y": 2126838.27,
+   "a": {
+    "Ground elev (ft)": 1328.5,
+    "Total depth (ft)": 13,
+    "Intervals sampled": 3,
+    "Max Hg (mg/kg)": 2900,
+    "Max As (mg/kg)": 31,
+    "Exceeds ROD": "Hg, As, Sb",
+    "Subproject": "South Cell Subproject",
+    "Latitude": 39.000365,
+    "Longitude": -122.670131
+   }
+  },
+  {
+   "id": "TP28",
+   "x": 6371489.55,
+   "y": 2126896.1,
+   "a": {
+    "Ground elev (ft)": 1339,
+    "Total depth (ft)": 20,
+    "Intervals sampled": 4,
+    "Max Hg (mg/kg)": 760,
+    "Max As (mg/kg)": 26,
+    "Exceeds ROD": "Hg, As",
+    "Subproject": "South Cell Subproject",
+    "Latitude": 39.000529,
+    "Longitude": -122.669218
+   }
+  },
+  {
+   "id": "TP29",
+   "x": 6371571.08,
+   "y": 2126776.41,
+   "a": {
+    "Ground elev (ft)": 1336.5,
+    "Total depth (ft)": 20,
+    "Intervals sampled": 4,
+    "Max Hg (mg/kg)": 33,
+    "Max As (mg/kg)": 4.8,
+    "Exceeds ROD": "none",
+    "Subproject": "South Cell Subproject",
+    "Latitude": 39.000202,
+    "Longitude": -122.668928
+   }
+  },
+  {
+   "id": "TP31",
+   "x": 6371655.36,
+   "y": 2126564.55,
+   "a": {
+    "Ground elev (ft)": 1361,
+    "Total depth (ft)": 10,
+    "Intervals sampled": 2,
+    "Max Hg (mg/kg)": 91,
+    "Max As (mg/kg)": 6.5,
+    "Exceeds ROD": "As",
+    "Subproject": "South Cell Subproject",
+    "Latitude": 38.999622,
+    "Longitude": -122.668626
+   }
+  },
+  {
+   "id": "TP33",
+   "x": 6371893.14,
+   "y": 2127020.25,
+   "a": {
+    "Ground elev (ft)": 1353.5,
+    "Total depth (ft)": 15,
+    "Intervals sampled": 3,
+    "Max Hg (mg/kg)": 1600,
+    "Max As (mg/kg)": 12,
+    "Exceeds ROD": "Hg, As",
+    "Subproject": "South Cell Subproject",
+    "Latitude": 39.000878,
+    "Longitude": -122.667801
+   }
+  },
+  {
+   "id": "TP35",
+   "x": 6372067.5,
+   "y": 2127158.1,
+   "a": {
+    "Ground elev (ft)": 1351,
+    "Total depth (ft)": 16,
+    "Intervals sampled": 4,
+    "Max Hg (mg/kg)": 1100,
+    "Max As (mg/kg)": 49,
+    "Exceeds ROD": "Hg, As",
+    "Subproject": "South Cell Subproject",
+    "Latitude": 39.00126,
+    "Longitude": -122.667191
+   }
+  },
+  {
+   "id": "TP36",
+   "x": 6372159.59,
+   "y": 2127199.31,
+   "a": {
+    "Ground elev (ft)": 1350,
+    "Total depth (ft)": 15,
+    "Intervals sampled": 3,
+    "Max Hg (mg/kg)": 4600,
+    "Max As (mg/kg)": 13,
+    "Exceeds ROD": "Hg, As",
+    "Subproject": "South Cell Subproject",
+    "Latitude": 39.001375,
+    "Longitude": -122.666868
+   }
+  },
+  {
+   "id": "TP37",
+   "x": 6371387.33,
+   "y": 2128852.97,
+   "a": {
+    "Ground elev (ft)": 1385.5,
+    "Total depth (ft)": 15,
+    "Intervals sampled": 4,
+    "Max Hg (mg/kg)": 15000,
+    "Max As (mg/kg)": 4.8,
+    "Exceeds ROD": "Hg",
+    "Subproject": "North Cell Subproject",
+    "Latitude": 39.0059,
+    "Longitude": -122.669628
+   }
+  },
+  {
+   "id": "TP38",
+   "x": 6371566.88,
+   "y": 2128728.2,
+   "a": {
+    "Ground elev (ft)": 1391,
+    "Total depth (ft)": 10,
+    "Intervals sampled": 2,
+    "Max Hg (mg/kg)": 29,
+    "Max As (mg/kg)": 0.83,
+    "Exceeds ROD": "none",
+    "Subproject": "Disturbed Rock and Northern Waste Rock Dam Subproject",
+    "Latitude": 39.005561,
+    "Longitude": -122.668993
+   }
+  },
+  {
+   "id": "TP39",
+   "x": 6371431.14,
+   "y": 2128586.79,
+   "a": {
+    "Ground elev (ft)": 1375,
+    "Total depth (ft)": 17,
+    "Intervals sampled": 5,
+    "Max Hg (mg/kg)": 6500,
+    "Max As (mg/kg)": 90,
+    "Exceeds ROD": "Hg, As",
+    "Subproject": "Disturbed Rock and Northern Waste Rock Dam Subproject",
+    "Latitude": 39.00517,
+    "Longitude": -122.669467
+   }
+  },
+  {
+   "id": "TP40",
+   "x": 6370985.68,
+   "y": 2128606.79,
+   "a": {
+    "Ground elev (ft)": 1341,
+    "Total depth (ft)": 10,
+    "Intervals sampled": 3,
+    "Max Hg (mg/kg)": 120,
+    "Max As (mg/kg)": 10,
+    "Exceeds ROD": "As",
+    "Subproject": "North Cell Subproject",
+    "Latitude": 39.005216,
+    "Longitude": -122.671035
+   }
+  },
+  {
+   "id": "TP41",
+   "x": 6371498.74,
+   "y": 2128388.17,
+   "a": {
+    "Ground elev (ft)": 1387,
+    "Total depth (ft)": 20,
+    "Intervals sampled": 5,
+    "Max Hg (mg/kg)": 380,
+    "Max As (mg/kg)": 38,
+    "Exceeds ROD": "Hg, As",
+    "Subproject": "Disturbed Rock and Northern Waste Rock Dam Subproject",
+    "Latitude": 39.004626,
+    "Longitude": -122.669224
+   }
+  },
+  {
+   "id": "TP46",
+   "x": 6372725.42,
+   "y": 2128679.67,
+   "a": {
+    "Ground elev (ft)": 1413,
+    "Total depth (ft)": 4,
+    "Intervals sampled": 3,
+    "Max Hg (mg/kg)": 55,
+    "Max As (mg/kg)": 0.96,
+    "Exceeds ROD": "none",
+    "Subproject": "Disturbed Rock and Northern Waste Rock Dam Subproject",
+    "Latitude": 39.005451,
+    "Longitude": -122.664915
+   }
+  },
+  {
+   "id": "TP47",
+   "x": 6372426.05,
+   "y": 2128273.59,
+   "a": {
+    "Ground elev (ft)": 1374,
+    "Total depth (ft)": 12,
+    "Intervals sampled": 3,
+    "Max Hg (mg/kg)": 3500,
+    "Max As (mg/kg)": 4.7,
+    "Exceeds ROD": "Hg",
+    "Subproject": "Disturbed Rock and Northern Waste Rock Dam Subproject",
+    "Latitude": 39.00433,
+    "Longitude": -122.665958
+   }
+  },
+  {
+   "id": "TP48",
+   "x": 6372401.28,
+   "y": 2128111.33,
+   "a": {
+    "Total depth (ft)": 5,
+    "Intervals sampled": 2,
+    "Max Hg (mg/kg)": 420,
+    "Max As (mg/kg)": 250,
+    "Exceeds ROD": "Hg, As, Sb, Tl",
+    "Latitude": 39.003884,
+    "Longitude": -122.666041
+   }
+  },
+  {
+   "id": "TP49",
+   "x": 6372985.83,
+   "y": 2128497.49,
+   "a": {
+    "Ground elev (ft)": 1378.5,
+    "Total depth (ft)": 2.5,
+    "Intervals sampled": 1,
+    "Max Hg (mg/kg)": 4900,
+    "Max As (mg/kg)": 1.6,
+    "Exceeds ROD": "Hg",
+    "Subproject": "North Cell Subproject",
+    "Latitude": 39.004956,
+    "Longitude": -122.663994
+   }
+  },
+  {
+   "id": "TP50",
+   "x": 6372993.59,
+   "y": 2128198.05,
+   "a": {
+    "Ground elev (ft)": 1354.5,
+    "Total depth (ft)": 10.5,
+    "Intervals sampled": 2,
+    "Max Hg (mg/kg)": 5400,
+    "Max As (mg/kg)": 100,
+    "Exceeds ROD": "Hg, As, Sb",
+    "Subproject": "North Cell Subproject",
+    "Latitude": 39.004134,
+    "Longitude": -122.663959
+   }
+  },
+  {
+   "id": "TP51",
+   "x": 6373019.88,
+   "y": 2128841.41,
+   "a": {
+    "Ground elev (ft)": 1399,
+    "Total depth (ft)": 9,
+    "Intervals sampled": 3,
+    "Max Hg (mg/kg)": 310,
+    "Max As (mg/kg)": 3.3,
+    "Exceeds ROD": "Hg",
+    "Subproject": "North Cell Subproject",
+    "Latitude": 39.005901,
+    "Longitude": -122.663883
+   }
+  },
+  {
+   "id": "TP52",
+   "x": 6373670.06,
+   "y": 2128136.3,
+   "a": {
+    "Ground elev (ft)": 1359,
+    "Total depth (ft)": 20,
+    "Intervals sampled": 4,
+    "Max Hg (mg/kg)": 1.4,
+    "Max As (mg/kg)": 22,
+    "Exceeds ROD": "As",
+    "Subproject": "Disturbed Rock and Northern Waste Rock Dam Subproject",
+    "Latitude": 39.003978,
+    "Longitude": -122.661577
+   }
+  },
+  {
+   "id": "TP53",
+   "x": 6371867.98,
+   "y": 2128087.55,
+   "a": {
+    "Ground elev (ft)": 1349.5,
+    "Total depth (ft)": 20,
+    "Intervals sampled": 4,
+    "Max Hg (mg/kg)": 150,
+    "Max As (mg/kg)": 23,
+    "Exceeds ROD": "As",
+    "Subproject": "Disturbed Rock and Northern Waste Rock Dam Subproject",
+    "Latitude": 39.003808,
+    "Longitude": -122.667917
+   }
+  },
+  {
+   "id": "TP57",
+   "x": 6371421.17,
+   "y": 2127339.47,
+   "a": {
+    "Ground elev (ft)": 1379,
+    "Total depth (ft)": 20,
+    "Intervals sampled": 4,
+    "Max Hg (mg/kg)": 2000,
+    "Max As (mg/kg)": 350,
+    "Exceeds ROD": "Hg, As, Sb",
+    "Subproject": "South Cell Subproject",
+    "Latitude": 39.001745,
+    "Longitude": -122.66947
+   }
+  },
+  {
+   "id": "TP58",
+   "x": 6371730.78,
+   "y": 2127395.84,
+   "a": {
+    "Ground elev (ft)": 1366,
+    "Total depth (ft)": 19,
+    "Intervals sampled": 4,
+    "Max Hg (mg/kg)": 1200,
+    "Max As (mg/kg)": 260,
+    "Exceeds ROD": "Hg, As, Sb",
+    "Subproject": "South Cell Subproject",
+    "Latitude": 39.001906,
+    "Longitude": -122.668382
+   }
+  },
+  {
+   "id": "TP59",
+   "x": 6371709.95,
+   "y": 2127268.52,
+   "a": {
+    "Ground elev (ft)": 1368.5,
+    "Total depth (ft)": 15,
+    "Intervals sampled": 3,
+    "Max Hg (mg/kg)": 1100,
+    "Max As (mg/kg)": 260,
+    "Exceeds ROD": "Hg, As",
+    "Subproject": "South Cell Subproject",
+    "Latitude": 39.001556,
+    "Longitude": -122.668452
+   }
+  },
+  {
+   "id": "TP60",
+   "x": 6371765.55,
+   "y": 2126553.91,
+   "a": {
+    "Ground elev (ft)": 1387,
+    "Total depth (ft)": 18,
+    "Intervals sampled": 5,
+    "Max Hg (mg/kg)": 1700,
+    "Max As (mg/kg)": 9.1,
+    "Exceeds ROD": "Hg, As",
+    "Subproject": "South Cell Subproject",
+    "Latitude": 38.999595,
+    "Longitude": -122.668238
+   }
+  },
+  {
+   "id": "TP61",
+   "x": 6371856.51,
+   "y": 2126402.47,
+   "a": {
+    "Ground elev (ft)": 1409,
+    "Total depth (ft)": 17,
+    "Intervals sampled": 4,
+    "Max Hg (mg/kg)": 7.1,
+    "Max As (mg/kg)": 7.9,
+    "Exceeds ROD": "As",
+    "Subproject": "South Cell Subproject",
+    "Latitude": 38.999181,
+    "Longitude": -122.667914
+   }
+  },
+  {
+   "id": "TP62",
+   "x": 6372040.87,
+   "y": 2126353.05,
+   "a": {
+    "Ground elev (ft)": 1456,
+    "Total depth (ft)": 15,
+    "Intervals sampled": 3,
+    "Max Hg (mg/kg)": 11,
+    "Max As (mg/kg)": 6.2,
+    "Exceeds ROD": "As",
+    "Subproject": "South Cell Subproject",
+    "Latitude": 38.999049,
+    "Longitude": -122.667264
+   }
+  },
+  {
+   "id": "TP65",
+   "x": 6372148.82,
+   "y": 2126580.98,
+   "a": {
+    "Ground elev (ft)": 1483,
+    "Total depth (ft)": 9,
+    "Intervals sampled": 2,
+    "Max Hg (mg/kg)": 110,
+    "Max As (mg/kg)": 4.8,
+    "Exceeds ROD": "none",
+    "Subproject": "South Cell Subproject",
+    "Latitude": 38.999677,
+    "Longitude": -122.66689
+   }
+  },
+  {
+   "id": "TP66",
+   "x": 6372076.54,
+   "y": 2126722.09,
+   "a": {
+    "Ground elev (ft)": 1465.5,
+    "Total depth (ft)": 9.5,
+    "Intervals sampled": 2,
+    "Max Hg (mg/kg)": 2.6,
+    "Max As (mg/kg)": 8.2,
+    "Exceeds ROD": "As",
+    "Subproject": "South Cell Subproject",
+    "Latitude": 39.000063,
+    "Longitude": -122.667148
+   }
+  },
+  {
+   "id": "TP68",
+   "x": 6372082.14,
+   "y": 2126828.39,
+   "a": {
+    "Ground elev (ft)": 1442.5,
+    "Total depth (ft)": 10,
+    "Intervals sampled": 2,
+    "Max Hg (mg/kg)": 190,
+    "Max As (mg/kg)": 6.9,
+    "Exceeds ROD": "As",
+    "Subproject": "South Cell Subproject",
+    "Latitude": 39.000355,
+    "Longitude": -122.667131
+   }
+  },
+  {
+   "id": "TP70",
+   "x": 6373548.97,
+   "y": 2126887.97,
+   "a": {
+    "Ground elev (ft)": 1416,
+    "Total depth (ft)": 4,
+    "Intervals sampled": 2,
+    "Max Hg (mg/kg)": 190,
+    "Max As (mg/kg)": 31,
+    "Exceeds ROD": "As",
+    "Subproject": "South Cell Subproject",
+    "Latitude": 39.000548,
+    "Longitude": -122.661971
+   }
+  },
+  {
+   "id": "TP71",
+   "x": 6370859.35,
+   "y": 2126368.24,
+   "a": {
+    "Ground elev (ft)": 1336,
+    "Total depth (ft)": 7.5,
+    "Intervals sampled": 2,
+    "Max Hg (mg/kg)": 140,
+    "Max As (mg/kg)": 6.3,
+    "Exceeds ROD": "As",
+    "Subproject": "South Cell Subproject",
+    "Latitude": 38.999067,
+    "Longitude": -122.671422
+   }
+  },
+  {
+   "id": "TP72",
+   "x": 6371195.93,
+   "y": 2126345.02,
+   "a": {
+    "Ground elev (ft)": 1359,
+    "Total depth (ft)": 7.5,
+    "Intervals sampled": 2,
+    "Max Hg (mg/kg)": 38,
+    "Max As (mg/kg)": 3.1,
+    "Exceeds ROD": "none",
+    "Subproject": "South Cell Subproject",
+    "Latitude": 38.99901,
+    "Longitude": -122.670237
+   }
+  },
+  {
+   "id": "TP74",
+   "x": 6372631.09,
+   "y": 2127086.61,
+   "a": {
+    "Ground elev (ft)": 1377.5,
+    "Total depth (ft)": 11,
+    "Intervals sampled": 4,
+    "Max Hg (mg/kg)": 330,
+    "Max As (mg/kg)": 160,
+    "Exceeds ROD": "Hg, As, Sb",
+    "Subproject": "South Cell Subproject",
+    "Latitude": 39.001075,
+    "Longitude": -122.665206
+   }
+  },
+  {
+   "id": "TP75",
+   "x": 6372843.44,
+   "y": 2127251.13,
+   "a": {
+    "Ground elev (ft)": 1370.5,
+    "Total depth (ft)": 20,
+    "Intervals sampled": 4,
+    "Max Hg (mg/kg)": 420,
+    "Max As (mg/kg)": 17,
+    "Exceeds ROD": "Hg, As",
+    "Subproject": "South Cell Subproject",
+    "Latitude": 39.001531,
+    "Longitude": -122.664463
+   }
+  },
+  {
+   "id": "TP76",
+   "x": 6371383.15,
+   "y": 2128359.15,
+   "a": {
+    "Ground elev (ft)": 1391,
+    "Total depth (ft)": 18,
+    "Intervals sampled": 4,
+    "Max Hg (mg/kg)": 260,
+    "Max As (mg/kg)": 360,
+    "Exceeds ROD": "Hg, As, Sb",
+    "Subproject": "Disturbed Rock and Northern Waste Rock Dam Subproject",
+    "Latitude": 39.004544,
+    "Longitude": -122.66963
+   }
+  },
+  {
+   "id": "TP77",
+   "x": 6371046.76,
+   "y": 2126697.93,
+   "a": {
+    "Ground elev (ft)": 1331,
+    "Total depth (ft)": 7,
+    "Intervals sampled": 3,
+    "Max Hg (mg/kg)": 190,
+    "Max As (mg/kg)": 43,
+    "Exceeds ROD": "As",
+    "Subproject": "South Cell Subproject",
+    "Latitude": 38.999976,
+    "Longitude": -122.670771
+   }
+  },
+  {
+   "id": "TP78",
+   "x": 6371334.03,
+   "y": 2127081.88,
+   "a": {
+    "Ground elev (ft)": 1343,
+    "Total depth (ft)": 20,
+    "Intervals sampled": 4,
+    "Max Hg (mg/kg)": 22000,
+    "Max As (mg/kg)": 78,
+    "Exceeds ROD": "Hg, As, Sb",
+    "Subproject": "South Cell Subproject",
+    "Latitude": 39.001036,
+    "Longitude": -122.66977
+   }
+  },
+  {
+   "id": "TP79",
+   "x": 6371832.84,
+   "y": 2127128.86,
+   "a": {
+    "Ground elev (ft)": 1346,
+    "Total depth (ft)": 17.5,
+    "Intervals sampled": 4,
+    "Max Hg (mg/kg)": 7000,
+    "Max As (mg/kg)": 30,
+    "Exceeds ROD": "Hg, As",
+    "Subproject": "South Cell Subproject",
+    "Latitude": 39.001175,
+    "Longitude": -122.668016
+   }
+  },
+  {
+   "id": "TP80",
+   "x": 6371241.85,
+   "y": 2127262.11,
+   "a": {
+    "Ground elev (ft)": 1333,
+    "Total depth (ft)": 10,
+    "Intervals sampled": 4,
+    "Max Hg (mg/kg)": 1200,
+    "Max As (mg/kg)": 140,
+    "Exceeds ROD": "Hg, As",
+    "Subproject": "South Cell Subproject",
+    "Latitude": 39.001529,
+    "Longitude": -122.670099
+   }
+  }
+ ],
+ "crs": "EPSG:6418 (NAD83(2011) CA SP Zone 2, ftUS)",
+ "baked": true
+}
