@@ -406,6 +406,8 @@ terrain source, which needs an explicit decision + README/test update).
 | smartbound.js | WAND (memo top-hat pile delineation), CBOUND (contour-snap), TOE, STANDS |
 | trees.js | individual tree detection over CHM, canvas dot layer, CSV inventory |
 | borelogs.js | **the 2025 boring logs (OpenGround)** — the strip log in a results card (class profile, strata + USCS, SPT with the pocket penetrometer, pH against the acid threshold, method bands, the water symbol), the TWO contact statements drawn together and reconciled nowhere, the 44-hole `LOGS` table, the CSV and the PNG, the popup button, `LOG` / `LOGS`, the class palette every other view reads through `classColor()`, and since v23 **the column renderer `column()`** every face of the borings is drawn by; `SBMM.borelogs` |
+| labmetals.js | **v28 — lab metals by depth** from the earlier apps (`SBMM_DATA.lab_metals`, `tools/build_imports.py`): the interval table in a boring / test-pit popup and on the log card, the full validated suite on a sample popup, the ROD / PMB levels and `level(sym, v)`; `SBMM.labMetals` |
+| siteareas.js | **v28 — the named site areas of SBMM.kmz** (`SBMM_DATA.site_areas`): one Investigations row (off by default), 3D drape, snap, GeoJSON/DXF on `SITE-AREAS`; `SBMM.siteAreas` |
 | borewin.js | **v23 Phase A — the boring-log window** on the sheet-window chassis: the Log tab as a real log sheet at 1 in = 5 ft with the depth cursor, Compare (2–6 holes on one elevation datum, correlation lines, printed separations), the 44-hole Table, the printed log sheet through `js/report.js`, the hole picker, `LOGWIN`; `SBMM.borewin` |
 | fence.js | **v23 Phase B — the fence diagram**: the `fence` store feature (a section through the subsurface along a drawn line), `projectHoles`/`groundProfile`, the SVG the Fence tab, the PNG and the 3D texture are all drawn from, the cut on the map (alignment + swath band + a tick per projected hole), the CSV, the **section-coordinate DXF** (X = station ft, Y = elevation ft) and `FENCE`; `SBMM.fence` |
 | io.js | GeoJSON (WGS84 + EPSG:6418) / session / CSV import-export |
@@ -2890,6 +2892,52 @@ It is a VIEW, not data: nothing serialises. Deleting the fence turns it off
 with a toast; closing 3D turns it off; the 2D map shows the box as a dashed
 outline in the `water` pane (its own `L.svg` renderer, no pointer events —
 the rule that pane already lives by).
+
+## v28 — the data from the earlier SBMM apps
+
+`tools/build_imports.py` brings over what five earlier, single-campaign apps held
+and this one did not. Their source files are copied VERBATIM into
+`data/imports/<repo>/` (the commit each was read at is in `SOURCES` in the tool),
+so the build is reproducible from the repo alone (it needs `openpyxl` and
+`pyproj`; the app needs neither). It writes five baked datasets
+(`ds_testpits2025`, `ds_borings_hist`, `ds_ea_testpits`, `ds_xrf_boulders`,
+`ds_xrf_soil`), `data/lab_metals.json` and `data/site_areas.json`, and the three
+payloads `d_datasets.js`, `d_lab_metals.js`, `d_site_areas.js` directly — it does
+not re-run `tools/build_data.py`, which would re-encode every raster in the repo.
+Both new payloads are plain `<script src>` tags, in every build. E2E block
+**9f5**; block 9f's dataset count is read off the payload now.
+
+Six things that will be walked into again:
+
+- **Positions were CHECKED, not assumed.** The pits' recorded ground elevations
+  agree with the lidar at a median 0.22 ft (49 of 50 within 5 ft) and the block
+  asserts it; the two repos that carry the pits agree to 0.18 ft. Lat/long goes
+  through `data/affine.json` (the `tools/add_dataset.py` conversion); the boulder
+  tracker is UTM 10N metres and goes through pyproj 32610 → 2226 — the second
+  place in the repo that reprojects, beside the cultural layer.
+- **A historical boring that is already a well here is NOT imported** (88 of
+  101, matched on a normalised id: `MW-01` = `MW-1`, `HP10` = `HP-10`). The
+  wells table is the authority — it checks against the lidar — and seven of those
+  88 sit 13–830 ft away in the old app (HP-13, MW-53, PZ-40, MW-74, MW-48A, PZ-42,
+  MW-30D). Do not "merge" the two positions.
+- **The ROD / PMB lists are the ABP table's own**, not recomputed: the table
+  counts a non-detect whose detection limit is above the level (W03: Sb U at
+  1.5 against a PMB of 0.52). The levels themselves are read out of the table's
+  column names and the tool fails if they move. 9f5 asserts every sample's lists
+  are consistent with its numbers.
+- **A non-detect shows its detection limit** (`<1.5` with its qualifier), never a
+  blank and never zero.
+- **The boulder GPS elevations are NOT a ground elevation**: the tracker mixes
+  metres (~400) and feet (~1,300) and has one value (181.7) that is neither. They
+  are kept as recorded with an apparent-unit column; the lidar is the ground.
+- **A baked dataset may start off**: `defaultOn: false` in its JSON, honoured by
+  `buildRow` in `js/datasets.js`; the remembered layer state still wins. Only the
+  2025 test pits start on.
+
+The 2025 test pits' 3D depth sticks are coloured by Hg per interval (ROD red,
+PMB amber, below green) inside the SAME `LineSegments` the borings' log colours
+use — a hole with a log keeps its log colours; one with metals but no log gets
+these.
 
 ## Undo and redo (v9.4) — the both-closures rule and `readd`
 

@@ -1,0 +1,225 @@
+{
+ "id": "borings_hist",
+ "defaultOn": false,
+ "name": "Borings \u2014 historical (1988\u20132024)",
+ "kind": "borings",
+ "idField": "Boring",
+ "depthField": "Total depth (ft)",
+ "style": {
+  "color": "#9C8FD6",
+  "shape": "boring",
+  "size": 5,
+  "labels": false,
+  "stick3d": true
+ },
+ "source": "Previous-investigation borings from engr-sharif/sbmm-explorer-v2 @ fe82042 (data/borings.geojson), digitised from SBMM.kmz and the historical figures; each carries its own location confidence. 88 that are already monitoring wells in this app were left to the wells dataset. tools/build_imports.py.",
+ "points": [
+  {
+   "id": "DR-1-SB",
+   "x": 6371917.17,
+   "y": 2128170.05,
+   "a": {
+    "Subproject": "North Cell Subproject",
+    "Total depth (ft)": 45,
+    "Source document": "Summary of Existing Explorations / EA Engineering / Historical Boring Info / SBMM.kmz",
+    "Location confidence": 0.9,
+    "Digitised from": "Site Overlay; Borings; Historical Wells; HP Borings; Borings2; BoringPlan3; roadway; QAPP Overlay; QAPP Rev1",
+    "Latitude": 39.0040355,
+    "Longitude": -122.667746
+   }
+  },
+  {
+   "id": "DR-2-SB",
+   "x": 6371978.49,
+   "y": 2128355.16,
+   "a": {
+    "Subproject": "North Cell Subproject",
+    "Total depth (ft)": 55,
+    "Source document": "Summary of Existing Explorations / EA Engineering / Historical Boring Info / SBMM.kmz",
+    "Location confidence": 0.9,
+    "Digitised from": "Site Overlay; Borings; Historical Wells; HP Borings; Borings2; BoringPlan3; QAPP Overlay; QAPP Rev1",
+    "Latitude": 39.004545,
+    "Longitude": -122.667535
+   }
+  },
+  {
+   "id": "MW-48",
+   "x": 6370957.5,
+   "y": 2128483.54,
+   "a": {
+    "Year": "2013",
+    "Firm": "CH2M Hill",
+    "Subproject": "Disturbed Rock and Northern Waste Rock Dam Subproject",
+    "Total depth (ft)": 25,
+    "Source document": "Summary of Existing Explorations / EA Engineering / Historical Boring Info / SBMM.kmz",
+    "Location confidence": 0.9,
+    "Digitised from": "West Rock Dam",
+    "Latitude": 39.004877,
+    "Longitude": -122.671131
+   }
+  },
+  {
+   "id": "NWRP-1-SB",
+   "x": 6373947.26,
+   "y": 2128941.78,
+   "a": {
+    "Year": "2023",
+    "Firm": "EA Engineering",
+    "Subproject": "North Cell Subproject",
+    "Total depth (ft)": 65,
+    "Source document": "Summary of Existing Explorations / EA Engineering / Historical Boring Info / SBMM.kmz",
+    "Location confidence": 0.9,
+    "Digitised from": "North Waste Rock Cell",
+    "Latitude": 39.0061952,
+    "Longitude": -122.6606223
+   }
+  },
+  {
+   "id": "NWRP-2-SB",
+   "x": 6373504.44,
+   "y": 2129132.58,
+   "a": {
+    "Year": "2023",
+    "Firm": "EA Engineering",
+    "Subproject": "North Cell Subproject",
+    "Total depth (ft)": 85,
+    "Source document": "Summary of Existing Explorations / EA Engineering / Historical Boring Info / SBMM.kmz",
+    "Location confidence": 0.9,
+    "Digitised from": "North Waste Rock Cell",
+    "Latitude": 39.0067102,
+    "Longitude": -122.6621854
+   }
+  },
+  {
+   "id": "NWWRP-1-SB",
+   "x": 6371984.61,
+   "y": 2129632.26,
+   "a": {
+    "Year": "2023",
+    "Firm": "EA Engineering",
+    "Subproject": "North Cell Subproject",
+    "Total depth (ft)": 40,
+    "Source document": "Summary of Existing Explorations / EA Engineering / Historical Boring Info / SBMM.kmz",
+    "Location confidence": 0.9,
+    "Digitised from": "Site Overlay; Borings; Historical Wells; HP Borings; Borings2; BoringPlan3; QAPP Overlay; QAPP Rev1",
+    "Latitude": 39.0080517,
+    "Longitude": -122.6675463
+   }
+  },
+  {
+   "id": "NWWRP-2-SB",
+   "x": 6372135.04,
+   "y": 2129314.56,
+   "a": {
+    "Year": "2023",
+    "Firm": "EA Engineering",
+    "Subproject": "North Cell Subproject",
+    "Total depth (ft)": 80,
+    "Ground elev (ft)": 1391.6,
+    "Screen (ft)": "61-76",
+    "Source document": "Summary of Existing Explorations / EA Engineering / Historical Boring Info / SBMM.kmz",
+    "Location confidence": 0.9,
+    "Digitised from": "Site Overlay; Borings; Historical Wells; HP Borings; Borings2; BoringPlan3; QAPP Overlay; QAPP Rev1",
+    "Latitude": 39.0071824,
+    "Longitude": -122.6670088
+   }
+  },
+  {
+   "id": "PZ-41",
+   "x": 6371656.12,
+   "y": 2127642.04,
+   "a": {
+    "Subproject": "South Cell Subproject",
+    "Ground elev (ft)": 1351.3,
+    "Source document": "Summary of Existing Explorations / EA Engineering / Historical Boring Info / SBMM.kmz",
+    "Location confidence": 0.9,
+    "Digitised from": "West Rock Dam",
+    "Latitude": 39.00258049378843,
+    "Longitude": -122.6686510431691
+   }
+  },
+  {
+   "id": "PZ-43",
+   "x": 6371881.48,
+   "y": 2127734.76,
+   "a": {
+    "Subproject": "South Cell Subproject",
+    "Ground elev (ft)": 1339.9,
+    "Source document": "Summary of Existing Explorations / EA Engineering / Historical Boring Info / SBMM.kmz",
+    "Location confidence": 0.9,
+    "Digitised from": "West Rock Dam",
+    "Latitude": 39.00283960894042,
+    "Longitude": -122.6678604206127
+   }
+  },
+  {
+   "id": "SWRP-1-SB",
+   "x": 6372121.23,
+   "y": 2129318.27,
+   "a": {
+    "Year": "2023",
+    "Firm": "EA Engineering",
+    "Subproject": "North Cell Subproject",
+    "Total depth (ft)": 30,
+    "Source document": "Summary of Existing Explorations / EA Engineering / Historical Boring Info / SBMM.kmz",
+    "Location confidence": 0.9,
+    "Digitised from": "Site Overlay; Borings; Historical Wells; HP Borings; Borings2; BoringPlan3; QAPP Overlay; QAPP Rev1",
+    "Latitude": 39.0071923,
+    "Longitude": -122.6670575
+   }
+  },
+  {
+   "id": "SWRP-2-SB",
+   "x": 6373040.0,
+   "y": 2126795.28,
+   "a": {
+    "Year": "2023",
+    "Firm": "EA Engineering",
+    "Subproject": "South Cell Subproject",
+    "Total depth (ft)": 40,
+    "Ground elev (ft)": 1455.1,
+    "Source document": "Summary of Existing Explorations / EA Engineering / Historical Boring Info / SBMM.kmz",
+    "Location confidence": 0.9,
+    "Digitised from": "Outside all polygons",
+    "Latitude": 39.0002833,
+    "Longitude": -122.6637596
+   }
+  },
+  {
+   "id": "WWRP-1-SB",
+   "x": 6371653.91,
+   "y": 2127182.25,
+   "a": {
+    "Year": "2023",
+    "Firm": "EA Engineering",
+    "Subproject": "South Cell Subproject",
+    "Total depth (ft)": 30,
+    "Ground elev (ft)": 1345.2,
+    "Source document": "Summary of Existing Explorations / EA Engineering / Historical Boring Info / SBMM.kmz",
+    "Location confidence": 0.9,
+    "Digitised from": "West Waste Rock Cell",
+    "Latitude": 39.001318,
+    "Longitude": -122.668647
+   }
+  },
+  {
+   "id": "WWRP-2-SB",
+   "x": 6371311.82,
+   "y": 2127013.65,
+   "a": {
+    "Year": "2023",
+    "Firm": "EA Engineering",
+    "Subproject": "South Cell Subproject",
+    "Total depth (ft)": 30,
+    "Ground elev (ft)": 1343.1,
+    "Source document": "Summary of Existing Explorations / EA Engineering / Historical Boring Info / SBMM.kmz",
+    "Location confidence": 0.9,
+    "Digitised from": "Outside all polygons",
+    "Latitude": 39.0008482,
+    "Longitude": -122.6698464
+   }
+  }
+ ],
+ "crs": "EPSG:6418 (NAD83(2011) CA SP Zone 2, ftUS)",
+ "baked": true
+}
