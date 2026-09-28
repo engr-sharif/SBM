@@ -214,6 +214,22 @@ it, rotate the gate password, and keep the new one out of the repo.
 (construction control first: as-built surfaces, per-lot comparison, Civil 3D
 exports).
 
+**The earlier apps (2026-09-28)** — he asked for everything useful in his other
+SBMM repos to be brought over. Read at the commits in `tools/build_imports.py`
+`SOURCES`: `sbmm-tool` (test pits, boring metals), `ABP` (validated ABP/EA
+results), `sbmm-explorer-v2` / `sbmm-boring-explorer` (historical borings, SBMM.kmz
+areas), `XRF` (boulders), `SoilXRF` (native-vs-waste soil). `sbmm-planning-tool` is
+an older copy of `sbmm-tool` and added nothing. Open with him: (1) seven wells sit
+13–830 ft apart between the old explorer and the wells table (list in CLAUDE.md
+v28) — the wells table was kept; (2) the boulder tracker's GPS elevations mix
+metres and feet, and SBM-WWRP-G07-B2 has no GPS at all; (3) the boulder powders
+have no lab results yet — when they arrive they belong in the tracker's "Lab
+Samples" sheet and a re-run of the tool. **And the one that is not code: GitHub
+lists SBM and every one of those repos as PUBLIC** (2026-09-28). This file says
+the repo must be private — site data, validated lab results and the gated
+cultural layer are all in it. He was told; the fix is his, per repo, under
+Settings → General → Danger Zone.
+
 **Suggested, not yet asked for (2026-09-27)** — ideas raised when he asked what else
 would improve the app, most useful first: (1) the waste model — a bottom-of-waste
 surface from the 44 logged contacts, thickness and volume per DU (this is C.0 below);

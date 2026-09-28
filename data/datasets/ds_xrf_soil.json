@@ -1,0 +1,494 @@
+{
+ "id": "xrf_soil",
+ "defaultOn": false,
+ "name": "XRF \u2014 soil, native vs waste (2026)",
+ "kind": "generic",
+ "idField": "Sample ID",
+ "depthField": null,
+ "style": {
+  "color": "#F2A541",
+  "shape": "triangle",
+  "size": 5,
+  "labels": false
+ },
+ "source": "Surface-soil XRF of 4 May 2026 (Niton XL5 Plus X501203, Soils mode, two shots averaged), from engr-sharif/SoilXRF @ aeaaae9. Field XRF, screening only. tools/build_imports.py.",
+ "points": [
+  {
+   "id": "XRF-SWRC-1",
+   "x": 6374127.37,
+   "y": 2128144.61,
+   "a": {
+    "Group": "South Waste Rock Cell (NE corner)",
+    "Depth": "Surface",
+    "Date": "2026-05-04",
+    "Avg Hg (ppm)": 109.28,
+    "Avg As (ppm)": 3.16,
+    "Avg Pb (ppm)": 24.55,
+    "Avg Sb (ppm)": 0.0,
+    "Shots": 2,
+    "XRF S/N": "X501203",
+    "Mode": "Soils",
+    "Latitude": 39.00401,
+    "Longitude": -122.659968
+   }
+  },
+  {
+   "id": "XRF-SWRC-2",
+   "x": 6374196.54,
+   "y": 2128081.82,
+   "a": {
+    "Group": "South Waste Rock Cell (NE corner)",
+    "Depth": "Surface",
+    "Date": "2026-05-04",
+    "Avg Hg (ppm)": 81.58,
+    "Avg As (ppm)": 0.97,
+    "Avg Pb (ppm)": 17.51,
+    "Avg Sb (ppm)": 0.0,
+    "Shots": 2,
+    "XRF S/N": "X501203",
+    "Mode": "Soils",
+    "Latitude": 39.003839,
+    "Longitude": -122.659723
+   }
+  },
+  {
+   "id": "XRF-SWRC-3",
+   "x": 6374216.83,
+   "y": 2128213.52,
+   "a": {
+    "Group": "South Waste Rock Cell (NE corner)",
+    "Depth": "Surface",
+    "Date": "2026-05-04",
+    "Avg Hg (ppm)": 59.19,
+    "Avg As (ppm)": 18.91,
+    "Avg Pb (ppm)": 7.41,
+    "Avg Sb (ppm)": 36.42,
+    "Shots": 2,
+    "XRF S/N": "X501203",
+    "Mode": "Soils",
+    "Latitude": 39.004201,
+    "Longitude": -122.659655
+   }
+  },
+  {
+   "id": "XRF-SWRC-4",
+   "x": 6374291.92,
+   "y": 2128145.23,
+   "a": {
+    "Group": "South Waste Rock Cell (NE corner)",
+    "Depth": "Surface",
+    "Date": "2026-05-04",
+    "Avg Hg (ppm)": 46.4,
+    "Avg As (ppm)": 0.0,
+    "Avg Pb (ppm)": 8.48,
+    "Avg Sb (ppm)": 0.0,
+    "Shots": 2,
+    "XRF S/N": "X501203",
+    "Mode": "Soils",
+    "Latitude": 39.004015,
+    "Longitude": -122.659389
+   }
+  },
+  {
+   "id": "XRF-SWRC-5",
+   "x": 6374306.46,
+   "y": 2128306.46,
+   "a": {
+    "Group": "South Waste Rock Cell (NE corner)",
+    "Depth": "Surface",
+    "Date": "2026-05-04",
+    "Avg Hg (ppm)": 79.49,
+    "Avg As (ppm)": 41.47,
+    "Avg Pb (ppm)": 21.9,
+    "Avg Sb (ppm)": 112.83,
+    "Shots": 2,
+    "XRF S/N": "X501203",
+    "Mode": "Soils",
+    "Latitude": 39.004458,
+    "Longitude": -122.659342
+   }
+  },
+  {
+   "id": "XRF-SWRC-6",
+   "x": 6374354.77,
+   "y": 2128229.63,
+   "a": {
+    "Group": "South Waste Rock Cell (NE corner)",
+    "Depth": "Surface",
+    "Date": "2026-05-04",
+    "Avg Hg (ppm)": 827.72,
+    "Avg As (ppm)": 0.0,
+    "Avg Pb (ppm)": 17.14,
+    "Avg Sb (ppm)": 2.33,
+    "Shots": 2,
+    "XRF S/N": "X501203",
+    "Mode": "Soils",
+    "Latitude": 39.004248,
+    "Longitude": -122.65917
+   }
+  },
+  {
+   "id": "XRF-SWRC-7",
+   "x": 6374387.37,
+   "y": 2128372.88,
+   "a": {
+    "Group": "South Waste Rock Cell (NE corner)",
+    "Depth": "Surface",
+    "Date": "2026-05-04",
+    "Avg Hg (ppm)": 110.09,
+    "Avg As (ppm)": 15.83,
+    "Avg Pb (ppm)": 7.23,
+    "Avg Sb (ppm)": 3.24,
+    "Shots": 2,
+    "XRF S/N": "X501203",
+    "Mode": "Soils",
+    "Latitude": 39.004642,
+    "Longitude": -122.659059
+   }
+  },
+  {
+   "id": "XRF-SWRC-8",
+   "x": 6374431.84,
+   "y": 2128353.62,
+   "a": {
+    "Group": "South Waste Rock Cell (NE corner)",
+    "Depth": "Surface",
+    "Date": "2026-05-04",
+    "Avg Hg (ppm)": 53.84,
+    "Avg As (ppm)": 2.29,
+    "Avg Pb (ppm)": 6.74,
+    "Avg Sb (ppm)": 0.0,
+    "Shots": 2,
+    "XRF S/N": "X501203",
+    "Mode": "Soils",
+    "Latitude": 39.00459,
+    "Longitude": -122.658902
+   }
+  },
+  {
+   "id": "XRF-OMB-1",
+   "x": 6371947.8,
+   "y": 2126488.48,
+   "a": {
+    "Group": "Old Mine Buildings",
+    "Depth": "Surface",
+    "Date": "2026-05-04",
+    "Avg Hg (ppm)": 15.01,
+    "Avg As (ppm)": 1.1,
+    "Avg Pb (ppm)": 22.8,
+    "Avg Sb (ppm)": 0.0,
+    "Shots": 2,
+    "XRF S/N": "X501203",
+    "Mode": "Soils",
+    "Latitude": 38.999419,
+    "Longitude": -122.667595
+   }
+  },
+  {
+   "id": "XRF-OMB-2",
+   "x": 6372002.55,
+   "y": 2126591.52,
+   "a": {
+    "Group": "Old Mine Buildings",
+    "Depth": "Surface",
+    "Date": "2026-05-04",
+    "Avg Hg (ppm)": 40.86,
+    "Avg As (ppm)": 7.08,
+    "Avg Pb (ppm)": 18.15,
+    "Avg Sb (ppm)": 0.0,
+    "Shots": 2,
+    "XRF S/N": "X501203",
+    "Mode": "Soils",
+    "Latitude": 38.999703,
+    "Longitude": -122.667405
+   }
+  },
+  {
+   "id": "XRF-OMB-3",
+   "x": 6371838.61,
+   "y": 2126558.48,
+   "a": {
+    "Group": "Old Mine Buildings",
+    "Depth": "Surface",
+    "Date": "2026-05-04",
+    "Avg Hg (ppm)": 10.14,
+    "Avg As (ppm)": 5.26,
+    "Avg Pb (ppm)": 8.93,
+    "Avg Sb (ppm)": 0.0,
+    "Shots": 2,
+    "XRF S/N": "X501203",
+    "Mode": "Soils",
+    "Latitude": 38.999609,
+    "Longitude": -122.667981
+   }
+  },
+  {
+   "id": "XRF-OMB-4",
+   "x": 6371904.05,
+   "y": 2126646.87,
+   "a": {
+    "Group": "Old Mine Buildings",
+    "Depth": "Surface",
+    "Date": "2026-05-04",
+    "Avg Hg (ppm)": 7.03,
+    "Avg As (ppm)": 3.6,
+    "Avg Pb (ppm)": 9.18,
+    "Avg Sb (ppm)": 0.0,
+    "Shots": 2,
+    "XRF S/N": "X501203",
+    "Mode": "Soils",
+    "Latitude": 38.999853,
+    "Longitude": -122.667753
+   }
+  },
+  {
+   "id": "XRF-OMB-5",
+   "x": 6371838.17,
+   "y": 2126730.75,
+   "a": {
+    "Group": "Old Mine Buildings",
+    "Depth": "Surface",
+    "Date": "2026-05-04",
+    "Avg Hg (ppm)": 113.8,
+    "Avg As (ppm)": 5.71,
+    "Avg Pb (ppm)": 14.15,
+    "Avg Sb (ppm)": 0.0,
+    "Shots": 2,
+    "XRF S/N": "X501203",
+    "Mode": "Soils",
+    "Latitude": 39.000082,
+    "Longitude": -122.667987
+   }
+  },
+  {
+   "id": "XRF-OMB-6",
+   "x": 6371852.11,
+   "y": 2126849.74,
+   "a": {
+    "Group": "Old Mine Buildings",
+    "Depth": "Surface",
+    "Date": "2026-05-04",
+    "Avg Hg (ppm)": 105.02,
+    "Avg As (ppm)": 2.64,
+    "Avg Pb (ppm)": 11.57,
+    "Avg Sb (ppm)": 0.0,
+    "Shots": 2,
+    "XRF S/N": "X501203",
+    "Mode": "Soils",
+    "Latitude": 39.000409,
+    "Longitude": -122.667941
+   }
+  },
+  {
+   "id": "XRF-OMB-7",
+   "x": 6371908.57,
+   "y": 2126758.64,
+   "a": {
+    "Group": "Old Mine Buildings",
+    "Depth": "Surface",
+    "Date": "2026-05-04",
+    "Avg Hg (ppm)": 36.54,
+    "Avg As (ppm)": 3.96,
+    "Avg Pb (ppm)": 10.68,
+    "Avg Sb (ppm)": 0.0,
+    "Shots": 2,
+    "XRF S/N": "X501203",
+    "Mode": "Soils",
+    "Latitude": 39.00016,
+    "Longitude": -122.66774
+   }
+  },
+  {
+   "id": "XRF-OMB-8",
+   "x": 6371980.15,
+   "y": 2126832.05,
+   "a": {
+    "Group": "Old Mine Buildings",
+    "Depth": "Surface",
+    "Date": "2026-05-04",
+    "Avg Hg (ppm)": 200.37,
+    "Avg As (ppm)": 10.34,
+    "Avg Pb (ppm)": 20.06,
+    "Avg Sb (ppm)": 20.56,
+    "Shots": 2,
+    "XRF S/N": "X501203",
+    "Mode": "Soils",
+    "Latitude": 39.000363,
+    "Longitude": -122.66749
+   }
+  },
+  {
+   "id": "XRF-OMB-9",
+   "x": 6371902.39,
+   "y": 2126925.13,
+   "a": {
+    "Group": "Old Mine Buildings",
+    "Depth": "Surface",
+    "Date": "2026-05-04",
+    "Avg Hg (ppm)": 3781.28,
+    "Avg As (ppm)": 8.13,
+    "Avg Pb (ppm)": 53.84,
+    "Avg Sb (ppm)": 46.49,
+    "Shots": 2,
+    "XRF S/N": "X501203",
+    "Mode": "Soils",
+    "Latitude": 39.000617,
+    "Longitude": -122.667766
+   }
+  },
+  {
+   "id": "XRF-OMB-10",
+   "x": 6372000.25,
+   "y": 2126938.62,
+   "a": {
+    "Group": "Old Mine Buildings",
+    "Depth": "Surface",
+    "Date": "2026-05-04",
+    "Avg Hg (ppm)": 947.04,
+    "Avg As (ppm)": 20.06,
+    "Avg Pb (ppm)": 18.9,
+    "Avg Sb (ppm)": 58.54,
+    "Shots": 2,
+    "XRF S/N": "X501203",
+    "Mode": "Soils",
+    "Latitude": 39.000656,
+    "Longitude": -122.667422
+   }
+  },
+  {
+   "id": "XRF-OMB-11",
+   "x": 6372103.59,
+   "y": 2127041.3,
+   "a": {
+    "Group": "Old Mine Buildings",
+    "Depth": "Surface",
+    "Date": "2026-05-04",
+    "Avg Hg (ppm)": 134.09,
+    "Avg As (ppm)": 9.14,
+    "Avg Pb (ppm)": 7.5,
+    "Avg Sb (ppm)": 45.56,
+    "Shots": 2,
+    "XRF S/N": "X501203",
+    "Mode": "Soils",
+    "Latitude": 39.00094,
+    "Longitude": -122.667061
+   }
+  },
+  {
+   "id": "XRF-OMB-12",
+   "x": 6372123.0,
+   "y": 2126935.9,
+   "a": {
+    "Group": "Old Mine Buildings",
+    "Depth": "Surface",
+    "Date": "2026-05-04",
+    "Avg Hg (ppm)": 6.29,
+    "Avg As (ppm)": 0.0,
+    "Avg Pb (ppm)": 4.18,
+    "Avg Sb (ppm)": 0.0,
+    "Shots": 2,
+    "XRF S/N": "X501203",
+    "Mode": "Soils",
+    "Latitude": 39.000651,
+    "Longitude": -122.66699
+   }
+  },
+  {
+   "id": "XRF-OMB-13",
+   "x": 6372222.05,
+   "y": 2127113.27,
+   "a": {
+    "Group": "Old Mine Buildings",
+    "Depth": "Surface",
+    "Date": "2026-05-04",
+    "Avg Hg (ppm)": 29.63,
+    "Avg As (ppm)": 70.79,
+    "Avg Pb (ppm)": 13.14,
+    "Avg Sb (ppm)": 117.74,
+    "Shots": 2,
+    "XRF S/N": "X501203",
+    "Mode": "Soils",
+    "Latitude": 39.00114,
+    "Longitude": -122.666646
+   }
+  },
+  {
+   "id": "XRF-OMB-14",
+   "x": 6372218.77,
+   "y": 2127013.87,
+   "a": {
+    "Group": "Old Mine Buildings",
+    "Depth": "Surface",
+    "Date": "2026-05-04",
+    "Avg Hg (ppm)": 6.54,
+    "Avg As (ppm)": 0.0,
+    "Avg Pb (ppm)": 3.39,
+    "Avg Sb (ppm)": 7.69,
+    "Shots": 2,
+    "XRF S/N": "X501203",
+    "Mode": "Soils",
+    "Latitude": 39.000867,
+    "Longitude": -122.666655
+   }
+  },
+  {
+   "id": "XRF-OMB-15",
+   "x": 6372298.83,
+   "y": 2127197.57,
+   "a": {
+    "Group": "Old Mine Buildings",
+    "Depth": "Surface",
+    "Date": "2026-05-04",
+    "Avg Hg (ppm)": 110.99,
+    "Avg As (ppm)": 54.37,
+    "Avg Pb (ppm)": 8.75,
+    "Avg Sb (ppm)": 168.71,
+    "Shots": 2,
+    "XRF S/N": "X501203",
+    "Mode": "Soils",
+    "Latitude": 39.001373,
+    "Longitude": -122.666378
+   }
+  },
+  {
+   "id": "XRF-OMB-16",
+   "x": 6372354.64,
+   "y": 2126979.37,
+   "a": {
+    "Group": "Old Mine Buildings",
+    "Depth": "Surface",
+    "Date": "2026-05-04",
+    "Avg Hg (ppm)": 179.78,
+    "Avg As (ppm)": 51.92,
+    "Avg Pb (ppm)": 4.02,
+    "Avg Sb (ppm)": 49.62,
+    "Shots": 2,
+    "XRF S/N": "X501203",
+    "Mode": "Soils",
+    "Latitude": 39.000775,
+    "Longitude": -122.666176
+   }
+  },
+  {
+   "id": "XRF-OMB-17",
+   "x": 6372405.47,
+   "y": 2127090.44,
+   "a": {
+    "Group": "Old Mine Buildings",
+    "Depth": "Surface",
+    "Date": "2026-05-04",
+    "Avg Hg (ppm)": 214.98,
+    "Avg As (ppm)": 40.05,
+    "Avg Pb (ppm)": 5.92,
+    "Avg Sb (ppm)": 68.68,
+    "Shots": 2,
+    "XRF S/N": "X501203",
+    "Mode": "Soils",
+    "Latitude": 39.001081,
+    "Longitude": -122.666
+   }
+  }
+ ],
+ "crs": "EPSG:6418 (NAD83(2011) CA SP Zone 2, ftUS)",
+ "baked": true
+}

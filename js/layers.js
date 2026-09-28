@@ -246,6 +246,8 @@ SBMM.buildLayers = function () {
   /* the August-2026 survey linework: under Investigations, after the datasets
      (the survey's own shots are one of those datasets) */
   if (SBMM.survey) SBMM.survey.build();
+  /* v28: the named site areas of SBMM.kmz, brought over from the boring explorer */
+  if (SBMM.siteAreas) SBMM.siteAreas.build();
 
   /* ---------- cultural resources — CONFIDENTIAL, off by default ----------
      Built last so its rows land at the bottom of the Site-wide section, and

@@ -17,6 +17,46 @@ All three are offline-only by design. Nothing in this app calls out to the inter
 
 ---
 
+## v9.35 — the data from the earlier apps (2026-09-28)
+
+**The 51 test pits of 2025 are on the map**, each with its ground elevation and
+its metals by depth interval. Clicking one shows a small table — one row per
+sampled interval, Hg, As, Sb, Tl and Pb first, every other metal one line down —
+with values above the ROD level in red and above the PMB level in amber. In 3D
+each pit's depth stick is coloured the same way, interval by interval.
+
+**The 2025 borings now carry their metals too**: 26 of the 44 have Hg and As by
+interval, and the table appears in the boring's popup and on its log card.
+
+**The Samples layer's 140 sampled locations carry the full validated results**
+— the 23-metal suite where it was run, the lab qualifiers, non-detects as their
+detection limit ("<1.5 U"), the Round 2 deep results, the Hg with organic
+matter, and which metals put the location over the ROD and PMB levels (as the
+ABP master table itself states them, non-detects included).
+
+**New layers under Investigations**, all off except the test pits:
+- **Borings — historical (1988–2024)**: 13 earlier borings that are not already
+  monitoring wells here, with firm, year, depth, source document and how
+  confidently each was located;
+- **Test pits — EA (2023)**: five, with pH and notes;
+- **XRF — boulders (2026)**: 145 boulders of the Tasks 2.1.6/2.1.7 campaign,
+  with the tracker's averages and the maximum surface Hg;
+- **XRF — soil, native vs waste (2026)**: 25 surface samples, two shots each;
+- **Site areas — SBMM.kmz**: the waste rock cells, the Northwest Pit, West Rock
+  Dam and the borrow areas, as outlines.
+
+All of them are searchable from the search box (a pit id, a boulder id, an area
+name), draw in 3D, and go out with the exports.
+
+**Worth knowing:** the old boring explorer places seven wells differently from
+the wells table this app uses — HP-13, MW-53, PZ-40, MW-74, MW-48A, PZ-42 and
+MW-30D, by 13 to 830 ft. The wells table is the one that checks against the lidar, so it
+stays; the old positions were not carried over. One boulder, SBM-WWRP-G07-B2,
+has no GPS in the tracker and is not on the map. The boulders' GPS elevations mix
+metres and feet, so they are shown as recorded and the lidar is the ground.
+
+---
+
 ## v9.34 — the fence clip box (2026-09-27)
 
 **A fence can now be seen in 3D without looking underground.** *Clip 3D* on a

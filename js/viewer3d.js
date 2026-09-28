@@ -1784,6 +1784,15 @@ SBMM.viewer3d = (function () {
         addG.add(o);
       }
     }
+    /* v28: the named site areas of SBMM.kmz, outlines draped like the survey */
+    if (PROJ && SBMM.siteAreas && SBMM.siteAreas.lines3d) {
+      for (const r of SBMM.siteAreas.lines3d()) {
+        const o = drapedLine(r.ring, new THREE.Color(r.color).getHex(), false, r.width || 2);
+        o.userData.pick = { kind: "gis", props: r.props, geom: r.geom };
+        tag(addShadow(SHW, o), "invest", "site_areas");
+        addG.add(o);
+      }
+    }
     /* the storm-drainage network (v12 §5.1): the conduits draped on the ground
        and a dot at every structure, in the storm colour rather than the water
        one — the pipes are infrastructure, the flow is the terrain's answer. */
@@ -2192,6 +2201,7 @@ SBMM.viewer3d = (function () {
          pick entry; a two-segment cross is the same reading inside the geometry
          that is already there, which is what "one object per dataset" costs. */
       const BL = (SBMM.borelogs && SBMM.borelogs.has()) ? SBMM.borelogs : null;
+      const LM = (SBMM.labMetals && SBMM.labMetals.has()) ? SBMM.labMetals : null;
       for (const spec of SBMM.datasets.threeSpec()) {
         const pos = [], seg = [], scol = [], segPt = [];
         const c = new THREE.Color(spec.color);
@@ -2215,7 +2225,23 @@ SBMM.viewer3d = (function () {
           if (!(spec.stick && p.depth > 0)) return;
           const X = p.x - CX, Y = p.y - CY;
           const prof = BL && p.id ? BL.profileOf(p.id) : null;
-          if (!prof) { put(X, Y, z + 1, z - p.depth, c, pi); return; }
+          if (!prof) {
+            /* v28: a hole with metals by depth but no log (the 2025 test pits)
+               shows Hg per sampled interval — above the ROD level, above the
+               PMB level, below both — and the unsampled rest in its own colour */
+            const hm = LM && p.id ? LM.hole(p.id) : null;
+            if (!hm) { put(X, Y, z + 1, z - p.depth, c, pi); return; }
+            let deep = 0;
+            for (const iv of hm.intervals) {
+              const a = Math.min(iv.top, p.depth), b = Math.min(iv.base, p.depth);
+              if (b - a < 1e-6) continue;
+              const lv = LM.level("Hg", iv.m.Hg);
+              put(X, Y, z - a, z - b, tmp.set(lv === "rod" ? 0xE5584C : lv === "pmb" ? 0xE6A93F : 0x6DBB7A), pi);
+              deep = Math.max(deep, b);
+            }
+            if (p.depth - deep > 0.05) put(X, Y, z - deep, z - p.depth, c, pi);
+            return;
+          }
           let deepest = 0;
           for (const r of prof) {
             const a = Math.min(r.top, p.depth), b = Math.min(r.base, p.depth);

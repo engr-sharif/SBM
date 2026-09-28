@@ -87,6 +87,8 @@ SBMM.io = (function () {
     if (SBMM.designGIS) for (const d of SBMM.designGIS.geoFeatures(P)) feats.push(d);
     /* and the August-2026 survey linework (the pipes, the sandbag wall) */
     if (SBMM.survey) for (const d of SBMM.survey.geoFeatures(P)) feats.push(d);
+    /* and the named site areas of SBMM.kmz (v28) */
+    if (SBMM.siteAreas) for (const d of SBMM.siteAreas.geoFeatures(P)) feats.push(d);
     /* and the storm network (v12) — the pipes a flow path disappears into have
        to be in the same file as the flow path */
     if (SBMM.storm) for (const d of SBMM.storm.geoFeatures(P)) feats.push(d);

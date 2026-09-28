@@ -112,7 +112,10 @@ SBMM.popups = (function () {
                                                         : SBMM.borelogs.open(h.id)),
           "Open the log window (log sheet, compare, table)"));
     }
-    return head + log
+    /* v28: the metals by depth the earlier apps held (js/labmetals.js) — the
+       2025 borings and test pits — sit between the log and the attributes */
+    const lab = d.kind === "borings" && SBMM.labMetals ? SBMM.labMetals.holeHTML(p.id) : "";
+    return head + log + lab
       + attrTable(d.fields.map(f => [f, p.a[f]]))
       + coordLine(p.x, p.y);
   }
@@ -231,6 +234,7 @@ SBMM.popups = (function () {
     return `<b>${esc(p.id)}</b> <span style="opacity:.7">(${esc(p.src)})</span><br>
       Hg ${p.Hg ?? "—"} mg/kg · As ${p.As ?? "—"} mg/kg<br>
       <span style="opacity:.7">${p.exc ? "exceeds a remediation goal" : "below goals"}</span><br>
+      ${SBMM.labMetals ? SBMM.labMetals.sampleHTML(p.id) : ""}
       ${coordLine(p.x, p.y)}`;
   }
 

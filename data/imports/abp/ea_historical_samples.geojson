@@ -1,0 +1,4169 @@
+{
+  "type": "FeatureCollection",
+  "metadata": {
+    "title": "SBMM ABP \u2014 EA Engineering Historical Soil Samples (Areas Between Waste Piles 1 and 2)",
+    "source": "EA_SampleLocationsOU1_AttributeExport20250516.xlsx",
+    "criteria": {
+      "ROD": {
+        "Hg": 204.0,
+        "As": 6.1,
+        "Sb": 51.0,
+        "Tl": 1.3
+      },
+      "PMB": {
+        "Hg": 58.0,
+        "As": 6.1,
+        "Sb": 0.52,
+        "Tl": 0.47
+      }
+    },
+    "units": "mg/kg",
+    "datum": "WGS84",
+    "depths": "Surface (0-0.5/0-1 ft) primary; 1-1.5 ft as *_sub; FULL vertical profile (incl 1-2, 2-3, 3-4 ft where present) in properties.profile[].",
+    "note": "59 EA locations. Field duplicates excluded. Deeper-profile depths were stored as Excel dates in source and have been decoded back to depth intervals."
+  },
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.667500272217,
+          39.0077465970319
+        ]
+      },
+      "properties": {
+        "id": "ABWP01-01",
+        "source": "EA",
+        "round": "EA Historical",
+        "sampled": true,
+        "sample_date": "45151.473611",
+        "depth": "Surface + Subsurface",
+        "n_depths": 2,
+        "max_depth_ft": 1.0,
+        "Hg": 450.0,
+        "Hg_q": "J",
+        "As": 9.5,
+        "As_q": "J-",
+        "Sb": 7.9,
+        "Sb_q": "J",
+        "Tl": 0.2,
+        "Tl_q": "J",
+        "Hg_sub": 50.0,
+        "Hg_sub_q": "J",
+        "As_sub": 3.5,
+        "As_sub_q": "J-",
+        "Sb_sub": 1.1,
+        "Sb_sub_q": "J",
+        "Tl_sub": 0.2,
+        "Tl_sub_q": "J",
+        "rod_exceed": "YES",
+        "rod_drivers": "Hg, As",
+        "pmb_exceed": "YES",
+        "pmb_drivers": "Hg, As, Sb",
+        "profile": [
+          {
+            "depth": "0-0.5",
+            "sample_id": "ABWP01-01-SS-0-0.5",
+            "Hg": 450.0,
+            "Hg_q": "J",
+            "As": 9.5,
+            "As_q": "J-",
+            "Sb": 7.9,
+            "Sb_q": "J",
+            "Tl": 0.2,
+            "Tl_q": "J",
+            "date": "45151.473611"
+          },
+          {
+            "depth": "1-1.5",
+            "sample_id": "ABWP01-01-SB-1-1.5",
+            "Hg": 50.0,
+            "Hg_q": "J",
+            "As": 3.5,
+            "As_q": "J-",
+            "Sb": 1.1,
+            "Sb_q": "J",
+            "Tl": 0.2,
+            "Tl_q": "J",
+            "date": "45151.48125"
+          }
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.669340150299,
+          39.0075456088709
+        ]
+      },
+      "properties": {
+        "id": "ABWP01-02",
+        "source": "EA",
+        "round": "EA Historical",
+        "sampled": true,
+        "sample_date": "45150.571528",
+        "depth": "Surface + Subsurface",
+        "n_depths": 2,
+        "max_depth_ft": 1.0,
+        "Hg": 990.0,
+        "Hg_q": "",
+        "As": 45.0,
+        "As_q": "J",
+        "Sb": 88.0,
+        "Sb_q": "J-",
+        "Tl": 0.19,
+        "Tl_q": "J",
+        "Hg_sub": 580.0,
+        "Hg_sub_q": "",
+        "As_sub": 1.8,
+        "As_sub_q": "J",
+        "Sb_sub": 1.8,
+        "Sb_sub_q": "J-",
+        "Tl_sub": 0.17,
+        "Tl_sub_q": "J",
+        "rod_exceed": "YES",
+        "rod_drivers": "Hg, As, Sb",
+        "pmb_exceed": "YES",
+        "pmb_drivers": "Hg, As, Sb",
+        "profile": [
+          {
+            "depth": "0-0.5",
+            "sample_id": "ABWP01-02-SS-0-0.5",
+            "Hg": 990.0,
+            "Hg_q": "",
+            "As": 45.0,
+            "As_q": "J",
+            "Sb": 88.0,
+            "Sb_q": "J-",
+            "Tl": 0.19,
+            "Tl_q": "J",
+            "date": "45150.571528"
+          },
+          {
+            "depth": "1-1.5",
+            "sample_id": "ABWP01-02-SB-1-1.5",
+            "Hg": 580.0,
+            "Hg_q": "",
+            "As": 1.8,
+            "As_q": "J",
+            "Sb": 1.8,
+            "Sb_q": "J-",
+            "Tl": 0.17,
+            "Tl_q": "J",
+            "date": "45150.592361"
+          }
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.667932476644,
+          39.0075495799947
+        ]
+      },
+      "properties": {
+        "id": "ABWP01-03",
+        "source": "EA",
+        "round": "EA Historical",
+        "sampled": true,
+        "sample_date": "45151.375",
+        "depth": "Surface + Subsurface",
+        "n_depths": 2,
+        "max_depth_ft": 1.0,
+        "Hg": 21.0,
+        "Hg_q": "J",
+        "As": 2.7,
+        "As_q": "J-",
+        "Sb": 0.91,
+        "Sb_q": "UJ",
+        "Tl": 0.18,
+        "Tl_q": "J",
+        "Hg_sub": 12.0,
+        "Hg_sub_q": "J",
+        "As_sub": 2.0,
+        "As_sub_q": "J-",
+        "Sb_sub": 0.93,
+        "Sb_sub_q": "UJ",
+        "Tl_sub": 0.19,
+        "Tl_sub_q": "J",
+        "rod_exceed": "NO",
+        "rod_drivers": "",
+        "pmb_exceed": "YES",
+        "pmb_drivers": "Sb",
+        "profile": [
+          {
+            "depth": "0-0.5",
+            "sample_id": "ABWP01-03-SS-0-0.5",
+            "Hg": 21.0,
+            "Hg_q": "J",
+            "As": 2.7,
+            "As_q": "J-",
+            "Sb": 0.91,
+            "Sb_q": "UJ",
+            "Tl": 0.18,
+            "Tl_q": "J",
+            "date": "45151.375"
+          },
+          {
+            "depth": "1-1.5",
+            "sample_id": "ABWP01-03-SB-1-1.5",
+            "Hg": 12.0,
+            "Hg_q": "J",
+            "As": 2.0,
+            "As_q": "J-",
+            "Sb": 0.93,
+            "Sb_q": "UJ",
+            "Tl": 0.19,
+            "Tl_q": "J",
+            "date": "45151.385417"
+          }
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.667684592255,
+          39.0071453680858
+        ]
+      },
+      "properties": {
+        "id": "ABWP01-04",
+        "source": "EA",
+        "round": "EA Historical",
+        "sampled": true,
+        "sample_date": "45151.427083",
+        "depth": "Surface + Subsurface",
+        "n_depths": 2,
+        "max_depth_ft": 1.0,
+        "Hg": 550.0,
+        "Hg_q": "J",
+        "As": 4.1,
+        "As_q": "J-",
+        "Sb": 3.6,
+        "Sb_q": "J",
+        "Tl": 0.18,
+        "Tl_q": "J",
+        "Hg_sub": 670.0,
+        "Hg_sub_q": "J",
+        "As_sub": 4.0,
+        "As_sub_q": "J-",
+        "Sb_sub": 3.1,
+        "Sb_sub_q": "J",
+        "Tl_sub": 0.14,
+        "Tl_sub_q": "J",
+        "rod_exceed": "YES",
+        "rod_drivers": "Hg",
+        "pmb_exceed": "YES",
+        "pmb_drivers": "Hg, Sb",
+        "profile": [
+          {
+            "depth": "0-0.5",
+            "sample_id": "ABWP01-04-SS-0-0.5",
+            "Hg": 550.0,
+            "Hg_q": "J",
+            "As": 4.1,
+            "As_q": "J-",
+            "Sb": 3.6,
+            "Sb_q": "J",
+            "Tl": 0.18,
+            "Tl_q": "J",
+            "date": "45151.427083"
+          },
+          {
+            "depth": "1-1.5",
+            "sample_id": "ABWP01-04-SB-1-1.5",
+            "Hg": 670.0,
+            "Hg_q": "J",
+            "As": 4.0,
+            "As_q": "J-",
+            "Sb": 3.1,
+            "Sb_q": "J",
+            "Tl": 0.14,
+            "Tl_q": "J",
+            "date": "45151.441667"
+          }
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.669896404149,
+          39.0067396027714
+        ]
+      },
+      "properties": {
+        "id": "ABWP01-05",
+        "source": "EA",
+        "round": "EA Historical",
+        "sampled": true,
+        "sample_date": "45153.620139",
+        "depth": "Surface + Subsurface",
+        "n_depths": 2,
+        "max_depth_ft": 1.0,
+        "Hg": 18.0,
+        "Hg_q": "J",
+        "As": 2.1,
+        "As_q": "J",
+        "Sb": 0.93,
+        "Sb_q": "UJ",
+        "Tl": 0.17,
+        "Tl_q": "J",
+        "Hg_sub": 6.9,
+        "Hg_sub_q": "J",
+        "As_sub": 1.3,
+        "As_sub_q": "J",
+        "Sb_sub": 0.93,
+        "Sb_sub_q": "UJ",
+        "Tl_sub": 0.18,
+        "Tl_sub_q": "J",
+        "rod_exceed": "NO",
+        "rod_drivers": "",
+        "pmb_exceed": "YES",
+        "pmb_drivers": "Sb",
+        "profile": [
+          {
+            "depth": "0-0.5",
+            "sample_id": "ABWP01-05-SS-0-0.5",
+            "Hg": 18.0,
+            "Hg_q": "J",
+            "As": 2.1,
+            "As_q": "J",
+            "Sb": 0.93,
+            "Sb_q": "UJ",
+            "Tl": 0.17,
+            "Tl_q": "J",
+            "date": "45153.620139"
+          },
+          {
+            "depth": "1-1.5",
+            "sample_id": "ABWP01-05-SB-1-1.5",
+            "Hg": 6.9,
+            "Hg_q": "J",
+            "As": 1.3,
+            "As_q": "J",
+            "Sb": 0.93,
+            "Sb_q": "UJ",
+            "Tl": 0.18,
+            "Tl_q": "J",
+            "date": "45153.640972"
+          }
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.669274695302,
+          39.0069174799061
+        ]
+      },
+      "properties": {
+        "id": "ABWP01-06",
+        "source": "EA",
+        "round": "EA Historical",
+        "sampled": true,
+        "sample_date": "45150.464583",
+        "depth": "Surface + Subsurface",
+        "n_depths": 2,
+        "max_depth_ft": 1.0,
+        "Hg": 1100.0,
+        "Hg_q": "J",
+        "As": 1.4,
+        "As_q": "J-",
+        "Sb": 1.2,
+        "Sb_q": "UJ",
+        "Tl": 0.22,
+        "Tl_q": "J",
+        "Hg_sub": 12000.0,
+        "Hg_sub_q": "J",
+        "As_sub": 1.4,
+        "As_sub_q": "J-",
+        "Sb_sub": 0.96,
+        "Sb_sub_q": "UJ",
+        "Tl_sub": 0.25,
+        "Tl_sub_q": "J",
+        "rod_exceed": "YES",
+        "rod_drivers": "Hg",
+        "pmb_exceed": "YES",
+        "pmb_drivers": "Hg, Sb",
+        "profile": [
+          {
+            "depth": "0-0.5",
+            "sample_id": "ABWP01-06-SS-0-0.5",
+            "Hg": 1100.0,
+            "Hg_q": "J",
+            "As": 1.4,
+            "As_q": "J-",
+            "Sb": 1.2,
+            "Sb_q": "UJ",
+            "Tl": 0.22,
+            "Tl_q": "J",
+            "date": "45150.464583"
+          },
+          {
+            "depth": "1-1.5",
+            "sample_id": "ABWP01-06-SB-1-1.5",
+            "Hg": 12000.0,
+            "Hg_q": "J",
+            "As": 1.4,
+            "As_q": "J-",
+            "Sb": 0.96,
+            "Sb_q": "UJ",
+            "Tl": 0.25,
+            "Tl_q": "J",
+            "date": "45150.492361"
+          }
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.668870411799,
+          39.0067803811149
+        ]
+      },
+      "properties": {
+        "id": "ABWP01-07",
+        "source": "EA",
+        "round": "EA Historical",
+        "sampled": true,
+        "sample_date": "45150.377778",
+        "depth": "Surface + Subsurface",
+        "n_depths": 2,
+        "max_depth_ft": 1.0,
+        "Hg": 560.0,
+        "Hg_q": "J",
+        "As": 0.9,
+        "As_q": "J-",
+        "Sb": 1.1,
+        "Sb_q": "J",
+        "Tl": 0.17,
+        "Tl_q": "J",
+        "Hg_sub": 710.0,
+        "Hg_sub_q": "J",
+        "As_sub": 0.65,
+        "As_sub_q": "J-",
+        "Sb_sub": 0.95,
+        "Sb_sub_q": "UJ",
+        "Tl_sub": 0.22,
+        "Tl_sub_q": "J",
+        "rod_exceed": "YES",
+        "rod_drivers": "Hg",
+        "pmb_exceed": "YES",
+        "pmb_drivers": "Hg, Sb",
+        "profile": [
+          {
+            "depth": "0-0.5",
+            "sample_id": "ABWP01-07-SS-0-0.5",
+            "Hg": 560.0,
+            "Hg_q": "J",
+            "As": 0.9,
+            "As_q": "J-",
+            "Sb": 1.1,
+            "Sb_q": "J",
+            "Tl": 0.17,
+            "Tl_q": "J",
+            "date": "45150.377778"
+          },
+          {
+            "depth": "1-1.5",
+            "sample_id": "ABWP01-07-SB-1-1.5",
+            "Hg": 710.0,
+            "Hg_q": "J",
+            "As": 0.65,
+            "As_q": "J-",
+            "Sb": 0.95,
+            "Sb_q": "UJ",
+            "Tl": 0.22,
+            "Tl_q": "J",
+            "date": "45150.394444"
+          }
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.668532493722,
+          39.0068286657774
+        ]
+      },
+      "properties": {
+        "id": "ABWP01-08",
+        "source": "EA",
+        "round": "EA Historical",
+        "sampled": true,
+        "sample_date": "45149.635417",
+        "depth": "Surface + Subsurface",
+        "n_depths": 2,
+        "max_depth_ft": 1.0,
+        "Hg": 66.0,
+        "Hg_q": "J",
+        "As": 1.3,
+        "As_q": "J-",
+        "Sb": 0.89,
+        "Sb_q": "UJ",
+        "Tl": 0.14,
+        "Tl_q": "J",
+        "Hg_sub": 29.0,
+        "Hg_sub_q": "J",
+        "As_sub": 1.1,
+        "As_sub_q": "J-",
+        "Sb_sub": 0.97,
+        "Sb_sub_q": "UJ",
+        "Tl_sub": 0.1,
+        "Tl_sub_q": "J",
+        "rod_exceed": "NO",
+        "rod_drivers": "",
+        "pmb_exceed": "YES",
+        "pmb_drivers": "Hg, Sb",
+        "profile": [
+          {
+            "depth": "0-0.5",
+            "sample_id": "ABWP01-08-SS-0-0.5",
+            "Hg": 66.0,
+            "Hg_q": "J",
+            "As": 1.3,
+            "As_q": "J-",
+            "Sb": 0.89,
+            "Sb_q": "UJ",
+            "Tl": 0.14,
+            "Tl_q": "J",
+            "date": "45149.635417"
+          },
+          {
+            "depth": "1-1.5",
+            "sample_id": "ABWP01-08-SB-1-1.5",
+            "Hg": 29.0,
+            "Hg_q": "J",
+            "As": 1.1,
+            "As_q": "J-",
+            "Sb": 0.97,
+            "Sb_q": "UJ",
+            "Tl": 0.1,
+            "Tl_q": "J",
+            "date": "45149.645139"
+          }
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.670171560681,
+          39.006538404952
+        ]
+      },
+      "properties": {
+        "id": "ABWP01-09",
+        "source": "EA",
+        "round": "EA Historical",
+        "sampled": true,
+        "sample_date": "45153.580556",
+        "depth": "Surface + Subsurface",
+        "n_depths": 2,
+        "max_depth_ft": 1.0,
+        "Hg": 15.0,
+        "Hg_q": "J",
+        "As": 2.2,
+        "As_q": "J",
+        "Sb": 0.92,
+        "Sb_q": "UJ",
+        "Tl": 0.3,
+        "Tl_q": "J",
+        "Hg_sub": 13.0,
+        "Hg_sub_q": "J",
+        "As_sub": 2.0,
+        "As_sub_q": "J",
+        "Sb_sub": 1.3,
+        "Sb_sub_q": "UJ",
+        "Tl_sub": 0.3,
+        "Tl_sub_q": "J",
+        "rod_exceed": "NO",
+        "rod_drivers": "",
+        "pmb_exceed": "YES",
+        "pmb_drivers": "Sb",
+        "profile": [
+          {
+            "depth": "0-0.5",
+            "sample_id": "ABWP01-09-SS-0-0.5",
+            "Hg": 15.0,
+            "Hg_q": "J",
+            "As": 2.2,
+            "As_q": "J",
+            "Sb": 0.92,
+            "Sb_q": "UJ",
+            "Tl": 0.3,
+            "Tl_q": "J",
+            "date": "45153.580556"
+          },
+          {
+            "depth": "1-1.5",
+            "sample_id": "ABWP01-09-SB-1-1.5",
+            "Hg": 13.0,
+            "Hg_q": "J",
+            "As": 2.0,
+            "As_q": "J",
+            "Sb": 1.3,
+            "Sb_q": "UJ",
+            "Tl": 0.3,
+            "Tl_q": "J",
+            "date": "45153.593056"
+          }
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.669775496228,
+          39.0065895547403
+        ]
+      },
+      "properties": {
+        "id": "ABWP01-10",
+        "source": "EA",
+        "round": "EA Historical",
+        "sampled": true,
+        "sample_date": "45153.527778",
+        "depth": "Surface + Subsurface",
+        "n_depths": 2,
+        "max_depth_ft": 1.0,
+        "Hg": 42.0,
+        "Hg_q": "J",
+        "As": 5.2,
+        "As_q": "J-",
+        "Sb": 11.0,
+        "Sb_q": "",
+        "Tl": 0.21,
+        "Tl_q": "J",
+        "Hg_sub": 15.0,
+        "Hg_sub_q": "J",
+        "As_sub": 2.3,
+        "As_sub_q": "J-",
+        "Sb_sub": 2.1,
+        "Sb_sub_q": "J+",
+        "Tl_sub": 0.24,
+        "Tl_sub_q": "J",
+        "rod_exceed": "NO",
+        "rod_drivers": "",
+        "pmb_exceed": "YES",
+        "pmb_drivers": "Sb",
+        "profile": [
+          {
+            "depth": "0-0.5",
+            "sample_id": "ABWP01-10-SS-0-0.5",
+            "Hg": 42.0,
+            "Hg_q": "J",
+            "As": 5.2,
+            "As_q": "J-",
+            "Sb": 11.0,
+            "Sb_q": "",
+            "Tl": 0.21,
+            "Tl_q": "J",
+            "date": "45153.527778"
+          },
+          {
+            "depth": "1-1.5",
+            "sample_id": "ABWP01-10-SB-1-1.5",
+            "Hg": 15.0,
+            "Hg_q": "J",
+            "As": 2.3,
+            "As_q": "J-",
+            "Sb": 2.1,
+            "Sb_q": "J+",
+            "Tl": 0.24,
+            "Tl_q": "J",
+            "date": "45153.549306"
+          }
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.669224265643,
+          39.0064832859138
+        ]
+      },
+      "properties": {
+        "id": "ABWP01-11",
+        "source": "EA",
+        "round": "EA Historical",
+        "sampled": true,
+        "sample_date": "45150.420833",
+        "depth": "Surface + Subsurface",
+        "n_depths": 2,
+        "max_depth_ft": 1.0,
+        "Hg": 700.0,
+        "Hg_q": "J",
+        "As": 1.7,
+        "As_q": "J-",
+        "Sb": 0.92,
+        "Sb_q": "UJ",
+        "Tl": 0.27,
+        "Tl_q": "J",
+        "Hg_sub": 1300.0,
+        "Hg_sub_q": "J",
+        "As_sub": 1.3,
+        "As_sub_q": "J-",
+        "Sb_sub": 0.92,
+        "Sb_sub_q": "UJ",
+        "Tl_sub": 0.26,
+        "Tl_sub_q": "J",
+        "rod_exceed": "YES",
+        "rod_drivers": "Hg",
+        "pmb_exceed": "YES",
+        "pmb_drivers": "Hg, Sb",
+        "profile": [
+          {
+            "depth": "0-0.5",
+            "sample_id": "ABWP01-11-SS-0-0.5",
+            "Hg": 700.0,
+            "Hg_q": "J",
+            "As": 1.7,
+            "As_q": "J-",
+            "Sb": 0.92,
+            "Sb_q": "UJ",
+            "Tl": 0.27,
+            "Tl_q": "J",
+            "date": "45150.420833"
+          },
+          {
+            "depth": "1-1.5",
+            "sample_id": "ABWP01-11-SB-1-1.5",
+            "Hg": 1300.0,
+            "Hg_q": "J",
+            "As": 1.3,
+            "As_q": "J-",
+            "Sb": 0.92,
+            "Sb_q": "UJ",
+            "Tl": 0.26,
+            "Tl_q": "J",
+            "date": "45150.434028"
+          }
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.668430402273,
+          39.0066591809989
+        ]
+      },
+      "properties": {
+        "id": "ABWP01-12",
+        "source": "EA",
+        "round": "EA Historical",
+        "sampled": true,
+        "sample_date": "45149.604861",
+        "depth": "Surface + Subsurface",
+        "n_depths": 2,
+        "max_depth_ft": 1.0,
+        "Hg": 67.0,
+        "Hg_q": "",
+        "As": 0.84,
+        "As_q": "J-",
+        "Sb": 1.4,
+        "Sb_q": "J-",
+        "Tl": 0.062,
+        "Tl_q": "J",
+        "Hg_sub": 51.0,
+        "Hg_sub_q": "",
+        "As_sub": 0.55,
+        "As_sub_q": "J",
+        "Sb_sub": 1.2,
+        "Sb_sub_q": "J",
+        "Tl_sub": 0.077,
+        "Tl_sub_q": "J",
+        "rod_exceed": "NO",
+        "rod_drivers": "",
+        "pmb_exceed": "YES",
+        "pmb_drivers": "Hg, Sb",
+        "profile": [
+          {
+            "depth": "0-0.5",
+            "sample_id": "ABWP01-12-SS-0-0.5",
+            "Hg": 67.0,
+            "Hg_q": "",
+            "As": 0.84,
+            "As_q": "J-",
+            "Sb": 1.4,
+            "Sb_q": "J-",
+            "Tl": 0.062,
+            "Tl_q": "J",
+            "date": "45149.604861"
+          },
+          {
+            "depth": "1-1.5",
+            "sample_id": "ABWP01-12-SB-1-1.5",
+            "Hg": 51.0,
+            "Hg_q": "",
+            "As": 0.55,
+            "As_q": "J",
+            "Sb": 1.2,
+            "Sb_q": "J",
+            "Tl": 0.077,
+            "Tl_q": "J",
+            "date": "45149.618056"
+          }
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.670177754725,
+          39.0061396268048
+        ]
+      },
+      "properties": {
+        "id": "ABWP01-13",
+        "source": "EA",
+        "round": "EA Historical",
+        "sampled": true,
+        "sample_date": "45154.404167",
+        "depth": "Surface + Subsurface",
+        "n_depths": 2,
+        "max_depth_ft": 1.0,
+        "Hg": 18.0,
+        "Hg_q": "J",
+        "As": 1.7,
+        "As_q": "J-",
+        "Sb": 1.1,
+        "Sb_q": "U",
+        "Tl": 0.29,
+        "Tl_q": "J",
+        "Hg_sub": 9.2,
+        "Hg_sub_q": "J",
+        "As_sub": 1.4,
+        "As_sub_q": "J-",
+        "Sb_sub": 1.4,
+        "Sb_sub_q": "U",
+        "Tl_sub": 0.25,
+        "Tl_sub_q": "J",
+        "rod_exceed": "NO",
+        "rod_drivers": "",
+        "pmb_exceed": "YES",
+        "pmb_drivers": "Sb",
+        "profile": [
+          {
+            "depth": "0-0.5",
+            "sample_id": "ABWP01-13-SS-0-0.5",
+            "Hg": 18.0,
+            "Hg_q": "J",
+            "As": 1.7,
+            "As_q": "J-",
+            "Sb": 1.1,
+            "Sb_q": "U",
+            "Tl": 0.29,
+            "Tl_q": "J",
+            "date": "45154.404167"
+          },
+          {
+            "depth": "1-1.5",
+            "sample_id": "ABWP01-13-SB-1-1.5",
+            "Hg": 9.2,
+            "Hg_q": "J",
+            "As": 1.4,
+            "As_q": "J-",
+            "Sb": 1.4,
+            "Sb_q": "U",
+            "Tl": 0.25,
+            "Tl_q": "J",
+            "date": "45154.420833"
+          }
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.669290027868,
+          39.0062347170494
+        ]
+      },
+      "properties": {
+        "id": "ABWP01-14",
+        "source": "EA",
+        "round": "EA Historical",
+        "sampled": true,
+        "sample_date": "45149.402778",
+        "depth": "Surface + Subsurface",
+        "n_depths": 2,
+        "max_depth_ft": 1.0,
+        "Hg": 73.0,
+        "Hg_q": "J",
+        "As": 2.0,
+        "As_q": "J-",
+        "Sb": 0.93,
+        "Sb_q": "UJ",
+        "Tl": 0.19,
+        "Tl_q": "J",
+        "Hg_sub": 55.0,
+        "Hg_sub_q": "J",
+        "As_sub": 1.3,
+        "As_sub_q": "J-",
+        "Sb_sub": 0.97,
+        "Sb_sub_q": "UJ",
+        "Tl_sub": 0.16,
+        "Tl_sub_q": "J",
+        "rod_exceed": "NO",
+        "rod_drivers": "",
+        "pmb_exceed": "YES",
+        "pmb_drivers": "Hg, Sb",
+        "profile": [
+          {
+            "depth": "0-0.5",
+            "sample_id": "ABWP01-14-SS-0-0.5",
+            "Hg": 73.0,
+            "Hg_q": "J",
+            "As": 2.0,
+            "As_q": "J-",
+            "Sb": 0.93,
+            "Sb_q": "UJ",
+            "Tl": 0.19,
+            "Tl_q": "J",
+            "date": "45149.402778"
+          },
+          {
+            "depth": "1-1.5",
+            "sample_id": "ABWP01-14-SB-1-1.5",
+            "Hg": 55.0,
+            "Hg_q": "J",
+            "As": 1.3,
+            "As_q": "J-",
+            "Sb": 0.97,
+            "Sb_q": "UJ",
+            "Tl": 0.16,
+            "Tl_q": "J",
+            "date": "45149.41875"
+          }
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.669012462979,
+          39.0062378287727
+        ]
+      },
+      "properties": {
+        "id": "ABWP01-15",
+        "source": "EA",
+        "round": "EA Historical",
+        "sampled": true,
+        "sample_date": "45149.481944",
+        "depth": "Surface + Subsurface",
+        "n_depths": 2,
+        "max_depth_ft": 1.0,
+        "Hg": 180.0,
+        "Hg_q": "",
+        "As": 1.2,
+        "As_q": "J-",
+        "Sb": 1.0,
+        "Sb_q": "J",
+        "Tl": 0.13,
+        "Tl_q": "J",
+        "Hg_sub": 210.0,
+        "Hg_sub_q": "",
+        "As_sub": 1.3,
+        "As_sub_q": "J-",
+        "Sb_sub": 1.1,
+        "Sb_sub_q": "J",
+        "Tl_sub": 0.14,
+        "Tl_sub_q": "J",
+        "rod_exceed": "NO",
+        "rod_drivers": "",
+        "pmb_exceed": "YES",
+        "pmb_drivers": "Hg, Sb",
+        "profile": [
+          {
+            "depth": "0-0.5",
+            "sample_id": "ABWP01-15-SS-0-0.5",
+            "Hg": 180.0,
+            "Hg_q": "",
+            "As": 1.2,
+            "As_q": "J-",
+            "Sb": 1.0,
+            "Sb_q": "J",
+            "Tl": 0.13,
+            "Tl_q": "J",
+            "date": "45149.481944"
+          },
+          {
+            "depth": "1-1.5",
+            "sample_id": "ABWP01-15-SB-1-1.5",
+            "Hg": 210.0,
+            "Hg_q": "",
+            "As": 1.3,
+            "As_q": "J-",
+            "Sb": 1.1,
+            "Sb_q": "J",
+            "Tl": 0.14,
+            "Tl_q": "J",
+            "date": "45149.491667"
+          }
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.668588508445,
+          39.0062118225611
+        ]
+      },
+      "properties": {
+        "id": "ABWP01-16",
+        "source": "EA",
+        "round": "EA Historical",
+        "sampled": true,
+        "sample_date": "45149.571528",
+        "depth": "Surface + Subsurface",
+        "n_depths": 2,
+        "max_depth_ft": 1.0,
+        "Hg": 79.0,
+        "Hg_q": "J",
+        "As": 0.7,
+        "As_q": "J-",
+        "Sb": 1.2,
+        "Sb_q": "J-",
+        "Tl": 0.14,
+        "Tl_q": "J",
+        "Hg_sub": 130.0,
+        "Hg_sub_q": "J",
+        "As_sub": 0.55,
+        "As_sub_q": "J",
+        "Sb_sub": 1.1,
+        "Sb_sub_q": "UJ",
+        "Tl_sub": 0.21,
+        "Tl_sub_q": "J",
+        "rod_exceed": "NO",
+        "rod_drivers": "",
+        "pmb_exceed": "YES",
+        "pmb_drivers": "Hg, Sb",
+        "profile": [
+          {
+            "depth": "0-0.5",
+            "sample_id": "ABWP01-16-SS-0-0.5",
+            "Hg": 79.0,
+            "Hg_q": "J",
+            "As": 0.7,
+            "As_q": "J-",
+            "Sb": 1.2,
+            "Sb_q": "J-",
+            "Tl": 0.14,
+            "Tl_q": "J",
+            "date": "45149.571528"
+          },
+          {
+            "depth": "1-1.5",
+            "sample_id": "ABWP01-16-SB-1-1.5",
+            "Hg": 130.0,
+            "Hg_q": "J",
+            "As": 0.55,
+            "As_q": "J",
+            "Sb": 1.1,
+            "Sb_q": "UJ",
+            "Tl": 0.21,
+            "Tl_q": "J",
+            "date": "45149.579861"
+          }
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.670965598196,
+          39.0058718408512
+        ]
+      },
+      "properties": {
+        "id": "ABWP01-17",
+        "source": "EA",
+        "round": "EA Historical",
+        "sampled": true,
+        "sample_date": "45153.445139",
+        "depth": "Surface + Subsurface",
+        "n_depths": 2,
+        "max_depth_ft": 1.0,
+        "Hg": 13.0,
+        "Hg_q": "J",
+        "As": 1.6,
+        "As_q": "J-",
+        "Sb": 1.1,
+        "Sb_q": "UJ",
+        "Tl": 0.37,
+        "Tl_q": "J",
+        "Hg_sub": 10.0,
+        "Hg_sub_q": "J",
+        "As_sub": 1.4,
+        "As_sub_q": "J-",
+        "Sb_sub": 1.2,
+        "Sb_sub_q": "UJ",
+        "Tl_sub": 0.4,
+        "Tl_sub_q": "J",
+        "rod_exceed": "NO",
+        "rod_drivers": "",
+        "pmb_exceed": "YES",
+        "pmb_drivers": "Sb",
+        "profile": [
+          {
+            "depth": "0-0.5",
+            "sample_id": "ABWP01-17-SS-0-0.5",
+            "Hg": 13.0,
+            "Hg_q": "J",
+            "As": 1.6,
+            "As_q": "J-",
+            "Sb": 1.1,
+            "Sb_q": "UJ",
+            "Tl": 0.37,
+            "Tl_q": "J",
+            "date": "45153.445139"
+          },
+          {
+            "depth": "1-1.5",
+            "sample_id": "ABWP01-17-SB-1-1.5",
+            "Hg": 10.0,
+            "Hg_q": "J",
+            "As": 1.4,
+            "As_q": "J-",
+            "Sb": 1.2,
+            "Sb_q": "UJ",
+            "Tl": 0.4,
+            "Tl_q": "J",
+            "date": "45153.455556"
+          }
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.670407761354,
+          39.0059419214144
+        ]
+      },
+      "properties": {
+        "id": "ABWP01-18",
+        "source": "EA",
+        "round": "EA Historical",
+        "sampled": true,
+        "sample_date": "45153.410417",
+        "depth": "Surface + Subsurface",
+        "n_depths": 2,
+        "max_depth_ft": 1.0,
+        "Hg": 15.0,
+        "Hg_q": "J",
+        "As": 1.9,
+        "As_q": "J-",
+        "Sb": 1.1,
+        "Sb_q": "UJ",
+        "Tl": 0.21,
+        "Tl_q": "J",
+        "Hg_sub": 7.4,
+        "Hg_sub_q": "J",
+        "As_sub": 1.2,
+        "As_sub_q": "J-",
+        "Sb_sub": 1.1,
+        "Sb_sub_q": "UJ",
+        "Tl_sub": 0.2,
+        "Tl_sub_q": "J",
+        "rod_exceed": "NO",
+        "rod_drivers": "",
+        "pmb_exceed": "YES",
+        "pmb_drivers": "Sb",
+        "profile": [
+          {
+            "depth": "0-0.5",
+            "sample_id": "ABWP01-18-SS-0-0.5",
+            "Hg": 15.0,
+            "Hg_q": "J",
+            "As": 1.9,
+            "As_q": "J-",
+            "Sb": 1.1,
+            "Sb_q": "UJ",
+            "Tl": 0.21,
+            "Tl_q": "J",
+            "date": "45153.410417"
+          },
+          {
+            "depth": "1-1.5",
+            "sample_id": "ABWP01-18-SB-1-1.5",
+            "Hg": 7.4,
+            "Hg_q": "J",
+            "As": 1.2,
+            "As_q": "J-",
+            "Sb": 1.1,
+            "Sb_q": "UJ",
+            "Tl": 0.2,
+            "Tl_q": "J",
+            "date": "45153.421528"
+          }
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.669340630634,
+          39.0059954286826
+        ]
+      },
+      "properties": {
+        "id": "ABWP01-19",
+        "source": "EA",
+        "round": "EA Historical",
+        "sampled": true,
+        "sample_date": "45149.445139",
+        "depth": "Surface + Subsurface",
+        "n_depths": 2,
+        "max_depth_ft": 1.0,
+        "Hg": 190.0,
+        "Hg_q": "J",
+        "As": 2.5,
+        "As_q": "J-",
+        "Sb": 3.3,
+        "Sb_q": "J-",
+        "Tl": 0.25,
+        "Tl_q": "J",
+        "Hg_sub": 60.0,
+        "Hg_sub_q": "J",
+        "As_sub": 2.2,
+        "As_sub_q": "J-",
+        "Sb_sub": 1.1,
+        "Sb_sub_q": "UJ",
+        "Tl_sub": 0.34,
+        "Tl_sub_q": "J",
+        "rod_exceed": "NO",
+        "rod_drivers": "",
+        "pmb_exceed": "YES",
+        "pmb_drivers": "Hg, Sb",
+        "profile": [
+          {
+            "depth": "0-0.5",
+            "sample_id": "ABWP01-19-SS-0-0.5",
+            "Hg": 190.0,
+            "Hg_q": "J",
+            "As": 2.5,
+            "As_q": "J-",
+            "Sb": 3.3,
+            "Sb_q": "J-",
+            "Tl": 0.25,
+            "Tl_q": "J",
+            "date": "45149.445139"
+          },
+          {
+            "depth": "1-1.5",
+            "sample_id": "ABWP01-19-SB-1-1.5",
+            "Hg": 60.0,
+            "Hg_q": "J",
+            "As": 2.2,
+            "As_q": "J-",
+            "Sb": 1.1,
+            "Sb_q": "UJ",
+            "Tl": 0.34,
+            "Tl_q": "J",
+            "date": "45149.456944"
+          }
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.668695106182,
+          39.0058541335874
+        ]
+      },
+      "properties": {
+        "id": "ABWP01-20",
+        "source": "EA",
+        "round": "EA Historical",
+        "sampled": true,
+        "sample_date": "45148.623611",
+        "depth": "Surface + Subsurface",
+        "n_depths": 2,
+        "max_depth_ft": 1.0,
+        "Hg": 860.0,
+        "Hg_q": "J",
+        "As": 1.6,
+        "As_q": "J-",
+        "Sb": 1.2,
+        "Sb_q": "J-",
+        "Tl": 0.16,
+        "Tl_q": "J",
+        "Hg_sub": 150.0,
+        "Hg_sub_q": "J",
+        "As_sub": 0.98,
+        "As_sub_q": "J-",
+        "Sb_sub": 1.1,
+        "Sb_sub_q": "UJ",
+        "Tl_sub": 0.1,
+        "Tl_sub_q": "J",
+        "rod_exceed": "YES",
+        "rod_drivers": "Hg",
+        "pmb_exceed": "YES",
+        "pmb_drivers": "Hg, Sb",
+        "profile": [
+          {
+            "depth": "0-0.5",
+            "sample_id": "ABWP01-20-SS-0-0.5",
+            "Hg": 860.0,
+            "Hg_q": "J",
+            "As": 1.6,
+            "As_q": "J-",
+            "Sb": 1.2,
+            "Sb_q": "J-",
+            "Tl": 0.16,
+            "Tl_q": "J",
+            "date": "45148.623611"
+          },
+          {
+            "depth": "1-1.5",
+            "sample_id": "ABWP01-20-SB-1-1.5",
+            "Hg": 150.0,
+            "Hg_q": "J",
+            "As": 0.98,
+            "As_q": "J-",
+            "Sb": 1.1,
+            "Sb_q": "UJ",
+            "Tl": 0.1,
+            "Tl_q": "J",
+            "date": "45148.633333"
+          }
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.668496175238,
+          39.0058248250639
+        ]
+      },
+      "properties": {
+        "id": "ABWP01-21",
+        "source": "EA",
+        "round": "EA Historical",
+        "sampled": true,
+        "sample_date": "45148.652778",
+        "depth": "Surface + Subsurface",
+        "n_depths": 2,
+        "max_depth_ft": 1.0,
+        "Hg": 250.0,
+        "Hg_q": "J",
+        "As": 0.75,
+        "As_q": "J-",
+        "Sb": 1.7,
+        "Sb_q": "J-",
+        "Tl": 0.086,
+        "Tl_q": "J",
+        "Hg_sub": 43.0,
+        "Hg_sub_q": "J",
+        "As_sub": 0.55,
+        "As_sub_q": "J",
+        "Sb_sub": 1.1,
+        "Sb_sub_q": "UJ",
+        "Tl_sub": 0.1,
+        "Tl_sub_q": "J",
+        "rod_exceed": "YES",
+        "rod_drivers": "Hg",
+        "pmb_exceed": "YES",
+        "pmb_drivers": "Hg, Sb",
+        "profile": [
+          {
+            "depth": "0-0.5",
+            "sample_id": "ABWP01-21-SS-0-0.5",
+            "Hg": 250.0,
+            "Hg_q": "J",
+            "As": 0.75,
+            "As_q": "J-",
+            "Sb": 1.7,
+            "Sb_q": "J-",
+            "Tl": 0.086,
+            "Tl_q": "J",
+            "date": "45148.652778"
+          },
+          {
+            "depth": "1-1.5",
+            "sample_id": "ABWP01-21-SB-1-1.5",
+            "Hg": 43.0,
+            "Hg_q": "J",
+            "As": 0.55,
+            "As_q": "J",
+            "Sb": 1.1,
+            "Sb_q": "UJ",
+            "Tl": 0.1,
+            "Tl_q": "J",
+            "date": "45148.660417"
+          }
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.671290869564,
+          39.0055402580581
+        ]
+      },
+      "properties": {
+        "id": "ABWP01-22",
+        "source": "EA",
+        "round": "EA Historical",
+        "sampled": true,
+        "sample_date": "45154.45625",
+        "depth": "Surface + Subsurface",
+        "n_depths": 2,
+        "max_depth_ft": 1.0,
+        "Hg": 12.0,
+        "Hg_q": "J",
+        "As": 2.3,
+        "As_q": "J-",
+        "Sb": 1.2,
+        "Sb_q": "U",
+        "Tl": 0.2,
+        "Tl_q": "J",
+        "Hg_sub": 10.0,
+        "Hg_sub_q": "J",
+        "As_sub": 2.2,
+        "As_sub_q": "J-",
+        "Sb_sub": 1.5,
+        "Sb_sub_q": "U",
+        "Tl_sub": 0.23,
+        "Tl_sub_q": "J",
+        "rod_exceed": "NO",
+        "rod_drivers": "",
+        "pmb_exceed": "YES",
+        "pmb_drivers": "Sb",
+        "profile": [
+          {
+            "depth": "0-0.5",
+            "sample_id": "ABWP01-22-SS-0-0.5",
+            "Hg": 12.0,
+            "Hg_q": "J",
+            "As": 2.3,
+            "As_q": "J-",
+            "Sb": 1.2,
+            "Sb_q": "U",
+            "Tl": 0.2,
+            "Tl_q": "J",
+            "date": "45154.45625"
+          },
+          {
+            "depth": "1-1.5",
+            "sample_id": "ABWP01-22-SB-1-1.5",
+            "Hg": 10.0,
+            "Hg_q": "J",
+            "As": 2.2,
+            "As_q": "J-",
+            "Sb": 1.5,
+            "Sb_q": "U",
+            "Tl": 0.23,
+            "Tl_q": "J",
+            "date": "45154.467361"
+          }
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.670547928259,
+          39.0054243555602
+        ]
+      },
+      "properties": {
+        "id": "ABWP01-23",
+        "source": "EA",
+        "round": "EA Historical",
+        "sampled": true,
+        "sample_date": "45153.363194",
+        "depth": "Surface + Subsurface",
+        "n_depths": 2,
+        "max_depth_ft": 1.0,
+        "Hg": 130.0,
+        "Hg_q": "J",
+        "As": 25.0,
+        "As_q": "",
+        "Sb": 19.0,
+        "Sb_q": "J-",
+        "Tl": 0.069,
+        "Tl_q": "J",
+        "Hg_sub": 19.0,
+        "Hg_sub_q": "J",
+        "As_sub": 2.9,
+        "As_sub_q": "",
+        "Sb_sub": 4.0,
+        "Sb_sub_q": "J-",
+        "Tl_sub": 0.58,
+        "Tl_sub_q": "U",
+        "rod_exceed": "YES",
+        "rod_drivers": "As",
+        "pmb_exceed": "YES",
+        "pmb_drivers": "Hg, As, Sb",
+        "profile": [
+          {
+            "depth": "0-0.5",
+            "sample_id": "ABWP01-23-SS-0-0.5",
+            "Hg": 130.0,
+            "Hg_q": "J",
+            "As": 25.0,
+            "As_q": "",
+            "Sb": 19.0,
+            "Sb_q": "J-",
+            "Tl": 0.069,
+            "Tl_q": "J",
+            "date": "45153.363194"
+          },
+          {
+            "depth": "1-1.5",
+            "sample_id": "ABWP01-23-SB-1-1.5",
+            "Hg": 19.0,
+            "Hg_q": "J",
+            "As": 2.9,
+            "As_q": "",
+            "Sb": 4.0,
+            "Sb_q": "J-",
+            "Tl": 0.58,
+            "Tl_q": "U",
+            "date": "45153.369444"
+          }
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.670263878377,
+          39.0055518788096
+        ]
+      },
+      "properties": {
+        "id": "ABWP01-24",
+        "source": "EA",
+        "round": "EA Historical",
+        "sampled": true,
+        "sample_date": "45154.361111",
+        "depth": "Surface + Subsurface",
+        "n_depths": 2,
+        "max_depth_ft": 1.0,
+        "Hg": 150.0,
+        "Hg_q": "J",
+        "As": 6.2,
+        "As_q": "J",
+        "Sb": 7.7,
+        "Sb_q": "J",
+        "Tl": 0.15,
+        "Tl_q": "J",
+        "Hg_sub": 64.0,
+        "Hg_sub_q": "J",
+        "As_sub": 3.4,
+        "As_sub_q": "J",
+        "Sb_sub": 2.5,
+        "Sb_sub_q": "J",
+        "Tl_sub": 0.13,
+        "Tl_sub_q": "J",
+        "rod_exceed": "YES",
+        "rod_drivers": "As",
+        "pmb_exceed": "YES",
+        "pmb_drivers": "Hg, As, Sb",
+        "profile": [
+          {
+            "depth": "0-0.5",
+            "sample_id": "ABWP01-24-SS-0-0.5",
+            "Hg": 150.0,
+            "Hg_q": "J",
+            "As": 6.2,
+            "As_q": "J",
+            "Sb": 7.7,
+            "Sb_q": "J",
+            "Tl": 0.15,
+            "Tl_q": "J",
+            "date": "45154.361111"
+          },
+          {
+            "depth": "1-1.5",
+            "sample_id": "ABWP01-24-SB-1-1.5",
+            "Hg": 64.0,
+            "Hg_q": "J",
+            "As": 3.4,
+            "As_q": "J",
+            "Sb": 2.5,
+            "Sb_q": "J",
+            "Tl": 0.13,
+            "Tl_q": "J",
+            "date": "45154.370833"
+          }
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.66874609639,
+          39.0055503370111
+        ]
+      },
+      "properties": {
+        "id": "ABWP01-26",
+        "source": "EA",
+        "round": "EA Historical",
+        "sampled": true,
+        "sample_date": "45148.592361",
+        "depth": "Surface + Subsurface",
+        "n_depths": 2,
+        "max_depth_ft": 1.0,
+        "Hg": 1900.0,
+        "Hg_q": "",
+        "As": 1.8,
+        "As_q": "J-",
+        "Sb": 2.4,
+        "Sb_q": "J-",
+        "Tl": 0.1,
+        "Tl_q": "J",
+        "Hg_sub": 310.0,
+        "Hg_sub_q": "",
+        "As_sub": 0.89,
+        "As_sub_q": "J-",
+        "Sb_sub": 1.1,
+        "Sb_sub_q": "J",
+        "Tl_sub": 0.11,
+        "Tl_sub_q": "J",
+        "rod_exceed": "YES",
+        "rod_drivers": "Hg",
+        "pmb_exceed": "YES",
+        "pmb_drivers": "Hg, Sb",
+        "profile": [
+          {
+            "depth": "0-0.5",
+            "sample_id": "ABWP01-26-SS-0-0.5",
+            "Hg": 1900.0,
+            "Hg_q": "",
+            "As": 1.8,
+            "As_q": "J-",
+            "Sb": 2.4,
+            "Sb_q": "J-",
+            "Tl": 0.1,
+            "Tl_q": "J",
+            "date": "45148.592361"
+          },
+          {
+            "depth": "1-1.5",
+            "sample_id": "ABWP01-26-SB-1-1.5",
+            "Hg": 310.0,
+            "Hg_q": "",
+            "As": 0.89,
+            "As_q": "J-",
+            "Sb": 1.1,
+            "Sb_q": "J",
+            "Tl": 0.11,
+            "Tl_q": "J",
+            "date": "45148.602778"
+          }
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.668846236967,
+          39.0051611876408
+        ]
+      },
+      "properties": {
+        "id": "ABWP01-27",
+        "source": "EA",
+        "round": "EA Historical",
+        "sampled": true,
+        "sample_date": "45147.706944",
+        "depth": "Surface + Subsurface",
+        "n_depths": 2,
+        "max_depth_ft": 1.0,
+        "Hg": 300.0,
+        "Hg_q": "J",
+        "As": 2.4,
+        "As_q": "J-",
+        "Sb": 2.1,
+        "Sb_q": "J-",
+        "Tl": 0.13,
+        "Tl_q": "J",
+        "Hg_sub": 84.0,
+        "Hg_sub_q": "J",
+        "As_sub": 1.6,
+        "As_sub_q": "J-",
+        "Sb_sub": 1.2,
+        "Sb_sub_q": "UJ",
+        "Tl_sub": 0.13,
+        "Tl_sub_q": "J",
+        "rod_exceed": "YES",
+        "rod_drivers": "Hg",
+        "pmb_exceed": "YES",
+        "pmb_drivers": "Hg, Sb",
+        "profile": [
+          {
+            "depth": "0-0.5",
+            "sample_id": "ABWP01-27-SS-0-0.5",
+            "Hg": 300.0,
+            "Hg_q": "J",
+            "As": 2.4,
+            "As_q": "J-",
+            "Sb": 2.1,
+            "Sb_q": "J-",
+            "Tl": 0.13,
+            "Tl_q": "J",
+            "date": "45147.706944"
+          },
+          {
+            "depth": "1-1.5",
+            "sample_id": "ABWP01-27-SB-1-1.5",
+            "Hg": 84.0,
+            "Hg_q": "J",
+            "As": 1.6,
+            "As_q": "J-",
+            "Sb": 1.2,
+            "Sb_q": "UJ",
+            "Tl": 0.13,
+            "Tl_q": "J",
+            "date": "45147.723611"
+          }
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.668059897701,
+          39.0050616739102
+        ]
+      },
+      "properties": {
+        "id": "ABWP01-28",
+        "source": "EA",
+        "round": "EA Historical",
+        "sampled": true,
+        "sample_date": "45148.497222",
+        "depth": "Surface + Subsurface",
+        "n_depths": 2,
+        "max_depth_ft": 1.0,
+        "Hg": 1000.0,
+        "Hg_q": "J",
+        "As": 17.0,
+        "As_q": "J-",
+        "Sb": 28.0,
+        "Sb_q": "J-",
+        "Tl": 0.38,
+        "Tl_q": "J",
+        "Hg_sub": 270.0,
+        "Hg_sub_q": "J",
+        "As_sub": 4.3,
+        "As_sub_q": "J-",
+        "Sb_sub": 3.5,
+        "Sb_sub_q": "J-",
+        "Tl_sub": 0.19,
+        "Tl_sub_q": "J",
+        "rod_exceed": "YES",
+        "rod_drivers": "Hg, As",
+        "pmb_exceed": "YES",
+        "pmb_drivers": "Hg, As, Sb",
+        "profile": [
+          {
+            "depth": "0-0.5",
+            "sample_id": "ABWP01-28-SS-0-0.5",
+            "Hg": 1000.0,
+            "Hg_q": "J",
+            "As": 17.0,
+            "As_q": "J-",
+            "Sb": 28.0,
+            "Sb_q": "J-",
+            "Tl": 0.38,
+            "Tl_q": "J",
+            "date": "45148.497222"
+          },
+          {
+            "depth": "1-1.5",
+            "sample_id": "ABWP01-28-SB-1-1.5",
+            "Hg": 270.0,
+            "Hg_q": "J",
+            "As": 4.3,
+            "As_q": "J-",
+            "Sb": 3.5,
+            "Sb_q": "J-",
+            "Tl": 0.19,
+            "Tl_q": "J",
+            "date": "45148.513194"
+          }
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.668524170383,
+          39.0049314082585
+        ]
+      },
+      "properties": {
+        "id": "ABWP01-29",
+        "source": "EA",
+        "round": "EA Historical",
+        "sampled": true,
+        "sample_date": "45148.409722",
+        "depth": "Surface + Subsurface",
+        "n_depths": 2,
+        "max_depth_ft": 1.0,
+        "Hg": 180.0,
+        "Hg_q": "",
+        "As": 3.7,
+        "As_q": "J-",
+        "Sb": 1.7,
+        "Sb_q": "J-",
+        "Tl": 0.22,
+        "Tl_q": "J",
+        "Hg_sub": 100.0,
+        "Hg_sub_q": "",
+        "As_sub": 3.0,
+        "As_sub_q": "J-",
+        "Sb_sub": 1.0,
+        "Sb_sub_q": "J",
+        "Tl_sub": 0.2,
+        "Tl_sub_q": "J",
+        "rod_exceed": "NO",
+        "rod_drivers": "",
+        "pmb_exceed": "YES",
+        "pmb_drivers": "Hg, Sb",
+        "profile": [
+          {
+            "depth": "0-0.5",
+            "sample_id": "ABWP01-29-SS-0-0.5",
+            "Hg": 180.0,
+            "Hg_q": "",
+            "As": 3.7,
+            "As_q": "J-",
+            "Sb": 1.7,
+            "Sb_q": "J-",
+            "Tl": 0.22,
+            "Tl_q": "J",
+            "date": "45148.409722"
+          },
+          {
+            "depth": "1-1.5",
+            "sample_id": "ABWP01-29-SB-1-1.5",
+            "Hg": 100.0,
+            "Hg_q": "",
+            "As": 3.0,
+            "As_q": "J-",
+            "Sb": 1.0,
+            "Sb_q": "J",
+            "Tl": 0.2,
+            "Tl_q": "J",
+            "date": "45148.427083"
+          }
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.668295662275,
+          39.0046218961845
+        ]
+      },
+      "properties": {
+        "id": "ABWP01-30",
+        "source": "EA",
+        "round": "EA Historical",
+        "sampled": true,
+        "sample_date": "45148.447917",
+        "depth": "Surface + Subsurface",
+        "n_depths": 2,
+        "max_depth_ft": 1.0,
+        "Hg": 170.0,
+        "Hg_q": "",
+        "As": 3.0,
+        "As_q": "J-",
+        "Sb": 1.1,
+        "Sb_q": "J",
+        "Tl": 0.23,
+        "Tl_q": "J",
+        "Hg_sub": 69.0,
+        "Hg_sub_q": "",
+        "As_sub": 2.4,
+        "As_sub_q": "J-",
+        "Sb_sub": 1.2,
+        "Sb_sub_q": "J",
+        "Tl_sub": 0.23,
+        "Tl_sub_q": "J",
+        "rod_exceed": "NO",
+        "rod_drivers": "",
+        "pmb_exceed": "YES",
+        "pmb_drivers": "Hg, Sb",
+        "profile": [
+          {
+            "depth": "0-0.5",
+            "sample_id": "ABWP01-30-SS-0-0.5",
+            "Hg": 170.0,
+            "Hg_q": "",
+            "As": 3.0,
+            "As_q": "J-",
+            "Sb": 1.1,
+            "Sb_q": "J",
+            "Tl": 0.23,
+            "Tl_q": "J",
+            "date": "45148.447917"
+          },
+          {
+            "depth": "1-1.5",
+            "sample_id": "ABWP01-30-SB-1-1.5",
+            "Hg": 69.0,
+            "Hg_q": "",
+            "As": 2.4,
+            "As_q": "J-",
+            "Sb": 1.2,
+            "Sb_q": "J",
+            "Tl": 0.23,
+            "Tl_q": "J",
+            "date": "45148.463194"
+          }
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.666661538627,
+          39.0074855652454
+        ]
+      },
+      "properties": {
+        "id": "ABWP02-01",
+        "source": "EA",
+        "round": "EA Historical",
+        "sampled": true,
+        "sample_date": "45167.40625",
+        "depth": "Surface",
+        "n_depths": 4,
+        "max_depth_ft": 3.0,
+        "Hg": 120.0,
+        "Hg_q": "",
+        "As": 4.7,
+        "As_q": "",
+        "Sb": 1.3,
+        "Sb_q": "J-",
+        "Tl": 0.22,
+        "Tl_q": "J",
+        "Hg_sub": null,
+        "Hg_sub_q": "",
+        "As_sub": null,
+        "As_sub_q": "",
+        "Sb_sub": null,
+        "Sb_sub_q": "",
+        "Tl_sub": null,
+        "Tl_sub_q": "",
+        "rod_exceed": "NO",
+        "rod_drivers": "",
+        "pmb_exceed": "YES",
+        "pmb_drivers": "Hg, Sb",
+        "profile": [
+          {
+            "depth": "0-1",
+            "sample_id": "ABWP02-01-Tpit-0-1",
+            "Hg": 120.0,
+            "Hg_q": "",
+            "As": 4.7,
+            "As_q": "",
+            "Sb": 1.3,
+            "Sb_q": "J-",
+            "Tl": 0.22,
+            "Tl_q": "J",
+            "date": "45167.40625"
+          },
+          {
+            "depth": "1-2",
+            "sample_id": "ABWP02-01-Tpit-1-2",
+            "Hg": 160.0,
+            "Hg_q": "",
+            "As": 5.0,
+            "As_q": "",
+            "Sb": 1.4,
+            "Sb_q": "J-",
+            "Tl": 0.24,
+            "Tl_q": "J",
+            "date": "45167.40625"
+          },
+          {
+            "depth": "2-3",
+            "sample_id": "ABWP02-01-Tpit-2-3",
+            "Hg": 100.0,
+            "Hg_q": "",
+            "As": 4.9,
+            "As_q": "",
+            "Sb": 1.6,
+            "Sb_q": "J-",
+            "Tl": 0.28,
+            "Tl_q": "J",
+            "date": "45167.40625"
+          },
+          {
+            "depth": "3-4",
+            "sample_id": "ABWP02-01-Tpit-3-4",
+            "Hg": 110.0,
+            "Hg_q": "",
+            "As": 6.3,
+            "As_q": "",
+            "Sb": 2.5,
+            "Sb_q": "J-",
+            "Tl": 0.28,
+            "Tl_q": "J",
+            "date": "45167.40625"
+          }
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.665097228705,
+          39.0072498587924
+        ]
+      },
+      "properties": {
+        "id": "ABWP02-02",
+        "source": "EA",
+        "round": "EA Historical",
+        "sampled": true,
+        "sample_date": "45166.645833",
+        "depth": "Surface",
+        "n_depths": 4,
+        "max_depth_ft": 3.0,
+        "Hg": 36.0,
+        "Hg_q": "",
+        "As": 5.4,
+        "As_q": "",
+        "Sb": 0.71,
+        "Sb_q": "J",
+        "Tl": 0.23,
+        "Tl_q": "J",
+        "Hg_sub": null,
+        "Hg_sub_q": "",
+        "As_sub": null,
+        "As_sub_q": "",
+        "Sb_sub": null,
+        "Sb_sub_q": "",
+        "Tl_sub": null,
+        "Tl_sub_q": "",
+        "rod_exceed": "NO",
+        "rod_drivers": "",
+        "pmb_exceed": "YES",
+        "pmb_drivers": "Sb",
+        "profile": [
+          {
+            "depth": "0-1",
+            "sample_id": "ABWP02-02-Tpit-0-1",
+            "Hg": 36.0,
+            "Hg_q": "",
+            "As": 5.4,
+            "As_q": "",
+            "Sb": 0.71,
+            "Sb_q": "J",
+            "Tl": 0.23,
+            "Tl_q": "J",
+            "date": "45166.645833"
+          },
+          {
+            "depth": "1-2",
+            "sample_id": "ABWP02-02-Tpit-1-2",
+            "Hg": 130.0,
+            "Hg_q": "",
+            "As": 8.8,
+            "As_q": "",
+            "Sb": 2.3,
+            "Sb_q": "J-",
+            "Tl": 0.24,
+            "Tl_q": "J",
+            "date": "45166.645833"
+          },
+          {
+            "depth": "2-3",
+            "sample_id": "ABWP02-02-Tpit-2-3",
+            "Hg": 31.0,
+            "Hg_q": "",
+            "As": 5.0,
+            "As_q": "",
+            "Sb": 0.77,
+            "Sb_q": "J",
+            "Tl": 0.23,
+            "Tl_q": "J",
+            "date": "45166.645833"
+          },
+          {
+            "depth": "3-4",
+            "sample_id": "ABWP02-02-Tpit-3-4",
+            "Hg": 34.0,
+            "Hg_q": "",
+            "As": 5.6,
+            "As_q": "",
+            "Sb": 1.0,
+            "Sb_q": "J-",
+            "Tl": 0.24,
+            "Tl_q": "J",
+            "date": "45166.645833"
+          }
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.665776233443,
+          39.006421301957
+        ]
+      },
+      "properties": {
+        "id": "ABWP02-03",
+        "source": "EA",
+        "round": "EA Historical",
+        "sampled": true,
+        "sample_date": "45167.385417",
+        "depth": "Surface",
+        "n_depths": 4,
+        "max_depth_ft": 3.0,
+        "Hg": 69.0,
+        "Hg_q": "",
+        "As": 1.4,
+        "As_q": "J",
+        "Sb": 0.36,
+        "Sb_q": "J",
+        "Tl": 0.15,
+        "Tl_q": "J",
+        "Hg_sub": null,
+        "Hg_sub_q": "",
+        "As_sub": null,
+        "As_sub_q": "",
+        "Sb_sub": null,
+        "Sb_sub_q": "",
+        "Tl_sub": null,
+        "Tl_sub_q": "",
+        "rod_exceed": "NO",
+        "rod_drivers": "",
+        "pmb_exceed": "YES",
+        "pmb_drivers": "Hg",
+        "profile": [
+          {
+            "depth": "0-1",
+            "sample_id": "ABWP02-03-Tpit-0-1",
+            "Hg": 69.0,
+            "Hg_q": "",
+            "As": 1.4,
+            "As_q": "J",
+            "Sb": 0.36,
+            "Sb_q": "J",
+            "Tl": 0.15,
+            "Tl_q": "J",
+            "date": "45167.385417"
+          },
+          {
+            "depth": "1-2",
+            "sample_id": "ABWP02-03-Tpit-1-2",
+            "Hg": 54.0,
+            "Hg_q": "",
+            "As": 1.3,
+            "As_q": "J",
+            "Sb": 0.3,
+            "Sb_q": "J",
+            "Tl": 0.14,
+            "Tl_q": "J",
+            "date": "45167.385417"
+          },
+          {
+            "depth": "2-3",
+            "sample_id": "ABWP02-03-Tpit-2-3",
+            "Hg": 63.0,
+            "Hg_q": "",
+            "As": 0.98,
+            "As_q": "J",
+            "Sb": 0.2,
+            "Sb_q": "J",
+            "Tl": 0.12,
+            "Tl_q": "J",
+            "date": "45167.385417"
+          },
+          {
+            "depth": "3-4",
+            "sample_id": "ABWP02-03-Tpit-3-4",
+            "Hg": 46.0,
+            "Hg_q": "",
+            "As": 1.0,
+            "As_q": "J",
+            "Sb": 0.18,
+            "Sb_q": "J",
+            "Tl": 0.094,
+            "Tl_q": "J",
+            "date": "45167.385417"
+          }
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.666600949931,
+          39.0059295738394
+        ]
+      },
+      "properties": {
+        "id": "ABWP02-04",
+        "source": "EA",
+        "round": "EA Historical",
+        "sampled": true,
+        "sample_date": "45167.361111",
+        "depth": "Surface",
+        "n_depths": 4,
+        "max_depth_ft": 3.0,
+        "Hg": 780.0,
+        "Hg_q": "",
+        "As": 0.5,
+        "As_q": "J",
+        "Sb": 0.21,
+        "Sb_q": "J",
+        "Tl": 0.54,
+        "Tl_q": "U",
+        "Hg_sub": null,
+        "Hg_sub_q": "",
+        "As_sub": null,
+        "As_sub_q": "",
+        "Sb_sub": null,
+        "Sb_sub_q": "",
+        "Tl_sub": null,
+        "Tl_sub_q": "",
+        "rod_exceed": "YES",
+        "rod_drivers": "Hg",
+        "pmb_exceed": "YES",
+        "pmb_drivers": "Hg, Tl",
+        "profile": [
+          {
+            "depth": "0-1",
+            "sample_id": "ABWP02-04-Tpit-0-1",
+            "Hg": 780.0,
+            "Hg_q": "",
+            "As": 0.5,
+            "As_q": "J",
+            "Sb": 0.21,
+            "Sb_q": "J",
+            "Tl": 0.54,
+            "Tl_q": "U",
+            "date": "45167.361111"
+          },
+          {
+            "depth": "1-2",
+            "sample_id": "ABWP02-04-Tpit-1-2",
+            "Hg": 450.0,
+            "Hg_q": "",
+            "As": 0.46,
+            "As_q": "J",
+            "Sb": 0.2,
+            "Sb_q": "J",
+            "Tl": 0.52,
+            "Tl_q": "U",
+            "date": "45167.361111"
+          },
+          {
+            "depth": "2-3",
+            "sample_id": "ABWP02-04-Tpit-2-3",
+            "Hg": 700.0,
+            "Hg_q": "",
+            "As": 0.49,
+            "As_q": "J",
+            "Sb": 0.11,
+            "Sb_q": "J",
+            "Tl": 0.51,
+            "Tl_q": "U",
+            "date": "45167.361111"
+          },
+          {
+            "depth": "3-4",
+            "sample_id": "ABWP02-04-Tpit-3-4",
+            "Hg": 890.0,
+            "Hg_q": "",
+            "As": 0.62,
+            "As_q": "J",
+            "Sb": 0.32,
+            "Sb_q": "J",
+            "Tl": 0.56,
+            "Tl_q": "U",
+            "date": "45167.361111"
+          }
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.665361214619,
+          39.0055654851562
+        ]
+      },
+      "properties": {
+        "id": "ABWP02-05",
+        "source": "EA",
+        "round": "EA Historical",
+        "sampled": true,
+        "sample_date": "45166.59375",
+        "depth": "Surface",
+        "n_depths": 4,
+        "max_depth_ft": 3.0,
+        "Hg": 95.0,
+        "Hg_q": "J",
+        "As": 0.36,
+        "As_q": "J",
+        "Sb": 0.21,
+        "Sb_q": "J",
+        "Tl": 0.087,
+        "Tl_q": "J",
+        "Hg_sub": null,
+        "Hg_sub_q": "",
+        "As_sub": null,
+        "As_sub_q": "",
+        "Sb_sub": null,
+        "Sb_sub_q": "",
+        "Tl_sub": null,
+        "Tl_sub_q": "",
+        "rod_exceed": "NO",
+        "rod_drivers": "",
+        "pmb_exceed": "YES",
+        "pmb_drivers": "Hg",
+        "profile": [
+          {
+            "depth": "0-1",
+            "sample_id": "ABWP02-05-Tpit-0-1",
+            "Hg": 95.0,
+            "Hg_q": "J",
+            "As": 0.36,
+            "As_q": "J",
+            "Sb": 0.21,
+            "Sb_q": "J",
+            "Tl": 0.087,
+            "Tl_q": "J",
+            "date": "45166.59375"
+          },
+          {
+            "depth": "1-2",
+            "sample_id": "ABWP02-05-Tpit-1-2",
+            "Hg": 79.0,
+            "Hg_q": "J",
+            "As": 0.29,
+            "As_q": "J",
+            "Sb": 0.16,
+            "Sb_q": "J",
+            "Tl": 0.087,
+            "Tl_q": "J",
+            "date": "45166.59375"
+          },
+          {
+            "depth": "2-3",
+            "sample_id": "ABWP02-05-Tpit-2-3",
+            "Hg": 270.0,
+            "Hg_q": "J",
+            "As": 0.27,
+            "As_q": "J",
+            "Sb": 0.13,
+            "Sb_q": "J",
+            "Tl": 0.06,
+            "Tl_q": "J",
+            "date": "45166.59375"
+          },
+          {
+            "depth": "3-4",
+            "sample_id": "ABWP02-05-Tpit-3-4",
+            "Hg": 65.0,
+            "Hg_q": "J",
+            "As": 0.23,
+            "As_q": "J",
+            "Sb": 0.15,
+            "Sb_q": "J",
+            "Tl": 0.06,
+            "Tl_q": "J",
+            "date": "45166.59375"
+          }
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.666085540427,
+          39.0077377244773
+        ]
+      },
+      "properties": {
+        "id": "ABWP02-06",
+        "source": "EA",
+        "round": "EA Historical",
+        "sampled": true,
+        "sample_date": "45154.595139",
+        "depth": "Surface + Subsurface",
+        "n_depths": 2,
+        "max_depth_ft": 1.0,
+        "Hg": 240.0,
+        "Hg_q": "J",
+        "As": 73.0,
+        "As_q": "J",
+        "Sb": 150.0,
+        "Sb_q": "J",
+        "Tl": 0.18,
+        "Tl_q": "J",
+        "Hg_sub": 62.0,
+        "Hg_sub_q": "J",
+        "As_sub": 13.0,
+        "As_sub_q": "J",
+        "Sb_sub": 16.0,
+        "Sb_sub_q": "J",
+        "Tl_sub": 0.2,
+        "Tl_sub_q": "J",
+        "rod_exceed": "YES",
+        "rod_drivers": "Hg, As, Sb",
+        "pmb_exceed": "YES",
+        "pmb_drivers": "Hg, As, Sb",
+        "profile": [
+          {
+            "depth": "0-0.5",
+            "sample_id": "ABWP02-06-SS-0-0.5",
+            "Hg": 240.0,
+            "Hg_q": "J",
+            "As": 73.0,
+            "As_q": "J",
+            "Sb": 150.0,
+            "Sb_q": "J",
+            "Tl": 0.18,
+            "Tl_q": "J",
+            "date": "45154.595139"
+          },
+          {
+            "depth": "1-1.5",
+            "sample_id": "ABWP02-06-SB-1-1.5",
+            "Hg": 62.0,
+            "Hg_q": "J",
+            "As": 13.0,
+            "As_q": "J",
+            "Sb": 16.0,
+            "Sb_q": "J",
+            "Tl": 0.2,
+            "Tl_q": "J",
+            "date": "45154.608333"
+          }
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.665725704378,
+          39.007861143897
+        ]
+      },
+      "properties": {
+        "id": "ABWP02-07",
+        "source": "EA",
+        "round": "EA Historical",
+        "sampled": true,
+        "sample_date": "45151.65",
+        "depth": "Surface + Subsurface",
+        "n_depths": 2,
+        "max_depth_ft": 1.0,
+        "Hg": 150.0,
+        "Hg_q": "",
+        "As": 6.0,
+        "As_q": "J",
+        "Sb": 2.8,
+        "Sb_q": "J-",
+        "Tl": 0.22,
+        "Tl_q": "J",
+        "Hg_sub": 65.0,
+        "Hg_sub_q": "",
+        "As_sub": 5.3,
+        "As_sub_q": "J",
+        "Sb_sub": 1.3,
+        "Sb_sub_q": "J-",
+        "Tl_sub": 0.27,
+        "Tl_sub_q": "J",
+        "rod_exceed": "NO",
+        "rod_drivers": "",
+        "pmb_exceed": "YES",
+        "pmb_drivers": "Hg, Sb",
+        "profile": [
+          {
+            "depth": "0-0.5",
+            "sample_id": "ABWP02-07-SS-0-0.5",
+            "Hg": 150.0,
+            "Hg_q": "",
+            "As": 6.0,
+            "As_q": "J",
+            "Sb": 2.8,
+            "Sb_q": "J-",
+            "Tl": 0.22,
+            "Tl_q": "J",
+            "date": "45151.65"
+          },
+          {
+            "depth": "1-1.5",
+            "sample_id": "ABWP02-07-SB-1-1.5",
+            "Hg": 65.0,
+            "Hg_q": "",
+            "As": 5.3,
+            "As_q": "J",
+            "Sb": 1.3,
+            "Sb_q": "J-",
+            "Tl": 0.27,
+            "Tl_q": "J",
+            "date": "45151.663194"
+          }
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.665515674961,
+          39.0075612881797
+        ]
+      },
+      "properties": {
+        "id": "ABWP02-08",
+        "source": "EA",
+        "round": "EA Historical",
+        "sampled": true,
+        "sample_date": "45151.611111",
+        "depth": "Surface + Subsurface",
+        "n_depths": 2,
+        "max_depth_ft": 1.0,
+        "Hg": 71.0,
+        "Hg_q": "J",
+        "As": 7.3,
+        "As_q": "J-",
+        "Sb": 11.0,
+        "Sb_q": "",
+        "Tl": 0.22,
+        "Tl_q": "J",
+        "Hg_sub": 16.0,
+        "Hg_sub_q": "J",
+        "As_sub": 3.8,
+        "As_sub_q": "J-",
+        "Sb_sub": 1.1,
+        "Sb_sub_q": "U",
+        "Tl_sub": 0.29,
+        "Tl_sub_q": "J",
+        "rod_exceed": "YES",
+        "rod_drivers": "As",
+        "pmb_exceed": "YES",
+        "pmb_drivers": "Hg, As, Sb",
+        "profile": [
+          {
+            "depth": "0-0.5",
+            "sample_id": "ABWP02-08-SS-0-0.5",
+            "Hg": 71.0,
+            "Hg_q": "J",
+            "As": 7.3,
+            "As_q": "J-",
+            "Sb": 11.0,
+            "Sb_q": "",
+            "Tl": 0.22,
+            "Tl_q": "J",
+            "date": "45151.611111"
+          },
+          {
+            "depth": "1-1.5",
+            "sample_id": "ABWP02-08-SB-1-1.5",
+            "Hg": 16.0,
+            "Hg_q": "J",
+            "As": 3.8,
+            "As_q": "J-",
+            "Sb": 1.1,
+            "Sb_q": "U",
+            "Tl": 0.29,
+            "Tl_q": "J",
+            "date": "45151.620139"
+          }
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.665502563968,
+          39.0072413067667
+        ]
+      },
+      "properties": {
+        "id": "ABWP02-09",
+        "source": "EA",
+        "round": "EA Historical",
+        "sampled": true,
+        "sample_date": "45151.570833",
+        "depth": "Surface + Subsurface",
+        "n_depths": 2,
+        "max_depth_ft": 1.0,
+        "Hg": 150.0,
+        "Hg_q": "",
+        "As": 4.6,
+        "As_q": "J",
+        "Sb": 1.4,
+        "Sb_q": "J-",
+        "Tl": 0.13,
+        "Tl_q": "J",
+        "Hg_sub": 52.0,
+        "Hg_sub_q": "",
+        "As_sub": 4.3,
+        "As_sub_q": "J",
+        "Sb_sub": 1.1,
+        "Sb_sub_q": "UJ",
+        "Tl_sub": 0.24,
+        "Tl_sub_q": "J",
+        "rod_exceed": "NO",
+        "rod_drivers": "",
+        "pmb_exceed": "YES",
+        "pmb_drivers": "Hg, Sb",
+        "profile": [
+          {
+            "depth": "0-0.5",
+            "sample_id": "ABWP02-09-SS-0-0.5",
+            "Hg": 150.0,
+            "Hg_q": "",
+            "As": 4.6,
+            "As_q": "J",
+            "Sb": 1.4,
+            "Sb_q": "J-",
+            "Tl": 0.13,
+            "Tl_q": "J",
+            "date": "45151.570833"
+          },
+          {
+            "depth": "1-1.5",
+            "sample_id": "ABWP02-09-SB-1-1.5",
+            "Hg": 52.0,
+            "Hg_q": "",
+            "As": 4.3,
+            "As_q": "J",
+            "Sb": 1.1,
+            "Sb_q": "UJ",
+            "Tl": 0.24,
+            "Tl_q": "J",
+            "date": "45151.5875"
+          }
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.665768079405,
+          39.0070201417899
+        ]
+      },
+      "properties": {
+        "id": "ABWP02-10",
+        "source": "EA",
+        "round": "EA Historical",
+        "sampled": true,
+        "sample_date": "45150.638194",
+        "depth": "Surface + Subsurface",
+        "n_depths": 2,
+        "max_depth_ft": 1.0,
+        "Hg": 84.0,
+        "Hg_q": "",
+        "As": 3.5,
+        "As_q": "J",
+        "Sb": 1.5,
+        "Sb_q": "J-",
+        "Tl": 0.17,
+        "Tl_q": "J",
+        "Hg_sub": 23.0,
+        "Hg_sub_q": "",
+        "As_sub": 2.2,
+        "As_sub_q": "J",
+        "Sb_sub": 1.1,
+        "Sb_sub_q": "UJ",
+        "Tl_sub": 0.18,
+        "Tl_sub_q": "J",
+        "rod_exceed": "NO",
+        "rod_drivers": "",
+        "pmb_exceed": "YES",
+        "pmb_drivers": "Hg, Sb",
+        "profile": [
+          {
+            "depth": "0-0.5",
+            "sample_id": "ABWP02-10-SS-0-0.5",
+            "Hg": 84.0,
+            "Hg_q": "",
+            "As": 3.5,
+            "As_q": "J",
+            "Sb": 1.5,
+            "Sb_q": "J-",
+            "Tl": 0.17,
+            "Tl_q": "J",
+            "date": "45150.638194"
+          },
+          {
+            "depth": "1-1.5",
+            "sample_id": "ABWP02-10-SB-1-1.5",
+            "Hg": 23.0,
+            "Hg_q": "",
+            "As": 2.2,
+            "As_q": "J",
+            "Sb": 1.1,
+            "Sb_q": "UJ",
+            "Tl": 0.18,
+            "Tl_q": "J",
+            "date": "45150.656944"
+          }
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.66678842294,
+          39.0066955368688
+        ]
+      },
+      "properties": {
+        "id": "ABWP02-11",
+        "source": "EA",
+        "round": "EA Historical",
+        "sampled": true,
+        "sample_date": "45155.393056",
+        "depth": "Surface + Subsurface",
+        "n_depths": 2,
+        "max_depth_ft": 1.0,
+        "Hg": 180.0,
+        "Hg_q": "J",
+        "As": 1.4,
+        "As_q": "J",
+        "Sb": 1.6,
+        "Sb_q": "J",
+        "Tl": 0.11,
+        "Tl_q": "J",
+        "Hg_sub": 320.0,
+        "Hg_sub_q": "J",
+        "As_sub": 1.0,
+        "As_sub_q": "J",
+        "Sb_sub": 1.2,
+        "Sb_sub_q": "J",
+        "Tl_sub": 0.076,
+        "Tl_sub_q": "J",
+        "rod_exceed": "NO",
+        "rod_drivers": "",
+        "pmb_exceed": "YES",
+        "pmb_drivers": "Hg, Sb",
+        "profile": [
+          {
+            "depth": "0-0.5",
+            "sample_id": "ABWP02-11-SS-0-0.5",
+            "Hg": 180.0,
+            "Hg_q": "J",
+            "As": 1.4,
+            "As_q": "J",
+            "Sb": 1.6,
+            "Sb_q": "J",
+            "Tl": 0.11,
+            "Tl_q": "J",
+            "date": "45155.393056"
+          },
+          {
+            "depth": "1-1.5",
+            "sample_id": "ABWP02-11-SB-1-1.5",
+            "Hg": 320.0,
+            "Hg_q": "J",
+            "As": 1.0,
+            "As_q": "J",
+            "Sb": 1.2,
+            "Sb_q": "J",
+            "Tl": 0.076,
+            "Tl_q": "J",
+            "date": "45155.402083"
+          }
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.666573188329,
+          39.006756126569
+        ]
+      },
+      "properties": {
+        "id": "ABWP02-12",
+        "source": "EA",
+        "round": "EA Historical",
+        "sampled": true,
+        "sample_date": "45155.435417",
+        "depth": "Surface + Subsurface",
+        "n_depths": 2,
+        "max_depth_ft": 1.0,
+        "Hg": 87.0,
+        "Hg_q": "J",
+        "As": 1.7,
+        "As_q": "",
+        "Sb": 1.5,
+        "Sb_q": "UJ",
+        "Tl": 0.21,
+        "Tl_q": "J",
+        "Hg_sub": 36.0,
+        "Hg_sub_q": "J",
+        "As_sub": 0.87,
+        "As_sub_q": "",
+        "Sb_sub": 1.2,
+        "Sb_sub_q": "UJ",
+        "Tl_sub": 0.16,
+        "Tl_sub_q": "J",
+        "rod_exceed": "NO",
+        "rod_drivers": "",
+        "pmb_exceed": "YES",
+        "pmb_drivers": "Hg, Sb",
+        "profile": [
+          {
+            "depth": "0-0.5",
+            "sample_id": "ABWP02-12-SS-0-0.5",
+            "Hg": 87.0,
+            "Hg_q": "J",
+            "As": 1.7,
+            "As_q": "",
+            "Sb": 1.5,
+            "Sb_q": "UJ",
+            "Tl": 0.21,
+            "Tl_q": "J",
+            "date": "45155.435417"
+          },
+          {
+            "depth": "1-1.5",
+            "sample_id": "ABWP02-12-SB-1-1.5",
+            "Hg": 36.0,
+            "Hg_q": "J",
+            "As": 0.87,
+            "As_q": "",
+            "Sb": 1.2,
+            "Sb_q": "UJ",
+            "Tl": 0.16,
+            "Tl_q": "J",
+            "date": "45155.444444"
+          }
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.666102913606,
+          39.006643297853
+        ]
+      },
+      "properties": {
+        "id": "ABWP02-13",
+        "source": "EA",
+        "round": "EA Historical",
+        "sampled": true,
+        "sample_date": "45155.472222",
+        "depth": "Surface + Subsurface",
+        "n_depths": 2,
+        "max_depth_ft": 1.0,
+        "Hg": 61.0,
+        "Hg_q": "J",
+        "As": 1.5,
+        "As_q": "",
+        "Sb": 1.1,
+        "Sb_q": "UJ",
+        "Tl": 0.22,
+        "Tl_q": "J",
+        "Hg_sub": 65.0,
+        "Hg_sub_q": "J",
+        "As_sub": 1.1,
+        "As_sub_q": "",
+        "Sb_sub": 1.1,
+        "Sb_sub_q": "UJ",
+        "Tl_sub": 0.2,
+        "Tl_sub_q": "J",
+        "rod_exceed": "NO",
+        "rod_drivers": "",
+        "pmb_exceed": "YES",
+        "pmb_drivers": "Hg, Sb",
+        "profile": [
+          {
+            "depth": "0-0.5",
+            "sample_id": "ABWP02-13-SS-0-0.5",
+            "Hg": 61.0,
+            "Hg_q": "J",
+            "As": 1.5,
+            "As_q": "",
+            "Sb": 1.1,
+            "Sb_q": "UJ",
+            "Tl": 0.22,
+            "Tl_q": "J",
+            "date": "45155.472222"
+          },
+          {
+            "depth": "1-1.5",
+            "sample_id": "ABWP02-13-SB-1-1.5",
+            "Hg": 65.0,
+            "Hg_q": "J",
+            "As": 1.1,
+            "As_q": "",
+            "Sb": 1.1,
+            "Sb_q": "UJ",
+            "Tl": 0.2,
+            "Tl_q": "J",
+            "date": "45155.4875"
+          }
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.665912932291,
+          39.0066653925818
+        ]
+      },
+      "properties": {
+        "id": "ABWP02-14",
+        "source": "EA",
+        "round": "EA Historical",
+        "sampled": true,
+        "sample_date": "45152.6125",
+        "depth": "Surface + Subsurface",
+        "n_depths": 2,
+        "max_depth_ft": 1.0,
+        "Hg": 470.0,
+        "Hg_q": "J",
+        "As": 2.1,
+        "As_q": "J-",
+        "Sb": 1.0,
+        "Sb_q": "U",
+        "Tl": 0.18,
+        "Tl_q": "J",
+        "Hg_sub": 90.0,
+        "Hg_sub_q": "J",
+        "As_sub": 1.1,
+        "As_sub_q": "J-",
+        "Sb_sub": 1.1,
+        "Sb_sub_q": "U",
+        "Tl_sub": 0.22,
+        "Tl_sub_q": "J",
+        "rod_exceed": "YES",
+        "rod_drivers": "Hg",
+        "pmb_exceed": "YES",
+        "pmb_drivers": "Hg, Sb",
+        "profile": [
+          {
+            "depth": "0-0.5",
+            "sample_id": "ABWP02-14-SS-0-0.5",
+            "Hg": 470.0,
+            "Hg_q": "J",
+            "As": 2.1,
+            "As_q": "J-",
+            "Sb": 1.0,
+            "Sb_q": "U",
+            "Tl": 0.18,
+            "Tl_q": "J",
+            "date": "45152.6125"
+          },
+          {
+            "depth": "1-1.5",
+            "sample_id": "ABWP02-14-SB-1-1.5",
+            "Hg": 90.0,
+            "Hg_q": "J",
+            "As": 1.1,
+            "As_q": "J-",
+            "Sb": 1.1,
+            "Sb_q": "U",
+            "Tl": 0.22,
+            "Tl_q": "J",
+            "date": "45152.630556"
+          }
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.665558947417,
+          39.0068355740038
+        ]
+      },
+      "properties": {
+        "id": "ABWP02-15",
+        "source": "EA",
+        "round": "EA Historical",
+        "sampled": true,
+        "sample_date": "45152.659722",
+        "depth": "Surface + Subsurface",
+        "n_depths": 2,
+        "max_depth_ft": 1.0,
+        "Hg": 36.0,
+        "Hg_q": "J",
+        "As": 2.6,
+        "As_q": "",
+        "Sb": 1.1,
+        "Sb_q": "UJ",
+        "Tl": 0.16,
+        "Tl_q": "J",
+        "Hg_sub": 12.0,
+        "Hg_sub_q": "J",
+        "As_sub": 2.0,
+        "As_sub_q": "",
+        "Sb_sub": 1.1,
+        "Sb_sub_q": "UJ",
+        "Tl_sub": 0.22,
+        "Tl_sub_q": "J",
+        "rod_exceed": "NO",
+        "rod_drivers": "",
+        "pmb_exceed": "YES",
+        "pmb_drivers": "Sb",
+        "profile": [
+          {
+            "depth": "0-0.5",
+            "sample_id": "ABWP02-15-SS-0-0.5",
+            "Hg": 36.0,
+            "Hg_q": "J",
+            "As": 2.6,
+            "As_q": "",
+            "Sb": 1.1,
+            "Sb_q": "UJ",
+            "Tl": 0.16,
+            "Tl_q": "J",
+            "date": "45152.659722"
+          },
+          {
+            "depth": "1-1.5",
+            "sample_id": "ABWP02-15-SB-1-1.5",
+            "Hg": 12.0,
+            "Hg_q": "J",
+            "As": 2.0,
+            "As_q": "",
+            "Sb": 1.1,
+            "Sb_q": "UJ",
+            "Tl": 0.22,
+            "Tl_q": "J",
+            "date": "45152.665972"
+          }
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.666955937698,
+          39.0064706825048
+        ]
+      },
+      "properties": {
+        "id": "ABWP02-16",
+        "source": "EA",
+        "round": "EA Historical",
+        "sampled": true,
+        "sample_date": "45181.649306",
+        "depth": "Surface + Subsurface",
+        "n_depths": 2,
+        "max_depth_ft": 1.0,
+        "Hg": 1800.0,
+        "Hg_q": "",
+        "As": 0.39,
+        "As_q": "J",
+        "Sb": 1.0,
+        "Sb_q": "",
+        "Tl": 0.42,
+        "Tl_q": "U",
+        "Hg_sub": 2700.0,
+        "Hg_sub_q": "",
+        "As_sub": 0.13,
+        "As_sub_q": "J",
+        "Sb_sub": 0.099,
+        "Sb_sub_q": "J",
+        "Tl_sub": 0.52,
+        "Tl_sub_q": "U",
+        "rod_exceed": "YES",
+        "rod_drivers": "Hg",
+        "pmb_exceed": "YES",
+        "pmb_drivers": "Hg, Sb",
+        "profile": [
+          {
+            "depth": "0-0.5",
+            "sample_id": "ABWP02-16-SS-0-0.5",
+            "Hg": 1800.0,
+            "Hg_q": "",
+            "As": 0.39,
+            "As_q": "J",
+            "Sb": 1.0,
+            "Sb_q": "",
+            "Tl": 0.42,
+            "Tl_q": "U",
+            "date": "45181.649306"
+          },
+          {
+            "depth": "1-1.5",
+            "sample_id": "ABWP02-16-SB-1-1.5",
+            "Hg": 2700.0,
+            "Hg_q": "",
+            "As": 0.13,
+            "As_q": "J",
+            "Sb": 0.099,
+            "Sb_q": "J",
+            "Tl": 0.52,
+            "Tl_q": "U",
+            "date": "45181.652778"
+          }
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.666538142676,
+          39.00646213935
+        ]
+      },
+      "properties": {
+        "id": "ABWP02-17",
+        "source": "EA",
+        "round": "EA Historical",
+        "sampled": true,
+        "sample_date": "45181.604167",
+        "depth": "Surface + Subsurface",
+        "n_depths": 2,
+        "max_depth_ft": 1.0,
+        "Hg": 120.0,
+        "Hg_q": "",
+        "As": 0.81,
+        "As_q": "J-",
+        "Sb": 0.39,
+        "Sb_q": "J",
+        "Tl": 0.1,
+        "Tl_q": "J",
+        "Hg_sub": 55.0,
+        "Hg_sub_q": "",
+        "As_sub": 0.72,
+        "As_sub_q": "J-",
+        "Sb_sub": 0.14,
+        "Sb_sub_q": "J",
+        "Tl_sub": 0.085,
+        "Tl_sub_q": "J",
+        "rod_exceed": "NO",
+        "rod_drivers": "",
+        "pmb_exceed": "YES",
+        "pmb_drivers": "Hg",
+        "profile": [
+          {
+            "depth": "0-0.5",
+            "sample_id": "ABWP02-17-SS-0-0.5",
+            "Hg": 120.0,
+            "Hg_q": "",
+            "As": 0.81,
+            "As_q": "J-",
+            "Sb": 0.39,
+            "Sb_q": "J",
+            "Tl": 0.1,
+            "Tl_q": "J",
+            "date": "45181.604167"
+          },
+          {
+            "depth": "1-1.5",
+            "sample_id": "ABWP02-17-SB-1-1.5",
+            "Hg": 55.0,
+            "Hg_q": "",
+            "As": 0.72,
+            "As_q": "J-",
+            "Sb": 0.14,
+            "Sb_q": "J",
+            "Tl": 0.085,
+            "Tl_q": "J",
+            "date": "45181.621528"
+          }
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.666183457338,
+          39.0064029036921
+        ]
+      },
+      "properties": {
+        "id": "ABWP02-18",
+        "source": "EA",
+        "round": "EA Historical",
+        "sampled": true,
+        "sample_date": "45152.558333",
+        "depth": "Surface + Subsurface",
+        "n_depths": 2,
+        "max_depth_ft": 1.0,
+        "Hg": 700.0,
+        "Hg_q": "J",
+        "As": 0.65,
+        "As_q": "J",
+        "Sb": 1.7,
+        "Sb_q": "U",
+        "Tl": 0.84,
+        "Tl_q": "U",
+        "Hg_sub": 150.0,
+        "Hg_sub_q": "J",
+        "As_sub": 0.26,
+        "As_sub_q": "J",
+        "Sb_sub": 1.1,
+        "Sb_sub_q": "U",
+        "Tl_sub": 0.55,
+        "Tl_sub_q": "U",
+        "rod_exceed": "YES",
+        "rod_drivers": "Hg",
+        "pmb_exceed": "YES",
+        "pmb_drivers": "Hg, Sb, Tl",
+        "profile": [
+          {
+            "depth": "0-0.5",
+            "sample_id": "ABWP02-18-SS-0-0.5",
+            "Hg": 700.0,
+            "Hg_q": "J",
+            "As": 0.65,
+            "As_q": "J",
+            "Sb": 1.7,
+            "Sb_q": "U",
+            "Tl": 0.84,
+            "Tl_q": "U",
+            "date": "45152.558333"
+          },
+          {
+            "depth": "1-1.5",
+            "sample_id": "ABWP02-18-SB-1-1.5",
+            "Hg": 150.0,
+            "Hg_q": "J",
+            "As": 0.26,
+            "As_q": "J",
+            "Sb": 1.1,
+            "Sb_q": "U",
+            "Tl": 0.55,
+            "Tl_q": "U",
+            "date": "45152.580556"
+          }
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.665219767343,
+          39.0064851265372
+        ]
+      },
+      "properties": {
+        "id": "ABWP02-19",
+        "source": "EA",
+        "round": "EA Historical",
+        "sampled": true,
+        "sample_date": "45152.46875",
+        "depth": "Surface + Subsurface",
+        "n_depths": 2,
+        "max_depth_ft": 1.0,
+        "Hg": 38.0,
+        "Hg_q": "",
+        "As": 2.7,
+        "As_q": "J",
+        "Sb": 1.1,
+        "Sb_q": "UJ",
+        "Tl": 0.12,
+        "Tl_q": "J",
+        "Hg_sub": 10.0,
+        "Hg_sub_q": "",
+        "As_sub": 1.8,
+        "As_sub_q": "J",
+        "Sb_sub": 1.1,
+        "Sb_sub_q": "UJ",
+        "Tl_sub": 0.13,
+        "Tl_sub_q": "J",
+        "rod_exceed": "NO",
+        "rod_drivers": "",
+        "pmb_exceed": "YES",
+        "pmb_drivers": "Sb",
+        "profile": [
+          {
+            "depth": "0-0.5",
+            "sample_id": "ABWP02-19-SS-0-0.5",
+            "Hg": 38.0,
+            "Hg_q": "",
+            "As": 2.7,
+            "As_q": "J",
+            "Sb": 1.1,
+            "Sb_q": "UJ",
+            "Tl": 0.12,
+            "Tl_q": "J",
+            "date": "45152.46875"
+          },
+          {
+            "depth": "1-1.5",
+            "sample_id": "ABWP02-19-SB-1-1.5",
+            "Hg": 10.0,
+            "Hg_q": "",
+            "As": 1.8,
+            "As_q": "J",
+            "Sb": 1.1,
+            "Sb_q": "UJ",
+            "Tl": 0.13,
+            "Tl_q": "J",
+            "date": "45152.481944"
+          }
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.665790707727,
+          39.0061432832195
+        ]
+      },
+      "properties": {
+        "id": "ABWP02-20",
+        "source": "EA",
+        "round": "EA Historical",
+        "sampled": true,
+        "sample_date": "45181.5625",
+        "depth": "Surface + Subsurface",
+        "n_depths": 2,
+        "max_depth_ft": 1.0,
+        "Hg": 280.0,
+        "Hg_q": "",
+        "As": 1.1,
+        "As_q": "J-",
+        "Sb": 0.53,
+        "Sb_q": "J",
+        "Tl": 0.18,
+        "Tl_q": "J",
+        "Hg_sub": 140.0,
+        "Hg_sub_q": "",
+        "As_sub": 0.78,
+        "As_sub_q": "J-",
+        "Sb_sub": 0.24,
+        "Sb_sub_q": "J",
+        "Tl_sub": 0.18,
+        "Tl_sub_q": "J",
+        "rod_exceed": "YES",
+        "rod_drivers": "Hg",
+        "pmb_exceed": "YES",
+        "pmb_drivers": "Hg, Sb",
+        "profile": [
+          {
+            "depth": "0-0.5",
+            "sample_id": "ABWP02-20-SS-0-0.5",
+            "Hg": 280.0,
+            "Hg_q": "",
+            "As": 1.1,
+            "As_q": "J-",
+            "Sb": 0.53,
+            "Sb_q": "J",
+            "Tl": 0.18,
+            "Tl_q": "J",
+            "date": "45181.5625"
+          },
+          {
+            "depth": "1-1.5",
+            "sample_id": "ABWP02-20-SB-1-1.5",
+            "Hg": 140.0,
+            "Hg_q": "",
+            "As": 0.78,
+            "As_q": "J-",
+            "Sb": 0.24,
+            "Sb_q": "J",
+            "Tl": 0.18,
+            "Tl_q": "J",
+            "date": "45181.579861"
+          }
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.665368221157,
+          39.0062087938604
+        ]
+      },
+      "properties": {
+        "id": "ABWP02-21",
+        "source": "EA",
+        "round": "EA Historical",
+        "sampled": true,
+        "sample_date": "45152.431944",
+        "depth": "Surface + Subsurface",
+        "n_depths": 2,
+        "max_depth_ft": 1.0,
+        "Hg": 35.0,
+        "Hg_q": "J",
+        "As": 1.9,
+        "As_q": "J-",
+        "Sb": 1.1,
+        "Sb_q": "U",
+        "Tl": 0.11,
+        "Tl_q": "J",
+        "Hg_sub": 19.0,
+        "Hg_sub_q": "J",
+        "As_sub": 1.6,
+        "As_sub_q": "J-",
+        "Sb_sub": 1.2,
+        "Sb_sub_q": "U",
+        "Tl_sub": 0.12,
+        "Tl_sub_q": "J",
+        "rod_exceed": "NO",
+        "rod_drivers": "",
+        "pmb_exceed": "YES",
+        "pmb_drivers": "Sb",
+        "profile": [
+          {
+            "depth": "0-0.5",
+            "sample_id": "ABWP02-21-SS-0-0.5",
+            "Hg": 35.0,
+            "Hg_q": "J",
+            "As": 1.9,
+            "As_q": "J-",
+            "Sb": 1.1,
+            "Sb_q": "U",
+            "Tl": 0.11,
+            "Tl_q": "J",
+            "date": "45152.431944"
+          },
+          {
+            "depth": "1-1.5",
+            "sample_id": "ABWP02-21-SB-1-1.5",
+            "Hg": 19.0,
+            "Hg_q": "J",
+            "As": 1.6,
+            "As_q": "J-",
+            "Sb": 1.2,
+            "Sb_q": "U",
+            "Tl": 0.12,
+            "Tl_q": "J",
+            "date": "45152.439583"
+          }
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.666054193426,
+          39.0059501904703
+        ]
+      },
+      "properties": {
+        "id": "ABWP02-22",
+        "source": "EA",
+        "round": "EA Historical",
+        "sampled": true,
+        "sample_date": "45181.444444",
+        "depth": "Surface + Subsurface",
+        "n_depths": 2,
+        "max_depth_ft": 1.0,
+        "Hg": 830.0,
+        "Hg_q": "",
+        "As": 1.5,
+        "As_q": "J-",
+        "Sb": 1.3,
+        "Sb_q": "J-",
+        "Tl": 0.13,
+        "Tl_q": "J",
+        "Hg_sub": 240.0,
+        "Hg_sub_q": "",
+        "As_sub": 0.94,
+        "As_sub_q": "J-",
+        "Sb_sub": 0.29,
+        "Sb_sub_q": "J",
+        "Tl_sub": 0.14,
+        "Tl_sub_q": "J",
+        "rod_exceed": "YES",
+        "rod_drivers": "Hg",
+        "pmb_exceed": "YES",
+        "pmb_drivers": "Hg, Sb",
+        "profile": [
+          {
+            "depth": "0-0.5",
+            "sample_id": "ABWP02-22-SS-0-0.5",
+            "Hg": 830.0,
+            "Hg_q": "",
+            "As": 1.5,
+            "As_q": "J-",
+            "Sb": 1.3,
+            "Sb_q": "J-",
+            "Tl": 0.13,
+            "Tl_q": "J",
+            "date": "45181.444444"
+          },
+          {
+            "depth": "1-1.5",
+            "sample_id": "ABWP02-22-SB-1-1.5",
+            "Hg": 240.0,
+            "Hg_q": "",
+            "As": 0.94,
+            "As_q": "J-",
+            "Sb": 0.29,
+            "Sb_q": "J",
+            "Tl": 0.14,
+            "Tl_q": "J",
+            "date": "45181.461806"
+          }
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.665907204376,
+          39.00605032714
+        ]
+      },
+      "properties": {
+        "id": "ABWP02-23",
+        "source": "EA",
+        "round": "EA Historical",
+        "sampled": true,
+        "sample_date": "45154.649306",
+        "depth": "Surface + Subsurface",
+        "n_depths": 2,
+        "max_depth_ft": 1.0,
+        "Hg": 390.0,
+        "Hg_q": "J",
+        "As": 1.5,
+        "As_q": "J-",
+        "Sb": 1.1,
+        "Sb_q": "U",
+        "Tl": 0.16,
+        "Tl_q": "J",
+        "Hg_sub": 190.0,
+        "Hg_sub_q": "J",
+        "As_sub": 0.68,
+        "As_sub_q": "J",
+        "Sb_sub": 1.6,
+        "Sb_sub_q": "U",
+        "Tl_sub": 0.22,
+        "Tl_sub_q": "J",
+        "rod_exceed": "YES",
+        "rod_drivers": "Hg",
+        "pmb_exceed": "YES",
+        "pmb_drivers": "Hg, Sb",
+        "profile": [
+          {
+            "depth": "0-0.5",
+            "sample_id": "ABWP02-23-SS-0-0.5",
+            "Hg": 390.0,
+            "Hg_q": "J",
+            "As": 1.5,
+            "As_q": "J-",
+            "Sb": 1.1,
+            "Sb_q": "U",
+            "Tl": 0.16,
+            "Tl_q": "J",
+            "date": "45154.649306"
+          },
+          {
+            "depth": "1-1.5",
+            "sample_id": "ABWP02-23-SB-1-1.5",
+            "Hg": 190.0,
+            "Hg_q": "J",
+            "As": 0.68,
+            "As_q": "J",
+            "Sb": 1.6,
+            "Sb_q": "U",
+            "Tl": 0.22,
+            "Tl_q": "J",
+            "date": "45154.657639"
+          }
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.6654042948,
+          39.0059621193256
+        ]
+      },
+      "properties": {
+        "id": "ABWP02-24",
+        "source": "EA",
+        "round": "EA Historical",
+        "sampled": true,
+        "sample_date": "45152.385417",
+        "depth": "Surface + Subsurface",
+        "n_depths": 2,
+        "max_depth_ft": 1.0,
+        "Hg": 60.0,
+        "Hg_q": "J",
+        "As": 2.0,
+        "As_q": "",
+        "Sb": 1.1,
+        "Sb_q": "UJ",
+        "Tl": 0.2,
+        "Tl_q": "J",
+        "Hg_sub": 39.0,
+        "Hg_sub_q": "J",
+        "As_sub": 1.8,
+        "As_sub_q": "",
+        "Sb_sub": 1.5,
+        "Sb_sub_q": "UJ",
+        "Tl_sub": 0.2,
+        "Tl_sub_q": "J",
+        "rod_exceed": "NO",
+        "rod_drivers": "",
+        "pmb_exceed": "YES",
+        "pmb_drivers": "Hg, Sb",
+        "profile": [
+          {
+            "depth": "0-0.5",
+            "sample_id": "ABWP02-24-SS-0-0.5",
+            "Hg": 60.0,
+            "Hg_q": "J",
+            "As": 2.0,
+            "As_q": "",
+            "Sb": 1.1,
+            "Sb_q": "UJ",
+            "Tl": 0.2,
+            "Tl_q": "J",
+            "date": "45152.385417"
+          },
+          {
+            "depth": "1-1.5",
+            "sample_id": "ABWP02-24-SB-1-1.5",
+            "Hg": 39.0,
+            "Hg_q": "J",
+            "As": 1.8,
+            "As_q": "",
+            "Sb": 1.5,
+            "Sb_q": "UJ",
+            "Tl": 0.2,
+            "Tl_q": "J",
+            "date": "45152.402778"
+          }
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.666677766283,
+          39.0056157306986
+        ]
+      },
+      "properties": {
+        "id": "ABWP02-25",
+        "source": "EA",
+        "round": "EA Historical",
+        "sampled": true,
+        "sample_date": "45182.340278",
+        "depth": "Surface + Subsurface",
+        "n_depths": 2,
+        "max_depth_ft": 1.0,
+        "Hg": 820.0,
+        "Hg_q": "",
+        "As": 0.67,
+        "As_q": "J-",
+        "Sb": 1.1,
+        "Sb_q": "",
+        "Tl": 0.041,
+        "Tl_q": "J",
+        "Hg_sub": 730.0,
+        "Hg_sub_q": "",
+        "As_sub": 0.51,
+        "As_sub_q": "J",
+        "Sb_sub": 0.15,
+        "Sb_sub_q": "J",
+        "Tl_sub": 0.56,
+        "Tl_sub_q": "U",
+        "rod_exceed": "YES",
+        "rod_drivers": "Hg",
+        "pmb_exceed": "YES",
+        "pmb_drivers": "Hg, Sb",
+        "profile": [
+          {
+            "depth": "0-0.5",
+            "sample_id": "ABWP02-25-SS-0-0.5",
+            "Hg": 820.0,
+            "Hg_q": "",
+            "As": 0.67,
+            "As_q": "J-",
+            "Sb": 1.1,
+            "Sb_q": "",
+            "Tl": 0.041,
+            "Tl_q": "J",
+            "date": "45182.340278"
+          },
+          {
+            "depth": "1-1.5",
+            "sample_id": "ABWP02-25-SB-1-1.5",
+            "Hg": 730.0,
+            "Hg_q": "",
+            "As": 0.51,
+            "As_q": "J",
+            "Sb": 0.15,
+            "Sb_q": "J",
+            "Tl": 0.56,
+            "Tl_q": "U",
+            "date": "45182.354167"
+          }
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.666256815418,
+          39.0057140087177
+        ]
+      },
+      "properties": {
+        "id": "ABWP02-26",
+        "source": "EA",
+        "round": "EA Historical",
+        "sampled": true,
+        "sample_date": "45181.395833",
+        "depth": "Surface + Subsurface",
+        "n_depths": 2,
+        "max_depth_ft": 1.0,
+        "Hg": 2700.0,
+        "Hg_q": "",
+        "As": 3.7,
+        "As_q": "J-",
+        "Sb": 4.5,
+        "Sb_q": "J-",
+        "Tl": 0.046,
+        "Tl_q": "J",
+        "Hg_sub": 210.0,
+        "Hg_sub_q": "",
+        "As_sub": 1.3,
+        "As_sub_q": "J-",
+        "Sb_sub": 0.49,
+        "Sb_sub_q": "J",
+        "Tl_sub": 0.082,
+        "Tl_sub_q": "J",
+        "rod_exceed": "YES",
+        "rod_drivers": "Hg",
+        "pmb_exceed": "YES",
+        "pmb_drivers": "Hg, Sb",
+        "profile": [
+          {
+            "depth": "0-0.5",
+            "sample_id": "ABWP02-26-SS-0-0.5",
+            "Hg": 2700.0,
+            "Hg_q": "",
+            "As": 3.7,
+            "As_q": "J-",
+            "Sb": 4.5,
+            "Sb_q": "J-",
+            "Tl": 0.046,
+            "Tl_q": "J",
+            "date": "45181.395833"
+          },
+          {
+            "depth": "1-1.5",
+            "sample_id": "ABWP02-26-SB-1-1.5",
+            "Hg": 210.0,
+            "Hg_q": "",
+            "As": 1.3,
+            "As_q": "J-",
+            "Sb": 0.49,
+            "Sb_q": "J",
+            "Tl": 0.082,
+            "Tl_q": "J",
+            "date": "45181.413194"
+          }
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.666257040122,
+          39.0053815765848
+        ]
+      },
+      "properties": {
+        "id": "ABWP02-27",
+        "source": "EA",
+        "round": "EA Historical",
+        "sampled": true,
+        "sample_date": "45182.4",
+        "depth": "Surface + Subsurface",
+        "n_depths": 2,
+        "max_depth_ft": 1.0,
+        "Hg": 290.0,
+        "Hg_q": "",
+        "As": 1.7,
+        "As_q": "J-",
+        "Sb": 0.72,
+        "Sb_q": "J",
+        "Tl": 0.14,
+        "Tl_q": "J",
+        "Hg_sub": 210.0,
+        "Hg_sub_q": "",
+        "As_sub": 1.2,
+        "As_sub_q": "J-",
+        "Sb_sub": 0.23,
+        "Sb_sub_q": "J",
+        "Tl_sub": 0.12,
+        "Tl_sub_q": "J",
+        "rod_exceed": "YES",
+        "rod_drivers": "Hg",
+        "pmb_exceed": "YES",
+        "pmb_drivers": "Hg, Sb",
+        "profile": [
+          {
+            "depth": "0-0.5",
+            "sample_id": "ABWP02-27-SS-0-0.5",
+            "Hg": 290.0,
+            "Hg_q": "",
+            "As": 1.7,
+            "As_q": "J-",
+            "Sb": 0.72,
+            "Sb_q": "J",
+            "Tl": 0.14,
+            "Tl_q": "J",
+            "date": "45182.4"
+          },
+          {
+            "depth": "1-1.5",
+            "sample_id": "ABWP02-27-SB-1-1.5",
+            "Hg": 210.0,
+            "Hg_q": "",
+            "As": 1.2,
+            "As_q": "J-",
+            "Sb": 0.23,
+            "Sb_q": "J",
+            "Tl": 0.12,
+            "Tl_q": "J",
+            "date": "45182.420139"
+          }
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.665326232546,
+          39.0054541287926
+        ]
+      },
+      "properties": {
+        "id": "ABWP02-28",
+        "source": "EA",
+        "round": "EA Historical",
+        "sampled": true,
+        "sample_date": "45180.657639",
+        "depth": "Surface + Subsurface",
+        "n_depths": 2,
+        "max_depth_ft": 1.0,
+        "Hg": 94.0,
+        "Hg_q": "",
+        "As": 1.7,
+        "As_q": "J-",
+        "Sb": 0.71,
+        "Sb_q": "J",
+        "Tl": 0.15,
+        "Tl_q": "J",
+        "Hg_sub": 86.0,
+        "Hg_sub_q": "",
+        "As_sub": 1.2,
+        "As_sub_q": "J-",
+        "Sb_sub": 0.46,
+        "Sb_sub_q": "J",
+        "Tl_sub": 0.14,
+        "Tl_sub_q": "J",
+        "rod_exceed": "NO",
+        "rod_drivers": "",
+        "pmb_exceed": "YES",
+        "pmb_drivers": "Hg, Sb",
+        "profile": [
+          {
+            "depth": "0-0.5",
+            "sample_id": "ABWP02-28-SS-0-0.5",
+            "Hg": 94.0,
+            "Hg_q": "",
+            "As": 1.7,
+            "As_q": "J-",
+            "Sb": 0.71,
+            "Sb_q": "J",
+            "Tl": 0.15,
+            "Tl_q": "J",
+            "date": "45180.657639"
+          },
+          {
+            "depth": "1-1.5",
+            "sample_id": "ABWP02-28-SB-1-1.5",
+            "Hg": 86.0,
+            "Hg_q": "",
+            "As": 1.2,
+            "As_q": "J-",
+            "Sb": 0.46,
+            "Sb_q": "J",
+            "Tl": 0.14,
+            "Tl_q": "J",
+            "date": "45182.681944"
+          }
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.666306292323,
+          39.0051410522782
+        ]
+      },
+      "properties": {
+        "id": "ABWP02-29",
+        "source": "EA",
+        "round": "EA Historical",
+        "sampled": true,
+        "sample_date": "45182.44375",
+        "depth": "Surface + Subsurface",
+        "n_depths": 2,
+        "max_depth_ft": 1.0,
+        "Hg": 180.0,
+        "Hg_q": "",
+        "As": 1.7,
+        "As_q": "J-",
+        "Sb": 0.7,
+        "Sb_q": "J",
+        "Tl": 0.13,
+        "Tl_q": "J",
+        "Hg_sub": 120.0,
+        "Hg_sub_q": "",
+        "As_sub": 0.96,
+        "As_sub_q": "J-",
+        "Sb_sub": 0.15,
+        "Sb_sub_q": "J",
+        "Tl_sub": 0.1,
+        "Tl_sub_q": "J",
+        "rod_exceed": "NO",
+        "rod_drivers": "",
+        "pmb_exceed": "YES",
+        "pmb_drivers": "Hg, Sb",
+        "profile": [
+          {
+            "depth": "0-0.5",
+            "sample_id": "ABWP02-29-SS-0-0.5",
+            "Hg": 180.0,
+            "Hg_q": "",
+            "As": 1.7,
+            "As_q": "J-",
+            "Sb": 0.7,
+            "Sb_q": "J",
+            "Tl": 0.13,
+            "Tl_q": "J",
+            "date": "45182.44375"
+          },
+          {
+            "depth": "1-1.5",
+            "sample_id": "ABWP02-29-SB-1-1.5",
+            "Hg": 120.0,
+            "Hg_q": "",
+            "As": 0.96,
+            "As_q": "J-",
+            "Sb": 0.15,
+            "Sb_q": "J",
+            "Tl": 0.1,
+            "Tl_q": "J",
+            "date": "45182.460417"
+          }
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.665462531262,
+          39.0051985431479
+        ]
+      },
+      "properties": {
+        "id": "ABWP02-30",
+        "source": "EA",
+        "round": "EA Historical",
+        "sampled": true,
+        "sample_date": "45181.336806",
+        "depth": "Surface + Subsurface",
+        "n_depths": 2,
+        "max_depth_ft": 1.0,
+        "Hg": 85.0,
+        "Hg_q": "",
+        "As": 1.5,
+        "As_q": "J-",
+        "Sb": 1.3,
+        "Sb_q": "J-",
+        "Tl": 0.12,
+        "Tl_q": "J",
+        "Hg_sub": 220.0,
+        "Hg_sub_q": "",
+        "As_sub": 1.8,
+        "As_sub_q": "J-",
+        "Sb_sub": 0.79,
+        "Sb_sub_q": "J",
+        "Tl_sub": 0.059,
+        "Tl_sub_q": "J",
+        "rod_exceed": "NO",
+        "rod_drivers": "",
+        "pmb_exceed": "YES",
+        "pmb_drivers": "Hg, Sb",
+        "profile": [
+          {
+            "depth": "0-0.5",
+            "sample_id": "ABWP02-30-SS-0-0.5",
+            "Hg": 85.0,
+            "Hg_q": "",
+            "As": 1.5,
+            "As_q": "J-",
+            "Sb": 1.3,
+            "Sb_q": "J-",
+            "Tl": 0.12,
+            "Tl_q": "J",
+            "date": "45181.336806"
+          },
+          {
+            "depth": "1-1.5",
+            "sample_id": "ABWP02-30-SB-1-1.5",
+            "Hg": 220.0,
+            "Hg_q": "",
+            "As": 1.8,
+            "As_q": "J-",
+            "Sb": 0.79,
+            "Sb_q": "J",
+            "Tl": 0.059,
+            "Tl_q": "J",
+            "date": "45181.347222"
+          }
+        ]
+      }
+    }
+  ]
+}
