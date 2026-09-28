@@ -1,0 +1,4628 @@
+[
+  {
+    "id": "SB01",
+    "lat": 39.000029,
+    "lon": -122.667422,
+    "elev": 1450,
+    "area": "OMB",
+    "depths": [
+      {
+        "start": 0,
+        "end": 2.5,
+        "label": "0.0-2.5 ft",
+        "clp": "YEET7",
+        "metals": {
+          "Mercury": 150,
+          "Arsenic": 11,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 2.5,
+        "end": 5,
+        "label": "2.5-5.0 ft",
+        "clp": "YEET8",
+        "metals": {
+          "Mercury": 0.46,
+          "Arsenic": 3.1,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 5,
+        "end": 7.5,
+        "label": "5.0-7.5 ft",
+        "clp": "YEET9",
+        "metals": {
+          "Mercury": 0.24,
+          "Arsenic": 6.8,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 7.5,
+        "end": 10,
+        "label": "7.5-10.0 ft",
+        "clp": "YEEW0",
+        "metals": {
+          "Mercury": 0.038,
+          "Arsenic": 5.7,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 10,
+        "end": 20,
+        "label": "10.0-20.0 ft",
+        "clp": "YEEW1",
+        "metals": {
+          "Mercury": 0.46,
+          "Arsenic": 6,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 20,
+        "end": 30,
+        "label": "20.0-30.0 ft",
+        "clp": "YEEW3",
+        "metals": {
+          "Mercury": 0.24,
+          "Arsenic": 4.2,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 30,
+        "end": 40,
+        "label": "30.0-40.0 ft",
+        "clp": "YEEW4",
+        "metals": {
+          "Mercury": 0.12,
+          "Arsenic": 2,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 40,
+        "end": 45,
+        "label": "40.0-45.0 ft",
+        "clp": "YEEW5",
+        "metals": {
+          "Mercury": 0.41,
+          "Arsenic": 1,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      }
+    ]
+  },
+  {
+    "id": "SB02",
+    "lat": 38.999538,
+    "lon": -122.666822,
+    "elev": 1482,
+    "area": "OMB",
+    "depths": [
+      {
+        "start": 0,
+        "end": 2.5,
+        "label": "0.0-2.5 ft",
+        "clp": "YEEW7",
+        "metals": {
+          "Mercury": 320,
+          "Arsenic": 15,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 2.5,
+        "end": 5,
+        "label": "2.5-5.0 ft",
+        "clp": "YEEW8",
+        "metals": {
+          "Mercury": 23,
+          "Arsenic": 8.2,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 5,
+        "end": 7.5,
+        "label": "5.0-7.5 ft",
+        "clp": "YEEW9",
+        "metals": {
+          "Mercury": 0.23,
+          "Arsenic": 8,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 7.5,
+        "end": 10,
+        "label": "7.5-10.0 ft",
+        "clp": "YEEX0",
+        "metals": {
+          "Mercury": 22,
+          "Arsenic": 5.7,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 10,
+        "end": 20,
+        "label": "10.0-20.0 ft",
+        "clp": "YEEX1",
+        "metals": {
+          "Mercury": 0.078,
+          "Arsenic": 6.3,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 10,
+        "end": 20,
+        "label": "10.0-20.0 ft",
+        "clp": "YEEX1S",
+        "metals": {
+          "Mercury": 0.71,
+          "Arsenic": 17,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 10,
+        "end": 20,
+        "label": "10.0-20.0 ft",
+        "clp": "YEEX1D",
+        "metals": {
+          "Mercury": 0.14,
+          "Arsenic": 6.4,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 20,
+        "end": 30,
+        "label": "20.0-30.0 ft",
+        "clp": "YEEX2",
+        "metals": {
+          "Mercury": 0.29,
+          "Arsenic": 1.8,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 30,
+        "end": 40,
+        "label": "30.0-40.0 ft",
+        "clp": "YEEX4",
+        "metals": {
+          "Mercury": 0.32,
+          "Arsenic": 1.7,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      }
+    ]
+  },
+  {
+    "id": "SB03",
+    "lat": 39.000552,
+    "lon": -122.666619,
+    "elev": 1427,
+    "area": "OMB",
+    "depths": [
+      {
+        "start": 0,
+        "end": 2.5,
+        "label": "0.0-2.5 ft",
+        "clp": "YEES7",
+        "metals": {
+          "Mercury": 6.9,
+          "Arsenic": 6,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 2.5,
+        "end": 5,
+        "label": "2.5-5.0 ft",
+        "clp": "YEES8",
+        "metals": {
+          "Mercury": 0.91,
+          "Arsenic": 5.3,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 5,
+        "end": 7.5,
+        "label": "5.0-7.5 ft",
+        "clp": "YEES9",
+        "metals": {
+          "Mercury": 2.8,
+          "Arsenic": 12,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 7.5,
+        "end": 10,
+        "label": "7.5-10.0 ft",
+        "clp": "YEET0",
+        "metals": {
+          "Mercury": 3,
+          "Arsenic": 7.5,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 10,
+        "end": 20,
+        "label": "10.0-20.0 ft",
+        "clp": "YEET1",
+        "metals": {
+          "Mercury": 0.2,
+          "Arsenic": 3.1,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 20,
+        "end": 30,
+        "label": "20.0-30.0 ft",
+        "clp": "YEET2",
+        "metals": {
+          "Mercury": 0.041,
+          "Arsenic": 7.9,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 30,
+        "end": 40,
+        "label": "30.0-40.0 ft",
+        "clp": "YEET3",
+        "metals": {
+          "Mercury": 0.2,
+          "Arsenic": 5.8,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 40,
+        "end": 50,
+        "label": "40.0-50.0 ft",
+        "clp": "YEET4",
+        "metals": {
+          "Mercury": 0.24,
+          "Arsenic": 7.1,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 50,
+        "end": 60,
+        "label": "50.0-60.0 ft",
+        "clp": "YEET5",
+        "metals": {
+          "Mercury": 0.047,
+          "Arsenic": 2.5,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      }
+    ]
+  },
+  {
+    "id": "SB04",
+    "lat": 39.000385,
+    "lon": -122.666241,
+    "elev": 1427,
+    "area": "OMB",
+    "depths": [
+      {
+        "start": 0,
+        "end": 2.5,
+        "label": "0.0-2.5 ft",
+        "clp": "YEER3",
+        "metals": {
+          "Mercury": 80,
+          "Arsenic": 8.5,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 2.5,
+        "end": 5,
+        "label": "2.5-5.0 ft",
+        "clp": "YEER4",
+        "metals": {
+          "Mercury": 190,
+          "Arsenic": 14,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 5,
+        "end": 7.5,
+        "label": "5.0-7.5 ft",
+        "clp": "YEER5",
+        "metals": {
+          "Mercury": 280,
+          "Arsenic": 6.3,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 7.5,
+        "end": 10,
+        "label": "7.5-10.0 ft",
+        "clp": "YEER6",
+        "metals": {
+          "Mercury": 230,
+          "Arsenic": 5.4,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 10,
+        "end": 20,
+        "label": "10.0-20.0 ft",
+        "clp": "YEER7",
+        "metals": {
+          "Mercury": 270,
+          "Arsenic": 11,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 20,
+        "end": 30,
+        "label": "20.0-30.0 ft",
+        "clp": "YEER8",
+        "metals": {
+          "Mercury": 56,
+          "Arsenic": 6.1,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 30,
+        "end": 40,
+        "label": "30.0-40.0 ft",
+        "clp": "YEER9",
+        "metals": {
+          "Mercury": 4.8,
+          "Arsenic": 9.7,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 30,
+        "end": 40,
+        "label": "30.0-40.0 ft",
+        "clp": "YESS0S",
+        "metals": {
+          "Mercury": 5,
+          "Arsenic": 23,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 30,
+        "end": 40,
+        "label": "30.0-40.0 ft",
+        "clp": "YEES0D",
+        "metals": {
+          "Mercury": 6.7,
+          "Arsenic": 9.3,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 40,
+        "end": 50,
+        "label": "40.0-50.0 ft",
+        "clp": "YEES1",
+        "metals": {
+          "Mercury": 3.6,
+          "Arsenic": 11,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 50,
+        "end": 60,
+        "label": "50.0-60.0 ft",
+        "clp": "YEES2",
+        "metals": {
+          "Mercury": 0.071,
+          "Arsenic": 14,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 60,
+        "end": 70,
+        "label": "60.0-70.0 ft",
+        "clp": "YEES5",
+        "metals": {
+          "Mercury": 0.16,
+          "Arsenic": 15,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 60,
+        "end": 70,
+        "label": "60.0-70.0 ft",
+        "clp": "YEES5S",
+        "metals": {
+          "Mercury": 0.71,
+          "Arsenic": 29,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 60,
+        "end": 70,
+        "label": "60.0-70.0 ft",
+        "clp": "YEES5D",
+        "metals": {
+          "Mercury": 0.16,
+          "Arsenic": 15,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 70,
+        "end": 75,
+        "label": "70.0-75.0 ft",
+        "clp": "YEES6",
+        "metals": {
+          "Mercury": 0.064,
+          "Arsenic": 8.1,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      }
+    ]
+  },
+  {
+    "id": "SB05",
+    "lat": 39.000015,
+    "lon": -122.663672,
+    "elev": 1457,
+    "area": null,
+    "depths": []
+  },
+  {
+    "id": "SB6A",
+    "lat": 39.001953,
+    "lon": -122.66079,
+    "elev": 1399,
+    "area": null,
+    "depths": []
+  },
+  {
+    "id": "SB07",
+    "lat": 39.00119,
+    "lon": -122.663774,
+    "elev": 1405,
+    "area": null,
+    "depths": []
+  },
+  {
+    "id": "SB08",
+    "lat": 39.001546,
+    "lon": -122.665112,
+    "elev": 1363.5,
+    "area": null,
+    "depths": []
+  },
+  {
+    "id": "SB09",
+    "lat": 39.001937,
+    "lon": -122.664212,
+    "elev": 1366.5,
+    "area": null,
+    "depths": []
+  },
+  {
+    "id": "SB10",
+    "lat": 39.0017,
+    "lon": -122.662609,
+    "elev": 1418.5,
+    "area": null,
+    "depths": []
+  },
+  {
+    "id": "SB11",
+    "lat": 39.002132,
+    "lon": -122.661293,
+    "elev": 1427.5,
+    "area": null,
+    "depths": []
+  },
+  {
+    "id": "SB12",
+    "lat": 39.00262,
+    "lon": -122.662324,
+    "elev": 1387,
+    "area": null,
+    "depths": []
+  },
+  {
+    "id": "SB13",
+    "lat": 39.002997,
+    "lon": -122.661474,
+    "elev": 1392,
+    "area": null,
+    "depths": []
+  },
+  {
+    "id": "SB14",
+    "lat": 39.003279,
+    "lon": -122.660811,
+    "elev": 1404,
+    "area": null,
+    "depths": []
+  },
+  {
+    "id": "SB15",
+    "lat": 39.004268,
+    "lon": -122.66027,
+    "elev": 1408,
+    "area": null,
+    "depths": []
+  },
+  {
+    "id": "SB16",
+    "lat": 39.004618,
+    "lon": -122.658943,
+    "elev": 1415,
+    "area": null,
+    "depths": []
+  },
+  {
+    "id": "SB17",
+    "lat": 39.005088,
+    "lon": -122.661017,
+    "elev": 1403,
+    "area": "NWRP",
+    "depths": [
+      {
+        "start": 0,
+        "end": 2.5,
+        "label": "0.0-2.5 ft",
+        "clp": "YEFQ5",
+        "metals": {
+          "Mercury": 56,
+          "Arsenic": 6.1,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 2.5,
+        "end": 5,
+        "label": "2.5-5.0 ft",
+        "clp": "YEFQ6",
+        "metals": {
+          "Mercury": 0.036,
+          "Arsenic": 2.5,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 2.5,
+        "end": 5,
+        "label": "2.5-5.0 ft",
+        "clp": "YEFQ6S",
+        "metals": {
+          "Mercury": 0.56,
+          "Arsenic": 15,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 2.5,
+        "end": 5,
+        "label": "2.5-5.0 ft",
+        "clp": "YEFQ6D",
+        "metals": {
+          "Mercury": 0.11,
+          "Arsenic": 2,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 5,
+        "end": 7.5,
+        "label": "5.0-7.5 ft",
+        "clp": "YEFQ7",
+        "metals": {
+          "Mercury": 2,
+          "Arsenic": 2.9,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 7.5,
+        "end": 10,
+        "label": "7.5-10.0 ft",
+        "clp": "YEFQ9",
+        "metals": {
+          "Mercury": 1.1,
+          "Arsenic": 0.71,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 10,
+        "end": 20,
+        "label": "10.0-20.0 ft",
+        "clp": "YEFR0",
+        "metals": {
+          "Mercury": 1.1,
+          "Arsenic": 0.95,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 20,
+        "end": 30,
+        "label": "20.0-30.0 ft",
+        "clp": "YEFR1",
+        "metals": {
+          "Mercury": 0.045,
+          "Arsenic": 1.6,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 30,
+        "end": 40,
+        "label": "30.0-40.0 ft",
+        "clp": "YEFR2",
+        "metals": {
+          "Mercury": 0.04,
+          "Arsenic": 0.87,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 40,
+        "end": 50,
+        "label": "40.0-50.0 ft",
+        "clp": "YEFR3",
+        "metals": {
+          "Mercury": null,
+          "Arsenic": null,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 50,
+        "end": 60,
+        "label": "50.0-60.0 ft",
+        "clp": "YEFR4",
+        "metals": {
+          "Mercury": null,
+          "Arsenic": null,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 60,
+        "end": 70,
+        "label": "60.0-70.0 ft",
+        "clp": "YEFR5",
+        "metals": {
+          "Mercury": null,
+          "Arsenic": null,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 70,
+        "end": 80,
+        "label": "70.0-80.0 ft",
+        "clp": "YEFR6",
+        "metals": {
+          "Mercury": null,
+          "Arsenic": null,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 80,
+        "end": 90,
+        "label": "80.0-90.0 ft",
+        "clp": "YEFR7",
+        "metals": {
+          "Mercury": null,
+          "Arsenic": null,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      }
+    ]
+  },
+  {
+    "id": "SB18",
+    "lat": 39.006308,
+    "lon": -122.661431,
+    "elev": 1431,
+    "area": "NWRP",
+    "depths": [
+      {
+        "start": 0,
+        "end": 2.5,
+        "label": "0.0-2.5 ft",
+        "clp": "YEFM5",
+        "metals": {
+          "Mercury": null,
+          "Arsenic": null,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 2.5,
+        "end": 5,
+        "label": "2.5-5.0 ft",
+        "clp": "YEFM6",
+        "metals": {
+          "Mercury": null,
+          "Arsenic": null,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 5,
+        "end": 7.5,
+        "label": "5.0-7.5 ft",
+        "clp": "YEFM7",
+        "metals": {
+          "Mercury": null,
+          "Arsenic": null,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 7.5,
+        "end": 10,
+        "label": "7.5-10.0 ft",
+        "clp": "YEFM9",
+        "metals": {
+          "Mercury": null,
+          "Arsenic": null,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 10,
+        "end": 20,
+        "label": "10.0-20.0 ft",
+        "clp": "YEFN0",
+        "metals": {
+          "Mercury": null,
+          "Arsenic": null,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 20,
+        "end": 30,
+        "label": "20.0-30.0 ft",
+        "clp": "YEFN1",
+        "metals": {
+          "Mercury": null,
+          "Arsenic": null,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 30,
+        "end": 40,
+        "label": "30.0-40.0 ft",
+        "clp": "YEFN2",
+        "metals": {
+          "Mercury": null,
+          "Arsenic": null,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 40,
+        "end": 50,
+        "label": "40.0-50.0 ft",
+        "clp": "YEFN3",
+        "metals": {
+          "Mercury": null,
+          "Arsenic": null,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 50,
+        "end": 60,
+        "label": "50.0-60.0 ft",
+        "clp": "YEFN4",
+        "metals": {
+          "Mercury": null,
+          "Arsenic": null,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 60,
+        "end": 70,
+        "label": "60.0-70.0 ft",
+        "clp": "YEFN5",
+        "metals": {
+          "Mercury": null,
+          "Arsenic": null,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 70,
+        "end": 80,
+        "label": "70.0-80.0 ft",
+        "clp": "YEFN6",
+        "metals": {
+          "Mercury": null,
+          "Arsenic": null,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 80,
+        "end": 90,
+        "label": "80.0-90.0 ft",
+        "clp": "YEFN7",
+        "metals": {
+          "Mercury": null,
+          "Arsenic": null,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 90,
+        "end": 100,
+        "label": "90.0-100.0 ft",
+        "clp": "YEFN8",
+        "metals": {
+          "Mercury": null,
+          "Arsenic": null,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 100,
+        "end": 110,
+        "label": "100.0-110.0 ft",
+        "clp": "YEFN9",
+        "metals": {
+          "Mercury": null,
+          "Arsenic": null,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      }
+    ]
+  },
+  {
+    "id": "SB19",
+    "lat": 39.007072,
+    "lon": -122.661521,
+    "elev": 1442,
+    "area": "NWRP",
+    "depths": [
+      {
+        "start": 0,
+        "end": 2.5,
+        "label": "0.0-2.5 ft",
+        "clp": "YEFP1",
+        "metals": {
+          "Mercury": null,
+          "Arsenic": null,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 2.5,
+        "end": 5,
+        "label": "2.5-5.0 ft",
+        "clp": "YEFP2",
+        "metals": {
+          "Mercury": null,
+          "Arsenic": null,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 5,
+        "end": 7.5,
+        "label": "5.0-7.5 ft",
+        "clp": "YEFP3",
+        "metals": {
+          "Mercury": null,
+          "Arsenic": null,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 7.5,
+        "end": 10,
+        "label": "7.5-10.0 ft",
+        "clp": "YEFP4",
+        "metals": {
+          "Mercury": 190,
+          "Arsenic": 150,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 10,
+        "end": 20,
+        "label": "10.0-20.0 ft",
+        "clp": "YEFP5",
+        "metals": {
+          "Mercury": 300,
+          "Arsenic": 18,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 20,
+        "end": 30,
+        "label": "20.0-30.0 ft",
+        "clp": "YEFP7",
+        "metals": {
+          "Mercury": 60,
+          "Arsenic": 12,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 30,
+        "end": 40,
+        "label": "30.0-40.0 ft",
+        "clp": "YEFP8",
+        "metals": {
+          "Mercury": 62,
+          "Arsenic": 7.9,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 40,
+        "end": 50,
+        "label": "40.0-50.0 ft",
+        "clp": "YEFP9",
+        "metals": {
+          "Mercury": 180,
+          "Arsenic": 17,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 50,
+        "end": 60,
+        "label": "50.0-60.0 ft",
+        "clp": "YEFQ0",
+        "metals": {
+          "Mercury": 440,
+          "Arsenic": 18,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 60,
+        "end": 70,
+        "label": "60.0-70.0 ft",
+        "clp": "YEFQ1",
+        "metals": {
+          "Mercury": 47,
+          "Arsenic": 11,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 70,
+        "end": 80,
+        "label": "70.0-80.0 ft",
+        "clp": "YEFQ2",
+        "metals": {
+          "Mercury": 37,
+          "Arsenic": 23,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 80,
+        "end": 90,
+        "label": "80.0-90.0 ft",
+        "clp": "YEFQ3",
+        "metals": {
+          "Mercury": 0.049,
+          "Arsenic": 0.55,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      }
+    ]
+  },
+  {
+    "id": "SB20",
+    "lat": 39.007119,
+    "lon": -122.659633,
+    "elev": 1372,
+    "area": "NWRP",
+    "depths": [
+      {
+        "start": 0,
+        "end": 2.5,
+        "label": "0.0-2.5 ft",
+        "clp": "YEFS7",
+        "metals": {
+          "Mercury": null,
+          "Arsenic": null,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 2.5,
+        "end": 5,
+        "label": "2.5-5.0 ft",
+        "clp": "YEFS8",
+        "metals": {
+          "Mercury": null,
+          "Arsenic": null,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 5,
+        "end": 7.5,
+        "label": "5.0-7.5 ft",
+        "clp": "YEFS9",
+        "metals": {
+          "Mercury": null,
+          "Arsenic": null,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 7.5,
+        "end": 10,
+        "label": "7.5-10.0 ft",
+        "clp": "YEFT0",
+        "metals": {
+          "Mercury": null,
+          "Arsenic": null,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 10,
+        "end": 15,
+        "label": "10.0-15.0 ft",
+        "clp": "YEFT1",
+        "metals": {
+          "Mercury": null,
+          "Arsenic": null,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      }
+    ]
+  },
+  {
+    "id": "SB21",
+    "lat": 39.006712,
+    "lon": -122.663359,
+    "elev": 1405,
+    "area": "NWRP",
+    "depths": [
+      {
+        "start": 0,
+        "end": 2.5,
+        "label": "0.0-2.5 ft",
+        "clp": "YEFL5",
+        "metals": {
+          "Mercury": null,
+          "Arsenic": null,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 2.5,
+        "end": 5,
+        "label": "2.5-5.0 ft",
+        "clp": "YEFL6",
+        "metals": {
+          "Mercury": null,
+          "Arsenic": null,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 5,
+        "end": 7.5,
+        "label": "5.0-7.5 ft",
+        "clp": "YEFL8",
+        "metals": {
+          "Mercury": null,
+          "Arsenic": null,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 7.5,
+        "end": 10,
+        "label": "7.5-10.0 ft",
+        "clp": "YEFL9",
+        "metals": {
+          "Mercury": null,
+          "Arsenic": null,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 10,
+        "end": 20,
+        "label": "10.0-20.0 ft",
+        "clp": "YEFM0",
+        "metals": {
+          "Mercury": null,
+          "Arsenic": null,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 20,
+        "end": 30,
+        "label": "20.0-30.0 ft",
+        "clp": "YEFM1",
+        "metals": {
+          "Mercury": null,
+          "Arsenic": null,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 30,
+        "end": 40,
+        "label": "30.0-40.0 ft",
+        "clp": "YEFM2",
+        "metals": {
+          "Mercury": null,
+          "Arsenic": null,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 40,
+        "end": 45,
+        "label": "40.0-45.0 ft",
+        "clp": "YEFM3",
+        "metals": {
+          "Mercury": null,
+          "Arsenic": null,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      }
+    ]
+  },
+  {
+    "id": "SB22",
+    "lat": 39.006574,
+    "lon": -122.664861,
+    "elev": 1380,
+    "area": "DR",
+    "depths": [
+      {
+        "start": 0,
+        "end": 2.5,
+        "label": "0.0-2.5 ft",
+        "clp": "YEFH7",
+        "metals": {
+          "Mercury": 140,
+          "Arsenic": 3.9,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 2.5,
+        "end": 5,
+        "label": "2.5-5.0 ft",
+        "clp": "YEFH8",
+        "metals": {
+          "Mercury": 25,
+          "Arsenic": 3.2,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 5,
+        "end": 7.5,
+        "label": "5.0-7.5 ft",
+        "clp": "YEFH9",
+        "metals": {
+          "Mercury": 6.6,
+          "Arsenic": 3,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 7.5,
+        "end": 10,
+        "label": "7.5-10.0 ft",
+        "clp": "YEFJ0",
+        "metals": {
+          "Mercury": 6.4,
+          "Arsenic": 2.1,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 10,
+        "end": 20,
+        "label": "10.0-20.0 ft",
+        "clp": "YEFJ1",
+        "metals": {
+          "Mercury": 0.062,
+          "Arsenic": 0.51,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 20,
+        "end": 25,
+        "label": "20.0-25.0 ft",
+        "clp": "YEFJ2",
+        "metals": {
+          "Mercury": null,
+          "Arsenic": 0.35,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      }
+    ]
+  },
+  {
+    "id": "SB23",
+    "lat": 39.005753,
+    "lon": -122.663986,
+    "elev": 1400,
+    "area": "NP",
+    "depths": [
+      {
+        "start": 0,
+        "end": 2.5,
+        "label": "0.0-2.5 ft",
+        "clp": "YEFK5",
+        "metals": {
+          "Mercury": null,
+          "Arsenic": null,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 2.5,
+        "end": 5,
+        "label": "2.5-5.0 ft",
+        "clp": "YEFK6",
+        "metals": {
+          "Mercury": null,
+          "Arsenic": null,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 5,
+        "end": 7.5,
+        "label": "5.0-7.5 ft",
+        "clp": "YEFK7",
+        "metals": {
+          "Mercury": null,
+          "Arsenic": null,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 7.5,
+        "end": 10,
+        "label": "7.5-10.0 ft",
+        "clp": "YEFK9",
+        "metals": {
+          "Mercury": null,
+          "Arsenic": null,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 10,
+        "end": 20,
+        "label": "10.0-20.0 ft",
+        "clp": "YEFL0",
+        "metals": {
+          "Mercury": null,
+          "Arsenic": null,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 20,
+        "end": 30,
+        "label": "20.0-30.0 ft",
+        "clp": "YEFL1",
+        "metals": {
+          "Mercury": null,
+          "Arsenic": null,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 30,
+        "end": 40,
+        "label": "30.0-40.0 ft",
+        "clp": "YEFL2",
+        "metals": {
+          "Mercury": null,
+          "Arsenic": null,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 40,
+        "end": 50,
+        "label": "40.0-50.0 ft",
+        "clp": "YEFL3",
+        "metals": {
+          "Mercury": null,
+          "Arsenic": null,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      }
+    ]
+  },
+  {
+    "id": "SB24",
+    "lat": 39.004665,
+    "lon": -122.666126,
+    "elev": 1389.5,
+    "area": "DR",
+    "depths": [
+      {
+        "start": 0,
+        "end": 2.5,
+        "label": "0.0-2.5 ft",
+        "clp": "YEFG7",
+        "metals": {
+          "Mercury": 560,
+          "Arsenic": 4.3,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 2.5,
+        "end": 5,
+        "label": "2.5-5.0 ft",
+        "clp": "YEFG8",
+        "metals": {
+          "Mercury": 170,
+          "Arsenic": 1.4,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 5,
+        "end": 7.5,
+        "label": "5.0-7.5 ft",
+        "clp": "YEFH0",
+        "metals": {
+          "Mercury": 17,
+          "Arsenic": 3.6,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 7.5,
+        "end": 10,
+        "label": "7.5-10.0 ft",
+        "clp": "YEFH1",
+        "metals": {
+          "Mercury": 25,
+          "Arsenic": 2.1,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 10,
+        "end": 20,
+        "label": "10.0-20.0 ft",
+        "clp": "YEFH2",
+        "metals": {
+          "Mercury": 41,
+          "Arsenic": 9.7,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 20,
+        "end": 30,
+        "label": "20.0-30.0 ft",
+        "clp": "YEFH3",
+        "metals": {
+          "Mercury": 12,
+          "Arsenic": 2,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 20,
+        "end": 30,
+        "label": "20.0-30.0 ft",
+        "clp": "YEFH3S",
+        "metals": {
+          "Mercury": 22,
+          "Arsenic": 14,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 20,
+        "end": 30,
+        "label": "20.0-30.0 ft",
+        "clp": "YEFH3D",
+        "metals": {
+          "Mercury": 29,
+          "Arsenic": 1.4,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 30,
+        "end": 40,
+        "label": "30.0-40.0 ft",
+        "clp": "YEFH4",
+        "metals": {
+          "Mercury": 3.8,
+          "Arsenic": 1.9,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 40,
+        "end": 50,
+        "label": "40.0-50.0 ft",
+        "clp": "YEFH5",
+        "metals": {
+          "Mercury": 13,
+          "Arsenic": 9.7,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 50,
+        "end": 60,
+        "label": "50.0-60.0 ft",
+        "clp": "YEFH6",
+        "metals": {
+          "Mercury": 18,
+          "Arsenic": 28,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      }
+    ]
+  },
+  {
+    "id": "SB25",
+    "lat": 39.005533,
+    "lon": -122.666923,
+    "elev": 1393,
+    "area": "NP",
+    "depths": [
+      {
+        "start": 0,
+        "end": 2.5,
+        "label": "0.0-2.5 ft",
+        "clp": "YEFF9",
+        "metals": {
+          "Mercury": 750,
+          "Arsenic": 2,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 2.5,
+        "end": 5,
+        "label": "2.5-5.0 ft",
+        "clp": "YEFG0",
+        "metals": {
+          "Mercury": 67,
+          "Arsenic": 1.3,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 5,
+        "end": 7.5,
+        "label": "5.0-7.5 ft",
+        "clp": "YEFG1",
+        "metals": {
+          "Mercury": 850,
+          "Arsenic": 2.5,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 7.5,
+        "end": 10,
+        "label": "7.5-10.0 ft",
+        "clp": "YEFG2",
+        "metals": {
+          "Mercury": 130,
+          "Arsenic": 2.3,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 10,
+        "end": 20,
+        "label": "10.0-20.0 ft",
+        "clp": "YEFG3",
+        "metals": {
+          "Mercury": 58,
+          "Arsenic": 1.2,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 20,
+        "end": 30,
+        "label": "20.0-30.0 ft",
+        "clp": "YEFG5",
+        "metals": {
+          "Mercury": 84,
+          "Arsenic": 0.82,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      }
+    ]
+  },
+  {
+    "id": "SB26",
+    "lat": 39.007031,
+    "lon": -122.66635,
+    "elev": 1368.5,
+    "area": "NP",
+    "depths": [
+      {
+        "start": 0,
+        "end": 2.5,
+        "label": "0.0-2.5 ft",
+        "clp": "YEFJ3",
+        "metals": {
+          "Mercury": 83,
+          "Arsenic": 2.4,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 2.5,
+        "end": 5,
+        "label": "2.5-5.0 ft",
+        "clp": "YEFJ4",
+        "metals": {
+          "Mercury": 9.1,
+          "Arsenic": 5.4,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 5,
+        "end": 7.5,
+        "label": "5.0-7.5 ft",
+        "clp": "YEFJ5",
+        "metals": {
+          "Mercury": 28,
+          "Arsenic": 5.7,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 7.5,
+        "end": 10,
+        "label": "7.5-10.0 ft",
+        "clp": "YEFJ6",
+        "metals": {
+          "Mercury": 18,
+          "Arsenic": 7.7,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 10,
+        "end": 20,
+        "label": "10.0-20.0 ft",
+        "clp": "YEFJ7",
+        "metals": {
+          "Mercury": 36,
+          "Arsenic": 8.9,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 20,
+        "end": 30,
+        "label": "20.0-30.0 ft",
+        "clp": "YEFJ8",
+        "metals": {
+          "Mercury": 0.054,
+          "Arsenic": 0.28,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 30,
+        "end": 40,
+        "label": "30.0-40.0 ft",
+        "clp": "YEFJ9",
+        "metals": {
+          "Mercury": null,
+          "Arsenic": 0.94,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 40,
+        "end": 50,
+        "label": "40.0-50.0 ft",
+        "clp": "YEFK1",
+        "metals": {
+          "Mercury": null,
+          "Arsenic": 0.61,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 50,
+        "end": 60,
+        "label": "50.0-60.0 ft",
+        "clp": "YEFK2",
+        "metals": {
+          "Mercury": 0.1,
+          "Arsenic": 1.8,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 60,
+        "end": 70,
+        "label": "60.0-70.0 ft",
+        "clp": "YEFK3",
+        "metals": {
+          "Mercury": 1.1,
+          "Arsenic": 2.4,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      }
+    ]
+  },
+  {
+    "id": "SB28",
+    "lat": 39.007693,
+    "lon": -122.660546,
+    "elev": 1356,
+    "area": "NWRP",
+    "depths": [
+      {
+        "start": 0,
+        "end": 2.5,
+        "label": "0.0-2.5 ft",
+        "clp": "YEFS2",
+        "metals": {
+          "Mercury": null,
+          "Arsenic": null,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 2.5,
+        "end": 5,
+        "label": "2.5-5.0 ft",
+        "clp": "YEFS3",
+        "metals": {
+          "Mercury": null,
+          "Arsenic": null,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 5,
+        "end": 7.5,
+        "label": "5.0-7.5 ft",
+        "clp": "YEFS4",
+        "metals": {
+          "Mercury": null,
+          "Arsenic": null,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 7.5,
+        "end": 10,
+        "label": "7.5-10.0 ft",
+        "clp": "YEFS5",
+        "metals": {
+          "Mercury": null,
+          "Arsenic": null,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      }
+    ]
+  },
+  {
+    "id": "SB29",
+    "lat": 39.007754,
+    "lon": -122.663653,
+    "elev": 1350.5,
+    "area": "NWRP",
+    "depths": [
+      {
+        "start": 0,
+        "end": 2.5,
+        "label": "0.0-2.5 ft",
+        "clp": "YEFR9",
+        "metals": {
+          "Mercury": null,
+          "Arsenic": null,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 2.5,
+        "end": 5,
+        "label": "2.5-5.0 ft",
+        "clp": "YEFS0",
+        "metals": {
+          "Mercury": null,
+          "Arsenic": null,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 5,
+        "end": 10,
+        "label": "5.0-10.0 ft",
+        "clp": "YEFS1",
+        "metals": {
+          "Mercury": null,
+          "Arsenic": null,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      }
+    ]
+  },
+  {
+    "id": "SB31",
+    "lat": 39.006464,
+    "lon": -122.667587,
+    "elev": 1379,
+    "area": "NP",
+    "depths": [
+      {
+        "start": 0,
+        "end": 2.5,
+        "label": "0.0-2.5 ft",
+        "clp": "YEFD5",
+        "metals": {
+          "Mercury": 170,
+          "Arsenic": 87,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 2.5,
+        "end": 5,
+        "label": "2.5-5.0 ft",
+        "clp": "YEFD6",
+        "metals": {
+          "Mercury": 63,
+          "Arsenic": 7,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 5,
+        "end": 7.5,
+        "label": "5.0-7.5 ft",
+        "clp": "YEFD8",
+        "metals": {
+          "Mercury": 260,
+          "Arsenic": 3,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 7.5,
+        "end": 10,
+        "label": "7.5-10.0 ft",
+        "clp": "YEFD9",
+        "metals": {
+          "Mercury": 53,
+          "Arsenic": 13,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 10,
+        "end": 20,
+        "label": "10.0-20.0 ft",
+        "clp": "YEFE0",
+        "metals": {
+          "Mercury": 7.2,
+          "Arsenic": 4.6,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 20,
+        "end": 30,
+        "label": "20.0-30.0 ft",
+        "clp": "YEFE1",
+        "metals": {
+          "Mercury": 11,
+          "Arsenic": 6.2,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 30,
+        "end": 40,
+        "label": "30.0-40.0 ft",
+        "clp": "YEFE2",
+        "metals": {
+          "Mercury": 260,
+          "Arsenic": 7.4,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 40,
+        "end": 50,
+        "label": "40.0-50.0 ft",
+        "clp": "YEFE4",
+        "metals": {
+          "Mercury": 16,
+          "Arsenic": 13,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 50,
+        "end": 60,
+        "label": "50.0-60.0 ft",
+        "clp": "YEFE5",
+        "metals": {
+          "Mercury": 12,
+          "Arsenic": 51,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 50,
+        "end": 60,
+        "label": "50.0-60.0 ft",
+        "clp": "YEFE5S",
+        "metals": {
+          "Mercury": 12,
+          "Arsenic": 92,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 50,
+        "end": 60,
+        "label": "50.0-60.0 ft",
+        "clp": "YEFE5D",
+        "metals": {
+          "Mercury": 12,
+          "Arsenic": 100,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 60,
+        "end": 67,
+        "label": "60.0-67.0 ft",
+        "clp": "YEFE6",
+        "metals": {
+          "Mercury": 16,
+          "Arsenic": 55,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      }
+    ]
+  },
+  {
+    "id": "SB32",
+    "lat": 39.003506,
+    "lon": -122.67026,
+    "elev": 1375,
+    "area": "WRD",
+    "depths": [
+      {
+        "start": 0,
+        "end": 2.5,
+        "label": "0.0-2.5 ft",
+        "clp": "YEF29",
+        "metals": {
+          "Mercury": 190,
+          "Arsenic": 120,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 2.5,
+        "end": 5,
+        "label": "2.5-5.0 ft",
+        "clp": "YEF30",
+        "metals": {
+          "Mercury": 34,
+          "Arsenic": 11,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 5,
+        "end": 7.5,
+        "label": "5.0-7.5 ft",
+        "clp": "YEF31",
+        "metals": {
+          "Mercury": 620,
+          "Arsenic": 69,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 5,
+        "end": 7.5,
+        "label": "5.0-7.5 ft",
+        "clp": "YEF31S",
+        "metals": {
+          "Mercury": 730,
+          "Arsenic": 43,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 5,
+        "end": 7.5,
+        "label": "5.0-7.5 ft",
+        "clp": "YEF31D",
+        "metals": {
+          "Mercury": 300,
+          "Arsenic": 38,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 7.5,
+        "end": 10,
+        "label": "7.5-10.0 ft",
+        "clp": "YEF32",
+        "metals": {
+          "Mercury": 1500,
+          "Arsenic": 43,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 10,
+        "end": 20,
+        "label": "10.0-20.0 ft",
+        "clp": "YEF33",
+        "metals": {
+          "Mercury": 420,
+          "Arsenic": 56,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 20,
+        "end": 30,
+        "label": "20.0-30.0 ft",
+        "clp": "YEF34",
+        "metals": {
+          "Mercury": 550,
+          "Arsenic": 130,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 30,
+        "end": 40,
+        "label": "30.0-40.0 ft",
+        "clp": "YEF35",
+        "metals": {
+          "Mercury": 1000,
+          "Arsenic": 140,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 40,
+        "end": 50,
+        "label": "40.0-50.0 ft",
+        "clp": "YEF36",
+        "metals": {
+          "Mercury": 76,
+          "Arsenic": 35,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 50,
+        "end": 60,
+        "label": "50.0-60.0 ft",
+        "clp": "YEF38",
+        "metals": {
+          "Mercury": 19,
+          "Arsenic": 18,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 60,
+        "end": 70,
+        "label": "60.0-70.0 ft",
+        "clp": "YEF39",
+        "metals": {
+          "Mercury": 1.2,
+          "Arsenic": 75,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 70,
+        "end": 77,
+        "label": "70.0-77.0 ft",
+        "clp": "YEF40",
+        "metals": {
+          "Mercury": 1,
+          "Arsenic": 1,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      }
+    ]
+  },
+  {
+    "id": "SB33",
+    "lat": 39.005774,
+    "lon": -122.668501,
+    "elev": 1397,
+    "area": "NP",
+    "depths": [
+      {
+        "start": 0,
+        "end": 2.5,
+        "label": "0.0-2.5 ft",
+        "clp": "YEFE8",
+        "metals": {
+          "Mercury": 65,
+          "Arsenic": 1.2,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 2.5,
+        "end": 5,
+        "label": "2.5-5.0 ft",
+        "clp": "YEFE9",
+        "metals": {
+          "Mercury": 12,
+          "Arsenic": 0.59,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 5,
+        "end": 7.5,
+        "label": "5.0-7.5 ft",
+        "clp": "YEFF0",
+        "metals": {
+          "Mercury": 4.6,
+          "Arsenic": 1.2,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 7.5,
+        "end": 10,
+        "label": "7.5-10.0 ft",
+        "clp": "YEFF1",
+        "metals": {
+          "Mercury": 3.5,
+          "Arsenic": 1,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 10,
+        "end": 20,
+        "label": "10.0-20.0 ft",
+        "clp": "YEFF3",
+        "metals": {
+          "Mercury": 0.21,
+          "Arsenic": 0.47,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 10,
+        "end": 20,
+        "label": "10.0-20.0 ft",
+        "clp": "YEFF3S",
+        "metals": {
+          "Mercury": 0.78,
+          "Arsenic": 12,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 10,
+        "end": 20,
+        "label": "10.0-20.0 ft",
+        "clp": "YEFF3D",
+        "metals": {
+          "Mercury": 0.25,
+          "Arsenic": 0.46,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 20,
+        "end": 21,
+        "label": "20.0-21.0 ft",
+        "clp": "YEFF5",
+        "metals": {
+          "Mercury": 0.06,
+          "Arsenic": 0.42,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 30,
+        "end": 40,
+        "label": "30.0-40.0 ft",
+        "clp": "YEFF6",
+        "metals": {
+          "Mercury": 0.06,
+          "Arsenic": 0.44,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 50,
+        "end": 54,
+        "label": "50.0-54.0 ft",
+        "clp": "YEFF7",
+        "metals": {
+          "Mercury": 0.21,
+          "Arsenic": 0.61,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      }
+    ]
+  },
+  {
+    "id": "SB34",
+    "lat": 39.004495,
+    "lon": -122.670854,
+    "elev": 1342.5,
+    "area": "WRD",
+    "depths": [
+      {
+        "start": 0,
+        "end": 2.5,
+        "label": "0.0-2.5 ft",
+        "clp": "YEF41",
+        "metals": {
+          "Mercury": 150,
+          "Arsenic": 53,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 2.5,
+        "end": 5,
+        "label": "2.5-5.0 ft",
+        "clp": "YEF42",
+        "metals": {
+          "Mercury": 140,
+          "Arsenic": 25,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 5,
+        "end": 7.5,
+        "label": "5.0-7.5 ft",
+        "clp": "YEF43",
+        "metals": {
+          "Mercury": 200,
+          "Arsenic": 15,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 7.5,
+        "end": 10,
+        "label": "7.5-10.0 ft",
+        "clp": "YEF44",
+        "metals": {
+          "Mercury": 42,
+          "Arsenic": 78,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 10,
+        "end": 20,
+        "label": "10.0-20.0 ft",
+        "clp": "YEF45",
+        "metals": {
+          "Mercury": 91,
+          "Arsenic": 65,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 20,
+        "end": 30,
+        "label": "20.0-30.0 ft",
+        "clp": "YEF47",
+        "metals": {
+          "Mercury": 32,
+          "Arsenic": 7.2,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 30,
+        "end": 40,
+        "label": "30.0-40.0 ft",
+        "clp": "YEF48",
+        "metals": {
+          "Mercury": 0.35,
+          "Arsenic": 1.8,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 40,
+        "end": 42,
+        "label": "40.0-42.0 ft",
+        "clp": "YEF49",
+        "metals": {
+          "Mercury": 0.8,
+          "Arsenic": 280,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      }
+    ]
+  },
+  {
+    "id": "SB35",
+    "lat": 39.001484,
+    "lon": -122.669622,
+    "elev": 1347,
+    "area": "WWRP",
+    "depths": [
+      {
+        "start": 0,
+        "end": 2.5,
+        "label": "0.0-2.5 ft",
+        "clp": "YEF51",
+        "metals": {
+          "Mercury": 350,
+          "Arsenic": 66,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 2.5,
+        "end": 5,
+        "label": "2.5-5.0 ft",
+        "clp": "YEF52",
+        "metals": {
+          "Mercury": 340,
+          "Arsenic": 160,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 5,
+        "end": 7.5,
+        "label": "5.0-7.5 ft",
+        "clp": "YEF53",
+        "metals": {
+          "Mercury": 280,
+          "Arsenic": 110,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 7.5,
+        "end": 10,
+        "label": "7.5-10.0 ft",
+        "clp": "YEF54",
+        "metals": {
+          "Mercury": 270,
+          "Arsenic": 140,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 10,
+        "end": 12.5,
+        "label": "10.0-12.5 ft",
+        "clp": "YEF56",
+        "metals": {
+          "Mercury": 260,
+          "Arsenic": 140,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 12.5,
+        "end": 15,
+        "label": "12.5-15.0 ft",
+        "clp": "YEF57",
+        "metals": {
+          "Mercury": 560,
+          "Arsenic": 100,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 15,
+        "end": 17.5,
+        "label": "15.0-17.5 ft",
+        "clp": "YEF58",
+        "metals": {
+          "Mercury": 430,
+          "Arsenic": 140,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 20,
+        "end": 22.5,
+        "label": "20.0-22.5 ft",
+        "clp": "YEF59",
+        "metals": {
+          "Mercury": 120,
+          "Arsenic": 24,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 22.5,
+        "end": 25,
+        "label": "22.5-25.0 ft",
+        "clp": "YEF60",
+        "metals": {
+          "Mercury": 440,
+          "Arsenic": 9.6,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 25,
+        "end": 27.5,
+        "label": "25.0-27.5 ft",
+        "clp": "YEF61",
+        "metals": {
+          "Mercury": 750,
+          "Arsenic": 9.2,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 27.5,
+        "end": 30,
+        "label": "27.5-30.0 ft",
+        "clp": "YEF62",
+        "metals": {
+          "Mercury": 120,
+          "Arsenic": 4.9,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 30,
+        "end": 32.5,
+        "label": "30.0-32.5 ft",
+        "clp": "YEF63",
+        "metals": {
+          "Mercury": 210,
+          "Arsenic": 2.9,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 32.5,
+        "end": 35,
+        "label": "32.5-35.0 ft",
+        "clp": "YEF64",
+        "metals": {
+          "Mercury": 270,
+          "Arsenic": 3.9,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      }
+    ]
+  },
+  {
+    "id": "SB36",
+    "lat": 39.002704,
+    "lon": -122.669911,
+    "elev": 1357,
+    "area": "WRD",
+    "depths": [
+      {
+        "start": 0,
+        "end": 2.5,
+        "label": "0.0-2.5 ft",
+        "clp": "YEF05",
+        "metals": {
+          "Mercury": 50,
+          "Arsenic": 170,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 2.5,
+        "end": 5,
+        "label": "2.5-5.0 ft",
+        "clp": "YEF06",
+        "metals": {
+          "Mercury": 160,
+          "Arsenic": 210,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 5,
+        "end": 7.5,
+        "label": "5.0-7.5 ft",
+        "clp": "YEF07",
+        "metals": {
+          "Mercury": 390,
+          "Arsenic": 220,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 7.5,
+        "end": 10,
+        "label": "7.5-10.0 ft",
+        "clp": "YEF08",
+        "metals": {
+          "Mercury": 780,
+          "Arsenic": 170,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 10,
+        "end": 20,
+        "label": "10.0-20.0 ft",
+        "clp": "YEF09",
+        "metals": {
+          "Mercury": 550,
+          "Arsenic": 170,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 20,
+        "end": 30,
+        "label": "20.0-30.0 ft",
+        "clp": "YEF11",
+        "metals": {
+          "Mercury": 240,
+          "Arsenic": 350,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 30,
+        "end": 40,
+        "label": "30.0-40.0 ft",
+        "clp": "YEF12",
+        "metals": {
+          "Mercury": 520,
+          "Arsenic": 26,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 40,
+        "end": 50,
+        "label": "40.0-50.0 ft",
+        "clp": "YEF13",
+        "metals": {
+          "Mercury": 200,
+          "Arsenic": 5,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 50,
+        "end": 55,
+        "label": "50.0-55.0 ft",
+        "clp": "YEF14",
+        "metals": {
+          "Mercury": 390,
+          "Arsenic": 8.1,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 60,
+        "end": 70,
+        "label": "60.0-70.0 ft",
+        "clp": "YEF15",
+        "metals": {
+          "Mercury": 2,
+          "Arsenic": 9.1,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 70,
+        "end": 72,
+        "label": "70.0-72.0 ft",
+        "clp": "YEF16",
+        "metals": {
+          "Mercury": 21,
+          "Arsenic": 15,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      }
+    ]
+  },
+  {
+    "id": "SB37",
+    "lat": 39.002837,
+    "lon": -122.669273,
+    "elev": 1355,
+    "area": "WRD",
+    "depths": [
+      {
+        "start": 0,
+        "end": 2.5,
+        "label": "0.0-2.5 ft",
+        "clp": "YEFC3",
+        "metals": {
+          "Mercury": 110,
+          "Arsenic": 230,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 2.5,
+        "end": 5,
+        "label": "2.5-5.0 ft",
+        "clp": "YEFC5",
+        "metals": {
+          "Mercury": 120,
+          "Arsenic": 270,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 5,
+        "end": 7.5,
+        "label": "5.0-7.5 ft",
+        "clp": "YEFC6",
+        "metals": {
+          "Mercury": 170,
+          "Arsenic": 250,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 7.5,
+        "end": 10,
+        "label": "7.5-10.0 ft",
+        "clp": "YEFC7",
+        "metals": {
+          "Mercury": 24,
+          "Arsenic": 150,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 10,
+        "end": 20,
+        "label": "10.0-20.0 ft",
+        "clp": "YEFC8",
+        "metals": {
+          "Mercury": 3000,
+          "Arsenic": 66,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 20,
+        "end": 30,
+        "label": "20.0-30.0 ft",
+        "clp": "YEFC9",
+        "metals": {
+          "Mercury": 190,
+          "Arsenic": 51,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 20,
+        "end": 30,
+        "label": "20.0-30.0 ft",
+        "clp": "YEFC9S",
+        "metals": {
+          "Mercury": 290,
+          "Arsenic": 73,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 20,
+        "end": 30,
+        "label": "20.0-30.0 ft",
+        "clp": "YEFC9D",
+        "metals": {
+          "Mercury": 190,
+          "Arsenic": 54,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 30,
+        "end": 40,
+        "label": "30.0-40.0 ft",
+        "clp": "YEFD0",
+        "metals": {
+          "Mercury": 640,
+          "Arsenic": 110,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 40,
+        "end": 50,
+        "label": "40.0-50.0 ft",
+        "clp": "YEFD2",
+        "metals": {
+          "Mercury": 710,
+          "Arsenic": 100,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 50,
+        "end": 53,
+        "label": "50.0-53.0 ft",
+        "clp": "YEFD3",
+        "metals": {
+          "Mercury": 100,
+          "Arsenic": 20,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      }
+    ]
+  },
+  {
+    "id": "SB38",
+    "lat": 39.003179,
+    "lon": -122.668733,
+    "elev": 1347.5,
+    "area": "WRD",
+    "depths": [
+      {
+        "start": 0,
+        "end": 2.5,
+        "label": "0.0-2.5 ft",
+        "clp": "YEF18",
+        "metals": {
+          "Mercury": 120,
+          "Arsenic": 28,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 2.5,
+        "end": 5,
+        "label": "2.5-5.0 ft",
+        "clp": "YEF19",
+        "metals": {
+          "Mercury": 300,
+          "Arsenic": 57,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 5,
+        "end": 7.5,
+        "label": "5.0-7.5 ft",
+        "clp": "YEF20",
+        "metals": {
+          "Mercury": 50,
+          "Arsenic": 370,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 7.5,
+        "end": 10,
+        "label": "7.5-10.0 ft",
+        "clp": "YEF21",
+        "metals": {
+          "Mercury": 500,
+          "Arsenic": 320,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 10,
+        "end": 20,
+        "label": "10.0-20.0 ft",
+        "clp": "YEF22",
+        "metals": {
+          "Mercury": 1300,
+          "Arsenic": 280,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 20,
+        "end": 30,
+        "label": "20.0-30.0 ft",
+        "clp": "YEF24",
+        "metals": {
+          "Mercury": 58,
+          "Arsenic": 60,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 30,
+        "end": 40,
+        "label": "30.0-40.0 ft",
+        "clp": "YEF25",
+        "metals": {
+          "Mercury": 1.1,
+          "Arsenic": 13,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 40,
+        "end": 50,
+        "label": "40.0-50.0 ft",
+        "clp": "YEF26",
+        "metals": {
+          "Mercury": 0.27,
+          "Arsenic": 51,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 50,
+        "end": 60,
+        "label": "50.0-60.0 ft",
+        "clp": "YEF27",
+        "metals": {
+          "Mercury": 1,
+          "Arsenic": 59,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      }
+    ]
+  },
+  {
+    "id": "SB39",
+    "lat": 39.002646,
+    "lon": -122.668733,
+    "elev": 1351,
+    "area": "WRD",
+    "depths": [
+      {
+        "start": 0,
+        "end": 2.5,
+        "label": "0.0-2.5 ft",
+        "clp": "YEFB4",
+        "metals": {
+          "Mercury": 410,
+          "Arsenic": 150,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 2.5,
+        "end": 5,
+        "label": "2.5-5.0 ft",
+        "clp": "YEFB6",
+        "metals": {
+          "Mercury": 2200,
+          "Arsenic": 240,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 5,
+        "end": 7.5,
+        "label": "5.0-7.5 ft",
+        "clp": "YEFB7",
+        "metals": {
+          "Mercury": 510,
+          "Arsenic": 86,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 7.5,
+        "end": 10,
+        "label": "7.5-10.0 ft",
+        "clp": "YEFB8",
+        "metals": {
+          "Mercury": 1500,
+          "Arsenic": 170,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 10,
+        "end": 20,
+        "label": "10.0-20.0 ft",
+        "clp": "YEFB9",
+        "metals": {
+          "Mercury": 540,
+          "Arsenic": 49,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 20,
+        "end": 30,
+        "label": "20.0-30.0 ft",
+        "clp": "YEFC0",
+        "metals": {
+          "Mercury": 0.57,
+          "Arsenic": 33,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 30,
+        "end": 40,
+        "label": "30.0-40.0 ft",
+        "clp": "YEFC1",
+        "metals": {
+          "Mercury": 220,
+          "Arsenic": 72,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 40,
+        "end": 50,
+        "label": "40.0-50.0 ft",
+        "clp": "YEFC2",
+        "metals": {
+          "Mercury": 67,
+          "Arsenic": 30,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 40,
+        "end": 50,
+        "label": "40.0-50.0 ft",
+        "clp": "YEFC2S",
+        "metals": {
+          "Mercury": 680,
+          "Arsenic": 41,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 40,
+        "end": 50,
+        "label": "40.0-50.0 ft",
+        "clp": "YEFC2D",
+        "metals": {
+          "Mercury": 290,
+          "Arsenic": 45,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      }
+    ]
+  },
+  {
+    "id": "SB40",
+    "lat": 39.002786,
+    "lon": -122.669122,
+    "elev": 1354.5,
+    "area": "WRD",
+    "depths": [
+      {
+        "start": 0,
+        "end": 2.5,
+        "label": "0.0-2.5 ft",
+        "clp": "YEFA4",
+        "metals": {
+          "Mercury": 95,
+          "Arsenic": 28,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 2.5,
+        "end": 5,
+        "label": "2.5-5.0 ft",
+        "clp": "YEFA5",
+        "metals": {
+          "Mercury": 120,
+          "Arsenic": 36,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 5,
+        "end": 7.5,
+        "label": "5.0-7.5 ft",
+        "clp": "YEFA6",
+        "metals": {
+          "Mercury": 370,
+          "Arsenic": 11,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 7.5,
+        "end": 10,
+        "label": "7.5-10.0 ft",
+        "clp": "YEFA7",
+        "metals": {
+          "Mercury": 360,
+          "Arsenic": 28,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 10,
+        "end": 20,
+        "label": "10.0-20.0 ft",
+        "clp": "YEFA8",
+        "metals": {
+          "Mercury": 400,
+          "Arsenic": 150,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 20,
+        "end": 30,
+        "label": "20.0-30.0 ft",
+        "clp": "YEFA9",
+        "metals": {
+          "Mercury": 200,
+          "Arsenic": 310,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 30,
+        "end": 40,
+        "label": "30.0-40.0 ft",
+        "clp": "YEFB0",
+        "metals": {
+          "Mercury": 2500,
+          "Arsenic": 14,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 40,
+        "end": 50,
+        "label": "40.0-50.0 ft",
+        "clp": "YEFB2",
+        "metals": {
+          "Mercury": 510,
+          "Arsenic": 42,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      }
+    ]
+  },
+  {
+    "id": "SB41",
+    "lat": 39.002754,
+    "lon": -122.668159,
+    "elev": 1344,
+    "area": "WRD",
+    "depths": [
+      {
+        "start": 0,
+        "end": 2.5,
+        "label": "0.0-2.5 ft",
+        "clp": "YEF76",
+        "metals": {
+          "Mercury": 13,
+          "Arsenic": 15,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 2.5,
+        "end": 5,
+        "label": "2.5-5.0 ft",
+        "clp": "YEF77",
+        "metals": {
+          "Mercury": 110,
+          "Arsenic": 160,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 5,
+        "end": 7.5,
+        "label": "5.0-7.5 ft",
+        "clp": "YEF78",
+        "metals": {
+          "Mercury": 27,
+          "Arsenic": 35,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 7.5,
+        "end": 10,
+        "label": "7.5-10.0 ft",
+        "clp": "YEF79",
+        "metals": {
+          "Mercury": 250,
+          "Arsenic": 47,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 10,
+        "end": 20,
+        "label": "10.0-20.0 ft",
+        "clp": "YEF80",
+        "metals": {
+          "Mercury": 150,
+          "Arsenic": 31,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 20,
+        "end": 30,
+        "label": "20.0-30.0 ft",
+        "clp": "YEF81",
+        "metals": {
+          "Mercury": 39,
+          "Arsenic": 140,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 30,
+        "end": 40,
+        "label": "30.0-40.0 ft",
+        "clp": "YEF82",
+        "metals": {
+          "Mercury": 5.7,
+          "Arsenic": 320,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      }
+    ]
+  },
+  {
+    "id": "SB42",
+    "lat": 39.002811,
+    "lon": -122.667851,
+    "elev": 1340,
+    "area": "WRD",
+    "depths": [
+      {
+        "start": 0,
+        "end": 2.5,
+        "label": "0.0-2.5 ft",
+        "clp": "YEF66",
+        "metals": {
+          "Mercury": 110,
+          "Arsenic": 210,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 2.5,
+        "end": 5,
+        "label": "2.5-5.0 ft",
+        "clp": "YEF67",
+        "metals": {
+          "Mercury": 240,
+          "Arsenic": 78,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 5,
+        "end": 7.5,
+        "label": "5.0-7.5 ft",
+        "clp": "YEF68",
+        "metals": {
+          "Mercury": 400,
+          "Arsenic": 13,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 7.5,
+        "end": 10,
+        "label": "7.5-10.0 ft",
+        "clp": "YEF69",
+        "metals": {
+          "Mercury": 97,
+          "Arsenic": 18,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 10,
+        "end": 20,
+        "label": "10.0-20.0 ft",
+        "clp": "YEF70",
+        "metals": {
+          "Mercury": 78,
+          "Arsenic": 32,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 20,
+        "end": 30,
+        "label": "20.0-30.0 ft",
+        "clp": "YEF72",
+        "metals": {
+          "Mercury": 1.2,
+          "Arsenic": 550,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 30,
+        "end": 40,
+        "label": "30.0-40.0 ft",
+        "clp": "YEF73",
+        "metals": {
+          "Mercury": 6.8,
+          "Arsenic": 580,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 40,
+        "end": 50,
+        "label": "40.0-50.0 ft",
+        "clp": "YEF74",
+        "metals": {
+          "Mercury": 4.1,
+          "Arsenic": 25,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      }
+    ]
+  },
+  {
+    "id": "SB43",
+    "lat": 39.001791,
+    "lon": -122.668407,
+    "elev": 1362,
+    "area": "WWRP",
+    "depths": [
+      {
+        "start": 0,
+        "end": 2.5,
+        "label": "0.0-2.5 ft",
+        "clp": "YEEX7",
+        "metals": {
+          "Mercury": 5500,
+          "Arsenic": 57,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 2.5,
+        "end": 5,
+        "label": "2.5-5.0 ft",
+        "clp": "YEEX8",
+        "metals": {
+          "Mercury": 760,
+          "Arsenic": 47,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 5,
+        "end": 7.5,
+        "label": "5.0-7.5 ft",
+        "clp": "YEEX9",
+        "metals": {
+          "Mercury": 710,
+          "Arsenic": 36,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 7.5,
+        "end": 10,
+        "label": "7.5-10.0 ft",
+        "clp": "YEEY0",
+        "metals": {
+          "Mercury": 1400,
+          "Arsenic": 44,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 10,
+        "end": 12.5,
+        "label": "10.0-12.5 ft",
+        "clp": "YEEY1",
+        "metals": {
+          "Mercury": 780,
+          "Arsenic": 50,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 12.5,
+        "end": 15,
+        "label": "12.5-15.0 ft",
+        "clp": "YEEY2",
+        "metals": {
+          "Mercury": 1700,
+          "Arsenic": 38,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 15,
+        "end": 17.5,
+        "label": "15.0-17.5 ft",
+        "clp": "YEEY3",
+        "metals": {
+          "Mercury": 900,
+          "Arsenic": 48,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 17.5,
+        "end": 20,
+        "label": "17.5-20.0 ft",
+        "clp": "YEEY4",
+        "metals": {
+          "Mercury": 1600,
+          "Arsenic": 23,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 20,
+        "end": 22.5,
+        "label": "20.0-22.5 ft",
+        "clp": "YEEY5",
+        "metals": {
+          "Mercury": 710,
+          "Arsenic": 18,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 22.5,
+        "end": 25,
+        "label": "22.5-25.0 ft",
+        "clp": "YEEY6",
+        "metals": {
+          "Mercury": 2.6,
+          "Arsenic": 0.71,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      }
+    ]
+  },
+  {
+    "id": "SB44",
+    "lat": 39.001857,
+    "lon": -122.669506,
+    "elev": 1376.5,
+    "area": "WWRP",
+    "depths": [
+      {
+        "start": 0,
+        "end": 2.5,
+        "label": "0.0-2.5 ft",
+        "clp": "YEEY9",
+        "metals": {
+          "Mercury": 110,
+          "Arsenic": 14,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 2.5,
+        "end": 5,
+        "label": "2.5-5.0 ft",
+        "clp": "YEEZ0",
+        "metals": {
+          "Mercury": 100,
+          "Arsenic": 120,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 5,
+        "end": 7.5,
+        "label": "5.0-7.5 ft",
+        "clp": "YEEZ1",
+        "metals": {
+          "Mercury": 610,
+          "Arsenic": 160,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 7.5,
+        "end": 10,
+        "label": "7.5-10.0 ft",
+        "clp": "YEEZ2",
+        "metals": {
+          "Mercury": 1100,
+          "Arsenic": 330,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 10,
+        "end": 12.5,
+        "label": "10.0-12.5 ft",
+        "clp": "YEEZ3",
+        "metals": {
+          "Mercury": 890,
+          "Arsenic": 180,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 12.5,
+        "end": 15,
+        "label": "12.5-15.0 ft",
+        "clp": "YEEZ4",
+        "metals": {
+          "Mercury": 86,
+          "Arsenic": 41,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 15,
+        "end": 17.5,
+        "label": "15.0-17.5 ft",
+        "clp": "YEEZ5",
+        "metals": {
+          "Mercury": 260,
+          "Arsenic": 180,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 17.5,
+        "end": 20,
+        "label": "17.5-20.0 ft",
+        "clp": "YEEZ6",
+        "metals": {
+          "Mercury": 200,
+          "Arsenic": 140,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 20,
+        "end": 22.5,
+        "label": "20.0-22.5 ft",
+        "clp": "YEEZ7",
+        "metals": {
+          "Mercury": 150,
+          "Arsenic": 170,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 22.5,
+        "end": 25,
+        "label": "22.5-25.0 ft",
+        "clp": "YEEZ8",
+        "metals": {
+          "Mercury": 490,
+          "Arsenic": 350,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 25,
+        "end": 30,
+        "label": "25.0-30.0 ft",
+        "clp": "YEEZ9",
+        "metals": {
+          "Mercury": 210,
+          "Arsenic": 650,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 30,
+        "end": 35,
+        "label": "30.0-35.0 ft",
+        "clp": "YEF00",
+        "metals": {
+          "Mercury": 760,
+          "Arsenic": 770,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 35,
+        "end": 40,
+        "label": "35.0-40.0 ft",
+        "clp": "YEF01",
+        "metals": {
+          "Mercury": 750,
+          "Arsenic": 250,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 40,
+        "end": 45,
+        "label": "40.0-45.0 ft",
+        "clp": "YEF02",
+        "metals": {
+          "Mercury": 64,
+          "Arsenic": 45,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 45,
+        "end": 50,
+        "label": "45.0-50.0 ft",
+        "clp": "YEF03",
+        "metals": {
+          "Mercury": 1900,
+          "Arsenic": 110,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      }
+    ]
+  },
+  {
+    "id": "SB45",
+    "lat": 39.002683,
+    "lon": -122.668867,
+    "elev": 1352,
+    "area": "WRD",
+    "depths": [
+      {
+        "start": 2.5,
+        "end": 5,
+        "label": "2.5-5.0 ft",
+        "clp": "YEF85",
+        "metals": {
+          "Mercury": 1600,
+          "Arsenic": 160,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 5,
+        "end": 7.5,
+        "label": "5.0-7.5 ft",
+        "clp": "YEF86",
+        "metals": {
+          "Mercury": 330,
+          "Arsenic": 140,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 7.5,
+        "end": 10,
+        "label": "7.5-10.0 ft",
+        "clp": "YEF87",
+        "metals": {
+          "Mercury": 110,
+          "Arsenic": 350,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 10,
+        "end": 20,
+        "label": "10.0-20.0 ft",
+        "clp": "YEF88",
+        "metals": {
+          "Mercury": 370,
+          "Arsenic": 160,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 20,
+        "end": 30,
+        "label": "20.0-30.0 ft",
+        "clp": "YEF89",
+        "metals": {
+          "Mercury": 810,
+          "Arsenic": 170,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 30,
+        "end": 40,
+        "label": "30.0-40.0 ft",
+        "clp": "YEF91",
+        "metals": {
+          "Mercury": 250,
+          "Arsenic": 45,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 40,
+        "end": 50,
+        "label": "40.0-50.0 ft",
+        "clp": "YEF92",
+        "metals": {
+          "Mercury": 150,
+          "Arsenic": 37,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      }
+    ]
+  },
+  {
+    "id": "SB46",
+    "lat": 39.002604,
+    "lon": -122.668651,
+    "elev": 1351,
+    "area": "WRD",
+    "depths": [
+      {
+        "start": 2.5,
+        "end": 5,
+        "label": "2.5-5.0 ft",
+        "clp": "YEF95",
+        "metals": {
+          "Mercury": 420,
+          "Arsenic": 93,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 5,
+        "end": 7.5,
+        "label": "5.0-7.5 ft",
+        "clp": "YEF96",
+        "metals": {
+          "Mercury": 980,
+          "Arsenic": 71,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 7.5,
+        "end": 10,
+        "label": "7.5-10.0 ft",
+        "clp": "YEF97",
+        "metals": {
+          "Mercury": 370,
+          "Arsenic": 38,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 10,
+        "end": 20,
+        "label": "10.0-20.0 ft",
+        "clp": "YEF98",
+        "metals": {
+          "Mercury": 130,
+          "Arsenic": 43,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 10,
+        "end": 20,
+        "label": "10.0-20.0 ft",
+        "clp": "YEF98S",
+        "metals": {
+          "Mercury": 100,
+          "Arsenic": 43,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 10,
+        "end": 20,
+        "label": "10.0-20.0 ft",
+        "clp": "YEF98D",
+        "metals": {
+          "Mercury": 110,
+          "Arsenic": 43,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 20,
+        "end": 30,
+        "label": "20.0-30.0 ft",
+        "clp": "YEF99",
+        "metals": {
+          "Mercury": 50,
+          "Arsenic": 14,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 30,
+        "end": 40,
+        "label": "30.0-40.0 ft",
+        "clp": "YEFA1",
+        "metals": {
+          "Mercury": 200,
+          "Arsenic": 29,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      },
+      {
+        "start": 40,
+        "end": 50,
+        "label": "40.0-50.0 ft",
+        "clp": "YEFA2",
+        "metals": {
+          "Mercury": 3.3,
+          "Arsenic": 79,
+          "Antimony": null,
+          "Thallium": null,
+          "Lead": null,
+          "Chromium": null
+        }
+      }
+    ]
+  }
+]

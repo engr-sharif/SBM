@@ -1,0 +1,7568 @@
+{
+  "type": "FeatureCollection",
+  "metadata": {
+    "title": "SBMM ABP Surface Soil Sampling \u2014 Rounds 1 & 2 (R2 VALIDATED)",
+    "criteria": {
+      "ROD": {
+        "Hg": 204,
+        "As": 6.1,
+        "Sb": 51,
+        "Tl": 1.3
+      },
+      "PMB": {
+        "Hg": 58,
+        "As": 6.1,
+        "Sb": 0.52,
+        "Tl": 0.47
+      }
+    },
+    "units": "mg/kg",
+    "datum": "WGS84",
+    "note": "Round 2 analytical data is VALIDATED (Case 52633). Several near-detection-limit Sb/Tl/As results were re-qualified as non-detect due to equipment-blank contamination (Linda Wilson, Jacobs project chemist). Round 1 and EA Historical data are unchanged."
+  },
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.670858,
+          39.005268
+        ]
+      },
+      "properties": {
+        "id": "SS-01",
+        "round": 1,
+        "sampled": true,
+        "Hg": 210.0,
+        "As": 32.0,
+        "Sb": 13.0,
+        "Tl": 0.12,
+        "rod_exceed": "YES",
+        "rod_drivers": "Hg, As",
+        "pmb_exceed": "YES",
+        "pmb_drivers": "Hg, As, Sb",
+        "depth": "Shallow",
+        "notes": "",
+        "metals": {
+          "Pb": {
+            "n": "Lead",
+            "v": 17.0,
+            "dl": 0.5,
+            "q": ""
+          },
+          "Mg": {
+            "n": "Magnesium",
+            "v": 1200.0,
+            "dl": 1000.0,
+            "q": "D"
+          },
+          "Fe": {
+            "n": "Iron",
+            "v": 32000.0,
+            "dl": 20.0,
+            "q": "D"
+          },
+          "Al": {
+            "n": "Aluminum",
+            "v": 6300.0,
+            "dl": 40.0,
+            "q": "D"
+          },
+          "Mn": {
+            "n": "Manganese",
+            "v": 310.0,
+            "dl": 2.5,
+            "q": "D"
+          },
+          "Ni": {
+            "n": "Nickel",
+            "v": 13.0,
+            "dl": 0.5,
+            "q": ""
+          },
+          "K": {
+            "n": "Potassium",
+            "v": 1400.0,
+            "dl": 1000.0,
+            "q": "D"
+          },
+          "Ag": {
+            "n": "Silver",
+            "v": null,
+            "dl": 0.5,
+            "q": "U"
+          },
+          "Na": {
+            "n": "Sodium",
+            "v": null,
+            "dl": 1000.0,
+            "q": "U"
+          },
+          "Ba": {
+            "n": "Barium",
+            "v": 160.0,
+            "dl": 5.0,
+            "q": ""
+          },
+          "Be": {
+            "n": "Beryllium",
+            "v": 0.12,
+            "dl": 0.5,
+            "q": "J"
+          },
+          "Cd": {
+            "n": "Cadmium",
+            "v": 0.1,
+            "dl": 0.5,
+            "q": "J"
+          },
+          "Cr": {
+            "n": "Chromium",
+            "v": 28.0,
+            "dl": 1.0,
+            "q": ""
+          },
+          "Co": {
+            "n": "Cobalt",
+            "v": 3.0,
+            "dl": 0.5,
+            "q": ""
+          },
+          "Cu": {
+            "n": "Copper",
+            "v": 25.0,
+            "dl": 1.0,
+            "q": ""
+          },
+          "V": {
+            "n": "Vanadium",
+            "v": 33.0,
+            "dl": 2.5,
+            "q": ""
+          },
+          "Zn": {
+            "n": "Zinc",
+            "v": 28.0,
+            "dl": 2.5,
+            "q": ""
+          },
+          "Ca": {
+            "n": "Calcium",
+            "v": null,
+            "dl": 1000.0,
+            "q": "U"
+          },
+          "Se": {
+            "n": "Selenium",
+            "v": 0.61,
+            "dl": 2.5,
+            "q": "J"
+          }
+        },
+        "metals_date": "2025-08-15"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.670135,
+          39.005286
+        ]
+      },
+      "properties": {
+        "id": "SS-02",
+        "round": 1,
+        "sampled": true,
+        "Hg": 270.0,
+        "As": 16.0,
+        "Sb": 2.2,
+        "Tl": 0.12,
+        "rod_exceed": "YES",
+        "rod_drivers": "Hg, As",
+        "pmb_exceed": "YES",
+        "pmb_drivers": "Hg, As, Sb",
+        "depth": "Shallow",
+        "notes": "",
+        "metals": {
+          "Mg": {
+            "n": "Magnesium",
+            "v": 2900.0,
+            "dl": 970.0,
+            "q": "D"
+          },
+          "Pb": {
+            "n": "Lead",
+            "v": 17.0,
+            "dl": 0.48,
+            "q": ""
+          },
+          "Fe": {
+            "n": "Iron",
+            "v": 32000.0,
+            "dl": 19.0,
+            "q": "D"
+          },
+          "Al": {
+            "n": "Aluminum",
+            "v": 9500.0,
+            "dl": 39.0,
+            "q": "D"
+          },
+          "Mn": {
+            "n": "Manganese",
+            "v": 1100.0,
+            "dl": 2.4,
+            "q": "D"
+          },
+          "Ni": {
+            "n": "Nickel",
+            "v": 36.0,
+            "dl": 0.48,
+            "q": ""
+          },
+          "K": {
+            "n": "Potassium",
+            "v": 1400.0,
+            "dl": 970.0,
+            "q": "D"
+          },
+          "Ag": {
+            "n": "Silver",
+            "v": 0.096,
+            "dl": 0.48,
+            "q": "J"
+          },
+          "Na": {
+            "n": "Sodium",
+            "v": null,
+            "dl": 970.0,
+            "q": "U"
+          },
+          "Ba": {
+            "n": "Barium",
+            "v": 150.0,
+            "dl": 4.8,
+            "q": ""
+          },
+          "Be": {
+            "n": "Beryllium",
+            "v": 0.34,
+            "dl": 0.48,
+            "q": "J"
+          },
+          "Cd": {
+            "n": "Cadmium",
+            "v": 0.16,
+            "dl": 0.48,
+            "q": "J"
+          },
+          "Cr": {
+            "n": "Chromium",
+            "v": 43.0,
+            "dl": 0.97,
+            "q": ""
+          },
+          "Co": {
+            "n": "Cobalt",
+            "v": 11.0,
+            "dl": 0.48,
+            "q": ""
+          },
+          "Cu": {
+            "n": "Copper",
+            "v": 45.0,
+            "dl": 0.97,
+            "q": ""
+          },
+          "V": {
+            "n": "Vanadium",
+            "v": 38.0,
+            "dl": 2.4,
+            "q": ""
+          },
+          "Zn": {
+            "n": "Zinc",
+            "v": 70.0,
+            "dl": 2.4,
+            "q": ""
+          },
+          "Ca": {
+            "n": "Calcium",
+            "v": 980.0,
+            "dl": 970.0,
+            "q": "D"
+          },
+          "Se": {
+            "n": "Selenium",
+            "v": 0.73,
+            "dl": 2.4,
+            "q": "J"
+          }
+        },
+        "metals_date": "2025-08-15"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.670723,
+          39.005681
+        ]
+      },
+      "properties": {
+        "id": "SS-03",
+        "round": 1,
+        "sampled": true,
+        "Hg": 16.0,
+        "As": 1.9,
+        "Sb": 1.0,
+        "Tl": 0.41,
+        "rod_exceed": "NO",
+        "rod_drivers": null,
+        "pmb_exceed": "YES",
+        "pmb_drivers": "Sb",
+        "depth": "Shallow",
+        "notes": "",
+        "metals": {
+          "Pb": {
+            "n": "Lead",
+            "v": 24.0,
+            "dl": 0.52,
+            "q": ""
+          },
+          "Fe": {
+            "n": "Iron",
+            "v": 35000.0,
+            "dl": 21.0,
+            "q": "D"
+          },
+          "Al": {
+            "n": "Aluminum",
+            "v": 26000.0,
+            "dl": 41.0,
+            "q": "D"
+          },
+          "Mg": {
+            "n": "Magnesium",
+            "v": 1200.0,
+            "dl": 1000.0,
+            "q": "D"
+          },
+          "Mn": {
+            "n": "Manganese",
+            "v": 790.0,
+            "dl": 2.6,
+            "q": "D"
+          },
+          "Ni": {
+            "n": "Nickel",
+            "v": 15.0,
+            "dl": 0.52,
+            "q": ""
+          },
+          "K": {
+            "n": "Potassium",
+            "v": 1600.0,
+            "dl": 1000.0,
+            "q": "D"
+          },
+          "Ag": {
+            "n": "Silver",
+            "v": null,
+            "dl": 0.52,
+            "q": "U"
+          },
+          "Na": {
+            "n": "Sodium",
+            "v": null,
+            "dl": 1000.0,
+            "q": "U"
+          },
+          "Ba": {
+            "n": "Barium",
+            "v": 380.0,
+            "dl": 5.2,
+            "q": ""
+          },
+          "Be": {
+            "n": "Beryllium",
+            "v": 0.53,
+            "dl": 0.52,
+            "q": ""
+          },
+          "Cd": {
+            "n": "Cadmium",
+            "v": 0.94,
+            "dl": 0.52,
+            "q": ""
+          },
+          "Cr": {
+            "n": "Chromium",
+            "v": 110.0,
+            "dl": 1.0,
+            "q": ""
+          },
+          "Co": {
+            "n": "Cobalt",
+            "v": 12.0,
+            "dl": 0.52,
+            "q": ""
+          },
+          "Cu": {
+            "n": "Copper",
+            "v": 35.0,
+            "dl": 1.0,
+            "q": ""
+          },
+          "V": {
+            "n": "Vanadium",
+            "v": 140.0,
+            "dl": 2.6,
+            "q": ""
+          },
+          "Zn": {
+            "n": "Zinc",
+            "v": 60.0,
+            "dl": 2.6,
+            "q": ""
+          },
+          "Ca": {
+            "n": "Calcium",
+            "v": 6100.0,
+            "dl": 1000.0,
+            "q": "D"
+          },
+          "Se": {
+            "n": "Selenium",
+            "v": 0.66,
+            "dl": 2.6,
+            "q": "J"
+          }
+        },
+        "metals_date": "2025-08-15"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.668794,
+          39.004826
+        ]
+      },
+      "properties": {
+        "id": "SS-04",
+        "round": 1,
+        "sampled": true,
+        "Hg": 960.0,
+        "As": 13.0,
+        "Sb": 4.8,
+        "Tl": 0.29,
+        "rod_exceed": "YES",
+        "rod_drivers": "Hg, As",
+        "pmb_exceed": "YES",
+        "pmb_drivers": "Hg, As, Sb",
+        "depth": "Shallow",
+        "notes": "",
+        "metals": {
+          "Mg": {
+            "n": "Magnesium",
+            "v": 1200.0,
+            "dl": 1000.0,
+            "q": "D"
+          },
+          "Pb": {
+            "n": "Lead",
+            "v": 28.0,
+            "dl": 0.52,
+            "q": ""
+          },
+          "Fe": {
+            "n": "Iron",
+            "v": 33000.0,
+            "dl": 21.0,
+            "q": "D"
+          },
+          "Al": {
+            "n": "Aluminum",
+            "v": 14000.0,
+            "dl": 42.0,
+            "q": "D"
+          },
+          "Mn": {
+            "n": "Manganese",
+            "v": 440.0,
+            "dl": 2.6,
+            "q": "D"
+          },
+          "Ni": {
+            "n": "Nickel",
+            "v": 19.0,
+            "dl": 0.52,
+            "q": ""
+          },
+          "K": {
+            "n": "Potassium",
+            "v": 1500.0,
+            "dl": 1000.0,
+            "q": "D"
+          },
+          "Ag": {
+            "n": "Silver",
+            "v": null,
+            "dl": 0.52,
+            "q": "U"
+          },
+          "Na": {
+            "n": "Sodium",
+            "v": null,
+            "dl": 1000.0,
+            "q": "U"
+          },
+          "Ba": {
+            "n": "Barium",
+            "v": 370.0,
+            "dl": 5.2,
+            "q": ""
+          },
+          "Be": {
+            "n": "Beryllium",
+            "v": 0.28,
+            "dl": 0.52,
+            "q": "J"
+          },
+          "Cd": {
+            "n": "Cadmium",
+            "v": 0.64,
+            "dl": 0.52,
+            "q": ""
+          },
+          "Cr": {
+            "n": "Chromium",
+            "v": 73.0,
+            "dl": 1.0,
+            "q": ""
+          },
+          "Co": {
+            "n": "Cobalt",
+            "v": 9.4,
+            "dl": 0.52,
+            "q": ""
+          },
+          "Cu": {
+            "n": "Copper",
+            "v": 30.0,
+            "dl": 1.0,
+            "q": ""
+          },
+          "V": {
+            "n": "Vanadium",
+            "v": 96.0,
+            "dl": 2.6,
+            "q": ""
+          },
+          "Zn": {
+            "n": "Zinc",
+            "v": 49.0,
+            "dl": 2.6,
+            "q": ""
+          },
+          "Ca": {
+            "n": "Calcium",
+            "v": 3200.0,
+            "dl": 1000.0,
+            "q": "D"
+          },
+          "Se": {
+            "n": "Selenium",
+            "v": 0.57,
+            "dl": 2.6,
+            "q": "J"
+          }
+        },
+        "metals_date": "2025-08-15"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.669205,
+          39.005078
+        ]
+      },
+      "properties": {
+        "id": "SS-05",
+        "round": 1,
+        "sampled": true,
+        "Hg": 230.0,
+        "As": 40.0,
+        "Sb": 37.0,
+        "Tl": 0.16,
+        "rod_exceed": "YES",
+        "rod_drivers": "Hg, As",
+        "pmb_exceed": "YES",
+        "pmb_drivers": "Hg, As, Sb",
+        "depth": "Shallow",
+        "notes": "",
+        "metals": {
+          "Mg": {
+            "n": "Magnesium",
+            "v": 1800.0,
+            "dl": 980.0,
+            "q": "D"
+          },
+          "Pb": {
+            "n": "Lead",
+            "v": 16.0,
+            "dl": 0.49,
+            "q": ""
+          },
+          "Fe": {
+            "n": "Iron",
+            "v": 29000.0,
+            "dl": 20.0,
+            "q": "D"
+          },
+          "Al": {
+            "n": "Aluminum",
+            "v": 15000.0,
+            "dl": 39.0,
+            "q": "D"
+          },
+          "Mn": {
+            "n": "Manganese",
+            "v": 190.0,
+            "dl": 2.4,
+            "q": "D"
+          },
+          "Ni": {
+            "n": "Nickel",
+            "v": 19.0,
+            "dl": 0.49,
+            "q": ""
+          },
+          "K": {
+            "n": "Potassium",
+            "v": 1500.0,
+            "dl": 980.0,
+            "q": "D"
+          },
+          "Ag": {
+            "n": "Silver",
+            "v": null,
+            "dl": 0.49,
+            "q": "U"
+          },
+          "Na": {
+            "n": "Sodium",
+            "v": null,
+            "dl": 980.0,
+            "q": "U"
+          },
+          "Ba": {
+            "n": "Barium",
+            "v": 270.0,
+            "dl": 4.9,
+            "q": ""
+          },
+          "Be": {
+            "n": "Beryllium",
+            "v": 0.23,
+            "dl": 0.49,
+            "q": "J"
+          },
+          "Cd": {
+            "n": "Cadmium",
+            "v": 0.25,
+            "dl": 0.49,
+            "q": "J"
+          },
+          "Cr": {
+            "n": "Chromium",
+            "v": 51.0,
+            "dl": 0.98,
+            "q": ""
+          },
+          "Co": {
+            "n": "Cobalt",
+            "v": 6.2,
+            "dl": 0.49,
+            "q": ""
+          },
+          "Cu": {
+            "n": "Copper",
+            "v": 29.0,
+            "dl": 0.98,
+            "q": ""
+          },
+          "V": {
+            "n": "Vanadium",
+            "v": 57.0,
+            "dl": 2.4,
+            "q": ""
+          },
+          "Zn": {
+            "n": "Zinc",
+            "v": 41.0,
+            "dl": 2.4,
+            "q": ""
+          },
+          "Ca": {
+            "n": "Calcium",
+            "v": 1700.0,
+            "dl": 980.0,
+            "q": "D"
+          },
+          "Se": {
+            "n": "Selenium",
+            "v": 0.44,
+            "dl": 2.4,
+            "q": "J"
+          }
+        },
+        "metals_date": "2025-08-15"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.669195,
+          39.005428
+        ]
+      },
+      "properties": {
+        "id": "SS-06",
+        "round": 1,
+        "sampled": true,
+        "Hg": 1.9,
+        "As": 6.3,
+        "Sb": 0.65,
+        "Tl": 0.19,
+        "rod_exceed": "YES",
+        "rod_drivers": "As",
+        "pmb_exceed": "YES",
+        "pmb_drivers": "As, Sb",
+        "depth": "Shallow",
+        "notes": "",
+        "metals": {
+          "Mg": {
+            "n": "Magnesium",
+            "v": 13000.0,
+            "dl": 970.0,
+            "q": "D"
+          },
+          "Pb": {
+            "n": "Lead",
+            "v": 6.0,
+            "dl": 0.49,
+            "q": ""
+          },
+          "Fe": {
+            "n": "Iron",
+            "v": 27000.0,
+            "dl": 19.0,
+            "q": "D"
+          },
+          "Al": {
+            "n": "Aluminum",
+            "v": 12000.0,
+            "dl": 39.0,
+            "q": "D"
+          },
+          "Mn": {
+            "n": "Manganese",
+            "v": 470.0,
+            "dl": 2.4,
+            "q": "D"
+          },
+          "Ni": {
+            "n": "Nickel",
+            "v": 120.0,
+            "dl": 0.49,
+            "q": ""
+          },
+          "K": {
+            "n": "Potassium",
+            "v": null,
+            "dl": 970.0,
+            "q": "U"
+          },
+          "Ag": {
+            "n": "Silver",
+            "v": null,
+            "dl": 0.49,
+            "q": "U"
+          },
+          "Na": {
+            "n": "Sodium",
+            "v": null,
+            "dl": 970.0,
+            "q": "U"
+          },
+          "Ba": {
+            "n": "Barium",
+            "v": 120.0,
+            "dl": 4.9,
+            "q": ""
+          },
+          "Be": {
+            "n": "Beryllium",
+            "v": 0.27,
+            "dl": 0.49,
+            "q": "J"
+          },
+          "Cd": {
+            "n": "Cadmium",
+            "v": 0.2,
+            "dl": 0.49,
+            "q": "J"
+          },
+          "Cr": {
+            "n": "Chromium",
+            "v": 98.0,
+            "dl": 0.97,
+            "q": ""
+          },
+          "Co": {
+            "n": "Cobalt",
+            "v": 16.0,
+            "dl": 0.49,
+            "q": ""
+          },
+          "Cu": {
+            "n": "Copper",
+            "v": 34.0,
+            "dl": 0.97,
+            "q": ""
+          },
+          "V": {
+            "n": "Vanadium",
+            "v": 53.0,
+            "dl": 2.4,
+            "q": ""
+          },
+          "Zn": {
+            "n": "Zinc",
+            "v": 70.0,
+            "dl": 2.4,
+            "q": ""
+          },
+          "Ca": {
+            "n": "Calcium",
+            "v": 3300.0,
+            "dl": 970.0,
+            "q": "D"
+          },
+          "Se": {
+            "n": "Selenium",
+            "v": 0.45,
+            "dl": 2.4,
+            "q": "J"
+          }
+        },
+        "metals_date": "2025-08-15"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.66933,
+          39.005667
+        ]
+      },
+      "properties": {
+        "id": "SS-07",
+        "round": 1,
+        "sampled": true,
+        "Hg": 17.0,
+        "As": 6.2,
+        "Sb": 3.4,
+        "Tl": 0.23,
+        "rod_exceed": "YES",
+        "rod_drivers": "As",
+        "pmb_exceed": "YES",
+        "pmb_drivers": "As, Sb",
+        "depth": "Shallow",
+        "notes": "",
+        "metals": {
+          "Mg": {
+            "n": "Magnesium",
+            "v": 11000.0,
+            "dl": 1200.0,
+            "q": "D"
+          },
+          "Pb": {
+            "n": "Lead",
+            "v": 6.6,
+            "dl": 0.58,
+            "q": "J+"
+          },
+          "Fe": {
+            "n": "Iron",
+            "v": 28000.0,
+            "dl": 23.0,
+            "q": "D"
+          },
+          "Al": {
+            "n": "Aluminum",
+            "v": 13000.0,
+            "dl": 46.0,
+            "q": "D"
+          },
+          "Mn": {
+            "n": "Manganese",
+            "v": 830.0,
+            "dl": 2.9,
+            "q": "D"
+          },
+          "Ni": {
+            "n": "Nickel",
+            "v": 86.0,
+            "dl": 0.58,
+            "q": ""
+          },
+          "K": {
+            "n": "Potassium",
+            "v": 930.0,
+            "dl": 1200.0,
+            "q": "J"
+          },
+          "Ag": {
+            "n": "Silver",
+            "v": null,
+            "dl": 0.58,
+            "q": "U"
+          },
+          "Na": {
+            "n": "Sodium",
+            "v": null,
+            "dl": 1200.0,
+            "q": "U"
+          },
+          "Ba": {
+            "n": "Barium",
+            "v": 140.0,
+            "dl": 5.8,
+            "q": ""
+          },
+          "Be": {
+            "n": "Beryllium",
+            "v": 0.29,
+            "dl": 0.58,
+            "q": "J"
+          },
+          "Cd": {
+            "n": "Cadmium",
+            "v": 0.27,
+            "dl": 0.58,
+            "q": "J"
+          },
+          "Cr": {
+            "n": "Chromium",
+            "v": 60.0,
+            "dl": 1.2,
+            "q": ""
+          },
+          "Co": {
+            "n": "Cobalt",
+            "v": 13.0,
+            "dl": 0.58,
+            "q": ""
+          },
+          "Cu": {
+            "n": "Copper",
+            "v": 28.0,
+            "dl": 1.2,
+            "q": ""
+          },
+          "V": {
+            "n": "Vanadium",
+            "v": 44.0,
+            "dl": 2.9,
+            "q": ""
+          },
+          "Zn": {
+            "n": "Zinc",
+            "v": 56.0,
+            "dl": 2.9,
+            "q": ""
+          },
+          "Ca": {
+            "n": "Calcium",
+            "v": 3500.0,
+            "dl": 1200.0,
+            "q": "D"
+          },
+          "Se": {
+            "n": "Selenium",
+            "v": 0.48,
+            "dl": 2.9,
+            "q": "J"
+          }
+        },
+        "metals_date": "2025-08-19"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.668851,
+          39.006076
+        ]
+      },
+      "properties": {
+        "id": "SS-08",
+        "round": 1,
+        "sampled": true,
+        "Hg": 65.0,
+        "As": 0.59,
+        "Sb": 0.86,
+        "Tl": 0.091,
+        "rod_exceed": "NO",
+        "rod_drivers": null,
+        "pmb_exceed": "YES",
+        "pmb_drivers": "Hg, Sb",
+        "depth": "Shallow",
+        "notes": "",
+        "metals": {
+          "Mg": {
+            "n": "Magnesium",
+            "v": null,
+            "dl": 1100.0,
+            "q": "U"
+          },
+          "Pb": {
+            "n": "Lead",
+            "v": 18.0,
+            "dl": 0.54,
+            "q": ""
+          },
+          "Fe": {
+            "n": "Iron",
+            "v": 3100.0,
+            "dl": 22.0,
+            "q": "D"
+          },
+          "Al": {
+            "n": "Aluminum",
+            "v": 1700.0,
+            "dl": 43.0,
+            "q": "D"
+          },
+          "Mn": {
+            "n": "Manganese",
+            "v": 150.0,
+            "dl": 0.54,
+            "q": ""
+          },
+          "Ni": {
+            "n": "Nickel",
+            "v": 3.6,
+            "dl": 0.54,
+            "q": ""
+          },
+          "K": {
+            "n": "Potassium",
+            "v": null,
+            "dl": 1100.0,
+            "q": "U"
+          },
+          "Ag": {
+            "n": "Silver",
+            "v": null,
+            "dl": 0.54,
+            "q": "U"
+          },
+          "Na": {
+            "n": "Sodium",
+            "v": null,
+            "dl": 1100.0,
+            "q": "U"
+          },
+          "Ba": {
+            "n": "Barium",
+            "v": 120.0,
+            "dl": 5.4,
+            "q": ""
+          },
+          "Be": {
+            "n": "Beryllium",
+            "v": null,
+            "dl": 0.54,
+            "q": "U"
+          },
+          "Cd": {
+            "n": "Cadmium",
+            "v": 1.1,
+            "dl": 0.54,
+            "q": ""
+          },
+          "Cr": {
+            "n": "Chromium",
+            "v": 12.0,
+            "dl": 1.1,
+            "q": ""
+          },
+          "Co": {
+            "n": "Cobalt",
+            "v": 0.73,
+            "dl": 0.54,
+            "q": ""
+          },
+          "Cu": {
+            "n": "Copper",
+            "v": 12.0,
+            "dl": 1.1,
+            "q": ""
+          },
+          "V": {
+            "n": "Vanadium",
+            "v": 11.0,
+            "dl": 2.7,
+            "q": ""
+          },
+          "Zn": {
+            "n": "Zinc",
+            "v": 12.0,
+            "dl": 2.7,
+            "q": ""
+          },
+          "Ca": {
+            "n": "Calcium",
+            "v": 1800.0,
+            "dl": 1100.0,
+            "q": "D"
+          },
+          "Se": {
+            "n": "Selenium",
+            "v": null,
+            "dl": 2.7,
+            "q": "U"
+          }
+        },
+        "metals_date": "2025-08-15"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.669578,
+          39.00635
+        ]
+      },
+      "properties": {
+        "id": "SS-09",
+        "round": 1,
+        "sampled": true,
+        "Hg": 55.0,
+        "As": 7.0,
+        "Sb": 2.1,
+        "Tl": 0.32,
+        "rod_exceed": "YES",
+        "rod_drivers": "As",
+        "pmb_exceed": "YES",
+        "pmb_drivers": "As, Sb",
+        "depth": "Shallow",
+        "notes": "",
+        "metals": {
+          "Mg": {
+            "n": "Magnesium",
+            "v": 3600.0,
+            "dl": 1000.0,
+            "q": "D"
+          },
+          "Pb": {
+            "n": "Lead",
+            "v": 22.0,
+            "dl": 0.51,
+            "q": ""
+          },
+          "Fe": {
+            "n": "Iron",
+            "v": 33000.0,
+            "dl": 20.0,
+            "q": "D"
+          },
+          "Al": {
+            "n": "Aluminum",
+            "v": 21000.0,
+            "dl": 41.0,
+            "q": "D"
+          },
+          "Mn": {
+            "n": "Manganese",
+            "v": 520.0,
+            "dl": 2.5,
+            "q": "D"
+          },
+          "Ni": {
+            "n": "Nickel",
+            "v": 42.0,
+            "dl": 0.51,
+            "q": ""
+          },
+          "K": {
+            "n": "Potassium",
+            "v": 1200.0,
+            "dl": 1000.0,
+            "q": "D"
+          },
+          "Ag": {
+            "n": "Silver",
+            "v": null,
+            "dl": 0.51,
+            "q": "U"
+          },
+          "Na": {
+            "n": "Sodium",
+            "v": null,
+            "dl": 1000.0,
+            "q": "U"
+          },
+          "Ba": {
+            "n": "Barium",
+            "v": 300.0,
+            "dl": 5.1,
+            "q": ""
+          },
+          "Be": {
+            "n": "Beryllium",
+            "v": 0.4,
+            "dl": 0.51,
+            "q": "J"
+          },
+          "Cd": {
+            "n": "Cadmium",
+            "v": 0.76,
+            "dl": 0.51,
+            "q": ""
+          },
+          "Cr": {
+            "n": "Chromium",
+            "v": 110.0,
+            "dl": 1.0,
+            "q": ""
+          },
+          "Co": {
+            "n": "Cobalt",
+            "v": 13.0,
+            "dl": 0.51,
+            "q": ""
+          },
+          "Cu": {
+            "n": "Copper",
+            "v": 35.0,
+            "dl": 1.0,
+            "q": ""
+          },
+          "V": {
+            "n": "Vanadium",
+            "v": 120.0,
+            "dl": 2.5,
+            "q": ""
+          },
+          "Zn": {
+            "n": "Zinc",
+            "v": 63.0,
+            "dl": 2.5,
+            "q": ""
+          },
+          "Ca": {
+            "n": "Calcium",
+            "v": 3000.0,
+            "dl": 1000.0,
+            "q": "D"
+          },
+          "Se": {
+            "n": "Selenium",
+            "v": 0.71,
+            "dl": 2.5,
+            "q": "J"
+          }
+        },
+        "metals_date": "2025-08-15"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.669621,
+          39.006838
+        ]
+      },
+      "properties": {
+        "id": "SS-10",
+        "round": 1,
+        "sampled": true,
+        "Hg": 19.0,
+        "As": 5.3,
+        "Sb": 1.2,
+        "Tl": 0.091,
+        "rod_exceed": "NO",
+        "rod_drivers": null,
+        "pmb_exceed": "YES",
+        "pmb_drivers": "Sb",
+        "depth": "Shallow",
+        "notes": "",
+        "metals": {
+          "Mg": {
+            "n": "Magnesium",
+            "v": 7600.0,
+            "dl": 960.0,
+            "q": "D"
+          },
+          "Pb": {
+            "n": "Lead",
+            "v": 5.8,
+            "dl": 0.48,
+            "q": ""
+          },
+          "Fe": {
+            "n": "Iron",
+            "v": 21000.0,
+            "dl": 19.0,
+            "q": "D"
+          },
+          "Al": {
+            "n": "Aluminum",
+            "v": 14000.0,
+            "dl": 38.0,
+            "q": "D"
+          },
+          "Mn": {
+            "n": "Manganese",
+            "v": 500.0,
+            "dl": 2.4,
+            "q": "D"
+          },
+          "Ni": {
+            "n": "Nickel",
+            "v": 49.0,
+            "dl": 0.48,
+            "q": ""
+          },
+          "K": {
+            "n": "Potassium",
+            "v": null,
+            "dl": 960.0,
+            "q": "U"
+          },
+          "Ag": {
+            "n": "Silver",
+            "v": null,
+            "dl": 0.48,
+            "q": "U"
+          },
+          "Na": {
+            "n": "Sodium",
+            "v": null,
+            "dl": 960.0,
+            "q": "U"
+          },
+          "Ba": {
+            "n": "Barium",
+            "v": 120.0,
+            "dl": 4.8,
+            "q": ""
+          },
+          "Be": {
+            "n": "Beryllium",
+            "v": 0.31,
+            "dl": 0.48,
+            "q": "J"
+          },
+          "Cd": {
+            "n": "Cadmium",
+            "v": 0.37,
+            "dl": 0.48,
+            "q": "J"
+          },
+          "Cr": {
+            "n": "Chromium",
+            "v": 49.0,
+            "dl": 0.96,
+            "q": ""
+          },
+          "Co": {
+            "n": "Cobalt",
+            "v": 11.0,
+            "dl": 0.48,
+            "q": ""
+          },
+          "Cu": {
+            "n": "Copper",
+            "v": 21.0,
+            "dl": 0.96,
+            "q": ""
+          },
+          "V": {
+            "n": "Vanadium",
+            "v": 41.0,
+            "dl": 2.4,
+            "q": ""
+          },
+          "Zn": {
+            "n": "Zinc",
+            "v": 44.0,
+            "dl": 2.4,
+            "q": ""
+          },
+          "Ca": {
+            "n": "Calcium",
+            "v": 3600.0,
+            "dl": 960.0,
+            "q": "D"
+          },
+          "Se": {
+            "n": "Selenium",
+            "v": 0.43,
+            "dl": 2.4,
+            "q": "J"
+          }
+        },
+        "metals_date": "2025-08-15"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.669531,
+          39.00721
+        ]
+      },
+      "properties": {
+        "id": "SS-11",
+        "round": 1,
+        "sampled": true,
+        "Hg": 9.1,
+        "As": 2.3,
+        "Sb": 0.85,
+        "Tl": 0.2,
+        "rod_exceed": "NO",
+        "rod_drivers": null,
+        "pmb_exceed": "YES",
+        "pmb_drivers": "Sb",
+        "depth": "Shallow",
+        "notes": "",
+        "metals": {
+          "Mg": {
+            "n": "Magnesium",
+            "v": 8600.0,
+            "dl": 990.0,
+            "q": "D"
+          },
+          "Pb": {
+            "n": "Lead",
+            "v": 2.9,
+            "dl": 0.5,
+            "q": "J+"
+          },
+          "Fe": {
+            "n": "Iron",
+            "v": 12000.0,
+            "dl": 20.0,
+            "q": "D"
+          },
+          "Al": {
+            "n": "Aluminum",
+            "v": 6900.0,
+            "dl": 40.0,
+            "q": "D"
+          },
+          "Mn": {
+            "n": "Manganese",
+            "v": 240.0,
+            "dl": 2.5,
+            "q": "D"
+          },
+          "Ni": {
+            "n": "Nickel",
+            "v": 26.0,
+            "dl": 0.5,
+            "q": ""
+          },
+          "K": {
+            "n": "Potassium",
+            "v": null,
+            "dl": 990.0,
+            "q": "U"
+          },
+          "Ag": {
+            "n": "Silver",
+            "v": null,
+            "dl": 0.5,
+            "q": "U"
+          },
+          "Na": {
+            "n": "Sodium",
+            "v": null,
+            "dl": 990.0,
+            "q": "U"
+          },
+          "Ba": {
+            "n": "Barium",
+            "v": 67.0,
+            "dl": 5.0,
+            "q": ""
+          },
+          "Be": {
+            "n": "Beryllium",
+            "v": 0.13,
+            "dl": 0.5,
+            "q": "J"
+          },
+          "Cd": {
+            "n": "Cadmium",
+            "v": 0.22,
+            "dl": 0.5,
+            "q": "J"
+          },
+          "Cr": {
+            "n": "Chromium",
+            "v": 32.0,
+            "dl": 0.99,
+            "q": "J"
+          },
+          "Co": {
+            "n": "Cobalt",
+            "v": 9.0,
+            "dl": 0.5,
+            "q": ""
+          },
+          "Cu": {
+            "n": "Copper",
+            "v": 18.0,
+            "dl": 0.99,
+            "q": ""
+          },
+          "V": {
+            "n": "Vanadium",
+            "v": 21.0,
+            "dl": 2.5,
+            "q": ""
+          },
+          "Zn": {
+            "n": "Zinc",
+            "v": 24.0,
+            "dl": 2.5,
+            "q": ""
+          },
+          "Ca": {
+            "n": "Calcium",
+            "v": 4100.0,
+            "dl": 990.0,
+            "q": "D"
+          },
+          "Se": {
+            "n": "Selenium",
+            "v": null,
+            "dl": 2.5,
+            "q": "U"
+          }
+        },
+        "metals_date": "2025-08-15"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.669684,
+          39.007476
+        ]
+      },
+      "properties": {
+        "id": "SS-12",
+        "round": 1,
+        "sampled": true,
+        "Hg": 55.0,
+        "As": 1.5,
+        "Sb": 0.2,
+        "Tl": 0.17,
+        "rod_exceed": "NO",
+        "rod_drivers": null,
+        "pmb_exceed": "NO",
+        "pmb_drivers": null,
+        "depth": "Shallow",
+        "notes": "",
+        "metals": {
+          "Mg": {
+            "n": "Magnesium",
+            "v": 6000.0,
+            "dl": 1000.0,
+            "q": "D"
+          },
+          "Pb": {
+            "n": "Lead",
+            "v": 17.0,
+            "dl": 0.51,
+            "q": ""
+          },
+          "Fe": {
+            "n": "Iron",
+            "v": 19000.0,
+            "dl": 20.0,
+            "q": "D"
+          },
+          "Al": {
+            "n": "Aluminum",
+            "v": 15000.0,
+            "dl": 41.0,
+            "q": "D"
+          },
+          "Mn": {
+            "n": "Manganese",
+            "v": 320.0,
+            "dl": 2.5,
+            "q": "D"
+          },
+          "Ni": {
+            "n": "Nickel",
+            "v": 32.0,
+            "dl": 0.51,
+            "q": ""
+          },
+          "K": {
+            "n": "Potassium",
+            "v": 1000.0,
+            "dl": 1000.0,
+            "q": "D"
+          },
+          "Ag": {
+            "n": "Silver",
+            "v": null,
+            "dl": 0.51,
+            "q": "U"
+          },
+          "Na": {
+            "n": "Sodium",
+            "v": null,
+            "dl": 1000.0,
+            "q": "U"
+          },
+          "Ba": {
+            "n": "Barium",
+            "v": 250.0,
+            "dl": 5.1,
+            "q": ""
+          },
+          "Be": {
+            "n": "Beryllium",
+            "v": 0.19,
+            "dl": 0.51,
+            "q": "J"
+          },
+          "Cd": {
+            "n": "Cadmium",
+            "v": 0.73,
+            "dl": 0.51,
+            "q": ""
+          },
+          "Cr": {
+            "n": "Chromium",
+            "v": 76.0,
+            "dl": 1.0,
+            "q": ""
+          },
+          "Co": {
+            "n": "Cobalt",
+            "v": 11.0,
+            "dl": 0.51,
+            "q": ""
+          },
+          "Cu": {
+            "n": "Copper",
+            "v": 26.0,
+            "dl": 1.0,
+            "q": ""
+          },
+          "V": {
+            "n": "Vanadium",
+            "v": 78.0,
+            "dl": 2.5,
+            "q": ""
+          },
+          "Zn": {
+            "n": "Zinc",
+            "v": 33.0,
+            "dl": 2.5,
+            "q": ""
+          },
+          "Ca": {
+            "n": "Calcium",
+            "v": 14000.0,
+            "dl": 1000.0,
+            "q": "D"
+          },
+          "Se": {
+            "n": "Selenium",
+            "v": 0.41,
+            "dl": 2.5,
+            "q": "J"
+          }
+        },
+        "metals_date": "2025-08-15"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.668894,
+          39.007543
+        ]
+      },
+      "properties": {
+        "id": "SS-13",
+        "round": 1,
+        "sampled": true,
+        "Hg": 780.0,
+        "As": 3.1,
+        "Sb": 1.2,
+        "Tl": 0.3,
+        "rod_exceed": "YES",
+        "rod_drivers": "Hg",
+        "pmb_exceed": "YES",
+        "pmb_drivers": "Hg, Sb",
+        "depth": "Shallow",
+        "notes": "",
+        "metals": {
+          "Mg": {
+            "n": "Magnesium",
+            "v": 1100.0,
+            "dl": 1100.0,
+            "q": "D"
+          },
+          "Pb": {
+            "n": "Lead",
+            "v": 16.0,
+            "dl": 0.54,
+            "q": ""
+          },
+          "Fe": {
+            "n": "Iron",
+            "v": 37000.0,
+            "dl": 22.0,
+            "q": "D"
+          },
+          "Al": {
+            "n": "Aluminum",
+            "v": 20000.0,
+            "dl": 43.0,
+            "q": "D"
+          },
+          "Mn": {
+            "n": "Manganese",
+            "v": 1100.0,
+            "dl": 2.7,
+            "q": "D"
+          },
+          "Ni": {
+            "n": "Nickel",
+            "v": 13.0,
+            "dl": 0.54,
+            "q": ""
+          },
+          "K": {
+            "n": "Potassium",
+            "v": 860.0,
+            "dl": 1100.0,
+            "q": "J"
+          },
+          "Ag": {
+            "n": "Silver",
+            "v": null,
+            "dl": 0.54,
+            "q": "U"
+          },
+          "Na": {
+            "n": "Sodium",
+            "v": null,
+            "dl": 1100.0,
+            "q": "U"
+          },
+          "Ba": {
+            "n": "Barium",
+            "v": 190.0,
+            "dl": 5.4,
+            "q": ""
+          },
+          "Be": {
+            "n": "Beryllium",
+            "v": 0.36,
+            "dl": 0.54,
+            "q": "J"
+          },
+          "Cd": {
+            "n": "Cadmium",
+            "v": 0.7,
+            "dl": 0.54,
+            "q": ""
+          },
+          "Cr": {
+            "n": "Chromium",
+            "v": 80.0,
+            "dl": 1.1,
+            "q": ""
+          },
+          "Co": {
+            "n": "Cobalt",
+            "v": 6.8,
+            "dl": 0.54,
+            "q": ""
+          },
+          "Cu": {
+            "n": "Copper",
+            "v": 26.0,
+            "dl": 1.1,
+            "q": ""
+          },
+          "V": {
+            "n": "Vanadium",
+            "v": 120.0,
+            "dl": 2.7,
+            "q": ""
+          },
+          "Zn": {
+            "n": "Zinc",
+            "v": 35.0,
+            "dl": 2.7,
+            "q": ""
+          },
+          "Ca": {
+            "n": "Calcium",
+            "v": null,
+            "dl": 1100.0,
+            "q": "U"
+          },
+          "Se": {
+            "n": "Selenium",
+            "v": 0.77,
+            "dl": 2.7,
+            "q": "J"
+          }
+        },
+        "metals_date": "2025-08-18"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.668997,
+          39.00728
+        ]
+      },
+      "properties": {
+        "id": "SS-14",
+        "round": 1,
+        "sampled": false,
+        "Hg": null,
+        "As": null,
+        "Sb": null,
+        "Tl": null,
+        "rod_exceed": "NOT SAMPLED",
+        "rod_drivers": null,
+        "pmb_exceed": "NOT SAMPLED",
+        "pmb_drivers": null,
+        "depth": "Shallow",
+        "notes": "Deferred to Round 2"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.668757,
+          39.007055
+        ]
+      },
+      "properties": {
+        "id": "SS-15",
+        "round": 1,
+        "sampled": true,
+        "Hg": 170.0,
+        "As": 1.2,
+        "Sb": 0.24,
+        "Tl": 0.34,
+        "rod_exceed": "NO",
+        "rod_drivers": null,
+        "pmb_exceed": "YES",
+        "pmb_drivers": "Hg",
+        "depth": "Shallow",
+        "notes": "",
+        "metals": {
+          "Mg": {
+            "n": "Magnesium",
+            "v": 890.0,
+            "dl": 1000.0,
+            "q": "J"
+          },
+          "Pb": {
+            "n": "Lead",
+            "v": 22.0,
+            "dl": 0.51,
+            "q": ""
+          },
+          "Fe": {
+            "n": "Iron",
+            "v": 14000.0,
+            "dl": 20.0,
+            "q": "D"
+          },
+          "Al": {
+            "n": "Aluminum",
+            "v": 12000.0,
+            "dl": 40.0,
+            "q": "D"
+          },
+          "Mn": {
+            "n": "Manganese",
+            "v": 530.0,
+            "dl": 2.5,
+            "q": "D"
+          },
+          "Ni": {
+            "n": "Nickel",
+            "v": 9.4,
+            "dl": 0.51,
+            "q": ""
+          },
+          "K": {
+            "n": "Potassium",
+            "v": 1500.0,
+            "dl": 1000.0,
+            "q": "D"
+          },
+          "Ag": {
+            "n": "Silver",
+            "v": null,
+            "dl": 0.51,
+            "q": "U"
+          },
+          "Na": {
+            "n": "Sodium",
+            "v": null,
+            "dl": 1000.0,
+            "q": "U"
+          },
+          "Ba": {
+            "n": "Barium",
+            "v": 320.0,
+            "dl": 5.1,
+            "q": ""
+          },
+          "Be": {
+            "n": "Beryllium",
+            "v": 0.33,
+            "dl": 0.51,
+            "q": "J"
+          },
+          "Cd": {
+            "n": "Cadmium",
+            "v": 1.0,
+            "dl": 0.51,
+            "q": ""
+          },
+          "Cr": {
+            "n": "Chromium",
+            "v": 59.0,
+            "dl": 1.0,
+            "q": ""
+          },
+          "Co": {
+            "n": "Cobalt",
+            "v": 5.4,
+            "dl": 0.51,
+            "q": ""
+          },
+          "Cu": {
+            "n": "Copper",
+            "v": 22.0,
+            "dl": 1.0,
+            "q": ""
+          },
+          "V": {
+            "n": "Vanadium",
+            "v": 57.0,
+            "dl": 2.5,
+            "q": ""
+          },
+          "Zn": {
+            "n": "Zinc",
+            "v": 19.0,
+            "dl": 2.5,
+            "q": ""
+          },
+          "Ca": {
+            "n": "Calcium",
+            "v": 5600.0,
+            "dl": 1000.0,
+            "q": "D"
+          },
+          "Se": {
+            "n": "Selenium",
+            "v": 0.49,
+            "dl": 2.5,
+            "q": "J"
+          }
+        },
+        "metals_date": "2025-08-18"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.668047,
+          39.007146
+        ]
+      },
+      "properties": {
+        "id": "SS-16",
+        "round": 1,
+        "sampled": true,
+        "Hg": 56.0,
+        "As": 1.7,
+        "Sb": 0.35,
+        "Tl": 0.21,
+        "rod_exceed": "NO",
+        "rod_drivers": null,
+        "pmb_exceed": "NO",
+        "pmb_drivers": null,
+        "depth": "Shallow",
+        "notes": "",
+        "metals": {
+          "Mg": {
+            "n": "Magnesium",
+            "v": 900.0,
+            "dl": 1100.0,
+            "q": "J"
+          },
+          "Pb": {
+            "n": "Lead",
+            "v": 26.0,
+            "dl": 0.55,
+            "q": ""
+          },
+          "Fe": {
+            "n": "Iron",
+            "v": 21000.0,
+            "dl": 22.0,
+            "q": "D"
+          },
+          "Al": {
+            "n": "Aluminum",
+            "v": 14000.0,
+            "dl": 44.0,
+            "q": "D"
+          },
+          "Mn": {
+            "n": "Manganese",
+            "v": 470.0,
+            "dl": 2.7,
+            "q": "D"
+          },
+          "Ni": {
+            "n": "Nickel",
+            "v": 11.0,
+            "dl": 0.55,
+            "q": ""
+          },
+          "K": {
+            "n": "Potassium",
+            "v": 890.0,
+            "dl": 1100.0,
+            "q": "J"
+          },
+          "Ag": {
+            "n": "Silver",
+            "v": null,
+            "dl": 0.55,
+            "q": "U"
+          },
+          "Na": {
+            "n": "Sodium",
+            "v": null,
+            "dl": 1100.0,
+            "q": "U"
+          },
+          "Ba": {
+            "n": "Barium",
+            "v": 320.0,
+            "dl": 5.5,
+            "q": ""
+          },
+          "Be": {
+            "n": "Beryllium",
+            "v": 0.36,
+            "dl": 0.55,
+            "q": "J"
+          },
+          "Cd": {
+            "n": "Cadmium",
+            "v": 0.64,
+            "dl": 0.55,
+            "q": ""
+          },
+          "Cr": {
+            "n": "Chromium",
+            "v": 65.0,
+            "dl": 1.1,
+            "q": ""
+          },
+          "Co": {
+            "n": "Cobalt",
+            "v": 4.4,
+            "dl": 0.55,
+            "q": ""
+          },
+          "Cu": {
+            "n": "Copper",
+            "v": 19.0,
+            "dl": 1.1,
+            "q": ""
+          },
+          "V": {
+            "n": "Vanadium",
+            "v": 83.0,
+            "dl": 2.7,
+            "q": ""
+          },
+          "Zn": {
+            "n": "Zinc",
+            "v": 24.0,
+            "dl": 2.7,
+            "q": ""
+          },
+          "Ca": {
+            "n": "Calcium",
+            "v": 2000.0,
+            "dl": 1100.0,
+            "q": "D"
+          },
+          "Se": {
+            "n": "Selenium",
+            "v": null,
+            "dl": 2.7,
+            "q": "U"
+          }
+        },
+        "metals_date": "2025-08-18"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.668618,
+          39.006847
+        ]
+      },
+      "properties": {
+        "id": "SS-17",
+        "round": 1,
+        "sampled": true,
+        "Hg": 1000.0,
+        "As": 1.1,
+        "Sb": 0.39,
+        "Tl": 0.27,
+        "rod_exceed": "YES",
+        "rod_drivers": "Hg",
+        "pmb_exceed": "YES",
+        "pmb_drivers": "Hg",
+        "depth": "Shallow",
+        "notes": "",
+        "metals": {
+          "Mg": {
+            "n": "Magnesium",
+            "v": null,
+            "dl": 1100.0,
+            "q": "U"
+          },
+          "Pb": {
+            "n": "Lead",
+            "v": 16.0,
+            "dl": 0.56,
+            "q": "J+"
+          },
+          "Fe": {
+            "n": "Iron",
+            "v": 10000.0,
+            "dl": 23.0,
+            "q": "D"
+          },
+          "Al": {
+            "n": "Aluminum",
+            "v": 6300.0,
+            "dl": 45.0,
+            "q": "D"
+          },
+          "Mn": {
+            "n": "Manganese",
+            "v": 100.0,
+            "dl": 0.56,
+            "q": ""
+          },
+          "Ni": {
+            "n": "Nickel",
+            "v": 5.5,
+            "dl": 0.56,
+            "q": ""
+          },
+          "K": {
+            "n": "Potassium",
+            "v": null,
+            "dl": 1100.0,
+            "q": "U"
+          },
+          "Ag": {
+            "n": "Silver",
+            "v": null,
+            "dl": 0.56,
+            "q": "U"
+          },
+          "Na": {
+            "n": "Sodium",
+            "v": null,
+            "dl": 1100.0,
+            "q": "U"
+          },
+          "Ba": {
+            "n": "Barium",
+            "v": 250.0,
+            "dl": 5.6,
+            "q": ""
+          },
+          "Be": {
+            "n": "Beryllium",
+            "v": 0.13,
+            "dl": 0.56,
+            "q": "J"
+          },
+          "Cd": {
+            "n": "Cadmium",
+            "v": 0.58,
+            "dl": 0.56,
+            "q": "J+"
+          },
+          "Cr": {
+            "n": "Chromium",
+            "v": 23.0,
+            "dl": 1.1,
+            "q": ""
+          },
+          "Co": {
+            "n": "Cobalt",
+            "v": 2.0,
+            "dl": 0.56,
+            "q": ""
+          },
+          "Cu": {
+            "n": "Copper",
+            "v": 15.0,
+            "dl": 1.1,
+            "q": ""
+          },
+          "V": {
+            "n": "Vanadium",
+            "v": 30.0,
+            "dl": 2.8,
+            "q": ""
+          },
+          "Zn": {
+            "n": "Zinc",
+            "v": 10.0,
+            "dl": 2.8,
+            "q": "J+"
+          },
+          "Ca": {
+            "n": "Calcium",
+            "v": null,
+            "dl": 1100.0,
+            "q": "U"
+          },
+          "Se": {
+            "n": "Selenium",
+            "v": null,
+            "dl": 2.8,
+            "q": "U"
+          }
+        },
+        "metals_date": "2025-08-20"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.668758,
+          39.006493
+        ]
+      },
+      "properties": {
+        "id": "SS-18",
+        "round": 1,
+        "sampled": true,
+        "Hg": 1500.0,
+        "As": 1.3,
+        "Sb": 0.45,
+        "Tl": 0.19,
+        "rod_exceed": "YES",
+        "rod_drivers": "Hg",
+        "pmb_exceed": "YES",
+        "pmb_drivers": "Hg",
+        "depth": "Shallow",
+        "notes": "",
+        "metals": {
+          "Mg": {
+            "n": "Magnesium",
+            "v": null,
+            "dl": 1100.0,
+            "q": "U"
+          },
+          "Pb": {
+            "n": "Lead",
+            "v": 14.0,
+            "dl": 0.54,
+            "q": ""
+          },
+          "Fe": {
+            "n": "Iron",
+            "v": 6700.0,
+            "dl": 21.0,
+            "q": "D"
+          },
+          "Al": {
+            "n": "Aluminum",
+            "v": 4700.0,
+            "dl": 43.0,
+            "q": "D"
+          },
+          "Mn": {
+            "n": "Manganese",
+            "v": 78.0,
+            "dl": 0.54,
+            "q": ""
+          },
+          "Ni": {
+            "n": "Nickel",
+            "v": 4.6,
+            "dl": 0.54,
+            "q": ""
+          },
+          "K": {
+            "n": "Potassium",
+            "v": 590.0,
+            "dl": 1100.0,
+            "q": "J"
+          },
+          "Ag": {
+            "n": "Silver",
+            "v": 0.11,
+            "dl": 0.54,
+            "q": "J"
+          },
+          "Na": {
+            "n": "Sodium",
+            "v": null,
+            "dl": 1100.0,
+            "q": "U"
+          },
+          "Ba": {
+            "n": "Barium",
+            "v": 190.0,
+            "dl": 5.4,
+            "q": ""
+          },
+          "Be": {
+            "n": "Beryllium",
+            "v": 0.12,
+            "dl": 0.54,
+            "q": "J"
+          },
+          "Cd": {
+            "n": "Cadmium",
+            "v": 0.43,
+            "dl": 0.54,
+            "q": "J"
+          },
+          "Cr": {
+            "n": "Chromium",
+            "v": 19.0,
+            "dl": 1.1,
+            "q": ""
+          },
+          "Co": {
+            "n": "Cobalt",
+            "v": 1.0,
+            "dl": 0.54,
+            "q": ""
+          },
+          "Cu": {
+            "n": "Copper",
+            "v": 22.0,
+            "dl": 1.1,
+            "q": ""
+          },
+          "V": {
+            "n": "Vanadium",
+            "v": 23.0,
+            "dl": 2.7,
+            "q": ""
+          },
+          "Zn": {
+            "n": "Zinc",
+            "v": 10.0,
+            "dl": 2.7,
+            "q": ""
+          },
+          "Ca": {
+            "n": "Calcium",
+            "v": null,
+            "dl": 1100.0,
+            "q": "U"
+          },
+          "Se": {
+            "n": "Selenium",
+            "v": 0.45,
+            "dl": 2.7,
+            "q": "J"
+          }
+        },
+        "metals_date": "2025-08-18"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.668144,
+          39.005612
+        ]
+      },
+      "properties": {
+        "id": "SS-19",
+        "round": 1,
+        "sampled": false,
+        "Hg": null,
+        "As": null,
+        "Sb": null,
+        "Tl": null,
+        "rod_exceed": "NOT SAMPLED",
+        "rod_drivers": null,
+        "pmb_exceed": "NOT SAMPLED",
+        "pmb_drivers": null,
+        "depth": "Shallow",
+        "notes": "Deferred to Round 2"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.668416,
+          39.005327
+        ]
+      },
+      "properties": {
+        "id": "SS-20",
+        "round": 1,
+        "sampled": true,
+        "Hg": 280.0,
+        "As": 2.1,
+        "Sb": 0.53,
+        "Tl": 0.26,
+        "rod_exceed": "YES",
+        "rod_drivers": "Hg",
+        "pmb_exceed": "YES",
+        "pmb_drivers": "Hg, Sb",
+        "depth": "Shallow",
+        "notes": "",
+        "metals": {
+          "Mg": {
+            "n": "Magnesium",
+            "v": 670.0,
+            "dl": 1100.0,
+            "q": "J"
+          },
+          "Pb": {
+            "n": "Lead",
+            "v": 19.0,
+            "dl": 0.55,
+            "q": ""
+          },
+          "Fe": {
+            "n": "Iron",
+            "v": 20000.0,
+            "dl": 22.0,
+            "q": "D"
+          },
+          "Al": {
+            "n": "Aluminum",
+            "v": 14000.0,
+            "dl": 44.0,
+            "q": "D"
+          },
+          "Mn": {
+            "n": "Manganese",
+            "v": 160.0,
+            "dl": 0.55,
+            "q": ""
+          },
+          "Ni": {
+            "n": "Nickel",
+            "v": 7.8,
+            "dl": 0.55,
+            "q": ""
+          },
+          "K": {
+            "n": "Potassium",
+            "v": null,
+            "dl": 1100.0,
+            "q": "U"
+          },
+          "Ag": {
+            "n": "Silver",
+            "v": null,
+            "dl": 0.55,
+            "q": "U"
+          },
+          "Na": {
+            "n": "Sodium",
+            "v": null,
+            "dl": 1100.0,
+            "q": "U"
+          },
+          "Ba": {
+            "n": "Barium",
+            "v": 290.0,
+            "dl": 5.5,
+            "q": ""
+          },
+          "Be": {
+            "n": "Beryllium",
+            "v": 0.18,
+            "dl": 0.55,
+            "q": "J"
+          },
+          "Cd": {
+            "n": "Cadmium",
+            "v": 0.88,
+            "dl": 0.55,
+            "q": "J+"
+          },
+          "Cr": {
+            "n": "Chromium",
+            "v": 60.0,
+            "dl": 1.1,
+            "q": ""
+          },
+          "Co": {
+            "n": "Cobalt",
+            "v": 3.5,
+            "dl": 0.55,
+            "q": ""
+          },
+          "Cu": {
+            "n": "Copper",
+            "v": 15.0,
+            "dl": 1.1,
+            "q": ""
+          },
+          "V": {
+            "n": "Vanadium",
+            "v": 74.0,
+            "dl": 2.8,
+            "q": ""
+          },
+          "Zn": {
+            "n": "Zinc",
+            "v": 19.0,
+            "dl": 2.8,
+            "q": "J+"
+          },
+          "Ca": {
+            "n": "Calcium",
+            "v": 1300.0,
+            "dl": 1100.0,
+            "q": "D"
+          },
+          "Se": {
+            "n": "Selenium",
+            "v": null,
+            "dl": 2.8,
+            "q": "U"
+          }
+        },
+        "metals_date": "2025-08-20"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.667727,
+          39.004762
+        ]
+      },
+      "properties": {
+        "id": "SS-21",
+        "round": 1,
+        "sampled": true,
+        "Hg": 130.0,
+        "As": 11.0,
+        "Sb": 4.7,
+        "Tl": 0.19,
+        "rod_exceed": "YES",
+        "rod_drivers": "As",
+        "pmb_exceed": "YES",
+        "pmb_drivers": "Hg, As, Sb",
+        "depth": "Shallow",
+        "notes": "",
+        "metals": {
+          "Mg": {
+            "n": "Magnesium",
+            "v": 6100.0,
+            "dl": 1000.0,
+            "q": "D"
+          },
+          "Pb": {
+            "n": "Lead",
+            "v": 13.0,
+            "dl": 0.51,
+            "q": "J+"
+          },
+          "Fe": {
+            "n": "Iron",
+            "v": 22000.0,
+            "dl": 20.0,
+            "q": "D"
+          },
+          "Al": {
+            "n": "Aluminum",
+            "v": 16000.0,
+            "dl": 41.0,
+            "q": "D"
+          },
+          "Mn": {
+            "n": "Manganese",
+            "v": 420.0,
+            "dl": 2.5,
+            "q": "D"
+          },
+          "Ni": {
+            "n": "Nickel",
+            "v": 38.0,
+            "dl": 0.51,
+            "q": ""
+          },
+          "K": {
+            "n": "Potassium",
+            "v": 1600.0,
+            "dl": 1000.0,
+            "q": "D"
+          },
+          "Ag": {
+            "n": "Silver",
+            "v": null,
+            "dl": 0.51,
+            "q": "U"
+          },
+          "Na": {
+            "n": "Sodium",
+            "v": null,
+            "dl": 1000.0,
+            "q": "U"
+          },
+          "Ba": {
+            "n": "Barium",
+            "v": 190.0,
+            "dl": 5.1,
+            "q": ""
+          },
+          "Be": {
+            "n": "Beryllium",
+            "v": 0.4,
+            "dl": 0.51,
+            "q": "J"
+          },
+          "Cd": {
+            "n": "Cadmium",
+            "v": 0.49,
+            "dl": 0.51,
+            "q": "J+"
+          },
+          "Cr": {
+            "n": "Chromium",
+            "v": 56.0,
+            "dl": 1.0,
+            "q": ""
+          },
+          "Co": {
+            "n": "Cobalt",
+            "v": 10.0,
+            "dl": 0.51,
+            "q": ""
+          },
+          "Cu": {
+            "n": "Copper",
+            "v": 23.0,
+            "dl": 1.0,
+            "q": ""
+          },
+          "V": {
+            "n": "Vanadium",
+            "v": 55.0,
+            "dl": 2.5,
+            "q": ""
+          },
+          "Zn": {
+            "n": "Zinc",
+            "v": 50.0,
+            "dl": 2.5,
+            "q": ""
+          },
+          "Ca": {
+            "n": "Calcium",
+            "v": 7400.0,
+            "dl": 1000.0,
+            "q": "D"
+          },
+          "Se": {
+            "n": "Selenium",
+            "v": 0.37,
+            "dl": 2.5,
+            "q": "J"
+          }
+        },
+        "metals_date": "2025-08-20"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.667652,
+          39.004997
+        ]
+      },
+      "properties": {
+        "id": "SS-22",
+        "round": 1,
+        "sampled": true,
+        "Hg": 360.0,
+        "As": 7.8,
+        "Sb": 4.2,
+        "Tl": 0.28,
+        "rod_exceed": "YES",
+        "rod_drivers": "Hg, As",
+        "pmb_exceed": "YES",
+        "pmb_drivers": "Hg, As, Sb",
+        "depth": "Shallow",
+        "notes": "",
+        "metals": {
+          "Pb": {
+            "n": "Lead",
+            "v": 19.0,
+            "dl": 0.53,
+            "q": ""
+          },
+          "Fe": {
+            "n": "Iron",
+            "v": 27000.0,
+            "dl": 21.0,
+            "q": "D"
+          },
+          "Al": {
+            "n": "Aluminum",
+            "v": 20000.0,
+            "dl": 43.0,
+            "q": "D"
+          },
+          "Mg": {
+            "n": "Magnesium",
+            "v": 570.0,
+            "dl": 1100.0,
+            "q": "J"
+          },
+          "Mn": {
+            "n": "Manganese",
+            "v": 190.0,
+            "dl": 0.53,
+            "q": ""
+          },
+          "Ni": {
+            "n": "Nickel",
+            "v": 6.2,
+            "dl": 0.53,
+            "q": ""
+          },
+          "K": {
+            "n": "Potassium",
+            "v": 740.0,
+            "dl": 1100.0,
+            "q": "J"
+          },
+          "Ag": {
+            "n": "Silver",
+            "v": null,
+            "dl": 0.53,
+            "q": "U"
+          },
+          "Na": {
+            "n": "Sodium",
+            "v": null,
+            "dl": 1100.0,
+            "q": "U"
+          },
+          "Ba": {
+            "n": "Barium",
+            "v": 340.0,
+            "dl": 5.3,
+            "q": ""
+          },
+          "Be": {
+            "n": "Beryllium",
+            "v": 0.19,
+            "dl": 0.53,
+            "q": "J"
+          },
+          "Cd": {
+            "n": "Cadmium",
+            "v": 0.7,
+            "dl": 0.53,
+            "q": ""
+          },
+          "Cr": {
+            "n": "Chromium",
+            "v": 67.0,
+            "dl": 1.1,
+            "q": ""
+          },
+          "Co": {
+            "n": "Cobalt",
+            "v": 3.6,
+            "dl": 0.53,
+            "q": ""
+          },
+          "Cu": {
+            "n": "Copper",
+            "v": 21.0,
+            "dl": 1.1,
+            "q": ""
+          },
+          "V": {
+            "n": "Vanadium",
+            "v": 92.0,
+            "dl": 2.7,
+            "q": ""
+          },
+          "Zn": {
+            "n": "Zinc",
+            "v": 24.0,
+            "dl": 2.7,
+            "q": ""
+          },
+          "Ca": {
+            "n": "Calcium",
+            "v": 2000.0,
+            "dl": 1100.0,
+            "q": "D"
+          },
+          "Se": {
+            "n": "Selenium",
+            "v": null,
+            "dl": 2.7,
+            "q": "U"
+          }
+        },
+        "metals_date": "2025-08-19"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.667758,
+          39.005229
+        ]
+      },
+      "properties": {
+        "id": "SS-23",
+        "round": 1,
+        "sampled": false,
+        "Hg": null,
+        "As": null,
+        "Sb": null,
+        "Tl": null,
+        "rod_exceed": "NOT SAMPLED",
+        "rod_drivers": null,
+        "pmb_exceed": "NOT SAMPLED",
+        "pmb_drivers": null,
+        "depth": "Shallow",
+        "notes": "Deferred to Round 2"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.667103,
+          39.005414
+        ]
+      },
+      "properties": {
+        "id": "SS-24",
+        "round": 1,
+        "sampled": false,
+        "Hg": null,
+        "As": null,
+        "Sb": null,
+        "Tl": null,
+        "rod_exceed": "NOT SAMPLED",
+        "rod_drivers": null,
+        "pmb_exceed": "NOT SAMPLED",
+        "pmb_drivers": null,
+        "depth": "Shallow",
+        "notes": "Deferred to Round 2"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.66664,
+          39.005364
+        ]
+      },
+      "properties": {
+        "id": "SS-25",
+        "round": 1,
+        "sampled": false,
+        "Hg": null,
+        "As": null,
+        "Sb": null,
+        "Tl": null,
+        "rod_exceed": "NOT SAMPLED",
+        "rod_drivers": null,
+        "pmb_exceed": "NOT SAMPLED",
+        "pmb_drivers": null,
+        "depth": "Shallow",
+        "notes": "Deferred to Round 2"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.665878,
+          39.005175
+        ]
+      },
+      "properties": {
+        "id": "SS-26",
+        "round": 1,
+        "sampled": false,
+        "Hg": null,
+        "As": null,
+        "Sb": null,
+        "Tl": null,
+        "rod_exceed": "NOT SAMPLED",
+        "rod_drivers": null,
+        "pmb_exceed": "NOT SAMPLED",
+        "pmb_drivers": null,
+        "depth": "Shallow",
+        "notes": "Deferred to Round 2"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.66583,
+          39.005487
+        ]
+      },
+      "properties": {
+        "id": "SS-27",
+        "round": 1,
+        "sampled": false,
+        "Hg": null,
+        "As": null,
+        "Sb": null,
+        "Tl": null,
+        "rod_exceed": "NOT SAMPLED",
+        "rod_drivers": null,
+        "pmb_exceed": "NOT SAMPLED",
+        "pmb_drivers": null,
+        "depth": "Shallow",
+        "notes": "Deferred to Round 2"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.665732,
+          39.005789
+        ]
+      },
+      "properties": {
+        "id": "SS-28",
+        "round": 1,
+        "sampled": false,
+        "Hg": null,
+        "As": null,
+        "Sb": null,
+        "Tl": null,
+        "rod_exceed": "NOT SAMPLED",
+        "rod_drivers": null,
+        "pmb_exceed": "NOT SAMPLED",
+        "pmb_drivers": null,
+        "depth": "Shallow",
+        "notes": "Deferred to Round 2"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.666705,
+          39.005967
+        ]
+      },
+      "properties": {
+        "id": "SS-29",
+        "round": 1,
+        "sampled": true,
+        "Hg": 230.0,
+        "As": 0.47,
+        "Sb": 0.45,
+        "Tl": 0.22,
+        "rod_exceed": "YES",
+        "rod_drivers": "Hg",
+        "pmb_exceed": "YES",
+        "pmb_drivers": "Hg",
+        "depth": "Shallow",
+        "notes": "",
+        "metals": {
+          "Pb": {
+            "n": "Lead",
+            "v": 14.0,
+            "dl": 0.55,
+            "q": ""
+          },
+          "Fe": {
+            "n": "Iron",
+            "v": 3700.0,
+            "dl": 22.0,
+            "q": "D"
+          },
+          "Al": {
+            "n": "Aluminum",
+            "v": 2800.0,
+            "dl": 44.0,
+            "q": "D"
+          },
+          "Mg": {
+            "n": "Magnesium",
+            "v": null,
+            "dl": 1100.0,
+            "q": "U"
+          },
+          "Mn": {
+            "n": "Manganese",
+            "v": 19.0,
+            "dl": 0.55,
+            "q": ""
+          },
+          "Ni": {
+            "n": "Nickel",
+            "v": 3.8,
+            "dl": 0.55,
+            "q": ""
+          },
+          "K": {
+            "n": "Potassium",
+            "v": 890.0,
+            "dl": 1100.0,
+            "q": "J"
+          },
+          "Ag": {
+            "n": "Silver",
+            "v": null,
+            "dl": 0.55,
+            "q": "U"
+          },
+          "Na": {
+            "n": "Sodium",
+            "v": null,
+            "dl": 1100.0,
+            "q": "U"
+          },
+          "Ba": {
+            "n": "Barium",
+            "v": 140.0,
+            "dl": 5.5,
+            "q": ""
+          },
+          "Be": {
+            "n": "Beryllium",
+            "v": 0.097,
+            "dl": 0.55,
+            "q": "J"
+          },
+          "Cd": {
+            "n": "Cadmium",
+            "v": 0.22,
+            "dl": 0.55,
+            "q": "J"
+          },
+          "Cr": {
+            "n": "Chromium",
+            "v": 11.0,
+            "dl": 1.1,
+            "q": ""
+          },
+          "Co": {
+            "n": "Cobalt",
+            "v": 0.77,
+            "dl": 0.55,
+            "q": ""
+          },
+          "Cu": {
+            "n": "Copper",
+            "v": 8.6,
+            "dl": 1.1,
+            "q": ""
+          },
+          "V": {
+            "n": "Vanadium",
+            "v": 14.0,
+            "dl": 2.7,
+            "q": ""
+          },
+          "Zn": {
+            "n": "Zinc",
+            "v": 7.2,
+            "dl": 2.7,
+            "q": ""
+          },
+          "Ca": {
+            "n": "Calcium",
+            "v": null,
+            "dl": 1100.0,
+            "q": "U"
+          },
+          "Se": {
+            "n": "Selenium",
+            "v": null,
+            "dl": 2.7,
+            "q": "U"
+          }
+        },
+        "metals_date": "2025-08-19"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.66646,
+          39.005968
+        ]
+      },
+      "properties": {
+        "id": "SS-30",
+        "round": 1,
+        "sampled": true,
+        "Hg": 390.0,
+        "As": 0.9,
+        "Sb": 0.29,
+        "Tl": 0.23,
+        "rod_exceed": "YES",
+        "rod_drivers": "Hg",
+        "pmb_exceed": "YES",
+        "pmb_drivers": "Hg",
+        "depth": "Shallow",
+        "notes": "",
+        "metals": {
+          "Pb": {
+            "n": "Lead",
+            "v": 12.0,
+            "dl": 0.57,
+            "q": "J+"
+          },
+          "Mg": {
+            "n": "Magnesium",
+            "v": 330.0,
+            "dl": 1100.0,
+            "q": "J"
+          },
+          "Fe": {
+            "n": "Iron",
+            "v": 5800.0,
+            "dl": 23.0,
+            "q": "D"
+          },
+          "Al": {
+            "n": "Aluminum",
+            "v": 7300.0,
+            "dl": 45.0,
+            "q": "D"
+          },
+          "Mn": {
+            "n": "Manganese",
+            "v": 43.0,
+            "dl": 0.57,
+            "q": ""
+          },
+          "Ni": {
+            "n": "Nickel",
+            "v": 5.3,
+            "dl": 0.57,
+            "q": ""
+          },
+          "K": {
+            "n": "Potassium",
+            "v": 840.0,
+            "dl": 1100.0,
+            "q": "J"
+          },
+          "Ag": {
+            "n": "Silver",
+            "v": 0.11,
+            "dl": 0.57,
+            "q": "J"
+          },
+          "Na": {
+            "n": "Sodium",
+            "v": null,
+            "dl": 1100.0,
+            "q": "U"
+          },
+          "Ba": {
+            "n": "Barium",
+            "v": 240.0,
+            "dl": 5.7,
+            "q": ""
+          },
+          "Be": {
+            "n": "Beryllium",
+            "v": 0.13,
+            "dl": 0.57,
+            "q": "J"
+          },
+          "Cd": {
+            "n": "Cadmium",
+            "v": 0.37,
+            "dl": 0.57,
+            "q": "J"
+          },
+          "Cr": {
+            "n": "Chromium",
+            "v": 25.0,
+            "dl": 1.1,
+            "q": ""
+          },
+          "Co": {
+            "n": "Cobalt",
+            "v": 0.89,
+            "dl": 0.57,
+            "q": ""
+          },
+          "Cu": {
+            "n": "Copper",
+            "v": 11.0,
+            "dl": 1.1,
+            "q": ""
+          },
+          "V": {
+            "n": "Vanadium",
+            "v": 25.0,
+            "dl": 2.8,
+            "q": ""
+          },
+          "Zn": {
+            "n": "Zinc",
+            "v": 11.0,
+            "dl": 2.8,
+            "q": ""
+          },
+          "Ca": {
+            "n": "Calcium",
+            "v": null,
+            "dl": 1100.0,
+            "q": "U"
+          },
+          "Se": {
+            "n": "Selenium",
+            "v": null,
+            "dl": 2.8,
+            "q": "U"
+          }
+        },
+        "metals_date": "2025-08-19"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.666803,
+          39.006175
+        ]
+      },
+      "properties": {
+        "id": "SS-31",
+        "round": 1,
+        "sampled": true,
+        "Hg": 230.0,
+        "As": 0.57,
+        "Sb": 0.31,
+        "Tl": 0.22,
+        "rod_exceed": "YES",
+        "rod_drivers": "Hg",
+        "pmb_exceed": "YES",
+        "pmb_drivers": "Hg",
+        "depth": "Shallow",
+        "notes": "",
+        "metals": {
+          "Mg": {
+            "n": "Magnesium",
+            "v": null,
+            "dl": 1100.0,
+            "q": "U"
+          },
+          "Pb": {
+            "n": "Lead",
+            "v": 6.8,
+            "dl": 0.56,
+            "q": "J+"
+          },
+          "Fe": {
+            "n": "Iron",
+            "v": 3100.0,
+            "dl": 22.0,
+            "q": "D"
+          },
+          "Al": {
+            "n": "Aluminum",
+            "v": 2100.0,
+            "dl": 45.0,
+            "q": "D"
+          },
+          "Mn": {
+            "n": "Manganese",
+            "v": 19.0,
+            "dl": 0.56,
+            "q": ""
+          },
+          "Ni": {
+            "n": "Nickel",
+            "v": 2.2,
+            "dl": 0.56,
+            "q": ""
+          },
+          "K": {
+            "n": "Potassium",
+            "v": 360.0,
+            "dl": 1100.0,
+            "q": "J"
+          },
+          "Ag": {
+            "n": "Silver",
+            "v": 0.098,
+            "dl": 0.56,
+            "q": "J"
+          },
+          "Na": {
+            "n": "Sodium",
+            "v": null,
+            "dl": 1100.0,
+            "q": "U"
+          },
+          "Ba": {
+            "n": "Barium",
+            "v": 78.0,
+            "dl": 5.6,
+            "q": ""
+          },
+          "Be": {
+            "n": "Beryllium",
+            "v": null,
+            "dl": 0.56,
+            "q": "U"
+          },
+          "Cd": {
+            "n": "Cadmium",
+            "v": 0.22,
+            "dl": 0.56,
+            "q": "J"
+          },
+          "Cr": {
+            "n": "Chromium",
+            "v": 10.0,
+            "dl": 1.1,
+            "q": ""
+          },
+          "Co": {
+            "n": "Cobalt",
+            "v": 0.37,
+            "dl": 0.56,
+            "q": "J"
+          },
+          "Cu": {
+            "n": "Copper",
+            "v": 7.5,
+            "dl": 1.1,
+            "q": ""
+          },
+          "V": {
+            "n": "Vanadium",
+            "v": 11.0,
+            "dl": 2.8,
+            "q": ""
+          },
+          "Zn": {
+            "n": "Zinc",
+            "v": 4.7,
+            "dl": 2.8,
+            "q": ""
+          },
+          "Ca": {
+            "n": "Calcium",
+            "v": null,
+            "dl": 1100.0,
+            "q": "U"
+          },
+          "Se": {
+            "n": "Selenium",
+            "v": null,
+            "dl": 2.8,
+            "q": "U"
+          }
+        },
+        "metals_date": "2025-08-19"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.666265,
+          39.006168
+        ]
+      },
+      "properties": {
+        "id": "SS-32",
+        "round": 1,
+        "sampled": true,
+        "Hg": 220.0,
+        "As": 7.9,
+        "Sb": 3.1,
+        "Tl": 0.092,
+        "rod_exceed": "YES",
+        "rod_drivers": "Hg, As",
+        "pmb_exceed": "YES",
+        "pmb_drivers": "Hg, As, Sb",
+        "depth": "Shallow",
+        "notes": "",
+        "metals": {
+          "Mg": {
+            "n": "Magnesium",
+            "v": 2100.0,
+            "dl": 1000.0,
+            "q": "D"
+          },
+          "Pb": {
+            "n": "Lead",
+            "v": 10.0,
+            "dl": 0.5,
+            "q": "J+"
+          },
+          "Fe": {
+            "n": "Iron",
+            "v": 19000.0,
+            "dl": 20.0,
+            "q": "D"
+          },
+          "Al": {
+            "n": "Aluminum",
+            "v": 11000.0,
+            "dl": 40.0,
+            "q": "D"
+          },
+          "Mn": {
+            "n": "Manganese",
+            "v": 360.0,
+            "dl": 2.5,
+            "q": "D"
+          },
+          "Ni": {
+            "n": "Nickel",
+            "v": 24.0,
+            "dl": 0.5,
+            "q": ""
+          },
+          "K": {
+            "n": "Potassium",
+            "v": 1200.0,
+            "dl": 1000.0,
+            "q": "D"
+          },
+          "Ag": {
+            "n": "Silver",
+            "v": null,
+            "dl": 0.5,
+            "q": "U"
+          },
+          "Na": {
+            "n": "Sodium",
+            "v": null,
+            "dl": 1000.0,
+            "q": "U"
+          },
+          "Ba": {
+            "n": "Barium",
+            "v": 230.0,
+            "dl": 5.0,
+            "q": ""
+          },
+          "Be": {
+            "n": "Beryllium",
+            "v": 0.18,
+            "dl": 0.5,
+            "q": "J"
+          },
+          "Cd": {
+            "n": "Cadmium",
+            "v": 0.25,
+            "dl": 0.5,
+            "q": "J"
+          },
+          "Cr": {
+            "n": "Chromium",
+            "v": 40.0,
+            "dl": 1.0,
+            "q": ""
+          },
+          "Co": {
+            "n": "Cobalt",
+            "v": 9.6,
+            "dl": 0.5,
+            "q": ""
+          },
+          "Cu": {
+            "n": "Copper",
+            "v": 15.0,
+            "dl": 1.0,
+            "q": ""
+          },
+          "V": {
+            "n": "Vanadium",
+            "v": 37.0,
+            "dl": 2.5,
+            "q": ""
+          },
+          "Zn": {
+            "n": "Zinc",
+            "v": 43.0,
+            "dl": 2.5,
+            "q": ""
+          },
+          "Ca": {
+            "n": "Calcium",
+            "v": 4200.0,
+            "dl": 1000.0,
+            "q": "D"
+          },
+          "Se": {
+            "n": "Selenium",
+            "v": null,
+            "dl": 2.5,
+            "q": "U"
+          }
+        },
+        "metals_date": "2025-08-19"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.665714,
+          39.006377
+        ]
+      },
+      "properties": {
+        "id": "SS-33",
+        "round": 1,
+        "sampled": true,
+        "Hg": 170.0,
+        "As": 2.0,
+        "Sb": 0.26,
+        "Tl": 0.22,
+        "rod_exceed": "NO",
+        "rod_drivers": null,
+        "pmb_exceed": "YES",
+        "pmb_drivers": "Hg",
+        "depth": "Shallow",
+        "notes": "",
+        "metals": {
+          "Mg": {
+            "n": "Magnesium",
+            "v": 1300.0,
+            "dl": 1000.0,
+            "q": "D"
+          },
+          "Pb": {
+            "n": "Lead",
+            "v": 19.0,
+            "dl": 0.51,
+            "q": ""
+          },
+          "Fe": {
+            "n": "Iron",
+            "v": 44000.0,
+            "dl": 20.0,
+            "q": "D"
+          },
+          "Al": {
+            "n": "Aluminum",
+            "v": 26000.0,
+            "dl": 41.0,
+            "q": "D"
+          },
+          "Mn": {
+            "n": "Manganese",
+            "v": 620.0,
+            "dl": 2.5,
+            "q": "D"
+          },
+          "Ni": {
+            "n": "Nickel",
+            "v": 14.0,
+            "dl": 0.51,
+            "q": ""
+          },
+          "K": {
+            "n": "Potassium",
+            "v": 820.0,
+            "dl": 1000.0,
+            "q": "J"
+          },
+          "Ag": {
+            "n": "Silver",
+            "v": null,
+            "dl": 0.51,
+            "q": "U"
+          },
+          "Na": {
+            "n": "Sodium",
+            "v": null,
+            "dl": 1000.0,
+            "q": "U"
+          },
+          "Ba": {
+            "n": "Barium",
+            "v": 290.0,
+            "dl": 5.1,
+            "q": ""
+          },
+          "Be": {
+            "n": "Beryllium",
+            "v": 0.45,
+            "dl": 0.51,
+            "q": "J"
+          },
+          "Cd": {
+            "n": "Cadmium",
+            "v": 0.87,
+            "dl": 0.51,
+            "q": ""
+          },
+          "Cr": {
+            "n": "Chromium",
+            "v": 140.0,
+            "dl": 1.0,
+            "q": ""
+          },
+          "Co": {
+            "n": "Cobalt",
+            "v": 15.0,
+            "dl": 0.51,
+            "q": ""
+          },
+          "Cu": {
+            "n": "Copper",
+            "v": 26.0,
+            "dl": 1.0,
+            "q": ""
+          },
+          "V": {
+            "n": "Vanadium",
+            "v": 180.0,
+            "dl": 2.5,
+            "q": ""
+          },
+          "Zn": {
+            "n": "Zinc",
+            "v": 49.0,
+            "dl": 2.5,
+            "q": ""
+          },
+          "Ca": {
+            "n": "Calcium",
+            "v": 2200.0,
+            "dl": 1000.0,
+            "q": "D"
+          },
+          "Se": {
+            "n": "Selenium",
+            "v": 0.58,
+            "dl": 2.5,
+            "q": "J"
+          }
+        },
+        "metals_date": "2025-08-18"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.665525,
+          39.006612
+        ]
+      },
+      "properties": {
+        "id": "SS-34",
+        "round": 1,
+        "sampled": true,
+        "Hg": 110.0,
+        "As": 2.8,
+        "Sb": 0.19,
+        "Tl": 0.2,
+        "rod_exceed": "NO",
+        "rod_drivers": null,
+        "pmb_exceed": "YES",
+        "pmb_drivers": "Hg",
+        "depth": "Shallow",
+        "notes": "",
+        "metals": {
+          "Mg": {
+            "n": "Magnesium",
+            "v": 2000.0,
+            "dl": 1000.0,
+            "q": "D"
+          },
+          "Pb": {
+            "n": "Lead",
+            "v": 18.0,
+            "dl": 0.5,
+            "q": ""
+          },
+          "Fe": {
+            "n": "Iron",
+            "v": 46000.0,
+            "dl": 20.0,
+            "q": "D"
+          },
+          "Al": {
+            "n": "Aluminum",
+            "v": 30000.0,
+            "dl": 40.0,
+            "q": "D"
+          },
+          "Mn": {
+            "n": "Manganese",
+            "v": 820.0,
+            "dl": 2.5,
+            "q": "D"
+          },
+          "Ni": {
+            "n": "Nickel",
+            "v": 18.0,
+            "dl": 0.5,
+            "q": ""
+          },
+          "K": {
+            "n": "Potassium",
+            "v": 790.0,
+            "dl": 1000.0,
+            "q": "J"
+          },
+          "Ag": {
+            "n": "Silver",
+            "v": 0.08,
+            "dl": 0.5,
+            "q": "J"
+          },
+          "Na": {
+            "n": "Sodium",
+            "v": null,
+            "dl": 1000.0,
+            "q": "U"
+          },
+          "Ba": {
+            "n": "Barium",
+            "v": 270.0,
+            "dl": 5.0,
+            "q": ""
+          },
+          "Be": {
+            "n": "Beryllium",
+            "v": 0.52,
+            "dl": 0.5,
+            "q": ""
+          },
+          "Cd": {
+            "n": "Cadmium",
+            "v": 1.2,
+            "dl": 0.5,
+            "q": ""
+          },
+          "Cr": {
+            "n": "Chromium",
+            "v": 120.0,
+            "dl": 1.0,
+            "q": ""
+          },
+          "Co": {
+            "n": "Cobalt",
+            "v": 17.0,
+            "dl": 0.5,
+            "q": ""
+          },
+          "Cu": {
+            "n": "Copper",
+            "v": 22.0,
+            "dl": 1.0,
+            "q": ""
+          },
+          "V": {
+            "n": "Vanadium",
+            "v": 170.0,
+            "dl": 2.5,
+            "q": ""
+          },
+          "Zn": {
+            "n": "Zinc",
+            "v": 69.0,
+            "dl": 2.5,
+            "q": ""
+          },
+          "Ca": {
+            "n": "Calcium",
+            "v": 2700.0,
+            "dl": 1000.0,
+            "q": "D"
+          },
+          "Se": {
+            "n": "Selenium",
+            "v": 0.61,
+            "dl": 2.5,
+            "q": "J"
+          }
+        },
+        "metals_date": "2025-08-18"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.666106,
+          39.006936
+        ]
+      },
+      "properties": {
+        "id": "SS-35",
+        "round": 1,
+        "sampled": true,
+        "Hg": 1200.0,
+        "As": 7.2,
+        "Sb": 8.3,
+        "Tl": 0.46,
+        "rod_exceed": "YES",
+        "rod_drivers": "Hg, As",
+        "pmb_exceed": "YES",
+        "pmb_drivers": "Hg, As, Sb",
+        "depth": "Shallow",
+        "notes": "",
+        "metals": {
+          "Mg": {
+            "n": "Magnesium",
+            "v": 630.0,
+            "dl": 1100.0,
+            "q": "J"
+          },
+          "Pb": {
+            "n": "Lead",
+            "v": 27.0,
+            "dl": 0.57,
+            "q": ""
+          },
+          "Fe": {
+            "n": "Iron",
+            "v": 12000.0,
+            "dl": 23.0,
+            "q": "D"
+          },
+          "Al": {
+            "n": "Aluminum",
+            "v": 3800.0,
+            "dl": 46.0,
+            "q": "D"
+          },
+          "Mn": {
+            "n": "Manganese",
+            "v": 2700.0,
+            "dl": 29.0,
+            "q": "D"
+          },
+          "Ni": {
+            "n": "Nickel",
+            "v": 5.6,
+            "dl": 0.57,
+            "q": ""
+          },
+          "K": {
+            "n": "Potassium",
+            "v": 1200.0,
+            "dl": 1100.0,
+            "q": "D"
+          },
+          "Ag": {
+            "n": "Silver",
+            "v": null,
+            "dl": 0.57,
+            "q": "U"
+          },
+          "Na": {
+            "n": "Sodium",
+            "v": null,
+            "dl": 1100.0,
+            "q": "U"
+          },
+          "Ba": {
+            "n": "Barium",
+            "v": 330.0,
+            "dl": 5.7,
+            "q": ""
+          },
+          "Be": {
+            "n": "Beryllium",
+            "v": 0.076,
+            "dl": 0.57,
+            "q": "J"
+          },
+          "Cd": {
+            "n": "Cadmium",
+            "v": 0.35,
+            "dl": 0.57,
+            "q": "J"
+          },
+          "Cr": {
+            "n": "Chromium",
+            "v": 17.0,
+            "dl": 1.1,
+            "q": ""
+          },
+          "Co": {
+            "n": "Cobalt",
+            "v": 2.3,
+            "dl": 0.57,
+            "q": ""
+          },
+          "Cu": {
+            "n": "Copper",
+            "v": 9.4,
+            "dl": 1.1,
+            "q": ""
+          },
+          "V": {
+            "n": "Vanadium",
+            "v": 25.0,
+            "dl": 2.9,
+            "q": ""
+          },
+          "Zn": {
+            "n": "Zinc",
+            "v": 29.0,
+            "dl": 2.9,
+            "q": ""
+          },
+          "Ca": {
+            "n": "Calcium",
+            "v": 4700.0,
+            "dl": 1100.0,
+            "q": "D"
+          },
+          "Se": {
+            "n": "Selenium",
+            "v": null,
+            "dl": 2.9,
+            "q": "U"
+          }
+        },
+        "metals_date": "2025-08-18"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.666159,
+          39.007419
+        ]
+      },
+      "properties": {
+        "id": "SS-36",
+        "round": 1,
+        "sampled": false,
+        "Hg": null,
+        "As": null,
+        "Sb": null,
+        "Tl": null,
+        "rod_exceed": "NOT SAMPLED",
+        "rod_drivers": null,
+        "pmb_exceed": "NOT SAMPLED",
+        "pmb_drivers": null,
+        "depth": "Shallow",
+        "notes": "Deferred to Round 2"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.66721,
+          39.006667
+        ]
+      },
+      "properties": {
+        "id": "SS-37",
+        "round": 1,
+        "sampled": true,
+        "Hg": 470.0,
+        "As": 0.93,
+        "Sb": 0.66,
+        "Tl": 0.095,
+        "rod_exceed": "YES",
+        "rod_drivers": "Hg",
+        "pmb_exceed": "YES",
+        "pmb_drivers": "Hg, Sb",
+        "depth": "Shallow",
+        "notes": "",
+        "metals": {
+          "Mg": {
+            "n": "Magnesium",
+            "v": 470.0,
+            "dl": 1100.0,
+            "q": "J"
+          },
+          "Pb": {
+            "n": "Lead",
+            "v": 25.0,
+            "dl": 0.56,
+            "q": ""
+          },
+          "Fe": {
+            "n": "Iron",
+            "v": 8700.0,
+            "dl": 22.0,
+            "q": "D"
+          },
+          "Al": {
+            "n": "Aluminum",
+            "v": 5400.0,
+            "dl": 44.0,
+            "q": "D"
+          },
+          "Mn": {
+            "n": "Manganese",
+            "v": 150.0,
+            "dl": 0.56,
+            "q": ""
+          },
+          "Ni": {
+            "n": "Nickel",
+            "v": 5.4,
+            "dl": 0.56,
+            "q": ""
+          },
+          "K": {
+            "n": "Potassium",
+            "v": 620.0,
+            "dl": 1100.0,
+            "q": "J"
+          },
+          "Ag": {
+            "n": "Silver",
+            "v": null,
+            "dl": 0.56,
+            "q": "U"
+          },
+          "Na": {
+            "n": "Sodium",
+            "v": null,
+            "dl": 1100.0,
+            "q": "U"
+          },
+          "Ba": {
+            "n": "Barium",
+            "v": 220.0,
+            "dl": 5.6,
+            "q": ""
+          },
+          "Be": {
+            "n": "Beryllium",
+            "v": 0.1,
+            "dl": 0.56,
+            "q": "J"
+          },
+          "Cd": {
+            "n": "Cadmium",
+            "v": 0.22,
+            "dl": 0.56,
+            "q": "J"
+          },
+          "Cr": {
+            "n": "Chromium",
+            "v": 17.0,
+            "dl": 1.1,
+            "q": ""
+          },
+          "Co": {
+            "n": "Cobalt",
+            "v": 2.4,
+            "dl": 0.56,
+            "q": ""
+          },
+          "Cu": {
+            "n": "Copper",
+            "v": 11.0,
+            "dl": 1.1,
+            "q": ""
+          },
+          "V": {
+            "n": "Vanadium",
+            "v": 21.0,
+            "dl": 2.8,
+            "q": ""
+          },
+          "Zn": {
+            "n": "Zinc",
+            "v": 17.0,
+            "dl": 2.8,
+            "q": ""
+          },
+          "Ca": {
+            "n": "Calcium",
+            "v": null,
+            "dl": 1100.0,
+            "q": "U"
+          },
+          "Se": {
+            "n": "Selenium",
+            "v": null,
+            "dl": 2.8,
+            "q": "U"
+          }
+        },
+        "metals_date": "2025-08-18"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.667462,
+          39.00694
+        ]
+      },
+      "properties": {
+        "id": "SS-38",
+        "round": 1,
+        "sampled": true,
+        "Hg": 620.0,
+        "As": 3.5,
+        "Sb": 3.9,
+        "Tl": 0.14,
+        "rod_exceed": "YES",
+        "rod_drivers": "Hg",
+        "pmb_exceed": "YES",
+        "pmb_drivers": "Hg, Sb",
+        "depth": "Shallow",
+        "notes": "",
+        "metals": {
+          "Mg": {
+            "n": "Magnesium",
+            "v": null,
+            "dl": 1000.0,
+            "q": "U"
+          },
+          "Pb": {
+            "n": "Lead",
+            "v": 12.0,
+            "dl": 0.52,
+            "q": "J+"
+          },
+          "Fe": {
+            "n": "Iron",
+            "v": 11000.0,
+            "dl": 21.0,
+            "q": "D"
+          },
+          "Al": {
+            "n": "Aluminum",
+            "v": 6400.0,
+            "dl": 41.0,
+            "q": "D"
+          },
+          "Mn": {
+            "n": "Manganese",
+            "v": 67.0,
+            "dl": 0.52,
+            "q": ""
+          },
+          "Ni": {
+            "n": "Nickel",
+            "v": 3.7,
+            "dl": 0.52,
+            "q": ""
+          },
+          "K": {
+            "n": "Potassium",
+            "v": 900.0,
+            "dl": 1000.0,
+            "q": "J"
+          },
+          "Ag": {
+            "n": "Silver",
+            "v": null,
+            "dl": 0.52,
+            "q": "U"
+          },
+          "Na": {
+            "n": "Sodium",
+            "v": null,
+            "dl": 1000.0,
+            "q": "U"
+          },
+          "Ba": {
+            "n": "Barium",
+            "v": 250.0,
+            "dl": 5.2,
+            "q": ""
+          },
+          "Be": {
+            "n": "Beryllium",
+            "v": 0.067,
+            "dl": 0.52,
+            "q": "J"
+          },
+          "Cd": {
+            "n": "Cadmium",
+            "v": 0.43,
+            "dl": 0.52,
+            "q": "J"
+          },
+          "Cr": {
+            "n": "Chromium",
+            "v": 23.0,
+            "dl": 1.0,
+            "q": ""
+          },
+          "Co": {
+            "n": "Cobalt",
+            "v": 1.2,
+            "dl": 0.52,
+            "q": ""
+          },
+          "Cu": {
+            "n": "Copper",
+            "v": 14.0,
+            "dl": 1.0,
+            "q": ""
+          },
+          "V": {
+            "n": "Vanadium",
+            "v": 24.0,
+            "dl": 2.6,
+            "q": ""
+          },
+          "Zn": {
+            "n": "Zinc",
+            "v": 12.0,
+            "dl": 2.6,
+            "q": ""
+          },
+          "Ca": {
+            "n": "Calcium",
+            "v": null,
+            "dl": 1000.0,
+            "q": "U"
+          },
+          "Se": {
+            "n": "Selenium",
+            "v": null,
+            "dl": 2.6,
+            "q": "U"
+          }
+        },
+        "metals_date": "2025-08-18"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.667635,
+          39.00759
+        ]
+      },
+      "properties": {
+        "id": "SS-39",
+        "round": 1,
+        "sampled": true,
+        "Hg": 220.0,
+        "As": 6.0,
+        "Sb": 5.3,
+        "Tl": 0.28,
+        "rod_exceed": "YES",
+        "rod_drivers": "Hg",
+        "pmb_exceed": "YES",
+        "pmb_drivers": "Hg, Sb",
+        "depth": "Shallow",
+        "notes": "",
+        "metals": {
+          "Mg": {
+            "n": "Magnesium",
+            "v": 1400.0,
+            "dl": 1000.0,
+            "q": "D"
+          },
+          "Pb": {
+            "n": "Lead",
+            "v": 27.0,
+            "dl": 0.52,
+            "q": ""
+          },
+          "Fe": {
+            "n": "Iron",
+            "v": 32000.0,
+            "dl": 21.0,
+            "q": "D"
+          },
+          "Al": {
+            "n": "Aluminum",
+            "v": 24000.0,
+            "dl": 42.0,
+            "q": "D"
+          },
+          "Mn": {
+            "n": "Manganese",
+            "v": 640.0,
+            "dl": 2.6,
+            "q": "J+"
+          },
+          "Ni": {
+            "n": "Nickel",
+            "v": 19.0,
+            "dl": 0.52,
+            "q": ""
+          },
+          "K": {
+            "n": "Potassium",
+            "v": 1400.0,
+            "dl": 1000.0,
+            "q": "D"
+          },
+          "Ag": {
+            "n": "Silver",
+            "v": 0.13,
+            "dl": 0.52,
+            "q": "J"
+          },
+          "Na": {
+            "n": "Sodium",
+            "v": null,
+            "dl": 1000.0,
+            "q": "U"
+          },
+          "Ba": {
+            "n": "Barium",
+            "v": 400.0,
+            "dl": 5.2,
+            "q": ""
+          },
+          "Be": {
+            "n": "Beryllium",
+            "v": 0.59,
+            "dl": 0.52,
+            "q": ""
+          },
+          "Cd": {
+            "n": "Cadmium",
+            "v": 0.79,
+            "dl": 0.52,
+            "q": ""
+          },
+          "Cr": {
+            "n": "Chromium",
+            "v": 91.0,
+            "dl": 1.0,
+            "q": ""
+          },
+          "Co": {
+            "n": "Cobalt",
+            "v": 12.0,
+            "dl": 0.52,
+            "q": ""
+          },
+          "Cu": {
+            "n": "Copper",
+            "v": 30.0,
+            "dl": 1.0,
+            "q": ""
+          },
+          "V": {
+            "n": "Vanadium",
+            "v": 130.0,
+            "dl": 2.6,
+            "q": ""
+          },
+          "Zn": {
+            "n": "Zinc",
+            "v": 58.0,
+            "dl": 2.6,
+            "q": ""
+          },
+          "Ca": {
+            "n": "Calcium",
+            "v": 2600.0,
+            "dl": 1000.0,
+            "q": "D"
+          },
+          "Se": {
+            "n": "Selenium",
+            "v": 0.86,
+            "dl": 2.6,
+            "q": "J"
+          }
+        },
+        "metals_date": "2025-08-19"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.667005,
+          39.007695
+        ]
+      },
+      "properties": {
+        "id": "SS-40",
+        "round": 1,
+        "sampled": true,
+        "Hg": 660.0,
+        "As": 20.0,
+        "Sb": 34.0,
+        "Tl": 0.38,
+        "rod_exceed": "YES",
+        "rod_drivers": "Hg, As",
+        "pmb_exceed": "YES",
+        "pmb_drivers": "Hg, As, Sb",
+        "depth": "Shallow",
+        "notes": "",
+        "metals": {
+          "Mg": {
+            "n": "Magnesium",
+            "v": 680.0,
+            "dl": 1100.0,
+            "q": "J"
+          },
+          "Pb": {
+            "n": "Lead",
+            "v": 19.0,
+            "dl": 0.53,
+            "q": ""
+          },
+          "Fe": {
+            "n": "Iron",
+            "v": 28000.0,
+            "dl": 21.0,
+            "q": "D"
+          },
+          "Al": {
+            "n": "Aluminum",
+            "v": 10000.0,
+            "dl": 43.0,
+            "q": "D"
+          },
+          "Mn": {
+            "n": "Manganese",
+            "v": 280.0,
+            "dl": 2.7,
+            "q": "J+"
+          },
+          "Ni": {
+            "n": "Nickel",
+            "v": 9.9,
+            "dl": 0.53,
+            "q": ""
+          },
+          "K": {
+            "n": "Potassium",
+            "v": 1200.0,
+            "dl": 1100.0,
+            "q": "D"
+          },
+          "Ag": {
+            "n": "Silver",
+            "v": null,
+            "dl": 0.53,
+            "q": "U"
+          },
+          "Na": {
+            "n": "Sodium",
+            "v": null,
+            "dl": 1100.0,
+            "q": "U"
+          },
+          "Ba": {
+            "n": "Barium",
+            "v": 300.0,
+            "dl": 5.3,
+            "q": ""
+          },
+          "Be": {
+            "n": "Beryllium",
+            "v": 0.18,
+            "dl": 0.53,
+            "q": "J"
+          },
+          "Cd": {
+            "n": "Cadmium",
+            "v": 0.34,
+            "dl": 0.53,
+            "q": "J"
+          },
+          "Cr": {
+            "n": "Chromium",
+            "v": 45.0,
+            "dl": 1.1,
+            "q": ""
+          },
+          "Co": {
+            "n": "Cobalt",
+            "v": 4.0,
+            "dl": 0.53,
+            "q": ""
+          },
+          "Cu": {
+            "n": "Copper",
+            "v": 28.0,
+            "dl": 1.1,
+            "q": ""
+          },
+          "V": {
+            "n": "Vanadium",
+            "v": 48.0,
+            "dl": 2.7,
+            "q": ""
+          },
+          "Zn": {
+            "n": "Zinc",
+            "v": 29.0,
+            "dl": 2.7,
+            "q": ""
+          },
+          "Ca": {
+            "n": "Calcium",
+            "v": 1400.0,
+            "dl": 1100.0,
+            "q": "D"
+          },
+          "Se": {
+            "n": "Selenium",
+            "v": 0.52,
+            "dl": 2.7,
+            "q": "J"
+          }
+        },
+        "metals_date": "2025-08-19"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.666428,
+          39.00791
+        ]
+      },
+      "properties": {
+        "id": "SS-41",
+        "round": 1,
+        "sampled": true,
+        "Hg": 1.8,
+        "As": 1.5,
+        "Sb": 1.1,
+        "Tl": 0.5,
+        "rod_exceed": "NO",
+        "rod_drivers": null,
+        "pmb_exceed": "YES",
+        "pmb_drivers": "Sb, Tl",
+        "depth": "Shallow",
+        "notes": "",
+        "metals": {
+          "Mg": {
+            "n": "Magnesium",
+            "v": 2300.0,
+            "dl": 1100.0,
+            "q": "D"
+          },
+          "Pb": {
+            "n": "Lead",
+            "v": 7.9,
+            "dl": 0.53,
+            "q": "J+"
+          },
+          "Fe": {
+            "n": "Iron",
+            "v": 17000.0,
+            "dl": 21.0,
+            "q": "D"
+          },
+          "Al": {
+            "n": "Aluminum",
+            "v": 19000.0,
+            "dl": 42.0,
+            "q": "D"
+          },
+          "Mn": {
+            "n": "Manganese",
+            "v": 650.0,
+            "dl": 2.6,
+            "q": "D"
+          },
+          "Ni": {
+            "n": "Nickel",
+            "v": 22.0,
+            "dl": 0.53,
+            "q": ""
+          },
+          "K": {
+            "n": "Potassium",
+            "v": null,
+            "dl": 1100.0,
+            "q": "U"
+          },
+          "Ag": {
+            "n": "Silver",
+            "v": null,
+            "dl": 0.53,
+            "q": "U"
+          },
+          "Na": {
+            "n": "Sodium",
+            "v": null,
+            "dl": 1100.0,
+            "q": "U"
+          },
+          "Ba": {
+            "n": "Barium",
+            "v": 180.0,
+            "dl": 5.3,
+            "q": ""
+          },
+          "Be": {
+            "n": "Beryllium",
+            "v": 0.75,
+            "dl": 0.53,
+            "q": ""
+          },
+          "Cd": {
+            "n": "Cadmium",
+            "v": 0.68,
+            "dl": 0.53,
+            "q": "J+"
+          },
+          "Cr": {
+            "n": "Chromium",
+            "v": 43.0,
+            "dl": 1.1,
+            "q": ""
+          },
+          "Co": {
+            "n": "Cobalt",
+            "v": 13.0,
+            "dl": 0.53,
+            "q": ""
+          },
+          "Cu": {
+            "n": "Copper",
+            "v": 11.0,
+            "dl": 1.1,
+            "q": ""
+          },
+          "V": {
+            "n": "Vanadium",
+            "v": 40.0,
+            "dl": 2.6,
+            "q": ""
+          },
+          "Zn": {
+            "n": "Zinc",
+            "v": 24.0,
+            "dl": 2.6,
+            "q": "J+"
+          },
+          "Ca": {
+            "n": "Calcium",
+            "v": 4600.0,
+            "dl": 1100.0,
+            "q": "D"
+          },
+          "Se": {
+            "n": "Selenium",
+            "v": null,
+            "dl": 2.6,
+            "q": "U"
+          }
+        },
+        "metals_date": "2025-08-20"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.669817,
+          39.00596
+        ]
+      },
+      "properties": {
+        "id": "W01",
+        "round": 2,
+        "sampled": true,
+        "coord_source": "Relocated",
+        "depth": "Shallow",
+        "field_note": "Characterization Data Gap",
+        "Hg": 1300.0,
+        "As": 2.7,
+        "Sb": 1.9,
+        "Tl": null,
+        "Hg_deep": null,
+        "As_deep": null,
+        "Sb_deep": null,
+        "Tl_deep": null,
+        "rod_exceed": "YES",
+        "rod_drivers": "Hg",
+        "pmb_exceed": "YES",
+        "pmb_drivers": "Hg, Sb, Tl",
+        "has_fd": "",
+        "not_sampled_reason": "",
+        "Hg_OM": 470.0,
+        "OM_effect": "OM lower",
+        "Hg_dl": null,
+        "As_dl": null,
+        "Sb_dl": null,
+        "Tl_dl": 0.87,
+        "Hg_q": "D",
+        "As_q": "J-",
+        "Sb_q": "J-",
+        "Tl_q": "U",
+        "Hg_dl_deep": null,
+        "As_dl_deep": null,
+        "Sb_dl_deep": null,
+        "Tl_dl_deep": null,
+        "Hg_q_deep": "",
+        "As_q_deep": "",
+        "Sb_q_deep": "",
+        "Tl_q_deep": "",
+        "Hg_OM_q": "D",
+        "sample_date": "2026-03-02",
+        "_depth_intervals": "shallow + OM",
+        "validated": true
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.668383,
+          39.007557
+        ]
+      },
+      "properties": {
+        "id": "W02",
+        "round": 2,
+        "sampled": true,
+        "coord_source": "Relocated",
+        "depth": "Shallow",
+        "field_note": "Delineation - 780 mg/kg Hg nearby",
+        "Hg": 64.0,
+        "As": 2.7,
+        "Sb": null,
+        "Tl": null,
+        "Hg_deep": null,
+        "As_deep": null,
+        "Sb_deep": null,
+        "Tl_deep": null,
+        "rod_exceed": "NO",
+        "rod_drivers": null,
+        "pmb_exceed": "YES",
+        "pmb_drivers": "Hg, Sb, Tl",
+        "has_fd": "",
+        "not_sampled_reason": "",
+        "Hg_OM": 320.0,
+        "OM_effect": "OM higher",
+        "Hg_dl": null,
+        "As_dl": null,
+        "Sb_dl": 1.3,
+        "Tl_dl": 0.63,
+        "Hg_q": "D",
+        "As_q": "*",
+        "Sb_q": "U",
+        "Tl_q": "U",
+        "Hg_dl_deep": null,
+        "As_dl_deep": null,
+        "Sb_dl_deep": null,
+        "Tl_dl_deep": null,
+        "Hg_q_deep": "",
+        "As_q_deep": "",
+        "Sb_q_deep": "",
+        "Tl_q_deep": "",
+        "Hg_OM_q": "D",
+        "sample_date": "2026-03-03",
+        "_depth_intervals": "shallow + OM",
+        "validated": true
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.668135,
+          39.007129
+        ]
+      },
+      "properties": {
+        "id": "W03",
+        "round": 2,
+        "sampled": true,
+        "coord_source": "Relocated",
+        "depth": "Shallow + Deep",
+        "field_note": "Delineation - 1000 mg/kg Hg nearby",
+        "Hg": 37.0,
+        "As": 1.7,
+        "Sb": null,
+        "Tl": null,
+        "Hg_deep": 44.0,
+        "As_deep": 2.0,
+        "Sb_deep": null,
+        "Tl_deep": null,
+        "rod_exceed": "NO",
+        "rod_drivers": null,
+        "pmb_exceed": "YES",
+        "pmb_drivers": "Sb, Tl",
+        "has_fd": "",
+        "not_sampled_reason": "",
+        "Hg_OM": 81.0,
+        "OM_effect": "OM higher",
+        "Hg_dl": null,
+        "As_dl": null,
+        "Sb_dl": 1.5,
+        "Tl_dl": 0.74,
+        "Hg_q": "D*",
+        "As_q": "*",
+        "Sb_q": "U",
+        "Tl_q": "U",
+        "Hg_dl_deep": null,
+        "As_dl_deep": null,
+        "Sb_dl_deep": 2.0,
+        "Tl_dl_deep": 0.98,
+        "Hg_q_deep": "J",
+        "As_q_deep": "J-",
+        "Sb_q_deep": "UJ",
+        "Tl_q_deep": "U",
+        "Hg_OM_q": "D*",
+        "sample_date": "2026-03-04",
+        "_depth_intervals": "shallow + deep + OM",
+        "validated": true
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.669486,
+          39.006637
+        ]
+      },
+      "properties": {
+        "id": "W04",
+        "round": 2,
+        "sampled": true,
+        "coord_source": "Relocated",
+        "depth": "Shallow + Deep",
+        "field_note": "Delineation - 1100 mg/kg Hg nearby",
+        "Hg": 130.0,
+        "As": 1.7,
+        "Sb": null,
+        "Tl": null,
+        "Hg_deep": 81.0,
+        "As_deep": 1.5,
+        "Sb_deep": null,
+        "Tl_deep": null,
+        "rod_exceed": "NO",
+        "rod_drivers": null,
+        "pmb_exceed": "YES",
+        "pmb_drivers": "Hg, Sb, Tl",
+        "has_fd": "",
+        "not_sampled_reason": "",
+        "Hg_OM": 230.0,
+        "OM_effect": "OM higher",
+        "Hg_dl": null,
+        "As_dl": null,
+        "Sb_dl": 1.2,
+        "Tl_dl": 0.59,
+        "Hg_q": "D",
+        "As_q": "*",
+        "Sb_q": "U",
+        "Tl_q": "U",
+        "Hg_dl_deep": null,
+        "As_dl_deep": null,
+        "Sb_dl_deep": 1.2,
+        "Tl_dl_deep": 0.61,
+        "Hg_q_deep": "D",
+        "As_q_deep": "*",
+        "Sb_q_deep": "U",
+        "Tl_q_deep": "U",
+        "Hg_OM_q": "D",
+        "sample_date": "2026-03-03",
+        "_depth_intervals": "shallow + deep + OM",
+        "validated": true
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.668655,
+          39.006703
+        ]
+      },
+      "properties": {
+        "id": "W05",
+        "round": 2,
+        "sampled": true,
+        "coord_source": "Relocated",
+        "depth": "Shallow + Deep",
+        "field_note": "Delineation - 1500 mg/kg Hg nearby",
+        "Hg": 170.0,
+        "As": null,
+        "Sb": null,
+        "Tl": null,
+        "Hg_deep": 150.0,
+        "As_deep": null,
+        "Sb_deep": null,
+        "Tl_deep": null,
+        "rod_exceed": "NO",
+        "rod_drivers": null,
+        "pmb_exceed": "YES",
+        "pmb_drivers": "Hg, Sb, Tl",
+        "has_fd": "",
+        "not_sampled_reason": "",
+        "Hg_OM": 330.0,
+        "OM_effect": "OM higher",
+        "Hg_dl": null,
+        "As_dl": 0.76,
+        "Sb_dl": 1.5,
+        "Tl_dl": 0.76,
+        "Hg_q": "D",
+        "As_q": "U",
+        "Sb_q": "U",
+        "Tl_q": "U",
+        "Hg_dl_deep": null,
+        "As_dl_deep": 0.77,
+        "Sb_dl_deep": 1.5,
+        "Tl_dl_deep": 0.77,
+        "Hg_q_deep": "D",
+        "As_q_deep": "U",
+        "Sb_q_deep": "U",
+        "Tl_q_deep": "U",
+        "Hg_OM_q": "D",
+        "sample_date": "2026-03-02",
+        "_depth_intervals": "shallow + deep + OM",
+        "validated": true
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.669075,
+          39.006469
+        ]
+      },
+      "properties": {
+        "id": "W06",
+        "round": 2,
+        "sampled": true,
+        "coord_source": "Relocated",
+        "depth": "Shallow + Deep",
+        "field_note": "Delineation - 700 mg/kg Hg nearby",
+        "Hg": 1400.0,
+        "As": 1.3,
+        "Sb": null,
+        "Tl": null,
+        "Hg_deep": 1200.0,
+        "As_deep": 1.1,
+        "Sb_deep": null,
+        "Tl_deep": null,
+        "rod_exceed": "YES",
+        "rod_drivers": "Hg",
+        "pmb_exceed": "YES",
+        "pmb_drivers": "Hg, Sb, Tl",
+        "has_fd": "",
+        "not_sampled_reason": "",
+        "Hg_OM": 470.0,
+        "OM_effect": "OM lower",
+        "Hg_dl": null,
+        "As_dl": null,
+        "Sb_dl": 1.4,
+        "Tl_dl": 0.7,
+        "Hg_q": "D",
+        "As_q": "*",
+        "Sb_q": "U",
+        "Tl_q": "U",
+        "Hg_dl_deep": null,
+        "As_dl_deep": null,
+        "Sb_dl_deep": 1.4,
+        "Tl_dl_deep": 0.68,
+        "Hg_q_deep": "D",
+        "As_q_deep": "*",
+        "Sb_q_deep": "U",
+        "Tl_q_deep": "U",
+        "Hg_OM_q": "D",
+        "sample_date": "2026-03-02",
+        "_depth_intervals": "shallow + deep + OM",
+        "validated": true
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.668798,
+          39.006321
+        ]
+      },
+      "properties": {
+        "id": "W07",
+        "round": 2,
+        "sampled": true,
+        "coord_source": "Relocated",
+        "depth": "Shallow",
+        "field_note": "Delineation - 1500 mg/kg Hg nearby",
+        "Hg": 1700.0,
+        "As": 1.6,
+        "Sb": null,
+        "Tl": null,
+        "Hg_deep": null,
+        "As_deep": null,
+        "Sb_deep": null,
+        "Tl_deep": null,
+        "rod_exceed": "YES",
+        "rod_drivers": "Hg",
+        "pmb_exceed": "YES",
+        "pmb_drivers": "Hg, Sb, Tl",
+        "has_fd": "",
+        "not_sampled_reason": "",
+        "Hg_OM": 810.0,
+        "OM_effect": "OM lower",
+        "Hg_dl": null,
+        "As_dl": null,
+        "Sb_dl": 1.6,
+        "Tl_dl": 0.78,
+        "Hg_q": "D",
+        "As_q": "*",
+        "Sb_q": "U",
+        "Tl_q": "U",
+        "Hg_dl_deep": null,
+        "As_dl_deep": null,
+        "Sb_dl_deep": null,
+        "Tl_dl_deep": null,
+        "Hg_q_deep": "",
+        "As_q_deep": "",
+        "Sb_q_deep": "",
+        "Tl_q_deep": "",
+        "Hg_OM_q": "D",
+        "sample_date": "2026-03-02",
+        "_depth_intervals": "shallow + OM",
+        "validated": true
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.670387,
+          39.00647
+        ]
+      },
+      "properties": {
+        "id": "W08",
+        "round": 2,
+        "sampled": true,
+        "coord_source": "Relocated",
+        "depth": "Shallow",
+        "field_note": "Characterization - Data Gap",
+        "Hg": 11.0,
+        "As": 2.1,
+        "Sb": null,
+        "Tl": null,
+        "Hg_deep": null,
+        "As_deep": null,
+        "Sb_deep": null,
+        "Tl_deep": null,
+        "rod_exceed": "NO",
+        "rod_drivers": null,
+        "pmb_exceed": "YES",
+        "pmb_drivers": "Sb, Tl",
+        "has_fd": "",
+        "not_sampled_reason": "",
+        "Hg_OM": 8.2,
+        "OM_effect": "OM lower",
+        "Hg_dl": null,
+        "As_dl": null,
+        "Sb_dl": 1.2,
+        "Tl_dl": 0.6,
+        "Hg_q": "D*",
+        "As_q": "*",
+        "Sb_q": "U",
+        "Tl_q": "U",
+        "Hg_dl_deep": null,
+        "As_dl_deep": null,
+        "Sb_dl_deep": null,
+        "Tl_dl_deep": null,
+        "Hg_q_deep": "",
+        "As_q_deep": "",
+        "Sb_q_deep": "",
+        "Tl_q_deep": "",
+        "Hg_OM_q": "D*",
+        "sample_date": "2026-03-06",
+        "_depth_intervals": "shallow + OM",
+        "validated": true
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.668634,
+          39.00595
+        ]
+      },
+      "properties": {
+        "id": "W09",
+        "round": 2,
+        "sampled": true,
+        "coord_source": "Relocated",
+        "depth": "Shallow + Deep",
+        "field_note": "Delineation - 860 mg/kg Hg nearby",
+        "Hg": 86.0,
+        "As": null,
+        "Sb": null,
+        "Tl": null,
+        "Hg_deep": 42.0,
+        "As_deep": null,
+        "Sb_deep": null,
+        "Tl_deep": null,
+        "rod_exceed": "NO",
+        "rod_drivers": null,
+        "pmb_exceed": "YES",
+        "pmb_drivers": "Hg, Sb, Tl",
+        "has_fd": "",
+        "not_sampled_reason": "",
+        "Hg_OM": 210.0,
+        "OM_effect": "OM higher",
+        "Hg_dl": null,
+        "As_dl": 0.76,
+        "Sb_dl": 1.5,
+        "Tl_dl": 0.76,
+        "Hg_q": "D",
+        "As_q": "U",
+        "Sb_q": "U",
+        "Tl_q": "U",
+        "Hg_dl_deep": null,
+        "As_dl_deep": 0.78,
+        "Sb_dl_deep": 1.6,
+        "Tl_dl_deep": 0.78,
+        "Hg_q_deep": "D",
+        "As_q_deep": "U",
+        "Sb_q_deep": "U",
+        "Tl_q_deep": "U",
+        "Hg_OM_q": "D",
+        "sample_date": "2026-03-02",
+        "_depth_intervals": "shallow + deep + OM",
+        "validated": true
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.668975,
+          39.005882
+        ]
+      },
+      "properties": {
+        "id": "W10",
+        "round": 2,
+        "sampled": true,
+        "coord_source": "Relocated",
+        "depth": "Shallow + Deep",
+        "field_note": "Delineation - 860 mg/kg Hg nearby",
+        "Hg": 2700.0,
+        "As": 2.7,
+        "Sb": null,
+        "Tl": null,
+        "Hg_deep": 240.0,
+        "As_deep": 0.93,
+        "Sb_deep": null,
+        "Tl_deep": null,
+        "rod_exceed": "YES",
+        "rod_drivers": "Hg",
+        "pmb_exceed": "YES",
+        "pmb_drivers": "Hg, Sb, Tl",
+        "has_fd": "",
+        "not_sampled_reason": "",
+        "Hg_OM": 1600.0,
+        "OM_effect": "OM lower",
+        "Hg_dl": null,
+        "As_dl": null,
+        "Sb_dl": 1.4,
+        "Tl_dl": 0.7,
+        "Hg_q": "D",
+        "As_q": "*",
+        "Sb_q": "U",
+        "Tl_q": "U",
+        "Hg_dl_deep": null,
+        "As_dl_deep": null,
+        "Sb_dl_deep": 1.3,
+        "Tl_dl_deep": 0.67,
+        "Hg_q_deep": "D",
+        "As_q_deep": "*",
+        "Sb_q_deep": "U",
+        "Tl_q_deep": "U",
+        "Hg_OM_q": "D",
+        "sample_date": "2026-03-02",
+        "_depth_intervals": "shallow + deep + OM",
+        "validated": true
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.66921,
+          39.005911
+        ]
+      },
+      "properties": {
+        "id": "W11",
+        "round": 2,
+        "sampled": true,
+        "coord_source": "Relocated",
+        "depth": "Shallow + Deep",
+        "field_note": "Delineation - 860 mg/kg Hg nearby",
+        "Hg": 230.0,
+        "As": 1.4,
+        "Sb": null,
+        "Tl": null,
+        "Hg_deep": 120.0,
+        "As_deep": null,
+        "Sb_deep": null,
+        "Tl_deep": null,
+        "rod_exceed": "YES",
+        "rod_drivers": "Hg",
+        "pmb_exceed": "YES",
+        "pmb_drivers": "Hg, Sb, Tl",
+        "has_fd": "",
+        "not_sampled_reason": "",
+        "Hg_OM": 220.0,
+        "OM_effect": "~equal",
+        "Hg_dl": null,
+        "As_dl": null,
+        "Sb_dl": 1.4,
+        "Tl_dl": 0.68,
+        "Hg_q": "D",
+        "As_q": "*",
+        "Sb_q": "U",
+        "Tl_q": "U",
+        "Hg_dl_deep": null,
+        "As_dl_deep": 0.69,
+        "Sb_dl_deep": 1.4,
+        "Tl_dl_deep": 0.69,
+        "Hg_q_deep": "D",
+        "As_q_deep": "U",
+        "Sb_q_deep": "U",
+        "Tl_q_deep": "U",
+        "Hg_OM_q": "D",
+        "sample_date": "2026-03-02",
+        "_depth_intervals": "shallow + deep + OM",
+        "validated": true
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.668842,
+          39.005544
+        ]
+      },
+      "properties": {
+        "id": "W12",
+        "round": 2,
+        "sampled": true,
+        "coord_source": "Relocated",
+        "depth": "Shallow + Deep",
+        "field_note": "Delineation - 1900 mg/kg Hg nearby",
+        "Hg": 69.0,
+        "As": 2.8,
+        "Sb": null,
+        "Tl": null,
+        "Hg_deep": 250.0,
+        "As_deep": 0.76,
+        "Sb_deep": null,
+        "Tl_deep": null,
+        "rod_exceed": "NO",
+        "rod_drivers": null,
+        "pmb_exceed": "YES",
+        "pmb_drivers": "Hg, Sb, Tl",
+        "has_fd": "",
+        "not_sampled_reason": "",
+        "Hg_OM": 160.0,
+        "OM_effect": "OM higher",
+        "Hg_dl": null,
+        "As_dl": null,
+        "Sb_dl": 1.5,
+        "Tl_dl": 0.74,
+        "Hg_q": "D",
+        "As_q": "*",
+        "Sb_q": "U",
+        "Tl_q": "U",
+        "Hg_dl_deep": null,
+        "As_dl_deep": null,
+        "Sb_dl_deep": 1.4,
+        "Tl_dl_deep": 0.68,
+        "Hg_q_deep": "D",
+        "As_q_deep": "*",
+        "Sb_q_deep": "U",
+        "Tl_q_deep": "U",
+        "Hg_OM_q": "D",
+        "sample_date": "2026-03-02",
+        "_depth_intervals": "shallow + deep + OM",
+        "validated": true
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.669296,
+          39.007455
+        ]
+      },
+      "properties": {
+        "id": "W13",
+        "round": 2,
+        "sampled": true,
+        "coord_source": "Relocated",
+        "depth": "Shallow + Deep",
+        "field_note": "Delineation - 990 mg/kg Hg nearby",
+        "Hg": 1300.0,
+        "As": 1.4,
+        "Sb": null,
+        "Tl": null,
+        "Hg_deep": 3300.0,
+        "As_deep": 1.3,
+        "Sb_deep": null,
+        "Tl_deep": null,
+        "rod_exceed": "YES",
+        "rod_drivers": "Hg",
+        "pmb_exceed": "YES",
+        "pmb_drivers": "Hg, Sb, Tl",
+        "has_fd": "",
+        "not_sampled_reason": "",
+        "Hg_OM": 1500.0,
+        "OM_effect": "OM higher",
+        "Hg_dl": null,
+        "As_dl": null,
+        "Sb_dl": 1.2,
+        "Tl_dl": 0.61,
+        "Hg_q": "D",
+        "As_q": "*",
+        "Sb_q": "U",
+        "Tl_q": "U",
+        "Hg_dl_deep": null,
+        "As_dl_deep": null,
+        "Sb_dl_deep": 1.3,
+        "Tl_dl_deep": 0.64,
+        "Hg_q_deep": "D*",
+        "As_q_deep": "*",
+        "Sb_q_deep": "U",
+        "Tl_q_deep": "U",
+        "Hg_OM_q": "D",
+        "sample_date": "2026-03-03",
+        "_depth_intervals": "shallow + deep + OM",
+        "validated": true
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.668607,
+          39.005568
+        ]
+      },
+      "properties": {
+        "id": "W14",
+        "round": 2,
+        "sampled": true,
+        "coord_source": "Relocated",
+        "depth": "Shallow",
+        "field_note": "Delineation - 1900 mg/kg Hg nearby",
+        "Hg": 240.0,
+        "As": 1.1,
+        "Sb": null,
+        "Tl": null,
+        "Hg_deep": null,
+        "As_deep": null,
+        "Sb_deep": null,
+        "Tl_deep": null,
+        "rod_exceed": "YES",
+        "rod_drivers": "Hg",
+        "pmb_exceed": "YES",
+        "pmb_drivers": "Hg, Sb, Tl",
+        "has_fd": "",
+        "not_sampled_reason": "",
+        "Hg_OM": 260.0,
+        "OM_effect": "~equal",
+        "Hg_dl": null,
+        "As_dl": null,
+        "Sb_dl": 1.5,
+        "Tl_dl": 0.73,
+        "Hg_q": "D",
+        "As_q": "*",
+        "Sb_q": "U",
+        "Tl_q": "U",
+        "Hg_dl_deep": null,
+        "As_dl_deep": null,
+        "Sb_dl_deep": null,
+        "Tl_dl_deep": null,
+        "Hg_q_deep": "",
+        "As_q_deep": "",
+        "Sb_q_deep": "",
+        "Tl_q_deep": "",
+        "Hg_OM_q": "D",
+        "sample_date": "2026-03-02",
+        "_depth_intervals": "shallow + OM",
+        "validated": true
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.668286,
+          39.005351
+        ]
+      },
+      "properties": {
+        "id": "W15",
+        "round": 2,
+        "sampled": true,
+        "coord_source": "Relocated",
+        "depth": "Shallow",
+        "field_note": "Delineation - 1900 mg/kg Hg nearby",
+        "Hg": 290.0,
+        "As": 1.3,
+        "Sb": null,
+        "Tl": null,
+        "Hg_deep": null,
+        "As_deep": null,
+        "Sb_deep": null,
+        "Tl_deep": null,
+        "rod_exceed": "YES",
+        "rod_drivers": "Hg",
+        "pmb_exceed": "YES",
+        "pmb_drivers": "Hg, Sb, Tl",
+        "has_fd": "",
+        "not_sampled_reason": "",
+        "Hg_OM": 420.0,
+        "OM_effect": "OM higher",
+        "Hg_dl": null,
+        "As_dl": null,
+        "Sb_dl": 1.5,
+        "Tl_dl": 0.76,
+        "Hg_q": "D",
+        "As_q": "*",
+        "Sb_q": "U",
+        "Tl_q": "U",
+        "Hg_dl_deep": null,
+        "As_dl_deep": null,
+        "Sb_dl_deep": null,
+        "Tl_dl_deep": null,
+        "Hg_q_deep": "",
+        "As_q_deep": "",
+        "Sb_q_deep": "",
+        "Tl_q_deep": "",
+        "Hg_OM_q": "D",
+        "sample_date": "2026-03-02",
+        "_depth_intervals": "shallow + OM",
+        "validated": true
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.667761,
+          39.005299
+        ]
+      },
+      "properties": {
+        "id": "W16",
+        "round": 2,
+        "sampled": false,
+        "coord_source": "Planned",
+        "depth": "",
+        "field_note": "Delineation - 1000 mg/kg Hg nearby",
+        "Hg": null,
+        "As": null,
+        "Sb": null,
+        "Tl": null,
+        "Hg_deep": null,
+        "As_deep": null,
+        "Sb_deep": null,
+        "Tl_deep": null,
+        "rod_exceed": "NOT SAMPLED",
+        "rod_drivers": null,
+        "pmb_exceed": null,
+        "pmb_drivers": null,
+        "has_fd": "",
+        "not_sampled_reason": "Access issue - overgrown vegetation and trees blocking access."
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.668195,
+          39.00487
+        ]
+      },
+      "properties": {
+        "id": "W17",
+        "round": 2,
+        "sampled": false,
+        "coord_source": "Planned",
+        "depth": "",
+        "field_note": "Delineation - 1000 mg/kg Hg nearby",
+        "Hg": null,
+        "As": null,
+        "Sb": null,
+        "Tl": null,
+        "Hg_deep": null,
+        "As_deep": null,
+        "Sb_deep": null,
+        "Tl_deep": null,
+        "rod_exceed": "NOT SAMPLED",
+        "rod_drivers": null,
+        "pmb_exceed": null,
+        "pmb_drivers": null,
+        "has_fd": "",
+        "not_sampled_reason": "Not sampled - location is outside the area of concern and a haul road will be constructed over this location; data gap no longer relevant."
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.667862,
+          39.007339
+        ]
+      },
+      "properties": {
+        "id": "W18",
+        "round": 2,
+        "sampled": true,
+        "coord_source": "Relocated",
+        "depth": "Shallow",
+        "field_note": "Delineation - 550 mg/kg Hg nearby",
+        "Hg": 79.0,
+        "As": 2.4,
+        "Sb": null,
+        "Tl": null,
+        "Hg_deep": null,
+        "As_deep": null,
+        "Sb_deep": null,
+        "Tl_deep": null,
+        "rod_exceed": "NO",
+        "rod_drivers": null,
+        "pmb_exceed": "YES",
+        "pmb_drivers": "Hg, Sb, Tl",
+        "has_fd": "",
+        "not_sampled_reason": "",
+        "Hg_OM": 44.0,
+        "OM_effect": "OM lower",
+        "Hg_dl": null,
+        "As_dl": null,
+        "Sb_dl": 1.4,
+        "Tl_dl": 0.7,
+        "Hg_q": "J",
+        "As_q": "J-",
+        "Sb_q": "UJ",
+        "Tl_q": "U",
+        "Hg_dl_deep": null,
+        "As_dl_deep": null,
+        "Sb_dl_deep": null,
+        "Tl_dl_deep": null,
+        "Hg_q_deep": "",
+        "As_q_deep": "",
+        "Sb_q_deep": "",
+        "Tl_q_deep": "",
+        "Hg_OM_q": "D",
+        "sample_date": "2026-03-03",
+        "_depth_intervals": "shallow + OM",
+        "validated": true
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.668551,
+          39.007339
+        ]
+      },
+      "properties": {
+        "id": "W19",
+        "round": 2,
+        "sampled": true,
+        "coord_source": "Relocated",
+        "depth": "Shallow + Deep",
+        "field_note": "Delineation - 780 mg/kg Hg nearby",
+        "Hg": 130.0,
+        "As": 1.8,
+        "Sb": null,
+        "Tl": null,
+        "Hg_deep": 210.0,
+        "As_deep": 1.3,
+        "Sb_deep": null,
+        "Tl_deep": null,
+        "rod_exceed": "NO",
+        "rod_drivers": null,
+        "pmb_exceed": "YES",
+        "pmb_drivers": "Hg, Sb, Tl",
+        "has_fd": "Yes",
+        "not_sampled_reason": "",
+        "Hg_OM": 130.0,
+        "OM_effect": "~equal",
+        "Hg_dl": null,
+        "As_dl": null,
+        "Sb_dl": 1.4,
+        "Tl_dl": 0.72,
+        "Hg_q": "D*",
+        "As_q": "*",
+        "Sb_q": "U",
+        "Tl_q": "U",
+        "Hg_dl_deep": null,
+        "As_dl_deep": null,
+        "Sb_dl_deep": 1.3,
+        "Tl_dl_deep": 0.64,
+        "Hg_q_deep": "D*",
+        "As_q_deep": "*",
+        "Sb_q_deep": "U",
+        "Tl_q_deep": "U",
+        "Hg_OM_q": "D",
+        "sample_date": "2026-03-04",
+        "_depth_intervals": "shallow + deep + OM",
+        "validated": true
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.669104,
+          39.007139
+        ]
+      },
+      "properties": {
+        "id": "W20",
+        "round": 2,
+        "sampled": true,
+        "coord_source": "Relocated",
+        "depth": "Shallow + Deep",
+        "field_note": "Delineation - 990 mg/kg Hg nearby",
+        "Hg": 1000.0,
+        "As": 1.2,
+        "Sb": null,
+        "Tl": null,
+        "Hg_deep": 230.0,
+        "As_deep": null,
+        "Sb_deep": null,
+        "Tl_deep": null,
+        "rod_exceed": "YES",
+        "rod_drivers": "Hg",
+        "pmb_exceed": "YES",
+        "pmb_drivers": "Hg, Sb, Tl",
+        "has_fd": "",
+        "not_sampled_reason": "",
+        "Hg_OM": 520.0,
+        "OM_effect": "OM lower",
+        "Hg_dl": null,
+        "As_dl": null,
+        "Sb_dl": 1.2,
+        "Tl_dl": 0.62,
+        "Hg_q": "D*",
+        "As_q": "*",
+        "Sb_q": "U",
+        "Tl_q": "U",
+        "Hg_dl_deep": null,
+        "As_dl_deep": 0.58,
+        "Sb_dl_deep": 1.2,
+        "Tl_dl_deep": 0.58,
+        "Hg_q_deep": "D*",
+        "As_q_deep": "U",
+        "Sb_q_deep": "U",
+        "Tl_q_deep": "U",
+        "Hg_OM_q": "D",
+        "sample_date": "2026-03-03",
+        "_depth_intervals": "shallow + deep + OM",
+        "validated": true
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.668846,
+          39.007109
+        ]
+      },
+      "properties": {
+        "id": "W21",
+        "round": 2,
+        "sampled": true,
+        "coord_source": "Relocated",
+        "depth": "Shallow + Deep",
+        "field_note": "Delineation - 990 mg/kg Hg nearby",
+        "Hg": 77.0,
+        "As": 1.1,
+        "Sb": null,
+        "Tl": null,
+        "Hg_deep": 51.0,
+        "As_deep": 1.0,
+        "Sb_deep": null,
+        "Tl_deep": null,
+        "rod_exceed": "NO",
+        "rod_drivers": null,
+        "pmb_exceed": "YES",
+        "pmb_drivers": "Hg, Sb, Tl",
+        "has_fd": "",
+        "not_sampled_reason": "",
+        "Hg_OM": 59.0,
+        "OM_effect": "OM lower",
+        "Hg_dl": null,
+        "As_dl": null,
+        "Sb_dl": 1.3,
+        "Tl_dl": 0.65,
+        "Hg_q": "D*",
+        "As_q": "*",
+        "Sb_q": "U",
+        "Tl_q": "U",
+        "Hg_dl_deep": null,
+        "As_dl_deep": null,
+        "Sb_dl_deep": 1.3,
+        "Tl_dl_deep": 0.63,
+        "Hg_q_deep": "D*",
+        "As_q_deep": "*",
+        "Sb_q_deep": "U",
+        "Tl_q_deep": "U",
+        "Hg_OM_q": "D",
+        "sample_date": "2026-03-03",
+        "_depth_intervals": "shallow + deep + OM",
+        "validated": true
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.669225,
+          39.007099
+        ]
+      },
+      "properties": {
+        "id": "W22",
+        "round": 2,
+        "sampled": true,
+        "coord_source": "Relocated",
+        "depth": "Shallow",
+        "field_note": "Delineation - 1100 mg/kg Hg nearby",
+        "Hg": 1700.0,
+        "As": 1.2,
+        "Sb": null,
+        "Tl": null,
+        "Hg_deep": null,
+        "As_deep": null,
+        "Sb_deep": null,
+        "Tl_deep": null,
+        "rod_exceed": "YES",
+        "rod_drivers": "Hg",
+        "pmb_exceed": "YES",
+        "pmb_drivers": "Hg, Sb, Tl",
+        "has_fd": "",
+        "not_sampled_reason": "",
+        "Hg_OM": 1600.0,
+        "OM_effect": "~equal",
+        "Hg_dl": null,
+        "As_dl": null,
+        "Sb_dl": 1.2,
+        "Tl_dl": 0.59,
+        "Hg_q": "D*",
+        "As_q": "*",
+        "Sb_q": "U",
+        "Tl_q": "U",
+        "Hg_dl_deep": null,
+        "As_dl_deep": null,
+        "Sb_dl_deep": null,
+        "Tl_dl_deep": null,
+        "Hg_q_deep": "",
+        "As_q_deep": "",
+        "Sb_q_deep": "",
+        "Tl_q_deep": "",
+        "Hg_OM_q": "D",
+        "sample_date": "2026-03-03",
+        "_depth_intervals": "shallow + OM",
+        "validated": true
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.668526,
+          39.00705
+        ]
+      },
+      "properties": {
+        "id": "W23",
+        "round": 2,
+        "sampled": true,
+        "coord_source": "Relocated",
+        "depth": "Shallow",
+        "field_note": "Delineation - 1000 mg/kg Hg nearby",
+        "Hg": 120.0,
+        "As": 1.7,
+        "Sb": null,
+        "Tl": null,
+        "Hg_deep": null,
+        "As_deep": null,
+        "Sb_deep": null,
+        "Tl_deep": null,
+        "rod_exceed": "NO",
+        "rod_drivers": null,
+        "pmb_exceed": "YES",
+        "pmb_drivers": "Hg, Sb, Tl",
+        "has_fd": "Yes",
+        "not_sampled_reason": "",
+        "Hg_OM": 150.0,
+        "OM_effect": "OM higher",
+        "Hg_dl": null,
+        "As_dl": null,
+        "Sb_dl": 1.5,
+        "Tl_dl": 0.77,
+        "Hg_q": "D*",
+        "As_q": "*",
+        "Sb_q": "U",
+        "Tl_q": "U",
+        "Hg_dl_deep": null,
+        "As_dl_deep": null,
+        "Sb_dl_deep": null,
+        "Tl_dl_deep": null,
+        "Hg_q_deep": "",
+        "As_q_deep": "",
+        "Sb_q_deep": "",
+        "Tl_q_deep": "",
+        "Hg_OM_q": "D",
+        "sample_date": "2026-03-04",
+        "_depth_intervals": "shallow + OM",
+        "validated": true
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.669064,
+          39.006871
+        ]
+      },
+      "properties": {
+        "id": "W24",
+        "round": 2,
+        "sampled": true,
+        "coord_source": "Planned",
+        "depth": "Shallow + Deep",
+        "field_note": "Delineation - 1100 mg/kg Hg nearby",
+        "Hg": 1200.0,
+        "As": 1.1,
+        "Sb": null,
+        "Tl": null,
+        "Hg_deep": 770.0,
+        "As_deep": null,
+        "Sb_deep": null,
+        "Tl_deep": null,
+        "rod_exceed": "YES",
+        "rod_drivers": "Hg",
+        "pmb_exceed": "YES",
+        "pmb_drivers": "Hg, Sb, Tl",
+        "has_fd": "",
+        "not_sampled_reason": "",
+        "Hg_OM": 360.0,
+        "OM_effect": "OM lower",
+        "Hg_dl": null,
+        "As_dl": null,
+        "Sb_dl": 1.4,
+        "Tl_dl": 0.7,
+        "Hg_q": "D*",
+        "As_q": "*",
+        "Sb_q": "U",
+        "Tl_q": "U",
+        "Hg_dl_deep": null,
+        "As_dl_deep": 0.71,
+        "Sb_dl_deep": 1.4,
+        "Tl_dl_deep": 0.71,
+        "Hg_q_deep": "D*",
+        "As_q_deep": "U",
+        "Sb_q_deep": "U",
+        "Tl_q_deep": "U",
+        "Hg_OM_q": "D",
+        "sample_date": "2026-03-03",
+        "_depth_intervals": "shallow + deep + OM",
+        "validated": true
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.666586,
+          39.007531
+        ]
+      },
+      "properties": {
+        "id": "E01",
+        "round": 2,
+        "sampled": true,
+        "coord_source": "Relocated",
+        "depth": "Shallow",
+        "field_note": "Characterization - elevated (240 mg/kg nearby)",
+        "Hg": 200.0,
+        "As": 5.4,
+        "Sb": 1.8,
+        "Tl": null,
+        "Hg_deep": null,
+        "As_deep": null,
+        "Sb_deep": null,
+        "Tl_deep": null,
+        "rod_exceed": "NO",
+        "rod_drivers": null,
+        "pmb_exceed": "YES",
+        "pmb_drivers": "Hg, Sb, Tl",
+        "has_fd": "",
+        "not_sampled_reason": "",
+        "Hg_OM": 170.0,
+        "OM_effect": "OM lower",
+        "Hg_dl": null,
+        "As_dl": null,
+        "Sb_dl": null,
+        "Tl_dl": 0.73,
+        "Hg_q": "D*",
+        "As_q": "*",
+        "Sb_q": "*",
+        "Tl_q": "U",
+        "Hg_dl_deep": null,
+        "As_dl_deep": null,
+        "Sb_dl_deep": null,
+        "Tl_dl_deep": null,
+        "Hg_q_deep": "",
+        "As_q_deep": "",
+        "Sb_q_deep": "",
+        "Tl_q_deep": "",
+        "Hg_OM_q": "J",
+        "sample_date": "2026-03-04",
+        "_depth_intervals": "shallow + OM",
+        "validated": true
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.665163,
+          39.006899
+        ]
+      },
+      "properties": {
+        "id": "E02",
+        "round": 2,
+        "sampled": true,
+        "coord_source": "Relocated",
+        "depth": "Shallow",
+        "field_note": "Characterization - Data Gap",
+        "Hg": 55.0,
+        "As": 4.3,
+        "Sb": null,
+        "Tl": null,
+        "Hg_deep": null,
+        "As_deep": null,
+        "Sb_deep": null,
+        "Tl_deep": null,
+        "rod_exceed": "NO",
+        "rod_drivers": null,
+        "pmb_exceed": "YES",
+        "pmb_drivers": "Sb, Tl",
+        "has_fd": "",
+        "not_sampled_reason": "",
+        "Hg_OM": 100.0,
+        "OM_effect": "OM higher",
+        "Hg_dl": null,
+        "As_dl": null,
+        "Sb_dl": 1.3,
+        "Tl_dl": 0.66,
+        "Hg_q": "D*",
+        "As_q": "*",
+        "Sb_q": "U",
+        "Tl_q": "U",
+        "Hg_dl_deep": null,
+        "As_dl_deep": null,
+        "Sb_dl_deep": null,
+        "Tl_dl_deep": null,
+        "Hg_q_deep": "",
+        "As_q_deep": "",
+        "Sb_q_deep": "",
+        "Tl_q_deep": "",
+        "Hg_OM_q": "D*",
+        "sample_date": "2026-03-05",
+        "_depth_intervals": "shallow + OM",
+        "validated": true
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.666075,
+          39.006657
+        ]
+      },
+      "properties": {
+        "id": "E03",
+        "round": 2,
+        "sampled": true,
+        "coord_source": "Relocated",
+        "depth": "Shallow + Deep",
+        "field_note": "Characterization - elevated (1200 mg/kg nearby)",
+        "Hg": 60.0,
+        "As": 1.8,
+        "Sb": null,
+        "Tl": null,
+        "Hg_deep": 65.0,
+        "As_deep": 1.4,
+        "Sb_deep": null,
+        "Tl_deep": null,
+        "rod_exceed": "NO",
+        "rod_drivers": null,
+        "pmb_exceed": "YES",
+        "pmb_drivers": "Hg, Sb, Tl",
+        "has_fd": "",
+        "not_sampled_reason": "",
+        "Hg_OM": 100.0,
+        "OM_effect": "OM higher",
+        "Hg_dl": null,
+        "As_dl": null,
+        "Sb_dl": 1.3,
+        "Tl_dl": 0.64,
+        "Hg_q": "D*",
+        "As_q": "*",
+        "Sb_q": "U",
+        "Tl_q": "U",
+        "Hg_dl_deep": null,
+        "As_dl_deep": null,
+        "Sb_dl_deep": 1.3,
+        "Tl_dl_deep": 0.67,
+        "Hg_q_deep": "D*",
+        "As_q_deep": "*",
+        "Sb_q_deep": "U",
+        "Tl_q_deep": "U",
+        "Hg_OM_q": "D*",
+        "sample_date": "2026-03-05",
+        "_depth_intervals": "shallow + deep + OM",
+        "validated": true
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.665269,
+          39.006625
+        ]
+      },
+      "properties": {
+        "id": "E04",
+        "round": 2,
+        "sampled": true,
+        "coord_source": "Relocated",
+        "depth": "Shallow",
+        "field_note": "Characterization - elevated (110 mg/kg nearby)",
+        "Hg": 33.0,
+        "As": 3.0,
+        "Sb": null,
+        "Tl": null,
+        "Hg_deep": null,
+        "As_deep": null,
+        "Sb_deep": null,
+        "Tl_deep": null,
+        "rod_exceed": "NO",
+        "rod_drivers": null,
+        "pmb_exceed": "YES",
+        "pmb_drivers": "Sb, Tl",
+        "has_fd": "",
+        "not_sampled_reason": "",
+        "Hg_OM": 37.0,
+        "OM_effect": "OM higher",
+        "Hg_dl": null,
+        "As_dl": null,
+        "Sb_dl": 1.3,
+        "Tl_dl": 0.64,
+        "Hg_q": "D*",
+        "As_q": "*",
+        "Sb_q": "U",
+        "Tl_q": "U",
+        "Hg_dl_deep": null,
+        "As_dl_deep": null,
+        "Sb_dl_deep": null,
+        "Tl_dl_deep": null,
+        "Hg_q_deep": "",
+        "As_q_deep": "",
+        "Sb_q_deep": "",
+        "Tl_q_deep": "",
+        "Hg_OM_q": "D*",
+        "sample_date": "2026-03-05",
+        "_depth_intervals": "shallow + OM",
+        "validated": true
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.665548,
+          39.006194
+        ]
+      },
+      "properties": {
+        "id": "E05",
+        "round": 2,
+        "sampled": false,
+        "coord_source": "Planned",
+        "depth": "",
+        "field_note": "Characterization - data gap in eastern area, shallow bedrock expected",
+        "Hg": null,
+        "As": null,
+        "Sb": null,
+        "Tl": null,
+        "Hg_deep": null,
+        "As_deep": null,
+        "Sb_deep": null,
+        "Tl_deep": null,
+        "rod_exceed": "NOT SAMPLED",
+        "rod_drivers": null,
+        "pmb_exceed": null,
+        "pmb_drivers": null,
+        "has_fd": "",
+        "not_sampled_reason": "Access issue - location could not be accessed."
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.665147,
+          39.005798
+        ]
+      },
+      "properties": {
+        "id": "E06",
+        "round": 2,
+        "sampled": true,
+        "coord_source": "Relocated",
+        "depth": "Shallow",
+        "field_note": "Characterization - Data Gap",
+        "Hg": 54.0,
+        "As": 2.5,
+        "Sb": null,
+        "Tl": null,
+        "Hg_deep": null,
+        "As_deep": null,
+        "Sb_deep": null,
+        "Tl_deep": null,
+        "rod_exceed": "NO",
+        "rod_drivers": null,
+        "pmb_exceed": "YES",
+        "pmb_drivers": "Sb, Tl",
+        "has_fd": "",
+        "not_sampled_reason": "",
+        "Hg_OM": 83.0,
+        "OM_effect": "OM higher",
+        "Hg_dl": null,
+        "As_dl": null,
+        "Sb_dl": 1.4,
+        "Tl_dl": 0.68,
+        "Hg_q": "D*",
+        "As_q": "*",
+        "Sb_q": "U",
+        "Tl_q": "U",
+        "Hg_dl_deep": null,
+        "As_dl_deep": null,
+        "Sb_dl_deep": null,
+        "Tl_dl_deep": null,
+        "Hg_q_deep": "",
+        "As_q_deep": "",
+        "Sb_q_deep": "",
+        "Tl_q_deep": "",
+        "Hg_OM_q": "D*",
+        "sample_date": "2026-03-05",
+        "_depth_intervals": "shallow + OM",
+        "validated": true
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.66617,
+          39.005361
+        ]
+      },
+      "properties": {
+        "id": "E07",
+        "round": 2,
+        "sampled": true,
+        "coord_source": "Relocated",
+        "depth": "Shallow",
+        "field_note": "Characterization - elevated (290 mg/kg nearby)",
+        "Hg": 280.0,
+        "As": 1.9,
+        "Sb": null,
+        "Tl": null,
+        "Hg_deep": null,
+        "As_deep": null,
+        "Sb_deep": null,
+        "Tl_deep": null,
+        "rod_exceed": "YES",
+        "rod_drivers": "Hg",
+        "pmb_exceed": "YES",
+        "pmb_drivers": "Hg, Sb, Tl",
+        "has_fd": "",
+        "not_sampled_reason": "",
+        "Hg_OM": 180.0,
+        "OM_effect": "OM lower",
+        "Hg_dl": null,
+        "As_dl": null,
+        "Sb_dl": 1.6,
+        "Tl_dl": 0.78,
+        "Hg_q": "D*",
+        "As_q": "*",
+        "Sb_q": "U",
+        "Tl_q": "U",
+        "Hg_dl_deep": null,
+        "As_dl_deep": null,
+        "Sb_dl_deep": null,
+        "Tl_dl_deep": null,
+        "Hg_q_deep": "",
+        "As_q_deep": "",
+        "Sb_q_deep": "",
+        "Tl_q_deep": "",
+        "Hg_OM_q": "J",
+        "sample_date": "2026-03-06",
+        "_depth_intervals": "shallow + OM",
+        "validated": true
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.666292,
+          39.007325
+        ]
+      },
+      "properties": {
+        "id": "E08",
+        "round": 2,
+        "sampled": true,
+        "coord_source": "Relocated",
+        "depth": "Shallow",
+        "field_note": "Characterization - Data Gap",
+        "Hg": 250.0,
+        "As": 4.6,
+        "Sb": null,
+        "Tl": null,
+        "Hg_deep": null,
+        "As_deep": null,
+        "Sb_deep": null,
+        "Tl_deep": null,
+        "rod_exceed": "YES",
+        "rod_drivers": "Hg",
+        "pmb_exceed": "YES",
+        "pmb_drivers": "Hg, Sb, Tl",
+        "has_fd": "Yes",
+        "not_sampled_reason": "",
+        "Hg_OM": 140.0,
+        "OM_effect": "OM lower",
+        "Hg_dl": null,
+        "As_dl": null,
+        "Sb_dl": 1.3,
+        "Tl_dl": 0.65,
+        "Hg_q": "D*",
+        "As_q": "*",
+        "Sb_q": "U",
+        "Tl_q": "U",
+        "Hg_dl_deep": null,
+        "As_dl_deep": null,
+        "Sb_dl_deep": null,
+        "Tl_dl_deep": null,
+        "Hg_q_deep": "",
+        "As_q_deep": "",
+        "Sb_q_deep": "",
+        "Tl_q_deep": "",
+        "Hg_OM_q": "J",
+        "sample_date": "2026-03-04",
+        "_depth_intervals": "shallow + OM",
+        "validated": true
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.666636,
+          39.00641
+        ]
+      },
+      "properties": {
+        "id": "E09",
+        "round": 2,
+        "sampled": true,
+        "coord_source": "Relocated",
+        "depth": "Shallow + Deep",
+        "field_note": "Delineation - 1800 mg/kg Hg nearby",
+        "Hg": 150.0,
+        "As": 0.85,
+        "Sb": null,
+        "Tl": null,
+        "Hg_deep": 55.0,
+        "As_deep": null,
+        "Sb_deep": null,
+        "Tl_deep": null,
+        "rod_exceed": "NO",
+        "rod_drivers": null,
+        "pmb_exceed": "YES",
+        "pmb_drivers": "Hg, Sb, Tl",
+        "has_fd": "",
+        "not_sampled_reason": "",
+        "Hg_OM": 230.0,
+        "OM_effect": "OM higher",
+        "Hg_dl": null,
+        "As_dl": null,
+        "Sb_dl": 1.5,
+        "Tl_dl": 0.74,
+        "Hg_q": "D*",
+        "As_q": "*",
+        "Sb_q": "U",
+        "Tl_q": "U",
+        "Hg_dl_deep": null,
+        "As_dl_deep": 0.74,
+        "Sb_dl_deep": 1.5,
+        "Tl_dl_deep": 0.74,
+        "Hg_q_deep": "D*",
+        "As_q_deep": "U",
+        "Sb_q_deep": "U",
+        "Tl_q_deep": "U",
+        "Hg_OM_q": "D*",
+        "sample_date": "2026-03-05",
+        "_depth_intervals": "shallow + deep + OM",
+        "validated": true
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.665985,
+          39.006287
+        ]
+      },
+      "properties": {
+        "id": "E10",
+        "round": 2,
+        "sampled": true,
+        "coord_source": "Relocated",
+        "depth": "Shallow + Deep",
+        "field_note": "Delineation - fill gap between SS32 and ABWP02-22 hot zones",
+        "Hg": 300.0,
+        "As": 1.2,
+        "Sb": null,
+        "Tl": null,
+        "Hg_deep": 220.0,
+        "As_deep": 0.86,
+        "Sb_deep": null,
+        "Tl_deep": null,
+        "rod_exceed": "YES",
+        "rod_drivers": "Hg",
+        "pmb_exceed": "YES",
+        "pmb_drivers": "Hg, Sb, Tl",
+        "has_fd": "",
+        "not_sampled_reason": "",
+        "Hg_OM": 620.0,
+        "OM_effect": "OM higher",
+        "Hg_dl": null,
+        "As_dl": null,
+        "Sb_dl": 1.3,
+        "Tl_dl": 0.65,
+        "Hg_q": "D*",
+        "As_q": "*",
+        "Sb_q": "U",
+        "Tl_q": "U",
+        "Hg_dl_deep": null,
+        "As_dl_deep": null,
+        "Sb_dl_deep": 1.2,
+        "Tl_dl_deep": 0.61,
+        "Hg_q_deep": "D*",
+        "As_q_deep": "*",
+        "Sb_q_deep": "U",
+        "Tl_q_deep": "U",
+        "Hg_OM_q": "D*",
+        "sample_date": "2026-03-05",
+        "_depth_intervals": "shallow + deep + OM",
+        "validated": true
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.666591,
+          39.006142
+        ]
+      },
+      "properties": {
+        "id": "E11",
+        "round": 2,
+        "sampled": true,
+        "coord_source": "Relocated",
+        "depth": "Shallow",
+        "field_note": "Delineation - Data Gap - Hot Zone",
+        "Hg": 130.0,
+        "As": null,
+        "Sb": null,
+        "Tl": null,
+        "Hg_deep": null,
+        "As_deep": null,
+        "Sb_deep": null,
+        "Tl_deep": null,
+        "rod_exceed": "NO",
+        "rod_drivers": null,
+        "pmb_exceed": "YES",
+        "pmb_drivers": "Hg, Sb, Tl",
+        "has_fd": "",
+        "not_sampled_reason": "",
+        "Hg_OM": 32.0,
+        "OM_effect": "OM lower",
+        "Hg_dl": null,
+        "As_dl": 0.78,
+        "Sb_dl": 1.6,
+        "Tl_dl": 0.78,
+        "Hg_q": "D*",
+        "As_q": "U",
+        "Sb_q": "U",
+        "Tl_q": "U",
+        "Hg_dl_deep": null,
+        "As_dl_deep": null,
+        "Sb_dl_deep": null,
+        "Tl_dl_deep": null,
+        "Hg_q_deep": "",
+        "As_q_deep": "",
+        "Sb_q_deep": "",
+        "Tl_q_deep": "",
+        "Hg_OM_q": "D*",
+        "sample_date": "2026-03-05",
+        "_depth_intervals": "shallow + OM",
+        "validated": true
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.665422,
+          39.005891
+        ]
+      },
+      "properties": {
+        "id": "E12",
+        "round": 2,
+        "sampled": true,
+        "coord_source": "Relocated",
+        "depth": "Shallow + Deep",
+        "field_note": "Delineation - 830 mg/kg Hg nearby",
+        "Hg": 56.0,
+        "As": 1.7,
+        "Sb": null,
+        "Tl": null,
+        "Hg_deep": 49.0,
+        "As_deep": 1.5,
+        "Sb_deep": null,
+        "Tl_deep": null,
+        "rod_exceed": "NO",
+        "rod_drivers": null,
+        "pmb_exceed": "YES",
+        "pmb_drivers": "Sb, Tl",
+        "has_fd": "",
+        "not_sampled_reason": "",
+        "Hg_OM": 48.0,
+        "OM_effect": "OM lower",
+        "Hg_dl": null,
+        "As_dl": null,
+        "Sb_dl": 1.3,
+        "Tl_dl": 0.65,
+        "Hg_q": "D*",
+        "As_q": "*",
+        "Sb_q": "U",
+        "Tl_q": "U",
+        "Hg_dl_deep": null,
+        "As_dl_deep": null,
+        "Sb_dl_deep": 1.2,
+        "Tl_dl_deep": 0.6,
+        "Hg_q_deep": "D*",
+        "As_q_deep": "*",
+        "Sb_q_deep": "U",
+        "Tl_q_deep": "U",
+        "Hg_OM_q": "D*",
+        "sample_date": "2026-03-05",
+        "_depth_intervals": "shallow + deep + OM",
+        "validated": true
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.66589,
+          39.005923
+        ]
+      },
+      "properties": {
+        "id": "E13",
+        "round": 2,
+        "sampled": true,
+        "coord_source": "Relocated",
+        "depth": "Shallow",
+        "field_note": "Delineation - 830 mg/kg Hg nearby",
+        "Hg": 210.0,
+        "As": 0.78,
+        "Sb": null,
+        "Tl": null,
+        "Hg_deep": null,
+        "As_deep": null,
+        "Sb_deep": null,
+        "Tl_deep": null,
+        "rod_exceed": "YES",
+        "rod_drivers": "Hg",
+        "pmb_exceed": "YES",
+        "pmb_drivers": "Hg, Sb, Tl",
+        "has_fd": "",
+        "not_sampled_reason": "",
+        "Hg_OM": 200.0,
+        "OM_effect": "~equal",
+        "Hg_dl": null,
+        "As_dl": null,
+        "Sb_dl": 1.3,
+        "Tl_dl": 0.67,
+        "Hg_q": "D*",
+        "As_q": "*",
+        "Sb_q": "U",
+        "Tl_q": "U",
+        "Hg_dl_deep": null,
+        "As_dl_deep": null,
+        "Sb_dl_deep": null,
+        "Tl_dl_deep": null,
+        "Hg_q_deep": "",
+        "As_q_deep": "",
+        "Sb_q_deep": "",
+        "Tl_q_deep": "",
+        "Hg_OM_q": "D*",
+        "sample_date": "2026-03-05",
+        "_depth_intervals": "shallow + OM",
+        "validated": true
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.665843,
+          39.005725
+        ]
+      },
+      "properties": {
+        "id": "E14",
+        "round": 2,
+        "sampled": true,
+        "coord_source": "Relocated",
+        "depth": "Shallow",
+        "field_note": "Delineation - 2700 mg/kg Hg nearby",
+        "Hg": 330.0,
+        "As": 1.3,
+        "Sb": null,
+        "Tl": null,
+        "Hg_deep": null,
+        "As_deep": null,
+        "Sb_deep": null,
+        "Tl_deep": null,
+        "rod_exceed": "YES",
+        "rod_drivers": "Hg",
+        "pmb_exceed": "YES",
+        "pmb_drivers": "Hg, Sb, Tl",
+        "has_fd": "",
+        "not_sampled_reason": "",
+        "Hg_OM": 130.0,
+        "OM_effect": "OM lower",
+        "Hg_dl": null,
+        "As_dl": null,
+        "Sb_dl": 1.4,
+        "Tl_dl": 0.71,
+        "Hg_q": "D*",
+        "As_q": "*",
+        "Sb_q": "U",
+        "Tl_q": "U",
+        "Hg_dl_deep": null,
+        "As_dl_deep": null,
+        "Sb_dl_deep": null,
+        "Tl_dl_deep": null,
+        "Hg_q_deep": "",
+        "As_q_deep": "",
+        "Sb_q_deep": "",
+        "Tl_q_deep": "",
+        "Hg_OM_q": "D*",
+        "sample_date": "2026-03-05",
+        "_depth_intervals": "shallow + OM",
+        "validated": true
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.665463,
+          39.005528
+        ]
+      },
+      "properties": {
+        "id": "E15",
+        "round": 2,
+        "sampled": true,
+        "coord_source": "Relocated",
+        "depth": "Shallow",
+        "field_note": "Delineation - Data Gap",
+        "Hg": 110.0,
+        "As": 1.5,
+        "Sb": null,
+        "Tl": null,
+        "Hg_deep": null,
+        "As_deep": null,
+        "Sb_deep": null,
+        "Tl_deep": null,
+        "rod_exceed": "NO",
+        "rod_drivers": null,
+        "pmb_exceed": "YES",
+        "pmb_drivers": "Hg, Sb, Tl",
+        "has_fd": "",
+        "not_sampled_reason": "",
+        "Hg_OM": 21.0,
+        "OM_effect": "OM lower",
+        "Hg_dl": null,
+        "As_dl": null,
+        "Sb_dl": 1.4,
+        "Tl_dl": 0.7,
+        "Hg_q": "D*",
+        "As_q": "*",
+        "Sb_q": "U",
+        "Tl_q": "U",
+        "Hg_dl_deep": null,
+        "As_dl_deep": null,
+        "Sb_dl_deep": null,
+        "Tl_dl_deep": null,
+        "Hg_q_deep": "",
+        "As_q_deep": "",
+        "Sb_q_deep": "",
+        "Tl_q_deep": "",
+        "Hg_OM_q": "D*",
+        "sample_date": "2026-03-05",
+        "_depth_intervals": "shallow + OM",
+        "validated": true
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.666042,
+          39.005558
+        ]
+      },
+      "properties": {
+        "id": "E16",
+        "round": 2,
+        "sampled": true,
+        "coord_source": "Planned",
+        "depth": "Shallow",
+        "field_note": "Delineation - 2700 mg/kg Hg nearby",
+        "Hg": 310.0,
+        "As": 1.2,
+        "Sb": null,
+        "Tl": null,
+        "Hg_deep": null,
+        "As_deep": null,
+        "Sb_deep": null,
+        "Tl_deep": null,
+        "rod_exceed": "YES",
+        "rod_drivers": "Hg",
+        "pmb_exceed": "YES",
+        "pmb_drivers": "Hg, Sb, Tl",
+        "has_fd": "",
+        "not_sampled_reason": "",
+        "Hg_OM": 100.0,
+        "OM_effect": "OM lower",
+        "Hg_dl": null,
+        "As_dl": null,
+        "Sb_dl": 1.5,
+        "Tl_dl": 0.75,
+        "Hg_q": "D*",
+        "As_q": "*",
+        "Sb_q": "U",
+        "Tl_q": "U",
+        "Hg_dl_deep": null,
+        "As_dl_deep": null,
+        "Sb_dl_deep": null,
+        "Tl_dl_deep": null,
+        "Hg_q_deep": "",
+        "As_q_deep": "",
+        "Sb_q_deep": "",
+        "Tl_q_deep": "",
+        "Hg_OM_q": "D*",
+        "sample_date": "2026-03-06",
+        "_depth_intervals": "shallow + OM",
+        "validated": true
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.666359,
+          39.005447
+        ]
+      },
+      "properties": {
+        "id": "E17",
+        "round": 2,
+        "sampled": true,
+        "coord_source": "Relocated",
+        "depth": "Shallow + Deep",
+        "field_note": "Delineation - 820 mg/kg Hg nearby",
+        "Hg": 360.0,
+        "As": 1.2,
+        "Sb": null,
+        "Tl": null,
+        "Hg_deep": 250.0,
+        "As_deep": null,
+        "Sb_deep": null,
+        "Tl_deep": null,
+        "rod_exceed": "YES",
+        "rod_drivers": "Hg",
+        "pmb_exceed": "YES",
+        "pmb_drivers": "Hg, Sb, Tl",
+        "has_fd": "Yes",
+        "not_sampled_reason": "",
+        "Hg_OM": 63.0,
+        "OM_effect": "OM lower",
+        "Hg_dl": null,
+        "As_dl": null,
+        "Sb_dl": 1.5,
+        "Tl_dl": 0.75,
+        "Hg_q": "D*",
+        "As_q": "*",
+        "Sb_q": "U",
+        "Tl_q": "U",
+        "Hg_dl_deep": null,
+        "As_dl_deep": 0.73,
+        "Sb_dl_deep": 1.5,
+        "Tl_dl_deep": 0.73,
+        "Hg_q_deep": "D*",
+        "As_q_deep": "U",
+        "Sb_q_deep": "U",
+        "Tl_q_deep": "U",
+        "Hg_OM_q": "D*",
+        "sample_date": "2026-03-06",
+        "_depth_intervals": "shallow + deep + OM",
+        "validated": true
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.665787,
+          39.005408
+        ]
+      },
+      "properties": {
+        "id": "E18",
+        "round": 2,
+        "sampled": false,
+        "coord_source": "Planned",
+        "depth": "",
+        "field_note": "Delineation - 2700 mg/kg Hg nearby",
+        "Hg": null,
+        "As": null,
+        "Sb": null,
+        "Tl": null,
+        "Hg_deep": null,
+        "As_deep": null,
+        "Sb_deep": null,
+        "Tl_deep": null,
+        "rod_exceed": "NOT SAMPLED",
+        "rod_drivers": null,
+        "pmb_exceed": null,
+        "pmb_drivers": null,
+        "has_fd": "",
+        "not_sampled_reason": "Access issue - heavy vegetation blocking access."
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.666526,
+          39.007008
+        ]
+      },
+      "properties": {
+        "id": "E19",
+        "round": 2,
+        "sampled": true,
+        "coord_source": "Relocated",
+        "depth": "Shallow + Deep",
+        "field_note": "Characterization - Data Gap",
+        "Hg": 87.0,
+        "As": 2.3,
+        "Sb": null,
+        "Tl": null,
+        "Hg_deep": 33.0,
+        "As_deep": 1.5,
+        "Sb_deep": null,
+        "Tl_deep": null,
+        "rod_exceed": "NO",
+        "rod_drivers": null,
+        "pmb_exceed": "YES",
+        "pmb_drivers": "Hg, Sb, Tl",
+        "has_fd": "",
+        "not_sampled_reason": "",
+        "Hg_OM": 230.0,
+        "OM_effect": "OM higher",
+        "Hg_dl": null,
+        "As_dl": null,
+        "Sb_dl": 1.2,
+        "Tl_dl": 0.6,
+        "Hg_q": "D*",
+        "As_q": "*",
+        "Sb_q": "U",
+        "Tl_q": "U",
+        "Hg_dl_deep": null,
+        "As_dl_deep": null,
+        "Sb_dl_deep": 1.3,
+        "Tl_dl_deep": 0.63,
+        "Hg_q_deep": "D*",
+        "As_q_deep": "*",
+        "Sb_q_deep": "U",
+        "Tl_q_deep": "U",
+        "Hg_OM_q": "D*",
+        "sample_date": "2026-03-04",
+        "_depth_intervals": "shallow + deep + OM",
+        "validated": true
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.66624,
+          39.00707
+        ]
+      },
+      "properties": {
+        "id": "E20",
+        "round": 2,
+        "sampled": true,
+        "coord_source": "Relocated",
+        "depth": "Shallow",
+        "field_note": "Delineation - 1200 mg/kg Hg nearby",
+        "Hg": 54.0,
+        "As": 2.3,
+        "Sb": null,
+        "Tl": null,
+        "Hg_deep": null,
+        "As_deep": null,
+        "Sb_deep": null,
+        "Tl_deep": null,
+        "rod_exceed": "NO",
+        "rod_drivers": null,
+        "pmb_exceed": "YES",
+        "pmb_drivers": "Sb, Tl",
+        "has_fd": "Yes",
+        "not_sampled_reason": "",
+        "Hg_OM": 48.0,
+        "OM_effect": "OM lower",
+        "Hg_dl": null,
+        "As_dl": null,
+        "Sb_dl": 1.2,
+        "Tl_dl": 0.61,
+        "Hg_q": "D*",
+        "As_q": "*",
+        "Sb_q": "U",
+        "Tl_q": "U",
+        "Hg_dl_deep": null,
+        "As_dl_deep": null,
+        "Sb_dl_deep": null,
+        "Tl_dl_deep": null,
+        "Hg_q_deep": "",
+        "As_q_deep": "",
+        "Sb_q_deep": "",
+        "Tl_q_deep": "",
+        "Hg_OM_q": "D*",
+        "sample_date": "2026-03-04",
+        "_depth_intervals": "shallow + OM",
+        "validated": true
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.66658,
+          39.006753
+        ]
+      },
+      "properties": {
+        "id": "E21",
+        "round": 2,
+        "sampled": true,
+        "coord_source": "Relocated",
+        "depth": "Shallow",
+        "field_note": "Delineation - 1200 mg/kg Hg nearby",
+        "Hg": 84.0,
+        "As": 0.98,
+        "Sb": null,
+        "Tl": null,
+        "Hg_deep": null,
+        "As_deep": null,
+        "Sb_deep": null,
+        "Tl_deep": null,
+        "rod_exceed": "NO",
+        "rod_drivers": null,
+        "pmb_exceed": "YES",
+        "pmb_drivers": "Hg, Sb, Tl",
+        "has_fd": "",
+        "not_sampled_reason": "",
+        "Hg_OM": 100.0,
+        "OM_effect": "OM higher",
+        "Hg_dl": null,
+        "As_dl": null,
+        "Sb_dl": 1.4,
+        "Tl_dl": 0.68,
+        "Hg_q": "D*",
+        "As_q": "*",
+        "Sb_q": "U",
+        "Tl_q": "U",
+        "Hg_dl_deep": null,
+        "As_dl_deep": null,
+        "Sb_dl_deep": null,
+        "Tl_dl_deep": null,
+        "Hg_q_deep": "",
+        "As_q_deep": "",
+        "Sb_q_deep": "",
+        "Tl_q_deep": "",
+        "Hg_OM_q": "D*",
+        "sample_date": "2026-03-04",
+        "_depth_intervals": "shallow + OM",
+        "validated": true
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.667178,
+          39.006744
+        ]
+      },
+      "properties": {
+        "id": "E22",
+        "round": 2,
+        "sampled": true,
+        "coord_source": "Relocated",
+        "depth": "Shallow",
+        "field_note": "Delineation - 470 mg/kg Hg nearby",
+        "Hg": 1700.0,
+        "As": null,
+        "Sb": null,
+        "Tl": null,
+        "Hg_deep": null,
+        "As_deep": null,
+        "Sb_deep": null,
+        "Tl_deep": null,
+        "rod_exceed": "YES",
+        "rod_drivers": "Hg",
+        "pmb_exceed": "YES",
+        "pmb_drivers": "Hg, Sb, Tl",
+        "has_fd": "",
+        "not_sampled_reason": "",
+        "Hg_OM": 1100.0,
+        "OM_effect": "OM lower",
+        "Hg_dl": null,
+        "As_dl": 0.77,
+        "Sb_dl": 1.5,
+        "Tl_dl": 0.77,
+        "Hg_q": "D*",
+        "As_q": "U",
+        "Sb_q": "U",
+        "Tl_q": "U",
+        "Hg_dl_deep": null,
+        "As_dl_deep": null,
+        "Sb_dl_deep": null,
+        "Tl_dl_deep": null,
+        "Hg_q_deep": "",
+        "As_q_deep": "",
+        "Sb_q_deep": "",
+        "Tl_q_deep": "",
+        "Hg_OM_q": "D*",
+        "sample_date": "2026-03-04",
+        "_depth_intervals": "shallow + OM",
+        "validated": true
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.666323,
+          39.0068
+        ]
+      },
+      "properties": {
+        "id": "E23",
+        "round": 2,
+        "sampled": true,
+        "coord_source": "Relocated",
+        "depth": "Shallow",
+        "field_note": "Delineation - 1200 mg/kg Hg nearby",
+        "Hg": 47.0,
+        "As": 1.8,
+        "Sb": null,
+        "Tl": null,
+        "Hg_deep": null,
+        "As_deep": null,
+        "Sb_deep": null,
+        "Tl_deep": null,
+        "rod_exceed": "NO",
+        "rod_drivers": null,
+        "pmb_exceed": "YES",
+        "pmb_drivers": "Sb, Tl",
+        "has_fd": "",
+        "not_sampled_reason": "",
+        "Hg_OM": 74.0,
+        "OM_effect": "OM higher",
+        "Hg_dl": null,
+        "As_dl": null,
+        "Sb_dl": 1.3,
+        "Tl_dl": 0.66,
+        "Hg_q": "D*",
+        "As_q": "*",
+        "Sb_q": "U",
+        "Tl_q": "U",
+        "Hg_dl_deep": null,
+        "As_dl_deep": null,
+        "Sb_dl_deep": null,
+        "Tl_dl_deep": null,
+        "Hg_q_deep": "",
+        "As_q_deep": "",
+        "Sb_q_deep": "",
+        "Tl_q_deep": "",
+        "Hg_OM_q": "D*",
+        "sample_date": "2026-03-04",
+        "_depth_intervals": "shallow + OM",
+        "validated": true
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.667051,
+          39.006506
+        ]
+      },
+      "properties": {
+        "id": "E24",
+        "round": 2,
+        "sampled": true,
+        "coord_source": "Relocated",
+        "depth": "Shallow + Deep",
+        "field_note": "Delineation - 1800 mg/kg Hg nearby",
+        "Hg": 1500.0,
+        "As": null,
+        "Sb": null,
+        "Tl": null,
+        "Hg_deep": 2800.0,
+        "As_deep": null,
+        "Sb_deep": null,
+        "Tl_deep": null,
+        "rod_exceed": "YES",
+        "rod_drivers": "Hg",
+        "pmb_exceed": "YES",
+        "pmb_drivers": "Hg, Sb, Tl",
+        "has_fd": "",
+        "not_sampled_reason": "",
+        "Hg_OM": 820.0,
+        "OM_effect": "OM lower",
+        "Hg_dl": null,
+        "As_dl": 0.83,
+        "Sb_dl": 1.7,
+        "Tl_dl": 0.83,
+        "Hg_q": "D*",
+        "As_q": "U",
+        "Sb_q": "U",
+        "Tl_q": "U",
+        "Hg_dl_deep": null,
+        "As_dl_deep": 0.84,
+        "Sb_dl_deep": 1.7,
+        "Tl_dl_deep": 0.84,
+        "Hg_q_deep": "D*",
+        "As_q_deep": "U",
+        "Sb_q_deep": "U",
+        "Tl_q_deep": "U",
+        "Hg_OM_q": "D*",
+        "sample_date": "2026-03-04",
+        "_depth_intervals": "shallow + deep + OM",
+        "validated": true
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.666362,
+          39.006584
+        ]
+      },
+      "properties": {
+        "id": "E25",
+        "round": 2,
+        "sampled": true,
+        "coord_source": "Relocated",
+        "depth": "Shallow",
+        "field_note": "Delineation - 700 mg/kg Hg nearby",
+        "Hg": 40.0,
+        "As": 0.84,
+        "Sb": null,
+        "Tl": null,
+        "Hg_deep": null,
+        "As_deep": null,
+        "Sb_deep": null,
+        "Tl_deep": null,
+        "rod_exceed": "NO",
+        "rod_drivers": null,
+        "pmb_exceed": "YES",
+        "pmb_drivers": "Sb, Tl",
+        "has_fd": "",
+        "not_sampled_reason": "",
+        "Hg_OM": 23.0,
+        "OM_effect": "OM lower",
+        "Hg_dl": null,
+        "As_dl": null,
+        "Sb_dl": 1.2,
+        "Tl_dl": 0.59,
+        "Hg_q": "D*",
+        "As_q": "*",
+        "Sb_q": "U",
+        "Tl_q": "U",
+        "Hg_dl_deep": null,
+        "As_dl_deep": null,
+        "Sb_dl_deep": null,
+        "Tl_dl_deep": null,
+        "Hg_q_deep": "",
+        "As_q_deep": "",
+        "Sb_q_deep": "",
+        "Tl_q_deep": "",
+        "Hg_OM_q": "D*",
+        "sample_date": "2026-03-04",
+        "_depth_intervals": "shallow + OM",
+        "validated": true
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.66578,
+          39.006538
+        ]
+      },
+      "properties": {
+        "id": "E26",
+        "round": 2,
+        "sampled": true,
+        "coord_source": "Relocated",
+        "depth": "Shallow",
+        "field_note": "Delineation - 470 mg/kg Hg nearby",
+        "Hg": 100.0,
+        "As": 1.8,
+        "Sb": null,
+        "Tl": null,
+        "Hg_deep": null,
+        "As_deep": null,
+        "Sb_deep": null,
+        "Tl_deep": null,
+        "rod_exceed": "NO",
+        "rod_drivers": null,
+        "pmb_exceed": "YES",
+        "pmb_drivers": "Hg, Sb, Tl",
+        "has_fd": "",
+        "not_sampled_reason": "",
+        "Hg_OM": 180.0,
+        "OM_effect": "OM higher",
+        "Hg_dl": null,
+        "As_dl": null,
+        "Sb_dl": 1.2,
+        "Tl_dl": 0.58,
+        "Hg_q": "D*",
+        "As_q": "*",
+        "Sb_q": "U",
+        "Tl_q": "U",
+        "Hg_dl_deep": null,
+        "As_dl_deep": null,
+        "Sb_dl_deep": null,
+        "Tl_dl_deep": null,
+        "Hg_q_deep": "",
+        "As_q_deep": "",
+        "Sb_q_deep": "",
+        "Tl_q_deep": "",
+        "Hg_OM_q": "D*",
+        "sample_date": "2026-03-05",
+        "_depth_intervals": "shallow + OM",
+        "validated": true
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.665611,
+          39.00593
+        ]
+      },
+      "properties": {
+        "id": "OS1",
+        "round": 2,
+        "sampled": true,
+        "coord_source": "Field (FM)",
+        "depth": "Shallow",
+        "field_note": "",
+        "Hg": 61.0,
+        "As": 1.2,
+        "Sb": null,
+        "Tl": null,
+        "Hg_deep": null,
+        "As_deep": null,
+        "Sb_deep": null,
+        "Tl_deep": null,
+        "rod_exceed": "NO",
+        "rod_drivers": null,
+        "pmb_exceed": "YES",
+        "pmb_drivers": "Hg, Sb, Tl",
+        "has_fd": "",
+        "not_sampled_reason": "",
+        "Hg_OM": 38.0,
+        "OM_effect": "OM lower",
+        "Hg_dl": null,
+        "As_dl": null,
+        "Sb_dl": 1.5,
+        "Tl_dl": 0.73,
+        "Hg_q": "D*",
+        "As_q": "*",
+        "Sb_q": "U",
+        "Tl_q": "U",
+        "Hg_dl_deep": null,
+        "As_dl_deep": null,
+        "Sb_dl_deep": null,
+        "Tl_dl_deep": null,
+        "Hg_q_deep": "",
+        "As_q_deep": "",
+        "Sb_q_deep": "",
+        "Tl_q_deep": "",
+        "Hg_OM_q": "D*",
+        "sample_date": "2026-03-05",
+        "_depth_intervals": "shallow + OM",
+        "validated": true
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.666328,
+          39.005009
+        ]
+      },
+      "properties": {
+        "id": "OS2",
+        "round": 2,
+        "sampled": true,
+        "coord_source": "Field (FM)",
+        "depth": "Shallow",
+        "field_note": "",
+        "Hg": 230.0,
+        "As": 1.5,
+        "Sb": null,
+        "Tl": null,
+        "Hg_deep": null,
+        "As_deep": null,
+        "Sb_deep": null,
+        "Tl_deep": null,
+        "rod_exceed": "YES",
+        "rod_drivers": "Hg",
+        "pmb_exceed": "YES",
+        "pmb_drivers": "Hg, Sb, Tl",
+        "has_fd": "",
+        "not_sampled_reason": "",
+        "Hg_OM": 61.0,
+        "OM_effect": "OM lower",
+        "Hg_dl": null,
+        "As_dl": null,
+        "Sb_dl": 1.4,
+        "Tl_dl": 0.71,
+        "Hg_q": "D*",
+        "As_q": "*",
+        "Sb_q": "U",
+        "Tl_q": "U",
+        "Hg_dl_deep": null,
+        "As_dl_deep": null,
+        "Sb_dl_deep": null,
+        "Tl_dl_deep": null,
+        "Hg_q_deep": "",
+        "As_q_deep": "",
+        "Sb_q_deep": "",
+        "Tl_q_deep": "",
+        "Hg_OM_q": "D*",
+        "sample_date": "2026-03-06",
+        "_depth_intervals": "shallow + OM",
+        "validated": true
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.665226,
+          39.005445
+        ]
+      },
+      "properties": {
+        "id": "OS3",
+        "round": 2,
+        "sampled": true,
+        "coord_source": "Manual (provided)",
+        "depth": "Shallow",
+        "field_note": "Opportunistic field sample",
+        "Hg": 80.0,
+        "As": 1.8,
+        "Sb": null,
+        "Tl": null,
+        "Hg_deep": null,
+        "As_deep": null,
+        "Sb_deep": null,
+        "Tl_deep": null,
+        "rod_exceed": "NO",
+        "rod_drivers": null,
+        "pmb_exceed": "YES",
+        "pmb_drivers": "Hg, Sb, Tl",
+        "has_fd": "",
+        "not_sampled_reason": "",
+        "Hg_OM": 67.0,
+        "OM_effect": "OM lower",
+        "Hg_dl": null,
+        "As_dl": null,
+        "Sb_dl": 1.4,
+        "Tl_dl": 0.68,
+        "Hg_q": "D*",
+        "As_q": "*",
+        "Sb_q": "U",
+        "Tl_q": "U",
+        "Hg_dl_deep": null,
+        "As_dl_deep": null,
+        "Sb_dl_deep": null,
+        "Tl_dl_deep": null,
+        "Hg_q_deep": "",
+        "As_q_deep": "",
+        "Sb_q_deep": "",
+        "Tl_q_deep": "",
+        "Hg_OM_q": "D*",
+        "sample_date": "2026-03-06",
+        "_depth_intervals": "shallow + OM",
+        "validated": true
+      }
+    }
+  ]
+}

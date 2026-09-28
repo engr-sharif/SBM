@@ -2895,3 +2895,22 @@ body:not(.field) #mapLegend.closed{display:none}
 #v3dClip .v3dclx:hover,#v3dClip .v3dcls button:hover{color:var(--ink)}
 #v3dClip :is(button,input):focus-visible{outline:2px solid var(--acc);outline-offset:2px}
 body.field #v3dClip{top:auto;bottom:calc(var(--botH,60px) + 10px);max-width:calc(100% - 24px);flex-wrap:wrap;border-radius:14px}
+
+/* ---------------------------------------------------------------------------
+   v28 — lab metals by depth (js/labmetals.js): the table in a boring / test
+   pit / sample popup, the 3D pick card and the boring-log card. Above a level
+   is carried by colour AND weight, so it survives a greyscale print.
+   ------------------------------------------------------------------------- */
+.lmsec{margin:6px 0 4px}
+.lmhead{font-weight:600;font-size:12px;margin:2px 0 3px}
+.lmhead .mut,.lmline.mut{color:var(--mut);font-weight:400}
+table.lmtab th{font-weight:600;color:var(--mut);text-align:right;padding:1px 5px;font-size:11px}
+table.lmtab th:first-child{text-align:left}
+table.lmtab td.v{text-align:right;font-variant-numeric:tabular-nums}
+table.lmtab sup{font-size:9px;color:var(--mut);margin-left:1px}
+.lmrod{color:var(--bad);font-weight:700}
+.lmpmb{color:var(--warn);font-weight:600}
+td.lmrod,td.lmpmb{background:color-mix(in srgb,currentColor 10%,transparent)}
+.lmkey,.lmex,.lmline{font-size:11px;margin-top:3px;color:var(--ink2)}
+.lmkey{color:var(--mut)}
+details.lmmore summary{cursor:pointer;font-size:11px;color:var(--mut);margin-top:3px}

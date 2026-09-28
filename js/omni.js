@@ -167,6 +167,24 @@ SBMM.omni = (function () {
       out.push({ kind: "sample", label: s.id, sub: (s.src || "sample") + (bits.length ? " · " + bits.join(" · ") + " mg/kg" : ""),
         key: "sample", run: () => { turnOn("invest", "samples"); flyPoint(s.x, s.y); } });
     }
+    /* v28: what came over from the earlier apps — the test pits, the
+       historical borings, the XRF samples — and the named site areas */
+    const IMPORTED = ["testpits2025", "borings_hist", "ea_testpits", "xrf_boulders", "xrf_soil"];
+    for (const d of (SBMM.datasets ? SBMM.datasets.list() : []).filter(d => IMPORTED.includes(d.id)))
+      for (const p of d.points) {
+        const hg = p.a["Max Hg (mg/kg)"] != null ? "Hg " + p.a["Max Hg (mg/kg)"] + " mg/kg"
+          : p.a["Avg Hg (ppm)"] != null ? "Hg " + p.a["Avg Hg (ppm)"] + " ppm (XRF)" : "";
+        out.push({ kind: d.kind === "borings" ? "boring" : "sample", label: p.id,
+          sub: d.name + (hg ? " · " + hg : ""), key: d.kind === "borings" ? "pit" : "XRF",
+          run: () => { if (d.rowRef) turnOn(d.rowRef.group, d.rowRef.id); flyPoint(p.x, p.y); } });
+      }
+    const SA = D.site_areas && D.site_areas.features || [];
+    for (const f of SA) {
+      const xs = f.rings[0].map(q => q[0]), ys = f.rings[0].map(q => q[1]);
+      out.push({ kind: "place", label: f.name, sub: "site area (SBMM.kmz)", key: "area",
+        run: () => { turnOn("invest", "site_areas");
+                     flyBox([Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)], { rings: [f.rings[0]] }); } });
+    }
     placeIdx = out;
     return out;
   }

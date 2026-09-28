@@ -5394,7 +5394,8 @@ seeds = await page.evaluate(() => {
     demChecked: dz.length, demMed: dz.length ? +dz[dz.length >> 1].toFixed(2) : null,
     demWithin5: dz.filter(v => v < 5).length,
     rows: document.querySelectorAll("#dataLayers .lyr").length,
-    tabs: document.querySelectorAll("#tblTabStrip .ttab").length
+    tabs: document.querySelectorAll("#tblTabStrip .ttab").length,
+    baked: (SBMM_DATA.datasets || []).length
   };
 });
 console.log(`baked datasets: ${seeds.names.join(", ")} | wells ${seeds.wells} (${seeds.wellKind}, depth "${seeds.wellDepth}") `
@@ -5403,8 +5404,11 @@ console.log(`well ground elevation vs the 2024 lidar DEM: n=${seeds.demChecked} 
 if (seeds.wells < 90 || seeds.borings < 40) { console.log("FAIL: seed datasets did not load"); process.exit(1); }
 if (!seeds.wellsInSite || !seeds.boringsInSite) { console.log("FAIL: a seeded point is outside the site window"); process.exit(1); }
 if (!(seeds.demMed < 3)) { console.log("FAIL: well coordinates disagree with the terrain — median", seeds.demMed, "ft"); process.exit(1); }
-/* three baked datasets since the August-2026 survey (spec §10): wells, borings, survey */
-if (seeds.rows !== 3 || seeds.tabs !== 4) { console.log("FAIL: dataset rows/tabs not built (expected 3 datasets, 4 tabs)"); process.exit(1); }
+/* one row and one table tab per baked dataset, plus the Samples tab — read off
+   the payload since v28 (eight: wells, borings, survey, and the five brought
+   over from the earlier apps), so the next baked dataset moves the test with it */
+if (seeds.baked < 8 || seeds.rows !== seeds.baked || seeds.tabs !== seeds.baked + 1)
+  { console.log(`FAIL: dataset rows/tabs not built (payload ${seeds.baked}, rows ${seeds.rows}, tabs ${seeds.tabs})`); process.exit(1); }
 
 /* import a synthetic CSV through the real file path: a File -> FileReader ->
    the mapping dialog -> "Add to map". Deliberately headed N/E rather than X/Y,
@@ -5799,6 +5803,125 @@ if (escModals.cmdHelpOverlays !== 1) { console.log("FAIL: HELP twice stacked two
 
 /* ==================================================================== */
 let errBeforeDrain, drainT0, drainRun, drainTip, drainInto, drainAgree, drainExp, drain3d, drainOff, drainSess;   /* hoisted — v18 §3 */
+let importRes;   /* hoisted — v18 §3 */
+await block("9f5. data from the earlier apps (v28)", async () => {
+/* v28: tools/build_imports.py brought the data of the engineer's earlier SBMM
+   apps over — the 2025 test pits, the historical borings, the 2026 XRF
+   campaigns, metals by depth for the borings and pits, the full ABP/EA results
+   and the named site areas of SBMM.kmz. Every expected number below is read
+   off the payload, so a rebuild moves the test with it. */
+importRes = await page.evaluate(async () => {
+  const wait = ms => new Promise(r => setTimeout(r, ms));
+  const LS = SBMM.layerState, LM = SBMM.labMetals, D = SBMM_DATA;
+  const out = { ds: {} };
+  const inSite = p => p.x > 6.36e6 && p.x < 6.385e6 && p.y > 2.12e6 && p.y < 2.14e6;
+  for (const id of ["testpits2025", "borings_hist", "ea_testpits", "xrf_boulders", "xrf_soil"]) {
+    const d = SBMM.datasets.byId(id), src = (D.datasets || []).find(x => x.id === id);
+    out.ds[id] = { n: d ? d.points.length : 0, want: src ? src.points.length : -1,
+                   inSite: !!d && d.points.every(inSite),
+                   on: !!d && LS.isOn(d.rowRef.group, d.rowRef.id), defaultOn: src ? src.defaultOn !== false : null };
+  }
+  /* the pits are real places: their recorded ground elevation is the lidar's */
+  const tp = SBMM.datasets.byId("testpits2025");
+  const dz = tp.points.map(p => Math.abs(SBMM.elev(p.x, p.y)[0] - p.a["Ground elev (ft)"]))
+    .filter(v => !isNaN(v)).sort((a, b) => a - b);
+  out.tpDz = { n: dz.length, med: +dz[dz.length >> 1].toFixed(2) };
+  /* metals by depth: counts, and one pit whose Hg is over the ROD level */
+  out.counts = LM.counts();
+  const want = { borings: 0, testpits: 0, samples: Object.keys(D.lab_metals.samples).length };
+  for (const h of Object.values(D.lab_metals.holes)) want[h.kind === "boring" ? "borings" : "testpits"]++;
+  out.want = want;
+  const rodHg = D.lab_metals.levels.ROD.Hg;
+  const hot = tp.points.find(p => (LM.hole(p.id) || { intervals: [] }).intervals.some(iv => iv.m.Hg > rodHg));
+  const box = document.createElement("div");
+  box.innerHTML = SBMM.popups.forDataset(tp, hot);
+  out.hot = { id: hot && hot.id, rows: box.querySelector(".lmsec .lmtab").querySelectorAll("tr").length - 1,
+              intervals: LM.hole(hot.id).intervals.length, rodCells: box.querySelectorAll("td.lmrod").length };
+  const sb = SBMM.datasets.byId("borings2025"), sb1 = sb.points.find(p => p.id === "SB-1");
+  out.sbPop = /data-lab="SB-1"/.test(SBMM.popups.forDataset(sb, sb1));
+  /* a Round 2 sample: shallow, deep and the organic-matter Hg, and exceedance
+     lists that agree with the levels */
+  const w = D.points.find(p => p.id === "W03"), ws = LM.sample("W03");
+  box.innerHTML = SBMM.popups.forSample(w);
+  out.w03 = { deepRow: [...box.querySelectorAll(".lmtab td.k")].some(t => t.textContent === "deep"),
+              om: /organics/.test(box.textContent),
+              pmb: ws.pmb.join(","), nd: box.querySelectorAll(".lmtab td.v").length > 0
+                && [...box.querySelectorAll(".lmtab td.v")].some(t => /^</.test(t.textContent)) };
+  /* every sample's exceedance lists are consistent with its numbers: a metal
+     listed is over the level by value, or a non-detect whose limit is; and a
+     metal over the level by value is always listed */
+  const Lv = D.lab_metals.levels, bad = [];
+  for (const [id, x] of Object.entries(D.lab_metals.samples))
+    for (const [lvl, list] of [["ROD", x.rod], ["PMB", x.pmb]])
+      for (const k of Object.keys(Lv[lvl])) {
+        const v = x.m[k], dl = x.dl && x.dl[k], lim = Lv[lvl][k];
+        const over = v != null ? v > lim : false, ndOver = v == null && dl != null && dl > lim;
+        const listed = list.includes(k);
+        if ((over && !listed) || (listed && !over && !ndOver && x.deep == null && !(x.profile || []).length)) bad.push(id + " " + lvl + " " + k);
+      }
+  out.levelBad = bad.slice(0, 6);
+  /* the Samples layer's own Hg is the lab's */
+  out.hgAgree = D.points.filter(p => LM.sample(p.id) && p.Hg != null)
+    .every(p => LM.sample(p.id).m.Hg === p.Hg);
+  /* the log card carries them too */
+  SBMM.borelogs.open("SB-1"); await wait(300);
+  out.card = !!document.querySelector(".blcard .lmsec[data-lab='SB-1']");
+  /* site areas: a row, off by default, and in the exports */
+  out.areas = { row: !!SBMM.siteAreas.row(), on: LS.isOn("invest", "site_areas"),
+                n: (D.site_areas.features || []).length };
+  LS.set("invest", "site_areas", { on: true }); await wait(200);
+  const gj = SBMM.io.collection("sp");
+  out.areas.geo = gj.features.filter(f => f.properties && f.properties.source === "SBMM.kmz").length;
+  out.areas.dxf = /\nSITE-AREAS\r?\n/.test(SBMM.dxf.buildDXF([]));
+  const a0 = SBMM.siteAreas.lines3d()[0];
+  out.areas.popup = !!a0 && /not surveyed/.test(SBMM.popups.forGis(a0.props, a0.geom));
+  /* 3D: the pits' sticks are coloured by Hg per interval, and the areas drape */
+  const was3d = SBMM.viewer3d.isOpen();
+  if (!was3d) await SBMM.viewer3d.toggle();
+  let st = null;
+  for (let i = 0; i < 120 && !(st && st.colors && st.colors.length > 1); i++) {
+    await wait(500);
+    st = SBMM.viewer3d.datasetSticks().find(x => x.dsId === "testpits2025") || null;
+  }
+  out.sticks = st ? { segs: st.segments, colors: st.colors.length } : null;
+  const ld = SBMM.viewer3d.stats().layersDrawn || {};
+  out.areas.in3d = Object.keys(ld).some(k => /site_areas/.test(k));
+  if (!was3d) await SBMM.viewer3d.toggle();
+  /* the omnibox finds a pit and an area */
+  out.omni = { pit: SBMM.omni.query("TP01").some(i => i.label === "TP01"),
+               area: SBMM.omni.query("Northwest Pit").some(i => /Northwest Pit/.test(i.label)) };
+  LS.set("invest", "site_areas", { on: false });
+  return out;
+});
+console.log("imported data:", JSON.stringify(importRes));
+for (const [id, r] of Object.entries(importRes.ds)) {
+  if (!r.n || r.n !== r.want) { console.log("FAIL: imported dataset did not load", id, r); process.exit(1); }
+  if (!r.inSite) { console.log("FAIL: an imported point is outside the site window", id); process.exit(1); }
+  if (r.on !== r.defaultOn) { console.log("FAIL: an imported dataset did not start at its default", id, r); process.exit(1); }
+}
+if (!(importRes.tpDz.n >= 40 && importRes.tpDz.med < 1))
+  { console.log("FAIL: test pit ground elevations disagree with the lidar", importRes.tpDz); process.exit(1); }
+if (importRes.counts.borings !== importRes.want.borings || importRes.counts.testpits !== importRes.want.testpits
+    || importRes.counts.samples !== importRes.want.samples || importRes.want.testpits < 50)
+  { console.log("FAIL: lab metals counts", importRes.counts, importRes.want); process.exit(1); }
+if (!importRes.hot.id || importRes.hot.rows !== importRes.hot.intervals || importRes.hot.rodCells < 1)
+  { console.log("FAIL: a test pit's popup does not carry its metals by depth", importRes.hot); process.exit(1); }
+if (!importRes.sbPop || !importRes.card)
+  { console.log("FAIL: the 2025 borings' metals are not in the popup or the log card"); process.exit(1); }
+if (!importRes.w03.deepRow || !importRes.w03.om || importRes.w03.pmb !== "Sb,Tl" || !importRes.w03.nd)
+  { console.log("FAIL: the W03 sample's popup", importRes.w03); process.exit(1); }
+if (importRes.levelBad.length) { console.log("FAIL: exceedance lists inconsistent with the numbers", importRes.levelBad); process.exit(1); }
+if (!importRes.hgAgree) { console.log("FAIL: the Samples layer's Hg and the lab's disagree"); process.exit(1); }
+const A = importRes.areas;
+if (!A.row || A.on || A.n < 8 || A.geo !== A.n || !A.dxf || !A.popup)
+  { console.log("FAIL: the site areas", A); process.exit(1); }
+if (!A.in3d) { console.log("FAIL: the site areas do not drape in 3D"); process.exit(1); }
+if (!importRes.sticks || importRes.sticks.colors < 2)
+  { console.log("FAIL: the test pits' 3D sticks are not coloured by Hg", importRes.sticks); process.exit(1); }
+if (!importRes.omni.pit || !importRes.omni.area) { console.log("FAIL: the omnibox does not find the imported data", importRes.omni); process.exit(1); }
+await voiceCheck("9f5. the boring-log card with metals");
+});
+
 await block("9x. drainage", async () => {
 /* 9x. drainage — the whole-site catchment map (v14, docs/V14_DRAINAGE_SPEC.md) */
 /* ==================================================================== */
@@ -7648,11 +7771,16 @@ logGone = await page.evaluate(async () => {
   const d = SBMM.datasets.byId("borings2025");
   const p = d.points.find(q => q.id === "SB-9");
   try { out.popBtn = /boring log/.test(SBMM.popups.forDataset(d, p)); } catch (e) { out.threw4 = String(e); }
-  /* and 3D falls back to the plain single-colour stick */
+  /* and 3D falls back to the plain single-colour stick. The v28 lab metals
+     colour a hole with Hg intervals but no log, so they go too for this check
+     (9f5 asserts the metals colouring itself). */
+  const keepLM = SBMM_DATA.lab_metals;
+  delete SBMM_DATA.lab_metals;
   try { SBMM.viewer3d.refreshOverlays(); } catch (e) { out.threw5 = String(e); }
   await wait(1500);
   const b = SBMM.viewer3d.datasetSticks().find(s => s.dsId === "borings2025");
   out.plainColors = b ? b.colors.length : null;
+  SBMM_DATA.lab_metals = keepLM;
   SBMM_DATA.borings_logs = keep;
   SBMM.viewer3d.refreshOverlays();
   await wait(1500);

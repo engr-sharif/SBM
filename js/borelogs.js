@@ -1267,7 +1267,10 @@ SBMM.borelogs = (function () {
       + (dStrata ? " · not reconciled" : "");
     el.appendChild(note);
 
-    el.insertAdjacentHTML("beforeend", descHtml(h) + labHtml(h) + notesHtml(h));
+    /* v28: metals by depth, from the earlier sbmm-tool (js/labmetals.js) —
+       "" for the 18 holes that have none */
+    el.insertAdjacentHTML("beforeend", descHtml(h) + labHtml(h)
+      + (SBMM.labMetals ? SBMM.labMetals.holeHTML(h.id) : "") + notesHtml(h));
 
     /* clicking a stratum box opens the descriptions and flashes its row */
     wrap.addEventListener("click", ev => {
