@@ -17,6 +17,30 @@ All three are offline-only by design. Nothing in this app calls out to the inter
 
 ---
 
+## v9.36 — what you point at is what you click (2026-09-30)
+
+**Hovering a feature on the map now names it.** Move the cursor over a well, a
+boring, a test pit, a storm node, a pile or a decision unit and a small tag beside
+the cursor says what it is — "MW-05 · Monitoring wells" — while the feature itself
+lifts: a point symbol grows and glows, a line or an outline lights up. Before this,
+the wells, borings and storm nodes showed nothing on hover, and a click brought up
+the name and the whole popup together.
+
+**A click opens exactly what the tag names.** The map used to hand a click to the
+first layer it found from the top, so a decision-unit outline or a sheet footprint
+could take the click from the well the cursor was on. Now everything under the
+cursor is ranked — points first, then lines, then outlines, then the insides of
+areas, and the nearest wins — and the click goes to the winner.
+
+**Overlaps are never a dead end.** Where several things sit under the cursor the tag
+says "1 of 3 here · Tab"; Tab steps through them and the click follows. The popup
+that opens lists the others under **Also here**, one button each, and the one you
+leave stays in the list so you can come back.
+
+Only the Navigate mode changed. The measuring and drawing tools take their clicks
+exactly as before. The 3D view's hover tag now reads the same way — the name, then
+what it is.
+
 ## v9.35 — the data from the earlier apps (2026-09-28)
 
 **The 51 test pits of 2025 are on the map**, each with its ground elevation and

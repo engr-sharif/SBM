@@ -66,6 +66,9 @@ SBMM.touch = (function () {
      rather than from the profile: an iPad with a Pencil in hand is a precise
      pointer on the same screen a thumb was coarse on a second ago. */
   function lastPointer() { return lastKind; }
+  /* v29: js/pick2d.js asks this before it answers a tap, so the synthetic
+     click after a long-press or a loupe placement is still swallowed */
+  let clickSwallowed = () => false;
   function precise() { return lastKind !== "touch"; }
 
   /* ================================================================== */
@@ -1087,6 +1090,7 @@ SBMM.touch = (function () {
     if (!host) return;
 
     let press = null, painter = null, dragWas = null, swallowUntil = 0;
+    clickSwallowed = () => DEF.now() <= swallowUntil;
     const armed = () => on() && drawArmed();
 
     /* Leaflet's own event object, built from a client point, so `map.fire`
@@ -1302,7 +1306,7 @@ SBMM.touch = (function () {
   return {
     wire, autoDetect, apply, profile, sniff, phoneAtBoot, on, override, touchCapable, standalone,
     /* §5a — the per-EVENT hook the chrome sizes from, and the palm clock */
-    lastPointer, precise, penDown, penRecent,
+    lastPointer, precise, penDown, penRecent, clickSwallowed: () => clickSwallowed(),
     gestures, recognizer, momentum, angDelta, sketchBar, edge, shortEdge, glass,
     loupe, snapshot, snapPainter, doneBar, fireContextMenu, tip, hideTip,
     offline, refreshOfflineUI, syncViewport,

@@ -5922,6 +5922,148 @@ if (!importRes.omni.pit || !importRes.omni.area) { console.log("FAIL: the omnibo
 await voiceCheck("9f5. the boring-log card with metals");
 });
 
+await block("9f6. the 2D pick engine (v29)", async () => {
+/* v29: what the pointer is over is what the click opens (js/pick2d.js). The
+   engineer: hovering MW-05 showed nothing, and a click showed the name AND the
+   popup at once — sometimes of the wrong feature. Four contracts:
+     1. a hover over a well shows ONE chip naming it and lifts its symbol, and
+        no Leaflet hover tooltip opens beside it;
+     2. the click opens that well's popup, with no tooltip;
+     3. a point inside a polygon wins the click, and the popup names the
+        polygon under "also here" — an overlap is never a dead end; Tab
+        cycles the chip and the click follows the chip;
+     4. only in navigate mode: a measure tool keeps its clicks. */
+await page.evaluate(() => {
+  if (SBMM.viewer3d.isOpen()) SBMM.viewer3d.toggle();
+  if (SBMM.borewin && SBMM.borewin.isOpen && SBMM.borewin.isOpen()) SBMM.borewin.close();
+  SBMM.mode.navigate(); SBMM.map.closePopup();
+  document.querySelectorAll(".restorebar").forEach(b => b.remove());
+});
+const pkAt = async (lat, lng, zoom) => page.evaluate(async ([lat, lng, zoom]) => {
+  SBMM.map.setView([lat, lng], zoom, { animate: false });
+  await new Promise(r => setTimeout(r, 600));
+  const cp = SBMM.map.latLngToContainerPoint([lat, lng]);
+  const r = SBMM.map.getContainer().getBoundingClientRect();
+  return { x: r.left + cp.x, y: r.top + cp.y };
+}, [lat, lng, zoom]);
+const pkState = () => page.evaluate(() => SBMM.pick2d.state());
+const pkPopup = () => page.evaluate(() => {
+  const p = document.querySelector(".leaflet-popup-content");
+  const also = p && p.querySelector(".pkalso");
+  return { text: p ? p.textContent.replace(/\s+/g, " ").trim().slice(0, 160) : null,
+           also: also ? [...also.querySelectorAll("button")].map(b => b.textContent) : [],
+           tips: [...document.querySelectorAll(".leaflet-tooltip-pane .leaflet-tooltip")].filter(t => t.offsetParent).length };
+});
+/* 1 + 2: MW-05 alone */
+const mw = await page.evaluate(() => {
+  const d = SBMM.datasets.byId("wells");
+  SBMM.layerState.set(d.rowRef.group || "invest", d.rowRef.id, { on: true });
+  const p = d.points.find(q => q.id === "MW-05");
+  return { lat: p.y, lng: p.x };
+});
+let pt = await pkAt(mw.lat, mw.lng, 1.5);
+await page.mouse.move(pt.x + 40, pt.y + 40);
+await page.mouse.move(pt.x + 1, pt.y + 1, { steps: 4 });
+await page.waitForFunction(() => SBMM.pick2d.state().chip, null, { timeout: 10000 }).catch(() => {});
+const h1 = await page.evaluate(() => Object.assign(SBMM.pick2d.state(),
+  { lifted: !!document.querySelector(".leaflet-marker-icon.pklift"),
+    tips: [...document.querySelectorAll(".leaflet-tooltip-pane .leaflet-tooltip")].filter(t => t.offsetParent).length,
+    hot: SBMM.map.getContainer().classList.contains("pkhot") }));
+console.log("pick2d hover MW-05:", JSON.stringify(h1));
+if (!h1.chip || !/^MW-05/.test(h1.target || "")) { console.log("FAIL: hovering MW-05 did not name it", h1); process.exit(1); }
+if (!h1.lifted) { console.log("FAIL: the hovered well's symbol was not lifted"); process.exit(1); }
+if (h1.tips) { console.log("FAIL: a Leaflet hover tooltip opened beside the chip", h1.tips); process.exit(1); }
+if (!h1.hot) { console.log("FAIL: the cursor does not say the well opens something"); process.exit(1); }
+await page.mouse.click(pt.x + 1, pt.y + 1);
+await page.waitForSelector(".leaflet-popup-content", { timeout: 10000 }).catch(() => {});
+const c1 = await pkPopup();
+console.log("pick2d click MW-05:", JSON.stringify(c1));
+if (!c1.text || !/^MW-05/.test(c1.text)) { console.log("FAIL: the click did not open MW-05's popup", c1); process.exit(1); }
+if (c1.tips) { console.log("FAIL: the click opened the name tooltip beside the popup"); process.exit(1); }
+await page.evaluate(() => { SBMM.map.closePopup(); });
+/* 3: a point inside a polygon — find one in the data rather than name it */
+const ov = await page.evaluate(async () => {
+  for (const [g, id] of [["framework", "dus"], ["framework", "piles"]]) try { SBMM.layerState.set(g, id, { on: true }); } catch (e) {}
+  SBMM.map.setView([2128600, 6371600], 0.5, { animate: false });
+  await new Promise(r => setTimeout(r, 800));
+  for (const d of SBMM.datasets.list()) {
+    if (!SBMM.layerState.isOn(d.rowRef.group || "invest", d.rowRef.id)) continue;
+    for (const p of d.points) {
+      const L_ = SBMM.pick2d.probe([p.y, p.x]).filter(c => c.acts);
+      if (L_.length > 1 && L_[0].geo === 3 && L_.some(c => c.geo <= 1.5)) return { lat: p.y, lng: p.x, id: p.id, list: L_ };
+    }
+  }
+  return null;
+});
+console.log("pick2d overlap:", JSON.stringify(ov));
+if (!ov) { console.log("FAIL: no point inside a polygon to test the ranking on"); process.exit(1); }
+pt = await pkAt(ov.lat, ov.lng, 1);
+await page.mouse.move(pt.x + 40, pt.y + 40);
+await page.mouse.move(pt.x, pt.y, { steps: 4 });
+await page.waitForFunction(() => SBMM.pick2d.state().chip, null, { timeout: 10000 }).catch(() => {});
+const h2 = await pkState();
+if (!h2.target || h2.target.indexOf(ov.id) !== 0) { console.log("FAIL: the point inside the polygon did not win the hover", h2); process.exit(1); }
+if (h2.n < 2 || !/of \d+ here/.test(h2.chipText)) { console.log("FAIL: the chip does not say more is here", h2); process.exit(1); }
+await page.mouse.click(pt.x, pt.y);
+await page.waitForSelector(".leaflet-popup-content .pkalso", { timeout: 10000 }).catch(() => {});
+const c2 = await pkPopup();
+console.log("pick2d overlap click:", JSON.stringify(c2));
+if (!c2.text || c2.text.indexOf(ov.id) !== 0) { console.log("FAIL: the click did not open the point under the pointer", c2); process.exit(1); }
+if (!c2.also.length) { console.log("FAIL: the popup does not name the other features here"); process.exit(1); }
+/* "also here" switches, and the one left stays in the row */
+const sw = await page.evaluate(async () => {
+  const b = document.querySelector(".pkalso button"); const want = b.textContent; b.click();
+  await new Promise(r => setTimeout(r, 400));
+  const p = document.querySelector(".leaflet-popup-content");
+  return { want, text: p ? p.textContent.replace(/\s+/g, " ").trim().slice(0, 120) : null,
+           also: p && p.querySelector(".pkalso") ? [...p.querySelectorAll(".pkalso button")].map(x => x.textContent) : [] };
+});
+console.log("pick2d also-here:", JSON.stringify(sw));
+if (!sw.text || !sw.also.some(t => t.indexOf(ov.id) === 0)) { console.log("FAIL: switching lost the way back", sw); process.exit(1); }
+await page.evaluate(() => { SBMM.map.closePopup(); });
+/* Tab cycles the chip, and the click follows it — re-centred first, because
+   the popup above auto-panned the map out from under the pointer */
+pt = await pkAt(ov.lat, ov.lng, 1);
+await page.mouse.move(pt.x + 30, pt.y + 30);
+await page.mouse.move(pt.x, pt.y, { steps: 3 });
+await page.waitForFunction(() => SBMM.pick2d.state().chip, null, { timeout: 10000 }).catch(() => {});
+await page.evaluate(() => { if (document.activeElement && document.activeElement !== document.body) document.activeElement.blur(); });
+const before = (await pkState()).target;
+await page.keyboard.press("Tab");
+const after = (await pkState()).target;
+console.log("pick2d Tab:", before, "->", after);
+if (!after || after === before) { console.log("FAIL: Tab did not cycle the chip"); process.exit(1); }
+await page.mouse.click(pt.x, pt.y);
+await page.waitForSelector(".leaflet-popup-content", { timeout: 10000 }).catch(() => {});
+const c3 = await pkPopup();
+const stem = after.split(" · ")[0].slice(0, 12);
+if (!c3.text || c3.text.indexOf(stem) < 0) { console.log("FAIL: the click did not follow the Tab choice", after, c3); process.exit(1); }
+await page.evaluate(() => { SBMM.map.closePopup(); });
+/* 4: a measure tool keeps its clicks */
+pt = await pkAt(ov.lat, ov.lng, 1);
+const mm = await page.evaluate(() => {
+  SBMM.mode.set("measure.distance");
+  return SBMM.mode.current();
+});
+await page.mouse.move(pt.x + 20, pt.y + 10);
+await page.mouse.move(pt.x, pt.y, { steps: 3 });
+await page.waitForTimeout(250);
+const hm = await pkState();
+const clicksBefore = hm.stats.clicks;
+await page.mouse.click(pt.x, pt.y);
+await page.waitForTimeout(300);
+const cm = await page.evaluate(() => ({ popup: !!document.querySelector(".leaflet-popup-content"),
+  tip: (document.getElementById("sketchTip") || {}).textContent || "" }));
+console.log("pick2d in", mm, JSON.stringify({ chip: hm.chip, active: hm.active }), JSON.stringify(cm));
+if (hm.active || hm.chip) { console.log("FAIL: the pick engine answered inside a measure tool"); process.exit(1); }
+/* NOT "no popup": a marker element under a sketch still takes its own click,
+   as it always has (the fence block clicks beside a boring for that reason).
+   The contract here is only that the engine stayed out of it. */
+if ((await pkState()).stats.clicks !== clicksBefore) { console.log("FAIL: the pick engine took a measure click"); process.exit(1); }
+await page.keyboard.press("Escape");
+await page.evaluate(() => { SBMM.mode.navigate(); SBMM.map.closePopup(); });
+});
+
 await block("9x. drainage", async () => {
 /* 9x. drainage — the whole-site catchment map (v14, docs/V14_DRAINAGE_SPEC.md) */
 /* ==================================================================== */

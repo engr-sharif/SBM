@@ -109,6 +109,14 @@ SBMM.initMap = function () {
     ev.stopPropagation();
     forwardTo(found, ev);
   }
+  /* v29: in navigate mode a click is answered by js/pick2d.js FIRST — the
+     feature its hover chip is showing, ranked across every pane — and the
+     pass-through below only sees the clicks it declines (every other mode,
+     and empty ground). Registered before the pass-through so that a handled
+     click stops here. */
+  map.getContainer().addEventListener("click", ev => {
+    if (SBMM.pick2d) SBMM.pick2d.onClick(ev);
+  }, true);
   for (const t of ["click", "dblclick", "contextmenu", "mousemove"])
     map.getContainer().addEventListener(t, passThrough, true);
 
