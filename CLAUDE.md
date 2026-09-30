@@ -381,6 +381,7 @@ terrain source, which needs an explicit decision + README/test update).
 | util.js | formatting, geometry helpers, ramps, toast; `$()` |
 | touch.js | **the three touch profiles, the ONE gesture recogniser, the loupe, the Done bar and the offline copy (v17)** — `SBMM.touch`: `profile()` / `on()` / `override()` / `lastPointer()`, `gestures(el, handlers)`, `momentum`, the shared loupe and Done bar, long-press-as-right-click, the tooltip chip, the map's press-hold vertex placement, the wake lock, the device diagnostics and the `sw.js` client |
 | redline.js | **freehand ink (v17 §5a)** — the `ink` store feature, event-resolution capture with `getCoalescedEvents`, pressure-driven width per vertex, the 6-swatch palette and eraser, the map host and (through `js/sheetmarks.js`) the sheet-window host; `SBMM.redline` |
+| pick2d.js | **v29 — the 2D pick engine**: in Navigate mode ONE answer to "what is under the pointer", asked by the hover and the click alike — ranked candidates across every pane's canvas draw list and every marker element, the lifted symbol / SVG highlight, the name chip `#pickTip`, Tab to cycle, the click fired through `map._fireDOMEvent` on exactly that layer, and the popup's "also here" row; `SBMM.pick2d` |
 | labels.js | **the 2D label engine (v15 §2.2)** — one registry for every permanent map label, dedupe by `key`, a greedy screen-space collision pass by priority, `visibility:hidden` never `display`, per-label zoom `gate()`; `SBMM.labels` |
 | compute.js | **pure** compute kernels (volume grid, rasters, marching squares, ring-aware simplify) — no DOM, no SBMM; runs in workers |
 | jobs.js | worker pool: progress, cancel, transferables; `SBMM.compute` |
@@ -2938,6 +2939,74 @@ The 2025 test pits' 3D depth sticks are coloured by Hg per interval (ROD red,
 PMB amber, below green) inside the SAME `LineSegments` the borings' log colours
 use — a hole with a log keeps its log colours; one with metals but no log gets
 these.
+
+## v29 — the 2D pick engine: what the pointer is over is what the click opens
+
+`js/pick2d.js` (`SBMM.pick2d`); one capture-phase click listener in `js/map.js`
+(registered BEFORE the pass-through), `SBMM.touch.clickSwallowed()`, the `v29`
+block at the end of `css/app.css`, the two-line 3D tip in `js/pick3d.js`. E2E
+block **"9f6. the 2D pick engine (v29)"** (shard 2).
+
+The engineer: *"when I'm hovering over MW-05 it doesn't show anything, and when I
+click on it both the name and the whole popup pop up … sometimes it picks up the
+wrong thing."* Both were the map's own machinery:
+
+- **The wells, borings, pits and storm nodes are MARKER ELEMENTS under the
+  vectors CANVAS**, and the canvas pass-through (`js/map.js`) handed a mousemove
+  only to other canvases — so a marker never saw a hover, and Leaflet's
+  tooltip-on-CLICK (`_initTooltipInteractions` binds `click` as well as
+  `mouseover`) put the name up beside the popup.
+- **A click went to the first thing found from the TOP of the pane stack**, not the
+  nearest: an outline in a higher canvas beat the well under the pointer.
+
+The engine gathers every interactive layer within reach of the pointer — each
+pane renderer's own `_drawFirst` list (circle markers by radius, lines by segment
+distance, polygons by edge distance then containment, with a `_pxBounds` reject
+first) plus a `Set` of `L.Marker`s kept by `layeradd`/`layerremove` — and ranks
+them: **acts on click** (a popup, or a click listener that is not Leaflet's own
+`_openTooltip`, on the layer or an event parent) > **geometry** (point 3, line 2,
+polygon edge 1.5, polygon interior 1, `options.sbmmBack` 0) > screen distance >
+pane z > draw order. 1.3 ms per hover over 23,700 canvas layers with every group
+on, rAF-throttled.
+
+Six things that will be walked into again:
+
+- **NAVIGATE MODE ONLY, and the click listener must stay FIRST.** It is the
+  container's first capture listener so a click it answers stops before the
+  pass-through; a click it declines (another mode, empty ground, a drag of more than
+  4 px, a click on a popup or a control) passes through untouched. Every tool keeps
+  its clicks. **A marker element under a sketch still takes its own click** — that
+  is older than this and block 9f6 asserts only that the ENGINE stayed out.
+- **The click is fired with a TARGETLESS MouseEvent** through
+  `map._fireDOMEvent(e, "click", [layer])` — the same call the canvas renderer
+  makes. With no `target`, `_findEventTargets` adds no DOM target of its own, so the
+  layer (then the map, as Leaflet always does) are the only receivers. Handing it
+  the real event would add whatever element the real event landed on.
+- **Suppress hover tooltips through `openTooltip`, NOT `_openTooltip`.** Every layer
+  bound its `mouseover`/`click` handler to the ORIGINAL `_openTooltip` function when
+  `bindTooltip` ran, so replacing that prototype method later reaches nothing — the
+  first cut did exactly that and the name still opened on click. The handler calls
+  `this.openTooltip()`, which is looked up at call time; the patch returns early for
+  a NON-permanent tooltip while the engine is active. Permanent tooltips (labels)
+  are untouched. The chip renders the layer's OWN tooltip content, so there is one
+  label and it is the one the module wrote.
+- **"Also here" must not call `popup.update()`.** A popup bound to a FUNCTION
+  re-renders its content there and the row vanishes; `_updateLayout` +
+  `_updatePosition` re-measure what is there. It is skipped in field mode (the
+  popup becomes a bottom card), deduplicated by name (a sheet is both a footprint
+  and a raster hit), and the feature being left stays in the next popup's row.
+- **A marker's lift scales its SVG CHILD, never the icon element**: Leaflet
+  positions the element with a `transform` of its own. The canvas highlight is drawn
+  in its own non-interactive SVG pane (`pickhl`, z 480) — nothing reads or writes a
+  layer's style.
+- **A harness pointing at a feature must re-centre after any popup**: a tall popup
+  auto-pans the map out from under the pointer (block 9f6's Tab check failed on
+  exactly that before it re-centred).
+
+A tap is resolved the same way with a wider reach (12 px), and asks
+`SBMM.touch.clickSwallowed()` first so a long-press or loupe placement still eats
+its synthetic click. `SBMM.pick2d.probe(latlng)` and `state()` are the harness
+hooks; `setEnabled(false)` turns the engine off.
 
 ## Undo and redo (v9.4) — the both-closures rule and `readd`
 
