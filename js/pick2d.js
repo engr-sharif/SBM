@@ -29,9 +29,11 @@
         elevation) — the chip must say what the click will do;
      2. geometry: a point beats a line beats a polygon's outline beats a
         polygon's interior; a layer that asked to stay at the back
-        (`options.sbmmBack`, the sheet footprints) is last of all;
-     3. then screen distance; then draw order (the later-drawn wins a tie, as
-        Leaflet's own hit test does).
+        (`options.sbmmBack`, the sheet raster hit) is last of all;
+     3. then screen distance; between two areas the pointer is inside, the
+        SMALLER (a lot's limit of excavation inside its sheet footprint inside
+        a parcel); then draw order (the later-drawn wins a tie, as Leaflet's
+        own hit test does).
 
    Where several actionable things are under the pointer the chip says so and
    Tab cycles them; the popup that opens carries an "also here" row naming the
@@ -157,7 +159,11 @@ SBMM.pick2d = (function () {
           }
         } else continue;
         if (l.options.sbmmBack) geo = 0;
-        out.push({ layer: l, d, geo, z, order, acts: acts(l), el: null });
+        /* nested areas: the smallest one the pointer is inside is the most
+           specific answer — a lot inside a sheet footprint inside a parcel */
+        const bb = l._pxBounds;
+        const area = bb ? (bb.max.x - bb.min.x) * (bb.max.y - bb.min.y) : 0;
+        out.push({ layer: l, d, geo, z, order, area, acts: acts(l), el: null });
       }
     }
     for (const m of markers) {
@@ -170,10 +176,10 @@ SBMM.pick2d = (function () {
       if (d > reach) continue;
       const pane = m._icon.parentNode;
       const z = parseInt((pane && pane.style.zIndex) || 600, 10) || 600;
-      out.push({ layer: m, d, geo: 3, z, order: 1e9, acts: acts(m), el: m._icon });
+      out.push({ layer: m, d, geo: 3, z, order: 1e9, area: 0, acts: acts(m), el: m._icon });
     }
     out.sort((a, b) => (b.acts - a.acts) || (b.geo - a.geo) || (a.d - b.d)
-      || (b.z - a.z) || (b.order - a.order));
+      || (a.geo === 1 ? a.area - b.area : 0) || (b.z - a.z) || (b.order - a.order));
     /* one entry per feature: a feature drawn as two layers (a DU in two parts
        shares a name, a store feature is a group) collapses to its best part */
     const seen = new Set(), uniq = [];
@@ -386,10 +392,13 @@ SBMM.pick2d = (function () {
     const kind = pointerKind();
     let list = candidates(p, REACH[kind] || 5).filter(c => c.acts);
     if (!list.length) { clear(); return false; }
-    /* the one the chip is showing, if the pointer has not left it */
+    /* the one the chip is showing (a Tab choice included) — but only if the
+       chip was computed HERE. A click can land before the hover has caught up
+       with a jump of the pointer, and the chip then still names what was under
+       the PREVIOUS position; honouring that sent a click on a lot to the sheet
+       footprint the pointer had just left. */
     let pick = list[0];
-    if (cur && cur.list[cur.idx] && list.includes(cur.list[cur.idx])) pick = cur.list[cur.idx];
-    else if (cur && cur.list[cur.idx]) {
+    if (cur && cur.list[cur.idx] && Math.hypot(ev.clientX - cur.cx, ev.clientY - cur.cy) <= 3) {
       const same = list.find(c => c.layer === cur.list[cur.idx].layer);
       if (same) pick = same;
     }
