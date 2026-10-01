@@ -109,7 +109,9 @@ Usage
         --out    data/design --datajs datajs
 """
 
-import argparse, base64, json, math, os
+import argparse, base64, json, math, os, sys
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import payload_split  # noqa: E402  (v31: the split payload writer)
 
 import numpy as np
 from PIL import Image
@@ -745,22 +747,12 @@ def main():
     # ONE file (index.html's script list is fixed), several SBMM_DATA keys: the
     # manifest under `cad_surfaces`, and one data-URL per surface under the key
     # its raster.payload names, so a raster is reachable as SBMM_DATA[payload].
-    parts = ['window.SBMM_DATA=window.SBMM_DATA||{};',
-             'SBMM_DATA["cad_surfaces"]='
-             + json.dumps(man, separators=(",", ":")) + ';']
-    total = 0
+    # v31: TWO files, the manifest and the rasters (tools/payload_split.py).
+    rasters = {}
     for key, png in imgs:
         with open(os.path.join(a.out, png), "rb") as f:
-            b64 = base64.b64encode(f.read()).decode()
-        total += len(b64)
-        parts.append(f'SBMM_DATA[{json.dumps(key)}]='
-                     f'"data:image/png;base64,{b64}";')
-    js = "\n".join(parts) + "\n"
-    path = os.path.join(a.datajs, "d_cad_surfaces.js")
-    with open(path, "w") as f:
-        f.write(js)
-    print(f"wrote {path}  {len(js)/1e6:.2f} MB "
-          f"({len(imgs)} rasters, {total/1e6:.2f} MB base64)")
+            rasters[key] = "data:image/png;base64," + base64.b64encode(f.read()).decode()
+    payload_split.write_cad_surfaces(a.datajs, man, rasters)
 
 
 if __name__ == "__main__":

@@ -557,7 +557,8 @@ Dem.loadAll = async function (names, opts) {
     const ms = +(performance.now() - t0).toFixed(1);
     SBMM.perf.demDecode = SBMM.perf.demDecode || {};
     SBMM.perf.demDecode[name] = { ms, worker: viaWorker, mpx: +((meta.w * meta.h) / 1e6).toFixed(1) };
-    if (opts.onOne) opts.onOne(name, { done, total, ms, worker: viaWorker });
+    /* v31: the grid itself rides along — the loading screen draws the site from it */
+    if (opts.onOne) opts.onOne(name, { done, total, ms, worker: viaWorker, dem });
     return dem;
   };
   /* .map starts every job now: each runs synchronously as far as its atob and

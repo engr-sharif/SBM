@@ -166,6 +166,37 @@ const bad  = (n, msg, rows = []) => { fails++; console.log(`FAIL ${n} — ${msg}
   else ok("swurls", "every loose script-src match in index.html is a real file");
 }
 
+/* 5b. v31 — the loading screen's size table ----------------------------- */
+/* js/loader.js carries every script's byte size, in page order, so the bar is
+   real megabytes from the first byte (tools/stamp_sizes.py writes it). A row
+   the page no longer loads, a script the table does not know, or a payload
+   that was regenerated without restamping makes the bar lie — the app's own
+   js/*.js drift by a few kB a commit and that moves nothing, so the size test
+   has a tolerance and the membership test does not. */
+{
+  const html = readFileSync(R("index.html"), "utf8");
+  const lj = readFileSync(R("js/loader.js"), "utf8");
+  const blk = /SBMM_SIZES_BEGIN \*\/\s*var SIZES = (\[[\s\S]*?\]);/.exec(lj);
+  if (!blk) bad("sizes", "js/loader.js has no SBMM_SIZES block", []);
+  else {
+    const rows = JSON.parse(blk[1]);
+    const have = new Set(rows.map(r => r[0]));
+    const tags = [...html.matchAll(/<script src="([^"]+)"><\/script>/g)].map(m => m[1]).filter(f => f !== "js/loader.js");
+    const hb = /SBMM_HEAVY_BEGIN\s*\*\/\s*window\.SBMM_HEAVY\s*=\s*\[([\s\S]*?)\]/.exec(html);
+    const heavy = hb ? [...hb[1].matchAll(/"([^"]+)"/g)].map(m => m[1]) : [];
+    const want = [...tags, ...heavy];
+    const unknown = want.filter(f => !have.has(f));
+    const stale = rows.filter(r => !want.includes(r[0]));
+    const off = rows.filter(r => existsSync(R(r[0]))).map(r => [r[0], r[1], statSync(R(r[0])).size])
+      .filter(([, a, b]) => Math.abs(a - b) > Math.max(200e3, 0.25 * b));
+    if (unknown.length || stale.length || off.length)
+      bad("sizes", "js/loader.js SIZES is stale — run: python3 tools/stamp_sizes.py",
+          [...unknown.map(f => "not in the table: " + f), ...stale.map(r => "no longer loaded: " + r[0]),
+           ...off.map(([f, a, b]) => `${f}: table ${a}, file ${b}`)]);
+    else ok("sizes", `${rows.length} scripts sized for the loading screen`);
+  }
+}
+
 /* 6. no model name in the docs ------------------------------------------ */
 {
   const docs = ["CLAUDE.md", "README.md", "RELEASE_NOTES_v9.md",

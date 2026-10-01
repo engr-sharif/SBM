@@ -92,7 +92,7 @@ window.SBMM_BUILD="full";
   <symbol id="i-drop" viewBox="0 0 16 16"><path d="M8 1.6C5.4 4.6 3.4 7.3 3.4 9.6a4.6 4.6 0 0 0 9.2 0c0-2.3-2-5-4.6-8z"/><path d="M6 9.9a2 2 0 0 0 2 2"/></symbol>
 </defs></svg>
 
-<div class="loading" id="loading"><div class="spin"></div><div id="loadMsg">Loading terrain…</div></div>
+<div class="loading" id="loading"><div class="spin"></div><div id="loadMsg">Loading site data…</div></div>
 
 <div id="topbar">
   <!-- v26 (docs/V26_UI_AUDIT.md §5): one floating bar. The brand is the Home
@@ -558,6 +558,9 @@ window.SBMM_BUILD="full";
       <!-- v13 §3.1: the flow-path particles. Default on, remembered in the same
            localStorage record js/view.js keeps the camera in. -->
       <label class="chk"><input type="checkbox" id="v3dAnimWater" checked> Animate water</label>
+      <!-- v31: the names of the wells, borings, pits, samples and storm structures
+           nearest the camera; default on, remembered with the view prefs -->
+      <label class="chk"><input type="checkbox" id="v3dPtLabels" checked> Point names</label>
       <!-- v26: saved 3D views (camera bookmarks), remembered with the view prefs -->
       <div class="v3dmarks"><div class="v3dmkh">Saved views <button class="minib" id="v3dMarkSave" title="Save the current camera as a named view">save view</button>
         <button class="minib" id="v3dTourBtn" title="One slow orbit of the mine area — any input stops it">fly the site</button></div>
@@ -959,6 +962,10 @@ window.SBMM_BUILD="full";
      is never on screen unlocked. It covers and blocks; boot carries on under it. -->
 <script src="js/gate.js"></script>
 
+<!-- v31: the loading screen is the SECOND script, so it reports the download
+     from the first byte rather than once ~140 MB have parsed (js/loader.js). -->
+<script src="js/loader.js"></script>
+
 <!-- v19.1: js/touch.js is loaded HERE, ahead of the vendor bundles and the
      payloads, because the heavy-payload loader below has to ask it whether this
      is a phone before a single one of them is parsed. It only needs `SBMM` to
@@ -1034,9 +1041,9 @@ window.SBMM_BUILD="full";
 <!-- ===================================================================
      THE HEAVY PAYLOADS — parsed only when this is not a phone (v19.1).
 
-     ONE LIST, three readers: this loader writes the tags, tools/build_dist.py
-     inlines the same list (minus FIELD_EXCLUDE in the field build), and sw.js
-     precaches it. Keep the SBMM_HEAVY_BEGIN/END markers — both of those read
+     ONE LIST, four readers: this loader writes the tags, tools/build_dist.py
+     inlines the same list (minus FIELD_EXCLUDE in the field build), sw.js
+     precaches it, and tools/stamp_sizes.py sizes it for the loading screen. Keep the SBMM_HEAVY_BEGIN/END markers — both of those read
      the array out of this file by regex, exactly as sw.js already reads the
      static <script src> tags, so a fourth copy can never go stale.
 
@@ -1059,7 +1066,9 @@ window.SBMM_HEAVY = [
   "datajs/d_chm.js",
   "datajs/i_chm_png.js",
   "datajs/d_cad_native.js",
+  "datajs/d_cad_native_lazy.js",
   "datajs/d_cad_surfaces.js",
+  "datajs/d_cad_surfaces_rasters.js",
   "datajs/i_sheet_full_C101_jpg.js",
   "datajs/i_sheet_full_C102_jpg.js",
   "datajs/i_sheet_full_C103_jpg.js",
@@ -1100,8 +1109,17 @@ window.SBMM_HEAVY = [
      match that is not a real file. The split also keeps a closing script tag
      out of the source, which is the older rule (js_safe in build_dist.py). */
   var A = '<scr' + 'ipt src="', B = '"></scr' + 'ipt>';
-  for (var i = 0; i < window.SBMM_HEAVY.length; i++)
-    document.write(A + window.SBMM_HEAVY[i] + B);
+  /* v31: the three payloads read only on first use — EA's lazy CAD groups, the
+     design surfaces' rasters and the full-sheet renders, ~59 MB — are NOT
+     written here. js/payloads.js loads them after the app is up; this list is
+     what it loads. Everything else in SBMM_HEAVY is parsed before boot as it
+     always was. */
+  var LATE = /_lazy\.js$|_rasters\.js$|\/i_sheet_full_/;
+  window.SBMM_DEFERRED = [];
+  for (var i = 0; i < window.SBMM_HEAVY.length; i++) {
+    if (LATE.test(window.SBMM_HEAVY[i])) window.SBMM_DEFERRED.push(window.SBMM_HEAVY[i]);
+    else document.write(A + window.SBMM_HEAVY[i] + B);
+  }
 })();
 </script>
 <script>SBMM_PERF.mark("data-sheet-jpg")</script>
@@ -1119,6 +1137,7 @@ window.SBMM_HEAVY = [
 
 <script src="js/compute.js"></script>
 <script src="js/util.js"></script>
+<script src="js/payloads.js"></script>
 <script src="js/jobs.js"></script>
 <script src="js/dem.js"></script>
 <script src="js/tiles.js"></script>

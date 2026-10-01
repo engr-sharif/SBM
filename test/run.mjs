@@ -78,10 +78,10 @@ const STEPS = [
   { name: "split3d:folder", build: "folder", browser: true,  matrix: true,  needs: ["check"],
     cmd: [NODE, [R("test/split3d.mjs"), INDEX, "folder"]], desc: "split-view 3D, folder build" },
   { name: "tablet:file",    build: "folder", browser: true,  matrix: true,  needs: ["check"],
-    cmd: [NODE, [R("test/e2e_tablet.mjs"), INDEX, "tablet", "--skip", "6. the offline copy"]],
+    cmd: [NODE, [R("test/e2e_tablet.mjs"), INDEX, "tablet", "--skip", "6. the offline copy,7. the loading screen"]],
     desc: "the iPad harness over file:// (v17)" },
   { name: "tablet:http",    build: "folder", browser: true,  matrix: true,  needs: ["check"],
-    cmd: [NODE, [R("test/e2e_tablet.mjs"), INDEX, "tablet-http", "--only", "6. the offline copy"]],
+    cmd: [NODE, [R("test/e2e_tablet.mjs"), INDEX, "tablet-http", "--only", "6. the offline copy,7. the loading screen"]],
     desc: "the iPad harness over http:// — manifest, icons, service worker" },
   { name: "phone:http",     build: "folder", browser: true,  matrix: true,  needs: ["check"],
     cmd: [NODE, [R("test/e2e_phone.mjs"), INDEX, "phone"]],
@@ -146,6 +146,7 @@ const SHOTS = [
   ["phone",    [R("test/phone_shots.mjs"), INDEX],           "folder"],
   ["sheets",   [R("test/sheets_shots.mjs"), INDEX],          "folder"],
   ["hydro3",   [R("test/hydro3_shots.mjs"), INDEX],          "folder"],
+  ["loader",   [R("test/loader_shots.mjs"), INDEX],          "folder"],
   ["field",    [R("test/field_shots.mjs"), FIELD],           "field"],
 ];
 for (const [n, args, build] of SHOTS)

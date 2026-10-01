@@ -4,7 +4,7 @@ import { launch, TIMEOUT } from "./lib/browser.mjs";
 import { pathToFileURL as __furl } from "node:url";
 import { resolve as __res } from "node:path";
 import { existsSync as __ex, readFileSync as __read } from "node:fs";
-import { unlock, gatePassword, FORCE_JS } from "./gate.mjs";
+import { unlock, gatePassword, FORCE_JS, lateSettled } from "./gate.mjs";
 import { block, S } from "./lib/blocks.mjs";
 
 const target = process.argv[2]; // path to index.html or dist html
@@ -125,6 +125,7 @@ await page.waitForSelector("#loading", { state: "hidden", timeout: 60000 })
     process.exit(1);
   });
 console.log("boot: OK (loader cleared)");
+await lateSettled(page);
 }, { always: true });
 
 await block("1a. THE PASSWORD GATE", async () => {
@@ -165,6 +166,16 @@ await block("1a. THE PASSWORD GATE", async () => {
 
   /* the app keeps booting underneath the gate — the gate covers, it does not pause */
   await gp.waitForSelector("#loading", { state: "hidden", timeout: 180000 });
+  /* v31: and the gate SAYS so — its card carries one line of the loader's
+     progress (js/loader.js), which reads "Ready" once boot is done */
+  const gl = await gp.evaluate(() => {
+    const g = document.getElementById("gateLoad");
+    return g ? { state: g.dataset.state, text: g.querySelector("span").textContent,
+                 inCard: !!g.closest("#gateCard") } : null;
+  });
+  console.log("gate progress line:", JSON.stringify(gl));
+  if (!gl || !gl.inCard || gl.state !== "done" || gl.text !== "Ready") {
+    console.log("FAIL: the gate card did not carry the loading progress to \"Ready\"", gl); process.exit(1); }
 
   /* nothing reaches the app while it is locked */
   await gp.evaluate(() => {
@@ -6184,6 +6195,112 @@ if (om.added !== 1) { console.log("FAIL: OFFSET did not create the offset line")
 await page.evaluate(() => { SBMM.mode.navigate(); SBMM.map.closePopup(); });
 });
 
+await block("9f8. the loader, the late payloads and 3D point names (v31)", async () => {
+/* v31. The engineer: "it's just hanging on the loading terrain … could we do a
+   much better job of setting up the loading screen … be able to tell if
+   something is going wrong", and "the labels for the points … don't show up in
+   3D". The contracts, in order:
+     1. the loading screen accounted for every byte of the boot it reported, ran
+        every stage to done and decoded every terrain grid;
+     2. the payloads read on first use (EA's lazy CAD groups, the design
+        surfaces' rasters, the 20 full-sheet renders) are NOT part of the folder
+        build's boot and DID arrive after it; a dist inlines them and defers
+        nothing; each one works when it lands;
+     3. in 3D, the names of the points in view nearest the orbit target are on
+        screen, they follow the layer rows and the "Point names" switch, and an
+        idle 3D view still renders nothing. */
+const ld = await page.evaluate(() => {
+  const s = SBMM.loader.stats();
+  return { phase: s.phase, stages: s.stages, bytes: s.bytes, terrain: s.terrain, single: s.singleFile,
+           hidden: getComputedStyle(document.getElementById("loading")).display,
+           late: SBMM.payloads.stats() };
+});
+console.log("v31 loader:", JSON.stringify({ phase: ld.phase, stages: ld.stages, bytes: ld.bytes, single: ld.single,
+  terrain: Object.keys(ld.terrain), late: { deferred: ld.late.deferred, done: ld.late.done, failed: ld.late.failed } }));
+if (ld.phase !== "done" || ld.hidden !== "none") { console.log("FAIL: the loader did not finish and leave", ld); process.exit(1); }
+for (const k of ["net", "check", "terrain", "build"])
+  if (ld.stages[k] !== "done") { console.log(`FAIL: loader stage ${k} is ${ld.stages[k]}, not done`); process.exit(1); }
+for (const k of ["dem_site", "dem_abp"])
+  if (!ld.terrain[k] || !(ld.terrain[k].ms >= 0)) { console.log(`FAIL: the loader did not see ${k} decode`, ld.terrain); process.exit(1); }
+if (!ld.single) {
+  if (!(ld.bytes.expected > 50e6) || ld.bytes.arrived !== ld.bytes.expected) {
+    console.log("FAIL: the loader did not account for the whole boot download", ld.bytes); process.exit(1); }
+  if (ld.bytes.expected > 100e6) { console.log("FAIL: the deferred payloads are being counted in the boot", ld.bytes); process.exit(1); }
+  if (ld.late.deferred !== 22 || ld.late.done !== 22 || ld.late.failed.length) {
+    console.log("FAIL: the deferred payloads did not all arrive after boot", ld.late); process.exit(1); }
+} else if (ld.late.deferred !== 0) { console.log("FAIL: a single-file build deferred a payload", ld.late); process.exit(1); }
+/* each deferred payload works: a lazy CAD group draws, a surface decodes, a drawing opens */
+const lw = await page.evaluate(async () => {
+  const CN = SBMM.CadNative, lazy = (SBMM_DATA.cad_native && SBMM_DATA.cad_native.meta.lazy_groups) || [];
+  /* a lazy group's features live in the deferred half; switching it on has
+     to draw them (the row is busy while it waits, if it ever has to) */
+  const key = lazy[0];
+  let drawn = 0;
+  const feats0 = CN ? CN.features.length : 0;
+  if (key && CN) {
+    const sec = CN.sectionOf(key);
+    SBMM.layerState.set(sec, "cad_" + key, { on: true });
+    for (let i = 0; i < 60 && !drawn; i++) {
+      await new Promise(r => setTimeout(r, 250));
+      drawn = CN.groups[key] ? CN.groups[key].getLayers().length : 0;
+    }
+    SBMM.layerState.set(sec, "cad_" + key, { on: false });
+  }
+  const sid = (SBMM.CadNative.surfaces || [])[0];
+  const surf = sid ? await SBMM.CadNative.surfaceReady(sid.id || sid.key) : null;
+  const sheetOk = !!SBMM_DATA.sheet_full_C107_jpg;
+  { SBMM.sheets.open("C-107"); }
+  await new Promise(r => setTimeout(r, 500));
+  const win = !!document.querySelector('.shwin[data-sheet="C-107"]');
+  SBMM.sheets.closeAll();
+  return { lazyKey: key || null, lazyRows: lazy.length, drawn, featsGained: CN ? CN.features.length - feats0 : 0,
+           surf: !!(surf && surf.z && surf.z.length), sheetOk, win,
+           lazyLeft: SBMM_DATA.cad_native_lazy == null ? "consumed or inlined" : "still a string" };
+});
+console.log("v31 late payloads in use:", JSON.stringify(lw));
+if (lw.lazyKey && !(lw.drawn > 0)) { console.log("FAIL: a lazy CAD group drew nothing after its half arrived", lw); process.exit(1); }
+if (!lw.surf) { console.log("FAIL: a design surface did not decode after its rasters arrived"); process.exit(1); }
+if (!lw.sheetOk || !lw.win) { console.log("FAIL: a full-sheet render did not open after it arrived", lw); process.exit(1); }
+
+/* 3. the point names in 3D */
+const pre = await page.evaluate(async () => {
+  const W = SBMM.datasets.byId("wells"), B = SBMM.datasets.byId("borings2025");
+  const was = [W, B].map(d => SBMM.layerState.isOn(d.rowRef.group || "invest", d.rowRef.id));
+  for (const d of [W, B]) SBMM.layerState.set(d.rowRef.group || "invest", d.rowRef.id, { on: true });
+  const w = W.points.find(q => q.id === "MW-05");
+  await SBMM.viewer3d.openAt(w.x, w.y);
+  return { was, rows: [W, B].map(d => [d.rowRef.group || "invest", d.rowRef.id]) };
+});
+await page.waitForFunction(() => (SBMM.viewer3d.stats().pointLabels.shown || []).includes("MW-05"), null, { timeout: 60000 })
+  .catch(async () => { console.log("FAIL: MW-05 is not named in 3D", JSON.stringify(await page.evaluate(() => SBMM.viewer3d.stats().pointLabels))); process.exit(1); });
+const pl = await page.evaluate(() => SBMM.viewer3d.stats().pointLabels);
+console.log("v31 3D point names:", JSON.stringify({ candidates: pl.candidates, picked: pl.picked, shown: pl.shown.length,
+  sample: pl.shown.slice(0, 8) }));
+if (pl.picked > 40 || pl.shown.length < 5) { console.log("FAIL: the nearest-first pick is off", pl); process.exit(1); }
+/* an idle 3D view still renders nothing */
+const rc0 = await page.evaluate(() => SBMM.viewer3d.stats().renderCount);
+await page.waitForTimeout(2500);
+const rc1 = await page.evaluate(() => SBMM.viewer3d.stats().renderCount);
+console.log("v31 idle renders with point names up:", rc1 - rc0);
+if (rc1 - rc0 > 1) { console.log("FAIL: the point names keep the 3D view rendering"); process.exit(1); }
+/* the "Point names" switch */
+await page.evaluate(() => document.getElementById("v3dPtLabels").click());
+await page.waitForTimeout(300);
+const offS = await page.evaluate(() => SBMM.viewer3d.stats().pointLabels);
+await page.evaluate(() => document.getElementById("v3dPtLabels").click());
+await page.waitForFunction(() => SBMM.viewer3d.stats().pointLabels.shown.includes("MW-05"), null, { timeout: 30000 });
+if (offS.on || offS.picked !== 0) { console.log("FAIL: switching point names off left names up", offS); process.exit(1); }
+/* a row switched off takes its names with it */
+await page.evaluate(([g, l]) => SBMM.layerState.set(g, l, { on: false }), pre.rows[0]);
+await page.waitForFunction(() => !SBMM.viewer3d.stats().pointLabels.shown.some(t => /^MW-|^PZ-|^HP/.test(t)), null, { timeout: 30000 })
+  .catch(async () => { console.log("FAIL: the wells' names stayed up with the wells row off", JSON.stringify(await page.evaluate(() => SBMM.viewer3d.stats().pointLabels.shown))); process.exit(1); });
+console.log("v31 point names follow the switch and the rows: OK");
+await page.evaluate(p => {
+  p.rows.forEach(([g, l], i) => SBMM.layerState.set(g, l, { on: p.was[i] }));
+  if (SBMM.viewer3d.isOpen()) SBMM.viewer3d.toggle();
+}, pre);
+});
+
 await block("9x. drainage", async () => {
 /* 9x. drainage — the whole-site catchment map (v14, docs/V14_DRAINAGE_SPEC.md) */
 /* ==================================================================== */
@@ -10301,6 +10418,7 @@ await page.waitForTimeout(400);
 errBeforeReload = errors.length;
 await page.reload();
 await page.waitForSelector("#loading", { state: "hidden", timeout: 300000 });
+await lateSettled(page);
 await page.evaluate(() => SBMM.layersPanel && SBMM.layersPanel.show("catalog"));
 /* v18: wait on the CONDITION, not on a clock. The rows re-register and the
    tree re-applies its draw order after the loader hides, and under a parallel
