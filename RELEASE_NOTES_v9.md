@@ -17,6 +17,38 @@ All three are offline-only by design. Nothing in this app calls out to the inter
 
 ---
 
+## v9.38 — a loading screen that tells you what it is doing (2026-10-01)
+
+**The app opens faster.** The first visit used to download about 142 MB before it
+could start. Three things you only need when you open them now load just after the
+app is up instead: EA's CAD linework in full, the recovered design surfaces, and the
+full sheet drawings. The wait is about 82 MB. A small chip at the top of the screen
+shows them arriving, and goes away when they are in. Opening a drawing in the first
+seconds says "still loading" and opens it the moment it lands.
+
+**The loading screen shows the real progress.** It shows megabytes as they arrive,
+the speed and the time left, which file is on its way ("site terrain · 2 ft ·
+14 MB"), then the four terrain grids decoding, each with its own time. The site
+itself is drawn on the panel, shaded and contoured, as soon as its terrain exists.
+
+**And it tells you when something is wrong.** If nothing arrives for longer than the
+file and the speed explain, it says so, names the file, and offers Reload — files
+already downloaded come back from the browser's cache. If a file is missing, it
+says which one. Copy diagnostics puts everything it knows on the clipboard for a
+report.
+
+**It loads while you type the password.** The data was always downloading behind the
+password screen. Now the password card shows it: "Loading site data · 38 of 82 MB",
+then "Ready". If it is still loading when you get in, the loading screen picks up
+where it is.
+
+**Names on wells and borings in 3D.** The 3D view now names the points around what
+you are looking at: wells, borings, test pits, samples and storm structures. It
+shows about forty at a time, nearest first, and never on top of each other. They
+follow the layer switches, and *Point names* in the 3D view settings turns them off.
+
+---
+
 ## v9.37 — measure to a well (2026-10-01)
 
 **Every drawing and measuring tool now takes the click you aim at a feature.**

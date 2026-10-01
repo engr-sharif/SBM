@@ -56,18 +56,35 @@ SBMM.CadNative = (function () {
 
   /* The deferred half. Parsed at most once, on the first enable of any lazy
      group — not at boot, which is the whole point of shipping it as a string. */
+  /* v31: the string is its own payload, `SBMM_DATA.cad_native_lazy`
+     (datajs/d_cad_native_lazy.js), which the folder build loads AFTER the app
+     is up (js/payloads.js). `D.lazy` is the pre-v31 shape and is still read. */
+  function lazyText() {
+    if (!D) return null;
+    if (D.lazy) return D.lazy;
+    const k = D.lazy_payload;
+    return (k && window.SBMM_DATA && SBMM_DATA[k]) || null;
+  }
   function ensureLazy() {
-    if (lazyParsed || !D || !D.lazy) return;
+    if (lazyParsed) return;
+    const txt = lazyText();
+    if (!txt) return;
     lazyParsed = true;
     let list = [];
     try {
-      list = JSON.parse(D.lazy);
+      list = JSON.parse(txt);
     } catch (e) {
       toast("EA CAD: deferred layers failed to parse");
       return;
     }
     D.lazy = null;                       // 20 MB nothing reads twice
+    if (D.lazy_payload && window.SBMM_DATA) SBMM_DATA[D.lazy_payload] = null;
     index(list);
+  }
+  /* the lazy half is still on its way — the row's busy state covers the wait */
+  function lazyPending() {
+    return !lazyParsed && !lazyText() && D && D.lazy_payload &&
+      SBMM.payloads && SBMM.payloads.pending(D.lazy_payload);
   }
 
   function isLazy(key) {
@@ -195,8 +212,13 @@ SBMM.CadNative = (function () {
     }
   }
 
-  function render(key) {
+  async function render(key) {
     if (built[key]) return;
+    if (isLazy(key) && lazyPending()) {
+      try { await SBMM.payloads.when(D.lazy_payload); }
+      catch (e) { toast("EA CAD: the deferred layers did not load — reload to try again"); return; }
+      if (built[key]) return;
+    }
     if (isLazy(key)) ensureLazy();
     built[key] = true;
     const grp = groups[key];
@@ -385,6 +407,15 @@ SBMM.CadNative = (function () {
     if (surfCache[id]) return surfCache[id];
     if (surfPending[id]) return surfPending[id];
     const m = surfaceMeta(id);
+    const key = m && m.raster && m.raster.payload;
+    /* v31: the rasters are their own payload (d_cad_surfaces_rasters.js), which
+       the folder build loads after the app is up — wait for it, once */
+    if (m && !surfaceRasterURL(m) && key && SBMM.payloads && SBMM.payloads.pending(key)) {
+      surfPending[id] = SBMM.payloads.when(key)
+        .then(() => { surfPending[id] = null; return loadSurface(id); },
+              () => { surfPending[id] = null; toast(`EA surface "${id}" did not load`); return null; });
+      return surfPending[id];
+    }
     const url = surfaceRasterURL(m);
     if (!m || !url) return null;
     const r = m.raster || m;                    // §5 nests the header

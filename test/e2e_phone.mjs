@@ -44,7 +44,7 @@ import { resolve as __res, dirname, join, extname } from "node:path";
 import { readFileSync, statSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { createServer } from "node:http";
-import { unlock } from "./gate.mjs";
+import { unlock, lateSettled } from "./gate.mjs";
 import { block, S } from "./lib/blocks.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -299,6 +299,7 @@ const p = await page.evaluate(() => ({
   skipped: !!window.SBMM_HEAVY_SKIPPED,
   listed: (window.SBMM_HEAVY || []).length,
   cad_native: typeof SBMM_DATA.cad_native,
+  cad_native_lazy: typeof SBMM_DATA.cad_native_lazy,
   cad_surfaces: typeof SBMM_DATA.cad_surfaces,
   chm: typeof SBMM_DATA.chm,
   chm_png: typeof SBMM_DATA.chm_png,
@@ -311,13 +312,15 @@ const p = await page.evaluate(() => ({
   sheetsIndex: typeof SBMM_DATA.sheets_full
 }));
 if (!p.skipped) fail("the heavy-payload loader did not skip on a phone", p);
-if (p.listed !== 24) fail("SBMM_HEAVY is not the 24 payloads FIELD_EXCLUDE names", p);
-for (const k of ["cad_native", "cad_surfaces", "chm", "chm_png"])
+/* v31 split the two CAD payloads into a boot half and a deferred half
+   (tools/payload_split.py), so the list is 26 entries for the same bytes */
+if (p.listed !== 26) fail("SBMM_HEAVY is not the 26 payloads FIELD_EXCLUDE names", p);
+for (const k of ["cad_native", "cad_native_lazy", "cad_surfaces", "chm", "chm_png"])
   if (p[k] !== "undefined") fail(`SBMM_DATA.${k} is present on a phone`, p);
 if (p.sheetFulls !== 0) fail("full-sheet renders are present on a phone", p);
 for (const k of ["demSite", "designGis", "storm", "cover", "sheetsIndex"])
   if (p[k] === "undefined") fail(`SBMM_DATA.${k} is MISSING on a phone — the field build keeps it`, p);
-console.log(`24 heavy payloads skipped · terrain, design GIS, storm, cover and the sheet index all present`);
+console.log(`26 heavy payloads skipped · terrain, design GIS, storm, cover and the sheet index all present`);
 
 /* the 2025 boring logs are ~300 kB and are NOT a heavy payload: they ride in a
    plain script tag and a phone keeps them, which is the whole reason they are
@@ -502,6 +505,10 @@ await unlock(p2);
 await p2.goto(HTTP);
 await p2.waitForSelector("#loading", { state: "hidden", timeout: 240000 });
 await p2.waitForTimeout(1200);
+/* v31: three of them — EA's lazy CAD half, the surfaces' rasters and the full
+   sheets — arrive AFTER the loader hides on a tablet as on a desktop
+   (js/payloads.js); "carries the payloads" means once those have landed */
+await lateSettled(p2);
 const t2 = await p2.evaluate(() => ({
   profile: SBMM.touch.profile(), skipped: !!window.SBMM_HEAVY_SKIPPED,
   cad_native: typeof SBMM_DATA.cad_native, chm: typeof SBMM_DATA.chm,

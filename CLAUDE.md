@@ -31,7 +31,8 @@ replace the chat history that built v1–v9. `RELEASE_NOTES_v9.md` is the user-f
    - **Field build** (v11 §4.2): `python tools/build_dist.py --field` →
      `dist/SBMM_Site_Explorer_field.html` (~65 MB — the copy that opens on a phone).
      Same source, same inlining, ONE exclusion list in `FIELD_EXCLUDE`: the 20
-     `i_sheet_full_*` renders, `i_chm_png` + `d_chm`, `d_cad_surfaces`, `d_cad_native`.
+     `i_sheet_full_*` renders, `i_chm_png` + `d_chm`, `d_cad_surfaces` (+ its v31
+     `_rasters` half), `d_cad_native` (+ its v31 `_lazy` half).
      Everything else stays, the sheet MANIFEST included.
      **Payload-tolerance rule: every module that reads an excluded payload must
      degrade with a row, a note or a toast — never an error, and never silence.**
@@ -378,7 +379,9 @@ terrain source, which needs an explicit decision + README/test update).
 | file | owns |
 |---|---|
 | gate.js | **the password gate** — the FIRST script in `index.html`, before the vendor bundles and the payloads. Full-viewport cover at z 9000, SHA-256 check, remembered unlock, the animated contour field and the flood/reveal unlock |
+| loader.js | **v31 — the loading screen**, the SECOND script: real megabytes from the first byte (the `SIZES` table `tools/stamp_sizes.py` writes), the file on its way, the rate and time left, the four stages with a chip per terrain grid, the site's relief drawn on the plate from the decoded 2-ft DEM, the stall / retry / "couldn't start" panel with Reload and Copy diagnostics, the one-line copy on the gate card (`#gateLoad`) and the after-boot chip for the deferred payloads (`#ldLate`); `SBMM.loader`, driven by `js/boot.js` |
 | util.js | formatting, geometry helpers, ramps, toast; `$()` |
+| payloads.js | **v31 — the deferred payloads**: EA's lazy CAD half, the design surfaces' rasters and the 20 full-sheet renders, loaded one at a time AFTER the app is up by `<script src>` injection; `pending(key)` / `when(key)` (which jumps the queue) / `settled()` / `stats()` and the `payload` event; `SBMM.payloads` |
 | touch.js | **the three touch profiles, the ONE gesture recogniser, the loupe, the Done bar and the offline copy (v17)** — `SBMM.touch`: `profile()` / `on()` / `override()` / `lastPointer()`, `gestures(el, handlers)`, `momentum`, the shared loupe and Done bar, long-press-as-right-click, the tooltip chip, the map's press-hold vertex placement, the wake lock, the device diagnostics and the `sw.js` client |
 | redline.js | **freehand ink (v17 §5a)** — the `ink` store feature, event-resolution capture with `getCoalescedEvents`, pressure-driven width per vertex, the 6-swatch palette and eraser, the map host and (through `js/sheetmarks.js`) the sheet-window host; `SBMM.redline` |
 | pick2d.js | **v29 — the 2D pick engine**: in Navigate mode ONE answer to "what is under the pointer", asked by the hover and the click alike — ranked candidates across every pane's canvas draw list and every marker element, the lifted symbol / SVG highlight, the name chip `#pickTip`, Tab to cycle, the click fired through `map._fireDOMEvent` on exactly that layer, and the popup's "also here" row; **v30**: in any tool mode a click goes to the tool as a map click at the pointer (`toolClick`); `SBMM.pick2d` |
@@ -3058,6 +3061,118 @@ In 3D a tool click asks `SBMM.pick3d.snapPoint(e)` first — a POINT-priority hi
 own plan coordinates — and falls back to the terrain raycast. In a tool mode the
 layers' hover tooltips are suppressed like in Navigate (the snap chip is the
 label) and `.leaflet-interactive` keeps the crosshair rather than a pointer.
+
+## v31 — the loading screen, the late payloads, and names in 3D
+
+`js/loader.js` (`SBMM.loader`), `js/payloads.js` (`SBMM.payloads`),
+`tools/stamp_sizes.py`, `tools/payload_split.py` + `tools/split_payloads.py`, the
+`v31` block at the end of `css/app.css`, the point-name section of
+`js/viewer3d.js`. E2E block **"9f8. the loader, the late payloads and 3D point
+names (v31)"** (shard 2), the gate-line assertion in block **1a**, tablet block
+**"7. the loading screen over http"** (runner step `tablet:http`); shots
+`test/loader_shots.mjs` (`shots:loader`).
+
+The engineer: *"it's just hanging on the loading terrain … could we do a much
+better job of setting up the loading screen … be able to tell if something is
+going wrong"*, *"why not have the files load in the background as the user is
+typing … on the login screen"*, and *"the labels for the points … don't show up
+in 3D"*.
+
+**What was wrong.** "Loading terrain…" was static HTML. Nothing could change it
+until every script in the page had downloaded and parsed — ~142 MB on a first
+visit to GitHub Pages — so a slow connection, a stalled one and a broken one
+looked identical. And the payloads already DID download under the password gate
+(the gate covers, it never paused boot); it just never said so.
+
+**Now.** The boot is **82 MB, not 142**, and the screen reports it:
+
+- **The download is counted in real bytes from the first one.** `js/loader.js`
+  is the SECOND script (after `js/gate.js`) and carries `SIZES` — every script
+  the page loads, in page order, with its byte size and a kind (`""` a static
+  tag, `"h"` heavy and skipped on a phone, `"d"` deferred and not in the boot
+  at all). **Run `python3 tools/stamp_sizes.py` after adding a script or
+  regenerating a payload**; `test/check.mjs`'s **`sizes`** check fails on a
+  script the table does not know, a row the page no longer loads, or a size off
+  by more than max(200 kB, 25 %) — the app's own `js/*.js` drift a few kB a
+  commit and that moves no bar.
+- **Four stages** (download or read, check, the four terrain grids each with its
+  own chip and time, build), weighted into one bar; the plate draws **the real
+  site** — hillshaded and contoured from a decimated read of the 2-ft DEM the
+  moment `dem_site` decodes (`Dem.loadAll`'s `onOne` now hands the grid over) —
+  revealed by a composited transform so it moves while the main thread builds.
+- **What is wrong, said in words**: a script that failed (and that boot will
+  retry it), a download quiet for longer than the waiting file's size at the
+  measured rate explains (`max(15 s, 2.5 × expected + 8 s)`, 2 MB/s assumed
+  before there is a rate), and boot's own "Couldn't start" — naming the files
+  that did not load — each with **Reload** and **Copy diagnostics** (a JSON of
+  the stages, the bytes, the file being waited on, the deferred state, the perf
+  marks).
+- **The gate card carries one line of it** (`#gateLoad`): "Loading site data ·
+  38 of 82 MB", then "Decoding terrain…", "Ready". After an unlock the gate's
+  reveal uncovers the loader only if the work is not done.
+- `boot.js` drives it (`booting`, `checked(want)`, `dem(name, info)`,
+  `terrainDone`, `done`, `fail`); a build without `js/loader.js` still gets the
+  old message line. **`#loading` still ends `display:none`** — every harness
+  waits on that — after a 0.5 s fade.
+
+**The late payloads** — read only on first use, so they load AFTER the app is
+up, one at a time at idle (`js/payloads.js`): EA's lazy CAD groups (21 MB), the
+recovered surfaces' rasters (11 MB) and the 20 full-sheet renders (27 MB).
+
+- **The two CAD payloads are SPLIT IN TWO FILES each**: `d_cad_native.js` (the
+  eager core, 0.8 MB, now naming `lazy_payload`) + `d_cad_native_lazy.js` (the
+  JSON string), and `d_cad_surfaces.js` (the 18-kB manifest) +
+  `d_cad_surfaces_rasters.js`. Both builders write through ONE module,
+  `tools/payload_split.py` (stdlib only — the builders' own ezdxf/numpy/PIL are
+  not needed to write); `tools/split_payloads.py` made the split from the
+  pre-v31 payloads, and the halves reassemble to the old ones exactly.
+  `FIELD_EXCLUDE` names all four; `SBMM_HEAVY` is 26 entries (the phone harness
+  asserts 26).
+- **index.html's heavy loader decides which are late** with ONE regex
+  (`LATE = /_lazy\.js$|_rasters\.js$|\/i_sheet_full_/`), which
+  `tools/stamp_sizes.py` repeats to mark them `"d"`; it records them in
+  `window.SBMM_DEFERRED` instead of `document.write`-ing them. A single-file
+  dist inlines everything and defers nothing; a phone skips them all (v19.1).
+- **Every reader waits, never refuses**: `js/cadnative.js` `render()` awaits the
+  lazy half (the row's busy state covers it); `loadSurface()` awaits the rasters;
+  a sheet's `url` and `loading` are GETTERS on the index (a value cached at the
+  first `index()` said "no render" for a drawing a second away), `open()` on a
+  pending sheet toasts "still loading — it opens when it lands" and opens it when
+  it does, and the Sheets tab shows "loading" and re-renders on the `payload`
+  event. `SBMM.payloads.when(key)` moves that file to the front of the queue.
+- **Measured: no long task after boot.** A dynamically inserted script is
+  streamed and parsed off the main thread; the 21 MB string costs the user
+  nothing while they work.
+- **Harnesses wait on them**: `lateSettled(page)` in `test/gate.mjs`, called
+  after the boot wait in `test/e2e.mjs` (block 1 and 9z's reload),
+  `test/e2e_tablet.mjs`, `test/e2e_phone.mjs` block 6, `split3d`, `perf`,
+  `audit`, `audit2` — so every assertion written before the deferral reads the
+  app it was written against. A new harness that opens a drawing or a lazy CAD
+  group at once needs it too.
+
+**Names on points in 3D.** Nothing ever handed the 3D label layer a point's
+name. `rebuildOverlays` now collects a candidate for every point of every row
+that is on (the datasets, the samples, the storm structures); once the camera
+SETTLES the **40 nearest the ORBIT TARGET** that are in view become the label
+source `points` (priority 20, under every water/spill/annotation label), and
+the collision pass does the rest. `LBL_MAX` is 120 and the chip cache 260.
+
+Four things that will be walked into again:
+
+- **An element's `load` event never reaches `window`** — the spec gives a load
+  event no parent past the document — and over `file://` there are no Resource
+  Timing entries at all. The loader listens on `document` in the capture phase,
+  and counts the scripts already in the page when it starts (`js/gate.js`).
+  The first cut listened on window and counted 0 bytes over file://.
+- **A 404 is a Resource Timing entry too.** `responseStatus >= 400` is not an
+  arrival, and an `error` un-counts a file the entry already counted.
+- **"Nearest the camera" is the wrong ranking for names**: in a tilted view
+  those are the points along the bottom edge. Rank by the orbit target.
+- **"Moved" is the camera POSE, not `nav.update()`**: a programmatic flight
+  (`openAt`, a bookmark, Look at…) moves the camera without the rig reporting a
+  gesture, and the first cut picked its names from the pose before the flight.
+  The pose check is one sum per frame and asks for no frame; an idle 3D view
+  still renders nothing (block 9f8 and 9e assert it).
 
 ## Undo and redo (v9.4) — the both-closures rule and `readd`
 

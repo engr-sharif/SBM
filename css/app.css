@@ -2,7 +2,8 @@
    Overlay stacking order — one place, so a new panel does not have to guess.
      1100-1400  docks, drawers, topbar, status bar, command bar
      2300-2700  popovers, layer menus, the map context menu
-     3000       the boot loader (nothing else exists yet)
+     1450       v31: the after-boot chip for the deferred payloads (#ldLate)
+     3000       the boot loader (nothing else exists yet) — js/loader.js
      4000-4899  floating sheet-viewer windows (js/sheets.js re-stacks inside
                 this band so a long session can never climb past it)
      5200       the SHEETS picker — above the windows it opens
@@ -2968,3 +2969,152 @@ details.lmmore summary{cursor:pointer;font-size:11px;color:var(--mut);margin-top
    something", which in a tool it no longer does (js/pick2d.js toolClick) */
 #stage[data-cursor="crosshair"] #map .leaflet-interactive,
 #stage[data-cursor="crosshair"] #map .leaflet-marker-icon{cursor:crosshair !important}
+
+/* ===========================================================================
+   v31 — the loading screen (js/loader.js). Everything is scoped .ldv31, which
+   the loader adds when it takes #loading over; the plain .loading rules above
+   are the fallback a build without js/loader.js still shows.
+   =========================================================================== */
+.loading.ldv31{background:var(--bg);color:var(--ink2);gap:0;overflow:hidden;
+  transition:opacity .5s var(--ease)}
+.ldv31 .ldfield{position:absolute;inset:0;width:100%;height:100%;display:block}
+.ldv31 .ldvig{position:absolute;inset:0;pointer-events:none;
+  background:radial-gradient(110% 85% at 50% 45%,rgba(0,0,0,0) 26%,rgba(6,10,13,.55) 70%,rgba(6,10,13,.88) 100%)}
+.ldv31 .ldcard{position:relative;width:min(92vw,452px);padding:24px 26px 18px;
+  background:linear-gradient(180deg,rgba(30,42,49,.86),rgba(17,25,30,.92));
+  border:1px solid rgba(124,208,230,.18);border-radius:14px;
+  box-shadow:0 24px 70px rgba(0,0,0,.6),0 0 0 1px rgba(0,0,0,.35),inset 0 1px 0 rgba(255,255,255,.05);
+  backdrop-filter:blur(9px) saturate(115%);-webkit-backdrop-filter:blur(9px) saturate(115%);
+  animation:ldin .55s var(--ease) both;transition:transform .5s var(--ease),opacity .45s var(--ease),filter .5s var(--ease)}
+@keyframes ldin{from{opacity:0;transform:translateY(12px) scale(.985)}to{opacity:1;transform:none}}
+.loading.ldv31.ldout{opacity:0;pointer-events:none}
+.ldv31.ldout .ldcard{transform:translateY(-14px) scale(.975);filter:blur(5px)}
+
+.ldv31 .ldhead{display:flex;align-items:center;gap:11px}
+.ldv31 .ldlogo{width:30px;height:30px;flex:none;fill:#123440;stroke:#2F6E80}
+.ldv31 .ldlogo path{fill:none;stroke:var(--acc2);stroke-width:1.3;stroke-linecap:round}
+.ldv31 .ldhead b{display:block;font-size:15px;font-weight:700;color:var(--ink);letter-spacing:.2px}
+.ldv31 .ldhead b span{color:var(--acc);font-weight:600}
+.ldv31 .ldhead small{display:block;font-size:11px;color:var(--mut);margin-top:1px}
+
+/* the plate: a survey sheet that the real ground is drawn onto */
+.ldv31 .ldplate{position:relative;height:206px;margin:16px 0 14px;border-radius:10px;overflow:hidden;
+  background:radial-gradient(120% 120% at 30% 20%,#13202a,#0a1116);
+  border:1px solid rgba(124,208,230,.16);box-shadow:inset 0 0 0 1px rgba(0,0,0,.4),inset 0 10px 30px rgba(0,0,0,.35)}
+.ldv31 .ldgrid{position:absolute;inset:0;pointer-events:none;opacity:.55;transition:opacity .8s var(--ease);
+  background-image:linear-gradient(rgba(124,208,230,.07) 1px,transparent 1px),
+                   linear-gradient(90deg,rgba(124,208,230,.07) 1px,transparent 1px);
+  background-size:24px 24px;background-position:-1px -1px}
+.ldv31 .ldrelief{position:absolute;inset:0;width:100%;height:100%;display:block}
+/* the veil slides off to the east and its leading edge is the scan line, so
+   the ground appears to be drawn; a transform, so it runs on the compositor */
+.ldv31 .ldveil{position:absolute;inset:0;background:radial-gradient(120% 120% at 30% 20%,#13202a,#0a1116);
+  transform:translateX(0);will-change:transform}
+.ldv31 .ldveil i{position:absolute;left:0;top:0;bottom:0;width:2px;opacity:0;
+  background:linear-gradient(180deg,transparent,var(--acc2) 18%,var(--acc2) 82%,transparent);
+  box-shadow:0 0 14px 2px rgba(92,192,219,.6)}
+.ldv31 .ldplate.hasrelief .ldveil{transform:translateX(101%);transition:transform 1.5s cubic-bezier(.45,.05,.25,1)}
+.ldv31 .ldplate.hasrelief .ldveil i{opacity:1}
+.ldv31 .ldplate.hasrelief .ldgrid{opacity:.18}
+/* before there is ground: a scan band sweeping the empty sheet */
+.ldv31 .ldsweep{position:absolute;top:0;bottom:0;width:38%;left:-38%;pointer-events:none;
+  background:linear-gradient(90deg,transparent,rgba(92,192,219,.10) 60%,rgba(139,216,234,.28) 98%,transparent);
+  animation:ldsweep 2.6s cubic-bezier(.45,.05,.55,.95) infinite}
+.ldv31 .ldplate.hasrelief .ldsweep{display:none}
+@keyframes ldsweep{to{transform:translateX(365%)}}
+.ldv31 .ldcap{position:absolute;right:8px;bottom:6px;font-size:10px;color:rgba(198,211,218,.75);
+  text-shadow:0 1px 2px rgba(0,0,0,.8);opacity:0;transition:opacity .6s var(--ease) 1.2s}
+.ldv31 .ldplate.hasrelief .ldcap{opacity:1}
+
+.ldv31 .ldbar{position:relative;height:4px;border-radius:2px;background:rgba(124,208,230,.12);overflow:hidden}
+/* the fill is a WIDTH, not a scale, so the shimmer inside it keeps its shape;
+   a 4-px bar is one cheap layout per paint */
+.ldv31 .ldbar i{position:absolute;left:0;top:0;bottom:0;width:0;overflow:hidden;border-radius:2px;
+  background:linear-gradient(90deg,var(--acc),var(--acc2));transition:width .45s var(--ease)}
+.ldv31 .ldbar i::after{content:"";position:absolute;top:0;bottom:0;width:80px;left:-80px;
+  background:linear-gradient(90deg,transparent,rgba(255,255,255,.45),transparent);
+  animation:ldshim 1.6s linear infinite}
+@keyframes ldshim{to{left:100%}}
+.ldv31[data-phase="failed"] .ldbar i{background:var(--bad)}
+.ldv31[data-phase="failed"] .ldsweep,.ldv31[data-phase="failed"] .ldbar i::after{display:none}
+.ldv31 .ldnums{display:flex;justify-content:space-between;align-items:baseline;margin-top:7px}
+.ldv31 .ldpct{font-size:18px;font-weight:650;color:var(--ink);letter-spacing:.2px}
+.ldv31 .ldbytes{font-size:11px;color:var(--mut)}
+
+.ldv31 .ldstages{list-style:none;margin:12px 0 0;padding:10px 0 0;border-top:1px solid rgba(124,208,230,.10)}
+.ldv31 .ldst{display:grid;grid-template-columns:18px 1fr auto;align-items:center;column-gap:9px;
+  padding:4px 0;font-size:12.5px;color:var(--ink2);transition:opacity .3s var(--ease),color .3s var(--ease)}
+.ldv31 .ldst[data-state="wait"]{opacity:.42}
+.ldv31 .ldst[data-state="done"]{color:var(--mut)}
+.ldv31 .ldval{font-size:11px;color:var(--mut);white-space:nowrap}
+.ldv31 .ldsub{grid-column:2 / 4;font-size:10.5px;color:var(--mut2);margin-top:2px;min-height:13px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ldv31 .ldst[data-state="done"] .ldsub{display:none}
+.ldv31 .ldic{width:16px;height:16px;border-radius:50%;border:1.5px solid var(--line2);position:relative;
+  display:grid;place-items:center}
+.ldv31 .ldic svg{width:12px;height:12px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.ldv31 .ldst[data-state="active"] .ldic{border-color:rgba(92,192,219,.25);border-top-color:var(--acc);
+  animation:sp .8s linear infinite}
+.ldv31 .ldst[data-state="done"] .ldic{border-color:var(--acc);background:rgba(92,192,219,.14);color:var(--acc2)}
+.ldv31 .ldst[data-state="warn"] .ldic{border-color:var(--warn);color:var(--warn);animation:none}
+.ldv31 .ldst[data-state="fail"] .ldic{border-color:var(--bad);color:var(--bad);animation:none}
+.ldv31 .ldst[data-state="warn"] .ldname{color:var(--warn)}
+.ldv31 .ldst[data-state="fail"] .ldname{color:var(--bad)}
+.ldv31 .ldchips{grid-column:2 / 4;display:flex;flex-wrap:wrap;gap:5px;margin-top:5px}
+.ldv31 .ldchip{display:inline-flex;align-items:center;gap:5px;font-size:10.5px;padding:2px 8px 2px 6px;
+  border-radius:20px;border:1px solid var(--line);color:var(--mut);transition:all .3s var(--ease)}
+.ldv31 .ldchip i{width:6px;height:6px;border-radius:50%;background:var(--line2)}
+.ldv31 .ldchip b{font-weight:500;color:var(--mut2)}
+.ldv31 .ldchip[data-state="active"]{border-color:rgba(92,192,219,.35);color:var(--ink2)}
+.ldv31 .ldchip[data-state="active"] i{background:var(--acc);animation:ldpulse 1.1s ease-in-out infinite}
+.ldv31 .ldchip[data-state="done"]{border-color:rgba(92,192,219,.45);color:var(--ink2);background:rgba(92,192,219,.08)}
+.ldv31 .ldchip[data-state="done"] i{background:var(--acc2)}
+.ldv31 .ldchip[data-state="skip"]{opacity:.35;text-decoration:line-through}
+@keyframes ldpulse{50%{opacity:.25;transform:scale(.7)}}
+
+.ldv31 .ldmsg{margin-top:10px;min-height:16px;font-size:11.5px;color:var(--mut)}
+.ldv31 .ldwarn{margin-top:10px;padding:10px 12px;border-radius:8px;font-size:12px;line-height:1.5;color:var(--ink2);
+  background:rgba(230,169,63,.08);border:1px solid rgba(230,169,63,.42)}
+.ldv31 .ldwarn[data-kind="fail"]{background:rgba(229,88,76,.09);border-color:rgba(229,88,76,.55)}
+.ldv31 .ldwdet{margin-top:8px;max-height:150px;overflow:auto;font-size:10.5px;color:var(--mut);
+  background:rgba(0,0,0,.25);border-radius:6px;padding:7px 9px;white-space:pre-wrap}
+.ldv31 .ldacts{display:flex;gap:8px;margin-top:9px}
+.ldv31 .ldacts button{height:28px;padding:0 12px;font:inherit;font-size:12px;font-weight:600;cursor:pointer;
+  border-radius:var(--r2);border:1px solid var(--line2);background:rgba(255,255,255,.04);color:var(--ink)}
+.ldv31 .ldacts button[data-ld="reload"]{background:var(--acc);border-color:var(--acc);color:#06222C}
+.ldv31 .ldacts button:hover{filter:brightness(1.1)}
+
+/* the same progress, one line, on the password card (js/gate.js is above) */
+#gateLoad{margin-top:14px;text-align:left}
+#gateLoad .glbar{position:relative;height:2px;border-radius:1px;background:rgba(124,208,230,.12);overflow:hidden}
+#gateLoad .glbar i{position:absolute;inset:0;transform-origin:0 50%;transform:scaleX(0);
+  background:linear-gradient(90deg,var(--acc),var(--acc2));transition:transform .45s var(--ease)}
+#gateLoad span{display:block;margin-top:6px;font-size:10.5px;color:var(--mut2)}
+#gateLoad[data-state="done"] span{color:var(--acc2)}
+#gateLoad[data-state="failed"] span{color:var(--bad)}
+
+/* after boot: the deferred payloads, as one quiet chip */
+#ldLate{position:absolute;z-index:1450;left:50%;top:calc(var(--topH) + 26px);transform:translateX(-50%);
+  display:flex;align-items:center;gap:8px;padding:6px 12px 6px 10px;border-radius:20px;
+  font-size:11.5px;color:var(--ink2);background:var(--glass);border:1px solid var(--glassb);
+  box-shadow:var(--sh2);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
+  pointer-events:auto;transition:opacity .45s var(--ease),transform .45s var(--ease);animation:ldin .4s var(--ease) both}
+#ldLate.out{opacity:0;transform:translateX(-50%) translateY(-8px)}
+#ldLate .ldspin{width:11px;height:11px;border-radius:50%;border:1.5px solid rgba(92,192,219,.25);
+  border-top-color:var(--acc);animation:sp .8s linear infinite}
+#ldLate i{display:block;width:56px;height:3px;border-radius:2px;background:rgba(124,208,230,.14);overflow:hidden}
+#ldLate i b{display:block;height:100%;background:var(--acc);transform-origin:0 50%;transform:scaleX(0);
+  transition:transform .35s var(--ease)}
+body.field #ldLate{top:calc(var(--topH) + 10px)}
+
+@media (pointer: coarse), (max-width: 520px){
+  .ldv31 .ldcard{width:min(94vw,452px);padding:20px 18px 14px}
+  .ldv31 .ldplate{height:160px}
+}
+@media (prefers-reduced-motion: reduce){
+  .ldv31 .ldcard,#ldLate{animation:none}
+  .ldv31 .ldsweep,.ldv31 .ldbar i::after{display:none}
+  .ldv31 .ldplate.hasrelief .ldveil{transition:none}
+  .ldv31 .ldst[data-state="active"] .ldic,.ldv31 .ldchip[data-state="active"] i,#ldLate .ldspin{animation:none}
+}
+@media print{ #ldLate{display:none !important} }

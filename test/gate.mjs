@@ -94,3 +94,15 @@ export function gatePassword(repoRoot) {
                   + "run tools/set_password.py, or fix docs/HANDOFF.md");
   return pw;
 }
+
+/* v31: the payloads read on first use — EA's lazy CAD groups, the design
+   surfaces' rasters, the full-sheet renders — load AFTER the loader hides
+   (js/payloads.js). A harness that switches a CAD group on or opens a drawing
+   at once waits for them here, so every assertion written before the deferral
+   reads the app it was written against. The deferral itself is asserted in
+   e2e block 9f8 and in the tablet harness's block 7. A single-file dist or a
+   phone defers nothing, and this returns at once. */
+export async function lateSettled(page, timeout = 180000) {
+  await page.waitForFunction(() => !window.SBMM || !SBMM.payloads || SBMM.payloads.settled(),
+                             null, { timeout });
+}

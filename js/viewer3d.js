@@ -903,11 +903,11 @@ SBMM.viewer3d = (function () {
      array written in place, and the chip textures are cached. */
   const LBL_PX = 15;              // chip height on screen, in px
   const LBL_LIFT_PX = 30;         // how far above its anchor the chip floats, px
-  const LBL_MAX = 60;             // §2.3 — the collision pass is cheap at this size
+  const LBL_MAX = 120;            // §2.3 (60 until v31: the point names share it)
   const LBL_PAD = 3;              // px of clearance between two kept chips
   let labelGroup = null;
   const labels3d = new Map();                 // key -> record
-  const labelSrc = { overlay: [], stage: [] };
+  const labelSrc = { overlay: [], stage: [], points: [] };
   const LV_A = new THREE.Vector3(), LV_T = new THREE.Vector3(), LV_P = new THREE.Vector3();
   const LV_R = new THREE.Vector3(), LV_U = new THREE.Vector3(), LV_F = new THREE.Vector3();
   const LBL_ORDER = [];
@@ -917,7 +917,7 @@ SBMM.viewer3d = (function () {
      dragged across a 44-row stage table asks for a few hundred distinct
      strings, and an unbounded cache of canvas textures is a GPU leak */
   const chipCache = new Map();
-  const CHIP_MAX = 140;
+  const CHIP_MAX = 260;           // 140 until v31 added the point names
   function chipMaterial(text, colorCss) {
     const key = text + "|" + colorCss;
     let mat = chipCache.get(key);
@@ -975,6 +975,63 @@ SBMM.viewer3d = (function () {
     syncLabels3d();
   }
 
+  /* ================================================================== */
+  /* v31 — the names of the point features                               */
+  /* ================================================================== */
+  /* "The labels for the wells and soil borings don't show up in 3D" — nothing
+     handed the label layer a point's name; only dimensions, notes, stations,
+     ponds and surfaces had chips. There are hundreds of points, so the rule is
+     NEAREST FIRST: rebuildOverlays collects every point of every row that is
+     on (the datasets, the samples, the storm structures) as a candidate, and
+     whenever the camera pose changes the ones in view nearest the ORBIT TARGET
+     — PT_MAX of them — become the "points" label source, inside the frame
+     that draws the new pose. The collision pass and the
+     priorities do the rest: a point name is priority 20, under every water,
+     spill and annotation label, so it gives way rather than covering one.
+     Nothing here runs while the camera is still, and an idle view still
+     renders nothing. */
+  const PT_MAX = 40;
+  let ptCand = [], ptOn = true, ptSig = "", ptPose = NaN;
+  const PV = new THREE.Vector3();
+  function refreshPointLabels() {
+    if (!camera || !renderer) return;
+    if (!ptOn || !ptCand.length) {
+      if (labelSrc.points.length) { ptSig = ""; setLabels3d("points", []); }
+      return;
+    }
+    const zx = exag();
+    camera.updateMatrixWorld();
+    camera.matrixWorldInverse.copy(camera.matrixWorld).invert();
+    /* NEAREST TO WHAT IS BEING LOOKED AT: the orbit target, not the camera —
+       in a tilted view the points nearest the camera are the ones along the
+       bottom edge of the screen, and those are the ones nobody is asking about */
+    const T = nav && nav.st && nav.st.target ? nav.st.target : camera.position;
+    const inView = [];
+    for (let i = 0; i < ptCand.length; i++) {
+      const c = ptCand[i];
+      PV.set(c.x - CX, c.y - CY, (c.z - ZMID) * zx);
+      const d = PV.distanceTo(T);
+      PV.project(camera);
+      if (PV.z > 1 || PV.z < -1 || PV.x < -1.02 || PV.x > 1.02 || PV.y < -1.02 || PV.y > 1.02) continue;
+      inView.push([d, c]);
+    }
+    inView.sort((a, b) => a[0] - b[0]);
+    const pick = inView.slice(0, PT_MAX).map(e => e[1]);
+    const sig = pick.map(c => c.key).join("|");
+    if (sig === ptSig) return;                 // nothing to rebuild, nothing to draw
+    ptSig = sig;
+    setLabels3d("points", pick);
+  }
+  function setPointLabels(on) {
+    ptOn = !!on;
+    const el = $("v3dPtLabels");
+    if (el && el.checked !== ptOn) el.checked = ptOn;
+    if (SBMM.view && SBMM.view.pref) SBMM.view.pref("pointLabels", ptOn);
+    ptSig = "";
+    refreshPointLabels();
+    requestRender();
+  }
+
   function syncLabels3d() {
     if (!scene) return;
     if (!labelGroup) {
@@ -984,7 +1041,7 @@ SBMM.viewer3d = (function () {
       scene.add(labelGroup);
     }
     const want = new Map();
-    for (const src of ["overlay", "stage"]) {
+    for (const src of ["overlay", "stage", "points"]) {
       for (const l of labelSrc[src]) {
         if (!l || l.x == null || l.y == null || l.z == null || !l.text) continue;
         const k = l.key || (l.text + "|" + Math.round(l.x / 10) + "|" + Math.round(l.y / 10));
@@ -1450,6 +1507,10 @@ SBMM.viewer3d = (function () {
     if (i > 0) o.userData.layer = { g: key.slice(0, i), l: key.slice(i + 1) };
     return o;
   }
+  function rowLayer(key) {
+    const i = String(key || "").indexOf("/");
+    return i > 0 ? { g: key.slice(0, i), l: key.slice(i + 1) } : undefined;
+  }
   function tagAll(list, g, l) { for (const o of list) tag(o, g, l); return list; }
 
   /* §3.2 — a dark drop shadow under every overlay polyline, so a bright line
@@ -1696,6 +1757,7 @@ SBMM.viewer3d = (function () {
       projGroup = new THREE.Group(); featGroup = new THREE.Group();
       overlayGroup.add(projGroup); overlayGroup.add(featGroup);
       SHW_P = []; OVL_P = [];
+      ptCand = [];                  // v31: the point names this pass offers
     } else {
       /* the project half stays exactly as it is — objects, shadow and labels */
       overlayGroup.remove(featGroup);
@@ -1808,7 +1870,13 @@ SBMM.viewer3d = (function () {
       const sp = SBMM.storm.points3d();
       if (sp.length) {
         const pos = [];
-        for (const q of sp) pos.push(q.x - CX, q.y - CY, drapeZ(q.x, q.y, 5));
+        for (const q of sp) {
+          pos.push(q.x - CX, q.y - CY, drapeZ(q.x, q.y, 5));
+          const [ze] = SBMM.elev(q.x, q.y);
+          if (!isNaN(ze)) ptCand.push({ key: "pt:storm:" + q.id, text: q.name || q.id, x: q.x, y: q.y, z: ze + 5,
+                                        color: SBMM.storm.COLOR || "#7FA7C9", priority: 20, liftPx: 20,
+                                        layer: { g: "framework", l: "storm_nodes" } });
+        }
         const gg = new THREE.BufferGeometry();
         gg.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
         addG.add(tag(new THREE.Points(gg, dotMaterial({ size: 9, color: SC })),
@@ -2222,6 +2290,10 @@ SBMM.viewer3d = (function () {
           const [z0] = SBMM.elev(p.x, p.y);
           const z = (isNaN(z0) ? ZMID : z0) - ZMID;
           pos.push(p.x - CX, p.y - CY, z + 4);
+          if (p.id != null && p.id !== "" && !isNaN(z0))
+            ptCand.push({ key: "pt:" + spec.id + ":" + p.id + ":" + Math.round(p.x) + ":" + Math.round(p.y),
+                          text: String(p.id), x: p.x, y: p.y, z: z0 + 4, color: spec.color,
+                          priority: 20, liftPx: 20, layer: rowLayer(spec.rowKey) });
           if (!(spec.stick && p.depth > 0)) return;
           const X = p.x - CX, Y = p.y - CY;
           const prof = BL && p.id ? BL.profileOf(p.id) : null;
@@ -2317,6 +2389,11 @@ SBMM.viewer3d = (function () {
       const pos = [], col = [];
       for (const p of SBMM.samples) {
         pos.push(p.x - CX, p.y - CY, drapeZ(p.x, p.y, 4));
+        const nm = p.id || p.name, [zs] = SBMM.elev(p.x, p.y);
+        if (nm && !isNaN(zs))
+          ptCand.push({ key: "pt:sample:" + nm, text: String(nm), x: p.x, y: p.y, z: zs + 4,
+                        color: p.exc ? "#E4796A" : "#5FBF8F", priority: 20, liftPx: 20,
+                        layer: { g: "invest", l: "samples" } });
         const c = new THREE.Color(p.exc ? 0xE4796A : 0x5FBF8F);
         col.push(c.r, c.g, c.b);
       }
@@ -2440,6 +2517,8 @@ SBMM.viewer3d = (function () {
     scene.add(overlayGroup);
     /* v15 §2.3: this pass's labels, diffed by text against the ones already up */
     setLabels3d("overlay", OVL_P.concat(OVL_F));
+    /* v31: a project rebuild changes which points exist; pick their names again */
+    if (PROJ) { ptSig = ""; refreshPointLabels(); }
     /* §3.2: a bounded pulse when the selection changes — see HALO_MS */
     const selNow = SBMM.store.selected || null;
     if (haloMats.length && selNow !== lastSel) { pulseUntil = performance.now() + HALO_MS; haloSettled = false; }
@@ -3573,6 +3652,16 @@ SBMM.viewer3d = (function () {
         }
       }
       const moved = nav.update();
+      /* v31: the point names are re-picked IN a frame that is being drawn
+         anyway, before the draw decision, so a pick never asks for a frame of
+         its own: the request it raises is consumed by this very frame, and a
+         camera that has stopped re-picks nothing. "Moved" is the camera POSE,
+         because a programmatic flight (openAt, a bookmark, Look at…) moves it
+         without the rig reporting a gesture. Projecting a few hundred
+         candidates is a fraction of a millisecond. */
+      const cp = camera.position, cq = camera.quaternion;
+      const pose = cp.x + 3.1 * cp.y + 7.3 * cp.z + 1e4 * (cq.x + 2 * cq.y + 3 * cq.z + 4 * cq.w);
+      if (pose !== ptPose) { ptPose = pose; refreshPointLabels(); }
       /* v20 §3, trap 4: the quadtree re-selects on a SETTLED camera, never per
          frame. update() returns without asking for a frame when the drawn set
          has not changed, which is what keeps an idle view at zero renders. */
@@ -3798,6 +3887,11 @@ SBMM.viewer3d = (function () {
       animOn = rem === undefined ? true : !!rem;
       const aw = $("v3dAnimWater");
       if (aw) { aw.checked = animOn; aw.onchange = e => setAnimWater(e.target.checked); }
+      /* v31: the point names, default on, remembered beside it */
+      const rp = SBMM.view && SBMM.view.pref ? SBMM.view.pref("pointLabels") : undefined;
+      ptOn = rp === undefined ? true : !!rp;
+      const pl = $("v3dPtLabels");
+      if (pl) { pl.checked = ptOn; pl.onchange = e => setPointLabels(e.target.checked); }
     }
     wireBookmarks();
     { const tb = $("v3dTourBtn"); if (tb) tb.onclick = e => { e.stopPropagation(); setTimeout(() => flyAround(), 0); }; }
@@ -4277,6 +4371,11 @@ SBMM.viewer3d = (function () {
       labels3d: labels3d.size,
       labelsVisible: lblVisible,
       labelTexts: [...labels3d.values()].filter(r => r.sprite.visible).map(r => r.text).sort(),
+      /* v31: the point names — how many points offer one, how many the
+         nearest-first pick handed the layer, and which are on screen */
+      pointLabels: { on: ptOn, candidates: ptCand.length, picked: labelSrc.points.length,
+                     shown: labelSrc.points.filter(p => { const r = labels3d.get(p.key); return r && r.sprite.visible; })
+                       .map(p => p.text).sort() },
       layersDrawn: layersDrawn(),
       sun: { az: +sunAz.toFixed(1), el: +sunEl.toFixed(1) },
       sky: !!skyMesh, groundPlane: !!envGroup,

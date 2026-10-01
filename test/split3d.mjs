@@ -2,13 +2,14 @@ import { launch } from "./lib/browser.mjs";
 import { pathToFileURL as __furl } from "node:url";
 import { resolve as __res } from "node:path";
 import { existsSync as __ex } from "node:fs";
-import { unlock } from "./gate.mjs";
+import { unlock, lateSettled } from "./gate.mjs";
 const browser = await launch();
 const page = await browser.newPage({ viewport: { width: 1600, height: 950 } });
 page.on("pageerror", e => console.log("pageerror:", e.message));
 await unlock(page);  /* the password gate — see test/gate.mjs */
 await page.goto(__furl(__res(process.argv[2])).href);
 await page.waitForSelector("#loading", { state: "hidden", timeout: 90000 });
+await lateSettled(page);
 
 /* site DEM is now 2-ft everywhere */
 const site = await page.evaluate(() => {

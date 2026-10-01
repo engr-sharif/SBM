@@ -59,6 +59,8 @@ tool needs files off the user's machine.  The generated JSON payloads ARE.
 """
 
 import argparse, collections, glob, hashlib, json, math, os, re, sys
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import payload_split  # noqa: E402  (v31: the split payload writer)
 
 import ezdxf
 from ezdxf import bbox as _bbox
@@ -779,15 +781,12 @@ def main():
     meta["eager_count"] = len(eager)
     meta["lazy_count"] = len(lazy)
 
+    # v31: and the two halves are TWO FILES (tools/payload_split.py says why).
     out = dict(meta=meta, layers=lm["layers"], features=eager,
-               sheet_notes=ex.notes,
-               lazy=json.dumps(lazy, separators=(",", ":")))
-    js = ('window.SBMM_DATA=window.SBMM_DATA||{};SBMM_DATA["cad_native"]='
-          + json.dumps(out, separators=(",", ":")) + ';\n')
-    with open(os.path.join(a.datajs, "d_cad_native.js"), "w") as f:
-        f.write(js)
-    print(f"wrote {a.datajs}/d_cad_native.js  {len(js)/1e6:.2f} MB "
-          f"(eager {len(eager)} features, lazy {len(lazy)})")
+               sheet_notes=ex.notes)
+    payload_split.write_cad_native(a.datajs, out,
+                                   json.dumps(lazy, separators=(",", ":")))
+    print(f"  (eager {len(eager)} features, lazy {len(lazy)})")
 
     # ---- report
     rep = [f"# EA native CAD extraction — report\n",
