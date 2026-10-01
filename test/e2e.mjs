@@ -6277,12 +6277,30 @@ const pl = await page.evaluate(() => SBMM.viewer3d.stats().pointLabels);
 console.log("v31 3D point names:", JSON.stringify({ candidates: pl.candidates, picked: pl.picked, shown: pl.shown.length,
   sample: pl.shown.slice(0, 8) }));
 if (pl.picked > 40 || pl.shown.length < 5) { console.log("FAIL: the nearest-first pick is off", pl); process.exit(1); }
-/* an idle 3D view still renders nothing */
-const rc0 = await page.evaluate(() => SBMM.viewer3d.stats().renderCount);
-await page.waitForTimeout(2500);
-const rc1 = await page.evaluate(() => SBMM.viewer3d.stats().renderCount);
-console.log("v31 idle renders with point names up:", rc1 - rc0);
-if (rc1 - rc0 > 1) { console.log("FAIL: the point names keep the 3D view rendering"); process.exit(1); }
+/* an idle 3D view still renders nothing — measured once the camera has
+   SETTLED (openAt's flight damps for a while on a slow runner, and every frame
+   of it is a legitimate render), with the water animation off, which asks for
+   frames by design while a flow is visible */
+const idl = await page.evaluate(async () => {
+  const wait = ms => new Promise(r => setTimeout(r, ms));
+  const wasAnim = SBMM.viewer3d.animateWater();
+  SBMM.viewer3d.animateWater(false);
+  let prev = SBMM.viewer3d.stats().renderCount, tries = 0;
+  for (; tries < 60; tries++) {
+    await wait(1000);
+    const now = SBMM.viewer3d.stats().renderCount;
+    if (now - prev <= 1) break;
+    prev = now;
+  }
+  const a = SBMM.viewer3d.stats().renderCount;
+  await wait(2500);
+  const renders = SBMM.viewer3d.stats().renderCount - a;
+  SBMM.viewer3d.animateWater(wasAnim);
+  return { renders, settleTries: tries };
+});
+const rc0 = 0, rc1 = idl.renders;
+console.log("v31 idle renders with point names up:", rc1 - rc0, "| settle polls:", idl.settleTries);
+if (idl.settleTries >= 60 || rc1 - rc0 > 1) { console.log("FAIL: the point names keep the 3D view rendering"); process.exit(1); }
 /* the "Point names" switch */
 await page.evaluate(() => document.getElementById("v3dPtLabels").click());
 await page.waitForTimeout(300);
