@@ -58,7 +58,9 @@ FIELD_EXCLUDE = [
     "datajs/i_chm_png.js",
     "datajs/d_chm.js",
     "datajs/d_cad_surfaces.js",
+    "datajs/d_cad_surfaces_rasters.js",   # v31: the surfaces' second half
     "datajs/d_cad_native.js",
+    "datajs/d_cad_native_lazy.js",        # v31: the CAD payload's second half
 ]
 
 def read(p):
