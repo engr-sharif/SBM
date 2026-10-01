@@ -729,8 +729,21 @@ SBMM.pick3d = (function () {
     };
   }
 
+  /* v30: the POINT FEATURE under the pointer, as a snap — a tool clicked in
+     3D on a well's dot gets the well head's own plan coordinates, not the
+     terrain the ray happens to reach beside it. Points only (priority 3): a
+     line or an outline is a surface the tool is drawing ACROSS, not a node. */
+  function snapPoint(e) {
+    const best = raycast(e);
+    if (!best || best.entry.priority < 3) return null;
+    let info = null;
+    try { info = best.entry.hit(best.hit); } catch (err) { info = null; }
+    if (!info || !info.xyz || !isFinite(info.xyz[0]) || !isFinite(info.xyz[1])) return null;
+    return { x: info.xyz[0], y: info.xyz[1], name: info.title || "" };
+  }
+
   return {
-    register, unregister, registered, registerCad, attach, attached, syncScene,
+    register, unregister, registered, registerCad, attach, attached, syncScene, snapPoint,
     click, onCamera, closeCard, editHandles, stats, touchDrag,
     /* the i-th 3D vertex handle's scene position — the harness needs somewhere
        real to put a finger, and the console needs somewhere to look */

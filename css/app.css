@@ -2962,3 +2962,9 @@ details.lmmore summary{cursor:pointer;font-size:11px;color:var(--mut);margin-top
 #pick3dTip[hidden]{display:none}
 #pick3dTip b{font-weight:600}
 #pick3dTip .pkkind{color:var(--mut);font-size:11px}
+
+/* v30 — in a tool mode a feature under the crosshair is a snap target, not a
+   link: Leaflet's own `leaflet-interactive` pointer would say "this opens
+   something", which in a tool it no longer does (js/pick2d.js toolClick) */
+#stage[data-cursor="crosshair"] #map .leaflet-interactive,
+#stage[data-cursor="crosshair"] #map .leaflet-marker-icon{cursor:crosshair !important}

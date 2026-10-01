@@ -479,6 +479,19 @@ SBMM.storm = (function () {
     return nodes().map(n => ({ x: n.x, y: n.y, id: n.id, name: n.name }));
   }
 
+  /* v30: every snap item with the row it belongs to, ungated — js/snap.js
+     gates each one at QUERY time, so a row ticked after its static index was
+     built snaps as soon as it is on */
+  function snapItems() {
+    if (!data()) return [];
+    const out = [];
+    for (const c of conduits()) {
+      const key = (c.source === "inferred" || c.source === "structures_chain") ? "storm_inferred" : "storm_cad";
+      out.push({ key, pts: c.pts });
+    }
+    for (const n of nodes()) out.push({ key: "storm_nodes", x: n.x, y: n.y, name: (n.name || n.id) + " · storm structure" });
+    return out;
+  }
   function snapPaths() {
     if (!data()) return { rings: [], pts: [] };
     const rings = [], pts = [];
@@ -560,6 +573,6 @@ SBMM.storm = (function () {
            mouthOf, mouthOfConduit, mouths: () => mouths, MOUTH_SEARCH_FT,
            node: id => byId[id] || null, conduit: id => conduitById[id] || null,
            nextOf: id => nextOf[id] || null, rims: () => rims,
-           lines3d, points3d, snapPaths, geoFeatures, dxfEntities, gisProps,
+           lines3d, points3d, snapPaths, snapItems, geoFeatures, dxfEntities, gisProps,
            paintChip, COLOR: COL, rows: () => rows };
 })();

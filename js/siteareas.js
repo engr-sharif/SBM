@@ -60,9 +60,9 @@ SBMM.siteAreas = (function () {
     if (!D || !on()) return [];
     return D.features.map(f => ({ ring: f.rings[0], color: COLOR, props: props(f), geom: geom(f), width: 2 }));
   }
-  function snapPaths() {
+  function snapPaths(all) {
     const D = data();
-    if (!D || !on()) return { rings: [], pts: [] };
+    if (!D || (!all && !on())) return { rings: [], pts: [] };
     return { rings: D.features.map(f => f.rings[0]), pts: [] };
   }
   function geoFeatures(P) {

@@ -381,7 +381,7 @@ terrain source, which needs an explicit decision + README/test update).
 | util.js | formatting, geometry helpers, ramps, toast; `$()` |
 | touch.js | **the three touch profiles, the ONE gesture recogniser, the loupe, the Done bar and the offline copy (v17)** — `SBMM.touch`: `profile()` / `on()` / `override()` / `lastPointer()`, `gestures(el, handlers)`, `momentum`, the shared loupe and Done bar, long-press-as-right-click, the tooltip chip, the map's press-hold vertex placement, the wake lock, the device diagnostics and the `sw.js` client |
 | redline.js | **freehand ink (v17 §5a)** — the `ink` store feature, event-resolution capture with `getCoalescedEvents`, pressure-driven width per vertex, the 6-swatch palette and eraser, the map host and (through `js/sheetmarks.js`) the sheet-window host; `SBMM.redline` |
-| pick2d.js | **v29 — the 2D pick engine**: in Navigate mode ONE answer to "what is under the pointer", asked by the hover and the click alike — ranked candidates across every pane's canvas draw list and every marker element, the lifted symbol / SVG highlight, the name chip `#pickTip`, Tab to cycle, the click fired through `map._fireDOMEvent` on exactly that layer, and the popup's "also here" row; `SBMM.pick2d` |
+| pick2d.js | **v29 — the 2D pick engine**: in Navigate mode ONE answer to "what is under the pointer", asked by the hover and the click alike — ranked candidates across every pane's canvas draw list and every marker element, the lifted symbol / SVG highlight, the name chip `#pickTip`, Tab to cycle, the click fired through `map._fireDOMEvent` on exactly that layer, and the popup's "also here" row; **v30**: in any tool mode a click goes to the tool as a map click at the pointer (`toolClick`); `SBMM.pick2d` |
 | labels.js | **the 2D label engine (v15 §2.2)** — one registry for every permanent map label, dedupe by `key`, a greedy screen-space collision pass by priority, `visibility:hidden` never `display`, per-label zoom `gate()`; `SBMM.labels` |
 | compute.js | **pure** compute kernels (volume grid, rasters, marching squares, ring-aware simplify) — no DOM, no SBMM; runs in workers |
 | jobs.js | worker pool: progress, cancel, transferables; `SBMM.compute` |
@@ -3007,6 +3007,57 @@ A tap is resolved the same way with a wider reach (12 px), and asks
 `SBMM.touch.clickSwallowed()` first so a long-press or loupe placement still eats
 its synthetic click. `SBMM.pick2d.probe(latlng)` and `state()` are the harness
 hooks; `setEnabled(false)` turns the engine off.
+
+## v30 — a tool's click goes to the tool, and a point feature is a NODE snap
+
+`js/pick2d.js` `toolMode()` / `toolClick()` / `selecting()`, `js/snap.js` (the
+`node` type, `pname`, `nodeAt`, every point source under its own row),
+`js/datasets.js` `snapPoints`, `js/storm.js` `snapItems`, `js/siteareas.js`
+`snapPaths(all)`, `js/draw.js` (`sketchPts`, `lastResolved`, the glyph for
+one-click tools), `js/tools.js` `compDistance`, `js/pick3d.js` `snapPoint` and
+the 3D tool click in `js/viewer3d.js`. E2E block **"9f7. tools snap to point
+features (v30)"** (shard 2).
+
+**The audit that started it**: in all thirteen click tools — Distance, Area,
+Profile, Volume, Point, Line, Polygon, Section, Fence, Dimension, Text, Pad,
+Inspect — a click on a well, a sample or a DU outline opened that feature's popup
+and the tool collected NOTHING. The snap engine found the well on hover (an
+unnamed "endpoint") and the click never reached it.
+
+Five things that will be walked into again:
+
+- **In a tool mode the click is a MAP click at the pointer, never a layer click.**
+  `toolClick` stops the real event in the container's capture phase and fires
+  `map.fire("click", {latlng, …})`, which `js/draw.js` resolves through the snap
+  engine — so a click on a well's icon becomes a vertex on the well head. A tool
+  mode is every mode but Navigate, plus a modify command's pick opened from
+  Navigate (`SBMM.draw.armed()`). **Redline and Edit are left alone** (the eraser
+  hits a stroke; a mid handle inserts a vertex), and so is a click on the sketch's
+  own `.vtx` handles. This supersedes the v23 note that "a boring eats the sketch
+  click" — it no longer does, and block 9ag's habit of clicking 60 ft beyond a
+  hole is now merely harmless.
+- **`node` outranks every other snap** (PRIO 0) and its label is the feature's own
+  name. Only a point carrying a name is a node — the dataset points, the samples,
+  the storm structures and the user's own `spot`s; an unnamed point is still an
+  `end`. `on.node` is a new key in the remembered osnap record and defaults on
+  for a record written before it existed.
+- **Every point source snaps under its own ROW, gated at QUERY time.** The static
+  index is built once, lazily; before this the storm network and the site areas
+  asked "is my row on" at BUILD time (a row ticked later never snapped) and every
+  dataset was source 0 (always on — the XRF campaigns and the historical borings
+  snapped with their rows off). Now everything is indexed and `srcVisible` asks.
+- **The distance card's "Between" row is read off the GEOMETRY**
+  (`SBMM.snap.nodeAt(x, y, 0.05)`), never remembered from the click — it holds
+  after a vertex edit and a session reload, and dragging an end off the well drops
+  it by itself. `props.from` / `props.to` carry the names into the exports.
+- **`selecting()` (the map's `picksel` class — MOVE / OFFSET / JOIN asking "which
+  drawing")** filters the Navigate engine's candidates to the user's own store
+  features, so a well on the line's end vertex cannot answer.
+
+In 3D a tool click asks `SBMM.pick3d.snapPoint(e)` first — a POINT-priority hit's
+own plan coordinates — and falls back to the terrain raycast. In a tool mode the
+layers' hover tooltips are suppressed like in Navigate (the snap chip is the
+label) and `.leaflet-interactive` keeps the crosshair rather than a pointer.
 
 ## Undo and redo (v9.4) — the both-closures rule and `readd`
 
