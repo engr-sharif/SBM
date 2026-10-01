@@ -312,9 +312,18 @@ SBMM.tools = (function () {
     const zA = SBMM.elev(pts[0][0], pts[0][1])[0], zB = SBMM.elev(pts[pts.length - 1][0], pts[pts.length - 1][1])[0];
     const grade = (!isNaN(zA) && !isNaN(zB) && len > 0) ? (zB - zA) / len * 100 : NaN;
     f.props = { length_ft: +len.toFixed(1), grade_pct: isNaN(grade) ? null : +grade.toFixed(2) };
+    /* v30: what the line was measured between, when its ends sit on named
+       point features (a well head, a boring collar) — read off the geometry */
+    const A = pts[0], B = pts[pts.length - 1];
+    const nA = SBMM.snap && SBMM.snap.nodeAt ? SBMM.snap.nodeAt(A[0], A[1]) : null;
+    const nB = SBMM.snap && SBMM.snap.nodeAt ? SBMM.snap.nodeAt(B[0], B[1]) : null;
+    const short = n => n ? n.split(" · ")[0] : "—";
+    if (nA || nB) { f.props.from = nA || null; f.props.to = nB || null; }
     SBMM.results.setRows(f.card, [
       ["Length", fmt(len, 1) + " ft"],
+      ...((nA || nB) ? [["Between", esc(short(nA)) + " → " + esc(short(nB)), [nA, nB].filter(Boolean).join(" → ")]] : []),
       ["", fmt(len * 0.3048, 1) + " m  ·  " + fmt(len / 3, 1) + " yd"],
+      ["Ground at ends", (isNaN(zA) ? "—" : fmt(zA, 1)) + " / " + (isNaN(zB) ? "—" : fmt(zB, 1)) + " ft"],
       ["End-to-end grade", isNaN(grade) ? "—" : fmt(grade, 1) + " %"],
       ["Climb / descent", fmt(climb, 1) + " / " + fmt(drop, 1) + " ft"],
       ["Segments", String(pts.length - 1)]]);

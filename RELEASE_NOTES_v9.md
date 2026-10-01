@@ -17,6 +17,30 @@ All three are offline-only by design. Nothing in this app calls out to the inter
 
 ---
 
+## v9.37 — measure to a well (2026-10-01)
+
+**Every drawing and measuring tool now takes the click you aim at a feature.**
+Before this, a click on a well, a boring, a sample or a decision-unit outline
+inside Distance, Area, Profile, Volume, Point, Line, Polygon, Section, Fence,
+Dimension, Text, Graded pad or Inspect opened that feature's popup, and the tool
+collected nothing — so you could not measure to a well at all.
+
+**The point snaps to the feature, and says which one.** Hover a well with a tool
+armed and the snap mark (a circle with a cross) names it — "MW-05 · Monitoring
+wells" — and the vertex lands on the well head exactly. Wells, borings, test pits,
+samples, storm structures and your own points all snap this way, and they win over
+the linework around them. A layer that is switched off no longer snaps.
+
+**The distance card says what it measured between**: "Between MW-05 → SB-32",
+with the ground elevation at each end. It is read off the line itself, so it still
+holds after you drag a vertex — and drops away if you drag the end off the well.
+
+**3D too**: a tool clicked on a well's dot in the 3D view lands on the well head,
+not on the ground beside it.
+
+**Picking a drawing for Move, Offset, Rotate and the rest** picks your drawing even
+where a well sits on top of it.
+
 ## v9.36 — what you point at is what you click (2026-09-30)
 
 **Hovering a feature on the map now names it.** Move the cursor over a well, a

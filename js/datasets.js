@@ -563,9 +563,14 @@ SBMM.datasets = (function () {
       points: d.points.map(p => ({ id: p.id, x: p.x, y: p.y }))
     }));
   }
+  /* [x, y, name, layer group, layer id] — the name is what the snap glyph
+     says ("MW-05 · Monitoring wells"), the row is what gates it (v30) */
   function snapPoints() {
     const out = [];
-    for (const d of list) for (const p of d.points) out.push([p.x, p.y]);
+    for (const d of list) {
+      const g = d.rowRef ? (d.rowRef.group || "invest") : null, id = d.rowRef ? d.rowRef.id : null;
+      for (const p of d.points) out.push([p.x, p.y, (p.id != null ? p.id + " · " : "") + d.name, g, id]);
+    }
     return out;
   }
 
