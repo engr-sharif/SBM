@@ -234,7 +234,21 @@ SBMM.pick2d = (function () {
     const f = storeFeature(l);
     if (f) return (f.name || f.type || "feature") + (f.type ? " · " + f.type : "");
     const pp = l.feature && l.feature.properties;
-    return (pp && (pp.name || pp.id)) || (l.options && l.options.title) || "feature";
+    const n = (pp && (pp.name || pp.id)) || (l.options && l.options.title) || popupName(l);
+    return n || "feature";
+  }
+  /* the last resort before "feature": the popup's own heading. Every popup
+     builder in js/popups.js opens on the feature's name in <b> */
+  function popupName(l) {
+    const P = l._popup;
+    if (!P) return "";
+    let c = P._content;
+    try { if (typeof c === "function") c = c(l); } catch (e) { return ""; }
+    if (!c) return "";
+    const d = document.createElement("div");
+    if (c.nodeType) d.appendChild(c.cloneNode(true)); else d.innerHTML = String(c);
+    const b = d.querySelector("b");
+    return b ? b.textContent.replace(/\s+/g, " ").trim() : "";
   }
   function storeFeature(l) {
     const F = SBMM.store && SBMM.store.features;
@@ -547,6 +561,6 @@ SBMM.pick2d = (function () {
              n: cur ? cur.list.filter(c => c.acts).length : 0, markers: markers.size, stats: Object.assign({}, stats) };
   }
 
-  return { wire, onClick, onDown, candidates, probe, state, clear, cycle,
+  return { wire, onClick, onDown, candidates, probe, state, clear, cycle, nameOf: plainName,
            setEnabled: v => { enabled = !!v; if (!enabled) clear(); } };
 })();

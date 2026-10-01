@@ -549,6 +549,9 @@ SBMM.symbolizePoints = function (mode, filter) {
     /* markup shared with the 3D pick card — see js/popups.js */
     const mk = L.circleMarker([p.y, p.x], { pane: "vectors", radius: r, color: "#0D1215", weight: 1, fillColor: c, fillOpacity: .95 })
       .bindPopup(() => SBMM.popups.forSample(p))
+      /* the name the hover chip shows (js/pick2d.js renders a layer's own
+         tooltip); without it a sample answered "feature" */
+      .bindTooltip(`<b>${esc(p.id)}</b> · Hg ${p.Hg ?? "—"} · As ${p.As ?? "—"} mg/kg`, { sticky: true, className: "ctip" })
       .addTo(grp);
     SBMM.pointMarkers[p.id] = mk;
   }

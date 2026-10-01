@@ -166,8 +166,26 @@ SBMM.viewer3d = (function () {
   function buildEnv() {
     const g = new THREE.Group();
     const zr = SBMM._zrSite || SBMM.demSite.zRange();
+    /* v32: the ground beyond the survey is js/backdrop.js's world — the same
+       grid and contour field the 2D map paints around the site — on a square
+       of 48,000 ft centred on the site, fading into the plain ground at its
+       edge. Built once, here; it asks for no frame of its own. */
+    let mat = null;
+    if (SBMM.backdrop && SBMM.backdrop.enabled()) {
+      try {
+        const low = SBMM.lowMem && SBMM.lowMem();
+        const T = SBMM.backdrop.texture(THREE, { px: low ? 1024 : 2048, spanFt: 48000 });
+        T.tex.anisotropy = Math.min(8, maxAniso());
+        const S = 160000, rep = S / T.span;
+        T.tex.repeat.set(rep, rep);
+        /* the plane's (0,0) is the scene centre (CX, CY); the texture's centre is the site's */
+        T.tex.offset.set(0.5 - rep / 2 + (CX - T.cx) / T.span, 0.5 - rep / 2 + (CY - T.cy) / T.span);
+        mat = new THREE.MeshBasicMaterial({ map: T.tex, color: 0xffffff, fog: true, toneMapped: false });
+      } catch (e) { console.warn("3D backdrop texture:", e); mat = null; }
+    }
     const pl = new THREE.Mesh(new THREE.PlaneGeometry(160000, 160000),
-      new THREE.MeshBasicMaterial({ color: LAKE, fog: true, toneMapped: false }));
+      mat || new THREE.MeshBasicMaterial({ color: LAKE, fog: true, toneMapped: false }));
+    pl.userData.backdrop = !!mat;
     pl.position.z = zr[0] - 25 - ZMID;      // pre-exaggeration; the group scales z
     /* after the terrain for the same reason as the sky: from any view above the
        ground the terrain is in front of it, so most of it is depth-rejected */
@@ -4379,6 +4397,7 @@ SBMM.viewer3d = (function () {
       layersDrawn: layersDrawn(),
       sun: { az: +sunAz.toFixed(1), el: +sunEl.toFixed(1) },
       sky: !!skyMesh, groundPlane: !!envGroup,
+      groundBackdrop: !!(envGroup && envGroup.children.some(c => c.userData && c.userData.backdrop)),
       cadDrapeBudgetSkipped: lastCadSkip,
       contourSegments: SBMM._v3dContourDrop || null,
       sheetDrapes: [...sheetMeshes.keys()].sort(),

@@ -137,6 +137,7 @@ function wireWasmSwitch() {
     SBMM.buildAnalysisLayers();
     SBMM.labels.wire();
     if (SBMM.pick2d) SBMM.pick2d.wire();
+    if (SBMM.backdrop) SBMM.backdrop.wire(SBMM.map);
     SBMM.snap.wire();
     SBMM.draw.wire();
     SBMM.tools.wire();
