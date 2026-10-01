@@ -1464,12 +1464,9 @@ const fresh = async () => {
   const { c, p } = await fresh();
   await p.goto(HTTP);
   await p.waitForSelector("#loading", { state: "hidden", timeout: 300000 });
-  await p.evaluate(() => {
-    window.__t = [];
-    const el = document.getElementById("toast");
-    new MutationObserver(() => { const s = el.textContent.trim(); if (s) window.__t.push(s); })
-      .observe(el, { childList: true, characterData: true, subtree: true });
-  });
+  /* every toast is kept in SBMM.toastLog; the #toast element itself is made
+     on the first toast, so on a boot that raised none it does not exist yet */
+  await p.evaluate(() => { window.__t0 = (SBMM.toastLog || []).length; });
   const a = await p.evaluate(() => {
     const s = SBMM.sheets.index().find(x => x.sheet === "C-107");
     const st = SBMM.loader.stats();
@@ -1478,7 +1475,7 @@ const fresh = async () => {
     return Object.assign(before, { returned: r === null ? "null" : "a window" });
   });
   await p.waitForTimeout(400);
-  const t1 = await p.evaluate(() => window.__t.slice());
+  const t1 = await p.evaluate(() => (SBMM.toastLog || []).slice(window.__t0).map(x => x.msg));
   console.log("7a pending drawing:", JSON.stringify(a), "| toasts:", JSON.stringify(t1));
   if (!(a.bytes.expected > 50e6) || a.bytes.arrived !== a.bytes.expected || a.net !== "done")
     fail("over http the loader did not count the whole boot download", a.bytes);

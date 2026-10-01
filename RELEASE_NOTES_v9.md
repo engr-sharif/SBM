@@ -17,6 +17,20 @@ All three are offline-only by design. Nothing in this app calls out to the inter
 
 ---
 
+## v9.39 — every point says its name, and the site sits in a world (2026-10-01)
+
+**Hovering a sample result names it.** The ABP and Jacobs sample points (W03,
+E1, SS-16 …) answered "feature" on hover; they now show their id and the Hg and
+As results, the same as the popup. Every other clickable thing on the map was
+checked and already named itself.
+
+**Beyond the survey is no longer black.** Around the surveyed ground the map now
+draws a quiet "digital terrain": a deep gradient, the State Plane grid with a
+crosshair every other line, a contour pattern that stays consistent as you zoom,
+and a soft glow along the edge of the survey. The 3D view stands on the same
+world out to the horizon. It is decoration only — it is not terrain data, it
+never draws over the surveyed ground, and nothing on it can be clicked.
+
 ## v9.38 — a loading screen that tells you what it is doing (2026-10-01)
 
 **The app opens faster.** The first visit used to download about 142 MB before it
