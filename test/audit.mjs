@@ -3,7 +3,7 @@
    node test/audit.mjs /abs/path/index.html folder                          */
 import { launch, TIMEOUT } from "./lib/browser.mjs";
 import { existsSync as __ex } from "node:fs";
-import { unlock } from "./gate.mjs";
+import { unlock, lateSettled } from "./gate.mjs";
 
 const target = process.argv[2];
 const label = process.argv[3] || target;
@@ -19,6 +19,7 @@ console.log(`\n=== audit: ${label} ===`);
 await unlock(page);  /* the password gate — see test/gate.mjs */
 await page.goto("file://" + target);
 await page.waitForSelector("#loading", { state: "hidden", timeout: 180000 });
+await lateSettled(page);
 await page.evaluate(() => SBMM.chmReady);
 
 const say = (k, v) => console.log(`  ${String(k).padEnd(42)} ${typeof v === "object" ? JSON.stringify(v) : v}`);

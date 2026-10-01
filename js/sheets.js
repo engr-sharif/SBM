@@ -103,7 +103,11 @@ SBMM.sheets = (function () {
         registered: !!r,
         subject: (reg[s.sheet] && reg[s.sheet].subject) || null,
         bounds: r ? [r.x0, r.y0, r.x1, r.y1] : null,
-        url: imgUrl(s.sheet)
+        /* v31: read LIVE — the folder build loads the renders after the app is
+           up (js/payloads.js), so a value cached at the first index() would
+           say "no render" for a drawing that is a second away */
+        get url() { return imgUrl(s.sheet); },
+        get loading() { return !this.url && isPending(s.sheet); }
       };
     });
     /* A sheet with no render still belongs in the index. The FIELD build
@@ -114,7 +118,9 @@ SBMM.sheets = (function () {
        one with a toast; `hasRender()` is the question anything else should ask. */
     return INDEX;
   }
-  function hasRender(sheet) { const s = get(sheet); return !!(s && s.url); }
+  const payloadKey = sheet => "sheet_full_" + sheet.replace(/-/g, "") + "_jpg";
+  function isPending(sheet) { return !!(SBMM.payloads && SBMM.payloads.pending(payloadKey(sheet))); }
+  function hasRender(sheet) { const s = get(sheet); return !!(s && (s.url || s.loading)); }
   /* the one sentence every refusal uses, so it reads the same everywhere */
   function noRenderWhy(sheet) {
     if (SBMM.isField && SBMM.isField())
@@ -138,9 +144,20 @@ SBMM.sheets = (function () {
     order.forEach((w, k) => { w.el.style.zIndex = Z_BASE + Math.min(k, 899); });
   }
 
+  let pendingOpen = null;
   function open(sheet, opts) {
     const s = get(sheet);
     if (!s) { toast("no full-sheet render for " + sheet); return null; }
+    /* v31: still on its way — say so, move it to the front of the queue and
+       open it when it lands (unless the user has asked for another since) */
+    if (!s.url && s.loading) {
+      toast(sheet + " is still loading — it opens when it lands");
+      pendingOpen = sheet;
+      SBMM.payloads.when(payloadKey(sheet)).then(
+        () => { if (pendingOpen === sheet) { pendingOpen = null; open(sheet, opts); } },
+        () => toast(sheet + " — the drawing did not load; reload to try again"));
+      return null;
+    }
     if (!s.url) { toast(noRenderWhy(sheet), 4200); return null; }
     const o = opts || {};
     const have = wins.get(sheet);
@@ -582,7 +599,8 @@ SBMM.sheets = (function () {
       <div class="ci sheetrow" data-sheet="${esc(s.sheet)}">
         <b class="mono">${esc(s.sheet)}</b>
         <span class="st">${esc(s.title)}</span>
-        ${!s.url ? '<span class="dimpill" title="The full-sheet renders are not in the field build">no render</span>'
+        ${s.loading ? '<span class="dimpill">loading</span>'
+          : !s.url ? '<span class="dimpill" title="The full-sheet renders are not in the field build">no render</span>'
           : s.design_set === "90%" ? '<span class="warnpill">90%</span>'
           : s.registered ? '<span class="okpill" title="Georeferenced — has a footprint on the map">placed</span>'
             : '<span class="dimpill" title="Not georeferenced">—</span>'}

@@ -33,7 +33,7 @@ import { resolve as __res, dirname, join, extname } from "node:path";
 import { existsSync, readFileSync, statSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { createServer } from "node:http";
-import { unlock, gatePassword } from "./gate.mjs";
+import { unlock, gatePassword, lateSettled } from "./gate.mjs";
 import { block, S } from "./lib/blocks.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -71,9 +71,19 @@ const MIME = {
   ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".svg": "image/svg+xml"
 };
 let patchIndex = null;
+/* v31 block 7: answer one path late (`hold` ms, or never when ms is 0), or
+   not at all (`drop`, a 404) — a slow file, a dead connection, a missing file */
+let lateFile = null, drop = null;
+const held = [];
 const server = createServer((req, res) => {
   let p = decodeURIComponent(req.url.split("?")[0]);
   if (p === "/") p = "/index.html";
+  if (drop && p.endsWith(drop)) { res.writeHead(404).end("gone"); return; }
+  if (lateFile && p.endsWith(lateFile.path) && !req.__late) {
+    held.push(res);
+    if (lateFile.ms) setTimeout(() => { req.__late = true; server.emit("request", req, res); }, lateFile.ms);
+    return;
+  }
   const file = join(SITE, p);
   if (!file.startsWith(SITE)) { res.writeHead(403).end(); return; }
   try {
@@ -115,6 +125,7 @@ await page.waitForSelector("#loading", { state: "hidden", timeout: 240000 })
     process.exit(1);
   });
 console.log(`boot: OK in ${((Date.now() - t0) / 1000).toFixed(2)} s`);
+await lateSettled(page);
 
 /* the toast recorder — a refusal that does not toast is the bug */
 await page.evaluate(() => {
@@ -1432,6 +1443,96 @@ await block("6. the offline copy", async () => {
     fail("page errors over http", herr.slice(0, 6));
   await hctx.close();
 }
+});
+
+await block("7. the loading screen over http", async () => {
+/* v31. Over http, the three things file:// cannot show: the download is
+   counted byte for byte, a drawing asked for before its deferred render has
+   landed opens when it lands, and the two ways a load goes wrong — a file that
+   never answers and a required file that is gone — each say so, with Reload. */
+const fresh = async () => {
+  const c = await browser.newContext({ ...DEV });
+  const p = await c.newPage();
+  p.setDefaultTimeout(240000);
+  await unlock(p);
+  return { c, p };
+};
+
+/* 7a. a drawing opened while its render is still on the way */
+{
+  lateFile = { path: "datajs/i_sheet_full_C107_jpg.js", ms: 9000 };
+  const { c, p } = await fresh();
+  await p.goto(HTTP);
+  await p.waitForSelector("#loading", { state: "hidden", timeout: 300000 });
+  await p.evaluate(() => {
+    window.__t = [];
+    const el = document.getElementById("toast");
+    new MutationObserver(() => { const s = el.textContent.trim(); if (s) window.__t.push(s); })
+      .observe(el, { childList: true, characterData: true, subtree: true });
+  });
+  const a = await p.evaluate(() => {
+    const s = SBMM.sheets.index().find(x => x.sheet === "C-107");
+    const st = SBMM.loader.stats();
+    const before = { loading: s.loading, url: !!s.url, bytes: st.bytes, net: st.stages.net };
+    const r = SBMM.sheets.open("C-107");
+    return Object.assign(before, { returned: r === null ? "null" : "a window" });
+  });
+  await p.waitForTimeout(400);
+  const t1 = await p.evaluate(() => window.__t.slice());
+  console.log("7a pending drawing:", JSON.stringify(a), "| toasts:", JSON.stringify(t1));
+  if (!(a.bytes.expected > 50e6) || a.bytes.arrived !== a.bytes.expected || a.net !== "done")
+    fail("over http the loader did not count the whole boot download", a.bytes);
+  if (!a.loading || a.url || a.returned !== "null") fail("C-107 was not pending when asked for", a);
+  if (!t1.some(x => /still loading/.test(x))) fail("opening a pending drawing did not say it is still loading", t1);
+  await p.waitForSelector('.shwin[data-sheet="C-107"]', { timeout: 60000 })
+    .catch(() => fail("the pending drawing did not open when its render landed"));
+  console.log("7a: the drawing opened by itself when its render landed");
+  lateFile = null; held.length = 0;
+  await c.close();
+}
+
+/* 7b. a file that never answers */
+{
+  lateFile = { path: "datajs/i_ortho_mine_jpg.js", ms: 0 };
+  const { c, p } = await fresh();
+  p.goto(HTTP).catch(() => {});
+  await p.waitForFunction(() => window.SBMM && SBMM.loader && SBMM.loader.stats().warning, null, { timeout: 90000 })
+    .catch(() => fail("a file that never answered raised no warning on the loading screen"));
+  const w = await p.evaluate(() => {
+    const s = SBMM.loader.stats(), box = document.querySelector(".ldwarn");
+    return { warning: s.warning, waitingOn: s.waitingOn, net: s.stages.net,
+             reload: !!(box && !box.hidden && box.querySelector('[data-ld="reload"]') && !box.querySelector(".ldacts").hidden) };
+  });
+  console.log("7b stall:", JSON.stringify(w));
+  if (w.waitingOn !== "datajs/i_ortho_mine_jpg.js" || !/Nothing has arrived/.test(w.warning || "") || !w.reload || w.net !== "warn")
+    fail("the stall warning does not name the file, the wait and a way out", w);
+  for (const r of held.splice(0)) { try { r.destroy(); } catch (e) {} }
+  lateFile = null;
+  await c.close();
+}
+
+/* 7c. a required file that is gone */
+{
+  drop = "datajs/d_dus.js";
+  const { c, p } = await fresh();
+  p.goto(HTTP).catch(() => {});
+  await p.waitForFunction(() => window.SBMM && SBMM.loader && SBMM.loader.stats().phase === "failed", null, { timeout: 180000 })
+    .catch(() => fail("a missing required payload did not stop the loader with a failure"));
+  const f = await p.evaluate(() => {
+    const box = document.querySelector(".ldwarn");
+    return { kind: box && box.dataset.kind, text: box && box.querySelector(".ldwtxt").textContent,
+             det: box && box.querySelector(".ldwdet").textContent,
+             buttons: box ? [...box.querySelectorAll("[data-ld]")].map(b => b.dataset.ld) : [],
+             counted: SBMM.loader.stats().bytes.arrived < SBMM.loader.stats().bytes.expected };
+  });
+  console.log("7c missing payload:", JSON.stringify({ kind: f.kind, text: f.text, det: (f.det || "").slice(0, 90), buttons: f.buttons }));
+  if (f.kind !== "fail" || !/Couldn't start/.test(f.text || "") || !/d_dus\.js/.test(f.det || "")
+      || f.buttons.join() !== "reload,copy" || !f.counted)
+    fail("the failure does not say what failed and offer Reload / Copy diagnostics", f);
+  drop = null;
+  await c.close();
+}
+console.log("7: the loading screen counts, waits, and says what is wrong: OK");
 });
 
 /* ===================================================================== */

@@ -21,14 +21,19 @@ function wireWasmSwitch() {
 }
 
 (async function () {
-  const lp = $("loadMsg");
+  /* v31: the loading screen (js/loader.js) is driven from here. `lp` stays the
+     one-line message under it; a build without the loader falls back to it. */
+  const LD = SBMM.loader || null;
+  const lp = $("loadMsg") || { set textContent(v) {} };
   const fail = (msg, detail) => {
+    if (LD) { LD.fail(msg, detail || ""); return; }
     $("loading").innerHTML = `<div class="loaderr"><h2>Couldn't start</h2><p>${esc(msg)}</p>
       ${detail ? `<pre>${esc(detail)}</pre>` : ""}
       <p class="mut">If you copied the app, make sure the whole folder came along (js/, datajs/, vendor/).
       The single-file build (dist) has no such dependency.</p></div>`;
   };
   try {
+    if (LD) LD.booting();
     /* Retry every <script src> that failed to load (js/gate.js recorded them),
        twice each and in page order, BEFORE the checks below decide the app is
        broken. Over GitHub Pages on a phone a 14 MB payload drops once on a weak
@@ -42,7 +47,7 @@ function wireWasmSwitch() {
       const name = src.split("/").pop().split("?")[0];
       let ok = false;
       for (let attempt = 1; attempt <= 2 && !ok; attempt++) {
-        lp.textContent = `retrying ${name} (${attempt} of 2)…`;
+        if (LD) LD.retrying(name, attempt); else lp.textContent = `retrying ${name} (${attempt} of 2)…`;
         ok = await new Promise(res => {
           const s = document.createElement("script");
           s.src = src.split("?")[0] + "?retry=" + attempt + "-" + Date.now();
@@ -93,12 +98,13 @@ function wireWasmSwitch() {
     const want = ["dem_site", "dem_abp"];
     if (SBMM_DATA.dem_res && SBMM_DATA.dem_res_png) want.push("dem_res");
     if (SBMM_DATA.chm && SBMM_DATA.chm_png) want.push("chm");
-    lp.textContent = `decoding terrain · 0 of ${want.length}…`;
+    if (LD) LD.checked(want); else lp.textContent = `decoding terrain · 0 of ${want.length}…`;
     const terrain = await Dem.loadAll(want, {
       optional: ["dem_res", "chm"],
       onOne: (name, p) => {
         SBMM_PERF.mark(DEM_MARK[name] || name);
-        lp.textContent = p.done < p.total
+        if (LD) LD.dem(name, p);
+        else lp.textContent = p.done < p.total
           ? `decoding terrain · ${p.done} of ${p.total}…`
           : "decoding terrain · done";
       }
@@ -114,7 +120,7 @@ function wireWasmSwitch() {
     /* unchanged contract: everything that consumes canopy heights awaits this */
     SBMM.chmReady = Promise.resolve(SBMM.chm || null);
     if (!SBMM.chm && $("v3dCanopyLbl")) $("v3dCanopyLbl").style.display = "none";
-    lp.textContent = "building workbench…";
+    if (LD) LD.terrainDone(); else lp.textContent = "building workbench…";
     /* v17 §1: the touch profile FIRST, because `body.touch` changes what every
        button measures and the top bar's four-stage narrowing is measured, not
        assumed. It sets a class and nothing else here; SBMM.touch.wire() below
@@ -262,12 +268,15 @@ function wireWasmSwitch() {
 
     SBMM_PERF.mark("boot-done");
     if (/[?&]perf/.test(location.search)) console.table(SBMM_PERF.report());
-    $("loading").style.display = "none";
+    if (LD) LD.done(); else $("loading").style.display = "none";
     /* v26: the welcome card, the first thing the eye lands on */
     try { if (SBMM.home) SBMM.home.start(); } catch (e) { console.error(e); }
     /* the one signal that every row is registered and every remembered layer
        is on the map (js/layertree.js re-applies the stored draw order on it) */
     try { if (SBMM.events && SBMM.events.emit) SBMM.events.emit("boot", {}); } catch (e) { console.error(e); }
+    /* v31: and only now the payloads read on first use — EA's lazy CAD groups,
+       the design surfaces' rasters, the full-sheet renders (js/payloads.js) */
+    try { if (SBMM.payloads) SBMM.payloads.start(); } catch (e) { console.error(e); }
     wireErrorToast();
   } catch (e) {
     console.error(e);

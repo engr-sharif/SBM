@@ -3,7 +3,7 @@
    import, and the tooltip/label consistency sweep. Prints, does not assert.   */
 import { launch, TIMEOUT } from "./lib/browser.mjs";
 import { existsSync as __ex } from "node:fs";
-import { unlock } from "./gate.mjs";
+import { unlock, lateSettled } from "./gate.mjs";
 
 const target = process.argv[2];
 const browser = await launch();
@@ -18,6 +18,7 @@ console.log(`\n=== audit2: ${process.argv[3] || target} ===`);
 await unlock(page);  /* the password gate — see test/gate.mjs */
 await page.goto("file://" + target);
 await page.waitForSelector("#loading", { state: "hidden", timeout: 180000 });
+await lateSettled(page);
 await page.evaluate(() => SBMM.chmReady);
 const say = (k, v) => console.log(`  ${String(k).padEnd(44)} ${typeof v === "object" ? JSON.stringify(v) : v}`);
 const probe = async (k, fn, arg) => {
