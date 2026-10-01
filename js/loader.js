@@ -139,9 +139,10 @@
     ["js/shell.js",19985,""],
     ["js/map.js",16513,""],
     ["js/labels.js",10220,""],
-    ["js/pick2d.js",26511,""],
+    ["js/pick2d.js",27134,""],
+    ["js/backdrop.js",14733,""],
     ["js/layertree.js",59684,""],
-    ["js/layers.js",29643,""],
+    ["js/layers.js",29910,""],
     ["js/layerpanel.js",16982,""],
     ["js/cartography.js",11446,""],
     ["js/designea.js",21994,""],
@@ -173,7 +174,7 @@
     ["js/io.js",13588,""],
     ["js/table.js",10481,""],
     ["js/terrain3d.js",48254,""],
-    ["js/viewer3d.js",248179,""],
+    ["js/viewer3d.js",249560,""],
     ["js/pick3d.js",34123,""],
     ["js/sheetmarks.js",35474,""],
     ["js/redline.js",14317,""],
@@ -192,7 +193,7 @@
     ["js/sheetcards.js",7911,""],
     ["js/home.js",26722,""],
     ["js/field.js",44926,""],
-    ["js/boot.js",15867,""]
+    ["js/boot.js",15920,""]
   ];
   /* SBMM_SIZES_END */
 

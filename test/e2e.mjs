@@ -6319,6 +6319,62 @@ await page.evaluate(p => {
 }, pre);
 });
 
+await block("9f9. hover names and the world beyond the survey (v32)", async () => {
+/* 9f9. Every interactive 2D layer names itself — the ABP sample results (W03,
+   E1 …) used to answer "feature" because they had a popup and no tooltip —
+   and the backdrop beyond the survey is decoration that nothing can hit. */
+const nm = await page.evaluate(async () => {
+  const was = SBMM.layerState.isOn("invest", "samples");
+  SBMM.layerState.set("invest", "samples", { on: true });
+  await new Promise(r => setTimeout(r, 400));
+  const bad = [];
+  let n = 0;
+  SBMM.map.eachLayer(l => {
+    if (!l.options || !l.options.interactive || l instanceof L.LayerGroup) return;
+    if (!l._popup && !l._tooltip && !l._events) return;
+    n++;
+    const t = SBMM.pick2d.nameOf(l);
+    if (!t || /^feature$/i.test(t)) bad.push(l.options.pane || "?");
+  });
+  const s = SBMM.samples.find(p => /^W0?3$/.test(p.id)) || SBMM.samples[0];
+  const probe = SBMM.pick2d.probe(L.latLng(s.y, s.x)).map(c => c.name);
+  SBMM.layerState.set("invest", "samples", { on: was });
+  return { n, bad: bad.slice(0, 10), nBad: bad.length, sample: s.id, probe: probe.slice(0, 4) };
+});
+console.log("v32 hover names:", JSON.stringify(nm));
+if (nm.nBad) { console.log("FAIL: interactive layers with no name of their own", nm); process.exit(1); }
+if (!nm.probe.some(t => t.startsWith(nm.sample))) { console.log("FAIL: a sample does not hover by its own name", nm); process.exit(1); }
+
+const bd = await page.evaluate(async () => {
+  const st = SBMM.backdrop.stats(), pane = SBMM.map.getPane("backdrop"), M = SBMM.map;
+  const z = n => parseInt(M.getPane(n).style.zIndex, 10);
+  const passCanvases = [...M.getContainer().querySelectorAll(".leaflet-pane > canvas")]
+    .filter(c => pane.contains(c)).length;
+  const inPick = Object.values(M._paneRenderers || {}).some(r => r && r._container && pane.contains(r._container));
+  /* empty ground far beyond the survey answers nothing */
+  const b = SBMM.demSite.bounds();
+  const far = SBMM.pick2d.probe(L.latLng(b[0][0] - 3000, b[0][1] - 3000));
+  SBMM.backdrop.setEnabled(false);
+  const off = SBMM.backdrop.stats().canvas;
+  SBMM.backdrop.setEnabled(true);
+  const on = SBMM.backdrop.stats();
+  return { st, z: z("backdrop"), zLake: M.getPane("lakefill") ? z("lakefill") : null, zRaster: z("raster"),
+           pe: getComputedStyle(pane).pointerEvents, passCanvases, inPick, far: far.length, off, on };
+});
+console.log("v32 backdrop:", JSON.stringify(bd));
+if (!bd.st.pane || !bd.st.mask || !(bd.st.paints > 0)) { console.log("FAIL: the backdrop did not paint with its survey mask", bd); process.exit(1); }
+if (!(bd.z < bd.zRaster) || (bd.zLake != null && !(bd.z < bd.zLake))) { console.log("FAIL: the backdrop is not under the lake and the rasters", bd); process.exit(1); }
+if (bd.pe !== "none" || bd.passCanvases || bd.inPick || bd.far) { console.log("FAIL: the backdrop can be hit", bd); process.exit(1); }
+if (bd.off[0] * bd.off[1] !== 0 || !(bd.on.canvas[0] > 0) || !bd.on.enabled) { console.log("FAIL: the backdrop switch", bd); process.exit(1); }
+/* the same world under the 3D terrain */
+await page.evaluate(async () => { if (!SBMM.viewer3d.isOpen()) await SBMM.viewer3d.toggle(); });
+await page.waitForFunction(() => SBMM.viewer3d.isOpen() && SBMM.viewer3d.stats().groundPlane, null, { timeout: 120000 });
+const g3 = await page.evaluate(() => SBMM.viewer3d.stats().groundBackdrop);
+await page.evaluate(() => { if (SBMM.viewer3d.isOpen()) SBMM.viewer3d.toggle(); });
+if (!g3) { console.log("FAIL: the 3D ground plane does not carry the backdrop"); process.exit(1); }
+console.log("v32 backdrop in 2D and 3D: OK");
+});
+
 await block("9x. drainage", async () => {
 /* 9x. drainage — the whole-site catchment map (v14, docs/V14_DRAINAGE_SPEC.md) */
 /* ==================================================================== */

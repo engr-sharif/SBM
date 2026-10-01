@@ -385,6 +385,7 @@ terrain source, which needs an explicit decision + README/test update).
 | touch.js | **the three touch profiles, the ONE gesture recogniser, the loupe, the Done bar and the offline copy (v17)** — `SBMM.touch`: `profile()` / `on()` / `override()` / `lastPointer()`, `gestures(el, handlers)`, `momentum`, the shared loupe and Done bar, long-press-as-right-click, the tooltip chip, the map's press-hold vertex placement, the wake lock, the device diagnostics and the `sw.js` client |
 | redline.js | **freehand ink (v17 §5a)** — the `ink` store feature, event-resolution capture with `getCoalescedEvents`, pressure-driven width per vertex, the 6-swatch palette and eraser, the map host and (through `js/sheetmarks.js`) the sheet-window host; `SBMM.redline` |
 | pick2d.js | **v29 — the 2D pick engine**: in Navigate mode ONE answer to "what is under the pointer", asked by the hover and the click alike — ranked candidates across every pane's canvas draw list and every marker element, the lifted symbol / SVG highlight, the name chip `#pickTip`, Tab to cycle, the click fired through `map._fireDOMEvent` on exactly that layer, and the popup's "also here" row; **v30**: in any tool mode a click goes to the tool as a map click at the pointer (`toolClick`); `SBMM.pick2d` |
+| backdrop.js | **v32 — the world beyond the survey**: one painter (gradient, State Plane grid with crosshairs, a seeded procedural contour field that nests by zoom, a glow along the survey edge, all cut away inside the 2-ft DEM's footprint) and two hosts — a canvas in the non-interactive `backdrop` pane (z 150) and the 3D ground plane's texture; `SBMM.backdrop` |
 | labels.js | **the 2D label engine (v15 §2.2)** — one registry for every permanent map label, dedupe by `key`, a greedy screen-space collision pass by priority, `visibility:hidden` never `display`, per-label zoom `gate()`; `SBMM.labels` |
 | compute.js | **pure** compute kernels (volume grid, rasters, marching squares, ring-aware simplify) — no DOM, no SBMM; runs in workers |
 | jobs.js | worker pool: progress, cancel, transferables; `SBMM.compute` |
@@ -3173,6 +3174,52 @@ Four things that will be walked into again:
   gesture, and the first cut picked its names from the pose before the flight.
   The pose check is one sum per frame and asks for no frame; an idle 3D view
   still renders nothing (block 9f8 and 9e assert it).
+
+## v32 — names on every hover, and the world beyond the survey
+
+`js/backdrop.js` (`SBMM.backdrop`), the sample tooltip in `js/layers.js`
+`symbolizePoints`, `popupName()` in `js/pick2d.js` (+ `SBMM.pick2d.nameOf`, the
+harness hook), the ground plane in `js/viewer3d.js` `buildEnv`. E2E block
+**"9f9. hover names and the world beyond the survey (v32)"** (shard 2).
+
+The engineer: *"some features pop up as 'Feature' instead of their name — the
+area between pile locations, E1, E2, W1, W3"* and *"the black areas outside the
+boundary … have this more feel like a 3D digital world."*
+
+**The names.** The 140 sample results (`SBMM.samples`, the ABP and Jacobs
+R1/R2 points) carried a popup and no tooltip, so the chip fell through
+`plainName` to the literal "feature". They now carry a sticky tooltip
+(`<b>W03</b> · Hg … · As … mg/kg`), and `plainName`'s last resort before
+"feature" is the popup's own `<b>` heading — every builder in `js/popups.js`
+opens on the name, so a future layer that forgets a tooltip still names itself.
+Block 9f9 walks every interactive layer on the map and fails on any that answers
+"feature" (1,125 layers, 0 unnamed).
+
+**The backdrop is decoration, and four rules keep it that way:**
+
+- **It is NEVER terrain.** The contours are a seeded value-noise field (octaves
+  12,000 → 16 ft, amplitude ∝ wavelength so the screen spacing is the same at
+  every zoom; the interval halves per integer zoom step, so one zoom's lines are
+  a subset of the next). Inside the 2-ft DEM's valid footprint (a mask at 16 ft,
+  north up) the grid and the contours are cut away with `destination-out`, so the
+  Plan basemap's real contours are never crossed by invented ones.
+- **Nothing can hit it.** Its canvas sits in a `<div>` inside the `backdrop`
+  pane (z 150, `pointer-events:none`), so js/map.js's pass-through
+  (`.leaflet-pane > canvas`) and js/pick2d.js (`map._paneRenderers`) never see
+  it. It is under the lake fill (250) and the rasters (260).
+- **It asks for no frame.** 2D repaints on `moveend`/`zoomend`/`resize` (~13 ms,
+  the contour pass visits only the levels that cross each cell) and rides
+  Leaflet's `zoomanim` like an ImageOverlay in between; the 3D texture
+  (2,048 px over 48,000 ft, 1,024 on `lowMem()`) is built once in `buildEnv`,
+  repeated/offset onto the 160,000-ft plane with `ClampToEdge`, its edge faded to
+  the plain ground. Block 9e's idle contract is untouched.
+- **The mask needs the decoded site DEM**, so a paint before it lands simply
+  paints without it, and the `boot` event repaints.
+
+`SBMM.backdrop.setEnabled(bool)` (remembered as `SBMM.view.pref("backdrop")`)
+turns it off; the 3D plane falls back to the plain lake colour then.
+`stats()` reports `{enabled, pane, canvas, mask, paints, lastMs}`;
+`SBMM.viewer3d.stats().groundBackdrop` says whether the plane carries it.
 
 ## Undo and redo (v9.4) — the both-closures rule and `readd`
 
