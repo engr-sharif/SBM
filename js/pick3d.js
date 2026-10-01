@@ -440,7 +440,19 @@ SBMM.pick3d = (function () {
       tipEl.id = "pick3dTip";
       (document.getElementById("view3d") || document.body).appendChild(tipEl);
     }
-    tipEl.textContent = txt;
+    /* v29: the same two lines as the 2D chip (js/pick2d.js) — the name, then
+       what it is — so a well reads the same in both views */
+    const i = String(txt).indexOf(" · ");
+    tipEl.textContent = "";
+    const b = document.createElement("b");
+    b.textContent = i > 0 ? txt.slice(0, i) : txt;
+    tipEl.appendChild(b);
+    if (i > 0) {
+      const k = document.createElement("span");
+      k.className = "pkkind";
+      k.textContent = txt.slice(i + 3);
+      tipEl.appendChild(k);
+    }
     tipEl.hidden = false;
     moveTip(e);
   }

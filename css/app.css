@@ -2914,3 +2914,51 @@ td.lmrod,td.lmpmb{background:color-mix(in srgb,currentColor 10%,transparent)}
 .lmkey,.lmex,.lmline{font-size:11px;margin-top:3px;color:var(--ink2)}
 .lmkey{color:var(--mut)}
 details.lmmore summary{cursor:pointer;font-size:11px;color:var(--mut);margin-top:3px}
+
+/* ======================= v29 — the 2D pick engine (js/pick2d.js) =======================
+   The name chip beside the cursor, the lifted marker and the highlight. No new
+   stacking band: the chip sits at 1440 beside #waterTip and #pick3dTip (above
+   the stage, below the docks' own menus), the highlight is a map pane at 480
+   (above the water pane, pointer-events none). */
+#pickTip{position:absolute;left:0;top:0;z-index:1440;pointer-events:none;
+  background:rgba(14,20,24,.95);border:1px solid var(--line2);border-radius:6px;
+  padding:4px 9px 5px;box-shadow:var(--sh2);color:var(--ink);font-size:12px;line-height:1.35;
+  max-width:340px;display:flex;flex-direction:column;gap:1px;
+  animation:pkin .12s ease-out}
+#pickTip[hidden]{display:none}
+#pickTip b{font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#pickTip .pkkind{color:var(--mut);font-size:11px;white-space:nowrap}
+#pickTip .pkmore{color:var(--acc2);font-size:10.5px;font-family:var(--mono);margin-top:2px}
+#pickTip .pkrich{display:flex;gap:6px;align-items:flex-start;font-size:11.5px}
+#pickTip .pkrich .bltiptxt{display:flex;flex-direction:column}
+#pickTip.info{border-style:dashed;color:var(--ink2)}
+#pickTip.info b{color:var(--ink2);font-weight:500}
+@keyframes pkin{from{opacity:0;transform-origin:0 0;filter:blur(1px)}to{opacity:1}}
+
+/* a marker under the pointer "pops up a bit": its symbol, never its element
+   (Leaflet positions the element with a transform of its own) */
+.leaflet-marker-icon > svg{transition:transform .12s ease-out,filter .12s ease-out;transform-origin:50% 50%}
+.leaflet-marker-icon.pklift{z-index:100000 !important}
+.leaflet-marker-icon.pklift > svg{transform:scale(1.55);
+  filter:drop-shadow(0 0 1.5px #FFE9A8) drop-shadow(0 0 4px rgba(255,233,168,.75)) drop-shadow(0 1px 2px rgba(0,0,0,.8))}
+.leaflet-marker-icon.pklift .dslbl{color:#FFE9A8}
+.leaflet-pickhl-pane .pkring{animation:pkring .18s ease-out}
+@keyframes pkring{from{stroke-opacity:0;stroke-width:8}to{stroke-opacity:1}}
+
+/* the cursor says "this opens something" only where it does */
+#map.pkhot,#map.pkhot .leaflet-interactive,#map.pkhot canvas{cursor:pointer !important}
+
+/* the popup's "also here" row: the other things the same click was over */
+.pkalso{display:flex;flex-wrap:wrap;gap:4px;align-items:center;margin-top:9px;padding-top:7px;
+  border-top:1px solid var(--line)}
+.pkalso .pkalsoh{font-size:10.5px;color:var(--mut);margin-right:2px;text-transform:uppercase;letter-spacing:.05em}
+.pkalso button{font:inherit;font-size:11px;background:var(--panel3);color:var(--ink2);border:1px solid var(--line2);
+  border-radius:10px;padding:1px 8px;cursor:pointer;max-width:170px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pkalso button:hover{border-color:var(--acc);color:var(--ink)}
+
+/* the 3D hover tip wears the 2D chip's two lines */
+#pick3dTip{display:flex;flex-direction:column;gap:1px;padding:4px 9px 5px;border-radius:6px;
+  transform:translate(16px,12px);font-size:12px;color:var(--ink);box-shadow:var(--sh2)}
+#pick3dTip[hidden]{display:none}
+#pick3dTip b{font-weight:600}
+#pick3dTip .pkkind{color:var(--mut);font-size:11px}
