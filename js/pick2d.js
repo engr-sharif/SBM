@@ -63,7 +63,7 @@ SBMM.pick2d = (function () {
   let markers = new Set();                    // interactive L.Marker layers on the map
   let cur = null;                             // { list, idx, cx, cy } — the ranked candidates
   let raf = 0, lastMove = null, down = null, enabled = true, lifted = null;
-  const stats = { hovers: 0, clicks: 0, cycles: 0 };
+  const stats = { hovers: 0, clicks: 0, cycles: 0, toolClicks: 0 };
 
   const esc = s => String(s == null ? "" : s).replace(/[&<>"]/g, c =>
     ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
@@ -73,9 +73,26 @@ SBMM.pick2d = (function () {
     if (!enabled || !map) return false;
     if (!SBMM.mode || SBMM.mode.current() !== "navigate") return false;
     if (SBMM.tools && SBMM.tools.active && SBMM.tools.active()) return false;
+    if (SBMM.draw && SBMM.draw.armed && SBMM.draw.armed()) return false;   // a modify command's base-point pick
     if (document.body.classList.contains("gated")) return false;
     return true;
   }
+  /* v30: is a TOOL collecting this click? Every mode but Navigate, plus a
+     pick a modify command opened from Navigate. Redline and Edit own their
+     clicks outright (the eraser hits a stroke; a mid handle inserts a vertex)
+     and are left alone. */
+  function toolMode() {
+    if (!enabled || !map || !SBMM.mode) return false;
+    const m = SBMM.mode.current();
+    if (m === "redline" || m === "edit") return false;
+    if (m !== "navigate") return true;
+    return !!((SBMM.tools && SBMM.tools.active && SBMM.tools.active())
+           || (SBMM.draw && SBMM.draw.armed && SBMM.draw.armed()));
+  }
+  /* MOVE / OFFSET / JOIN … asking "which drawing" (js/cmdline.js pickFeature):
+     only the user's own features answer, so a well on top of the line being
+     picked cannot take the click */
+  const selecting = () => !!(map && map.getContainer().classList.contains("picksel"));
   const pointerKind = () => (SBMM.touch && SBMM.touch.lastPointer && SBMM.touch.lastPointer()) || "mouse";
 
   /* A layer "acts" on click when it has a popup, or a click listener that is
@@ -331,7 +348,8 @@ SBMM.pick2d = (function () {
     if (!ev || !active() || ev.buttons || pointerKind() === "touch" || overChrome(ev.target)
         || map._animatingZoom || (map.dragging && map.dragging.moving())) { clear(); return; }
     const p = map.mouseEventToLayerPoint(ev);
-    const list = candidates(p, REACH[pointerKind()] || 5);
+    let list = candidates(p, REACH[pointerKind()] || 5);
+    if (selecting()) list = list.filter(c => storeFeature(c.layer));
     stats.hovers++;
     if (!list.length) { clear(); return; }
     /* keep the Tab choice while the pointer stays over the same set */
@@ -384,13 +402,35 @@ SBMM.pick2d = (function () {
     map._fireDOMEvent(e, "click", [l]);
   }
   function onDown(ev) { down = { x: ev.clientX, y: ev.clientY, t: performance.now() }; }
+  /* v30: a click a TOOL is collecting goes to the tool — never to a feature
+     under it. Before this every sketch and pick tool lost its click to the
+     well, the sample or the outline it was aimed at: the feature's popup
+     opened and the tool collected nothing, so a distance could not be
+     measured TO a well at all. The click becomes a plain map click at the
+     pointer, and js/draw.js resolves it through the snap engine — which
+     puts the vertex on the well head exactly, and says so. */
+  function toolClick(ev) {
+    if (overChrome(ev.target)) return false;
+    if (ev.target && ev.target.closest && ev.target.closest(".vtx")) return false;   // the sketch's own handles
+    if (down && Math.hypot(ev.clientX - down.x, ev.clientY - down.y) > CLICK_SLOP) return false;
+    if (SBMM.touch && SBMM.touch.clickSwallowed && SBMM.touch.clickSwallowed()) return false;
+    ev.stopPropagation(); ev.stopImmediatePropagation(); ev.preventDefault();
+    const latlng = map.mouseEventToLatLng(ev);
+    stats.toolClicks++;
+    map.fire("click", { latlng, layerPoint: map.latLngToLayerPoint(latlng),
+                        containerPoint: map.latLngToContainerPoint(latlng), originalEvent: ev });
+    return true;
+  }
   function onClick(ev) {
-    if (ev.__sbmmFwd || !active() || overChrome(ev.target)) return false;
+    if (ev.__sbmmFwd) return false;
+    if (toolMode()) return toolClick(ev);
+    if (!active() || overChrome(ev.target)) return false;
     if (down && Math.hypot(ev.clientX - down.x, ev.clientY - down.y) > CLICK_SLOP) return false;
     if (SBMM.touch && SBMM.touch.clickSwallowed && SBMM.touch.clickSwallowed()) return false;
     const p = map.mouseEventToLayerPoint(ev);
     const kind = pointerKind();
     let list = candidates(p, REACH[kind] || 5).filter(c => c.acts);
+    if (selecting()) list = list.filter(c => storeFeature(c.layer));
     if (!list.length) { clear(); return false; }
     /* the one the chip is showing (a Tab choice included) — but only if the
        chip was computed HERE. A click can land before the hover has caught up
@@ -486,7 +526,9 @@ SBMM.pick2d = (function () {
        `this.openTooltip()`, which is looked up at call time. */
     const OPEN = L.Layer.prototype.openTooltip;
     L.Layer.prototype.openTooltip = function (ll) {
-      if (this._tooltip && !this._tooltip.options.permanent && active()) return this;
+      /* and in a tool mode too: the snap glyph names what the vertex will
+         land on, and a layer's tooltip beside it is a second, different label */
+      if (this._tooltip && !this._tooltip.options.permanent && (active() || toolMode())) return this;
       return OPEN.call(this, ll);
     };
   }

@@ -22,19 +22,24 @@
 
 SBMM.snap = (function () {
 
-  const TYPES = ["end", "mid", "int", "perp", "near"];
-  const LABEL = { end: "endpoint", mid: "midpoint", int: "intersection", perp: "perpendicular", near: "nearest" };
-  const PRIO  = { end: 1, int: 2, mid: 3, perp: 4, near: 5 };
+  /* v30: `node` — a NAMED point feature (a well head, a boring collar, a
+     sample, a storm structure, the user's own point). It outranks every other
+     snap, because a point somebody surveyed is the thing a measurement is to,
+     and its label is the feature's own name so the glyph says "MW-05" rather
+     than "endpoint". AutoCAD calls the same snap NODE. */
+  const TYPES = ["node", "end", "mid", "int", "perp", "near"];
+  const LABEL = { node: "point feature", end: "endpoint", mid: "midpoint", int: "intersection", perp: "perpendicular", near: "nearest" };
+  const PRIO  = { node: 0, end: 1, int: 2, mid: 3, perp: 4, near: 5 };
 
   let enabled = true;
-  const on = { end: true, mid: true, int: true, perp: true, near: true };
+  const on = { node: true, end: true, mid: true, int: true, perp: true, near: true };
 
   /* ------------------------------------------------------------------ */
   /* grid hash                                                          */
   /* ------------------------------------------------------------------ */
   const CELL = 250;                       // ft — a few hundred segments per cell
 
-  function newIndex() { return { segs: [], pts: [], sseg: [], spt: [], smap: new Map(), pmap: new Map() }; }
+  function newIndex() { return { segs: [], pts: [], pname: [], sseg: [], spt: [], smap: new Map(), pmap: new Map() }; }
 
   /* v25: WHICH LAYER each snap candidate came from, so a layer that is off does
      not snap. Before this the static index held the 2-ft ABP contours (off by
@@ -69,10 +74,11 @@ SBMM.snap = (function () {
       const k = K(i, j); let a = ix.smap.get(k); if (!a) ix.smap.set(k, a = []); a.push(id);
     }
   }
-  function addPt(ix, x, y) {
+  function addPt(ix, x, y, name) {
     if (!(isFinite(x) && isFinite(y))) return;
     const id = ix.pts.length; ix.pts.push(x, y);
     ix.spt.push(curSrc);
+    ix.pname.push(name || null);
     const k = K(Math.floor(x / CELL), Math.floor(y / CELL));
     let a = ix.pmap.get(k); if (!a) ix.pmap.set(k, a = []); a.push(id);
   }
@@ -124,7 +130,7 @@ SBMM.snap = (function () {
         for (const row of (D[key] || [])) addPath(statix, row[1], false);
       }
       curSrc = srcOf("invest", "samples");
-      for (const p of (SBMM.samples || [])) addPt(statix, p.x, p.y);
+      for (const p of (SBMM.samples || [])) addPt(statix, p.x, p.y, p.id ? p.id + " · sample" : null);
       curSrc = 0;
       /* The native EA design geometry snaps like any other project linework —
          this is the one a drafter actually wants to snap to, so it goes in
@@ -139,18 +145,25 @@ SBMM.snap = (function () {
         const sv = SBMM.survey.snapPaths();
         for (const r of sv.rings) addPath(statix, r, false);
       }
-      /* v28: the named site areas of SBMM.kmz */
+      /* v28: the named site areas of SBMM.kmz — every ring indexed, gated by
+         its row at QUERY time (v30), so a row ticked after the index was built
+         snaps too */
       if (SBMM.siteAreas) {
-        const sa = SBMM.siteAreas.snapPaths();
+        curSrc = srcOf("invest", "site_areas");
+        const sa = SBMM.siteAreas.snapPaths(true);
         for (const r of sa.rings) addPath(statix, r, true);
       }
-      /* the storm network (v12): the conduits as paths, the structures as points
-         — a grate is exactly the kind of thing a drafter starts a line from */
-      if (SBMM.storm) {
-        const sm = SBMM.storm.snapPaths();
-        for (const r of sm.rings) addPath(statix, r, false);
-        for (const q of sm.pts) addPt(statix, q[0], q[1]);
+      /* the storm network (v12): the conduits as paths, the structures as
+         named points — a grate is exactly the kind of thing a drafter starts a
+         line from. v30: each under its own row, gated at query time. */
+      if (SBMM.storm && SBMM.storm.snapItems) {
+        for (const it of SBMM.storm.snapItems()) {
+          curSrc = srcOf("framework", it.key);
+          if (it.pts) addPath(statix, it.pts, false);
+          else addPt(statix, it.x, it.y, it.name);
+        }
       }
+      curSrc = 0;
       /* EA design boundaries snap like any other project linework */
       if (SBMM.designEA) {
         curSrc = srcOf("design", "pdf_boundaries");
@@ -160,8 +173,15 @@ SBMM.snap = (function () {
       }
       /* imported and baked datasets snap like any other project point, so a
          drawing can be started exactly on a well head or a boring collar */
+      /* v30: named, and under the dataset's own row — before this every
+         dataset snapped with its row off (the XRF campaigns, the historical
+         borings), and a snap to a point nobody can see is a vertex nobody can
+         explain */
       curSrc = 0;
-      if (SBMM.datasets) for (const q of SBMM.datasets.snapPoints()) addPt(statix, q[0], q[1]);
+      if (SBMM.datasets) for (const q of SBMM.datasets.snapPoints()) {
+        curSrc = q[3] ? srcOf(q[3], q[4]) : 0;
+        addPt(statix, q[0], q[1], q[2]);
+      }
     } catch (e) { console.warn("snap: static index failed", e); }
     curSrc = 0;
     built = {
@@ -177,7 +197,8 @@ SBMM.snap = (function () {
       if (f.props && f.props.ref) continue;   // §5 footprints are bboxes, not drafted lines
       if (f.visible === false) continue;
       const closed = f.type === "area" || f.type === "volume";
-      if (f.type === "spot" || (f.type === "text" && f.pts.length === 1)) addPt(dynix, f.pts[0][0], f.pts[0][1]);
+      if (f.type === "spot" || (f.type === "text" && f.pts.length === 1))
+        addPt(dynix, f.pts[0][0], f.pts[0][1], f.type === "spot" ? (f.name || "point") + " · point" : null);
       else addPath(dynix, f.pts, closed);
     }
   }
@@ -243,7 +264,9 @@ SBMM.snap = (function () {
     for (const ix of pools) {
       for (const id of gatherPts(ix, x, y, tol)) {
         if (!srcVisible(ix.spt[id / 2])) continue;
-        take("end", ix.pts[id], ix.pts[id + 1]);
+        const nm = ix.pname[id / 2];
+        if (nm && on.node) take("node", ix.pts[id], ix.pts[id + 1], { label: nm, name: nm });
+        else take("end", ix.pts[id], ix.pts[id + 1]);
       }
       for (const id of gather(ix, x, y, tol)) {
         if (!srcVisible(ix.sseg[id / 4])) continue;
@@ -360,6 +383,7 @@ SBMM.snap = (function () {
       if (pass === 1) { ctx.lineWidth = 1.6; ctx.strokeStyle = GLYPH_COLOR; }
       ctx.beginPath();
       if (s.type === "end") ctx.rect(px - r, py - r, r * 2, r * 2);
+      else if (s.type === "node") { ctx.arc(px, py, r, 0, Math.PI * 2); ctx.moveTo(px - r - 3, py); ctx.lineTo(px + r + 3, py); ctx.moveTo(px, py - r - 3); ctx.lineTo(px, py + r + 3); }
       else if (s.type === "mid") { ctx.moveTo(px, py - r - 1); ctx.lineTo(px + r + 1, py + r); ctx.lineTo(px - r - 1, py + r); ctx.closePath(); }
       else if (s.type === "int") { ctx.moveTo(px - r, py - r); ctx.lineTo(px + r, py + r); ctx.moveTo(px + r, py - r); ctx.lineTo(px - r, py + r); }
       else if (s.type === "perp") { ctx.moveTo(px - r, py - r); ctx.lineTo(px - r, py + r); ctx.lineTo(px + r, py + r); ctx.moveTo(px, py + r); ctx.lineTo(px, py - r + 1); }
@@ -404,8 +428,8 @@ SBMM.snap = (function () {
     const pop = $("osnapPop");
     pop.innerHTML = `<h4>Object snap</h4>` + TYPES.map(t =>
       `<label class="chk"><input type="checkbox" data-st="${t}"> ${LABEL[t]}</label>`).join("") +
-      `<div class="popnote">Snaps to drawn features, DU and pile outlines, survey contours and sample
-       points. <kbd>F3</kbd> toggles them all.</div>`;
+      `<div class="popnote">Point features (wells, borings, samples, storm structures) first, then
+       drawn features and the project linework that is switched on. <kbd>F3</kbd> toggles them all.</div>`;
     pop.querySelectorAll("input[data-st]").forEach(i =>
       i.onchange = () => setType(i.dataset.st, i.checked));
 
@@ -430,8 +454,24 @@ SBMM.snap = (function () {
     idle(() => buildStatic());
   }
 
+  /* v30: the NAMED point feature at exactly (x, y), if any — what a measured
+     line's ends were snapped to. Asked of the geometry rather than remembered
+     from the click, so it holds after a vertex edit and a session reload, and
+     a drag off the well drops the name by itself. */
+  function nodeAt(x, y, tol) {
+    tol = tol == null ? 0.05 : tol;
+    buildStatic();
+    for (const ix of [dynix, statix]) {
+      for (const id of gatherPts(ix, x, y, tol)) {
+        const nm = ix.pname[id / 2];
+        if (nm && Math.hypot(ix.pts[id] - x, ix.pts[id + 1] - y) <= tol) return nm;
+      }
+    }
+    return null;
+  }
+
   return {
-    wire, query, paint, clear, reindexDrawn, buildStatic,
+    wire, query, paint, clear, reindexDrawn, buildStatic, nodeAt,
     /* a new dataset adds static snap points; drop the cached index so the next
        query rebuilds it rather than silently missing the new geometry */
     invalidate: () => { statix = null; built = null; },

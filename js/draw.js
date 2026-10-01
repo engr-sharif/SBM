@@ -70,7 +70,7 @@ SBMM.draw = (function () {
     return lastRes;
   }
   function paintOverlay() {
-    if (!armed() && !editing) { SBMM.snap.paint(null); return; }
+    if (!armed() && !editing && !SBMM.tools.active()) { SBMM.snap.paint(null); return; }
     SBMM.snap.paint(lastRes ? { snap: lastRes.snap, ray: lastRes.ray } : null);
   }
   /* unit direction the cursor currently defines from the anchor (for typed distance) */
@@ -480,7 +480,10 @@ SBMM.draw = (function () {
       const oe = e.originalEvent;
       if (oe) { modShift = !!oe.shiftKey; lastPx = { x: oe.clientX, y: oe.clientY }; }
       /* only pay for a snap query when something is actually collecting a point */
-      if (!armed()) { SBMM.snap.paint(null); return; }
+      /* v30: a one-click tool (Point, Inspect, Raindrop) resolves its click
+         through the snap engine too, so it shows the glyph — what the click
+         lands on — while hovering, the way a sketch always has */
+      if (!armed() && !SBMM.tools.active()) { SBMM.snap.paint(null); return; }
       const r = resolve(e.latlng.lng, e.latlng.lat);
       if (picking) pickMove(r.x, r.y); else move(r.x, r.y);
       paintOverlay();
@@ -564,6 +567,10 @@ SBMM.draw = (function () {
        "armed" are this module's business and have changed before. */
     armed,
     previewAt, finishSketch, removeLastVertex,
+    /* v30: the live sketch's vertices and the last resolved point (with its
+       snap), read-only, for the harness and the snap chip */
+    sketchPts: () => (work ? work.pts.map(p => p.slice()) : picking ? picking.pts.map(p => p.slice()) : null),
+    lastResolved: () => lastRes,
     /* drafting stack */
     beginPick, endPick, finishPick, isPicking, drawGhost, resolve, parseTyped,
     openTyped, closeTyped,
