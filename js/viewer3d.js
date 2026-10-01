@@ -983,16 +983,17 @@ SBMM.viewer3d = (function () {
      ponds and surfaces had chips. There are hundreds of points, so the rule is
      NEAREST FIRST: rebuildOverlays collects every point of every row that is
      on (the datasets, the samples, the storm structures) as a candidate, and
-     once the camera SETTLES the ones in view nearest the camera — PT_MAX of
-     them — become the "points" label source. The collision pass and the
+     whenever the camera pose changes the ones in view nearest the ORBIT TARGET
+     — PT_MAX of them — become the "points" label source, inside the frame
+     that draws the new pose. The collision pass and the
      priorities do the rest: a point name is priority 20, under every water,
      spill and annotation label, so it gives way rather than covering one.
-     Nothing here runs per frame and an idle view still renders nothing. */
+     Nothing here runs while the camera is still, and an idle view still
+     renders nothing. */
   const PT_MAX = 40;
-  let ptCand = [], ptOn = true, ptDirty = false, ptMoveAt = 0, ptSig = "", ptPose = NaN;
+  let ptCand = [], ptOn = true, ptSig = "", ptPose = NaN;
   const PV = new THREE.Vector3();
   function refreshPointLabels() {
-    ptDirty = false;
     if (!camera || !renderer) return;
     if (!ptOn || !ptCand.length) {
       if (labelSrc.points.length) { ptSig = ""; setLabels3d("points", []); }
@@ -3651,13 +3652,16 @@ SBMM.viewer3d = (function () {
         }
       }
       const moved = nav.update();
-      /* v31: the point names re-pick on a SETTLED camera, like the terrain —
-         and "moved" is the camera POSE, because a programmatic flight (openAt,
-         a bookmark, Look at…) moves it without the rig reporting a gesture */
+      /* v31: the point names are re-picked IN a frame that is being drawn
+         anyway, before the draw decision, so a pick never asks for a frame of
+         its own: the request it raises is consumed by this very frame, and a
+         camera that has stopped re-picks nothing. "Moved" is the camera POSE,
+         because a programmatic flight (openAt, a bookmark, Look at…) moves it
+         without the rig reporting a gesture. Projecting a few hundred
+         candidates is a fraction of a millisecond. */
       const cp = camera.position, cq = camera.quaternion;
       const pose = cp.x + 3.1 * cp.y + 7.3 * cp.z + 1e4 * (cq.x + 2 * cq.y + 3 * cq.z + 4 * cq.w);
-      if (moved || pose !== ptPose) { ptPose = pose; ptMoveAt = performance.now(); ptDirty = true; }
-      else if (ptDirty && performance.now() - ptMoveAt > 280) refreshPointLabels();
+      if (pose !== ptPose) { ptPose = pose; refreshPointLabels(); }
       /* v20 §3, trap 4: the quadtree re-selects on a SETTLED camera, never per
          frame. update() returns without asking for a frame when the drawn set
          has not changed, which is what keeps an idle view at zero renders. */

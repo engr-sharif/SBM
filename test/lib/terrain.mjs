@@ -244,7 +244,10 @@ export function loadSurface(id) {
   if (!m) throw new Error("no design surface " + id + " in data/design/surfaces.json");
   const r = m.raster;
   const t0 = Date.now();
-  const payload = path.join(REPO, "datajs", "d_cad_surfaces.js");
+  /* v31: the rasters are their own payload (tools/payload_split.py); the
+     manifest stays in d_cad_surfaces.js. An older split-less tree still works. */
+  const split = path.join(REPO, "datajs", "d_cad_surfaces_rasters.js");
+  const payload = fs.existsSync(split) ? split : path.join(REPO, "datajs", "d_cad_surfaces.js");
   const key = cacheKey(payload, "surf-" + id);
   let z = cacheGet(key, r.w * r.h);
   if (z) loadStats.cached.push("surf:" + id);
@@ -254,7 +257,7 @@ export function loadSurface(id) {
     const src = fs.readFileSync(payload, "utf8");
     const re = new RegExp('SBMM_DATA\\["' + r.payload + '"\\]\\s*=\\s*"data:image/png;base64,([A-Za-z0-9+/=]+)"');
     const mm = re.exec(src);
-    if (!mm) throw new Error("datajs/d_cad_surfaces.js has no payload " + r.payload);
+    if (!mm) throw new Error(path.basename(payload) + " has no payload " + r.payload);
     const img = decodePNG(Buffer.from(mm[1], "base64"));
     if (img.w !== r.w || img.h !== r.h)
       throw new Error(`${r.payload} is ${img.w}x${img.h} but the manifest says ${r.w}x${r.h}`);
