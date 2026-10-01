@@ -6064,6 +6064,115 @@ await page.keyboard.press("Escape");
 await page.evaluate(() => { SBMM.mode.navigate(); SBMM.map.closePopup(); });
 });
 
+await block("9f7. tools snap to point features (v30)", async () => {
+/* v30: a tool's click goes to the TOOL. Before this every sketch and pick
+   tool lost its click to the well, sample or outline it was aimed at — the
+   feature's popup opened and nothing was collected, so a distance could not
+   be measured to a well. The contracts:
+     1. hovering a well in Distance shows a NODE snap named for it, and no
+        layer tooltip;
+     2. a click on the well and one on a boring land EXACTLY on them, open no
+        popup, and the card says what the line runs between;
+     3. a layer that is off does not snap;
+     4. a modify command asking "which drawing" picks the user's line even with
+        a well sitting on its end. */
+await page.evaluate(() => {
+  if (SBMM.viewer3d.isOpen()) SBMM.viewer3d.toggle();
+  SBMM.mode.navigate(); SBMM.map.closePopup();
+  document.querySelectorAll(".restorebar").forEach(b => b.remove());
+});
+const tp = await page.evaluate(async () => {
+  const W = SBMM.datasets.byId("wells"), B = SBMM.datasets.byId("borings2025");
+  for (const d of [W, B]) SBMM.layerState.set(d.rowRef.group || "invest", d.rowRef.id, { on: true });
+  const w = W.points.find(q => q.id === "MW-05");
+  /* the nearest 2025 boring, so both fit on the screen at a working zoom */
+  const b = B.points.slice().sort((p, q) => Math.hypot(p.x - w.x, p.y - w.y) - Math.hypot(q.x - w.x, q.y - w.y))[0];
+  SBMM.map.fitBounds([[Math.min(w.y, b.y), Math.min(w.x, b.x)], [Math.max(w.y, b.y), Math.max(w.x, b.x)]], { animate: false });
+  await new Promise(r => setTimeout(r, 700));
+  const r = SBMM.map.getContainer().getBoundingClientRect();
+  const px = (x, y) => { const c = SBMM.map.latLngToContainerPoint([y, x]); return { x: r.left + c.x, y: r.top + c.y }; };
+  return { w: [w.x, w.y], b: [b.x, b.y], bid: b.id, pw: px(w.x, w.y), pb: px(b.x, b.y), zoom: SBMM.map.getZoom() };
+});
+console.log("v30 measure between MW-05 and", tp.bid, "at zoom", tp.zoom);
+await page.evaluate(() => { window.__nF = SBMM.store.features.length; SBMM.mode.set("measure.distance"); });
+await page.mouse.move(tp.pw.x + 30, tp.pw.y + 20);
+await page.mouse.move(tp.pw.x + 2, tp.pw.y + 2, { steps: 4 });
+await page.waitForTimeout(300);
+const sh = await page.evaluate(() => {
+  const r = SBMM.draw.lastResolved();
+  return { snap: r && r.snap ? r.snap.type : null, name: r && r.snap ? r.snap.name : null,
+           tips: [...document.querySelectorAll(".leaflet-tooltip-pane .leaflet-tooltip")].filter(t => t.offsetParent).length,
+           chip: SBMM.pick2d.state().chip };
+});
+console.log("v30 hover in Distance:", JSON.stringify(sh));
+if (sh.snap !== "node" || !/^MW-05/.test(sh.name || "")) { console.log("FAIL: hovering the well did not snap to it by name", sh); process.exit(1); }
+if (sh.tips || sh.chip) { console.log("FAIL: a layer tooltip or the navigate chip showed inside a tool", sh); process.exit(1); }
+await page.mouse.click(tp.pw.x + 2, tp.pw.y + 2);
+await page.waitForTimeout(250);
+await page.mouse.move(tp.pb.x + 20, tp.pb.y - 15);
+await page.mouse.move(tp.pb.x - 1, tp.pb.y + 2, { steps: 4 });
+await page.waitForTimeout(300);
+await page.mouse.click(tp.pb.x - 1, tp.pb.y + 2);
+await page.waitForTimeout(250);
+const mid = await page.evaluate(() => ({ popup: !!document.querySelector(".leaflet-popup-content"), pts: SBMM.draw.sketchPts() }));
+await page.keyboard.press("Enter");
+await page.waitForTimeout(600);
+const dl = await page.evaluate(([w, b]) => {
+  const n = SBMM.store.features.length - window.__nF;
+  const f = n > 0 ? SBMM.store.features[SBMM.store.features.length - 1] : null;
+  const card = f && f.card ? f.card.textContent.replace(/\s+/g, " ") : "";
+  return { n, type: f && f.type, pts: f && f.pts, from: f && f.props.from, to: f && f.props.to,
+           len: f && f.props.length_ft, want: +Math.hypot(b[0] - w[0], b[1] - w[1]).toFixed(1),
+           between: /Between/.test(card) ? card.slice(card.indexOf("Between"), card.indexOf("Between") + 40) : null };
+}, [tp.w, tp.b]);
+console.log("v30 distance:", JSON.stringify({ mid, dl }));
+if (mid.popup) { console.log("FAIL: a click inside the Distance tool opened a popup"); process.exit(1); }
+if (!mid.pts || mid.pts.length !== 2) { console.log("FAIL: the tool did not collect both clicks", mid.pts); process.exit(1); }
+if (dl.n !== 1 || dl.type !== "line") { console.log("FAIL: Enter did not finish one line", dl); process.exit(1); }
+const offA = Math.hypot(dl.pts[0][0] - tp.w[0], dl.pts[0][1] - tp.w[1]), offB = Math.hypot(dl.pts[1][0] - tp.b[0], dl.pts[1][1] - tp.b[1]);
+if (offA > 1e-6 || offB > 1e-6) { console.log("FAIL: the ends are not ON the well and the boring", offA, offB); process.exit(1); }
+if (Math.abs(dl.len - dl.want) > 0.11) { console.log("FAIL: the length is not the well-to-boring distance", dl.len, dl.want); process.exit(1); }
+if (!/^MW-05/.test(dl.from || "") || (dl.to || "").indexOf(tp.bid) !== 0 || !dl.between) { console.log("FAIL: the card does not say what it runs between", dl); process.exit(1); }
+await voiceCheck("9f7. the distance card");
+/* 3: a layer that is off does not snap */
+const off = await page.evaluate(w => {
+  const W = SBMM.datasets.byId("wells");
+  SBMM.layerState.set(W.rowRef.group || "invest", W.rowRef.id, { on: false });
+  const q = SBMM.snap.query(w[0], w[1], {});
+  SBMM.layerState.set(W.rowRef.group || "invest", W.rowRef.id, { on: true });
+  return q ? { type: q.type, name: q.name || null } : null;
+}, tp.w);
+console.log("v30 snap with the wells row off:", JSON.stringify(off));
+if (off && /^MW-05/.test(off.name || "")) { console.log("FAIL: a well snapped with its layer off"); process.exit(1); }
+/* 4: OFFSET picks the user's line, not the well on its end */
+await page.keyboard.press("Escape");
+await page.evaluate(() => { SBMM.mode.navigate(); SBMM.store.select(null); SBMM.map.closePopup(); window.__nF = SBMM.store.features.length; SBMM.cmd.run("OFFSET 5"); });
+await page.waitForTimeout(200);
+const ip = await page.evaluate(w => { const r = SBMM.map.getContainer().getBoundingClientRect(); const c = SBMM.map.latLngToContainerPoint([w[1], w[0]]); return { x: r.left + c.x, y: r.top + c.y }; }, tp.w);
+await page.mouse.move(ip.x + 25, ip.y + 25);
+await page.mouse.move(ip.x + 1, ip.y + 1, { steps: 3 });
+await page.waitForTimeout(250);
+await page.mouse.click(ip.x + 1, ip.y + 1);
+await page.waitForTimeout(400);
+const picked = await page.evaluate(() => ({ picking: SBMM.draw.isPicking(), tip: (document.getElementById("sketchTip") || {}).textContent || "",
+  popup: (document.querySelector(".leaflet-popup-content") || {}).textContent || null }));
+console.log("v30 OFFSET pick:", JSON.stringify(picked));
+if (picked.popup) { console.log("FAIL: picking the line for OFFSET opened the well's popup"); process.exit(1); }
+if (!picked.picking || !/OFFSET/.test(picked.tip)) { console.log("FAIL: OFFSET did not pick the line under the well", picked); process.exit(1); }
+/* the side click — a tool click, 40 px off the middle of the line */
+const sp = await page.evaluate(([w, b]) => { const r = SBMM.map.getContainer().getBoundingClientRect();
+  const c = SBMM.map.latLngToContainerPoint([(w[1] + b[1]) / 2, (w[0] + b[0]) / 2]); return { x: r.left + c.x + 28, y: r.top + c.y - 28 }; }, [tp.w, tp.b]);
+await page.mouse.move(sp.x, sp.y, { steps: 3 });
+await page.mouse.click(sp.x, sp.y);
+await page.waitForTimeout(600);
+const om = await page.evaluate(() => ({ added: SBMM.store.features.length - window.__nF,
+  popup: (document.querySelector(".leaflet-popup-content") || {}).textContent || null }));
+console.log("v30 OFFSET over a well:", JSON.stringify(om));
+if (om.popup) { console.log("FAIL: the OFFSET side click opened a popup"); process.exit(1); }
+if (om.added !== 1) { console.log("FAIL: OFFSET did not create the offset line"); process.exit(1); }
+await page.evaluate(() => { SBMM.mode.navigate(); SBMM.map.closePopup(); });
+});
+
 await block("9x. drainage", async () => {
 /* 9x. drainage — the whole-site catchment map (v14, docs/V14_DRAINAGE_SPEC.md) */
 /* ==================================================================== */

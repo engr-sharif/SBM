@@ -3506,7 +3506,10 @@ SBMM.viewer3d = (function () {
         if (SBMM.pick3d && SBMM.pick3d.click(e, { terrainOnly: true })) return;
         return;
       }
-      const p = pickWorld(e);
+      /* v30: a point feature under the pointer is the vertex (the 3D twin of
+         the 2D NODE snap); bare ground otherwise */
+      const sp = SBMM.pick3d && SBMM.pick3d.snapPoint ? SBMM.pick3d.snapPoint(e) : null;
+      const p = sp ? [sp.x, sp.y] : pickWorld(e);
       if (p) SBMM.tools.mapClick(p[0], p[1]);   // same pipeline as 2D — draw in either view
     };
     canvas.addEventListener("click", e => {
