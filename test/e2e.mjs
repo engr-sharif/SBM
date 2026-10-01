@@ -763,7 +763,8 @@ await page.keyboard.press("F3");
 backOn = await page.evaluate(() => SBMM.snap.enabled());
 console.log("osnap chrome:", JSON.stringify(osnapUi), "| F3 ->", afterF3, "->", backOn);
 if (!osnapUi.btn || !osnapUi.polar || !osnapUi.cmd) { console.log("FAIL: drafting status-bar chrome missing"); process.exit(1); }
-if (osnapUi.boxes !== 5 || osnapUi.types.length !== 5) { console.log("FAIL: expected 5 per-type snap checkboxes"); process.exit(1); }
+/* v30 added the named-point "node" type to the five drafting snaps */
+if (osnapUi.boxes !== 6 || osnapUi.types.length !== 6 || !osnapUi.types.includes("node")) { console.log("FAIL: expected 6 per-type snap checkboxes (node first)"); process.exit(1); }
 if (afterF3 !== false || backOn !== true) { console.log("FAIL: F3 does not toggle object snap"); process.exit(1); }
 snapIdx = await page.evaluate(() => { SBMM.snap.buildStatic(); return SBMM.snap.stats(); });
 console.log("static snap index:", snapIdx.segs, "segments +", snapIdx.pts, "points in", snapIdx.ms, "ms");
@@ -6095,15 +6096,25 @@ const tp = await page.evaluate(async () => {
 });
 console.log("v30 measure between MW-05 and", tp.bid, "at zoom", tp.zoom);
 await page.evaluate(() => { window.__nF = SBMM.store.features.length; SBMM.mode.set("measure.distance"); });
-await page.mouse.move(tp.pw.x + 30, tp.pw.y + 20);
-await page.mouse.move(tp.pw.x + 2, tp.pw.y + 2, { steps: 4 });
-await page.waitForTimeout(300);
-const sh = await page.evaluate(() => {
-  const r = SBMM.draw.lastResolved();
+/* wait on the CONDITION, not the clock: on a loaded runner the first hover
+   also pays for building the static snap index, and a pointer move can land
+   before the map has settled — nudge and re-ask for up to ~6 s */
+const hoverState = () => page.evaluate(([x, y]) => {
+  const r = SBMM.draw.lastResolved(), el = document.elementFromPoint(x, y);
   return { snap: r && r.snap ? r.snap.type : null, name: r && r.snap ? r.snap.name : null,
+           resolved: !!r, mode: SBMM.mode.current(), osnap: SBMM.snap.enabled(),
+           under: el ? (el.id || el.className && String(el.className.baseVal ?? el.className).slice(0, 40) || el.tagName) : null,
            tips: [...document.querySelectorAll(".leaflet-tooltip-pane .leaflet-tooltip")].filter(t => t.offsetParent).length,
            chip: SBMM.pick2d.state().chip };
-});
+}, [tp.pw.x + 2, tp.pw.y + 2]);
+let sh;
+for (let i = 0; i < 12; i++) {
+  await page.mouse.move(tp.pw.x + 30 - i, tp.pw.y + 20);
+  await page.mouse.move(tp.pw.x + 2, tp.pw.y + 2, { steps: 4 });
+  await page.waitForTimeout(300 + 200 * Math.min(i, 2));
+  sh = await hoverState();
+  if (sh.snap === "node") break;
+}
 console.log("v30 hover in Distance:", JSON.stringify(sh));
 if (sh.snap !== "node" || !/^MW-05/.test(sh.name || "")) { console.log("FAIL: hovering the well did not snap to it by name", sh); process.exit(1); }
 if (sh.tips || sh.chip) { console.log("FAIL: a layer tooltip or the navigate chip showed inside a tool", sh); process.exit(1); }
