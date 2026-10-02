@@ -191,7 +191,7 @@
     ["js/wherewater.js",28944,""],
     ["js/refsurf.js",11474,""],
     ["js/sheetcards.js",7911,""],
-    ["js/home.js",26722,""],
+    ["js/home.js",24679,""],
     ["js/field.js",44926,""],
     ["js/boot.js",15920,""]
   ];
