@@ -17,6 +17,12 @@ All three are offline-only by design. Nothing in this app calls out to the inter
 
 ---
 
+## v9.40 — two small clean-ups (2026-10-02)
+
+- The "open items" button is gone from the top bar.
+- The thin dark line across the bottom of the map, just above the coordinates
+  and elevation, is gone. It was the edge of the closed table drawer.
+
 ## v9.39 — every point says its name, and the site sits in a world (2026-10-01)
 
 **Hovering a sample result names it.** The ABP and Jacobs sample points (W03,
