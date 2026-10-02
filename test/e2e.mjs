@@ -6373,6 +6373,22 @@ const g3 = await page.evaluate(() => SBMM.viewer3d.stats().groundBackdrop);
 await page.evaluate(() => { if (SBMM.viewer3d.isOpen()) SBMM.viewer3d.toggle(); });
 if (!g3) { console.log("FAIL: the 3D ground plane does not carry the backdrop"); process.exit(1); }
 console.log("v32 backdrop in 2D and 3D: OK");
+/* v33: no "open items" chip in the top bar, and a CLOSED drawer draws no line
+   across the map (its 1-px top border and shadow used to) */
+const dr = await page.evaluate(async () => {
+  const vis = id => getComputedStyle(document.getElementById(id)).visibility;
+  const closed = { chip: !!document.getElementById("openItemsBtn"), table: vis("tableDrawer"), sec: vis("secDrawer") };
+  document.getElementById("tableBtn").click();
+  await new Promise(r => setTimeout(r, 400));
+  const open = { table: vis("tableDrawer"), h: document.getElementById("tableDrawer").offsetHeight };
+  document.getElementById("tableBtn").click();
+  await new Promise(r => setTimeout(r, 400));
+  return { closed, open, after: vis("tableDrawer") };
+});
+console.log("v33 chrome:", JSON.stringify(dr));
+if (dr.closed.chip) { console.log("FAIL: the open-items chip is still in the top bar"); process.exit(1); }
+if (dr.closed.table !== "hidden" || dr.closed.sec !== "hidden" || dr.after !== "hidden") { console.log("FAIL: a closed drawer is still drawn", dr); process.exit(1); }
+if (dr.open.table !== "visible" || !(dr.open.h > 100)) { console.log("FAIL: the table drawer did not open visibly", dr); process.exit(1); }
 });
 
 await block("9x. drainage", async () => {
