@@ -3221,6 +3221,17 @@ turns it off; the 3D plane falls back to the plain lake colour then.
 `stats()` reports `{enabled, pane, canvas, mask, paints, lastMs}`;
 `SBMM.viewer3d.stats().groundBackdrop` says whether the plane carries it.
 
+### v33 — two pieces of chrome
+
+- **The top bar's "open items" chip is gone** (`#openItemsBtn`, its popover and
+  CSS). `SBMM.home.openItems()` still feeds the first-visit card; `paintChip()`
+  is a no-op kept for its export.
+- **A closed drawer is `visibility:hidden`.** `#tableDrawer` / `#secDrawer` sit at
+  `bottom: var(--botH)` with `height:0`, and their 1-px `border-top` plus shadow
+  drew a dark line across the whole map just above the status bar. The
+  visibility switch waits out the height transition (`visibility 0s .18s`), so
+  the drawer still animates closed. Block 9f9 asserts both.
+
 ## Undo and redo (v9.4) — the both-closures rule and `readd`
 
 `SBMM.undo` is two stacks of `{ desc, undo, redo }`, 100 deep each way:

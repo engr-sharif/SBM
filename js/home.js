@@ -266,46 +266,9 @@ SBMM.home = (function () {
     }
     return out;
   }
-  function paintChip() {
-    const b = document.getElementById("openItemsBtn");
-    if (!b) return;
-    const items = openItems();
-    const warn = items.filter(i => i.sev === "warn").length;
-    b.hidden = !items.length;
-    b.classList.toggle("quiet", !warn);
-    const l = document.getElementById("openItemsLbl");
-    if (l) l.textContent = items.length + " open item" + (items.length === 1 ? "" : "s");
-    b.setAttribute("aria-label", items.length + " open items");
-  }
-  let pop = null;
-  function toggleItems(e) {
-    if (e) e.stopPropagation();
-    if (pop && pop.style.display === "block") { pop.style.display = "none"; return; }
-    if (!pop) {
-      pop = document.createElement("div");
-      pop.id = "openItemsPop"; pop.className = "menu tmenu";
-      pop.setAttribute("role", "dialog");
-      document.body.appendChild(pop);
-      pop.addEventListener("click", ev => {
-        const it = ev.target.closest("[data-oi]");
-        if (!it) return;
-        pop.style.display = "none";
-        const item = openItems()[+it.dataset.oi];
-        if (item && item.act) try { item.act(); } catch (err) { toast(err.message); }
-      });
-      document.addEventListener("click", ev => { if (pop && !pop.contains(ev.target)) pop.style.display = "none"; });
-    }
-    const items = openItems();
-    const log = (SBMM.toastLog || []).slice(-8).reverse();
-    pop.innerHTML = `<div class="ci hd">Open items</div>` +
-      items.map((it, i) => `<div class="oirow" data-oi="${i}"><i class="${it.sev}"></i><span><b>${esc(it.text)}</b><small>${esc(it.sub || "")}</small></span></div>`).join("") +
-      (log.length ? `<div class="ci hd">Recent messages</div>` +
-        log.map(t => `<div class="oilog"><span class="mono">${new Date(t.t).toTimeString().slice(0, 5)}</span>${esc(t.msg)}</div>`).join("") : "");
-    SBMM.shell.closeMenus(pop);
-    SBMM.shell.placeMenu(document.getElementById("openItemsBtn"), pop);
-    const r = document.getElementById("openItemsBtn").getBoundingClientRect();
-    pop.style.left = Math.round(Math.max(8, Math.min(r.right - pop.offsetWidth, innerWidth - pop.offsetWidth - 8))) + "px";
-  }
+  /* v33: the top-bar "open items" chip is gone (the engineer: "not sure what the
+     purpose of it is"); openItems() still feeds the first-visit card */
+  function paintChip() {}
 
   /* ------------------------------------------------------------------ */
   /* 2. the welcome card                                                 */
@@ -520,9 +483,6 @@ SBMM.home = (function () {
   function wire() {
     applyDefaults();
     watchMyWork();
-    paintChip();
-    const b = document.getElementById("openItemsBtn");
-    if (b) b.onclick = toggleItems;
     wireDismiss();
     wireUndoPill();
   }
