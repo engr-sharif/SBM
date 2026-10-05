@@ -1610,7 +1610,10 @@ idle = await page.evaluate(async () => {
   for (; settleTries < 40; settleTries++) {
     await wait(1000);
     const now = SBMM.viewer3d.stats().renderCount;
-    if (now - prev <= 1) break;
+    /* a whole second with NO render — "at most one" let a view still easing
+       at software GL's ~1 fps count as settled, and its next frame then landed
+       inside the idle window (2 renders; seen twice in full sequential runs) */
+    if (now === prev) break;
     prev = now;
   }
   const a = SBMM.viewer3d.stats();
