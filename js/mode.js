@@ -308,6 +308,17 @@ SBMM.mode = (function () {
     return "navigate";
   }
 
+  /* v35 — the `transient` flag finally means something: a one-shot mode whose
+     pick has finished, with nothing armed after it and no prompt waiting on
+     the command line, returns to Navigate (js/draw.js `settled`). */
+  function oneShotDone() {
+    const d = def(cur);
+    if (!d.transient || cur === "edit") return;
+    if (SBMM.draw && SBMM.draw.armed && SBMM.draw.armed()) return;
+    if (SBMM.cmd && SBMM.cmd.asking && SBMM.cmd.asking()) return;
+    set("navigate");
+  }
+
   /* js/tools.js calls this whenever setTool changes the armed tool, so a
      command line "DIST" or a popup action lands on the right mode without every
      one of them knowing the mode names. */
@@ -459,7 +470,7 @@ SBMM.mode = (function () {
     });
   }
 
-  return { wire, set, current, is, label, navigate, syncFromTool, hint,
+  return { wire, set, current, is, label, navigate, oneShotDone, syncFromTool, hint,
            beginEdit, endEdit, MODES, defOf: def };
 })();
 
