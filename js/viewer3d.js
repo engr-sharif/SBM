@@ -553,19 +553,48 @@ SBMM.viewer3d = (function () {
     requestRender();
   }
 
+  /* v34: a vertex with no lidar ground under it (a hole in the DEM, open
+     water) used to drop to ZMID — the middle of the site's elevation range —
+     and a boundary crossing one stood up as a spike (West Rock Dam's outline
+     had two). Carry the ground across instead: a gap between two grounded
+     samples is interpolated along the line's own length, a gap at an end takes
+     the nearest grounded value, and a line with no ground at all stays at ZMID. */
+  function fillGaps(zs, ss) {
+    const n = zs.length;
+    let i = 0;
+    while (i < n) {
+      if (!isNaN(zs[i])) { i++; continue; }
+      let j = i;
+      while (j < n && isNaN(zs[j])) j++;
+      const a = i - 1, b = j < n ? j : -1;
+      for (let k = i; k < j; k++) {
+        if (a >= 0 && b >= 0) zs[k] = zs[a] + (zs[b] - zs[a]) * (ss[k] - ss[a]) / Math.max(1e-9, ss[b] - ss[a]);
+        else if (a >= 0) zs[k] = zs[a];
+        else if (b >= 0) zs[k] = zs[b];
+      }
+      i = j;
+    }
+    return zs;
+  }
   function drapeZ(x, y, off = 2) { const [z] = SBMM.elev(x, y); return (isNaN(z) ? ZMID : z) - ZMID + off; }
   function drapedLine(pts, color, closed, off = 2, width) {
     const _t = performance.now();
     FS.drapeN++;
-    const dense = [];
+    const dense = [], zs = [], ss = [];
     const P = closed ? [...pts, pts[0]] : pts;
+    let s0 = 0;
     for (let i = 1; i < P.length; i++) {
       const a = P[i - 1], b = P[i], d = dist2d(a, b), n = Math.max(1, Math.ceil(d / 10));
       for (let k2 = 0; k2 <= n; k2++) {
         const x = a[0] + (b[0] - a[0]) * k2 / n, y = a[1] + (b[1] - a[1]) * k2 / n;
-        dense.push(new THREE.Vector3(x - CX, y - CY, drapeZ(x, y, off)));
+        dense.push(new THREE.Vector3(x - CX, y - CY, 0));
+        zs.push(SBMM.elev(x, y)[0]);
+        ss.push(s0 + d * k2 / n);
       }
+      s0 += d;
     }
+    fillGaps(zs, ss);
+    for (let i = 0; i < dense.length; i++) dense[i].z = (isNaN(zs[i]) ? ZMID : zs[i]) - ZMID + off;
     const g = new THREE.BufferGeometry().setFromPoints(dense);
     FS.drapePts += dense.length;
     FS.drapeMs += performance.now() - _t;
@@ -4942,6 +4971,22 @@ SBMM.viewer3d = (function () {
     setLabels3d, labelsDrawn: () => [...labels3d.values()].map(r => ({ key: r.key, text: r.text,
       visible: r.sprite.visible, priority: r.priority })),
     layersDrawn, datasetSticks, highlightStratum,
+    /* v34: the largest vertical step between consecutive vertices of every
+       draped line of one layer, in feet before exaggeration — the harness hook
+       that says a boundary carries no spike */
+    lineJumps: (g, l) => {
+      const out = [];
+      if (!overlayGroup) return out;
+      overlayGroup.traverse(o => {
+        const L = o.userData && o.userData.layer;
+        if (!o.isLine || !L || L.g !== g || L.l !== l) return;
+        const a = o.geometry.getAttribute("position");
+        let m = 0;
+        for (let i = 1; i < a.count; i++) m = Math.max(m, Math.abs(a.getZ(i) - a.getZ(i - 1)));
+        out.push({ name: (o.userData.pick && o.userData.pick.props && o.userData.pick.props.name) || "", n: a.count, maxJump: +m.toFixed(2) });
+      });
+      return out;
+    },
     sun: (az, el) => { if (az === undefined && el === undefined) return { az: sunAz, el: sunEl };
                        setSun(az, el); return { az: sunAz, el: sunEl }; },
     lookAt: startLookAt,
