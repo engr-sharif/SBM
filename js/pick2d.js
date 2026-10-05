@@ -358,7 +358,21 @@ SBMM.pick2d = (function () {
   function overChrome(t) {
     return !!(t && t.closest && t.closest(".leaflet-popup, .leaflet-control, .leaflet-tooltip-pane"));
   }
+  /* v35 — a hover tooltip a layer opened while the engine stood aside (Edit,
+     Redline, the gate) never hears its mouseout once the engine owns the
+     pointer again, and stayed on the map for good: a contour's "1,344.0 ft"
+     floating over nothing. Every non-permanent tooltip that opens is tracked
+     and closed the next time the engine or a tool owns a pointer move. */
+  const hoverTips = new Set();
+  function closeStaleTips() {
+    if (!hoverTips.size || !(active() || toolMode())) return;
+    for (const t of [...hoverTips]) {
+      hoverTips.delete(t);
+      try { if (t._source && t._source.closeTooltip) t._source.closeTooltip(); else map.closeTooltip(t); } catch (e) {}
+    }
+  }
   function hover(ev) {
+    closeStaleTips();
     if (!ev || !active() || ev.buttons || pointerKind() === "touch" || overChrome(ev.target)
         || map._animatingZoom || (map.dragging && map.dragging.moving())) { clear(); return; }
     const p = map.mouseEventToLayerPoint(ev);
@@ -528,6 +542,8 @@ SBMM.pick2d = (function () {
     box.addEventListener("pointerdown", onDown, true);
     box.addEventListener("mouseleave", clear);
     map.on("movestart zoomstart popupopen", clear);
+    map.on("tooltipopen", e => { if (e.tooltip && !e.tooltip.options.permanent) hoverTips.add(e.tooltip); });
+    map.on("tooltipclose", e => { if (e.tooltip) hoverTips.delete(e.tooltip); });
     document.addEventListener("keydown", onKey, true);
     if (SBMM.events) SBMM.events.on("mode", () => { if (!active()) clear(); });
 
