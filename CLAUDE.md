@@ -3297,6 +3297,17 @@ over `file://`, where a missing file stays missing. `SBMM.retriedEarly` records
 each recovery; `js/loader.js` takes a file out of `failed` when its retry's
 `load` arrives, and says "Retrying it now."
 
+**And one bug the full local run found, older than this round.** The
+`transient: true` flag on Section, Fence, Dimension, Text, Smart boundary, Pad
+and Edit in `js/mode.js` was read by NOTHING, so a finished DIM left the app in
+"Dimension" with nothing armed — and since v30 a click in a tool mode goes to
+the tool, so every later click on a layer (block 9d's sheet footprint, any
+popup) was swallowed until Esc. CI never saw it because shard 2 starts on a
+fresh page. `js/draw.js` `settled()` now calls `SBMM.mode.oneShotDone()` after a
+pick's `onDone` when nothing is armed and no command-line prompt is waiting
+(`SBMM.cmd.asking()`); a command that re-arms itself in its own `onDone` (WAND)
+is still armed and stays. Block 8L-f asserts the mode is `navigate` after a DIM.
+
 Tablet block **"8. the data stash and the immediate retry"** (`tablet:http`):
 a 503 on the first `d_dus.js` recovered by the gate; the stash keeping 78 files;
 a reload asking the server for none of them; and an `index.html` with one hash
