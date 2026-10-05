@@ -152,6 +152,11 @@ def build(field=False):
             parts.append("<script>\n" + js_safe(read(src)) + "\n</script>")
     html = html[:m.start()] + "\n".join(parts) + html[m.end():]
 
+    # v35 -- the data stash's content hashes are for sw.js, which a single file
+    # never has; the block (and its comment) go.
+    html = re.sub(r'<!-- v35 [^>]*?-->\n<script>\n/\* SBMM_HASHES_BEGIN \*/.*?</script>\n?', "", html,
+                  count=1, flags=re.S)
+
     name = "SBMM_Site_Explorer_field.html" if field else "SBMM_Site_Explorer.html"
     out = os.path.join(ROOT, "dist", name)
     os.makedirs(os.path.dirname(out), exist_ok=True)

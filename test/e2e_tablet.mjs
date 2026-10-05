@@ -74,11 +74,17 @@ let patchIndex = null;
 /* v31 block 7: answer one path late (`hold` ms, or never when ms is 0), or
    not at all (`drop`, a 404) — a slow file, a dead connection, a missing file */
 let lateFile = null, drop = null;
+/* v35 block 8: a path answered with a 503 the FIRST time only, and a count of
+   every request the server saw (what the data stash must have saved) */
+let dropOnce = null;
+const hits = {};
 const held = [];
 const server = createServer((req, res) => {
   let p = decodeURIComponent(req.url.split("?")[0]);
   if (p === "/") p = "/index.html";
+  if (!req.__late) hits[p] = (hits[p] || 0) + 1;
   if (drop && p.endsWith(drop)) { res.writeHead(404).end("gone"); return; }
+  if (dropOnce && p.endsWith(dropOnce)) { dropOnce = null; res.writeHead(503).end("dropped once"); return; }
   if (lateFile && p.endsWith(lateFile.path) && !req.__late) {
     held.push(res);
     if (lateFile.ms) setTimeout(() => { req.__late = true; server.emit("request", req, res); }, lateFile.ms);
@@ -1530,6 +1536,68 @@ const fresh = async () => {
   await c.close();
 }
 console.log("7: the loading screen counts, waits, and says what is wrong: OK");
+});
+
+await block("8. the data stash and the immediate retry", async () => {
+/* v35. Two things a slow connection needed. (a) A dropped data payload is
+   retried the moment it fails (js/gate.js), not after the rest of the page.
+   (b) sw.js keeps each data file under its content hash and serves it on the
+   next visit while index.html still names that hash — so a deploy, which
+   changes every ETag on GitHub Pages, re-downloads only what changed. */
+const reset = () => { for (const k of Object.keys(hits)) delete hits[k]; };
+const ctx8 = await browser.newContext({ ...DEV, serviceWorkers: "allow" });
+const p = await ctx8.newPage();
+p.setDefaultTimeout(240000);
+const perr = [];
+p.on("pageerror", e => perr.push("pageerror: " + e.message));
+await unlock(p);
+
+/* 8a. the immediate retry */
+dropOnce = "datajs/d_dus.js";
+await p.goto(HTTP);
+await p.waitForSelector("#loading", { state: "hidden", timeout: 300000 });
+const r8 = await p.evaluate(() => ({ early: (SBMM.retriedEarly || []).map(x => x.name),
+                                     list: SBMM.retriedScripts || [], dus: !!(SBMM_DATA && SBMM_DATA.dus) }));
+console.log("8a dropped payload:", JSON.stringify(r8));
+if (r8.early.indexOf("d_dus.js") < 0 || !r8.dus)
+  fail("a dropped payload was not retried the moment it failed", r8);
+
+/* 8b. the stash fills after boot (the page posts it once the late payloads are in) */
+await p.waitForFunction(() => !!(navigator.serviceWorker && navigator.serviceWorker.controller), null, { timeout: 30000 }).catch(() => {});
+await p.waitForFunction(() => { const r = SBMM.touch.offline.stashResult(); return r && r.kept > 0; },
+  null, { timeout: 240000 }).catch(() => {});
+const st = await p.evaluate(() => SBMM.touch.offline.stashResult());
+console.log("8b stash:", JSON.stringify(st));
+if (!st || st.error || !(st.added >= 40)) fail("the data stash did not keep the files this page loaded", st);
+
+/* 8c. the next visit: every kept file comes from the stash */
+reset();
+await p.reload();
+await p.waitForSelector("#loading", { state: "hidden", timeout: 300000 });
+const big = ["/datajs/i_dem_site_png.js", "/datajs/i_ortho_mine_jpg.js", "/vendor/three.bundle.js", "/datajs/d_dus.js"];
+const again = Object.fromEntries(big.map(k => [k, hits[k] || 0]));
+console.log("8c second visit, server requests:", JSON.stringify(again), "index", hits["/index.html"] || 0);
+if (big.some(k => again[k])) fail("a file the stash holds was downloaded again", again);
+if (!hits["/index.html"]) fail("index.html did not go to the network", hits);
+
+/* 8d. a deploy that changed ONE file: only that file is fetched */
+const src = readFileSync(__res(SITE, "index.html"), "utf8");
+const m = /"datajs\/d_dus\.js":"([0-9a-f]{12})"/.exec(src);
+if (!m) fail("index.html carries no hash for datajs/d_dus.js");
+else {
+  patchIndex = src.replace(m[0], '"datajs/d_dus.js":"000000000000"');
+  reset();
+  await p.reload();
+  await p.waitForSelector("#loading", { state: "hidden", timeout: 300000 });
+  const dep = { dus: hits["/datajs/d_dus.js"] || 0, dem: hits["/datajs/i_dem_site_png.js"] || 0,
+                ok: await p.evaluate(() => !!(SBMM_DATA && SBMM_DATA.dus)) };
+  console.log("8d after a deploy that moved one hash:", JSON.stringify(dep));
+  if (dep.dus !== 1 || dep.dem !== 0 || !dep.ok) fail("a changed file was not re-downloaded alone", dep);
+  patchIndex = null;
+}
+if (perr.length) fail("page errors in the data-stash block", perr.slice(0, 5));
+await ctx8.close();
+console.log("8: the retry is immediate and the stash re-downloads only what changed: OK");
 });
 
 /* ===================================================================== */

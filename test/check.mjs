@@ -197,6 +197,37 @@ const bad  = (n, msg, rows = []) => { fails++; console.log(`FAIL ${n} — ${msg}
   }
 }
 
+/* 5c. v35 — the content hashes the data stash trusts --------------------- */
+/* sw.js serves a data file it kept from an earlier visit only while the hash
+   in index.html's SBMM_HASHES block still names it. A payload regenerated
+   without restamping would keep the OLD bytes on every device that had them,
+   so unlike the size table there is no tolerance here: every datajs/ and
+   vendor/ script the page loads must be listed, and listed with its hash. */
+{
+  const html = readFileSync(R("index.html"), "utf8");
+  const blk = /SBMM_HASHES_BEGIN \*\/\s*window\.SBMM_HASHES\s*=\s*(\{[\s\S]*?\})\s*;/.exec(html);
+  if (!blk) bad("hashes", "index.html has no SBMM_HASHES block", []);
+  else {
+    let H = null;
+    try { H = JSON.parse(blk[1]); } catch (e) { bad("hashes", "SBMM_HASHES is not JSON", [e.message]); }
+    if (H) {
+      const tags = [...html.matchAll(/<script src="([^"]+)"><\/script>/g)].map(m => m[1]);
+      const hb = /SBMM_HEAVY_BEGIN\s*\*\/\s*window\.SBMM_HEAVY\s*=\s*\[([\s\S]*?)\]/.exec(html);
+      const heavy = hb ? [...hb[1].matchAll(/"([^"]+)"/g)].map(m => m[1]) : [];
+      const want = [...tags, ...heavy].filter(f => /^(datajs|vendor)\//.test(f) && existsSync(R(f)));
+      const probs = [];
+      for (const f of want) {
+        const h = createHash("sha256").update(readFileSync(R(f))).digest("hex").slice(0, 12);
+        if (!H[f]) probs.push("not hashed: " + f);
+        else if (H[f] !== h) probs.push(`${f}: listed ${H[f]}, file ${h}`);
+      }
+      for (const f of Object.keys(H)) if (!want.includes(f)) probs.push("no longer loaded: " + f);
+      if (probs.length) bad("hashes", "index.html SBMM_HASHES is stale — run: python3 tools/stamp_sizes.py", probs);
+      else ok("hashes", `${want.length} data files hashed for the stash`);
+    }
+  }
+}
+
 /* 6. no model name in the docs ------------------------------------------ */
 {
   const docs = ["CLAUDE.md", "README.md", "RELEASE_NOTES_v9.md",
