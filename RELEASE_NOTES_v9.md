@@ -26,6 +26,11 @@ a fingerprint of its contents, and reuses it while the fingerprint still
 matches — an update that changes one file costs that one file. This needs the
 web address (http/https); the double-clicked copy is local already.
 
+**Dimension, Text, Section and Pad hand control back when they finish.** After
+placing a dimension the app stayed in Dimension with nothing to do, and clicks
+on the map — a sheet footprint, a well — did nothing until Esc. It now returns
+to Navigate.
+
 **A file that drops is retried straight away.** A data file that fails to
 arrive is requested again within a second, and again a few seconds later,
 while the rest of the page keeps loading — instead of waiting until everything
