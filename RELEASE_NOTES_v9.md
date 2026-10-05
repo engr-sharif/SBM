@@ -17,6 +17,12 @@ All three are offline-only by design. Nothing in this app calls out to the inter
 
 ---
 
+## v9.41 — no more spikes on 3D outlines (2026-10-05)
+
+West Rock Dam's outline in 3D had two places where the line shot straight up.
+Both were spots the lidar has no ground value for; the line now carries the
+ground across them. The same fix applies to every outline draped in 3D.
+
 ## v9.40 — two small clean-ups (2026-10-02)
 
 - The "open items" button is gone from the top bar.

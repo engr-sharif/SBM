@@ -3232,6 +3232,21 @@ turns it off; the 3D plane falls back to the plain lake colour then.
   visibility switch waits out the height transition (`visibility 0s .18s`), so
   the drawer still animates closed. Block 9f9 asserts both.
 
+### v34 — a draped line carries the ground across a DEM hole
+
+`drapedLine()` in `js/viewer3d.js` used to give a vertex with no lidar ground
+under it `ZMID` — the middle of the site's elevation range — so a boundary that
+crossed a hole in the DEM stood up as a spike: West Rock Dam's outline (SBMM.kmz)
+jumped **379 ft** at two places. `fillGaps(zs, ss)` now interpolates a gap
+between two grounded samples along the line's own length, gives a gap at an end
+the nearest grounded value, and leaves `ZMID` only for a line with no ground at
+all. Every draped line goes through it (GIS, storm, survey, site areas). The
+drainage boundaries keep breaking at the survey limit through their own
+`groundRuns()` first — an OPEN run is still the right answer there.
+`SBMM.viewer3d.lineJumps(group, layer)` is the harness hook; block 9f9 asserts
+every site-area outline steps less than 30 ft between 10-ft samples (West Rock
+Dam 7.9 now; the worst is the Northwest Pit wall at 18.3, which is terrain).
+
 ## Undo and redo (v9.4) — the both-closures rule and `readd`
 
 `SBMM.undo` is two stacks of `{ desc, undo, redo }`, 100 deep each way:

@@ -6386,6 +6386,26 @@ const dr = await page.evaluate(async () => {
   return { closed, open, after: vis("tableDrawer") };
 });
 console.log("v33 chrome:", JSON.stringify(dr));
+/* v34: a draped outline carries no spike where it crosses ground the lidar has
+   no value for — West Rock Dam's outline had two (the line jumped to the middle
+   of the site's elevation range) */
+const lj = await page.evaluate(async () => {
+  const was = SBMM.layerState.isOn("invest", "site_areas");
+  SBMM.layerState.set("invest", "site_areas", { on: true });
+  if (!SBMM.viewer3d.isOpen()) await SBMM.viewer3d.toggle();
+  for (let i = 0; i < 120 && !SBMM.viewer3d.lineJumps("invest", "site_areas").length; i++)
+    await new Promise(r => setTimeout(r, 250));
+  const j = SBMM.viewer3d.lineJumps("invest", "site_areas");
+  if (SBMM.viewer3d.isOpen()) SBMM.viewer3d.toggle();
+  SBMM.layerState.set("invest", "site_areas", { on: was });
+  return j;
+});
+const dam = lj.find(x => /West Rock Dam/i.test(x.name));
+const worst = lj.reduce((m, x) => x.maxJump > m.maxJump ? x : m, { maxJump: 0 });
+console.log("v34 site-area outlines in 3D:", lj.length, "| West Rock Dam", JSON.stringify(dam), "| worst", JSON.stringify(worst));
+if (!dam) { console.log("FAIL: West Rock Dam's outline is not drawn in 3D"); process.exit(1); }
+if (worst.maxJump > 30) { console.log("FAIL: a draped site-area outline still jumps", worst); process.exit(1); }
+
 if (dr.closed.chip) { console.log("FAIL: the open-items chip is still in the top bar"); process.exit(1); }
 if (dr.closed.table !== "hidden" || dr.closed.sec !== "hidden" || dr.after !== "hidden") { console.log("FAIL: a closed drawer is still drawn", dr); process.exit(1); }
 if (dr.open.table !== "visible" || !(dr.open.h > 100)) { console.log("FAIL: the table drawer did not open visibly", dr); process.exit(1); }

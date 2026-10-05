@@ -174,7 +174,7 @@
     ["js/io.js",13588,""],
     ["js/table.js",10481,""],
     ["js/terrain3d.js",48254,""],
-    ["js/viewer3d.js",249560,""],
+    ["js/viewer3d.js",251558,""],
     ["js/pick3d.js",34123,""],
     ["js/sheetmarks.js",35474,""],
     ["js/redline.js",14317,""],
