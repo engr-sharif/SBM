@@ -1331,7 +1331,7 @@ SBMM.tools = (function () {
       prompts: ["TEXT — click where the label goes"],
       onDone: pts => {
         const place = label => {
-          if (!label) { toast("TEXT cancelled"); return; }
+          if (!label) { toast("TEXT cancelled"); SBMM.draw.settled(); return; }
           const f = mkText([pts[0]], label);
           SBMM.undo.push("text", () => SBMM.store.remove(f), () => SBMM.store.readd(f));
           SBMM.store.select(f.id);
@@ -1341,7 +1341,7 @@ SBMM.tools = (function () {
             prompts: ["TEXT — click a leader target, or press Esc to finish without a leader"],
             onMove: (p2, cur) => ({ rings: [{ pts: [cur, pts[0]], closed: false, style: { color: "#E8EEF1" } }], label: "leader — Esc to skip" }),
             onDone: p2 => { f.pts = [pts[0], p2[0]]; compText(f); SBMM.store.emit(); SBMM.store.autosave(); toast("leader added"); },
-            onCancel: () => toast("text placed")
+            onCancel: () => { toast("text placed"); }
           });
         };
         if (preset) place(preset); else SBMM.cmd.ask("Text:", place);

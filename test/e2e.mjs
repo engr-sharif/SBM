@@ -904,6 +904,12 @@ dimRes = await page.evaluate(() => {
 console.log("DIM ->", dimRes && { len: dimRes.len, bearing: dimRes.bearing, layerParts: dimRes.parts });
 if (!dimRes || Math.abs(dimRes.len - 100) > 0.01) { console.log("FAIL: dimension distance is wrong"); process.exit(1); }
 if (!(dimRes.parts >= 5)) { console.log("FAIL: dimension did not draw its extension/arrow/text furniture"); process.exit(1); }
+/* v35: a finished one-shot command hands the app back to Navigate — before
+   this the mode stayed "dimension" with nothing armed, and every later click
+   on a layer (a sheet footprint in block 9d) was swallowed as a tool click */
+const dimMode = await page.evaluate(() => SBMM.mode.current());
+console.log("mode after the dimension:", dimMode);
+if (dimMode !== "navigate") { console.log("FAIL: a finished DIM left the app in " + dimMode + " mode"); process.exit(1); }
 });
 
 let sessionRT, v2ok;   /* hoisted — v18 §3 */

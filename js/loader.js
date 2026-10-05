@@ -44,8 +44,8 @@
   /* tools/stamp_sizes.py rewrites everything between the markers */
   /* SBMM_SIZES_BEGIN */
   var SIZES = [
-    ["js/gate.js",36059,""],
-    ["js/touch.js",62268,""],
+    ["js/gate.js",36188,""],
+    ["js/touch.js",64903,""],
     ["vendor/leaflet.js",147552,""],
     ["vendor/d3-delaunay.min.js",19071,""],
     ["vendor/three.bundle.js",676986,""],
@@ -159,10 +159,10 @@
     ["js/cultural.js",16482,""],
     ["js/analysis.js",8766,""],
     ["js/snap.js",22407,""],
-    ["js/draw.js",25784,""],
+    ["js/draw.js",26416,""],
     ["js/results.js",4505,""],
-    ["js/tools.js",71758,""],
-    ["js/cmdline.js",28979,""],
+    ["js/tools.js",71784,""],
+    ["js/cmdline.js",29004,""],
     ["js/omni.js",25643,""],
     ["js/dxf.js",24702,""],
     ["js/design.js",28301,""],
@@ -178,7 +178,7 @@
     ["js/pick3d.js",34123,""],
     ["js/sheetmarks.js",35474,""],
     ["js/redline.js",14317,""],
-    ["js/mode.js",23732,""],
+    ["js/mode.js",24231,""],
     ["js/layerman.js",10162,""],
     ["js/isopach.js",19514,""],
     ["js/storm.js",27628,""],

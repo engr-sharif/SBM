@@ -533,5 +533,5 @@ SBMM.cmd = (function () {
     try { localStorage.setItem("sbmm_cmdseen", "1"); } catch (err) {}
   }
 
-  return { wire, run, ask, pickFeature, cancelPick, open, commands: () => CMDS, find, showHelp, zoomExtents };
+  return { wire, run, ask, asking: () => !!pending, pickFeature, cancelPick, open, commands: () => CMDS, find, showHelp, zoomExtents };
 })();
