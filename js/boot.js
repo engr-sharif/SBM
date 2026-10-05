@@ -41,8 +41,9 @@ function wireWasmSwitch() {
        nothing wrong on the server; over file:// a missing file fails again in a
        millisecond and the message below is the one it always was. The query
        string defeats a cached failure; sw.js matches with ignoreSearch. */
+    if (SBMM.retryWait) await SBMM.retryWait();   // js/gate.js's immediate payload retries
     const failed = (SBMM.failedScripts || []).splice(0);
-    SBMM.retriedScripts = [];
+    SBMM.retriedScripts = SBMM.retriedScripts || [];
     for (const src of failed) {
       const name = src.split("/").pop().split("?")[0];
       let ok = false;

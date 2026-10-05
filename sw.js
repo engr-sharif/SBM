@@ -36,6 +36,7 @@
    "Update offline copy" button. */
 
 const CACHE = "sbmm-offline-v1";
+const STASH = "sbmm-stash-v1";
 const META = "sbmm-offline-meta-v1";
 const INDEX = new URL("index.html", self.registration ? self.registration.scope : self.location.href).href;
 
@@ -188,6 +189,114 @@ async function status() {
 }
 
 /* --------------------------------------------------------------- */
+/* v35 — the content-hash stash: keep each data file, re-download    */
+/* only what a deploy changed                                        */
+/* --------------------------------------------------------------- */
+/* GitHub Pages stamps every file's ETag with the DEPLOY time, so after any
+   deploy the browser's own cache revalidates all 140 MB and gets every byte
+   again, changed or not. This keeps the data files (datajs/, vendor/) in a
+   cache of their own, each under the content hash tools/stamp_sizes.py wrote
+   into index.html's SBMM_HASHES block, and answers a request from it ONLY when
+   the hash in the index.html just served still matches. Everything else —
+   a file not kept, a file whose hash moved, the app's own js/ — is left to the
+   browser, which fetches it natively (no respondWith) exactly as before.
+
+   Filling it never downloads anything the page did not: js/touch.js posts
+   {type:"stash", files} once boot and the late payloads are in, naming the
+   files THIS page loaded with their hashes, and each is read with
+   cache:"force-cache" — the browser's own HTTP cache, the copy it just used.
+   A body is kept only if its SHA-256 matches the hash it was named with, so a
+   deploy landing mid-visit cannot pin a stale file under a new hash. Entries
+   the current index.html no longer names, or names with another hash, are
+   dropped on the same pass.
+
+   This is NOT the offline copy and never decides "offline": while an offline
+   copy exists the code below this section answers everything as it did. */
+let want = null;          // {path: hash} out of the last index.html served
+let wantReady = null;     // its parse, which a stashed request waits on
+let kept = null;          // {path: hash} of what STASH holds
+let keptLoad = null;
+let stashing = false;
+const SCOPE = new URL("./", INDEX).href;
+
+function relPath(href) {
+  const s = href.split("?")[0].split("#")[0];
+  return s.indexOf(SCOPE) === 0 ? decodeURI(s.slice(SCOPE.length)) : null;
+}
+function hashesFrom(html) {
+  const m = /SBMM_HASHES_BEGIN \*\/\s*window\.SBMM_HASHES\s*=\s*(\{[\s\S]*?\})\s*;\s*\/\* SBMM_HASHES_END/.exec(html);
+  if (!m) return {};
+  try { return JSON.parse(m[1]); } catch (e) { return {}; }
+}
+async function loadKept() {
+  const c = await caches.open(META);
+  const r = await c.match("stash");
+  kept = r ? await r.json() : {};
+  return kept;
+}
+function ensureKept() { if (!keptLoad) keptLoad = loadKept().catch(() => (kept = {})); return keptLoad; }
+async function saveKept() {
+  const c = await caches.open(META);
+  await c.put("stash", new Response(JSON.stringify(kept), { headers: { "Content-Type": "application/json" } }));
+}
+async function sha12(buf) {
+  const d = await crypto.subtle.digest("SHA-256", buf);
+  return Array.from(new Uint8Array(d).slice(0, 6), b => ("0" + b.toString(16)).slice(-2)).join("");
+}
+
+async function stash(files, all, port) {
+  const say = o => { try { port && port.postMessage(o); } catch (e) {} };
+  if (stashing) { say({ type: "stash", busy: true }); return; }
+  stashing = true;
+  let added = 0, dropped = 0, bytes = 0, skipped = 0, error = null;
+  try {
+    await ensureKept();
+    const cache = await caches.open(STASH);
+    const allow = all && typeof all === "object" ? all : null;
+    /* drop what the current page no longer names, or names differently */
+    if (allow) {
+      for (const p of Object.keys(kept)) {
+        if (allow[p] === kept[p]) continue;
+        await cache.delete(new URL(p, SCOPE).href);
+        delete kept[p]; dropped++;
+      }
+    }
+    for (const f of files || []) {
+      const p = f && f.path, h = f && f.hash;
+      if (!p || !h || kept[p] === h) continue;
+      if (allow && allow[p] !== h) { skipped++; continue; }
+      const url = new URL(p, SCOPE).href;
+      if (new URL(url).origin !== self.location.origin) continue;
+      let buf, type;
+      try {
+        const r = await fetch(url, { cache: "force-cache" });
+        if (!r.ok) { skipped++; continue; }
+        type = r.headers.get("Content-Type") || "text/javascript";
+        buf = await r.arrayBuffer();
+      } catch (e) { skipped++; continue; }
+      if ((await sha12(buf)) !== h) { skipped++; continue; }   // not the file the hash names
+      try {
+        await cache.put(url, new Response(buf, { headers: { "Content-Type": type } }));
+      } catch (e) {
+        error = "the browser refused more storage (" + (e && e.name || "error") + ") after " + added + " files";
+        break;
+      }
+      kept[p] = h; added++; bytes += buf.byteLength;
+      await saveKept();
+    }
+    await saveKept();
+  } catch (e) { error = e && e.message || String(e); }
+  stashing = false;
+  say({ type: "stash", added, dropped, skipped, bytes, kept: Object.keys(kept || {}).length, error });
+}
+
+async function stashStatus() {
+  await ensureKept();
+  return { type: "stashStatus", kept: Object.keys(kept).length, files: Object.assign({}, kept),
+           want: want ? Object.keys(want).length : null };
+}
+
+/* --------------------------------------------------------------- */
 /* lifecycle                                                        */
 /* --------------------------------------------------------------- */
 /* Whether an offline copy exists, cached in memory so the fetch handler can
@@ -204,7 +313,10 @@ async function refreshHaveCopy() {
 }
 
 self.addEventListener("install", e => { self.skipWaiting(); });
-self.addEventListener("activate", e => { e.waitUntil(Promise.all([self.clients.claim(), refreshHaveCopy()])); });
+self.addEventListener("activate", e => { e.waitUntil(Promise.all([self.clients.claim(), refreshHaveCopy(), ensureKept()])); });
+/* every start, not only an activation: a worker the browser stopped and woke
+   again for a request has lost both records */
+refreshHaveCopy().catch(() => {});
 
 self.addEventListener("message", e => {
   const d = e.data || {};
@@ -212,6 +324,8 @@ self.addEventListener("message", e => {
   if (d.type === "precache") e.waitUntil(precache(port, !!d.tiles));
   else if (d.type === "status") e.waitUntil(status().then(s => port && port.postMessage(s)));
   else if (d.type === "clear") e.waitUntil(clearAll().then(r => port && port.postMessage(r)));
+  else if (d.type === "stash") e.waitUntil(stash(d.files, d.all, port));
+  else if (d.type === "stashStatus") e.waitUntil(stashStatus().then(s => port && port.postMessage(s)));
 });
 
 async function tellClients(msg) {
@@ -225,10 +339,31 @@ self.addEventListener("fetch", e => {
   let url;
   try { url = new URL(req.url); } catch (err) { return; }
   if (url.origin !== self.location.origin) return;             // never off-origin
-  if (haveCopy === false) return;                              // no offline copy: the browser fetches natively
+  if (haveCopy === false) { stashFetch(e, req, url); return; } // no offline copy: the stash, else natively
   if (haveCopy === null) {
     /* a fresh worker instance: read the record once, and answer THIS request
-       the slow way rather than guess */
+       the slow way rather than guess. A navigation is the normal way a worker
+       wakes (the app opened the next day), so it also reads the stash's
+       hashes on the way past — otherwise a cold start would never hit it. */
+    if (req.mode === "navigate") {
+      ensureKept();
+      let done;
+      wantReady = new Promise(r => { done = r; });
+      e.respondWith((async () => {
+        await refreshHaveCopy();
+        if (haveCopy) {
+          done();
+          const hit = await (await caches.open(CACHE)).match(req, { ignoreSearch: true });
+          return hit || fetch(req);
+        }
+        let res;
+        try { res = await fetch(req); }
+        catch (err) { done(); throw err; }
+        res.clone().text().then(t => { want = hashesFrom(t); done(); }, () => { want = null; done(); });
+        return res;
+      })());
+      return;
+    }
     e.respondWith((async () => {
       await refreshHaveCopy();
       if (!haveCopy) return fetch(req);
@@ -271,3 +406,37 @@ self.addEventListener("fetch", e => {
     return fetch(req);
   })());
 });
+
+
+/* v35 — with no offline copy: index.html goes to the network as it always did
+   (its hashes are read on the way past), and a data file is answered from the
+   stash only when the hash just served names exactly the copy kept. Anything
+   not kept is never touched — the browser fetches it natively. */
+function stashFetch(e, req, url) {
+  const isIndex = req.mode === "navigate" || url.href === INDEX || url.pathname.endsWith("/index.html");
+  if (isIndex) {
+    ensureKept();
+    let done;
+    wantReady = new Promise(r => { done = r; });
+    e.respondWith((async () => {
+      let res;
+      try { res = await fetch(req); }
+      catch (err) { done(); want = null; throw err; }
+      res.clone().text().then(t => { want = hashesFrom(t); done(); }, () => { want = null; done(); });
+      return res;
+    })());
+    return;
+  }
+  if (!kept || !wantReady) return;                 // nothing known about this visit
+  const p = relPath(url.href);
+  if (!p || !kept[p]) return;                       // never kept: native
+  if (want && want[p] !== kept[p]) return;          // known to have changed: native
+  e.respondWith((async () => {
+    await wantReady;
+    if (want && want[p] === kept[p]) {
+      const hit = await (await caches.open(STASH)).match(new URL(p, SCOPE).href);
+      if (hit) return hit;
+    }
+    return fetch(req);                              // changed under us, or evicted
+  })());
+}
