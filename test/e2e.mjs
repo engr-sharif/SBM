@@ -904,6 +904,12 @@ dimRes = await page.evaluate(() => {
 console.log("DIM ->", dimRes && { len: dimRes.len, bearing: dimRes.bearing, layerParts: dimRes.parts });
 if (!dimRes || Math.abs(dimRes.len - 100) > 0.01) { console.log("FAIL: dimension distance is wrong"); process.exit(1); }
 if (!(dimRes.parts >= 5)) { console.log("FAIL: dimension did not draw its extension/arrow/text furniture"); process.exit(1); }
+/* v35: a finished one-shot command hands the app back to Navigate — before
+   this the mode stayed "dimension" with nothing armed, and every later click
+   on a layer (a sheet footprint in block 9d) was swallowed as a tool click */
+const dimMode = await page.evaluate(() => SBMM.mode.current());
+console.log("mode after the dimension:", dimMode);
+if (dimMode !== "navigate") { console.log("FAIL: a finished DIM left the app in " + dimMode + " mode"); process.exit(1); }
 });
 
 let sessionRT, v2ok;   /* hoisted — v18 §3 */
@@ -1604,7 +1610,10 @@ idle = await page.evaluate(async () => {
   for (; settleTries < 40; settleTries++) {
     await wait(1000);
     const now = SBMM.viewer3d.stats().renderCount;
-    if (now - prev <= 1) break;
+    /* a whole second with NO render — "at most one" let a view still easing
+       at software GL's ~1 fps count as settled, and its next frame then landed
+       inside the idle window (2 renders; seen twice in full sequential runs) */
+    if (now === prev) break;
     prev = now;
   }
   const a = SBMM.viewer3d.stats();

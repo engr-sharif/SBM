@@ -3247,6 +3247,72 @@ drainage boundaries keep breaking at the survey limit through their own
 every site-area outline steps less than 30 ft between 10-ft samples (West Rock
 Dam 7.9 now; the worst is the Northwest Pit wall at 18.3, which is terrain).
 
+## v35 — the data stash, and the immediate retry
+
+The engineer: *"the loading site data is taking so slow"* — on a 640 kB/s link
+that dropped 59 files. Two causes, both measured: **GitHub Pages stamps every
+file's ETag with the DEPLOY time** (`"6abf3349-…"` on all 151), so after any
+deploy the browser's cache revalidates all 140 MB and gets every byte again; and
+a dropped `<script src>` waited for boot to retry it, i.e. for the rest of the
+80 MB.
+
+**The stash (`sw.js`, the v35 section).** `tools/stamp_sizes.py` now also writes
+`index.html`'s **`SBMM_HASHES`** block — the first 12 hex of the SHA-256 of every
+`datajs/` and `vendor/` script the page loads (78). **Run it after regenerating a
+payload**; `test/check.mjs` (**`hashes`**) fails on any difference, with no
+tolerance, because a stale hash would pin the OLD bytes on every device that had
+them. The app's own `js/` is left out on purpose (it changes every commit).
+
+- The worker reads the hashes out of `index.html` on the way past (the
+  navigation is network-first, as it always was) and answers a data file from
+  the `sbmm-stash-v1` cache **only when the hash just served names exactly the
+  copy kept**. A file not kept, or whose hash moved, is never touched — the
+  browser fetches it natively, no `respondWith` (the v9.21 rule about large
+  bodies through the worker on iOS still holds for everything the stash does not
+  hold).
+- **A cold worker is the normal case** (the app opened the next day), so the
+  `haveCopy === null` branch reads the hashes off the navigation too; otherwise
+  a restarted worker would never hit.
+- **Filling it downloads nothing new.** `js/touch.js` `offline.stashSoon()`
+  waits for the `boot` event and `SBMM.payloads.settled()`, then posts
+  `{type:"stash", files, all}` naming the files THIS page loaded (so a phone
+  never stashes the heavy payloads it skipped); the worker reads each with
+  `cache:"force-cache"` — the browser's own HTTP-cache copy — and keeps it only
+  if its SHA-256 matches the hash it was named with, so a deploy landing
+  mid-visit cannot file stale bytes under a new hash. Entries `all` no longer
+  names are dropped on the same pass. It is posted to the ACTIVE worker, not
+  only a controlling one: the first visit is the one that fills it.
+- It is not the offline copy and never decides "offline": while an offline copy
+  exists the old code answers everything as before. A storage refusal is a line
+  in `SBMM.touch.diagnostics().dataStash`, not a toast — nothing the user did
+  failed. `tools/build_dist.py` drops the block (a single file has no worker).
+
+**The immediate retry (`js/gate.js`).** A `datajs/*.js` tag that fires `error`
+is re-injected at once — 0.6 s, then 2.5 s, `?retry=N-<ms>` — while the page
+keeps parsing. A payload only sets `SBMM_DATA` keys, so its order does not
+matter, and boot awaits `SBMM.retryWait()` before checking them. **App code
+(`js/`) is not retried there** (it must run in page order) and keeps boot's
+retry; deferred payloads (`data-deferred`) and terrain tiles have their own. Not
+over `file://`, where a missing file stays missing. `SBMM.retriedEarly` records
+each recovery; `js/loader.js` takes a file out of `failed` when its retry's
+`load` arrives, and says "Retrying it now."
+
+**And one bug the full local run found, older than this round.** The
+`transient: true` flag on Section, Fence, Dimension, Text, Smart boundary, Pad
+and Edit in `js/mode.js` was read by NOTHING, so a finished DIM left the app in
+"Dimension" with nothing armed — and since v30 a click in a tool mode goes to
+the tool, so every later click on a layer (block 9d's sheet footprint, any
+popup) was swallowed until Esc. CI never saw it because shard 2 starts on a
+fresh page. `js/draw.js` `settled()` now calls `SBMM.mode.oneShotDone()` after a
+pick's `onDone` when nothing is armed and no command-line prompt is waiting
+(`SBMM.cmd.asking()`); a command that re-arms itself in its own `onDone` (WAND)
+is still armed and stays. Block 8L-f asserts the mode is `navigate` after a DIM.
+
+Tablet block **"8. the data stash and the immediate retry"** (`tablet:http`):
+a 503 on the first `d_dus.js` recovered by the gate; the stash keeping 78 files;
+a reload asking the server for none of them; and an `index.html` with one hash
+changed fetching exactly that one file.
+
 ## Undo and redo (v9.4) — the both-closures rule and `readd`
 
 `SBMM.undo` is two stacks of `{ desc, undo, redo }`, 100 deep each way:

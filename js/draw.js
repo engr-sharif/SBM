@@ -215,6 +215,7 @@ SBMM.draw = (function () {
       const pts = picking.pts, o = picking.opts;
       endPick(true);
       try { o.onDone(pts); } catch (e) { console.error(e); toast("command failed: " + e.message); }
+      settled();
     } else promptStep();
   }
   function pickMove(x, y) {
@@ -246,6 +247,17 @@ SBMM.draw = (function () {
     if (pts.length < (o.minPts || 2)) { toast(`need at least ${o.minPts || 2} points`); return; }
     endPick(true);
     try { o.onDone(pts); } catch (e) { console.error(e); toast("command failed: " + e.message); }
+    settled();
+  }
+  /* v35 — a one-shot command (DIM, TEXT, SECTION, PAD …) that has finished and
+     armed nothing further hands the app back to Navigate. Before this the mode
+     stayed "Dimension" with nothing armed: a crosshair, and every click on a
+     layer swallowed as a tool click (v30) until Esc. js/mode.js decides which
+     modes are one-shot (`transient`); a command that re-arms itself in its own
+     onDone (WAND) is still armed here and is left alone. */
+  function settled() {
+    if (picking || work) return;
+    if (SBMM.mode && SBMM.mode.oneShotDone) SBMM.mode.oneShotDone();
   }
 
   function endPick(silent) {
@@ -559,7 +571,7 @@ SBMM.draw = (function () {
   }
 
   return {
-    begin, click, finish, cancel, edit, endEdit, isDrawing, isEditing, wire,
+    begin, click, finish, cancel, edit, endEdit, isDrawing, isEditing, wire, settled,
     /* v17: "is anything collecting points right now" — the module has always
        had this internally (a sketch OR a pick); js/touch.js needs it to know
        whether a finger's press belongs to the crosshair or to the map's pan.

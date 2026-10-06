@@ -853,7 +853,61 @@ SBMM.touch = (function () {
         if (onStale) onStale(d);
       });
     }
-    return { possible, why, register, status, precache, remove, listen };
+    /* v35 — hand the worker the data files THIS page loaded, with their
+       content hashes (index.html's SBMM_HASHES), once boot and the late
+       payloads are in. sw.js keeps each one and serves it on the next visit
+       while its hash still matches — so a deploy costs only what it changed.
+       Posted to the ACTIVE worker, not only a controlling one: on the very
+       first visit nothing controls the page yet and this is the visit that
+       fills it. Quiet by design: a refusal is a line in diagnostics(), since
+       nothing the user did failed. */
+    let stashResult = null;
+    function loadedData() {
+      const H = window.SBMM_HASHES || {}, base = new URL(".", location.href).href, out = [], seen = {};
+      for (const sc of document.scripts) {
+        if (!sc.src) continue;
+        const u = sc.src.split("?")[0];
+        if (u.indexOf(base) !== 0) continue;
+        const p = decodeURI(u.slice(base.length));
+        if (H[p] && !seen[p]) { seen[p] = 1; out.push({ path: p, hash: H[p] }); }
+      }
+      return out;
+    }
+    async function stash() {
+      if (!possible() || !window.SBMM_HASHES || window.SBMM_SINGLE_FILE) return null;
+      let r;
+      try { r = await navigator.serviceWorker.ready; } catch (e) { return null; }
+      const sw = r && r.active;
+      if (!sw) return null;
+      const files = loadedData();
+      return new Promise(res => {
+        const ch = new MessageChannel();
+        ch.port1.onmessage = e => { ch.port1.close(); stashResult = e.data || null; res(stashResult); };
+        sw.postMessage({ type: "stash", files, all: window.SBMM_HASHES }, [ch.port2]);
+      });
+    }
+    function stashSoon() {
+      if (!possible() || !window.SBMM_HASHES) return;
+      let n = 0;
+      const tick = () => {
+        const P = SBMM.payloads;
+        if (P && P.settled && !P.settled() && n++ < 300) { setTimeout(tick, 2000); return; }
+        setTimeout(() => { stash().catch(e => { stashResult = { error: e && e.message }; }); }, 3000);
+      };
+      if (SBMM.events && SBMM.events.on) SBMM.events.on("boot", tick); else setTimeout(tick, 10000);
+    }
+    function stashAsk() {
+      return new Promise((res, rej) => {
+        if (!possible()) { res(null); return; }
+        navigator.serviceWorker.ready.then(r => {
+          const ch = new MessageChannel();
+          ch.port1.onmessage = e => { ch.port1.close(); res(e.data); };
+          r.active.postMessage({ type: "stashStatus" }, [ch.port2]);
+        }, rej);
+      });
+    }
+    return { possible, why, register, status, precache, remove, listen, stash, stashSoon, stashAsk,
+             stashResult: () => stashResult };
   })();
 
   /* ================================================================== */
@@ -922,7 +976,8 @@ SBMM.touch = (function () {
       heavyPayloads: window.SBMM_HEAVY_SKIPPED ? "skipped (phone)"
         : ((SBMM.isField && SBMM.isField()) ? "not in this build" : "loaded"),
       standalone: standalone(),
-      offlineCapable: offline.possible()
+      offlineCapable: offline.possible(),
+      dataStash: offline.stashResult()
     };
   }
   function paintDiag() {
@@ -1273,6 +1328,7 @@ SBMM.touch = (function () {
     /* the offline copy: registered over http(s) only, never over file:// */
     offline.listen(() => refreshOfflineUI());
     offline.register().then(() => refreshOfflineUI());
+    offline.stashSoon();
 
     wireHelp();
     wireFieldMenu();

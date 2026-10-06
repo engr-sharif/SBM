@@ -17,6 +17,25 @@ All three are offline-only by design. Nothing in this app calls out to the inter
 
 ---
 
+## v9.42 — loading on a slow connection (2026-10-05)
+
+**After the first visit, only what changed is downloaded.** GitHub Pages marks
+every file as new on every update, so each visit after an update used to
+download all 140 MB again. The app now keeps each data file in the browser, with
+a fingerprint of its contents, and reuses it while the fingerprint still
+matches — an update that changes one file costs that one file. This needs the
+web address (http/https); the double-clicked copy is local already.
+
+**Dimension, Text, Section and Pad hand control back when they finish.** After
+placing a dimension the app stayed in Dimension with nothing to do, and clicks
+on the map — a sheet footprint, a well — did nothing until Esc. It now returns
+to Navigate.
+
+**A file that drops is retried straight away.** A data file that fails to
+arrive is requested again within a second, and again a few seconds later,
+while the rest of the page keeps loading — instead of waiting until everything
+else is in. The loading screen says "Retrying it now."
+
 ## v9.41 — no more spikes on 3D outlines (2026-10-05)
 
 West Rock Dam's outline in 3D had two places where the line shot straight up.
