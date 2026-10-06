@@ -56,9 +56,58 @@
      each recorded file before it decides the app is broken. A 14 MB payload
      over a phone's signal drops once and the tag has no retry of its own. */
   SBMM.failedScripts = [];
+  SBMM.retriedScripts = [];
+  SBMM.retriedEarly = [];
+  /* v35 — a DATA payload is retried the moment it fails, not once the rest of
+     the page is in: on a weak signal that wait was the whole 80 MB. A payload
+     only sets SBMM_DATA keys and nothing reads one before js/boot.js, so the
+     order it lands in does not matter; boot awaits SBMM.retryWait() before it
+     checks them. App code (js/) is NOT retried here — it has to run in page
+     order — and keeps boot's own retry. Two tries, 0.6 s then 2.5 s apart, a
+     query string so a cached failure is not handed back (sw.js matches with
+     ignoreSearch). A deferred payload (js/payloads.js) and a terrain tile
+     (js/tiles.js) have their own retries and are left to them. */
+  var retryPending = 0, retryWaiters = [];
+  function retryDone() {
+    retryPending--;
+    if (retryPending <= 0) { var w = retryWaiters.splice(0); for (var i = 0; i < w.length; i++) w[i](); }
+  }
+  SBMM.retryWait = function () {
+    return retryPending > 0 ? new Promise(function (r) { retryWaiters.push(r); }) : Promise.resolve();
+  };
+  function baseOf(src) { return String(src).split("?")[0]; }
+  function retryNow(src) {
+    var base = baseOf(src), name = base.split("/").pop();
+    retryPending++;
+    var attempt = 0;
+    (function next() {
+      attempt++;
+      setTimeout(function () {
+        var s = document.createElement("script");
+        s.dataset.sbmmRetry = "1";
+        s.src = base + "?retry=" + attempt + "-" + Date.now();
+        s.onload = function () {
+          SBMM.failedScripts = SBMM.failedScripts.filter(function (u) { return baseOf(u) !== base; });
+          SBMM.retriedScripts.push(name);
+          SBMM.retriedEarly.push({ name: name, attempt: attempt, at: Math.round(performance.now()) });
+          retryDone();
+        };
+        s.onerror = function () {
+          s.remove();
+          if (attempt < 2) next();
+          else { console.warn("could not load " + base + " after two immediate retries"); retryDone(); }
+        };
+        document.head.appendChild(s);
+      }, attempt === 1 ? 600 : 2500);
+    })();
+  }
   window.addEventListener("error", function (e) {
     var t = e && e.target;
-    if (t && t.tagName === "SCRIPT" && t.src) SBMM.failedScripts.push(t.src);
+    if (!(t && t.tagName === "SCRIPT" && t.src)) return;
+    if (t.dataset && (t.dataset.sbmmRetry || t.dataset.deferred)) return;   // their own retry owns them
+    SBMM.failedScripts.push(t.src);
+    var b = baseOf(t.src);
+    if (/\/datajs\/[^\/]+\.js$/.test(b) && location.protocol !== "file:") retryNow(t.src);
   }, true);
 
   /* ==================================================================== */

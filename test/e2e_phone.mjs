@@ -206,8 +206,8 @@ console.log(`phoneAtBoot ${agree.heavy} === field.sniff ${agree.field}: OK`);
    recorded the failed tag and boot retried it before checking the payloads */
 const retried = await page.evaluate(() => ({ list: SBMM.retriedScripts || [], dus: !!(window.SBMM_DATA && SBMM_DATA.dus) }));
 if (retried.list.indexOf("d_dus.js") < 0 || !retried.dus)
-  fail("a payload whose first request was dropped was not retried at boot", retried);
-console.log(`dropped payload retried at boot: ${retried.list.join(", ")}`);
+  fail("a payload whose first request was dropped was not retried", retried);
+console.log(`dropped payload retried: ${retried.list.join(", ")}`);
 }, { always: true });
 
 /* ===================================================================== */
