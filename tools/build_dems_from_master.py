@@ -153,7 +153,7 @@ def main():
     args = [a for a in sys.argv[1:] if not a.startswith("--")]
     only = next((a.split("=", 1)[1] for a in sys.argv[1:] if a.startswith("--only=")), None)
     want = (lambda k: only is None or only == k)
-    src = args[0] if args else "/home/claude/master_1ft.f32"
+    src = args[0] if args else "master_1ft.f32"
     if not os.path.exists(src):
         sys.exit(f"master raster not found: {src}")
     mm, master = load_master(src)

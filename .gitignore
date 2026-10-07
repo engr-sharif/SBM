@@ -42,5 +42,5 @@ test/.logs/
 test/.cache
 test/.cache/
 
-# agent worktrees (Claude Code isolation)
+# agent worktrees
 .claude/worktrees/

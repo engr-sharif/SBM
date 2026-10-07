@@ -499,8 +499,8 @@ below before the agents were spawned.
 
 ### 9.1 Raindrop reference (1-ft mine grid `dem_abp`, window = drop ± 700 ft via `gridSpec(dem, bbox, 0)`)
 
-Fixture: `/tmp/claude-0/-home-user-SBM/63f85d97-7536-5128-ab20-1c10e66fbf18/scratchpad/fix_swale_window.json` + `.f32` (1402 × 1402 cells, i0 431, j0 736);
-reference JSON: `/tmp/claude-0/-home-user-SBM/63f85d97-7536-5128-ab20-1c10e66fbf18/scratchpad/drop_ref.json` (key `swale`, includes the unsimplified
+Fixture: `<scratchpad>/fix_swale_window.json` + `.f32` (1402 × 1402 cells, i0 431, j0 736);
+reference JSON: `<scratchpad>/drop_ref.json` (key `swale`, includes the unsimplified
 path as `pts` every 3rd vertex and the catchment).
 
 | quantity | reference | tolerance |
@@ -531,8 +531,8 @@ return `flowpath.lengthRaw_ft` (unsimplified) and `flowpath.zEnd_ft` (last
 surveyed z; `end[2]` is NaN when the run ends on a NoData cell), and
 `band.bx0/by0/bx1/by1` (the image-overlay bounds).
 
-Fixture: `/tmp/claude-0/-home-user-SBM/63f85d97-7536-5128-ab20-1c10e66fbf18/scratchpad/fix_herman_window.json` + `.f32` (1753 × 1204 cells, i0 1471, j0 1914);
-reference JSON: `/tmp/claude-0/-home-user-SBM/63f85d97-7536-5128-ab20-1c10e66fbf18/scratchpad/herman_ref.json`. Seed ring = the `water`-layer polygon
+Fixture: `<scratchpad>/fix_herman_window.json` + `.f32` (1753 × 1204 cells, i0 1471, j0 1914);
+reference JSON: `<scratchpad>/herman_ref.json`. Seed ring = the `water`-layer polygon
 named "Herman Impoundment" in `data/design_gis.json` (551 vertices).
 
 | quantity | reference | tolerance |

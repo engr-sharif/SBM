@@ -65,7 +65,7 @@ warnings.filterwarnings("ignore")
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-DEFAULT_GDB = ("/home/claude/ea/gis/15785_46_0079/GeospatialData/"
+DEFAULT_GDB = ("ea/gis/15785_46_0079/GeospatialData/"
                "SBMM_ResidentialRD.gdb")
 
 STAMP = "CONFIDENTIAL – CULTURAL RESOURCES (NHPA §304)"

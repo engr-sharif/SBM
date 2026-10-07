@@ -2,9 +2,9 @@
 Pure python + numpy; slow but independent of the JS kernels. Row 0 = north in the arrays here.
 Usage: python waterref.py drops | herman
 """
-import json, heapq, sys, numpy as np
+import json, heapq, os, sys, numpy as np
 
-SC = '/tmp/claude-0/-home-user-SBM/63f85d97-7536-5128-ab20-1c10e66fbf18/scratchpad/'
+SC = os.path.join(os.path.dirname(os.path.abspath(__file__)), '')
 R = '/home/user/SBM/'
 NB = [(-1, -1), (-1, 0), (-1, 1), (0, -1), (0, 1), (1, -1), (1, 0), (1, 1)]
 NBD = [np.hypot(a, b) for a, b in NB]
