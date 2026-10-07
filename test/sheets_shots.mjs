@@ -15,8 +15,8 @@ import { pathToFileURL as __furl } from "node:url";
 import { resolve as __res } from "node:path";
 import { unlock } from "./gate.mjs";
 
-const target = process.argv[2] || "/home/claude/repo/index.html";
-const out = process.argv[3] || "/home/claude/repo/test/shots";
+const target = process.argv[2] || decodeURIComponent(new URL("../index.html", import.meta.url).pathname);
+const out = process.argv[3] || decodeURIComponent(new URL("shots", import.meta.url).pathname);
 const browser = await launch();
 const page = await browser.newPage({ viewport: { width: 1600, height: 1000 } });
 page.setDefaultTimeout(TIMEOUT);

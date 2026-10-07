@@ -194,7 +194,7 @@ def stats(a, tag, log=print):
 def main():
     argv = [a for a in sys.argv[1:] if not a.startswith("--")]
     raw_only = "--raw" in sys.argv
-    src = argv[0] if argv else "/home/claude/chm_1ft.f32"
+    src = argv[0] if argv else "chm_1ft.f32"
     if not os.path.exists(src):
         sys.exit(f"CHM raster not found: {src}")
     w, h = GRID["w"], GRID["h"]

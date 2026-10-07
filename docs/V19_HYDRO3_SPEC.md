@@ -7,7 +7,7 @@ Owner/decider: the planner. Executor: one agent (A3). Phase 3 of
 ("3, 10, 11 … work on this now"). Hard constraints as in CLAUDE.md; every
 v10–v18 golden stays; the runner (`test/run.mjs`) is how the matrix is run.
 A separate agent (H) is landing "Herman's two pipes carry the flow" first
-(§1); merge `claude/webapp-onboarding-mavtzx` when it does and build on it.
+(§1); merge the onboarding branch when it does and build on it.
 
 ---------------------------------------------------------------------------
 

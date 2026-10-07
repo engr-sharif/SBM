@@ -13,7 +13,7 @@ Three outputs, one source.
 |---|---|
 | **`dist/SBMM_Site_Explorer.html`** | One self-contained file (~133 MB — the full-resolution plan sheets and EA's native CAD are most of it). **Double-click it and it works** — on any computer, from a USB stick, from email. This is the copy to hand to the team. |
 | **`dist/SBMM_Site_Explorer_field.html`** | The same app at **~65 MB**, for opening on a phone (`python tools/build_dist.py --field`). See [In the field](#in-the-field). |
-| **This folder (`index.html`)** | The development layout — same app split into modules. Also opens by double-click, and hosts directly on GitHub Pages. This is the copy to iterate on with Claude Code. |
+| **This folder (`index.html`)** | The development layout — same app split into modules. Also opens by double-click, and hosts directly on GitHub Pages. This is the copy to develop in. |
 
 > **Why the old version hung on "Loading terrain…":** it loaded data with `fetch()`, which
 > browsers block when a page is opened from disk (`file://`). This build loads everything
@@ -2449,7 +2449,7 @@ registered sheets, so it follows the drawing set), or the whole survey.
 `SBMM.addLayerRow(group, …)` is unchanged and every container id is unchanged; only which
 section of the DOM each container sits in moved.
 
-## Working on it (GitHub / Claude Code)
+## Working on it (GitHub)
 
 Push this whole folder to a **private** repo:
 
@@ -2464,8 +2464,7 @@ git push -u origin main
 
 `.gitignore` keeps `dist/` (regenerate with `python tools/build_dist.py`), `node_modules`
 and any raw survey/CAD files out. No file exceeds GitHub's 100 MB limit (largest payload
-is 22 MB). Then open the folder in Claude Code — it reads `CLAUDE.md` automatically; that
-file, `docs/HANDOFF.md` and `docs/V9_SPEC.md` are the complete handover, and
+is 22 MB). `CLAUDE.md`, `docs/HANDOFF.md` and `docs/V9_SPEC.md` are the complete handover, and
 `docs/AGENT_RULES.md` is the ten-line version for an agent starting a round.
 
 Tests: `cd test && npm install && npx playwright install chromium`, then everything goes

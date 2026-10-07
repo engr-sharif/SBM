@@ -3,8 +3,8 @@
 Read `docs/V22_SPEC.md` first. This file is the checklist a fresh session continues
 from. Update it at every step; it is committed with the work.
 
-Branch: `claude/webapp-onboarding-mavtzx` (reset to main before this round; main =
-f2b73b9 v9.21). Every agent works in a git worktree under `.claude/worktrees/agent-<X>`
+Branch: the onboarding feature branch (reset to main before this round; main =
+f2b73b9 v9.21). Every agent works in its own git worktree (`agent-<X>`)
 on branch `worktree-agent-<X>`, never pushes, never opens a PR; the planner merges the
 worktree branch into the feature branch, runs `node test/run.mjs --quick`, pushes,
 opens/updates the draft PR, waits for the Actions matrix (8 jobs), merges, resets the
