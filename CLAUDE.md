@@ -1,4 +1,4 @@
-# SBMM Site Explorer — Claude Code handover
+# SBMM Site Explorer — developer handover
 
 Terrain workbench for the Sulphur Bank Mercury Mine OU1 Superfund site (Jacobs, Task 2.1.5).
 A fully client-side web app: 2D map (Leaflet) + 3D terrain (Three.js) over the site's

@@ -6,7 +6,7 @@ const page = await browser.newPage({ viewport: { width: 1500, height: 950 } });
 page.setDefaultTimeout(300000);
 const errs=[]; page.on("pageerror",e=>errs.push(e.message));
 await unlock(page);  /* the password gate — see test/gate.mjs */
-await page.goto("file:///home/claude/repo/index.html");
+await page.goto(new URL("../index.html", import.meta.url).href);
 await page.waitForSelector("#loading",{state:"hidden",timeout:120000});
 const wait = ms => page.waitForTimeout(ms);
 
