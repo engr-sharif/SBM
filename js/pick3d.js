@@ -177,6 +177,14 @@ SBMM.pick3d = (function () {
           return SBMM.geophys ? SBMM.geophys.pick3d(ix && ix.index != null ? ix.index : 0) : null;
         }
       };
+      /* a layer of a sounding's model column (one InstancedMesh: instance
+         k = sounding k/nl, layer k%nl) */
+      case "temcol": return {
+        object3d: o, kind: "temcol", priority: P,
+        hit(ix) {
+          return SBMM.geophys && SBMM.geophys.pickColumn ? SBMM.geophys.pickColumn(ix && ix.index != null ? ix.index : -1) : null;
+        }
+      };
       case "sample": return {
         object3d: o, kind: "sample", priority: P,
         hit(ix) {
@@ -332,7 +340,8 @@ SBMM.pick3d = (function () {
          resolved by what the user is more likely to be aiming at. */
       if (!best || entry.priority > best.entry.priority
           || (entry.priority === best.entry.priority && h.distance < best.hit.distance)) {
-        best = { entry, hit: { distance: h.distance, index: h.index, point: h.point.clone() } };
+        /* an InstancedMesh reports its instance, not an index */
+        best = { entry, hit: { distance: h.distance, index: h.index != null ? h.index : h.instanceId, point: h.point.clone() } };
       }
     }
     return best;

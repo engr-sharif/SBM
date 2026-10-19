@@ -1931,6 +1931,35 @@ SBMM.viewer3d = (function () {
         po.userData.pick = { kind: "tem" };
         addG.add(tag(po, "invest", "tem_soundings"));
       }
+      /* the contractor's "Sounding models": every sounding's own inverted
+         model as a column of its layers, from the lidar ground down — ONE
+         instanced box, one draw call, instance k = sounding k/nl, layer k%nl */
+      const TC = SBMM.geophys.columns3d ? SBMM.geophys.columns3d() : null;
+      if (TC) {
+        const op = TC.opacity, n = TC.n * TC.nl;
+        const im = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1),
+          new THREE.MeshLambertMaterial({ color: 0xffffff, transparent: op < 0.999, opacity: op }), n);
+        const mtx = new THREE.Matrix4(), q4 = new THREE.Quaternion(), v3 = new THREE.Vector3(), sc3 = new THREE.Vector3();
+        const col = new THREE.Color();
+        for (let i = 0; i < TC.n; i++) {
+          const [zl] = SBMM.elev(TC.x[i], TC.y[i]), zg = isNaN(zl) ? TC.z[i] : zl;
+          for (let l = 0; l < TC.nl; l++) {
+            const k = i * TC.nl + l, th = TC.bot[l] - TC.top[l];
+            v3.set(TC.x[i] - CX, TC.y[i] - CY, zg - (TC.top[l] + TC.bot[l]) / 2 - ZMID);
+            sc3.set(TC.w, TC.w, th);
+            mtx.compose(v3, q4, sc3);
+            im.setMatrixAt(k, mtx);
+            col.setRGB(TC.color[k * 3], TC.color[k * 3 + 1], TC.color[k * 3 + 2], THREE.SRGBColorSpace);
+            im.setColorAt(k, col);
+          }
+        }
+        im.instanceMatrix.needsUpdate = true;
+        if (im.instanceColor) im.instanceColor.needsUpdate = true;
+        im.renderOrder = 1;
+        im.userData.noClip = true;
+        im.userData.pick = { kind: "temcol" };
+        addG.add(tag(im, "invest", "tem_soundings"));
+      }
       /* v36 phase 4: the slice, the stack, the two sections and the voxels,
          from ONE spec the module memoises (SBMM.geophys.model3d) */
       const M = SBMM.geophys.model3d();
@@ -4072,6 +4101,9 @@ SBMM.viewer3d = (function () {
       ptOn = rp === undefined ? true : !!rp;
       const pl = $("v3dPtLabels");
       if (pl) { pl.checked = ptOn; pl.onchange = e => setPointLabels(e.target.checked); }
+      /* how the ground draws over what is under it (the TEM model) */
+      const gs = $("v3dGround");
+      if (gs) { gs.value = GROUND.mode; gs.onchange = e => setGround(e.target.value); }
     }
     wireBookmarks();
     { const tb = $("v3dTourBtn"); if (tb) tb.onclick = e => { e.stopPropagation(); setTimeout(() => flyAround(), 0); }; }
@@ -4558,7 +4590,7 @@ SBMM.viewer3d = (function () {
                      shown: labelSrc.points.filter(p => { const r = labels3d.get(p.key); return r && r.sprite.visible; })
                        .map(p => p.text).sort() },
       layersDrawn: layersDrawn(),
-      ground: GROUND.mode,
+      ground: GROUND.mode, groundNow: groundNow(),
       sun: { az: +sunAz.toFixed(1), el: +sunEl.toFixed(1) },
       sky: !!skyMesh, groundPlane: !!envGroup,
       groundBackdrop: !!(envGroup && envGroup.children.some(c => c.userData && c.userData.backdrop)),
@@ -4829,14 +4861,26 @@ SBMM.viewer3d = (function () {
      because tiles swap and drapes are rebuilt long after the setting moved;
      each material keeps its own originals and gets them back on "solid". The
      terrain still raycasts in every mode, so a click still finds the ground. */
+  /* "auto" (the default since 2026-10-19) is see-through while a TEM layer
+     is drawn under the ground and solid otherwise — a solid ground hides the
+     whole model, which is what the engineer reported. An explicit choice
+     still wins. The pre-auto preference ("ground3d") carried "solid" for
+     anyone who had merely opened the select, so it migrates: see/hidden are
+     kept, solid becomes auto. */
   const GROUND_ALPHA = { solid: 1, see: 0.35, hidden: 0 };
-  const GROUND = { mode: "solid", touched: false };
+  const GROUND = { mode: "auto", touched: false };
   try {
+    const g1 = SBMM.view && SBMM.view.pref("groundMode");
     const g0 = SBMM.view && SBMM.view.pref("ground3d");
-    if (g0 === "see" || g0 === "hidden") GROUND.mode = g0;
+    if (g1 === "auto" || g1 in GROUND_ALPHA) GROUND.mode = g1;
+    else if (g0 === "see" || g0 === "hidden") GROUND.mode = g0;
   } catch (e) { /* a preference is a convenience */ }
+  function groundNow() {
+    if (GROUND.mode !== "auto") return GROUND.mode;
+    return SBMM.geophys && SBMM.geophys.wantsSeeThrough && SBMM.geophys.wantsSeeThrough() ? "see" : "solid";
+  }
   function groundBeforeDraw() {
-    const a = GROUND_ALPHA[GROUND.mode];
+    const a = GROUND_ALPHA[groundNow()];
     if (a === 1 && !GROUND.touched) return;
     for (const t of terrainMeshes) {
       const mat = t && t.mesh && t.mesh.material;
@@ -4861,10 +4905,13 @@ SBMM.viewer3d = (function () {
     GROUND.touched = a !== 1;
   }
   function setGround(mode) {
-    if (!(mode in GROUND_ALPHA)) return GROUND.mode;
+    if (mode !== "auto" && !(mode in GROUND_ALPHA)) return GROUND.mode;
     GROUND.mode = mode;
-    if (mode !== "solid") GROUND.touched = true;
-    try { SBMM.view && SBMM.view.pref("ground3d", mode); } catch (e) { /* ignore */ }
+    GROUND.touched = true;
+    try { SBMM.view && SBMM.view.pref("groundMode", mode); } catch (e) { /* ignore */ }
+    /* the two selects that show it: View settings and the TEM card */
+    for (const el of document.querySelectorAll('#v3dGround, .temcard [data-tem="ground"]'))
+      if (el.value !== mode) el.value = mode;
     requestRender();
     return mode;
   }
@@ -5136,7 +5183,7 @@ SBMM.viewer3d = (function () {
     toggle, openAt, flyTo, isOpen: () => open, updateSketch, stats, resize, cameraWorld, diag,
     flyAround, stopFlyAround: () => stopTour(), flyingAround: () => !!tour,
     clipBox, clipOff: () => clipOff(), clipState, clipContains, clipProbe,
-    setGround, ground: () => GROUND.mode,
+    setGround, ground: () => GROUND.mode, groundNow,
     bookmarks, saveBookmark, goBookmark, removeBookmark, wireBookmarks,
     toggleFly, isFly: () => !!(nav && nav.mode() === "fly"),
     navMode: () => (nav ? nav.mode() : null),

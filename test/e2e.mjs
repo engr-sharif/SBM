@@ -292,7 +292,11 @@ await block("1a. THE PASSWORD GATE", async () => {
     console.log("FAIL: the top-bar padlock or its menu is missing", g4); process.exit(1); }
   if (!g4.stillOpen || !g4.lockedAfterIdle || !g4.gate || g4.token) {
     console.log("FAIL: the idle lock did not fall, or did not forget the unlock", g4); process.exit(1); }
-  /* and a reload after the limit asks again, although the 30-day token would not */
+  /* and a reload after the limit asks again, although the 30-day token would not.
+     The 1.8-s limit is lifted BEFORE the unlock: left in place, a slow runner
+     spent longer than that between the Enter and the next evaluate and the
+     page locked itself before the reload it exists to test (CI, 2026-10-19) */
+  await gp.evaluate(() => SBMM.gate.setIdle(1));
   await gp.fill("#gatePw", gatePassword());
   await gp.keyboard.press("Enter");
   await gp.waitForFunction(() => !document.getElementById("gate"), null, { timeout: 4000 });
@@ -6553,7 +6557,24 @@ const t5 = await page.evaluate(() => {
                 voxThick: M.voxels ? Math.max(...M.voxels.thick) : 0,
                 lines: [...document.querySelectorAll(".leaflet-water-pane path")].length };
   const g0 = SBMM.viewer3d.ground();
+  /* auto (the default) is see-through while the model is on, solid when an
+     explicit solid is chosen; a solid ground hid the model in the field */
+  SBMM.viewer3d.setGround("auto"); out.autoOn = SBMM.viewer3d.groundNow();
+  SBMM.layerState.set("invest", "tem_slice", { on: false });
+  const snd0 = SBMM.layerState.isOn("invest", "tem_soundings");
+  SBMM.layerState.set("invest", "tem_soundings", { on: false });
+  out.autoOff = SBMM.viewer3d.groundNow();
+  SBMM.layerState.set("invest", "tem_slice", { on: true });
+  SBMM.viewer3d.setGround("solid"); out.pinned = SBMM.viewer3d.groundNow();
   out.see = SBMM.viewer3d.setGround("see"); out.back = SBMM.viewer3d.setGround(g0);
+  /* the sounding models: every sounding's 20 layers as one column each */
+  SBMM.layerState.set("invest", "tem_soundings", { on: true });
+  const C = G.columns3d(), D = SBMM_DATA.tem2026;
+  out.cols = C ? C.n * C.nl : 0; out.colsWant = D.n * D.nl;
+  out.colGrey = C ? [...C.color].filter(v => v === 0.6).length : -1;
+  const pk = G.pickColumn(D.nl + 5);
+  out.colPick = pk ? [pk.title, (pk.html.match(/data-layer="(\d+)"/) || [])[1]] : null; out.id1 = D.id[1];
+  SBMM.layerState.set("invest", "tem_soundings", { on: snd0 });
   for (const k of ["stack", "stackStep", "ew", "ns", "vox", "voxLo", "voxHi"]) G.set(k, keep[k]);
   G.paintSectionLines();
   return out;
@@ -6561,6 +6582,9 @@ const t5 = await page.evaluate(() => {
 console.log("TEM in 3D:", JSON.stringify(t5));
 if (t5.stack !== 5 || t5.sections.join() !== "ew,ns" || !(t5.okEW > 20)) { console.log("FAIL: the TEM stack or sections did not build", t5); process.exit(1); }
 if (!(t5.voxels > 1000) || !(t5.voxThick > 60)) { console.log("FAIL: the TEM voxels did not build", t5); process.exit(1); }
+if (t5.autoOn !== "see" || t5.autoOff !== "solid" || t5.pinned !== "solid") { console.log("FAIL: the auto ground did not follow the TEM layers", t5); process.exit(1); }
+if (t5.cols !== t5.colsWant || t5.colGrey !== 0) { console.log("FAIL: the sounding-model columns did not build or are uncoloured", t5); process.exit(1); }
+if (!t5.colPick || t5.colPick[0] !== t5.id1 || t5.colPick[1] !== "6") { console.log("FAIL: a column pick did not name its sounding and layer", t5); process.exit(1); }
 if (t5.see !== "see" || t5.lines < 2) { console.log("FAIL: the see-through ground or the 2D section lines did not take", t5); process.exit(1); }
 
 /* phase 5: the borings — the calibration, the Geophysics tab, a fence with
