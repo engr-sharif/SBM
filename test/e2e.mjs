@@ -292,7 +292,11 @@ await block("1a. THE PASSWORD GATE", async () => {
     console.log("FAIL: the top-bar padlock or its menu is missing", g4); process.exit(1); }
   if (!g4.stillOpen || !g4.lockedAfterIdle || !g4.gate || g4.token) {
     console.log("FAIL: the idle lock did not fall, or did not forget the unlock", g4); process.exit(1); }
-  /* and a reload after the limit asks again, although the 30-day token would not */
+  /* and a reload after the limit asks again, although the 30-day token would not.
+     The 1.8-s limit is lifted BEFORE the unlock: left in place, a slow runner
+     spent longer than that between the Enter and the next evaluate and the
+     page locked itself before the reload it exists to test (CI, 2026-10-19) */
+  await gp.evaluate(() => SBMM.gate.setIdle(1));
   await gp.fill("#gatePw", gatePassword());
   await gp.keyboard.press("Enter");
   await gp.waitForFunction(() => !document.getElementById("gate"), null, { timeout: 4000 });
