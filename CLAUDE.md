@@ -3391,15 +3391,33 @@ edges) for the map slice, the 3D stack, the 3D sections and the fence image.
   9y) and `userData.noClip` (it stands in the clip box's trench). Textures
   are a `Map` keyed by the canvas they came from and disposed when a pass no
   longer uses them.
-- **The ground can be see-through** (`SBMM.viewer3d.setGround("solid" |
-  "see" | "hidden")`, remembered as `SBMM.view.pref("ground3d")`, on the card).
-  It is applied per DRAW by `groundBeforeDraw()` beside `clipBeforeDraw()`,
+- **The ground can be see-through** (`SBMM.viewer3d.setGround("auto" |
+  "solid" | "see" | "hidden")`, remembered as `SBMM.view.pref("groundMode")`,
+  on the card AND in the 3D View settings, `#v3dGround`). **"auto" is the
+  default and it is see-through while a TEM layer is drawn under the ground**
+  (`SBMM.geophys.wantsSeeThrough()`, asked per draw through `groundNow()`) and
+  solid otherwise: the first release defaulted to solid with the switch at
+  the bottom of the card, and the engineer turned TEM on, opened 3D and saw
+  nothing but the lidar surface. The older `ground3d` key migrates — see /
+  hidden are kept, a stored "solid" becomes auto (opening the select stored
+  it). It is applied per DRAW by `groundBeforeDraw()` beside `clipBeforeDraw()`,
   because tiles swap and drapes rebuild long after the setting moved; each
   terrain material keeps its originals in `userData._g0` (the raster
   ShaderMaterial's `uOpacity` included) and gets them back on "solid". The
   terrain still raycasts in every mode. **A new terrain material path must
   survive this**: it is handed `transparent` / `depthWrite:false` and an
   opacity, and nothing else.
+- **The sounding models** (`SBMM.geophys.columns3d()`, the contractor's
+  *Sounding models* layer, which their viewer draws by default): every
+  sounding's own inverted model as a column of its 20 layers, from the lidar
+  ground down, coloured on the slice's scale — ONE `InstancedMesh` of
+  1,032 x 20 boxes, instance k = sounding `k / nl`, layer `k % nl`. These are
+  the MEASURED models; every slice, section and voxel is interpolated from
+  them, so they go with the **soundings** row (`invest/tem_soundings`), not
+  the slice's, and the card's *sounding models* box and width (8 ft = the
+  viewer's 2.5 m) switch them. A pick names the layer and its value, then the
+  sounding's popup (`pick3d.js` kind `temcol`; the registry passes
+  `instanceId` as `index` for an InstancedMesh, which it dropped before).
 - **The fence (phase 5).** `props.tem` (a checkbox on the Fence tab, additive
   in the session) puts `sectionImage(R.ground, zTop, zBot)` behind the
   columns as an SVG `<image>` in the drawing's own station/elevation frame:

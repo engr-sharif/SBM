@@ -17,6 +17,19 @@ All three are offline-only by design. Nothing in this app calls out to the inter
 
 ---
 
+## v9.45 — the TEM model shows in 3D without hunting for it (2026-10-19)
+
+- **The ground goes see-through by itself while TEM is on.** The new default,
+  *auto*, makes the lidar surface see-through whenever a TEM layer is drawn
+  under it and solid otherwise. Solid, see-through and hidden are still there,
+  in the TEM card and now in the 3D *View settings* too.
+- **Sounding models** — the columns from the contractor's viewer: each
+  sounding's own 20-layer model as a column from the ground down to 394 ft,
+  coloured on the same scale. These are the measured models; the slice, the
+  sections and the voxels are interpolated between them. On with the
+  *TEM soundings* row; the card has the switch and the column width. Click a
+  column for that layer's value and the sounding's profile.
+
 ## v9.44 — the TEM model in 3D, and against the borings (2026-10-19)
 
 **In 3D** (the TEM card's *3D* section, with *Resistivity — depth slice* on):

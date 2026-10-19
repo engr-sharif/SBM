@@ -62,7 +62,10 @@ SBMM.geophys = (function () {
                 contours: true, nCont: 12,
                 /* v36 phase 4: the model in 3D */
                 stack: false, stackStep: 3, ew: false, ns: false, ewI: -1, nsI: -1,
-                vox: false, voxLo: 0, voxHi: 30 };
+                vox: false, voxLo: 0, voxHi: 30,
+                /* the viewer's "Sounding models": each sounding's own 20 layers
+                   as a column (its 2.5 m width, in feet) */
+                cols: true, colW: 8 };
   let S = Object.assign({}, DEF);
   try {
     const st = SBMM.view && SBMM.view.pref("tem");
@@ -606,13 +609,14 @@ SBMM.geophys = (function () {
   }
   /* the 3D half of the card (phase 4): the stack, the two sections with
      their position, the voxels with their range, and how the ground draws */
+  const GROUND_OPTS = [["auto", "auto"], ["solid", "solid"], ["see", "see-through"], ["hidden", "hidden"]];
   function threeDHtml() {
     if (!R) return "";
     const ewi = sectionIdx("ew"), nsi = sectionIdx("ns");
-    const g = SBMM.viewer3d && SBMM.viewer3d.ground ? SBMM.viewer3d.ground() : "solid";
+    const g = SBMM.viewer3d && SBMM.viewer3d.ground ? SBMM.viewer3d.ground() : "auto";
     return `<div class="tem3d"><div class="tem3dh">3D</div>`
       + `<div class="temgrid2">`
-      + `<label>Ground ${selectHtml("ground", [["solid", "solid"], ["see", "see-through"], ["hidden", "hidden"]], g, "How the terrain draws over the model in 3D")}</label>`
+      + `<label>Ground ${selectHtml("ground", GROUND_OPTS, g, "How the terrain draws over the model in 3D — auto is see-through while a TEM layer is on")}</label>`
       + `<label>Stack every ${selectHtml("stackStep", [[1, "layer"], [2, "2nd layer"], [3, "3rd layer"], [4, "4th layer"], [6, "6th layer"]], S.stackStep, "Slices in the stack, by model layer")}</label>`
       + `</div>`
       + `<div class="temchks">`
@@ -620,6 +624,8 @@ SBMM.geophys = (function () {
       + `<label class="temchk" title="A vertical east–west section through the model"><input type="checkbox" data-tem="ew"${S.ew ? " checked" : ""}> E–W section</label>`
       + `<label class="temchk" title="A vertical north–south section through the model"><input type="checkbox" data-tem="ns"${S.ns ? " checked" : ""}> N–S section</label>`
       + `<label class="temchk" title="Every model cell inside the colour range below"><input type="checkbox" data-tem="vox"${S.vox ? " checked" : ""}> voxels</label>`
+      + `<label class="temchk" title="Each sounding's own inverted model as a column of its layers (with the soundings row)"><input type="checkbox" data-tem="cols"${S.cols ? " checked" : ""}> sounding models</label>`
+      + `<label class="temchk" title="Width of a sounding model column">${selectHtml("colW", [[4, "4 ft"], [8, "8 ft"], [12, "12 ft"], [16, "16 ft"], [24, "24 ft"]], S.colW, "Width of a sounding model column")}</label>`
       + `</div>`
       + `<label class="temrow" title="Northing of the east–west section">E–W at <output data-tem-o="ewI">N ${fmt0(R.y0 + ewi * R.dx)}</output>`
       + `<input type="range" data-tem="ewI" min="0" max="${R.ny - 1}" step="1" value="${ewi}"></label>`
@@ -693,7 +699,7 @@ SBMM.geophys = (function () {
         if (SBMM.viewer3d && SBMM.viewer3d.setGround) SBMM.viewer3d.setGround(t.value);
         return;
       }
-      if (["stack", "stackStep", "ew", "ns", "vox"].includes(k)) {
+      if (["stack", "stackStep", "ew", "ns", "vox", "cols", "colW"].includes(k)) {
         S[k] = t.type === "checkbox" ? t.checked : +t.value;
         save(); paintSectionLines(); soon3d();
         return;
@@ -922,6 +928,49 @@ SBMM.geophys = (function () {
     return out;
   }
 
+  /* the viewer's "Sounding models": each sounding's own inverted model as a
+     column of its layers, coloured on the same scale as the slice. These are
+     the MEASURED models — every surface above is interpolated from them —
+     so they are drawn with the soundings' row, not the slice's. Colours are
+     sRGB 0..1, three per (sounding, layer), in the payload's own order. */
+  let cl = null, clKey = "";
+  function columns3d() {
+    const D = data();
+    if (!D || !on("tem_soundings") || !S.cols) return null;
+    if (!range) autoRange();
+    const key = [S.prop, S.cmap, S.rev, S.classes, range ? range.lo : "", range ? range.hi : "", S.colW].join("|");
+    if (cl && clKey === key) { cl.opacity = SBMM.layerState.opacity("invest", "tem_soundings"); return cl; }
+    const nl = D.nl, lg = LOG(), L = lut(), color = new Float32Array(D.n * nl * 3);
+    for (let k = 0; k < D.n * nl; k++) {
+      const t = S.prop === "sig" ? NaN : tRaw(toProp(lg[k]));
+      if (isFinite(t)) { const c = tCol(t); color[k * 3] = L[c] / 255; color[k * 3 + 1] = L[c + 1] / 255; color[k * 3 + 2] = L[c + 2] / 255; }
+      else color[k * 3] = color[k * 3 + 1] = color[k * 3 + 2] = 0.6;
+    }
+    cl = { x: D.x, y: D.y, z: D.z, n: D.n, nl, top: D.top_ft, bot: D.bot_ft, color, w: S.colW,
+           opacity: SBMM.layerState.opacity("invest", "tem_soundings") };
+    clKey = key;
+    return cl;
+  }
+  /* a column's layer, picked in 3D: the layer's own value first, then the
+     sounding's popup (its whole model beside the grid) */
+  function pickColumn(k) {
+    const D = data();
+    if (!D || !(k >= 0)) return null;
+    const i = Math.floor(k / D.nl), l = k % D.nl;
+    if (!D.id[i]) return null;
+    const r = D.r[i * D.nl + l], P = PROP[S.prop === "sig" ? "res" : S.prop];
+    const v = S.prop === "cond" ? 1000 / r : r;
+    return { title: D.id[i],
+             html: `<div class="temcolhit mono" data-layer="${l + 1}"><b>${fmtV(v)} ${P.unit}</b> · layer ${l + 1} of ${D.nl} · `
+               + `${fmt(D.top_ft[l], 1)}–${fmt(D.bot_ft[l], 1)} ft</div>` + popupHtml(i),
+             xyz: [D.x[i], D.y[i]] };
+  }
+  /* "auto" ground (js/viewer3d.js): see-through whenever the model is drawn
+     under it, because a solid ground hides every bit of it */
+  function wantsSeeThrough() {
+    return !!(data() && ((R && on("tem_slice")) || (on("tem_soundings") && S.cols)));
+  }
+
   /* the two section lines on the 2D map, so a reader knows where they cut
      (an SVG renderer in the water pane: no pointer events, the rule that pane
      lives by) */
@@ -1148,6 +1197,7 @@ SBMM.geophys = (function () {
 
   return {
     build, open, run, data, hoverText, valueAt, points3d, slice3d, pick3d, snapItems,
+    columns3d, pickColumn, wantsSeeThrough,
     model3d, sectionImage, sigKey, calibrate, calibCsv, holeProfileSvg, valueAtDepth, rhoAt,
     paintSectionLines, openCalibration,
     popupHtml, profileSvg, soundingCsv, sliceCsv, modelCsv, legendSvg,

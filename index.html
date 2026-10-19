@@ -560,6 +560,11 @@ window.SBMM_BUILD="full";
       <!-- v31: the names of the wells, borings, pits, samples and storm structures
            nearest the camera; default on, remembered with the view prefs -->
       <label class="chk"><input type="checkbox" id="v3dPtLabels" checked> Point names</label>
+      <!-- 2026-10-19: how the terrain draws over what is under it (the TEM
+           model). Auto is see-through while a TEM layer is on. -->
+      <label>Ground <select id="v3dGround" title="How the terrain draws over what is under it — auto is see-through while a TEM layer is on">
+        <option value="auto">auto</option><option value="solid">solid</option>
+        <option value="see">see-through</option><option value="hidden">hidden</option></select></label>
       <!-- v26: saved 3D views (camera bookmarks), remembered with the view prefs -->
       <div class="v3dmarks"><div class="v3dmkh">Saved views <button class="minib" id="v3dMarkSave" title="Save the current camera as a named view">save view</button>
         <button class="minib" id="v3dTourBtn" title="One slow orbit of the mine area — any input stops it">fly the site</button></div>
