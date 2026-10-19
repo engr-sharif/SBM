@@ -17,6 +17,32 @@ All three are offline-only by design. Nothing in this app calls out to the inter
 
 ---
 
+## v9.44 — the TEM model in 3D, and against the borings (2026-10-19)
+
+**In 3D** (the TEM card's *3D* section, with *Resistivity — depth slice* on):
+
+- **Ground: solid / see-through / hidden** — the model hangs below the
+  terrain, so see-through or hidden is how you look at it without digging a
+  clip-box trench.
+- **Slice stack** — a slice at every 1st to 6th model layer, one above the other.
+- **E–W and N–S sections** — vertical curtains from the ground to 394 ft, each
+  placed with its own slider; a dashed line on the 2D map shows where they cut.
+- **Voxels** — every model cell inside a range of the colour scale (the most
+  conductive quarter by default), as solid blocks.
+
+**Against the borings:**
+
+- **Fence diagrams** carry the model behind the boring columns: tick **TEM** on
+  the Fence tab. The PNG and the 3D fence strip carry it too.
+- **The log window has a Geophysics tab** (`TEMCAL`, or *vs borings* on the TEM
+  card). It shows the model at the selected hole as a step plot with the hole's
+  logged waste / native / bedrock bands behind it, beside a table of all 13
+  borings inside the survey. The table gives each hole's median resistivity per
+  logged class, the class medians and spread, and the single resistivity that
+  best separates waste from native. On this site **waste reads higher than
+  native** (16.6 against 9.6 Ω·m median); a cut at 13.8 Ω·m separates them 70 %
+  of the time. Interpreted, planning-level; copy CSV takes the table.
+
 ## v9.43 — the 2026 TEM geophysics (2026-10-19)
 
 **The TEM2Go survey is in the app.** All 1,032 soundings from the May 2026

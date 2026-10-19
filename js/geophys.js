@@ -59,7 +59,10 @@ SBMM.geophys = (function () {
   /* the settings: the viewer's defaults, in feet (6 m cell, 18 m blanking) */
   const DEF = { method: "krig", vgType: "sph", per: false, cell: 20, blank: 60, depth: 30,
                 blend: true, prop: "res", cmap: "hydro", rev: false, classes: 0,
-                contours: true, nCont: 12 };
+                contours: true, nCont: 12,
+                /* v36 phase 4: the model in 3D */
+                stack: false, stackStep: 3, ew: false, ns: false, ewI: -1, nsI: -1,
+                vox: false, voxLo: 0, voxHi: 30 };
   let S = Object.assign({}, DEF);
   try {
     const st = SBMM.view && SBMM.view.pref("tem");
@@ -231,16 +234,16 @@ SBMM.geophys = (function () {
   /* the viewer's paint(): a colour per pixel and a contour edge wherever the
      level index changes between neighbours */
   function upFactor(n) { return Math.max(2, Math.min(8, Math.floor(900 / n))); }
-  function paintSlice() {
-    if (!R) return null;
-    const f = field(S.depth);
-    if (!f) return null;
-    const { nx, ny } = R, up = upFactor(Math.max(nx, ny)), W = (nx - 1) * up + 1, H = (ny - 1) * up + 1;
+  /* one painter for every face of the model — the map slice, the 3D stack,
+     the vertical sections and the fence backdrop. valAt(px, py) answers the
+     PROPERTY value (Ω·m, mS/m or the kriging error) or NaN for no value. */
+  function paintCanvas(W, H, valAt, contours) {
     const cv = document.createElement("canvas"); cv.width = W; cv.height = H;
     const ctx = cv.getContext("2d"), im = ctx.createImageData(W, H), px = im.data;
     const lev = new Int32Array(W * H), tt = new Float32Array(W * H), L = lut();
+    const edges = contours == null ? S.contours : contours;
     for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
-      const i = y * W + x, t = tRaw(toProp(bilin(f, nx, ny, x / up, (H - 1 - y) / up)));
+      const i = y * W + x, t = tRaw(valAt(x, y));
       tt[i] = t; lev[i] = isFinite(t) ? Math.floor(t * S.nCont + 1e-6) : -99999;
     }
     for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
@@ -248,7 +251,7 @@ SBMM.geophys = (function () {
       if (lev[i] === -99999) { px[o + 3] = 0; continue; }
       const c = tCol(tt[i]);
       let r = L[c], g = L[c + 1], b = L[c + 2];
-      if (S.contours) {
+      if (edges) {
         const lv = lev[i];
         const e = (x + 1 < W && lev[i + 1] !== -99999 && lev[i + 1] !== lv)
                || (y + 1 < H && lev[i + W] !== -99999 && lev[i + W] !== lv);
@@ -257,10 +260,68 @@ SBMM.geophys = (function () {
       px[o] = r; px[o + 1] = g; px[o + 2] = b; px[o + 3] = 255;
     }
     ctx.putImageData(im, 0, 0);
+    return cv;
+  }
+  function sliceAt(depth, upMax) {
+    const f = field(depth);
+    if (!f) return null;
+    const { nx, ny } = R, up = Math.min(upMax || 8, upFactor(Math.max(nx, ny)));
+    const W = (nx - 1) * up + 1, H = (ny - 1) * up + 1;
+    const cv = paintCanvas(W, H, (x, y) => toProp(bilin(f, nx, ny, x / up, (H - 1 - y) / up)));
     const h = R.dx / up / 2;
-    slice = { canvas: cv, f, depth: S.depth, up, W, H,
-              bounds: [R.x0 - h, R.y0 - h, R.x0 + (nx - 1) * R.dx + h, R.y0 + (ny - 1) * R.dx + h] };
+    return { canvas: cv, f, depth, up, W, H,
+             bounds: [R.x0 - h, R.y0 - h, R.x0 + (nx - 1) * R.dx + h, R.y0 + (ny - 1) * R.dx + h] };
+  }
+  function paintSlice() {
+    if (!R) return null;
+    slice = sliceAt(S.depth);
     return slice;
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* the model anywhere: plan bilinear inside a layer, the viewer's blend  */
+  /* between layers in depth                                               */
+  /* ------------------------------------------------------------------ */
+  let views = null, viewsOf = null;
+  function layerViews(arr) {
+    if (viewsOf === arr && views) return views;
+    const N = R.nx * R.ny;
+    views = [];
+    for (let l = 0; l < NL(); l++) views.push(arr.subarray(l * N, (l + 1) * N));
+    viewsOf = arr;
+    return views;
+  }
+  function blendOf(depth) {
+    const nl = NL();
+    if (!S.blend) { const l = layerAt(depth); return [l, l, 0]; }
+    if (depth <= midFt(0)) return [0, 0, 0];
+    if (depth >= midFt(nl - 1)) return [nl - 1, nl - 1, 0];
+    let l = 0;
+    while (l < nl - 2 && depth >= midFt(l + 1)) l++;
+    return [l, l + 1, (depth - midFt(l)) / (midFt(l + 1) - midFt(l))];
+  }
+  /* gx, gy in grid units; answers the raw array value (log10 Ω·m, or the
+     kriging error) — toProp() makes it a property */
+  function gridValue(arr, gx, gy, depth) {
+    if (!R || !arr) return NaN;
+    if (gx < 0 || gy < 0 || gx > R.nx - 1 || gy > R.ny - 1) return NaN;
+    const V = layerViews(arr), [l0, l1, f] = blendOf(depth);
+    const a = bilin(V[l0], R.nx, R.ny, gx, gy);
+    if (l1 === l0 || !(f > 0)) return a;
+    const b = bilin(V[l1], R.nx, R.ny, gx, gy);
+    return a * (1 - f) + b * f;
+  }
+  const gxOf = x => (x - R.x0) / R.dx, gyOf = y => (y - R.y0) / R.dx;
+  /* the property at a point and a depth below ground (the harness hook) */
+  function valueAtDepth(x, y, depth) {
+    if (!R) return NaN;
+    return toProp(gridValue(propArr(), gxOf(x), gyOf(y), depth));
+  }
+  /* resistivity (Ω·m) at a point and depth, whatever the card shows */
+  function rhoAt(x, y, depth) {
+    if (!R) return NaN;
+    const v = gridValue(R.log, gxOf(x), gyOf(y), depth);
+    return isFinite(v) ? Math.pow(10, v) : NaN;
   }
 
   /* ------------------------------------------------------------------ */
@@ -289,6 +350,7 @@ SBMM.geophys = (function () {
         }
       }
     }
+    paintSectionLines();
     refreshCard();
   }
   function soon3d() {
@@ -537,9 +599,41 @@ SBMM.geophys = (function () {
       + `<label class="temchk" title="Blend between model-layer mid-depths rather than step at layer boundaries"><input type="checkbox" data-tem="blend"${S.blend ? " checked" : ""}> blend between layers</label>`
       + `<label class="temchk" title="Fit a variogram to each layer rather than one to all"><input type="checkbox" data-tem="per"${S.per ? " checked" : ""}> variogram per layer</label>`
       + `<label class="temchk" title="Reverse the colour map"><input type="checkbox" data-tem="rev"${S.rev ? " checked" : ""}> reverse colours</label>`
+      + threeDHtml()
       + `<div class="temlegwrap">${legendSvg()}</div>`
       + `<div class="temrange mono" title="Colour range, 2–98 % of the soundings">${range ? `${fmtV(range.lo)} – ${fmtV(range.hi)} ${PROP[S.prop].unit}` : ""}</div>`
       + `</div>`;
+  }
+  /* the 3D half of the card (phase 4): the stack, the two sections with
+     their position, the voxels with their range, and how the ground draws */
+  function threeDHtml() {
+    if (!R) return "";
+    const ewi = sectionIdx("ew"), nsi = sectionIdx("ns");
+    const g = SBMM.viewer3d && SBMM.viewer3d.ground ? SBMM.viewer3d.ground() : "solid";
+    return `<div class="tem3d"><div class="tem3dh">3D</div>`
+      + `<div class="temgrid2">`
+      + `<label>Ground ${selectHtml("ground", [["solid", "solid"], ["see", "see-through"], ["hidden", "hidden"]], g, "How the terrain draws over the model in 3D")}</label>`
+      + `<label>Stack every ${selectHtml("stackStep", [[1, "layer"], [2, "2nd layer"], [3, "3rd layer"], [4, "4th layer"], [6, "6th layer"]], S.stackStep, "Slices in the stack, by model layer")}</label>`
+      + `</div>`
+      + `<div class="temchks">`
+      + `<label class="temchk" title="A slice at every chosen layer, one above the other"><input type="checkbox" data-tem="stack"${S.stack ? " checked" : ""}> slice stack</label>`
+      + `<label class="temchk" title="A vertical east–west section through the model"><input type="checkbox" data-tem="ew"${S.ew ? " checked" : ""}> E–W section</label>`
+      + `<label class="temchk" title="A vertical north–south section through the model"><input type="checkbox" data-tem="ns"${S.ns ? " checked" : ""}> N–S section</label>`
+      + `<label class="temchk" title="Every model cell inside the colour range below"><input type="checkbox" data-tem="vox"${S.vox ? " checked" : ""}> voxels</label>`
+      + `</div>`
+      + `<label class="temrow" title="Northing of the east–west section">E–W at <output data-tem-o="ewI">N ${fmt0(R.y0 + ewi * R.dx)}</output>`
+      + `<input type="range" data-tem="ewI" min="0" max="${R.ny - 1}" step="1" value="${ewi}"></label>`
+      + `<label class="temrow" title="Easting of the north–south section">N–S at <output data-tem-o="nsI">E ${fmt0(R.x0 + nsi * R.dx)}</output>`
+      + `<input type="range" data-tem="nsI" min="0" max="${R.nx - 1}" step="1" value="${nsi}"></label>`
+      + `<label class="temrow" title="Voxels shown, as positions across the colour range">Voxels <output data-tem-o="vox">${voxWords()}</output>`
+      + `<span class="tempair"><input type="range" data-tem="voxLo" min="0" max="100" step="1" value="${S.voxLo}">`
+      + `<input type="range" data-tem="voxHi" min="0" max="100" step="1" value="${S.voxHi}"></span></label>`
+      + `</div>`;
+  }
+  function voxWords() {
+    if (!range) return "";
+    const lo = Math.min(S.voxLo, S.voxHi) / 100, hi = Math.max(S.voxLo, S.voxHi) / 100;
+    return `${fmtV(fromT(lo))}–${fmtV(fromT(hi))} ${PROP[S.prop].unit}`;
   }
   function cardRows() {
     const st = sliceStats(), D = data(), l = layerAt(S.depth);
@@ -579,14 +673,31 @@ SBMM.geophys = (function () {
     box.innerHTML = controlsHtml();
     card.appendChild(box);
     box.addEventListener("input", ev => {
-      const t = ev.target;
-      if (t.dataset.tem !== "depth") return;
+      const t = ev.target, k = t.dataset.tem;
+      if (k === "ewI" || k === "nsI" || k === "voxLo" || k === "voxHi") {
+        S[k] = +t.value;
+        const o = card.querySelector(`[data-tem-o="${k === "voxLo" || k === "voxHi" ? "vox" : k}"]`);
+        if (o) o.textContent = k === "ewI" ? `N ${fmt0(R.y0 + S.ewI * R.dx)}`
+          : k === "nsI" ? `E ${fmt0(R.x0 + S.nsI * R.dx)}` : voxWords();
+        save(); paintSectionLines(); soon3d();
+        return;
+      }
+      if (k !== "depth") return;
       S.depth = +t.value;
       save(); paint(); soon3d();
     });
     box.addEventListener("change", ev => {
       const t = ev.target, k = t.dataset.tem;
-      if (!k || k === "depth") return;
+      if (!k || k === "depth" || k === "ewI" || k === "nsI" || k === "voxLo" || k === "voxHi") return;
+      if (k === "ground") {
+        if (SBMM.viewer3d && SBMM.viewer3d.setGround) SBMM.viewer3d.setGround(t.value);
+        return;
+      }
+      if (["stack", "stackStep", "ew", "ns", "vox"].includes(k)) {
+        S[k] = t.type === "checkbox" ? t.checked : +t.value;
+        save(); paintSectionLines(); soon3d();
+        return;
+      }
       const rerun = ["method", "vgType", "cell", "blank", "per"].includes(k);
       if (t.type === "checkbox") S[k] = t.checked;
       else if (k === "nCont") { const n = +t.value; S.contours = n > 0; if (n > 0) S.nCont = n; }
@@ -603,7 +714,8 @@ SBMM.geophys = (function () {
     acts.innerHTML = `<span class="minib" data-a="png" title="The slice as a PNG">PNG</span>`
       + `<span class="minib" data-a="csv" title="The slice as CSV (easting, northing, value)">slice CSV</span>`
       + `<span class="minib" data-a="model" title="Every node and every layer as CSV">model CSV</span>`
-      + `<span class="minib" data-a="fit" title="Colour range from 2–98 % of the soundings">fit range</span>`;
+      + `<span class="minib" data-a="fit" title="Colour range from 2–98 % of the soundings">fit range</span>`
+      + `<span class="minib" data-a="cal" title="Resistivity against the 2025 borings' logged classes (TEMCAL)">vs borings</span>`;
     acts.addEventListener("click", ev => {
       const b = ev.target.closest("[data-a]"); if (!b) return;
       const a = b.dataset.a;
@@ -611,6 +723,7 @@ SBMM.geophys = (function () {
       else if (a === "csv") download("SBMM_TEM_slice_" + S.depth + "ft.csv", new Blob([sliceCsv()], { type: "text/csv" }));
       else if (a === "model") download("SBMM_TEM_model.csv", new Blob([modelCsv()], { type: "text/csv" }));
       else if (a === "fit") { autoRange(); paintNow(); soon3d(); }
+      else if (a === "cal") openCalibration();
     });
     card.appendChild(acts);
     SBMM.results.appendNote(card, NOTE);
@@ -691,6 +804,16 @@ SBMM.geophys = (function () {
     built = true;
   }
 
+  /* TEMCAL: the log window's Geophysics tab, at the given boring */
+  async function openCalibration(id) {
+    if (!data()) { toast("the TEM survey is not in this build"); return; }
+    if (!SBMM.borewin || !SBMM.borelogs || !SBMM.borelogs.has()) { toast("this build has no boring logs"); return; }
+    const res = await run();
+    if (!res) return;
+    let hid = id;
+    if (!hid) { const C = calibrate(); hid = C && C.holes.length ? C.holes[0].id : null; }
+    SBMM.borewin.open(hid, { tab: "tem" });
+  }
   /* TEM / GEOPHYS / RESISTIVITY [depth ft] */
   async function open(depth) {
     if (!data()) { toast("the TEM survey is not in this build"); return; }
@@ -730,6 +853,286 @@ SBMM.geophys = (function () {
              mask: R.mask, depth: S.depth,
              opacity: SBMM.layerState.opacity("invest", "tem_slice") };
   }
+  /* ------------------------------------------------------------------ */
+  /* v36 phase 4 — the model in 3D: the slice stack, the two vertical    */
+  /* sections and the voxels. All of it hangs under the ground, carries  */
+  /* the depth-slice row's tag, and is read through the fence clip box's  */
+  /* trench or a see-through ground (SBMM.viewer3d.setGround).           */
+  /* ------------------------------------------------------------------ */
+  const sigKey = () => [R ? R.key : "", S.prop, S.cmap, S.rev, S.classes, S.contours, S.nCont, S.blend,
+                        range ? range.lo : "", range ? range.hi : ""].join("|");
+  function sectionIdx(dir) {
+    const n = dir === "ew" ? R.ny : R.nx, v = dir === "ew" ? S.ewI : S.nsI;
+    return v < 0 || v >= n ? Math.floor(n / 2) : Math.round(v);
+  }
+  function sectionSpec(dir) {
+    const arr = propArr();
+    if (!arr) return null;
+    const ew = dir === "ew", idx = sectionIdx(dir), along = ew ? R.nx : R.ny;
+    const DM = dmax(), up = Math.min(4, upFactor(along)), W = (along - 1) * up + 1, H = 200;
+    const cv = paintCanvas(W, H, (px, py) => {
+      const a = px / up, d = py / (H - 1) * DM;
+      return toProp(gridValue(arr, ew ? a : idx, ew ? idx : a, d));
+    });
+    const pts = [], ok = [];
+    for (let a = 0; a < along; a++) {
+      const ix = ew ? a : idx, iy = ew ? idx : a;
+      pts.push([R.x0 + ix * R.dx, R.y0 + iy * R.dx]);
+      ok.push(!!R.mask[iy * R.nx + ix]);
+    }
+    return { dir, idx, canvas: cv, pts, ok, dmax: DM,
+             coord: ew ? R.y0 + idx * R.dx : R.x0 + idx * R.dx };
+  }
+  function voxelSpec() {
+    const arr = propArr();
+    if (!arr) return null;
+    const D = data(), N = R.nx * R.ny;
+    const lo = Math.min(S.voxLo, S.voxHi) / 100, hi = Math.max(S.voxLo, S.voxHi) / 100;
+    const out = { x: [], y: [], depth: [], thick: [], color: [], size: R.dx, capped: false };
+    const CAP = 90000;
+    for (let l = 0; l < D.nl && !out.capped; l++) for (let id = 0; id < N; id++) {
+      if (!R.mask[id]) continue;
+      const v = toProp(arr[l * N + id]), t = Math.max(0, Math.min(1, tRaw(v)));
+      if (!(t >= lo && t <= hi)) continue;
+      if (out.x.length >= CAP) { out.capped = true; break; }
+      out.x.push(R.x0 + (id % R.nx) * R.dx);
+      out.y.push(R.y0 + Math.floor(id / R.nx) * R.dx);
+      out.depth.push(midFt(l));
+      out.thick.push(D.bot_ft[l] - D.top_ft[l]);
+      out.color.push(colorOf(v) || PTS_COL);
+    }
+    return out;
+  }
+  let m3 = null, m3key = "";
+  function model3d() {
+    if (!R || !data() || !on("tem_slice")) return null;
+    const key = sigKey() + "|" + [S.depth, S.stack, S.stackStep, S.ew, S.ns, S.ewI, S.nsI,
+                                  S.vox, S.voxLo, S.voxHi].join("|");
+    if (m3 && m3key === key) { m3.opacity = SBMM.layerState.opacity("invest", "tem_slice"); return m3; }
+    const out = { slice: slice3d(), stack: [], sections: [], voxels: null,
+                  opacity: SBMM.layerState.opacity("invest", "tem_slice") };
+    if (S.stack) for (let l = 0; l < NL(); l += Math.max(1, S.stackStep)) {
+      const sp = sliceAt(midFt(l), 3);
+      if (sp) out.stack.push({ canvas: sp.canvas, depth: sp.depth });
+    }
+    if (S.ew) { const sp = sectionSpec("ew"); if (sp) out.sections.push(sp); }
+    if (S.ns) { const sp = sectionSpec("ns"); if (sp) out.sections.push(sp); }
+    if (S.vox) out.voxels = voxelSpec();
+    m3 = out; m3key = key;
+    return out;
+  }
+
+  /* the two section lines on the 2D map, so a reader knows where they cut
+     (an SVG renderer in the water pane: no pointer events, the rule that pane
+     lives by) */
+  let secLayer = null, secRenderer = null;
+  function paintSectionLines() {
+    const map = SBMM.map;
+    if (!map || typeof L === "undefined") return;
+    if (secLayer) { map.removeLayer(secLayer); secLayer = null; }
+    if (!R || !on("tem_slice") || !(S.ew || S.ns)) return;
+    const pane = map.getPane("water") ? "water" : "overlayPane";
+    if (!secRenderer) secRenderer = L.svg({ pane });
+    secLayer = L.layerGroup();
+    const x1 = R.x0 + (R.nx - 1) * R.dx, y1 = R.y0 + (R.ny - 1) * R.dx;
+    for (const dir of ["ew", "ns"]) {
+      if (!S[dir]) continue;
+      const i = sectionIdx(dir);
+      const ll = dir === "ew" ? [[R.y0 + i * R.dx, R.x0], [R.y0 + i * R.dx, x1]]
+                              : [[R.y0, R.x0 + i * R.dx], [y1, R.x0 + i * R.dx]];
+      L.polyline(ll, { renderer: secRenderer, pane, interactive: false, color: "#F1CE7A",
+                       weight: 1.6, dashArray: "8 6", opacity: .95 }).addTo(secLayer);
+    }
+    secLayer.addTo(map);
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* v36 phase 5 — the borings                                           */
+  /* ------------------------------------------------------------------ */
+  /* the fence backdrop: the model sampled along an alignment's own ground
+     profile (js/fence.js groundProfile: {sta, x, y, z}), elevation down the
+     page from zTop to zBot. Above the ground and below the deepest layer is
+     transparent; the drawing places it at its own station and elevation. */
+  function sectionImage(gp, zTop, zBot) {
+    if (!R || !data() || !gp || gp.length < 2 || !(zTop > zBot)) return null;
+    const arr = propArr();
+    if (!arr) return null;
+    const DM = dmax(), cols = Math.min(480, gp.length), rows = 220;
+    const samp = [];
+    for (let c = 0; c < cols; c++) samp.push(gp[Math.round(c / (cols - 1) * (gp.length - 1))]);
+    let hit = 0;
+    for (const q of samp) if (q && isFinite(q.z) && isFinite(gridValue(arr, gxOf(q.x), gyOf(q.y), 5))) hit++;
+    if (!hit) return { url: null, covered: 0 };
+    const cv = paintCanvas(cols, rows, (c, r) => {
+      const q = samp[c];
+      if (!q || !isFinite(q.z)) return NaN;
+      const z = zTop - (r + 0.5) / rows * (zTop - zBot), d = q.z - z;
+      if (d < 0 || d > DM) return NaN;
+      return toProp(gridValue(arr, gxOf(q.x), gyOf(q.y), d));
+    }, false);
+    return { url: cv.toDataURL("image/png"), covered: hit / cols, w: cols, h: rows,
+             label: `${PROP[S.prop].name.toLowerCase()} ${range ? fmtV(range.lo) + "–" + fmtV(range.hi) : ""} ${PROP[S.prop].unit}` };
+  }
+
+  /* a boring's class bands from its LOGGED CONTACTS — the fence's rule:
+     waste to the native contact, native to the top of bedrock, bedrock to the
+     bottom of the hole */
+  function bandsOfHole(h) {
+    const c = h.contacts || {}, Dp = h.depth || 0, out = [];
+    const nat = c.native_contact, rock = c.bedrock_top;
+    if (nat != null && nat > 0) out.push(["waste", 0, Math.min(nat, Dp)]);
+    if (nat != null) { const nb = rock != null ? Math.min(rock, Dp) : Dp; if (nb > nat) out.push(["native", nat, nb]); }
+    if (rock != null && Dp > rock) out.push(["bedrock", rock, Dp]);
+    return out;
+  }
+  const median = a => { const s = a.slice().sort((x, y) => x - y); return s.length ? s[s.length >> 1] : NaN; };
+  const quant = (a, p) => { const s = a.slice().sort((x, y) => x - y);
+    return s.length ? s[Math.min(s.length - 1, Math.max(0, Math.round(p * (s.length - 1))))] : NaN; };
+  function nearestSounding(x, y) {
+    const D = data();
+    let bi = -1, bd = Infinity;
+    for (let i = 0; i < D.n; i++) { const d = Math.hypot(D.x[i] - x, D.y[i] - y); if (d < bd) { bd = d; bi = i; } }
+    return { i: bi, d: bd };
+  }
+  /* resistivity against the logged classes at every 2025 boring inside the
+     survey: the interpolated model sampled every foot down each class band,
+     a median per hole and class, the pooled spread per class, and the one
+     resistivity that best separates waste from native (balanced accuracy).
+     Interpreted, planning-level — the card and the CSV say so. */
+  let calCache = null, calKey = "";
+  function calibrate() {
+    const B = SBMM.borelogs;
+    if (!R || !data() || !B || !B.has()) return null;
+    if (calCache && calKey === R.key + S.blend) return calCache;
+    const DM = dmax(), holes = [], pool = { waste: [], native: [], bedrock: [] };
+    for (const h of B.holes()) {
+      if (h.x == null || h.y == null) continue;
+      const gx = gxOf(h.x), gy = gyOf(h.y);
+      if (!isFinite(gridValue(R.log, gx, gy, 5))) continue;
+      const c = h.contacts || {}, ns = nearestSounding(h.x, h.y);
+      const rec = { id: h.id, native_ft: c.native_contact, rock_ft: c.bedrock_top, depth_ft: h.depth,
+                    sounding: data().id[ns.i], sounding_ft: ns.d, med: {}, n: {} };
+      for (const [cls, a, b] of bandsOfHole(h)) {
+        const vals = [];
+        for (let d = a + 0.5; d < Math.min(b, DM); d += 1) {
+          const v = gridValue(R.log, gx, gy, d);
+          if (isFinite(v)) vals.push(v);
+        }
+        if (!vals.length) continue;
+        rec.med[cls] = Math.pow(10, median(vals));
+        rec.n[cls] = vals.length;
+        for (const v of vals) pool[cls].push(v);
+      }
+      holes.push(rec);
+    }
+    const classes = {};
+    for (const cls of ["waste", "native", "bedrock"]) {
+      const a = pool[cls];
+      classes[cls] = { samples: a.length, holes: holes.filter(r => r.med[cls] != null).length,
+                       median: a.length ? Math.pow(10, median(a)) : null,
+                       p25: a.length ? Math.pow(10, quant(a, 0.25)) : null,
+                       p75: a.length ? Math.pow(10, quant(a, 0.75)) : null };
+    }
+    /* the threshold: every distinct pooled value tried as a cut, both ways */
+    let thr = null;
+    const W = pool.waste, Nn = pool.native;
+    if (W.length >= 5 && Nn.length >= 5) {
+      const cand = [...new Set(W.concat(Nn).map(v => +v.toFixed(3)))].sort((x, y) => x - y);
+      for (const t of cand) {
+        const wl = W.filter(v => v < t).length / W.length, nl = Nn.filter(v => v < t).length / Nn.length;
+        const below = (wl + (1 - nl)) / 2, above = ((1 - wl) + nl) / 2;
+        const best = below >= above ? { acc: below, dir: "below" } : { acc: above, dir: "above" };
+        if (!thr || best.acc > thr.acc) thr = { acc: best.acc, dir: best.dir, rho: Math.pow(10, t) };
+      }
+    }
+    calCache = { holes, classes, threshold: thr, key: R.key, method: R.method };
+    calKey = R.key + S.blend;
+    return calCache;
+  }
+  function calibCsv() {
+    const C = calibrate();
+    if (!C) return "";
+    const f = v => v == null ? "" : (+v).toPrecision(4);
+    let out = "# TEM2Go resistivity (ohm-m, interpolated) against the 2025 borings' logged classes;"
+      + " median per hole and class; interpreted, planning-level\n"
+      + "boring,native_contact_ft,bedrock_top_ft,depth_ft,nearest_sounding,sounding_ft,"
+      + "waste_ohm_m,native_ohm_m,bedrock_ohm_m\n";
+    for (const r of C.holes)
+      out += [r.id, f(r.native_ft), f(r.rock_ft), f(r.depth_ft), r.sounding, f(r.sounding_ft),
+              f(r.med.waste), f(r.med.native), f(r.med.bedrock)].join(",") + "\n";
+    out += "\nclass,holes,samples_ft,median_ohm_m,p25_ohm_m,p75_ohm_m\n";
+    for (const k of ["waste", "native", "bedrock"]) {
+      const c = C.classes[k];
+      out += [k, c.holes, c.samples, f(c.median), f(c.p25), f(c.p75)].join(",") + "\n";
+    }
+    if (C.threshold) out += `\nwaste_vs_native_threshold_ohm_m,${f(C.threshold.rho)}\nwaste_is,${C.threshold.dir}\n`
+      + `balanced_accuracy,${C.threshold.acc.toFixed(3)}\n`;
+    return out;
+  }
+  /* one boring against the model: the grid's layers at the hole as a step
+     plot, the nearest sounding's own model dashed, and the hole's logged
+     class bands and contacts behind them */
+  function holeProfileSvg(id, w, h) {
+    const B = SBMM.borelogs, hole = B && B.byId(id);
+    if (!R || !data() || !hole) return "";
+    w = w || 360; h = h || 420;
+    const D = data(), nl = NL(), gx = gxOf(hole.x), gy = gyOf(hole.y);
+    const V = layerViews(R.log);
+    const grid = [];
+    for (let l = 0; l < nl; l++) { const v = bilin(V[l], R.nx, R.ny, gx, gy); grid.push(isFinite(v) ? Math.pow(10, v) : NaN); }
+    if (!grid.some(isFinite)) return "";
+    const ns = nearestSounding(hole.x, hole.y), snd = [];
+    for (let l = 0; l < nl; l++) snd.push(D.r[ns.i * nl + l]);
+    const Dm = Math.min(dmax(), Math.max(60, (hole.depth || 40) * 1.6));
+    const all = grid.filter(isFinite).concat(snd);
+    const lo = Math.pow(10, Math.floor(Math.log10(Math.min(...all)))), hi = Math.pow(10, Math.ceil(Math.log10(Math.max(...all))));
+    const Lp = 48, Rp = 12, Tp = 20, Bp = 10;
+    const X = v => Lp + (Math.log10(v) - Math.log10(lo)) / (Math.log10(hi) - Math.log10(lo)) * (w - Lp - Rp);
+    const Y = d => Tp + Math.min(d, Dm) / Dm * (h - Tp - Bp);
+    const ink = "#9FB0B5", rule = "rgba(159,176,181,.25)";
+    let s = `<svg class="temhole" xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" font-family="system-ui,sans-serif" font-size="10">`
+      + `<rect width="${w}" height="${h}" fill="#0F1518" rx="4"/>`;
+    for (const [cls, a, b] of bandsOfHole(hole)) {
+      if (a >= Dm) continue;
+      s += `<rect class="temband" data-cls="${cls}" x="${Lp}" y="${Y(a).toFixed(1)}" width="${w - Lp - Rp}"`
+        + ` height="${Math.max(1, Y(b) - Y(a)).toFixed(1)}" fill="${B.classColor(cls)}" fill-opacity=".2"/>`
+        + `<text x="${Lp + 4}" y="${(Y(a) + 11).toFixed(1)}" fill="${B.classColor(cls)}" font-size="9">${B.classWord(cls)}</text>`;
+    }
+    for (let e = Math.log10(lo); e <= Math.log10(hi) + 1e-9; e++) {
+      const x = X(Math.pow(10, e));
+      s += `<line x1="${x}" y1="${Tp}" x2="${x}" y2="${h - Bp}" stroke="${rule}"/>`
+        + `<text x="${x}" y="${Tp - 6}" fill="${ink}" text-anchor="middle">${+Math.pow(10, e).toPrecision(3)}</text>`;
+    }
+    const dStep = Dm > 150 ? 50 : Dm > 70 ? 20 : 10;
+    for (let d = 0; d <= Dm; d += dStep) {
+      const y = Y(d);
+      s += `<line x1="${Lp}" y1="${y}" x2="${w - Rp}" y2="${y}" stroke="${rule}"/>`
+        + `<text x="${Lp - 4}" y="${y + 3.5}" fill="${ink}" text-anchor="end">${d} ft</text>`;
+    }
+    const c = hole.contacts || {};
+    const hz = (ft, col, cls) => ft == null || ft > Dm ? "" :
+      `<line class="${cls}" data-ft="${ft}" x1="${Lp}" y1="${Y(ft).toFixed(1)}" x2="${w - Rp}" y2="${Y(ft).toFixed(1)}" stroke="${col}" stroke-width="1.4"/>`;
+    s += hz(c.native_contact, B.classColor("contact"), "temnat") + hz(c.bedrock_top, B.classColor("bedrock"), "temrock");
+    if (hole.depth != null && hole.depth < Dm)
+      s += `<line x1="${Lp}" y1="${Y(hole.depth).toFixed(1)}" x2="${w - Rp}" y2="${Y(hole.depth).toFixed(1)}" stroke="#E8EEF1" stroke-dasharray="1 3"/>`
+        + `<text x="${w - Rp - 2}" y="${(Y(hole.depth) - 3).toFixed(1)}" fill="#E8EEF1" text-anchor="end" font-size="9">bottom of hole ${fmt(hole.depth, 1)} ft</text>`;
+    const step = (vals, dash, col, sw, cls) => {
+      let p = "", pen = false;
+      for (let l = 0; l < nl; l++) {
+        const top = D.top_ft[l], bot = Math.min(D.bot_ft[l], Dm);
+        if (top >= Dm) break;
+        if (!isFinite(vals[l])) { pen = false; continue; }
+        const x = X(vals[l]).toFixed(1);
+        p += (pen ? `L${x},${Y(top).toFixed(1)}` : `M${x},${Y(top).toFixed(1)}`) + `L${x},${Y(bot).toFixed(1)}`;
+        pen = true;
+      }
+      return `<path class="${cls}" d="${p}" fill="none" stroke="${col}" stroke-width="${sw}"${dash ? ` stroke-dasharray="${dash}"` : ""}/>`;
+    };
+    s += step(snd, "4 3", "#C9D3D6", 1.3, "temsnd") + step(grid, "", "#E4796A", 2.2, "temgridhole");
+    s += `<text x="${w - Rp}" y="${h - Bp - 3}" fill="${ink}" text-anchor="end">Ω·m</text></svg>`;
+    return s;
+  }
+
   function pick3d(i) {
     const D = data();
     if (!D || !D.id[i]) return null;
@@ -745,6 +1148,8 @@ SBMM.geophys = (function () {
 
   return {
     build, open, run, data, hoverText, valueAt, points3d, slice3d, pick3d, snapItems,
+    model3d, sectionImage, sigKey, calibrate, calibCsv, holeProfileSvg, valueAtDepth, rhoAt,
+    paintSectionLines, openCalibration,
     popupHtml, profileSvg, soundingCsv, sliceCsv, modelCsv, legendSvg,
     settings: () => Object.assign({}, S),
     set(k, v) { if (k in DEF) { S[k] = v; save(); } },
