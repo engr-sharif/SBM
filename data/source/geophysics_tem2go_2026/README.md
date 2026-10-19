@@ -20,3 +20,8 @@ Checked against the app (not assumed): through `data/affine.json` the soundings
 cover E 6,370,946–6,372,289 / N 2,127,097–2,128,638 (EPSG:6418, ~1,340 × 1,540 ft),
 median spacing 15.4 ft, and every one lands on surveyed lidar. Sounding `z` minus
 the Jan-2024 lidar is median −0.21 ft (p5 −0.79, p95 +0.54, worst −2.2 / +3.0).
+
+The app's copy is built from this file by `tools/build_tem2026.py`
+(`data/tem2026.json`, `datajs/d_tem2026.js`), and the `tem` kernel in
+`js/compute.js` is a port of the viewer's interpolation that
+`test/kernels.mjs --only tem` checks against this file's own script.

@@ -5165,6 +5165,317 @@ var SBMM_COMPUTE = (function SBMMComputeModule() {
     };
   }
 
+  /* ======================================================================
+     v36 — TEM RESISTIVITY (the 2026 TEM2Go survey, js/geophys.js)
+     ======================================================================
+     The contractor's viewer (data/source/geophysics_tem2go_2026/, kept
+     verbatim) interpolates log10 resistivity onto a grid ONE MODEL LAYER AT A
+     TIME, by one of four methods, and blanks every node farther than a set
+     distance from a sounding. This is that computation, PORTED rather than
+     re-derived: the same neighbour search, the same experimental
+     semivariograms of standardised log10 resistivity, the same grid-search
+     variogram fit, the same Gaussian elimination, the same Smith & Wessel
+     relaxation — in the same order, so that run in the viewer's own units
+     (UTM metres, its own defaults) it returns the viewer's own grid.
+     test/kernels.mjs --only tem extracts the viewer's script from the
+     delivered HTML, runs both on one job and requires them to agree exactly;
+     that identity is what "1:1" means here.
+
+     Units are the caller's. The app runs it in State Plane feet and passes
+     the lag, the blanking distance and the range search in feet (js/geophys.js
+     jobFor); the only constants left are dimensionless.
+
+     job: { x, y, z: sounding positions and ground (n),
+            r: resistivity, n * nl, r[i*nl + l],  nl,
+            cell, blank, method: "krig" | "mc" | "idw" | "nn",
+            vg: { type: "sph"|"exp"|"gau", range, nug (share of sill), sill,
+                  k, per (a variogram per layer), fit (fit the shared one
+                  to the pooled experimental first), lag, nb,
+                  rmin, rmax, rstep },
+            mc: { t, it }, idw: { p, k } }
+     result: { nx, ny, dx, x0, y0, mask (Uint8), surf (Float32, ground by IDW
+               of the soundings' own z), log (Float32, nl*N, LAYER-major:
+               log[l*N + id]), sig (the same, kriging standard error in log10
+               units, or null), nodes, vg, vgs, exp, lmean, lstd, ms } */
+  function temKnn(PX, PY, NS, x, y, k, idx, dist) {
+    var c = 0, i, j;
+    for (i = 0; i < NS; i++) {
+      var dx = PX[i] - x, dy = PY[i] - y, d = dx * dx + dy * dy;
+      if (c < k) {
+        j = c++;
+        while (j > 0 && dist[j - 1] > d) { dist[j] = dist[j - 1]; idx[j] = idx[j - 1]; j--; }
+        dist[j] = d; idx[j] = i;
+      } else if (d < dist[k - 1]) {
+        j = k - 1;
+        while (j > 0 && dist[j - 1] > d) { dist[j] = dist[j - 1]; idx[j] = idx[j - 1]; j--; }
+        dist[j] = d; idx[j] = i;
+      }
+    }
+    for (j = 0; j < c; j++) dist[j] = Math.sqrt(dist[j]);
+    return c;
+  }
+  function temIdw(vals, stride, off, idx, dist, k, p) {
+    if (dist[0] < 1e-6) return vals[idx[0] * stride + off];
+    var sw = 0, sv = 0;
+    for (var j = 0; j < k; j++) { var w = 1 / Math.pow(dist[j], p); sw += w; sv += w * vals[idx[j] * stride + off]; }
+    return sv / sw;
+  }
+  function temGam(type, h, nug, sill, range) {
+    if (h <= 0) return 0;
+    var r = h / range, f;
+    if (type === "sph") f = r >= 1 ? 1 : 1.5 * r - 0.5 * r * r * r;
+    else if (type === "exp") f = 1 - Math.exp(-3 * r);
+    else f = 1 - Math.exp(-3 * r * r);
+    return nug + (sill - nug) * f;
+  }
+  function temSolve(A, b, n) {
+    var c, r, k, t;
+    for (c = 0; c < n; c++) {
+      var p = c, pv = Math.abs(A[c * n + c]);
+      for (r = c + 1; r < n; r++) { var v = Math.abs(A[r * n + c]); if (v > pv) { pv = v; p = r; } }
+      if (pv < 1e-12) return false;
+      if (p !== c) {
+        for (k = 0; k < n; k++) { t = A[c * n + k]; A[c * n + k] = A[p * n + k]; A[p * n + k] = t; }
+        t = b[c]; b[c] = b[p]; b[p] = t;
+      }
+      var d = A[c * n + c];
+      for (r = c + 1; r < n; r++) {
+        var f = A[r * n + c] / d;
+        if (f === 0) continue;
+        for (k = c; k < n; k++) A[r * n + k] -= f * A[c * n + k];
+        b[r] -= f * b[c];
+      }
+    }
+    for (r = n - 1; r >= 0; r--) {
+      var s = b[r];
+      for (k = r + 1; k < n; k++) s -= A[r * n + k] * b[k];
+      b[r] = s / A[r * n + r];
+    }
+    return true;
+  }
+  /* the experimental semivariograms: every pair inside nb lags, per layer, of
+     log10 resistivity standardised by the layer's own mean and deviation */
+  function temExperimental(PX, PY, LOG, NS, NL, LMEAN, LSTD, lag, nb) {
+    var cnt = new Float64Array(nb), hs = new Float64Array(nb), sum = new Float64Array(nb * NL);
+    var Z = new Float64Array(NS * NL), i, j, l, b;
+    for (i = 0; i < NS; i++) for (l = 0; l < NL; l++) Z[i * NL + l] = (LOG[i * NL + l] - LMEAN[l]) / LSTD[l];
+    for (i = 0; i < NS; i++) for (j = i + 1; j < NS; j++) {
+      var h = Math.hypot(PX[i] - PX[j], PY[i] - PY[j]);
+      b = Math.floor(h / lag);
+      if (b >= nb) continue;
+      cnt[b]++; hs[b] += h;
+      var oi = i * NL, oj = j * NL, ob = b * NL;
+      for (l = 0; l < NL; l++) { var d = Z[oi + l] - Z[oj + l]; sum[ob + l] += d * d; }
+    }
+    var H = [], C = [], per = [], pooled = [];
+    for (l = 0; l < NL; l++) per.push([]);
+    for (b = 0; b < nb; b++) {
+      if (cnt[b] < 10) continue;
+      H.push(hs[b] / cnt[b]); C.push(cnt[b]);
+      var s = 0;
+      for (l = 0; l < NL; l++) { var g = sum[b * NL + l] / (2 * cnt[b]); per[l].push(g); s += g; }
+      pooled.push(s / NL);
+    }
+    return { h: H, c: C, per: per, pooled: pooled };
+  }
+  /* the grid search: sill 0.3..1.6 by 0.05, nugget share 0.01..0.7 by 0.03,
+     range rmin..rmax by rstep, each bin weighted by its pair count over its
+     distance (the viewer's own weighting, with its own loop arithmetic) */
+  function temFitVg(type, g, EXP, lag, rmin, rmax, rstep) {
+    var best = null, bv = Infinity, H = EXP.h, C = EXP.c, sill, nf, r, b;
+    for (sill = 0.3; sill <= 1.6001; sill += 0.05)
+      for (nf = 0.01; nf <= 0.7001; nf += 0.03)
+        for (r = rmin; r <= rmax; r += rstep) {
+          var e = 0;
+          for (b = 0; b < H.length; b++) {
+            var m = temGam(type, H[b], nf * sill, sill, r), d = g[b] - m;
+            e += C[b] * d * d / (H[b] + lag);
+          }
+          if (e < bv) { bv = e; best = { range: r, nug: +nf.toFixed(2), sill: +sill.toFixed(2) }; }
+        }
+    return best;
+  }
+  function temKrigWeights(PX, PY, k, idx, dist, vg, A, rhs, g0) {
+    var n = k + 1, i, j;
+    for (i = 0; i < k; i++) {
+      var xi = PX[idx[i]], yi = PY[idx[i]];
+      for (j = i; j < k; j++) {
+        var v = i === j ? 0 : temGam(vg.type, Math.hypot(xi - PX[idx[j]], yi - PY[idx[j]]),
+                                      vg.nug * vg.sill, vg.sill, vg.range);
+        A[i * n + j] = v; A[j * n + i] = v;
+      }
+      A[i * n + k] = 1; A[k * n + i] = 1;
+      g0[i] = temGam(vg.type, dist[i], vg.nug * vg.sill, vg.sill, vg.range);
+      rhs[i] = g0[i];
+    }
+    A[k * n + k] = 0; rhs[k] = 1;
+    if (!temSolve(A, rhs, n)) return NaN;
+    var s = rhs[k];
+    for (i = 0; i < k; i++) s += rhs[i] * g0[i];
+    return Math.max(s, 0);
+  }
+
+  function temJob(job, onProgress) {
+    var t0 = Date.now();
+    var prog = function (p) { if (onProgress) onProgress(p); };
+    var NS = job.x.length, NL = job.nl | 0, i, j, l, id, a;
+    if (!(NS > 0) || !(NL > 0) || job.r.length !== NS * NL) throw new Error("tem: soundings and layers do not match");
+    var PX = Float64Array.from(job.x), PY = Float64Array.from(job.y), PZ = Float64Array.from(job.z);
+    var LOG = new Float64Array(NS * NL);
+    for (i = 0; i < NS * NL; i++) LOG[i] = Math.log10(Math.max(job.r[i], 1e-3));
+    var minE = Infinity, maxE = -Infinity, minN = Infinity, maxN = -Infinity;
+    for (i = 0; i < NS; i++) {
+      minE = Math.min(minE, PX[i]); maxE = Math.max(maxE, PX[i]);
+      minN = Math.min(minN, PY[i]); maxN = Math.max(maxN, PY[i]);
+    }
+    var LMEAN = new Float64Array(NL), LSTD = new Float64Array(NL);
+    for (l = 0; l < NL; l++) {
+      var s = 0, s2 = 0;
+      for (i = 0; i < NS; i++) { var v = LOG[i * NL + l]; s += v; s2 += v * v; }
+      LMEAN[l] = s / NS;
+      LSTD[l] = Math.sqrt(Math.max(s2 / NS - Math.pow(LMEAN[l], 2), 1e-9));
+    }
+    var method = job.method || "krig";
+    var VG = job.vg || {}, MC = job.mc || {}, IDW = job.idw || {};
+    var lag = VG.lag > 0 ? VG.lag : 8, nb = VG.nb > 0 ? VG.nb | 0 : 20;
+    var EXP = temExperimental(PX, PY, LOG, NS, NL, LMEAN, LSTD, lag, nb);
+    var rmin = VG.rmin > 0 ? VG.rmin : 10, rmax = VG.rmax > 0 ? VG.rmax : 400,
+        rstep = VG.rstep > 0 ? VG.rstep : 5;
+    var vgType = VG.type || "sph";
+    var shared0 = { range: VG.range > 0 ? VG.range : 80, nug: VG.nug == null ? 0.1 : VG.nug,
+                    sill: VG.sill > 0 ? VG.sill : 1 };
+    if (VG.fit) shared0 = temFitVg(vgType, EXP.pooled, EXP, lag, rmin, rmax, rstep);
+    prog(0.05);
+
+    var dx = job.cell > 0 ? job.cell : 6, blank = job.blank > 0 ? job.blank : 18;
+    var x0 = Math.floor(minE / dx) * dx, y0 = Math.floor(minN / dx) * dx;
+    var nx = Math.ceil((maxE - x0) / dx) + 1, ny = Math.ceil((maxN - y0) / dx) + 1, N = nx * ny;
+    if (N * NL > 40e6) throw new Error("tem: a " + nx + " x " + ny + " grid is too fine");
+    var mask = new Uint8Array(N), surf = new Float32Array(N);
+    var LG = new Float32Array(N * NL).fill(NaN), SG = null;
+    var idx = new Int32Array(64), dist = new Float64Array(64), c;
+    for (var iy = 0; iy < ny; iy++) for (var ix = 0; ix < nx; ix++) {
+      id = iy * nx + ix;
+      c = temKnn(PX, PY, NS, x0 + ix * dx, y0 + iy * dx, 8, idx, dist);
+      mask[id] = dist[0] <= blank ? 1 : 0;
+      surf[id] = temIdw(PZ, 1, 0, idx, dist, c, 2);
+    }
+    var nodes = [];
+    for (i = 0; i < N; i++) if (mask[i]) nodes.push(i);
+    var nn = nodes.length, vgs = null;
+    var shared = { type: vgType, range: shared0.range, nug: Math.max(shared0.nug, 0.01), sill: shared0.sill };
+
+    if (method === "idw" || method === "nn") {
+      var kk = method === "nn" ? 1 : (IDW.k > 0 ? IDW.k | 0 : 12), p = IDW.p > 0 ? IDW.p : 2;
+      for (a = 0; a < nn; a++) {
+        id = nodes[a];
+        c = temKnn(PX, PY, NS, x0 + (id % nx) * dx, y0 + Math.floor(id / nx) * dx, kk, idx, dist);
+        for (l = 0; l < NL; l++)
+          LG[l * N + id] = kk === 1 ? LOG[idx[0] * NL + l] : temIdw(LOG, NL, l, idx, dist, c, p);
+        if (a % 800 === 0) prog(0.05 + 0.95 * a / nn);
+      }
+    } else if (method === "krig") {
+      SG = new Float32Array(N * NL).fill(NaN);
+      var k = Math.min(VG.k > 0 ? VG.k | 0 : 16, NS), n = k + 1;
+      var A = new Float64Array(n * n), rhs = new Float64Array(n), g0 = new Float64Array(n);
+      if (VG.per) {
+        vgs = EXP.per.map(function (gl) {
+          var f = temFitVg(vgType, gl, EXP, lag, rmin, rmax, rstep);
+          return { type: vgType, range: f.range, nug: Math.max(f.nug, 0.01), sill: f.sill };
+        });
+      }
+      for (a = 0; a < nn; a++) {
+        id = nodes[a];
+        c = temKnn(PX, PY, NS, x0 + (id % nx) * dx, y0 + Math.floor(id / nx) * dx, k, idx, dist);
+        if (!vgs) {
+          var v1 = temKrigWeights(PX, PY, c, idx, dist, shared, A, rhs, g0);
+          for (l = 0; l < NL; l++) {
+            if (isNaN(v1)) { LG[l * N + id] = temIdw(LOG, NL, l, idx, dist, c, 2); continue; }
+            var s1 = 0;
+            for (j = 0; j < c; j++) s1 += rhs[j] * LOG[idx[j] * NL + l];
+            LG[l * N + id] = s1; SG[l * N + id] = LSTD[l] * Math.sqrt(v1);
+          }
+        } else {
+          for (l = 0; l < NL; l++) {
+            var v2 = temKrigWeights(PX, PY, c, idx, dist, vgs[l], A, rhs, g0);
+            if (isNaN(v2)) { LG[l * N + id] = temIdw(LOG, NL, l, idx, dist, c, 2); continue; }
+            var s3 = 0;
+            for (j = 0; j < c; j++) s3 += rhs[j] * LOG[idx[j] * NL + l];
+            LG[l * N + id] = s3; SG[l * N + id] = LSTD[l] * Math.sqrt(v2);
+          }
+        }
+        if (a % (vgs ? 150 : 600) === 0) prog(0.05 + 0.95 * a / nn);
+      }
+    } else if (method === "mc") {
+      /* minimum curvature with tension (Smith & Wessel style relaxation): the
+         soundings snap to their nearest node, which is held fixed */
+      var fixed = new Uint8Array(N), cnt = new Float64Array(N), acc = new Float64Array(N * NL);
+      for (i = 0; i < NS; i++) {
+        var fx = Math.round((PX[i] - x0) / dx), fy = Math.round((PY[i] - y0) / dx);
+        if (fx < 0 || fy < 0 || fx >= nx || fy >= ny) continue;
+        var fid = fy * nx + fx;
+        cnt[fid]++;
+        for (l = 0; l < NL; l++) acc[fid * NL + l] += LOG[i * NL + l];
+        fixed[fid] = 1;
+      }
+      var init = new Float64Array(N * NL);
+      for (id = 0; id < N; id++) {
+        c = temKnn(PX, PY, NS, x0 + (id % nx) * dx, y0 + Math.floor(id / nx) * dx, 8, idx, dist);
+        for (l = 0; l < NL; l++)
+          init[id * NL + l] = fixed[id] ? acc[id * NL + l] / cnt[id] : temIdw(LOG, NL, l, idx, dist, c, 2);
+      }
+      var T = MC.t == null ? 0.35 : MC.t, aa = 1 - T, den = 20 * aa + 4 * T, om = 1.3;
+      var maxIt = MC.it > 0 ? MC.it | 0 : 300;
+      var rf = function (q, m) { if (q < 0) q = -q; if (q >= m) q = 2 * m - 2 - q; return Math.max(0, Math.min(m - 1, q)); };
+      var zz = new Float64Array(N);
+      var G = function (q, r2) { return zz[rf(r2, ny) * nx + rf(q, nx)]; };
+      for (l = 0; l < NL; l++) {
+        var lo = Infinity, hi = -Infinity;
+        for (i = 0; i < NS; i++) { var lv = LOG[i * NL + l]; if (lv < lo) lo = lv; if (lv > hi) hi = lv; }
+        lo -= 0.3; hi += 0.3;
+        for (id = 0; id < N; id++) zz[id] = init[id * NL + l];
+        for (var it = 0; it < maxIt; it++) {
+          var mx = 0;
+          for (var jy = 0; jy < ny; jy++) for (var jx = 0; jx < nx; jx++) {
+            id = jy * nx + jx;
+            if (fixed[id]) continue;
+            var s4, s5, s6;
+            if (jx >= 2 && jy >= 2 && jx < nx - 2 && jy < ny - 2) {
+              s4 = zz[id - 1] + zz[id + 1] + zz[id - nx] + zz[id + nx];
+              s5 = zz[id - nx - 1] + zz[id - nx + 1] + zz[id + nx - 1] + zz[id + nx + 1];
+              s6 = zz[id - 2] + zz[id + 2] + zz[id - 2 * nx] + zz[id + 2 * nx];
+            } else {
+              s4 = G(jx - 1, jy) + G(jx + 1, jy) + G(jx, jy - 1) + G(jx, jy + 1);
+              s5 = G(jx - 1, jy - 1) + G(jx + 1, jy - 1) + G(jx - 1, jy + 1) + G(jx + 1, jy + 1);
+              s6 = G(jx - 2, jy) + G(jx + 2, jy) + G(jx, jy - 2) + G(jx, jy + 2);
+            }
+            var zn = (aa * (8 * s4 - 2 * s5 - s6) + T * s4) / den;
+            var dd = om * (zn - zz[id]);
+            zz[id] += dd;
+            var ad = Math.abs(dd);
+            if (ad > mx) mx = ad;
+          }
+          if (mx < 2e-5) break;
+        }
+        for (a = 0; a < nn; a++) { id = nodes[a]; LG[l * N + id] = Math.max(lo, Math.min(hi, zz[id])); }
+        prog(0.05 + 0.95 * (l + 1) / NL);
+      }
+    } else throw new Error("tem: unknown method " + method);
+
+    prog(1);
+    return {
+      result: {
+        nx: nx, ny: ny, dx: dx, x0: x0, y0: y0, nl: NL, method: method, blank: blank,
+        mask: mask, surf: surf, log: LG, sig: SG, nodes: nn,
+        vg: shared, vgs: vgs, fitted: !!VG.fit,
+        exp: { h: EXP.h, c: EXP.c, pooled: EXP.pooled, lag: lag },
+        lmean: Array.prototype.slice.call(LMEAN), lstd: Array.prototype.slice.call(LSTD),
+        ms: Date.now() - t0
+      },
+      transfer: [mask.buffer, surf.buffer, LG.buffer].concat(SG ? [SG.buffer] : [])
+    };
+  }
+
   function runJob(kind, job, onProgress) {
     if (kind === "volume") return volumeGrid(job, onProgress);
     if (kind === "isopach") return isopachGrid(job, onProgress);
@@ -5185,6 +5496,7 @@ var SBMM_COMPUTE = (function SBMMComputeModule() {
     if (kind === "runoff") return runoffJob(job, onProgress);
     if (kind === "accum") return accumJob(job, onProgress);
     if (kind === "hydraulics") return hydraulicsJob(job, onProgress);
+    if (kind === "tem") return temJob(job, onProgress);
     throw new Error("unknown compute job: " + kind);
   }
 

@@ -493,7 +493,9 @@ SBMM.status = (function () {
     /* v19 §2: "upstream area 12.4 ac" while the flow-accumulation row is on.
        One string from the module that owns the raster — it answers "" when the
        row is off, when there is no result and when the cell has none. */
-    const up = (SBMM.accum && SBMM.accum.hoverText) ? SBMM.accum.hoverText(x, y) : "";
+    const up = ((SBMM.accum && SBMM.accum.hoverText) ? SBMM.accum.hoverText(x, y) : "")
+      /* v36: the TEM depth slice's value under the pointer, while it is on */
+      + ((SBMM.geophys && SBMM.geophys.hoverText) ? SBMM.geophys.hoverText(x, y) : "");
     document.getElementById("sDem").textContent = src + (ch > 0.5 ? ` · veg ${fmt(ch, 0)} ft` : "") + up;
   }
   function scale() {

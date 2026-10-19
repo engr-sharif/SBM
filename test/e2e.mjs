@@ -6420,6 +6420,144 @@ if (dr.closed.table !== "hidden" || dr.closed.sec !== "hidden" || dr.after !== "
 if (dr.open.table !== "visible" || !(dr.open.h > 100)) { console.log("FAIL: the table drawer did not open visibly", dr); process.exit(1); }
 });
 
+await block("9f10. the TEM geophysics (v36)", async () => {
+/* 9f10. The 2026 TEM2Go survey: the payload, the two rows, TEM <depth>
+   building the card and the slice, the card's controls re-running or
+   repainting, the slice under the pointer, a sounding's popup with its model,
+   the exports, the voice rule, and the module refusing with a toast when the
+   payload is absent. The kernel's identity with the contractor's own viewer
+   is test/kernels.mjs --only tem; this is the app around it. */
+const t0 = await page.evaluate(() => {
+  const D = SBMM_DATA.tem2026, LS = SBMM.layerState;
+  return { n: D && D.n, nl: D && D.nl, r: D && D.r.length,
+           rows: ["tem_soundings", "tem_slice"].map(id => !!LS.get("invest", id)),
+           on: ["tem_soundings", "tem_slice"].map(id => LS.isOn("invest", id)) };
+});
+console.log("TEM payload and rows:", JSON.stringify(t0));
+if (t0.n !== 1032 || t0.nl !== 20 || t0.r !== 1032 * 20) { console.log("FAIL: the TEM payload is not 1,032 soundings x 20 layers", t0); process.exit(1); }
+if (!t0.rows.every(Boolean)) { console.log("FAIL: the TEM layer rows are missing", t0); process.exit(1); }
+
+const t1 = await page.evaluate(async () => {
+  SBMM.cmd.run("TEM 45");
+  for (let i = 0; i < 240 && !(SBMM.geophys.slice() && document.querySelector("#resBody .temcard")); i++)
+    await new Promise(r => setTimeout(r, 250));
+  const G = SBMM.geophys, R = G.result(), card = document.querySelector("#resBody .temcard");
+  const D = SBMM_DATA.tem2026;
+  /* the slice under the pointer, at a node inside the blanking distance */
+  let id = 0; while (id < R.mask.length && !R.mask[id]) id++;
+  const x = R.x0 + (id % R.nx) * R.dx, y = R.y0 + Math.floor(id / R.nx) * R.dx;
+  const ov = [...document.querySelectorAll(".leaflet-analysis-pane img")].length;
+  return { slice: G.slice() && G.slice().depth, on: SBMM.layerState.isOn("invest", "tem_slice"),
+           grid: [R.nx, R.ny, R.dx, R.method, R.nodes], vg: R.vg, fitted: R.fitted,
+           card: !!card, title: card && card.querySelector("h4").textContent.replace(/[⌖✎✕]/g, "").trim(),
+           first: card && card.querySelector(".rrow b").textContent,
+           core: card && (card.querySelector(".note.core") || {}).dataset,
+           hover: G.hoverText(x, y), value: G.valueAt(x, y), ov,
+           depthOut: card && card.querySelector('[data-tem-o="depth"]').textContent,
+           legend: card && card.querySelectorAll(".temleg text").length,
+           soundingsOn: SBMM.layerState.isOn("invest", "tem_soundings"), n: D.n };
+});
+console.log("TEM 45:", JSON.stringify(t1));
+if (t1.slice !== 45 || !t1.on) { console.log("FAIL: TEM 45 did not put the 45-ft slice on the map", t1); process.exit(1); }
+if (t1.grid[2] !== 20 || t1.grid[3] !== "krig" || !(t1.grid[4] > 3000)) { console.log("FAIL: the default TEM job is not kriging on a 20-ft grid", t1); process.exit(1); }
+if (!t1.fitted || !(t1.vg.range > 0)) { console.log("FAIL: the variogram was not fitted", t1); process.exit(1); }
+if (!t1.card || !/TEM resistivity/.test(t1.title) || !/Ω·m/.test(t1.first)) { console.log("FAIL: the TEM card did not build", t1); process.exit(1); }
+if (!t1.core || t1.core.backend !== "js") { console.log("FAIL: the TEM card does not say the JavaScript kernels computed it (tem has no WASM port)", t1); process.exit(1); }
+if (!/ρ [\d.]+ Ω·m at 45 ft/.test(t1.hover) || !(t1.value > 0)) { console.log("FAIL: the status bar does not read the slice under the pointer", t1); process.exit(1); }
+if (t1.ov < 1) { console.log("FAIL: the slice is not an image in the analysis pane", t1); process.exit(1); }
+if (t1.depthOut !== "45 ft" || t1.legend < 2) { console.log("FAIL: the card's depth or legend is wrong", t1); process.exit(1); }
+await voiceCheck("TEM card");
+
+/* the controls: a depth step repaints and never re-runs; a method change re-runs */
+const t2 = await page.evaluate(async () => {
+  const G = SBMM.geophys, wait = ms => new Promise(r => setTimeout(r, ms));
+  const jobs0 = SBMM.compute.stats.workerJobs + SBMM.compute.stats.syncJobs;
+  const set = (k, v) => { const el = document.querySelector(`.temcard [data-tem="${k}"]`); el.value = v;
+                          el.dispatchEvent(new Event(k === "depth" ? "input" : "change", { bubbles: true })); };
+  set("depth", 120);
+  for (let i = 0; i < 40 && G.slice().depth !== 120; i++) await wait(100);
+  const depthOk = G.slice().depth === 120;
+  const jobs1 = SBMM.compute.stats.workerJobs + SBMM.compute.stats.syncJobs;
+  const row = document.querySelector(".temcard .rrow span").textContent;
+  set("method", "idw");
+  for (let i = 0; i < 120 && G.result().method !== "idw"; i++) await wait(100);
+  for (let i = 0; i < 40 && document.querySelector(".temcard .rrow:nth-child(4) b").textContent.indexOf("Inverse") < 0; i++) await wait(100);
+  const idw = { method: G.result().method, sig: !!G.result().sig,
+                row: document.querySelector(".temcard .rrow:nth-child(4) b").textContent };
+  const t = document.getElementById("toast");
+  set("prop", "sig");
+  await wait(150);
+  const refusal = t ? t.textContent : "";
+  set("prop", "res"); set("method", "krig"); set("depth", 45);
+  for (let i = 0; i < 120 && G.result().method !== "krig"; i++) await wait(100);
+  return { depthOk, rerunOnDepth: jobs1 - jobs0, row, idw, refusal, back: G.result().method };
+});
+console.log("TEM controls:", JSON.stringify(t2));
+if (!t2.depthOk || !/120 ft/.test(t2.row)) { console.log("FAIL: the depth slider did not move the slice", t2); process.exit(1); }
+if (t2.rerunOnDepth !== 0) { console.log("FAIL: a depth step re-ran the interpolation", t2); process.exit(1); }
+if (t2.idw.method !== "idw" || t2.idw.sig || !/Inverse distance/.test(t2.idw.row)) { console.log("FAIL: the method switch did not re-run as IDW", t2); process.exit(1); }
+if (!/kriging/.test(t2.refusal)) { console.log("FAIL: kriging s.e. under IDW was not refused with a toast", t2); process.exit(1); }
+if (t2.back !== "krig") { console.log("FAIL: the method did not go back to kriging", t2); process.exit(1); }
+
+/* a sounding: its dot on the map and its popup — model, grid, and the CSV */
+const t3 = await page.evaluate(async () => {
+  SBMM.layerState.set("invest", "tem_soundings", { on: true });
+  await new Promise(r => setTimeout(r, 300));
+  const D = SBMM_DATA.tem2026, G = SBMM.geophys;
+  const html = G.popupHtml(300);
+  const d = document.createElement("div"); d.innerHTML = html;
+  const csv = G.soundingCsv(300).trim().split("\n");
+  const s = G.sliceCsv().trim().split("\n"), m = G.modelCsv().trim().split("\n");
+  const R = G.result();
+  let inMask = 0; for (let i = 0; i < R.mask.length; i++) inMask += R.mask[i];
+  return { name: d.querySelector("b").textContent, model: !!d.querySelector(".temmodel"),
+           grid: !!d.querySelector(".temgrid"), depth: !!d.querySelector(".temdepth"),
+           csvLayers: csv.length - 6, sliceRows: s.length - 2, inMask,
+           modelCols: m[1].split(",").length, modelRows: m.length - 2,
+           id: D.id[300] };
+});
+console.log("TEM sounding + exports:", JSON.stringify(t3));
+if (t3.name !== t3.id || !t3.model || !t3.grid || !t3.depth) { console.log("FAIL: the sounding popup is not its model and grid", t3); process.exit(1); }
+if (t3.csvLayers !== 20) { console.log("FAIL: the sounding CSV is not 20 layers", t3); process.exit(1); }
+if (t3.modelRows !== t3.inMask || t3.modelCols !== 23 || t3.sliceRows > t3.inMask) { console.log("FAIL: the model / slice CSV is not the grid", t3); process.exit(1); }
+
+/* the popup through the pick engine, on a real click */
+const pt = await page.evaluate(() => {
+  const D = SBMM_DATA.tem2026; SBMM.map.setView([D.y[300], D.x[300]], 1, { animate: false });
+  const p = SBMM.map.latLngToContainerPoint([D.y[300], D.x[300]]);
+  const r = document.getElementById("map").getBoundingClientRect();
+  return { x: r.left + p.x, y: r.top + p.y };
+});
+await page.waitForTimeout(400);
+await page.mouse.move(pt.x - 6, pt.y - 6); await page.mouse.move(pt.x, pt.y);
+await page.waitForTimeout(250);
+await page.mouse.click(pt.x, pt.y);
+await page.waitForTimeout(600);
+const pop = await page.evaluate(() => { const p = document.querySelector(".leaflet-popup .temPop");
+  const r = p ? p.dataset.tem : null; SBMM.map.closePopup(); return r; });
+console.log("TEM popup on a click:", pop);
+if (!pop || !/^ID\d+$/.test(pop)) { console.log("FAIL: a click on a TEM sounding did not open its popup"); process.exit(1); }
+
+/* the payload-tolerance rule: absent, every entry point refuses with a toast */
+const t4 = await page.evaluate(async () => {
+  const keep = SBMM_DATA.tem2026, errs = [];
+  delete SBMM_DATA.tem2026;
+  let toastTxt = "";
+  try { await SBMM.geophys.open(30); toastTxt = (document.getElementById("toast") || {}).textContent || ""; }
+  catch (e) { errs.push(String(e)); }
+  SBMM_DATA.tem2026 = keep;
+  return { toastTxt, errs };
+});
+console.log("TEM without its payload:", JSON.stringify(t4));
+if (t4.errs.length || !/not in this build/.test(t4.toastTxt)) { console.log("FAIL: the TEM module did not refuse with a toast when its payload is absent", t4); process.exit(1); }
+
+await page.evaluate(() => {
+  SBMM.layerState.set("invest", "tem_slice", { on: false });
+  SBMM.layerState.set("invest", "tem_soundings", { on: false });
+  const c = SBMM.geophys.card(); if (c && c.isConnected) c.remove();
+});
+});
+
 await block("9x. drainage", async () => {
 /* 9x. drainage — the whole-site catchment map (v14, docs/V14_DRAINAGE_SPEC.md) */
 /* ==================================================================== */
@@ -7269,6 +7407,8 @@ parity = await page.evaluate(async () => {
   /* v28: and the flow accumulation — cached from block 9ab in a full run, but
      a CI shard that starts here computes it on this same first tick */
   for (let i = 0; i < 240 && SBMM.accum && !SBMM.accum.hasResult(); i++) await wait(500);
+  /* v36: and the TEM depth slice, whose first tick runs its interpolation */
+  for (let i = 0; i < 120 && SBMM.geophys && SBMM.geophys.data() && !SBMM.geophys.slice(); i++) await wait(250);
   /* the CAD groups parse their geometry lazily on first enable */
   await wait(4000);
   const wasOpen = SBMM.viewer3d.isOpen();

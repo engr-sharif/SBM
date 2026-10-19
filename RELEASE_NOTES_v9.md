@@ -17,6 +17,42 @@ All three are offline-only by design. Nothing in this app calls out to the inter
 
 ---
 
+## v9.43 — the 2026 TEM geophysics (2026-10-19)
+
+**The TEM2Go survey is in the app.** All 1,032 soundings from the May 2026
+transient electromagnetic survey, each a 20-layer resistivity model to 394 ft,
+placed in State Plane feet. Their delivered elevations agree with the lidar to a
+median of 0.2 ft. Two new rows under Investigations, *Geophysics — TEM 2026*:
+
+- **TEM soundings** — a dot per sounding, coloured by its own model at the
+  current depth, on the same scale as the slice.
+- **Resistivity — depth slice** — the soundings interpolated layer by layer and
+  cut at a depth below ground, in the contractor's colour maps, with contour
+  edges and colour classes.
+
+**The interpolation is the contractor's own.** Ordinary kriging with a fitted
+variogram, minimum curvature, inverse distance and nearest neighbour are carried
+over line for line from the viewer they delivered. The test suite runs their
+code and ours on their data and requires the two grids to match exactly, for
+every method.
+
+**The card** (`TEM`, or `TEM 45` for 45 ft) carries what the viewer's panel
+did: depth, property (resistivity, conductivity, kriging standard error), method,
+variogram, grid cell, blanking distance, colour map, classes and contours. Each
+setting is remembered. The card also has the legend and exports: a PNG of the
+slice, the slice as CSV, and the whole model grid as CSV. The status bar reads
+the slice under the pointer.
+
+**A sounding's popup** shows its model as a step plot beside the interpolated
+grid. Where a 2025 boring is within 150 ft, that boring's logged native contact
+and top of bedrock are drawn across it.
+
+In 3D the soundings are dots at the ground and the slice is a sheet at its depth
+below it. That sheet is visible through a fence clip-box trench (`CLIPBOX`).
+
+The delivery has no depth of investigation per sounding, so the deepest layers
+are the least constrained. The card says so.
+
 ## v9.42 — loading on a slow connection (2026-10-05)
 
 **After the first visit, only what changed is downloaded.** GitHub Pages marks

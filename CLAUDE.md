@@ -412,6 +412,7 @@ terrain source, which needs an explicit decision + README/test update).
 | trees.js | individual tree detection over CHM, canvas dot layer, CSV inventory |
 | borelogs.js | **the 2025 boring logs (OpenGround)** — the strip log in a results card (class profile, strata + USCS, SPT with the pocket penetrometer, pH against the acid threshold, method bands, the water symbol), the TWO contact statements drawn together and reconciled nowhere, the 44-hole `LOGS` table, the CSV and the PNG, the popup button, `LOG` / `LOGS`, the class palette every other view reads through `classColor()`, and since v23 **the column renderer `column()`** every face of the borings is drawn by; `SBMM.borelogs` |
 | labmetals.js | **v28 — lab metals by depth** from the earlier apps (`SBMM_DATA.lab_metals`, `tools/build_imports.py`): the interval table in a boring / test-pit popup and on the log card, the full validated suite on a sample popup, the ROD / PMB levels and `level(sym, v)`; `SBMM.labMetals` |
+| geophys.js | **v36 — the 2026 TEM2Go geophysics** (`SBMM_DATA.tem2026`): the soundings row and the depth-slice row under *Geophysics — TEM 2026* in Investigations, the `tem` job, the slice painted in the contractor's colour maps, the card with the viewer's controls in feet, the sounding popup's profile with the nearest boring's contacts, the CSV/PNG exports, the status-bar value, the 3D dots and slice sheet, `TEM`; `SBMM.geophys` |
 | siteareas.js | **v28 — the named site areas of SBMM.kmz** (`SBMM_DATA.site_areas`): one Investigations row (off by default), 3D drape, snap, GeoJSON/DXF on `SITE-AREAS`; `SBMM.siteAreas` |
 | borewin.js | **v23 Phase A — the boring-log window** on the sheet-window chassis: the Log tab as a real log sheet at 1 in = 5 ft with the depth cursor, Compare (2–6 holes on one elevation datum, correlation lines, printed separations), the 44-hole Table, the printed log sheet through `js/report.js`, the hole picker, `LOGWIN`; `SBMM.borewin` |
 | fence.js | **v23 Phase B — the fence diagram**: the `fence` store feature (a section through the subsurface along a drawn line), `projectHoles`/`groundProfile`, the SVG the Fence tab, the PNG and the 3D texture are all drawn from, the cut on the map (alignment + swath band + a tick per projected hole), the CSV, the **section-coordinate DXF** (X = station ft, Y = elevation ft) and `FENCE`; `SBMM.fence` |
@@ -3312,6 +3313,63 @@ Tablet block **"8. the data stash and the immediate retry"** (`tablet:http`):
 a 503 on the first `d_dus.js` recovered by the gate; the stash keeping 78 files;
 a reload asking the server for none of them; and an `index.html` with one hash
 changed fetching exactly that one file.
+
+## v36 — the 2026 TEM2Go geophysics
+
+The contractor delivered one standalone HTML viewer of 1,032 TEM soundings, each
+a 20-layer LCI resistivity model to 120 m. It is kept **verbatim** in
+`data/source/geophysics_tem2go_2026/` with a README on its data block.
+`tools/build_tem2026.py` (pyproj) reads only its `const D = {...}` line and
+writes `data/tem2026.json` + `datajs/d_tem2026.js` (~150 kB, a plain script tag,
+in every build). Coordinates go UTM 10N m → EPSG:6418 through pyproj, the
+boulder tracker's route; lat/lon through `data/affine.json` must agree within
+1 ft (it does, to 0.20 ft) or the run fails. Elevations and depths go m → US
+survey ft. Kernel `tem` in `js/compute.js` (no WASM port; `VERSION` stays 10 —
+the worker is rebuilt from this same source, so nothing can disagree about the
+number, and bumping it would switch the WASM core off). Host `js/geophys.js`,
+harness section `tem` in `test/kernels.mjs`, e2e block **"9f10. the TEM
+geophysics (v36)"** (shard 2), field block 18, phone block 4; shots
+`test/tem_shots.mjs`.
+
+Five things that will be walked into again:
+
+- **THE KERNEL IS A PORT, AND THE PROOF IS THE CONTRACTOR'S OWN CODE.**
+  `secTem` slices the viewer's script out of the delivered HTML between its
+  `Data` and `Colour` section comments, strips the `await tick()` yields, runs
+  it under `new Function` with its DOM calls stubbed, and requires the kernel's
+  grid, mask, ground, log10 values and kriging error to be **bit-identical** for
+  kriging (shared and per-layer variogram), IDW, nearest neighbour and minimum
+  curvature. That is only possible because every loop, accumulation order and
+  tie-break was carried over as written: the brute-force neighbour insertion
+  sort (a spatial index would break ties differently), the `sill += 0.05` grid
+  search with its `toFixed(2)` rounding, the partial-pivot elimination, the
+  reflected border of the relaxation. **Do not "improve" any of it without
+  moving the identity to a tolerance and saying why.**
+- **Units are the caller's; the app passes feet.** The kernel's only lengths
+  are `cell`, `blank`, the variogram `lag` and its range search; `jobFor()` in
+  `js/geophys.js` passes the viewer's metric defaults × 3937/1200 for the
+  variogram (so the fit lands on the same metre-equivalent range) and round
+  feet for the grid (20-ft cell, 60-ft blanking — the viewer's 6 m and 18 m).
+  §16.2 proves the kernel unit-free: the viewer's job scaled to feet returns
+  the same grid. The app's grid is on State Plane, not UTM, so it is compared
+  with the viewer's at the 1,032 soundings (median |Δ| 0.012 log10), not node
+  for node.
+- **A card says which core computed it, and `tem` has no WASM port.**
+  `js/jobs.js` reported the WORKER's backend for every kind, so the card said
+  "computed by the WebAssembly core" for a pure-JavaScript kernel. `JS_ONLY`
+  there names `tem`; the other kinds are untouched.
+- **The slice repaints; only a method, variogram, cell, blanking or per-layer
+  change re-runs the job** (keyed on those five). Block 9f10 asserts a depth
+  step runs zero jobs. The 3D sheet refreshes 250 ms after the last change,
+  because a full overlay rebuild is the expensive part.
+- **The 3D slice is under the ground by construction** and carries
+  `userData.noClip`, so it reads through the fence clip box's trench and is
+  hidden by the terrain everywhere else. Block 9y waits for the slice before its
+  parity table, because the invest group switch is the row's first tick.
+
+The delivery has **no depth of investigation**: the card's note says the
+deepest layers are the least constrained, and blanking them per sounding waits
+on the contractor's DOI export.
 
 ## Undo and redo (v9.4) — the both-closures rule and `readd`
 

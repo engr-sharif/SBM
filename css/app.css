@@ -3118,3 +3118,27 @@ body.field #ldLate{top:calc(var(--topH) + 10px)}
   .ldv31 .ldst[data-state="active"] .ldic,.ldv31 .ldchip[data-state="active"] i,#ldLate .ldspin{animation:none}
 }
 @media print{ #ldLate{display:none !important} }
+
+/* ======================================================================
+   v36 — the 2026 TEM2Go geophysics (js/geophys.js): the depth-slice card's
+   controls and legend, and a sounding's popup profile
+   ====================================================================== */
+.temctl{padding:6px 8px 4px;display:flex;flex-direction:column;gap:6px;font-size:11.5px;color:var(--ink2)}
+.temctl .temrow{display:grid;grid-template-columns:auto 1fr;align-items:center;gap:2px 8px}
+.temctl .temrow input[type=range]{grid-column:1 / -1;width:100%;accent-color:var(--acc)}
+.temctl output{font-variant-numeric:tabular-nums;color:var(--ink);justify-self:end;font-family:var(--mono, ui-monospace, monospace)}
+.temgrid2{display:grid;grid-template-columns:1fr 1fr;gap:5px 8px}
+.temgrid2 label{display:flex;flex-direction:column;gap:2px;color:var(--mut)}
+.temctl select{background:var(--panel);border:1px solid var(--line);color:var(--ink);border-radius:4px;
+  font-size:11.5px;padding:2px 4px;min-width:0}
+.temctl .temchk{display:flex;align-items:center;gap:6px;color:var(--mut)}
+.temctl .temchk input{accent-color:var(--acc);margin:0}
+.temlegwrap{margin-top:2px}
+.temlegwrap svg{display:block;max-width:100%}
+.temrange{font-size:10.5px;color:var(--mut);font-variant-numeric:tabular-nums}
+.temPop .temProfWrap{margin:6px 0 2px}
+.temPop .temProfWrap svg{display:block;max-width:100%;height:auto;background:rgba(11,16,19,.35);border-radius:4px}
+.tempKey{display:flex;flex-wrap:wrap;align-items:center;gap:3px 6px;font-size:10.5px;color:var(--mut)}
+.tempKey i{display:inline-block;width:14px;height:0;border-top:2px solid #E4796A;margin-left:4px}
+.tempKey i.k2{border-top:1.5px dashed #C9D3D6}
+.tempKey i.k3{border-top:1.5px dashed var(--bl-contact, #FFD34D)}

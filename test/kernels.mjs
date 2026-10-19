@@ -3746,6 +3746,202 @@ function pipeJobFrom(NET, M, flows) {
   };
 }
 
+/* ======================== 16. TEM RESISTIVITY (v36) ========================
+   js/geophys.js jobFor() — the 2026 TEM2Go soundings, interpolated one model
+   layer at a time. Three kinds of proof, in this order:
+   1. THE VIEWER ITSELF. The contractor delivered a standalone viewer; its
+      script is extracted from the delivered HTML (data/source/
+      geophysics_tem2go_2026/, verbatim), run in a sandbox with its DOM calls
+      stubbed, and its grid compared with the kernel's over the viewer's own
+      data, units and defaults — every method. That is the 1:1 claim.
+   2. UNITS. The app runs in feet; the same job scaled by 3937/1200 must give
+      the same grid, so nothing in the kernel hides a metre.
+   3. THE APP'S JOB, and the soundings against the lidar. */
+const TEM_FT = 3937 / 1200;
+function temViewer() {
+  const html = fs.readFileSync(path.join(REPO, "data", "source", "geophysics_tem2go_2026",
+                                         "SBMM_TEM2Go-visualization_v1.html"), "utf8");
+  const D = JSON.parse(html.match(/const D = (\{.*?\});<\/script>/s)[1]);
+  const a = html.indexOf("/* ---------------- Data ---------------- */");
+  const b = html.indexOf("/* ---------------- Colour ---------------- */");
+  if (a < 0 || b < a) throw new Error("the viewer's script did not have the expected sections");
+  /* the run is async only to yield to its progress bar; with nothing to yield
+     to it is the same arithmetic, run straight through */
+  const src = html.slice(a, b).replace("async function runModel", "function runModel")
+                              .replace(/await tick\(\);?/g, "");
+  const el = () => ({ style: {}, textContent: "", value: "", disabled: false,
+                      querySelector: () => ({}) });
+  const factory = new Function("D", "$", "mark", "drawVg", "setupSectionSliders", "updateClip",
+    "showInfo", "applyPropDefaults",
+    "let infoIdx = -1;\n" + src +
+    "\nreturn { S, EXP, fitVg, runModel, model: () => model };");
+  const noop = () => {};
+  return { D, V: factory(D, el, noop, noop, noop, noop, noop, noop) };
+}
+function temCompare(name, mine, theirs, NL) {
+  const N = mine.nx * mine.ny;
+  let worst = 0, worstS = 0, nanMis = 0, maskMis = 0, surfW = 0;
+  for (let id = 0; id < N; id++) {
+    if (mine.mask[id] !== theirs.mask[id]) maskMis++;
+    surfW = Math.max(surfW, Math.abs(mine.surf[id] - theirs.surf[id]));
+    for (let l = 0; l < NL; l++) {
+      const m = mine.log[l * N + id], t = theirs.log[l][id];
+      if (Number.isNaN(m) !== Number.isNaN(t)) { nanMis++; continue; }
+      if (!Number.isNaN(m)) worst = Math.max(worst, Math.abs(m - t));
+      if (theirs.sig) {
+        const ms = mine.sig[l * N + id], ts = theirs.sig[l][id];
+        if (Number.isNaN(ms) !== Number.isNaN(ts)) nanMis++;
+        else if (!Number.isNaN(ms)) worstS = Math.max(worstS, Math.abs(ms - ts));
+      }
+    }
+  }
+  exact(name + ": grid", mine.nx + " x " + mine.ny, theirs.nx + " x " + theirs.ny);
+  exact(name + ": blanking mask", maskMis, 0);
+  exact(name + ": NaN pattern", nanMis, 0);
+  exact(name + ": worst |d log10 rho|", worst, 0);
+  if (theirs.sig) exact(name + ": worst |d kriging s.e.|", worstS, 0);
+  exact(name + ": worst |d ground|", surfW, 0);
+}
+function temAppJob(R, opts) {
+  /* js/geophys.js jobFor(): the payload's State Plane feet, the viewer's
+     metric defaults converted to feet exactly, and the variogram fitted to the
+     pooled experimental first — the viewer's own start-up */
+  opts = opts || {};
+  return {
+    x: R.x, y: R.y, z: R.z, r: R.r, nl: R.nl,
+    method: opts.method || "krig", cell: opts.cell || 20, blank: opts.blank || 60,
+    vg: { type: "sph", fit: true, k: 16, per: false, lag: 8 * TEM_FT, nb: 20,
+          rmin: 10 * TEM_FT, rmax: 400 * TEM_FT, rstep: 5 * TEM_FT },
+    mc: { t: 0.35, it: 300 }, idw: { p: 2, k: 12 }
+  };
+}
+let temRan = false;
+function secTem() {
+  /* there is no WASM port of `tem`, so both backends would run the same
+     JavaScript twice; the second pass says so and stops */
+  if (temRan) { console.log("\n§16  tem has no WASM port — the JavaScript run above stands"); return; }
+  temRan = true;
+  console.log("\n§16.1  the contractor's viewer, run on its own data — every method");
+  const { D, V } = temViewer();
+  const fitted = V.fitVg(V.S.vg.type, V.EXP.pooled);
+  Object.assign(V.S.vg, fitted);                          // its start-up: fitShared()
+  const NL = D.top.length;
+  const job0 = {
+    x: D.e, y: D.n, z: D.z, r: D.r, nl: NL, cell: V.S.cell, blank: V.S.blank,
+    vg: { type: V.S.vg.type, range: V.S.vg.range, nug: V.S.vg.nug, sill: V.S.vg.sill,
+          k: V.S.vg.k, per: false },
+    mc: { t: V.S.mc.t, it: V.S.mc.it }, idw: { p: V.S.idw.p, k: V.S.idw.k }
+  };
+  const fitMine = C.runJob("tem", { ...job0, method: "nn", vg: { ...job0.vg, fit: true } }).result.vg;
+  exact("fitted variogram (pooled, sph)", JSON.stringify([fitMine.range, fitMine.nug, fitMine.sill]),
+        JSON.stringify([fitted.range, Math.max(fitted.nug, 0.01), fitted.sill]));
+  const runs = [["krig", false], ["krig", true], ["idw", false], ["nn", false], ["mc", false]];
+  let mineKrig = null;
+  for (const [m, per] of runs) {
+    V.S.method = m; V.S.vg.per = per;
+    const tv0 = Date.now(); V.runModel(); const tv = Date.now() - tv0;
+    const theirs = V.model();
+    const [out, ms] = timed(() => C.runJob("tem", { ...job0, method: m, vg: { ...job0.vg, per } }));
+    const label = m + (per ? " (per layer)" : "");
+    temCompare(label, out.result, theirs, NL);
+    console.log("        " + label + ": kernel " + ms + " ms, viewer " + tv + " ms, "
+                + out.result.nodes + " nodes inside the blanking distance");
+    if (m === "krig" && !per) mineKrig = out.result;
+  }
+
+  console.log("\n§16.2  units: the same job in feet is the same grid");
+  {
+    const s = TEM_FT;
+    const jf = { ...job0, method: "krig", x: D.e.map(v => v * s), y: D.n.map(v => v * s),
+                 z: D.z.map(v => v * s), cell: job0.cell * s, blank: job0.blank * s,
+                 vg: { ...job0.vg, range: job0.vg.range * s } };
+    const F = C.runJob("tem", jf).result, M = mineKrig, N = M.nx * M.ny;
+    let worst = 0, maskMis = 0;
+    for (let id = 0; id < N; id++) {
+      if (F.mask[id] !== M.mask[id]) maskMis++;
+      if (!M.mask[id]) continue;
+      for (let l = 0; l < NL; l++) worst = Math.max(worst, Math.abs(F.log[l * N + id] - M.log[l * N + id]));
+    }
+    exact("feet grid = metre grid", F.nx + " x " + F.ny, M.nx + " x " + M.ny);
+    exact("feet mask = metre mask", maskMis, 0);
+    atMost("worst |d log10 rho|, ft vs m", +worst.toExponential(2), 1e-5);
+  }
+
+  console.log("\n§16.3  identities");
+  {
+    /* a constant field is reproduced by every method: kriging weights sum to
+       one (the Lagrange row), IDW is a weighted mean, the relaxation's fixed
+       nodes and its initial guess are all the constant */
+    const cst = D.r.map(() => 37.5), L0 = Math.log10(37.5);
+    for (const m of ["krig", "idw", "nn", "mc"]) {
+      const R0 = C.runJob("tem", { ...job0, r: cst, method: m }).result;
+      let worst = 0;
+      for (let i = 0; i < R0.log.length; i++) if (!Number.isNaN(R0.log[i]) && R0.mask[i % (R0.nx * R0.ny)])
+        worst = Math.max(worst, Math.abs(R0.log[i] - L0));
+      /* the grid is stored as Float32, so the constant comes back rounded to it */
+      atMost("constant field, " + m, +Math.abs(worst - Math.abs(Math.fround(L0) - L0)).toExponential(2), 1e-12);
+    }
+    /* the blanking distance: a node is inside exactly when a sounding is
+       within it — checked by brute force over a sample of nodes */
+    const M = mineKrig;
+    let bad = 0;
+    for (let id = 0; id < M.nx * M.ny; id += 7) {
+      const x = M.x0 + (id % M.nx) * M.dx, y = M.y0 + Math.floor(id / M.nx) * M.dx;
+      let d = Infinity;
+      for (let i = 0; i < D.e.length; i++) d = Math.min(d, Math.hypot(D.e[i] - x, D.n[i] - y));
+      if ((d <= job0.blank ? 1 : 0) !== M.mask[id]) bad++;
+    }
+    exact("blanking = nearest sounding <= blank", bad, 0);
+  }
+
+  console.log("\n§16.4  the app's job (State Plane feet) and the soundings on the lidar");
+  {
+    const R = JSON.parse(fs.readFileSync(path.join(REPO, "data", "tem2026.json"), "utf8"));
+    exact("soundings x layers", R.n + " x " + R.nl, D.id.length + " x " + NL);
+    const dz = [];
+    let nodata = 0;
+    for (let i = 0; i < R.n; i++) {
+      const g = T.elev(R.x[i], R.y[i]);
+      if (!Number.isFinite(g)) { nodata++; continue; }
+      dz.push(R.z[i] - g);
+    }
+    dz.sort((p, q) => p - q);
+    const q = p => dz[Math.floor(p * (dz.length - 1))];
+    exact("soundings on surveyed lidar", nodata, 0);
+    near("sounding z - lidar, median", +q(0.5).toFixed(2), 0, 0.5, " ft");
+    atMost("|sounding z - lidar|, p95", +Math.max(-q(0.025), q(0.975)).toFixed(2), 1.5, " ft");
+
+    const [out, ms] = timed(() => C.runJob("tem", temAppJob(R)));
+    const A = out.result, N = A.nx * A.ny;
+    budget("tem, app job (krig, 20 ft)", ms, 8000);
+    /* the fitted range in feet is the metric one scaled (the search runs over
+       the same metre-equivalent ranges) */
+    near("fitted range, ft / 3937*1200", +(A.vg.range / TEM_FT).toFixed(3), fitMine.range, 0.01, " m");
+    exact("fitted nugget share and sill", JSON.stringify([A.vg.nug, A.vg.sill]),
+          JSON.stringify([fitMine.nug, fitMine.sill]));
+    /* the app's grid against the viewer's at the soundings themselves: two
+       grids on two different datums (State Plane vs UTM) sampled at the same
+       1,032 places must tell the same story */
+    const at = (G, x, y, l) => {
+      const gx = Math.round((x - G.x0) / G.dx), gy = Math.round((y - G.y0) / G.dx);
+      if (gx < 0 || gy < 0 || gx >= G.nx || gy >= G.ny) return NaN;
+      return G.log[l * G.nx * G.ny + gy * G.nx + gx];
+    };
+    const diffs = [];
+    for (let i = 0; i < R.n; i++) for (const l of [2, 8, 14]) {
+      const a1 = at(A, R.x[i], R.y[i], l), b1 = at(mineKrig, D.e[i], D.n[i], l);
+      if (Number.isFinite(a1) && Number.isFinite(b1)) diffs.push(Math.abs(a1 - b1));
+    }
+    diffs.sort((p, q2) => p - q2);
+    atMost("app vs viewer at soundings, median", +diffs[diffs.length >> 1].toFixed(4), 0.02, " log10");
+    /* recorded from this commit — a regression guard on the app's own job */
+    const nn0 = A.nodes;
+    console.log("        app grid " + A.nx + " x " + A.ny + " at " + A.dx + " ft, " + nn0
+                + " nodes; variogram sph range " + A.vg.range.toFixed(1) + " ft, nugget "
+                + A.vg.nug + ", sill " + A.vg.sill);
+  }
+}
+
 /* ============================== run ====================================== */
 const SECTIONS = [
   { key: "volume", run: secVolume },
@@ -3763,6 +3959,7 @@ const SECTIONS = [
   { key: "runoff", run: secRunoff },
   { key: "accum", run: secAccum },
   { key: "hydraulics", run: secHydraulics },
+  { key: "tem", run: secTem },
   { key: "wasm", run: secWasm }
 ];
 
@@ -3788,7 +3985,7 @@ if (!WASM.ok && backendArg !== "js") {
 /* every kernel runJob dispatches must have a section here (V11 spec §2.4) */
 const COVERED = ["volume", "isopach", "raster", "contours", "design", "balance", "sections",
                  "wand", "cbound", "toecrest", "stands", "trees", "flowpath", "overtop", "catchment",
-                 "drainage", "runoff", "accum", "hydraulics"];
+                 "drainage", "runoff", "accum", "hydraulics", "tem"];
 {
   const src = fs.readFileSync(path.join(REPO, "js", "compute.js"), "utf8");
   const dispatched = [...src.matchAll(/if \(kind === "([a-z]+)"\) return /g)].map(m => m[1]);

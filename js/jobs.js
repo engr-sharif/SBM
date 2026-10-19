@@ -17,6 +17,10 @@
 "use strict";
 
 SBMM.compute = (function () {
+  /* v36: a kernel with no WebAssembly port runs as JavaScript whatever core
+     the worker carries, and the card that says which core computed it must say
+     so (js/results.js stampBackend) */
+  const JS_ONLY = new Set(["tem"]);
 
   /* v17 §5b: sized from the CPU, min 2 max 8. An M-series iPad has 8-10 cores
      and was being given one worker; a two-core build box still gets two, which
@@ -207,7 +211,7 @@ SBMM.compute = (function () {
       slot.busy = false; slot.item = null; h.slot = null;
       if (m.type === "done") {
         stats.lastMs = Math.round(performance.now() - h.t0); stats.lastKind = item.kind;
-        stats.lastBackend = backend(); stats.lastDoneAt = performance.now();
+        stats.lastBackend = JS_ONLY.has(item.kind) ? "js" : backend(); stats.lastDoneAt = performance.now();
         settle(item, () => h._res(m.result));
       } else {
         stats.failures++;
@@ -244,7 +248,7 @@ SBMM.compute = (function () {
           h.progress = p; if (item.opts.onProgress) item.opts.onProgress(p);
         });
         stats.lastMs = Math.round(performance.now() - h.t0); stats.lastKind = item.kind;
-        stats.lastBackend = SBMM_COMPUTE.wasmBackend(); stats.lastDoneAt = performance.now();
+        stats.lastBackend = JS_ONLY.has(item.kind) ? "js" : SBMM_COMPUTE.wasmBackend(); stats.lastDoneAt = performance.now();
         settle(item, () => h._res(out.result));
       } catch (e) {
         stats.failures++;

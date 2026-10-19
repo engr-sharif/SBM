@@ -163,6 +163,11 @@ SBMM.snap = (function () {
           else addPt(statix, it.x, it.y, it.name);
         }
       }
+      /* v36: the TEM soundings, named, under their own row */
+      if (SBMM.geophys && SBMM.geophys.snapItems) {
+        curSrc = srcOf("invest", "tem_soundings");
+        for (const it of SBMM.geophys.snapItems()) addPt(statix, it.x, it.y, it.name);
+      }
       curSrc = 0;
       /* EA design boundaries snap like any other project linework */
       if (SBMM.designEA) {

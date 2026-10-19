@@ -170,6 +170,13 @@ SBMM.pick3d = (function () {
           return { title: p.id, html: SBMM.popups.forDataset(d, p), xyz: [p.x, p.y] };
         }
       };
+      /* v36: a TEM sounding — the same popup the 2D dot opens */
+      case "tem": return {
+        object3d: o, kind: "tem", priority: P,
+        hit(ix) {
+          return SBMM.geophys ? SBMM.geophys.pick3d(ix && ix.index != null ? ix.index : 0) : null;
+        }
+      };
       case "sample": return {
         object3d: o, kind: "sample", priority: P,
         hit(ix) {

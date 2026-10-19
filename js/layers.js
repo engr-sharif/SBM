@@ -248,6 +248,8 @@ SBMM.buildLayers = function () {
   if (SBMM.survey) SBMM.survey.build();
   /* v28: the named site areas of SBMM.kmz, brought over from the boring explorer */
   if (SBMM.siteAreas) SBMM.siteAreas.build();
+  /* v36: the 2026 TEM2Go geophysics — the soundings and the depth slice */
+  if (SBMM.geophys) SBMM.geophys.build();
 
   /* ---------- cultural resources — CONFIDENTIAL, off by default ----------
      Built last so its rows land at the bottom of the Site-wide section, and

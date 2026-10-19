@@ -32,6 +32,7 @@ SBMM.viewer3d = (function () {
   let canopyMesh = null;   // kept out of terrainMeshes so picking stays on bare earth
   let contourGroup = null; // survey contours, built lazily on first check then just toggled
   let CX = 0, CY = 0, ZMID = 0;
+  let temTex = null;          // v36: the TEM depth slice texture, reused while its canvas is
   let texCache = {};
   let needsRender = true, rafId = 0, renderCount = 0, frameCount = 0;
   /* v13 §3.1 — the animated flow. One THREE.Points per visible `flow` feature;
@@ -1900,6 +1901,69 @@ SBMM.viewer3d = (function () {
         o.userData.pick = { kind: "gis", props: r.props, geom: r.geom };
         tag(addShadow(SHW, o), "invest", "site_areas");
         addG.add(o);
+      }
+    }
+    /* v36: the 2026 TEM2Go soundings — a dot at the ground, coloured by the
+       sounding's own model at the slice depth — and the depth slice as a sheet
+       following the ground at that depth below it. The sheet is under the
+       terrain by construction, so it carries noClip and reads through the
+       fence clip box's trench. */
+    if (PROJ && SBMM.geophys) {
+      const tp = SBMM.geophys.points3d();
+      if (tp) {
+        const pos = [], col = [], c = new THREE.Color();
+        for (let i = 0; i < tp.x.length; i++) {
+          pos.push(tp.x[i] - CX, tp.y[i] - CY, drapeZ(tp.x[i], tp.y[i], 3));
+          c.set(tp.color[i]); col.push(c.r, c.g, c.b);
+          const [zt] = SBMM.elev(tp.x[i], tp.y[i]);
+          if (!isNaN(zt)) ptCand.push({ key: "pt:tem:" + tp.id[i], text: tp.id[i], x: tp.x[i], y: tp.y[i],
+                                        z: zt + 3, color: "#E2BA14", priority: 18, liftPx: 16,
+                                        layer: { g: "invest", l: "tem_soundings" } });
+        }
+        const g = new THREE.BufferGeometry();
+        g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+        g.setAttribute("color", new THREE.Float32BufferAttribute(col, 3));
+        const po = new THREE.Points(g, dotMaterial({ size: 7, vertexColors: true }));
+        po.userData.pick = { kind: "tem" };
+        addG.add(tag(po, "invest", "tem_soundings"));
+      }
+      const sl = SBMM.geophys.slice3d();
+      if (sl) {
+        const { nx, ny, dx, x0, y0, mask, depth } = sl;
+        const pos = new Float32Array(nx * ny * 3), uv = new Float32Array(nx * ny * 2);
+        const ok = new Uint8Array(nx * ny);
+        for (let iy = 0; iy < ny; iy++) for (let ix = 0; ix < nx; ix++) {
+          const id = iy * nx + ix, x = x0 + ix * dx, y = y0 + iy * dx;
+          const [zg] = SBMM.elev(x, y);
+          ok[id] = mask[id] && !isNaN(zg) ? 1 : 0;
+          pos[id * 3] = x - CX; pos[id * 3 + 1] = y - CY;
+          pos[id * 3 + 2] = (isNaN(zg) ? ZMID : zg) - depth - ZMID;
+          uv[id * 2] = ix / (nx - 1); uv[id * 2 + 1] = iy / (ny - 1);
+        }
+        const ind = [];
+        for (let iy = 0; iy < ny - 1; iy++) for (let ix = 0; ix < nx - 1; ix++) {
+          const a = iy * nx + ix, b = a + 1, cc = a + nx, d = cc + 1;
+          if (ok[a] && ok[b] && ok[cc] && ok[d]) ind.push(a, b, d, a, d, cc);
+        }
+        if (ind.length) {
+          if (!temTex || temTex.canvas !== sl.canvas) {
+            if (temTex) temTex.tex.dispose();
+            const t = new THREE.CanvasTexture(sl.canvas);
+            t.generateMipmaps = false; t.minFilter = THREE.LinearFilter;
+            t.anisotropy = Math.min(16, renderer.capabilities.getMaxAnisotropy());
+            temTex = { canvas: sl.canvas, tex: t };
+          }
+          const g = new THREE.BufferGeometry();
+          g.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+          g.setAttribute("uv", new THREE.BufferAttribute(uv, 2));
+          g.setIndex(ind);
+          const m = new THREE.Mesh(g, new THREE.MeshBasicMaterial({
+            map: temTex.tex, side: THREE.DoubleSide, transparent: sl.opacity < 0.999,
+            opacity: sl.opacity, depthWrite: sl.opacity >= 0.999 }));
+          m.renderOrder = 2;
+          m.userData.noClip = true;
+          addG.add(tag(m, "invest", "tem_slice"));
+        }
       }
     }
     /* the storm-drainage network (v12 §5.1): the conduits draped on the ground
