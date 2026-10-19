@@ -3371,6 +3371,55 @@ The delivery has **no depth of investigation**: the card's note says the
 deepest layers are the least constrained, and blanking them per sounding waits
 on the contractor's DOI export.
 
+### v36 phases 4 and 5 — the model in 3D, and the model against the borings
+
+All of it reads the ONE grid the `tem` job made; nothing re-interpolates.
+`gridValue(arr, gx, gy, depth)` in `js/geophys.js` is the model anywhere —
+plan bilinear inside a layer (`bilin`, the viewer's, NaN-aware at the
+blanking edge) and the viewer's blend between layer mid-depths — and
+`paintCanvas(W, H, valAt)` is the ONE painter (colour map, classes, contour
+edges) for the map slice, the 3D stack, the 3D sections and the fence image.
+
+- **3D (phase 4).** `SBMM.geophys.model3d()` hands `js/viewer3d.js` one spec —
+  the slice, a slice STACK at every nth layer, an E–W and an N–S vertical
+  SECTION (a curtain from the lidar ground down to the deepest layer, its
+  position a slider in the card and a dashed line on the 2D map), and VOXELS
+  (every cell inside a range of the colour scale, ONE `InstancedMesh`, capped
+  at 90,000 like the viewer). It is MEMOISED on everything that changes a
+  pixel (`sigKey()` + the 3D settings), because `rebuildOverlays` runs on
+  every layer toggle anywhere. Everything carries `invest/tem_slice` (block
+  9y) and `userData.noClip` (it stands in the clip box's trench). Textures
+  are a `Map` keyed by the canvas they came from and disposed when a pass no
+  longer uses them.
+- **The ground can be see-through** (`SBMM.viewer3d.setGround("solid" |
+  "see" | "hidden")`, remembered as `SBMM.view.pref("ground3d")`, on the card).
+  It is applied per DRAW by `groundBeforeDraw()` beside `clipBeforeDraw()`,
+  because tiles swap and drapes rebuild long after the setting moved; each
+  terrain material keeps its originals in `userData._g0` (the raster
+  ShaderMaterial's `uOpacity` included) and gets them back on "solid". The
+  terrain still raycasts in every mode. **A new terrain material path must
+  survive this**: it is handed `transparent` / `depthWrite:false` and an
+  opacity, and nothing else.
+- **The fence (phase 5).** `props.tem` (a checkbox on the Fence tab, additive
+  in the session) puts `sectionImage(R.ground, zTop, zBot)` behind the
+  columns as an SVG `<image>` in the drawing's own station/elevation frame:
+  sampled along the fence's own ground profile, transparent above the ground
+  and below the deepest layer. Because the PNG and the 3D strip are drawn from
+  the same SVG, both carry it; the strip's texture signature includes
+  `SBMM.geophys.sigKey()` so a colour or method change re-textures it.
+- **The calibration (phase 5)** — `calibrate()`, the log window's
+  **Geophysics** tab and `TEMCAL [SB-x]`. Each 2025 boring inside the survey
+  is sampled every foot down its class bands, and **the bands come from the
+  LOGGED CONTACTS** (the fence's rule: waste to the native contact, native to
+  the top of bedrock, bedrock to the bottom of the hole). Per hole a median per
+  class; per class the pooled median and IQR; and the one resistivity that
+  best separates waste from native by balanced accuracy, either way round.
+  Recorded on this site, kriging at 20 ft: **13 holes; waste 16.6 Ω·m (IQR
+  9.9–22.4), native 9.6 (6.7–13.1), bedrock 17.2 (11.0–29.4); waste ABOVE
+  13.8 Ω·m, 70 % balanced accuracy.** Waste reads more resistive than the
+  native soil under it here — a finding the tab states, not one the app
+  explains. Interpreted, planning-level, and it says so.
+
 ## Undo and redo (v9.4) — the both-closures rule and `readd`
 
 `SBMM.undo` is two stacks of `{ desc, undo, redo }`, 100 deep each way:

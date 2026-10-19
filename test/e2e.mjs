@@ -6538,6 +6538,71 @@ const pop = await page.evaluate(() => { const p = document.querySelector(".leafl
 console.log("TEM popup on a click:", pop);
 if (!pop || !/^ID\d+$/.test(pop)) { console.log("FAIL: a click on a TEM sounding did not open its popup"); process.exit(1); }
 
+/* phase 4: the model in 3D — the stack, the two sections and the voxels are
+   specs the viewer draws, and the ground can be made see-through */
+const t5 = await page.evaluate(() => {
+  const G = SBMM.geophys, keep = G.settings();
+  SBMM.layerState.set("invest", "tem_slice", { on: true });
+  G.set("stack", true); G.set("stackStep", 4); G.set("ew", true); G.set("ns", true);
+  G.set("vox", true); G.set("voxLo", 0); G.set("voxHi", 25);
+  G.paintSectionLines();
+  const M = G.model3d();
+  const out = { stack: M.stack.length, sections: M.sections.map(s => s.dir),
+                okEW: M.sections[0] ? M.sections[0].ok.filter(Boolean).length : 0,
+                voxels: M.voxels ? M.voxels.x.length : 0,
+                voxThick: M.voxels ? Math.max(...M.voxels.thick) : 0,
+                lines: [...document.querySelectorAll(".leaflet-water-pane path")].length };
+  const g0 = SBMM.viewer3d.ground();
+  out.see = SBMM.viewer3d.setGround("see"); out.back = SBMM.viewer3d.setGround(g0);
+  for (const k of ["stack", "stackStep", "ew", "ns", "vox", "voxLo", "voxHi"]) G.set(k, keep[k]);
+  G.paintSectionLines();
+  return out;
+});
+console.log("TEM in 3D:", JSON.stringify(t5));
+if (t5.stack !== 5 || t5.sections.join() !== "ew,ns" || !(t5.okEW > 20)) { console.log("FAIL: the TEM stack or sections did not build", t5); process.exit(1); }
+if (!(t5.voxels > 1000) || !(t5.voxThick > 60)) { console.log("FAIL: the TEM voxels did not build", t5); process.exit(1); }
+if (t5.see !== "see" || t5.lines < 2) { console.log("FAIL: the see-through ground or the 2D section lines did not take", t5); process.exit(1); }
+
+/* phase 5: the borings — the calibration, the Geophysics tab, a fence with
+   the model behind it, and TEMCAL */
+const t6 = await page.evaluate(async () => {
+  const G = SBMM.geophys, C = G.calibrate();
+  const csv = G.calibCsv().trim().split("\n");
+  SBMM.cmd.run("TEMCAL " + C.holes[0].id);
+  for (let i = 0; i < 40 && !(document.querySelector(".blwin") && SBMM.borewin.tab() === "tem"); i++)
+    await new Promise(r => setTimeout(r, 100));
+  const el = [...document.querySelectorAll(".blwin")].pop();
+  const tab = { tab: SBMM.borewin.tab(), rows: el ? el.querySelectorAll("tr.temrow").length : 0,
+                prof: !!(el && el.querySelector("svg.temhole .temgridhole")),
+                bands: el ? el.querySelectorAll("svg.temhole .temband").length : 0,
+                thr: el && el.querySelector(".temthr") ? +el.querySelector(".temthr").dataset.rho : null };
+  SBMM.borewin.close();
+  /* a fence through the first two holes inside the survey, model behind */
+  const n0 = SBMM.store.features.length;
+  SBMM.fence.startThrough(C.holes.slice(0, 2).map(r => r.id));
+  const f = SBMM.store.features.length > n0 ? SBMM.store.features[SBMM.store.features.length - 1] : null;
+  let fence = null;
+  if (f && f.type === "fence") {
+    f.props.tem = true; SBMM.fence.recompute(f);
+    const d = SBMM.fence.drawSvg(f, { w: 900 });
+    const dv = document.createElement("div"); dv.innerHTML = d.svg;
+    const im = dv.querySelector("image.fntem");
+    fence = { image: !!im, covered: im ? +im.dataset.covered : 0,
+              note: /TEM resistivity/.test(dv.querySelector(".fnnote") ? [...dv.querySelectorAll(".fnnote")].map(n => n.textContent).join(" ") : "") };
+    SBMM.tools.deleteFeature(f);
+  }
+  return { holes: C.holes.length, classes: C.classes, thr: C.threshold, csvRows: csv.length,
+           medsOk: C.holes.every(r => Object.values(r.med).every(v => v > 0)), tab, fence };
+});
+console.log("TEM vs the borings:", JSON.stringify(t6));
+if (!(t6.holes >= 10) || !t6.medsOk) { console.log("FAIL: the TEM calibration did not sample the borings", t6); process.exit(1); }
+for (const k of ["waste", "native", "bedrock"])
+  if (!(t6.classes[k].median > 0) || !(t6.classes[k].samples > 50)) { console.log("FAIL: no resistivity for the class", k, t6.classes[k]); process.exit(1); }
+if (!t6.thr || !(t6.thr.acc > 0.5) || !(t6.thr.rho > 0)) { console.log("FAIL: no waste/native threshold", t6.thr); process.exit(1); }
+if (t6.tab.tab !== "tem" || t6.tab.rows !== t6.holes || !t6.tab.prof || t6.tab.bands < 1
+    || Math.abs(t6.tab.thr - t6.thr.rho) > 1e-2) { console.log("FAIL: the Geophysics tab is not the calibration", t6.tab); process.exit(1); }
+if (!t6.fence || !t6.fence.image || !(t6.fence.covered > 0.5) || !t6.fence.note) { console.log("FAIL: the fence did not carry the TEM model", t6.fence); process.exit(1); }
+
 /* the payload-tolerance rule: absent, every entry point refuses with a toast */
 const t4 = await page.evaluate(async () => {
   const keep = SBMM_DATA.tem2026, errs = [];

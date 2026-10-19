@@ -244,6 +244,13 @@ SBMM.cmd = (function () {
         const d = parseFloat(String(v || "").trim());
         SBMM.geophys.open(isFinite(d) ? d : null);
       } },
+    { n: "TEMCAL", a: ["TEMBORINGS"],
+      d: "TEM resistivity against the 2025 borings' logged classes, in the log window",
+      arg: "boring (e.g. SB-9)",
+      f: v => {
+        if (!SBMM.geophys) { toast("this build has no TEM survey"); return; }
+        SBMM.geophys.openCalibration(v ? String(v).trim() : null);
+      } },
     /* v27: the fence clip box — a trench dug along a fence in 3D */
     { n: "CLIPBOX", a: ["SECTIONBOX"],
       d: "clip box — cut the 3D ground away along the selected (or last) fence",

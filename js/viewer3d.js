@@ -32,7 +32,10 @@ SBMM.viewer3d = (function () {
   let canopyMesh = null;   // kept out of terrainMeshes so picking stays on bare earth
   let contourGroup = null; // survey contours, built lazily on first check then just toggled
   let CX = 0, CY = 0, ZMID = 0;
-  let temTex = null;          // v36: the TEM depth slice texture, reused while its canvas is
+  /* v36: the TEM model's textures, keyed by the canvas they were made from,
+     and the lidar ground at each grid node (computed once per result) */
+  const temTex = new Map();
+  let temGround = null;
   let texCache = {};
   let needsRender = true, rafId = 0, renderCount = 0, frameCount = 0;
   /* v13 §3.1 — the animated flow. One THREE.Points per visible `flow` feature;
@@ -1603,7 +1606,8 @@ SBMM.viewer3d = (function () {
        building a 100 kB SVG string per rebuild for a texture that has not moved
        is exactly the per-frame-adjacent work §3.2 exists to keep out */
     const sig = [f.id, R.total.toFixed(2), R.zTop.toFixed(2), R.zBot.toFixed(2),
-                 f.props.swath_ft, f.props.ve, R.holes.map(q => q.id).join(",")].join("|");
+                 f.props.swath_ft, f.props.ve, R.holes.map(q => q.id).join(","),
+                 f.props.tem && SBMM.geophys ? SBMM.geophys.sigKey() : ""].join("|");
     let rec = fenceTex.get(f.id);
     if (!rec || rec.sig !== sig) {
       if (rec && rec.tex) rec.tex.dispose();
@@ -1927,44 +1931,108 @@ SBMM.viewer3d = (function () {
         po.userData.pick = { kind: "tem" };
         addG.add(tag(po, "invest", "tem_soundings"));
       }
-      const sl = SBMM.geophys.slice3d();
-      if (sl) {
-        const { nx, ny, dx, x0, y0, mask, depth } = sl;
-        const pos = new Float32Array(nx * ny * 3), uv = new Float32Array(nx * ny * 2);
-        const ok = new Uint8Array(nx * ny);
-        for (let iy = 0; iy < ny; iy++) for (let ix = 0; ix < nx; ix++) {
-          const id = iy * nx + ix, x = x0 + ix * dx, y = y0 + iy * dx;
-          const [zg] = SBMM.elev(x, y);
-          ok[id] = mask[id] && !isNaN(zg) ? 1 : 0;
-          pos[id * 3] = x - CX; pos[id * 3 + 1] = y - CY;
-          pos[id * 3 + 2] = (isNaN(zg) ? ZMID : zg) - depth - ZMID;
-          uv[id * 2] = ix / (nx - 1); uv[id * 2 + 1] = iy / (ny - 1);
+      /* v36 phase 4: the slice, the stack, the two sections and the voxels,
+         from ONE spec the module memoises (SBMM.geophys.model3d) */
+      const M = SBMM.geophys.model3d();
+      const used = new Set();
+      const texOf = cv => {
+        let t = temTex.get(cv);
+        if (!t) {
+          t = new THREE.CanvasTexture(cv);
+          t.generateMipmaps = false; t.minFilter = THREE.LinearFilter;
+          t.anisotropy = Math.min(16, renderer.capabilities.getMaxAnisotropy());
+          temTex.set(cv, t);
         }
-        const ind = [];
-        for (let iy = 0; iy < ny - 1; iy++) for (let ix = 0; ix < nx - 1; ix++) {
-          const a = iy * nx + ix, b = a + 1, cc = a + nx, d = cc + 1;
-          if (ok[a] && ok[b] && ok[cc] && ok[d]) ind.push(a, b, d, a, d, cc);
-        }
-        if (ind.length) {
-          if (!temTex || temTex.canvas !== sl.canvas) {
-            if (temTex) temTex.tex.dispose();
-            const t = new THREE.CanvasTexture(sl.canvas);
-            t.generateMipmaps = false; t.minFilter = THREE.LinearFilter;
-            t.anisotropy = Math.min(16, renderer.capabilities.getMaxAnisotropy());
-            temTex = { canvas: sl.canvas, tex: t };
+        used.add(cv);
+        return t;
+      };
+      if (M) {
+        const Rr = SBMM.geophys.result();
+        const { nx, ny, dx, x0, y0, mask } = Rr;
+        if (!temGround || temGround.R !== Rr) {
+          const z = new Float32Array(nx * ny);
+          for (let iy = 0; iy < ny; iy++) for (let ix = 0; ix < nx; ix++) {
+            const [zg] = SBMM.elev(x0 + ix * dx, y0 + iy * dx);
+            z[iy * nx + ix] = isNaN(zg) ? NaN : zg;
           }
+          temGround = { R: Rr, z };
+        }
+        const G = temGround.z, op = M.opacity;
+        const matOf = cv => new THREE.MeshBasicMaterial({ map: texOf(cv), side: THREE.DoubleSide,
+          transparent: op < 0.999, opacity: op, depthWrite: op >= 0.999 });
+        const put = (m, order) => { m.renderOrder = order; m.userData.noClip = true; addG.add(tag(m, "invest", "tem_slice")); };
+        /* a horizontal sheet following the ground at a depth below it */
+        const sheet = (cv, depth) => {
+          const pos = new Float32Array(nx * ny * 3), uv = new Float32Array(nx * ny * 2);
+          for (let iy = 0; iy < ny; iy++) for (let ix = 0; ix < nx; ix++) {
+            const id = iy * nx + ix, zg = G[id];
+            pos[id * 3] = x0 + ix * dx - CX; pos[id * 3 + 1] = y0 + iy * dx - CY;
+            pos[id * 3 + 2] = (isNaN(zg) ? ZMID : zg) - depth - ZMID;
+            uv[id * 2] = ix / (nx - 1); uv[id * 2 + 1] = iy / (ny - 1);
+          }
+          const ind = [];
+          const ok = id => mask[id] && !isNaN(G[id]);
+          for (let iy = 0; iy < ny - 1; iy++) for (let ix = 0; ix < nx - 1; ix++) {
+            const q = iy * nx + ix, b2 = q + 1, c2 = q + nx, d2 = c2 + 1;
+            if (ok(q) && ok(b2) && ok(c2) && ok(d2)) ind.push(q, b2, d2, q, d2, c2);
+          }
+          if (!ind.length) return;
           const g = new THREE.BufferGeometry();
           g.setAttribute("position", new THREE.BufferAttribute(pos, 3));
           g.setAttribute("uv", new THREE.BufferAttribute(uv, 2));
           g.setIndex(ind);
-          const m = new THREE.Mesh(g, new THREE.MeshBasicMaterial({
-            map: temTex.tex, side: THREE.DoubleSide, transparent: sl.opacity < 0.999,
-            opacity: sl.opacity, depthWrite: sl.opacity >= 0.999 }));
-          m.renderOrder = 2;
-          m.userData.noClip = true;
-          addG.add(tag(m, "invest", "tem_slice"));
+          put(new THREE.Mesh(g, matOf(cv)), 2);
+        };
+        if (M.slice) sheet(M.slice.canvas, M.slice.depth);
+        for (const st of M.stack) sheet(st.canvas, st.depth);
+        /* a vertical curtain from the ground down to the deepest layer */
+        for (const sc of M.sections) {
+          const n = sc.pts.length, NZ = 24, pos = [], uv = [], zg = [];
+          for (let a2 = 0; a2 < n; a2++) { const [z] = SBMM.elev(sc.pts[a2][0], sc.pts[a2][1]); zg.push(z); }
+          for (let a2 = 0; a2 < n; a2++) for (let k = 0; k <= NZ; k++) {
+            const z = (isNaN(zg[a2]) ? ZMID : zg[a2]) - k / NZ * sc.dmax;
+            pos.push(sc.pts[a2][0] - CX, sc.pts[a2][1] - CY, z - ZMID);
+            uv.push(a2 / (n - 1), 1 - k / NZ);
+          }
+          const ind = [];
+          for (let a2 = 0; a2 < n - 1; a2++) {
+            if (!sc.ok[a2] || !sc.ok[a2 + 1] || isNaN(zg[a2]) || isNaN(zg[a2 + 1])) continue;
+            for (let k = 0; k < NZ; k++) {
+              const q = a2 * (NZ + 1) + k, r2 = q + NZ + 1;
+              ind.push(q, r2, r2 + 1, q, r2 + 1, q + 1);
+            }
+          }
+          if (!ind.length) continue;
+          const g = new THREE.BufferGeometry();
+          g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+          g.setAttribute("uv", new THREE.Float32BufferAttribute(uv, 2));
+          g.setIndex(ind);
+          put(new THREE.Mesh(g, matOf(sc.canvas)), 2);
+        }
+        /* the voxels: ONE instanced box, one draw call */
+        const V = M.voxels;
+        if (V && V.x.length) {
+          const box = new THREE.BoxGeometry(1, 1, 1);
+          const im = new THREE.InstancedMesh(box, new THREE.MeshLambertMaterial({ color: 0xffffff,
+            transparent: op < 0.999, opacity: op }), V.x.length);
+          const mtx = new THREE.Matrix4(), q4 = new THREE.Quaternion(), v3 = new THREE.Vector3(), sc3 = new THREE.Vector3();
+          const col = new THREE.Color(), s0 = V.size * 0.94;
+          for (let i = 0; i < V.x.length; i++) {
+            const ix = Math.round((V.x[i] - x0) / dx), iy = Math.round((V.y[i] - y0) / dx);
+            const zg = G[iy * nx + ix];
+            v3.set(V.x[i] - CX, V.y[i] - CY, (isNaN(zg) ? ZMID : zg) - V.depth[i] - ZMID);
+            sc3.set(s0, s0, V.thick[i] * 0.98);
+            mtx.compose(v3, q4, sc3);
+            im.setMatrixAt(i, mtx);
+            col.set(V.color[i]);
+            im.setColorAt(i, col);
+          }
+          im.instanceMatrix.needsUpdate = true;
+          if (im.instanceColor) im.instanceColor.needsUpdate = true;
+          put(im, 1);
         }
       }
+      for (const [cv, t] of temTex) if (!used.has(cv)) { t.dispose(); temTex.delete(cv); }
     }
     /* the storm-drainage network (v12 §5.1): the conduits draped on the ground
        and a dot at every structure, in the storm colour rather than the water
@@ -3804,6 +3872,7 @@ SBMM.viewer3d = (function () {
         updateLabels3d();
         const tS = performance.now(); fsAdd("labels", tS - tL);
         updateSky();
+        groundBeforeDraw();
         clipBeforeDraw();
         const tR = performance.now(); FS.sky += tR - tS;
         renderer.render(scene, camera);
@@ -4020,6 +4089,7 @@ SBMM.viewer3d = (function () {
         toast("snapshot cancelled");
         return;
       }
+      groundBeforeDraw();
       clipBeforeDraw();
       renderer.render(scene, camera);
       const out = SBMM.watermark.burnWebGL(renderer.domElement);
@@ -4488,6 +4558,7 @@ SBMM.viewer3d = (function () {
                      shown: labelSrc.points.filter(p => { const r = labels3d.get(p.key); return r && r.sprite.visible; })
                        .map(p => p.text).sort() },
       layersDrawn: layersDrawn(),
+      ground: GROUND.mode,
       sun: { az: +sunAz.toFixed(1), el: +sunEl.toFixed(1) },
       sky: !!skyMesh, groundPlane: !!envGroup,
       groundBackdrop: !!(envGroup && envGroup.children.some(c => c.userData && c.userData.backdrop)),
@@ -4752,6 +4823,52 @@ SBMM.viewer3d = (function () {
   }
   /* called before every draw: keep the box in step with the fence, the relief
      slider and whatever was built since the last draw */
+  /* v36 phase 4 — how the terrain draws over what is under it. The TEM
+     model hangs below the ground, so "see-through" and "hidden" are what make
+     it readable without a clip box. Applied per DRAW, like the clip box,
+     because tiles swap and drapes are rebuilt long after the setting moved;
+     each material keeps its own originals and gets them back on "solid". The
+     terrain still raycasts in every mode, so a click still finds the ground. */
+  const GROUND_ALPHA = { solid: 1, see: 0.35, hidden: 0 };
+  const GROUND = { mode: "solid", touched: false };
+  try {
+    const g0 = SBMM.view && SBMM.view.pref("ground3d");
+    if (g0 === "see" || g0 === "hidden") GROUND.mode = g0;
+  } catch (e) { /* a preference is a convenience */ }
+  function groundBeforeDraw() {
+    const a = GROUND_ALPHA[GROUND.mode];
+    if (a === 1 && !GROUND.touched) return;
+    for (const t of terrainMeshes) {
+      const mat = t && t.mesh && t.mesh.material;
+      if (!mat || Array.isArray(mat)) continue;
+      const u = mat.uniforms && mat.uniforms.uOpacity;
+      const o = mat.userData._g0;
+      if (a === 1) {
+        if (!o) continue;
+        mat.transparent = o.transparent; mat.depthWrite = o.depthWrite;
+        if (u) u.value = o.u; else mat.opacity = o.opacity;
+        delete mat.userData._g0;
+        mat.needsUpdate = true;
+        continue;
+      }
+      if (!o) mat.userData._g0 = { transparent: mat.transparent, opacity: mat.opacity,
+                                   depthWrite: mat.depthWrite, u: u ? u.value : null };
+      const g = mat.userData._g0;
+      if (u) { const w = a * (g.u == null ? 1 : g.u); if (u.value !== w) u.value = w; }
+      else { const w = a * g.opacity; if (mat.opacity !== w) mat.opacity = w; }
+      if (!mat.transparent || mat.depthWrite) { mat.transparent = true; mat.depthWrite = false; mat.needsUpdate = true; }
+    }
+    GROUND.touched = a !== 1;
+  }
+  function setGround(mode) {
+    if (!(mode in GROUND_ALPHA)) return GROUND.mode;
+    GROUND.mode = mode;
+    if (mode !== "solid") GROUND.touched = true;
+    try { SBMM.view && SBMM.view.pref("ground3d", mode); } catch (e) { /* ignore */ }
+    requestRender();
+    return mode;
+  }
+
   function clipBeforeDraw() {
     if (!CLIP.on) return;
     const f = clipFence();
@@ -5019,6 +5136,7 @@ SBMM.viewer3d = (function () {
     toggle, openAt, flyTo, isOpen: () => open, updateSketch, stats, resize, cameraWorld, diag,
     flyAround, stopFlyAround: () => stopTour(), flyingAround: () => !!tour,
     clipBox, clipOff: () => clipOff(), clipState, clipContains, clipProbe,
+    setGround, ground: () => GROUND.mode,
     bookmarks, saveBookmark, goBookmark, removeBookmark, wireBookmarks,
     toggleFly, isFly: () => !!(nav && nav.mode() === "fly"),
     navMode: () => (nav ? nav.mode() : null),

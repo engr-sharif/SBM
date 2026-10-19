@@ -3142,3 +3142,23 @@ body.field #ldLate{top:calc(var(--topH) + 10px)}
 .tempKey i{display:inline-block;width:14px;height:0;border-top:2px solid #E4796A;margin-left:4px}
 .tempKey i.k2{border-top:1.5px dashed #C9D3D6}
 .tempKey i.k3{border-top:1.5px dashed var(--bl-contact, #FFD34D)}
+/* v36 phase 4: the 3D half of the TEM card */
+.temctl .tem3d{display:flex;flex-direction:column;gap:6px;padding-top:6px;border-top:1px solid var(--line)}
+.temctl .tem3dh{font-size:10.5px;letter-spacing:.06em;color:var(--mut2);text-transform:uppercase}
+.temctl .temchks{display:grid;grid-template-columns:1fr 1fr;gap:3px 8px}
+.temctl .tempair{grid-column:1 / -1;display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.temctl .tempair input{width:100%;accent-color:var(--acc)}
+/* v36 phase 5: the log window's Geophysics tab */
+.bwtem{display:flex;flex-wrap:wrap;gap:14px;padding:6px 2px;align-items:flex-start}
+.bwtem .temholecol{display:flex;flex-direction:column;gap:6px}
+.bwtem .temholecol svg{display:block;max-width:100%;height:auto}
+.bwtem .temcal{flex:1 1 360px;min-width:300px;font-size:11.5px;color:var(--ink2)}
+.bwtem table{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums}
+.bwtem th{font-weight:600;color:var(--mut);text-align:right;padding:3px 6px;border-bottom:1px solid var(--line)}
+.bwtem th:first-child,.bwtem td:first-child{text-align:left}
+.bwtem td{text-align:right;padding:3px 6px;border-bottom:1px solid var(--line);font-family:var(--mono, ui-monospace, monospace)}
+.bwtem tr.temrow{cursor:pointer}
+.bwtem tr.temrow:hover td{background:var(--panel2)}
+.bwtem tr.temrow.cur td{background:var(--panel3);color:var(--ink)}
+.bwtem .temthr{margin:8px 0 4px;color:var(--ink)}
+.bwtem .temnote{color:var(--mut);font-size:10.5px}

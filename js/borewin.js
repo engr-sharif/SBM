@@ -136,6 +136,7 @@ SBMM.borewin = (function () {
           <button class="minib bwtab" data-t="compare" role="tab" title="Two to six holes on one elevation datum">Compare</button>
           <button class="minib bwtab" data-t="fence" role="tab" title="A section through the borings along a drawn line">Fence</button>
           <button class="minib bwtab" data-t="table" role="tab" title="Every hole, sortable and filterable by waste area">Table</button>
+          ${window.SBMM_DATA && SBMM_DATA.tem2026 ? `<button class="minib bwtab" data-t="tem" role="tab" title="The 2026 TEM resistivity at this hole and against every boring (TEMCAL)">Geophysics</button>` : ""}
         </span>
         <label class="bwlbl">scale
           <select class="bwscale" title="Drawing scale (+ / − to change)">
@@ -304,7 +305,8 @@ SBMM.borewin = (function () {
         const t = csvNow();
         if (!t) { toast("nothing on this tab to copy"); return; }
         copyText(t, tab === "table" ? `${BL().holes().length} holes copied as CSV`
-          : tab === "fence" ? "the fence copied as CSV" : `${cur} log copied as CSV`);
+          : tab === "fence" ? "the fence copied as CSV"
+          : tab === "tem" ? "resistivity against the borings copied as CSV" : `${cur} log copied as CSV`);
       }
       if (b === "png") exportPng();
       if (b === "story") {
@@ -471,13 +473,13 @@ SBMM.borewin = (function () {
       b.classList.toggle("off", !!off);
       if (off && why) b.dataset.why = why;
     };
-    dis('[data-b="png"]', tab === "table" || (tab === "fence" && !fence),
-        tab === "table" ? "the table exports as CSV" : "no fence drawn yet");
+    dis('[data-b="png"]', tab === "table" || tab === "tem" || (tab === "fence" && !fence),
+        tab === "table" || tab === "tem" ? "the table exports as CSV" : "no fence drawn yet");
     dis('[data-b="csv"]', tab === "fence" && !fence, "no fence drawn yet");
     dis(".fnthru", tab === "fence" && fnPick.length < 2, "tick two holes or more");
-    dis('[data-b="print"]', tab === "fence" || tab === "compare", "the printed sheet is one hole");
-    dis('[data-b="printall"]', tab === "fence" || tab === "compare", "the printed sheet is one hole");
-    dis('[data-b="printarea"]', tab === "fence" || tab === "compare", "the printed sheet is one hole");
+    dis('[data-b="print"]', tab === "fence" || tab === "compare" || tab === "tem", "the printed sheet is one hole");
+    dis('[data-b="printall"]', tab === "fence" || tab === "compare" || tab === "tem", "the printed sheet is one hole");
+    dis('[data-b="printarea"]', tab === "fence" || tab === "compare" || tab === "tem", "the printed sheet is one hole");
     W.el.querySelectorAll(".bwstep").forEach(b => {
       b.disabled = tab === "fence";
       b.classList.toggle("off", tab === "fence");
@@ -780,7 +782,8 @@ SBMM.borewin = (function () {
     W.el.querySelector(".bwid").textContent = cur || "—";
     W.el.querySelector(".shtitle").textContent =
       tab === "log" ? "Boring log" : tab === "compare" ? "Compare"
-        : tab === "fence" ? (fnCur && fnCur.name ? fnCur.name : "Fence") : "All borings";
+        : tab === "fence" ? (fnCur && fnCur.name ? fnCur.name : "Fence")
+        : tab === "tem" ? "Geophysics" : "All borings";
     W.el.querySelectorAll(".bwtab").forEach(b => {
       b.classList.toggle("active", b.dataset.t === tab);
       b.setAttribute("aria-selected", b.dataset.t === tab ? "true" : "false");
@@ -789,9 +792,11 @@ SBMM.borewin = (function () {
     W.el.classList.toggle("bwtab-fence", tab === "fence");
     W.el.classList.toggle("bwtab-log", tab === "log");
     W.el.classList.toggle("bwtab-compare", tab === "compare");
+    W.el.classList.toggle("bwtab-tem", tab === "tem");
     const ar = W.el.querySelector(".bwarea0");
     if (ar) ar.textContent = tab === "log" && h ? (BL().areaOf(h.id) || "not in a waste area")
-      : tab === "compare" ? "Compare" : tab === "fence" ? "Fence" : "All holes";
+      : tab === "compare" ? "Compare" : tab === "fence" ? "Fence"
+      : tab === "tem" ? "TEM 2026" : "All holes";
     layoutCols();
     W.cursor.hidden = true;
     paintNav();
@@ -802,6 +807,7 @@ SBMM.borewin = (function () {
       paintRail(null);
       if (tab === "compare") paintCompare();
       else if (tab === "fence") paintFence();
+      else if (tab === "tem") paintTem();
       else paintTable();
     }
     syncButtons();
@@ -1123,6 +1129,9 @@ SBMM.borewin = (function () {
           + `<label class="bwlbl">vertical <select class="fnve">`
           + FN.VE_CHOICES.map(v => `<option value="${v}"${v === f.props.ve ? " selected" : ""}>${v}\u00d7</option>`).join("")
           + `</select></label>`
+          + (SBMM.geophys && SBMM.geophys.data()
+            ? `<label class="bwlbl" title="The 2026 TEM resistivity model behind the section">`
+              + `<input type="checkbox" class="fntem"${f.props.tem ? " checked" : ""}> TEM</label>` : "")
           + `<span class="spacer"></span>`
           + `<button class="minib" data-fb="png" title="Save the drawing as a PNG">png</button>`
           + `<button class="minib" data-fb="csv" title="Station, offset, ground and every horizon, per hole">csv</button>`
@@ -1178,6 +1187,12 @@ SBMM.borewin = (function () {
       f.props.ve = parseFloat(e.target.value) || 1;
       FN.recompute(f); SBMM.store.autosave(); paintFence();
     };
+    if (q(".fntem")) q(".fntem").onchange = async e => {
+      f.props.tem = !!e.target.checked;
+      if (f.props.tem && !(await SBMM.geophys.run())) { f.props.tem = false; }
+      SBMM.store.autosave(); paintFence();
+      if (SBMM.viewer3d && SBMM.viewer3d.refreshOverlays) SBMM.viewer3d.refreshOverlays();
+    };
     W.art.querySelectorAll("[data-fb]").forEach(b => b.onclick = () => {
       if (b.dataset.fb === "png") FN.exportPng(f);
       if (b.dataset.fb === "csv") FN.exportCsv(f);
@@ -1190,6 +1205,58 @@ SBMM.borewin = (function () {
       gEl.addEventListener("mouseleave", () => FN.flashHole(null));
       gEl.addEventListener("click", () => { cur = gEl.dataset.hole; tab = "log"; paint(); });
     });
+  }
+
+  /* ---- the Geophysics tab (v36 phase 5) ----------------------------- */
+  /* The 2026 TEM model against the borings: the hole's own resistivity
+     profile with its logged class bands behind it, and the table of every
+     boring inside the survey — the median resistivity per logged class and
+     the one value that best separates waste from native. js/geophys.js owns
+     every number; this is the view. Interpreted, planning-level. */
+  function paintTem() {
+    const G = SBMM.geophys, foot = W.el.querySelector(".bwfoot");
+    if (!G || !G.data()) {
+      W.art.innerHTML = `<div class="note">the TEM survey is not in this build</div>`;
+      foot.textContent = "\u2014"; return;
+    }
+    if (!G.hasResult()) {
+      W.art.innerHTML = `<div class="note">interpolating the TEM soundings\u2026</div>`;
+      foot.textContent = "\u2014";
+      G.run().then(r => { if (r && W && tab === "tem") paintTem(); });
+      return;
+    }
+    const C = G.calibrate(), h = BL().byId(cur);
+    const svg = h ? G.holeProfileSvg(h.id, 340, 440) : "";
+    const f3 = v => v == null ? "\u2014" : (v >= 100 ? fmt0(v) : v >= 10 ? fmt(v, 1) : fmt(v, 2));
+    const left = `<div class="temholecol">`
+      + (svg || `<div class="note">${esc(cur || "")} is outside the TEM survey</div>`)
+      + (svg ? `<div class="tempKey"><i class="k1"></i>model at the hole <i class="k2"></i>nearest sounding`
+        + ` <i class="k3"></i>logged contacts</div>` : "")
+      + `</div>`;
+    let right = `<div class="temcal">`;
+    if (C && C.holes.length) {
+      right += `<table><thead><tr><th>boring</th><th>native ft</th><th>waste \u03a9\u00b7m</th>`
+        + `<th>native \u03a9\u00b7m</th><th>bedrock \u03a9\u00b7m</th><th>sounding</th></tr></thead><tbody>`
+        + C.holes.map(r => `<tr class="temrow${r.id === cur ? " cur" : ""}" data-id="${esc(r.id)}">`
+          + `<td>${esc(r.id)}</td><td>${r.native_ft == null ? "\u2014" : fmt(r.native_ft, 1)}</td>`
+          + `<td>${f3(r.med.waste)}</td><td>${f3(r.med.native)}</td><td>${f3(r.med.bedrock)}</td>`
+          + `<td title="${esc(r.sounding)}">${fmt0(r.sounding_ft)} ft</td></tr>`).join("")
+        + `</tbody><tfoot>`
+        + ["waste", "native", "bedrock"].map(k => { const c = C.classes[k];
+            return `<tr class="temsum" data-cls="${k}"><td>${esc(BL().classWord(k))}</td><td>${c.holes} holes</td>`
+              + `<td colspan="3">${c.median == null ? "\u2014" : `median ${f3(c.median)} \u00b7 IQR ${f3(c.p25)}\u2013${f3(c.p75)}`}</td>`
+              + `<td>${fmt0(c.samples)} ft</td></tr>`; }).join("")
+        + `</tfoot></table>`;
+      if (C.threshold) right += `<div class="temthr" data-rho="${C.threshold.rho.toFixed(3)}" data-dir="${C.threshold.dir}">`
+        + `waste ${C.threshold.dir === "below" ? "below" : "above"} <b>${f3(C.threshold.rho)} \u03a9\u00b7m</b>`
+        + ` \u00b7 balanced accuracy ${(C.threshold.acc * 100).toFixed(0)} %</div>`;
+      right += `<div class="temnote">interpolated ${esc(String(C.method === "krig" ? "kriging" : C.method))} model at each hole`
+        + ` \u00b7 classes from the logged contacts \u00b7 interpreted \u00b7 planning-level</div>`;
+    } else right += `<div class="note">no 2025 boring lies inside the TEM survey</div>`;
+    right += `</div>`;
+    W.art.innerHTML = `<div class="bwtem">${left}${right}</div>`;
+    foot.textContent = C ? `${C.holes.length} borings inside the TEM survey \u00b7 TEM2Go May 2026` : "\u2014";
+    W.art.querySelectorAll("tr.temrow").forEach(tr => tr.onclick = () => { cur = tr.dataset.id; paint(); });
   }
 
   /* ---- the table (§2.5) -------------------------------------------- */
@@ -1266,6 +1333,7 @@ SBMM.borewin = (function () {
   }
   function csvNow() {
     if (tab === "table") return tableCsv();
+    if (tab === "tem") return SBMM.geophys ? SBMM.geophys.calibCsv() : "";
     if (tab === "fence") {
       const f = SBMM.fence && SBMM.fence.currentFence();
       return f ? SBMM.fence.csvText(f) : "";

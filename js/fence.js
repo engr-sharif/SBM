@@ -371,6 +371,19 @@ SBMM.fence = (function () {
       p.push(text(PADL - 9, y + 3, fmt0(z), C.ax, 9, "end"));
       p.push(text(W - PADR + 9, y + 3, fmt0(z), C.ax, 9));
     }
+    /* ---- v36: the TEM model behind the section, when the fence asks for it.
+       Sampled along the fence's own ground profile, elevation down the page;
+       above the ground and below the deepest model layer is transparent. ---- */
+    let temNote = null;
+    if (pr.tem && SBMM.geophys && SBMM.geophys.hasResult()) {
+      const img = SBMM.geophys.sectionImage(R.ground, R.zTop, R.zBot);
+      if (img && img.url) {
+        p.push(`<image class="fntem" href="${img.url}" x="${xOf(0).toFixed(1)}" y="${yOf(R.zTop).toFixed(1)}"`
+          + ` width="${(xOf(total) - xOf(0)).toFixed(1)}" height="${(yOf(R.zBot) - yOf(R.zTop)).toFixed(1)}"`
+          + ` preserveAspectRatio="none" opacity=".78" data-covered="${img.covered.toFixed(2)}"/>`);
+        temNote = "TEM " + img.label.trim() + " behind";
+      } else temNote = "outside the TEM survey";
+    }
     p.push(text(PADL - 9, PADT - 16, "ELEV ft", C.hd, 8, "end", ' letter-spacing=".06em"'));
     p.push(text(W - PADR + 9, PADT - 16, "ELEV ft", C.hd, 8, null, ' letter-spacing=".06em"'));
 
@@ -556,7 +569,7 @@ SBMM.fence = (function () {
          drawing is too narrow for one. */
       const rule = ["class bands correlated linearly between adjacent holes",
                     "units matched by USCS family", "pinch-outs at mid-span",
-                    "lidar ground Jan 2024"];
+                    "lidar ground Jan 2024"].concat(temNote ? [temNote] : []);
       const rows = W >= 900 ? [rule.join(" · ")]
                             : [rule.slice(0, 2).join(" · "), rule.slice(2).join(" · ")];
       const y0 = PADT + drawH + FOOT.note;
