@@ -322,6 +322,22 @@ for (const k of ["demSite", "designGis", "storm", "cover", "sheetsIndex"])
   if (p[k] === "undefined") fail(`SBMM_DATA.${k} is MISSING on a phone — the field build keeps it`, p);
 console.log(`26 heavy payloads skipped · terrain, design GIS, storm, cover and the sheet index all present`);
 
+/* v36: the 2026 TEM2Go survey is ~150 kB and is NOT a heavy payload either:
+   a plain script tag, kept on a phone, and its job is small enough to run here */
+const tem = await page.evaluate(async () => {
+  const D = SBMM_DATA.tem2026;
+  if (!D) return { missing: true };
+  await SBMM.geophys.open(30);
+  const card = document.querySelector("#resBody .temcard");
+  const out = { n: D.n, slice: SBMM.geophys.slice() && SBMM.geophys.slice().depth, card: !!card };
+  SBMM.layerState.set("invest", "tem_slice", { on: false });
+  return out;
+});
+console.log("TEM (phone):", JSON.stringify(tem));
+if (tem.missing) fail("SBMM_DATA.tem2026 is MISSING on a phone — it is not a heavy payload", tem);
+if (tem.n !== 1032 || tem.slice !== 30 || !tem.card) fail("TEM 30 built no slice or card on a phone", tem);
+if (errors.length) fail("page errors opening the TEM slice on a phone", errors.slice(0, 4));
+
 /* the 2025 boring logs are ~300 kB and are NOT a heavy payload: they ride in a
    plain script tag and a phone keeps them, which is the whole reason they are
    small. The card is an ordinary results card, so it lands in the right dock's

@@ -235,6 +235,15 @@ SBMM.cmd = (function () {
         if (!SBMM.fence) { toast("this build has no fence diagram"); return; }
         SBMM.fence.cmd(v);
       } },
+    /* v36: the 2026 TEM2Go geophysics — the depth slice and its card */
+    { n: "TEM", a: ["GEOPHYS", "RESISTIVITY", "TEMSLICE"],
+      d: "TEM resistivity — the 2026 geophysics as a depth slice, with its card",
+      arg: "depth below ground, ft",
+      f: v => {
+        if (!SBMM.geophys) { toast("this build has no TEM survey"); return; }
+        const d = parseFloat(String(v || "").trim());
+        SBMM.geophys.open(isFinite(d) ? d : null);
+      } },
     /* v27: the fence clip box — a trench dug along a fence in 3D */
     { n: "CLIPBOX", a: ["SECTIONBOX"],
       d: "clip box — cut the 3D ground away along the selected (or last) fence",

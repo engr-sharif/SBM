@@ -1279,6 +1279,29 @@ await block("17. the boring logs", async () => {
 });
 
 /* ===================================================================== */
+await block("18. the TEM geophysics (v36)", async () => {
+/* 18. the 2026 TEM2Go survey — ~150 kB, in the field build, and its slice is
+   a 69 x 79 grid, so a phone runs the same job the desktop does */
+/* ===================================================================== */
+  const T = await page.evaluate(async () => {
+    const D = SBMM_DATA.tem2026;
+    if (!D) return { missing: true };
+    await SBMM.geophys.open(30);
+    const card = document.querySelector("#resBody .temcard");
+    const R = SBMM.geophys.result();
+    const out = { n: D.n, nl: D.nl, slice: SBMM.geophys.slice() && SBMM.geophys.slice().depth,
+                  grid: R && [R.nx, R.ny, R.dx], card: !!card,
+                  first: card ? card.querySelector(".rrow b").textContent : null };
+    SBMM.layerState.set("invest", "tem_slice", { on: false });
+    return out;
+  });
+  console.log("TEM (field):", JSON.stringify(T));
+  if (T.missing) fail("the field build has no TEM survey — it is not in FIELD_EXCLUDE", T);
+  if (T.n !== 1032 || T.nl !== 20) fail("the field build's TEM payload is not 1,032 x 20", T);
+  if (T.slice !== 30 || !T.card || !/Ω·m/.test(T.first || "")) fail("TEM 30 built no slice or card in field mode", T);
+});
+
+/* ===================================================================== */
 console.log("\npage errors:", errors.length ? errors.slice(0, 8) : "none");
 await browser.close();
 if (errors.some(e => !e.includes("favicon"))) { console.log("RESULT: errors present"); process.exit(2); }
