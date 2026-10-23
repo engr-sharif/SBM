@@ -17,6 +17,24 @@ All three are offline-only by design. Nothing in this app calls out to the inter
 
 ---
 
+## v9.46 — the TEM workspace: the ground cut open to the slice (2026-10-23)
+
+- **Data ▾ → TEM geophysics** (or `TEMWS`) opens a workspace of its own: the
+  3D view, and every TEM control in one panel where the right dock was.
+- **The ground is cut open down to the slice.** As the depth goes down the hole
+  goes with it: the slice is the floor, the walls are painted with the model,
+  and the side facing you is opened up so the floor stays in view however deep
+  it goes. Size, position (centre on the view, or the whole survey) and the
+  open side are in the panel.
+- **The core** on the left of the panel is a virtual boring at the centre of the
+  cut — the model straight down that point, the 20 layer boundaries and the
+  nearest 2025 boring's contacts. Press or drag on it to set the depth;
+  PgUp / PgDn step a layer; *descend* walks down through the model.
+- Depth steps are much quicker in 3D: the slice moves in place instead of the
+  scene being rebuilt.
+- The fence clip box's trench now also cuts the plane beyond the survey, so a
+  deep trench no longer shows lake-coloured ground where its floor should be.
+
 ## v9.45 — the TEM model shows in 3D without hunting for it (2026-10-19)
 
 - **The ground goes see-through by itself while TEM is on.** The new default,

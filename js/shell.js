@@ -366,6 +366,8 @@ SBMM.shell = (function () {
     /* the site-data rows that are not one of the old top-bar buttons */
     const lm = $("logsMenuBtn");
     if (lm) lm.onclick = () => { if (SBMM.cmd) SBMM.cmd.run("LOGWIN"); };
+    const tm = $("temMenuBtn");
+    if (tm) tm.onclick = () => { if (SBMM.cmd) SBMM.cmd.run("TEMWS"); };
     const fm = $("fenceMenuBtn");
     if (fm) fm.onclick = () => { if (SBMM.cmd) SBMM.cmd.run("FENCE"); };
     const dm = $("dsMenuBtn");

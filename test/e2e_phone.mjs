@@ -336,6 +336,16 @@ const tem = await page.evaluate(async () => {
 console.log("TEM (phone):", JSON.stringify(tem));
 if (tem.missing) fail("SBMM_DATA.tem2026 is MISSING on a phone — it is not a heavy payload", tem);
 if (tem.n !== 1032 || tem.slice !== 30 || !tem.card) fail("TEM 30 built no slice or card on a phone", tem);
+/* v37: the TEM workspace has no room on a phone — TEMWS opens the card */
+const tws = await page.evaluate(async () => {
+  const r = await SBMM.temws.open();
+  const out = { returned: r, ws: document.body.classList.contains("temws"),
+                card: !!document.querySelector("#resBody .temcard") };
+  SBMM.layerState.set("invest", "tem_slice", { on: false });
+  return out;
+});
+console.log("TEM workspace (phone):", JSON.stringify(tws));
+if (tws.returned !== false || tws.ws || !tws.card) fail("the TEM workspace opened on a phone instead of the card", tws);
 if (errors.length) fail("page errors opening the TEM slice on a phone", errors.slice(0, 4));
 
 /* the 2025 boring logs are ~300 kB and are NOT a heavy payload: they ride in a
