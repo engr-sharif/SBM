@@ -6659,8 +6659,12 @@ await page.click("#temMenuBtn");
 await page.waitForFunction(() => SBMM.temws.isOpen() && SBMM.viewer3d.isOpen()
   && document.getElementById("v3dStatus").textContent === "", null, { timeout: 180000 });
 await page.evaluate(() => SBMM.geophys.apply("depth", 60));
-await page.waitForFunction(() => { const p = SBMM.viewer3d.pitState(); return p.on && p.depth === 60 && p.stat && p.stat.walls === 4; },
-  null, { timeout: 60000 });
+/* the clip planes are claimed at DRAW time, so a terrain tile swapped in
+   since the last frame is unclipped until the next one: wait for the frame,
+   not just the swap (in a sequenced run that read 25 of 28 tiles clipped) */
+await page.waitForFunction(() => { const p = SBMM.viewer3d.pitState(), pr = SBMM.viewer3d.clipProbe();
+  return p.on && p.depth === 60 && p.stat && p.stat.walls === 4 && pr.terrain > 0 && pr.terrainClipped === pr.terrain; },
+  null, { timeout: 60000 }).catch(() => {});
 const w1 = await page.evaluate(() => {
   const P = SBMM.viewer3d.pitState(), C = SBMM.viewer3d.clipState(), pr = SBMM.viewer3d.clipProbe();
   const el = document.getElementById("temWs"), rd = document.getElementById("rightdock");
