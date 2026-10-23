@@ -108,7 +108,19 @@ SBMM.viewer3d = (function () {
      is the expensive part of hovering, so the wheel handler reuses the hover's result */
   let lastPick = { x: -1e9, y: -1e9, p: null, t: 0 };
 
-  const requestRender = () => { needsRender = true; };
+  /* renderTrace(true) records which call site asked for each frame and how
+     many frames the camera's own easing drew — a view that will not go idle
+     is otherwise a count with no name (the harness reads it, nothing else) */
+  let RT = null;
+  const requestRender = () => {
+    needsRender = true;
+    if (RT) { const k = ((new Error().stack || "").split("\n")[2] || "?").trim().slice(0, 140); RT.req[k] = (RT.req[k] || 0) + 1; }
+  };
+  function renderTrace(on) {
+    const out = RT;
+    RT = on ? { req: {}, moved: 0, needs: 0 } : null;
+    return out;
+  }
 
   /* ================================================================== */
   /* v24 §3 — WHAT A FRAME COSTS ON THE MAIN THREAD                      */
@@ -3938,6 +3950,7 @@ SBMM.viewer3d = (function () {
         }
       }
       if (moved || needsRender) {
+        if (RT) { if (moved) RT.moved++; if (needsRender) RT.needs++; }
         needsRender = false;
         renderCount++;
         FS.frames++;
@@ -5485,6 +5498,7 @@ SBMM.viewer3d = (function () {
     preset, frame: frameSelectionOrSite, frameBox, northUp: () => nav && nav.northUp(),
     /* v37: orbit to a bearing (theta, the camera's bearing FROM the target)
        and a polar angle (phi, from straight down), keeping target and range */
+    renderTrace,
     orbitTo: (theta, phi) => { if (nav) nav.place(nav.st.targetDst.clone(), nav.st.dst.r, theta, phi); },
     refreshOverlays: () => { if (open) rebuildOverlays(); },
     refreshIsopach: () => { if (open) refreshDrapes(); },

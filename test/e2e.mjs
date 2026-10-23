@@ -6753,6 +6753,11 @@ const w4 = await page.evaluate(async () => {
      flight: the descent above moved the cut, and on the dist (tiles cut from
      the resident rasters) a LOD build can still be swapping in a second after
      the last frame, which landed two renders inside the window on CI */
+  /* and with the water animation off, as block 9f8 measures it: in the
+     sequenced shard the water blocks leave flows visible, and a visible flow
+     asks for frames by design (CI: needs 3, no call site, camera at rest) */
+  const wasAnim = SBMM.viewer3d.animateWater();
+  SBMM.viewer3d.animateWater(false);
   const tb = () => !!(SBMM.terrain3d && SBMM.terrain3d.stats && SBMM.terrain3d.stats().building);
   let prev = SBMM.viewer3d.stats().renderCount, quiet = 0;
   for (let i = 0; i < 60 && quiet < 2; i++) {
@@ -6761,14 +6766,18 @@ const w4 = await page.evaluate(async () => {
     quiet = (n === prev && !tb()) ? quiet + 1 : 0; prev = n;
   }
   if (SBMM.viewer3d.frameStats) SBMM.viewer3d.frameStats(true);
+  SBMM.viewer3d.renderTrace(true);
   const a = SBMM.viewer3d.stats().renderCount;
   await wait(3000);
   const fs = SBMM.viewer3d.frameStats ? SBMM.viewer3d.frameStats() : {};
+  const why = SBMM.viewer3d.renderTrace(false);
+  SBMM.viewer3d.animateWater(wasAnim);
   return { renders: SBMM.viewer3d.stats().renderCount - a, quiet, building: tb(),
-           overlays: fs.overlayRebuilds, swaps: fs.terrainSwaps, selects: fs.terrainSelects };
+           overlays: fs.overlayRebuilds, swaps: fs.terrainSwaps, selects: fs.terrainSelects,
+           why: JSON.stringify(why) };
 });
 console.log("TEM workspace idle:", JSON.stringify(w4));
-if (w4.renders > 1) { console.log("FAIL: the workspace keeps the 3D view rendering when idle", w4); process.exit(1); }
+if (w4.renders > 1) { console.log("FAIL: the workspace keeps the 3D view rendering when idle " + JSON.stringify(w4)); process.exit(1); }
 
 /* closing puts everything back */
 await page.click('#temWs [data-a="close"]');
