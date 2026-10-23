@@ -6745,11 +6745,23 @@ if (!(w3.played > 0) || !w3.playing || !w3.stopped) { console.log("FAIL: the des
 /* block 9e's contract holds with the cut open: an idle view renders nothing */
 const w4 = await page.evaluate(async () => {
   const wait = ms => new Promise(r => setTimeout(r, ms));
-  let prev = SBMM.viewer3d.stats().renderCount;
-  for (let i = 0; i < 40; i++) { await wait(1000); const n = SBMM.viewer3d.stats().renderCount; if (n === prev) break; prev = n; }
+  /* settled = two whole quiet seconds in a row with no terrain rebuild in
+     flight: the descent above moved the cut, and on the dist (tiles cut from
+     the resident rasters) a LOD build can still be swapping in a second after
+     the last frame, which landed two renders inside the window on CI */
+  const tb = () => !!(SBMM.terrain3d && SBMM.terrain3d.stats && SBMM.terrain3d.stats().building);
+  let prev = SBMM.viewer3d.stats().renderCount, quiet = 0;
+  for (let i = 0; i < 60 && quiet < 2; i++) {
+    await wait(1000);
+    const n = SBMM.viewer3d.stats().renderCount;
+    quiet = (n === prev && !tb()) ? quiet + 1 : 0; prev = n;
+  }
+  if (SBMM.viewer3d.frameStats) SBMM.viewer3d.frameStats(true);
   const a = SBMM.viewer3d.stats().renderCount;
   await wait(3000);
-  return { renders: SBMM.viewer3d.stats().renderCount - a };
+  const fs = SBMM.viewer3d.frameStats ? SBMM.viewer3d.frameStats() : {};
+  return { renders: SBMM.viewer3d.stats().renderCount - a, quiet, building: tb(),
+           overlays: fs.overlayRebuilds, swaps: fs.terrainSwaps, selects: fs.terrainSelects };
 });
 console.log("TEM workspace idle:", JSON.stringify(w4));
 if (w4.renders > 1) { console.log("FAIL: the workspace keeps the 3D view rendering when idle", w4); process.exit(1); }
