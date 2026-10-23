@@ -413,6 +413,7 @@ terrain source, which needs an explicit decision + README/test update).
 | borelogs.js | **the 2025 boring logs (OpenGround)** — the strip log in a results card (class profile, strata + USCS, SPT with the pocket penetrometer, pH against the acid threshold, method bands, the water symbol), the TWO contact statements drawn together and reconciled nowhere, the 44-hole `LOGS` table, the CSV and the PNG, the popup button, `LOG` / `LOGS`, the class palette every other view reads through `classColor()`, and since v23 **the column renderer `column()`** every face of the borings is drawn by; `SBMM.borelogs` |
 | labmetals.js | **v28 — lab metals by depth** from the earlier apps (`SBMM_DATA.lab_metals`, `tools/build_imports.py`): the interval table in a boring / test-pit popup and on the log card, the full validated suite on a sample popup, the ROD / PMB levels and `level(sym, v)`; `SBMM.labMetals` |
 | geophys.js | **v36 — the 2026 TEM2Go geophysics** (`SBMM_DATA.tem2026`): the soundings row and the depth-slice row under *Geophysics — TEM 2026* in Investigations, the `tem` job, the slice painted in the contractor's colour maps, the card with the viewer's controls in feet, the sounding popup's profile with the nearest boring's contacts, the CSV/PNG exports, the status-bar value, the 3D dots and slice sheet, `TEM`; `SBMM.geophys` |
+| temws.js | **v37 — the TEM workspace**: Data ▾ → *TEM geophysics* / `TEMWS` — a panel in the right dock's place with every TEM control, the core (a virtual boring at the centre of the cut, draggable for depth), the descent, and the 3D view opened with the ground cut open to the slice (`SBMM.viewer3d.setPit`); on a phone it opens the card; `SBMM.temws` |
 | siteareas.js | **v28 — the named site areas of SBMM.kmz** (`SBMM_DATA.site_areas`): one Investigations row (off by default), 3D drape, snap, GeoJSON/DXF on `SITE-AREAS`; `SBMM.siteAreas` |
 | borewin.js | **v23 Phase A — the boring-log window** on the sheet-window chassis: the Log tab as a real log sheet at 1 in = 5 ft with the depth cursor, Compare (2–6 holes on one elevation datum, correlation lines, printed separations), the 44-hole Table, the printed log sheet through `js/report.js`, the hole picker, `LOGWIN`; `SBMM.borewin` |
 | fence.js | **v23 Phase B — the fence diagram**: the `fence` store feature (a section through the subsurface along a drawn line), `projectHoles`/`groundProfile`, the SVG the Fence tab, the PNG and the 3D texture are all drawn from, the cut on the map (alignment + swath band + a tick per projected hole), the CSV, the **section-coordinate DXF** (X = station ft, Y = elevation ft) and `FENCE`; `SBMM.fence` |
@@ -3437,6 +3438,86 @@ edges) for the map slice, the 3D stack, the 3D sections and the fence image.
   13.8 Ω·m, 70 % balanced accuracy.** Waste reads more resistive than the
   native soil under it here — a finding the tab states, not one the app
   explains. Interpreted, planning-level, and it says so.
+
+## v37 — the TEM workspace, and the ground cut open to the slice
+
+`js/temws.js` (`SBMM.temws`), the `v37 — the TEM excavation` section of
+`js/viewer3d.js`, `apply()` / `wallImage()` / `core()` in `js/geophys.js`,
+`#temMenuBtn` in the Data ▾ menu, `TEMWS` (`TEMVIEW`, `GEOPHYSICS`) in
+`js/cmdline.js`, the `v37` block at the end of `css/app.css`. E2E block
+**"9f11. the TEM workspace and the excavation (v37)"** (shard 2), one assertion
+in `test/e2e_phone.mjs` block 4.
+
+The engineer: *"when my slider goes below the ground surface it disappears
+under the map … the surface should disappear and show like a hole in the
+ground where the slider keeps going, with a cut-away from the nearby area so
+we can see into the hole … give this data its own button under the Data tab
+and reimagine a module just for the TEM stuff."*
+
+**The excavation is the clip box's SECOND SOURCE** (`CLIP.src` is `"fence"` or
+`"pit"`). `SBMM.viewer3d.setPit({cx, cy, w, h, open})` clips a rectangle out
+of the terrain, the drapes and the draped linework with the same four planes
+and the same draw-time claim v27 uses, so anything that already survives the
+trench (`userData.noClip`) survives the pit, and the two cannot both be on: a
+fence clip box replaces the pit (and emits `pit`), the pit hides the fence
+chip. Its FLOOR is soil at the ground minus the slice depth with the slice
+sheet lying on it (the sheet's own rule, so the slice IS the floor where the
+model reaches); its WALLS run from `SBMM.elev` down to the same depth;
+`pitState()` and `temProbe()` are the harness hooks. Six things that will be
+walked into again:
+
+- **THE GROUND PLANE BEYOND THE SURVEY SITS AT THE SITE'S LOWEST GROUND LESS
+  25 FT, and a cut deeper than that is covered by it.** At 150 ft the floor and
+  the lower walls simply vanished — the plane was drawn over them, the colour
+  of the lake. `clipClaim` now claims `envPlane` too (it lives under
+  `envGroup`, which is exempt as a whole), for BOTH sources — a deep fence
+  trench had the same latent defect.
+- **A WALL IS PAINTED OVER THE WHOLE DEPTH OF RECORD AND STRETCHED BY ITS UVs.**
+  `SBMM.geophys.wallImage(pts)` paints the model straight down the wall's line
+  from 0 to the deepest layer over a soil gradient (50-ft rules on it); the
+  geometry stops at the cut's depth with `v = 1 − depth/DM`. A depth step
+  therefore rebuilds a few hundred vertices and NO texture; textures are cached
+  by the wall's two ends and `SBMM.geophys.sigKey()`.
+- **The open side is QUANTISED.** With `open`, the box runs on toward the camera
+  by `1.4 × depth + 120` ft rounded UP to 100 ft, on whichever of the four
+  sides faces it (`pitSide()`, one reused vector, no allocation) — so its walls
+  are re-textured every ~70 ft of depth and when the camera crosses a diagonal,
+  not every step. A 300-ft cut seen at 35° hides most of its floor behind its
+  own near rim without it.
+- **Walls face INWARD and the winding is the proof.** The corners run
+  counter-clockwise, so the inside is left of A→B and the triangles are
+  `(prev, cur, prev+1), (prev+1, cur, cur+1)`; with a see-through ground the
+  near wall is culled. A darker tint (`0xC4C4C4` on the texture) and a seam line
+  where wall meets floor are what make wall and floor read as two faces.
+- **A hole needs ground around it**: `groundNow()` answers `solid` while the pit
+  is on and the mode is `auto` (an explicit see-through or hidden still wins).
+- **The workspace does NOT switch the sounding models on.** Along the survey
+  lines the columns stand ~10 ft apart and fence the floor off; they are one
+  tick away in the panel (which turns the soundings row on).
+
+**`SBMM.geophys.apply(k, v)` is the ONE setter** — the card's handlers and the
+workspace both call it, and it emits `tem`, on which the card (`syncCard`) and
+the panel (`paintAll`) show what the other moved. `LIVE` names the sliders that
+act per input event. **A depth step is a FAST PATH**: `SBMM.viewer3d.temDepth()`
+rewrites the slice sheet's z in place, swaps its texture (disposing the old one
+out of the same `temTexture` cache the rebuild uses) and recolours the sounding
+dots' colour attribute, and answers whether it found every depth-dependent
+object; only when it did not does geophys queue the full overlay rebuild. Block
+9f11 asserts a step moves the sheet by exactly the step with zero jobs and zero
+full rebuilds.
+
+**And the 2D slice is not re-encoded while 3D covers the whole map** — a PNG of
+a 545 x 625 canvas on every depth step was most of what a step cost. `paintNow`
+marks `mapDirty` instead and the `view` event repaints the moment the map shows
+(2D or split). Anything that reads the map overlay's URL while 3D is open full
+stage reads the previous depth, by design.
+
+**The layout**: `body.temws` hides `#rightdock` and sets `--dockR` from
+`--twsW` (348 px), so the frame, the 3D toolbar, the nav column and every fit
+keep clear of the panel exactly as they keep clear of the dock; the left dock is
+collapsed on open and restored on close, and 3D is closed again on close if it
+was closed before. Field mode is untouched: there `TEMWS` opens the card.
+Nothing serialises — the cut is a view, like the clip box.
 
 ## Undo and redo (v9.4) — the both-closures rule and `readd`
 

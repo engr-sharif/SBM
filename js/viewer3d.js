@@ -32,10 +32,63 @@ SBMM.viewer3d = (function () {
   let canopyMesh = null;   // kept out of terrainMeshes so picking stays on bare earth
   let contourGroup = null; // survey contours, built lazily on first check then just toggled
   let CX = 0, CY = 0, ZMID = 0;
+  /* v37: one texture per TEM canvas, shared by the overlay rebuild and the
+     depth fast path (temDepth) so neither leaks the other's */
+  function temTexture(cv) {
+    let t = temTex.get(cv);
+    if (!t) {
+      t = new THREE.CanvasTexture(cv);
+      t.generateMipmaps = false; t.minFilter = THREE.LinearFilter;
+      t.anisotropy = Math.min(16, renderer.capabilities.getMaxAnisotropy());
+      temTex.set(cv, t);
+    }
+    return t;
+  }
+  /* v37 — a depth step moves the slice sheet and recolours the sounding dots
+     IN PLACE: no overlay rebuild, no job, one render. Answers whether every
+     depth-dependent object was found, so js/geophys.js can fall back to a
+     full rebuild when one was not (a row just switched on, say). The
+     excavation follows on the next draw (clipBeforeDraw's signature). */
+  function temDepth() {
+    if (!open || !scene || !overlayGroup || !SBMM.geophys) return false;
+    const s3 = SBMM.geophys.slice3d ? SBMM.geophys.slice3d() : null;
+    const tp = SBMM.geophys.points3d ? SBMM.geophys.points3d() : null;
+    let sheetDone = false, dotsDone = false;
+    const c = new THREE.Color();
+    overlayGroup.traverse(o => {
+      const u = o.userData;
+      if (u.temSlice && s3 && temGround && temGround.R === SBMM.geophys.result()) {
+        const pos = o.geometry.attributes.position, a = pos.array, G = temGround.z;
+        for (let id = 0; id < G.length; id++) a[id * 3 + 2] = (isNaN(G[id]) ? ZMID : G[id]) - s3.depth - ZMID;
+        pos.needsUpdate = true;
+        o.geometry.computeBoundingSphere(); o.geometry.computeBoundingBox();
+        const old = o.material.map, nt = temTexture(s3.canvas);
+        if (old !== nt) {
+          o.material.map = nt; o.material.needsUpdate = true;
+          if (old) { for (const [cv, t] of temTex) if (t === old) temTex.delete(cv); old.dispose(); }
+        }
+        sheetDone = true;
+      } else if (tp && o.isPoints && u.pick && u.pick.kind === "tem") {
+        const col = o.geometry.attributes.color;
+        if (!col || col.count !== tp.x.length) return;
+        for (let i = 0; i < tp.x.length; i++) {
+          c.set(tp.color[i]);
+          col.array[i * 3] = c.r; col.array[i * 3 + 1] = c.g; col.array[i * 3 + 2] = c.b;
+        }
+        col.needsUpdate = true;
+        dotsDone = true;
+      }
+    });
+    requestRender();
+    return (!s3 || sheetDone) && (!tp || dotsDone);
+  }
   /* v36: the TEM model's textures, keyed by the canvas they were made from,
      and the lidar ground at each grid node (computed once per result) */
   const temTex = new Map();
   let temGround = null;
+  /* v37: the ground plane beyond the survey — a cut deeper than its level
+     (the site's lowest ground less 25 ft) has to cut it too */
+  let envPlane = null;
   let texCache = {};
   let needsRender = true, rafId = 0, renderCount = 0, frameCount = 0;
   /* v13 §3.1 — the animated flow. One THREE.Points per visible `flow` feature;
@@ -190,6 +243,7 @@ SBMM.viewer3d = (function () {
     const pl = new THREE.Mesh(new THREE.PlaneGeometry(160000, 160000),
       mat || new THREE.MeshBasicMaterial({ color: LAKE, fog: true, toneMapped: false }));
     pl.userData.backdrop = !!mat;
+    envPlane = pl;
     pl.position.z = zr[0] - 25 - ZMID;      // pre-exaggeration; the group scales z
     /* after the terrain for the same reason as the sky: from any view above the
        ground the terrain is in front of it, so most of it is depth-rejected */
@@ -1964,17 +2018,7 @@ SBMM.viewer3d = (function () {
          from ONE spec the module memoises (SBMM.geophys.model3d) */
       const M = SBMM.geophys.model3d();
       const used = new Set();
-      const texOf = cv => {
-        let t = temTex.get(cv);
-        if (!t) {
-          t = new THREE.CanvasTexture(cv);
-          t.generateMipmaps = false; t.minFilter = THREE.LinearFilter;
-          t.anisotropy = Math.min(16, renderer.capabilities.getMaxAnisotropy());
-          temTex.set(cv, t);
-        }
-        used.add(cv);
-        return t;
-      };
+      const texOf = cv => { used.add(cv); return temTexture(cv); };
       if (M) {
         const Rr = SBMM.geophys.result();
         const { nx, ny, dx, x0, y0, mask } = Rr;
@@ -2005,14 +2049,16 @@ SBMM.viewer3d = (function () {
             const q = iy * nx + ix, b2 = q + 1, c2 = q + nx, d2 = c2 + 1;
             if (ok(q) && ok(b2) && ok(c2) && ok(d2)) ind.push(q, b2, d2, q, d2, c2);
           }
-          if (!ind.length) return;
+          if (!ind.length) return null;
           const g = new THREE.BufferGeometry();
           g.setAttribute("position", new THREE.BufferAttribute(pos, 3));
           g.setAttribute("uv", new THREE.BufferAttribute(uv, 2));
           g.setIndex(ind);
-          put(new THREE.Mesh(g, matOf(cv)), 2);
+          const m = new THREE.Mesh(g, matOf(cv));
+          put(m, 2);
+          return m;
         };
-        if (M.slice) sheet(M.slice.canvas, M.slice.depth);
+        if (M.slice) { const m = sheet(M.slice.canvas, M.slice.depth); if (m) m.userData.temSlice = true; }
         for (const st of M.stack) sheet(st.canvas, st.depth);
         /* a vertical curtain from the ground down to the deepest layer */
         for (const sc of M.sections) {
@@ -4715,7 +4761,7 @@ SBMM.viewer3d = (function () {
      and overlays rebuild long after the box was set: a draw walks the scene
      once and gives every new material the shared plane array. That walk costs
      well under a millisecond and runs only while the box is on. */
-  const CLIP = { on: false, fid: null, half: 40, side: "both", planes: null,
+  const CLIP = { on: false, src: null, fid: null, half: 40, side: "both", planes: null,
                  group: null, sig: "", poly: null, box: null, claimed: 0 };
   function clipPlanes() {
     if (!CLIP.planes) CLIP.planes = [0, 1, 2, 3].map(() => new THREE.Plane());
@@ -4851,6 +4897,14 @@ SBMM.viewer3d = (function () {
       for (const c of o.children) visit(c);
     };
     for (const c of scene.children) visit(c);
+    /* the ground plane sits under envGroup, which is exempt as a whole; a cut
+       deeper than the plane (the TEM excavation below ~150 ft, a deep fence)
+       would otherwise show the plane where its floor and walls are */
+    if (envPlane && envPlane.material) {
+      const m = envPlane.material;
+      if (on && m.clippingPlanes !== planes) { m.clippingPlanes = planes; m.clipIntersection = true; m.needsUpdate = true; }
+      else if (!on && m.clippingPlanes && m.clippingPlanes === CLIP.planes) { m.clippingPlanes = null; m.clipIntersection = false; m.needsUpdate = true; }
+    }
     return n;
   }
   /* called before every draw: keep the box in step with the fence, the relief
@@ -4877,6 +4931,8 @@ SBMM.viewer3d = (function () {
   } catch (e) { /* a preference is a convenience */ }
   function groundNow() {
     if (GROUND.mode !== "auto") return GROUND.mode;
+    /* v37: a hole needs ground around it to be a hole */
+    if (CLIP.on && CLIP.src === "pit") return "solid";
     return SBMM.geophys && SBMM.geophys.wantsSeeThrough && SBMM.geophys.wantsSeeThrough() ? "see" : "solid";
   }
   function groundBeforeDraw() {
@@ -4918,6 +4974,7 @@ SBMM.viewer3d = (function () {
 
   function clipBeforeDraw() {
     if (!CLIP.on) return;
+    if (CLIP.src === "pit") { pitBeforeDraw(); return; }
     const f = clipFence();
     if (!f) { clipOff("the fence was removed — clip box off"); return; }
     const sig = f.pts.map(p => p[0].toFixed(2) + "," + p[1].toFixed(2)).join(";")
@@ -5011,8 +5068,15 @@ SBMM.viewer3d = (function () {
     if (o.side && /^(both|left|right)$/.test(o.side)) CLIP.side = o.side;
     if (!open) await toggle();
     if (!open || !scene) return false;
-    if (CLIP.on && CLIP.fid !== f.id) clipClaim(false);
-    CLIP.on = true; CLIP.fid = f.id; CLIP.sig = "";
+    if (CLIP.on && (CLIP.src === "pit" || CLIP.fid !== f.id)) clipClaim(false);
+    const wasPit = CLIP.on && CLIP.src === "pit";
+    CLIP.on = true; CLIP.src = "fence"; CLIP.fid = f.id; CLIP.sig = "";
+    if (wasPit) {
+      PIT.spec = null;
+      for (const T of PIT.tex.values()) T.tx.dispose();
+      PIT.tex.clear();
+      pitEmit();
+    }
     if (!renderer.localClippingEnabled) renderer.localClippingEnabled = true;
     clipBeforeDraw();
     clipPaintChip(f);
@@ -5029,8 +5093,10 @@ SBMM.viewer3d = (function () {
   }
   function clipOff(msg) {
     if (!CLIP.on) return false;
-    CLIP.on = false;
+    const wasPit = CLIP.src === "pit";
+    CLIP.on = false; CLIP.src = null;
     clipClaim(false);
+    if (wasPit) pitEmit();
     if (CLIP.group && scene) { scene.remove(CLIP.group); disposeTree(CLIP.group); }
     CLIP.group = null; CLIP.sig = ""; CLIP.box = null; CLIP.claimed = 0;
     clipPaint2d(null);
@@ -5041,7 +5107,7 @@ SBMM.viewer3d = (function () {
   }
   function clipState() {
     const G = CLIP.box;
-    return { on: CLIP.on, fid: CLIP.fid, half: CLIP.half, side: CLIP.side,
+    return { on: CLIP.on, src: CLIP.src, fid: CLIP.fid, half: CLIP.half, side: CLIP.side,
              claimed: CLIP.claimed, planes: CLIP.planes ? CLIP.planes.length : 0,
              capVerts: CLIP.group ? CLIP.group.userData.clipVerts || 0 : 0,
              length: G ? +G.length.toFixed(1) : null, width: G ? +G.width.toFixed(1) : null,
@@ -5070,6 +5136,219 @@ SBMM.viewer3d = (function () {
     const dx = x - G.p0[0], dy = y - G.p0[1];
     const s = dx * G.ux + dy * G.uy, t = dx * G.nx + dy * G.ny;
     return s > G.s0 && s < G.s1 && t > G.t0 && t < G.t1;
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* v37 — the TEM excavation (the clip box's second source)              */
+  /* ------------------------------------------------------------------ */
+  /* The slice hangs under the ground; this cuts the ground open over it. A
+     rectangle (js/temws.js owns its centre and size) is clipped out of the
+     terrain, the drapes and the draped linework by the SAME four planes and
+     the same draw-time claim the fence clip box uses, so the two cannot both
+     be on and anything that already survives the trench survives the pit.
+
+       · THE CUT FOLLOWS THE SLICE. Its floor is the ground minus the slice
+         depth (the slice sheet's own rule), so the slice IS the floor where
+         the model reaches and soil is the floor where it does not; the walls
+         run from the analysis ground (SBMM.elev) down to the same depth.
+       · THE WALLS ARE THE MODEL. Each is textured with the interpolated
+         resistivity straight down its own line, over soil where there is no
+         model (SBMM.geophys.wallImage), painted over the WHOLE depth of
+         record and stretched to the cut's depth by its UVs — so a depth step
+         rebuilds a few hundred vertices and no texture. Textures are cached
+         by the wall's two ends and the model's look.
+       · THE SIDE FACING YOU IS OPEN. A pit 300 ft deep seen at 35° hides most
+         of its own floor behind its near rim, so with `open` the box runs on
+         towards the camera by 1.4x the depth (to the next 100 ft, so the
+         walls are not re-textured every step) on whichever of the four sides
+         faces it: a notch you look along into the cut. Its walls face
+         INWARD, so with a see-through ground the near one is culled.
+       · A HOLE NEEDS GROUND AROUND IT: while the pit is on, "auto" ground is
+         solid (groundNow), and anything under the ground that is not in the
+         cut stays hidden. An explicit see-through or hidden still wins.
+       · IT ASKS FOR NO FRAME. Everything is rebuilt inside clipBeforeDraw
+         when its signature moves, as the fence box is. */
+  const PIT = { spec: null, tex: new Map(), fwd: null, stat: null };
+  function pitEmit() { if (SBMM.events) SBMM.events.emit("pit", pitState()); }
+  function pitDepth() { return SBMM.geophys && SBMM.geophys.depth ? SBMM.geophys.depth() : 0; }
+  /* which of the four sides faces the camera */
+  function pitSide() {
+    if (!camera) return "s";
+    const f = PIT.fwd || (PIT.fwd = new THREE.Vector3());
+    camera.getWorldDirection(f);
+    const dx = -f.x, dy = -f.y;
+    return Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? "e" : "w") : (dy > 0 ? "n" : "s");
+  }
+  function pitGeom(sp) {
+    const d = pitDepth();
+    let s0 = -sp.w / 2, s1 = sp.w / 2, t0 = -sp.h / 2, t1 = sp.h / 2;
+    const E = sp.open && d > 2 ? Math.min(2400, Math.ceil((d * 1.4 + 120) / 100) * 100) : 0;
+    const side = E ? pitSide() : "";
+    if (side === "e") s1 += E; else if (side === "w") s0 -= E;
+    else if (side === "n") t1 += E; else if (side === "s") t0 -= E;
+    const at = (s, t) => [sp.cx + s, sp.cy + t];
+    return { p0: [sp.cx, sp.cy], ux: 1, uy: 0, nx: 0, ny: 1, s0, s1, t0, t1,
+             corners: [at(s0, t0), at(s1, t0), at(s1, t1), at(s0, t1)],
+             depth: d, side, ext: E, zBot: null, length: s1 - s0, width: t1 - t0 };
+  }
+  function pitTexture(A, B, pts, sig) {
+    const key = A[0].toFixed(1) + "," + A[1].toFixed(1) + ">" + B[0].toFixed(1) + "," + B[1].toFixed(1) + "|" + sig;
+    let T = PIT.tex.get(key);
+    if (!T) {
+      let cv = SBMM.geophys && SBMM.geophys.wallImage ? SBMM.geophys.wallImage(pts) : null;
+      if (!cv) {
+        cv = document.createElement("canvas"); cv.width = 2; cv.height = 64;
+        const x = cv.getContext("2d"), g = x.createLinearGradient(0, 0, 0, 64);
+        g.addColorStop(0, "#6A5440"); g.addColorStop(1, "#1C1611");
+        x.fillStyle = g; x.fillRect(0, 0, 2, 64);
+      }
+      const tx = new THREE.CanvasTexture(cv);
+      tx.generateMipmaps = false; tx.minFilter = THREE.LinearFilter;
+      tx.anisotropy = Math.min(16, renderer.capabilities.getMaxAnisotropy());
+      T = { cv, tx, key };
+      PIT.tex.set(key, T);
+    }
+    return T;
+  }
+  function pitBuildCaps(G) {
+    if (CLIP.group) { scene.remove(CLIP.group); disposeTree(CLIP.group); CLIP.group = null; }
+    const grp = new THREE.Group();
+    grp.userData.noClip = true;
+    grp.userData.pit = true;
+    const d = G.depth, DM = SBMM.geophys && SBMM.geophys.dmax ? SBMM.geophys.dmax() || 400 : 400;
+    const sig = SBMM.geophys && SBMM.geophys.sigKey ? SBMM.geophys.sigKey() : "";
+    const used = new Set(), rim = [], seam = [];
+    let wallVerts = 0, walls = 0, covered = 0;
+    const STEP = 8;
+    for (let e = 0; e < 4; e++) {
+      const A = G.corners[e], B = G.corners[(e + 1) % 4];
+      const n = Math.max(1, Math.ceil(dist2d(A, B) / STEP)), pts = [];
+      for (let i = 0; i <= n; i++) { const k = i / n; pts.push([A[0] + (B[0] - A[0]) * k, A[1] + (B[1] - A[1]) * k]); }
+      const T = pitTexture(A, B, pts, sig);
+      used.add(T.key);
+      covered = Math.max(covered, +(T.cv.dataset.covered || 0));
+      const pos = [], uv = [], idx = [];
+      let prev = -1, v = 0;
+      for (let i = 0; i <= n; i++) {
+        const [x, y] = pts[i], [z0] = SBMM.elev(x, y);
+        if (isNaN(z0)) { prev = -1; continue; }
+        const zt = z0 - ZMID;
+        pos.push(x - CX, y - CY, zt, x - CX, y - CY, zt - d);
+        uv.push(i / n, 1, i / n, 1 - Math.min(1, d / DM));
+        const cur = v; v += 2;
+        if (prev >= 0) {
+          /* corners run counter-clockwise, so the inside is LEFT of A→B and
+             this winding makes every wall face into the cut */
+          idx.push(prev, cur, prev + 1, prev + 1, cur, cur + 1);
+          rim.push(pos[prev * 3], pos[prev * 3 + 1], pos[prev * 3 + 2] + 0.4,
+                   pos[cur * 3], pos[cur * 3 + 1], pos[cur * 3 + 2] + 0.4);
+          seam.push(pos[prev * 3 + 3], pos[prev * 3 + 4], pos[prev * 3 + 5] + 0.4,
+                    pos[cur * 3 + 3], pos[cur * 3 + 4], pos[cur * 3 + 5] + 0.4);
+        }
+        prev = cur;
+      }
+      if (!idx.length || d <= 0.5) continue;
+      const g = new THREE.BufferGeometry();
+      g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+      g.setAttribute("uv", new THREE.Float32BufferAttribute(uv, 2));
+      g.setIndex(idx);
+      /* a shade darker than the slice, so wall and floor read as two faces
+         of one cut rather than one painted sheet */
+      const m = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ map: T.tx, color: 0xC4C4C4, side: THREE.FrontSide }));
+      m.userData.noClip = true; m.userData.pitWall = e;
+      m.renderOrder = 1;
+      grp.add(m);
+      walls++; wallVerts += pos.length / 3;
+    }
+    for (const [k, T] of PIT.tex) if (!used.has(k)) { T.tx.dispose(); PIT.tex.delete(k); }
+    /* the floor: soil at the ground minus the depth; the slice sheet lies on
+       it (pushed back a little, so the slice wins where both are drawn) */
+    const L = G.length, W = G.width, F = Math.max(8, Math.min(40, Math.max(L, W) / 64));
+    const nx = Math.max(2, Math.ceil(L / F) + 1), ny = Math.max(2, Math.ceil(W / F) + 1);
+    const fp = new Float32Array(nx * ny * 3), okv = new Uint8Array(nx * ny), fi = [];
+    for (let j = 0; j < ny; j++) for (let i = 0; i < nx; i++) {
+      const x = G.p0[0] + G.s0 + (G.s1 - G.s0) * i / (nx - 1), y = G.p0[1] + G.t0 + (G.t1 - G.t0) * j / (ny - 1);
+      const [z0] = SBMM.elev(x, y), k = j * nx + i;
+      okv[k] = isNaN(z0) ? 0 : 1;
+      fp[k * 3] = x - CX; fp[k * 3 + 1] = y - CY; fp[k * 3 + 2] = (isNaN(z0) ? ZMID : z0) - d - ZMID - 0.3;
+    }
+    for (let j = 0; j < ny - 1; j++) for (let i = 0; i < nx - 1; i++) {
+      const a = j * nx + i, b = a + 1, c2 = a + nx, d2 = c2 + 1;
+      if (okv[a] && okv[b] && okv[c2] && okv[d2]) fi.push(a, b, d2, a, d2, c2);
+    }
+    if (fi.length) {
+      const fg = new THREE.BufferGeometry();
+      fg.setAttribute("position", new THREE.BufferAttribute(fp, 3));
+      fg.setIndex(fi);
+      const floor = new THREE.Mesh(fg, new THREE.MeshBasicMaterial({ color: 0x2A221B, side: THREE.DoubleSide,
+        polygonOffset: true, polygonOffsetFactor: 2, polygonOffsetUnits: 4 }));
+      floor.userData.noClip = true; floor.userData.pitFloor = true;
+      floor.renderOrder = 0;
+      grp.add(floor);
+    }
+    /* the rim where the cut meets the ground, and the seam where the walls
+       meet the floor */
+    for (const [arr, col] of [[rim, 0xE2BA14], [seam, 0xF6E7B8]]) {
+      if (!arr.length || (arr === seam && d <= 0.5)) continue;
+      const lg = new THREE.BufferGeometry();
+      lg.setAttribute("position", new THREE.Float32BufferAttribute(arr, 3));
+      const gl = new THREE.LineSegments(lg, new THREE.LineBasicMaterial({ color: col }));
+      gl.userData.noClip = true;
+      grp.add(gl);
+    }
+    grp.scale.z = exag();
+    grp.userData.clipVerts = wallVerts;
+    PIT.stat = { walls, wallVerts, floorCells: fi.length / 6, textures: PIT.tex.size, covered: +covered.toFixed(2) };
+    scene.add(grp);
+    CLIP.group = grp;
+  }
+  function pitBeforeDraw() {
+    const sp = PIT.spec;
+    if (!sp) { clipOff(); return; }
+    const G = pitGeom(sp);
+    const sig = [sp.cx, sp.cy, sp.w, sp.h, G.side, G.ext, G.depth,
+                 SBMM.geophys && SBMM.geophys.sigKey ? SBMM.geophys.sigKey() : "", CX, CY].join("|");
+    if (sig !== CLIP.sig || !CLIP.group || CLIP.group.parent !== scene) {
+      CLIP.sig = sig;
+      CLIP.box = G;
+      clipSetPlanes(G);
+      pitBuildCaps(G);
+      clipPaint2d(G);
+      pitEmit();
+    }
+    CLIP.group.scale.z = exag();
+    CLIP.claimed = clipClaim(true);
+  }
+  /* SBMM.viewer3d.setPit({cx, cy, w, h, open}) | setPit(null) */
+  function setPit(spec) {
+    if (!spec) {
+      PIT.spec = null;
+      if (CLIP.on && CLIP.src === "pit") clipOff();
+      for (const T of PIT.tex.values()) T.tx.dispose();
+      PIT.tex.clear();
+      return false;
+    }
+    const cl = (v, lo, hi, dflt) => { v = +v; return isFinite(v) ? Math.max(lo, Math.min(hi, v)) : dflt; };
+    const w = cl(spec.w, 60, 4000, 600);
+    PIT.spec = { cx: +spec.cx, cy: +spec.cy, w, h: cl(spec.h, 60, 4000, w), open: spec.open !== false };
+    if (!isFinite(PIT.spec.cx) || !isFinite(PIT.spec.cy)) { PIT.spec = null; return false; }
+    if (!open || !scene) return false;          // js/temws.js re-applies it when 3D opens
+    if (CLIP.on && CLIP.src === "fence") {
+      clipClaim(false);
+      const el = $("v3dClip"); if (el) el.hidden = true;
+    }
+    CLIP.on = true; CLIP.src = "pit"; CLIP.fid = null; CLIP.sig = "";
+    if (!renderer.localClippingEnabled) renderer.localClippingEnabled = true;
+    requestRender();
+    return true;
+  }
+  function pitState() {
+    const on = CLIP.on && CLIP.src === "pit", G = on ? CLIP.box : null, sp = PIT.spec;
+    return { on, spec: sp ? Object.assign({}, sp) : null,
+             depth: G ? G.depth : null, side: G ? G.side : null, ext: G ? G.ext : null,
+             length: G ? +G.length.toFixed(1) : null, width: G ? +G.width.toFixed(1) : null,
+             corners: G ? G.corners.map(c => c.map(v => +v.toFixed(1))) : null,
+             ground: groundNow(), stat: on && PIT.stat ? Object.assign({}, PIT.stat) : null };
   }
 
   /* v26 — "fly the site": one slow orbit of the mine area, from the welcome
@@ -5183,11 +5462,30 @@ SBMM.viewer3d = (function () {
     toggle, openAt, flyTo, isOpen: () => open, updateSketch, stats, resize, cameraWorld, diag,
     flyAround, stopFlyAround: () => stopTour(), flyingAround: () => !!tour,
     clipBox, clipOff: () => clipOff(), clipState, clipContains, clipProbe,
+    setPit, pitState, temDepth,
+    /* v37: what the depth fast path and the cut actually drew — the slice
+       sheet's height and texture against the floor's, for the harness */
+    temProbe() {
+      const out = { slices: 0, sliceZ: null, sliceVisible: null, floorZ: null, texW: null };
+      const zr = (a) => { let lo = Infinity, hi = -Infinity; for (let i = 2; i < a.length; i += 3) { const v = a[i]; if (v < lo) lo = v; if (v > hi) hi = v; } return [+(lo + ZMID).toFixed(1), +(hi + ZMID).toFixed(1)]; };
+      if (overlayGroup) overlayGroup.traverse(o => {
+        if (!o.userData.temSlice) return;
+        out.slices++; out.sliceZ = zr(o.geometry.attributes.position.array);
+        out.sliceVisible = o.visible && (!o.parent || o.parent.visible);
+        out.texW = o.material.map && o.material.map.image ? o.material.map.image.width : null;
+        out.opacity = o.material.opacity; out.transparent = o.material.transparent;
+      });
+      if (CLIP.group) CLIP.group.traverse(o => { if (o.userData.pitFloor) out.floorZ = zr(o.geometry.attributes.position.array); });
+      return out;
+    },
     setGround, ground: () => GROUND.mode, groundNow,
     bookmarks, saveBookmark, goBookmark, removeBookmark, wireBookmarks,
     toggleFly, isFly: () => !!(nav && nav.mode() === "fly"),
     navMode: () => (nav ? nav.mode() : null),
     preset, frame: frameSelectionOrSite, frameBox, northUp: () => nav && nav.northUp(),
+    /* v37: orbit to a bearing (theta, the camera's bearing FROM the target)
+       and a polar angle (phi, from straight down), keeping target and range */
+    orbitTo: (theta, phi) => { if (nav) nav.place(nav.st.targetDst.clone(), nav.st.dst.r, theta, phi); },
     refreshOverlays: () => { if (open) rebuildOverlays(); },
     refreshIsopach: () => { if (open) refreshDrapes(); },
     refreshDrapes: () => { if (open) refreshDrapes(); },

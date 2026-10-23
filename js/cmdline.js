@@ -244,6 +244,16 @@ SBMM.cmd = (function () {
         const d = parseFloat(String(v || "").trim());
         SBMM.geophys.open(isFinite(d) ? d : null);
       } },
+    /* v37: the TEM workspace — the model in 3D with the ground cut open to
+       the slice, every TEM control in one panel */
+    { n: "TEMWS", a: ["TEMVIEW", "GEOPHYSICS"],
+      d: "TEM workspace — the resistivity model in 3D, the ground cut open to the slice depth",
+      arg: "depth below ground, ft",
+      f: v => {
+        if (!SBMM.temws) { toast("this build has no TEM survey"); return; }
+        const d = parseFloat(String(v || "").trim());
+        SBMM.temws.open({ depth: isFinite(d) ? d : null });
+      } },
     { n: "TEMCAL", a: ["TEMBORINGS"],
       d: "TEM resistivity against the 2025 borings' logged classes, in the log window",
       arg: "boring (e.g. SB-9)",

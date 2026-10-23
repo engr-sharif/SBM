@@ -12,6 +12,9 @@
      tem_voxels.png     the most conductive quarter of the model as voxels
      tem_fence.png      a fence through three borings with the model behind it
      tem_borings.png    the log window's Geophysics tab: a hole and the table
+     tem_workspace.png  v37: Data ▾ → TEM geophysics — the panel and the ground
+                        cut open to the slice at 60 ft
+     tem_cut_deep.png   the same cut at 250 ft, from lower down
 
    Not pass-fail — look at them. It prints what SBMM.geophys said at each shot,
    so a wrong number is visible without opening the picture. */
@@ -169,6 +172,20 @@ const tb = await page.evaluate(() => {
 await page.waitForTimeout(800);
 console.log("borings:", JSON.stringify(tb));
 await page.screenshot({ path: resolve(OUT, "tem_borings.png") });
+
+/* v37: the workspace, opened the way the engineer opens it */
+await page.evaluate(() => { if (SBMM.borewin && SBMM.borewin.close) SBMM.borewin.close(); });
+await page.click("#siteMenuBtn"); await page.waitForTimeout(250);
+await page.click("#temMenuBtn");
+await page.waitForFunction(() => SBMM.temws.isOpen() && SBMM.viewer3d.isOpen()
+  && document.getElementById("v3dStatus").textContent === "", null, { timeout: 180000 });
+for (const [d, cam, name] of [[60, null, "tem_workspace"], [250, [-2.36, 1.22], "tem_cut_deep"]]) {
+  await page.evaluate(([d, cam]) => { SBMM.geophys.apply("depth", d); if (cam) SBMM.viewer3d.orbitTo(cam[0], cam[1]); }, [d, cam]);
+  await kick(); await page.waitForTimeout(8000);
+  console.log(name + ":", JSON.stringify(await page.evaluate(() => SBMM.viewer3d.pitState())));
+  await page.screenshot({ path: resolve(OUT, name + ".png") });
+}
+await page.evaluate(() => SBMM.temws.close());
 
 console.log(errs.length ? "page errors: " + errs.join(" | ") : "no page errors");
 await browser.close();

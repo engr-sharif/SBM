@@ -88,6 +88,7 @@ window.SBMM_BUILD="full";
   <symbol id="i-redo" viewBox="0 0 16 16"><path d="M13.6 7.2H6.4a3.6 3.6 0 0 0 0 7.2h3.2M13.6 7.2l-3-3M13.6 7.2l-3 3"/></symbol>
   <symbol id="i-search" viewBox="0 0 16 16"><circle cx="7" cy="7" r="4.6"/><path d="M10.4 10.4 14 14"/></symbol>
   <symbol id="i-doc" viewBox="0 0 16 16"><path d="M3.4 1.8h6l3.2 3.2v9.2H3.4z"/><path d="M9.4 1.8V5h3.2M5.6 8.4h4.8M5.6 11h4.8"/></symbol>
+  <symbol id="i-core" viewBox="0 0 16 16"><path d="M5.2 1.8h5.6v12.4H5.2z"/><path d="M5.2 5h5.6M5.2 8.4h5.6M5.2 11.2h5.6M2 3.4h1.6M2 8.4h1.6M12.4 6.2H14"/></symbol>
   <symbol id="i-heat" viewBox="0 0 16 16"><path d="M1.8 12.2c1.8-4 3.6-5.4 5.4-4.2s3.6.4 5.4-3.6"/><path d="M1.8 14.2h12.4M1.8 2.2v12"/></symbol>
   <symbol id="i-drop" viewBox="0 0 16 16"><path d="M8 1.6C5.4 4.6 3.4 7.3 3.4 9.6a4.6 4.6 0 0 0 9.2 0c0-2.3-2-5-4.6-8z"/><path d="M6 9.9a2 2 0 0 0 2 2"/></symbol>
 </defs></svg>
@@ -164,6 +165,7 @@ window.SBMM_BUILD="full";
      js/sheetcards.js and js/map.js still wire them by id. -->
 <div id="siteMenu" class="menu tmenu" role="menu">
   <button class="toolbtn" id="logsMenuBtn" title="Boring logs — the 44 holes of the 2025 investigation (LOGWIN)"><svg class="ic16"><use href="#i-list"/></svg><span class="tlbl">Boring logs</span></button>
+  <button class="toolbtn" id="temMenuBtn" title="TEM geophysics — the 2026 resistivity model in 3D with the ground cut open (TEMWS)"><svg class="ic16"><use href="#i-core"/></svg><span class="tlbl">TEM geophysics</span></button>
   <button class="toolbtn" id="fenceMenuBtn" title="Fence diagram — a section through the borings along a line (FENCE)"><svg class="ic16"><use href="#i-section"/></svg><span class="tlbl">Fence diagram</span></button>
   <button class="toolbtn" id="sheetsTopBtn" title="Sheets — open any of the 20 design drawings (SHEETS)"><svg class="ic16"><use href="#i-doc"/></svg><span class="tlbl">Sheets</span></button>
   <button class="toolbtn" id="tableBtn" title="Sample results table [T]"><svg class="ic16"><use href="#i-flask"/></svg><span class="tlbl">Samples table</span> <kbd>T</kbd></button>
@@ -1260,6 +1262,9 @@ window.SBMM_HEAVY = [
 <script src="js/survey.js"></script>
 <script src="js/siteareas.js"></script>
 <script src="js/geophys.js"></script>
+<!-- v37: the TEM workspace — Data ▾ → TEM geophysics; after js/geophys.js,
+     whose one setter it shares with the results card -->
+<script src="js/temws.js"></script>
 <script src="js/cadnative.js"></script>
 <script src="js/sheets.js"></script>
 <script src="js/datasets.js"></script>

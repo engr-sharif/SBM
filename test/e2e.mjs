@@ -6647,6 +6647,148 @@ await page.evaluate(() => {
 });
 });
 
+await block("9f11. the TEM workspace and the excavation (v37)", async () => {
+/* v37 — Data ▾ → TEM geophysics: the workspace panel where the right dock
+   was, the 3D view with the ground CUT OPEN down to the slice depth, the
+   depth fast path, the core, and closing it putting everything back */
+const w0 = await page.evaluate(() => ({ v3d: SBMM.viewer3d.isOpen(), lcol: document.body.classList.contains("lcol"),
+  jobs: SBMM.compute.stats.workerJobs + SBMM.compute.stats.syncJobs }));
+await page.click("#siteMenuBtn");
+await page.waitForTimeout(250);
+await page.click("#temMenuBtn");
+await page.waitForFunction(() => SBMM.temws.isOpen() && SBMM.viewer3d.isOpen()
+  && document.getElementById("v3dStatus").textContent === "", null, { timeout: 180000 });
+await page.evaluate(() => SBMM.geophys.apply("depth", 60));
+await page.waitForFunction(() => { const p = SBMM.viewer3d.pitState(); return p.on && p.depth === 60 && p.stat && p.stat.walls === 4; },
+  null, { timeout: 60000 });
+const w1 = await page.evaluate(() => {
+  const P = SBMM.viewer3d.pitState(), C = SBMM.viewer3d.clipState(), pr = SBMM.viewer3d.clipProbe();
+  const el = document.getElementById("temWs"), rd = document.getElementById("rightdock");
+  const fr = SBMM.shell.frame(), r = el.getBoundingClientRect();
+  return { ws: document.body.classList.contains("temws"), panelW: el.offsetWidth, rightGone: getComputedStyle(rd).display === "none",
+           lcol: document.body.classList.contains("lcol"), frameClear: fr.x + fr.w <= r.left + 1,
+           src: C.src, terrain: pr.terrain, clipped: pr.terrainClipped, ground: P.ground, stat: P.stat,
+           ext: P.ext, side: P.side, length: P.length, width: P.width, spec: P.spec,
+           slice: SBMM.layerState.isOn("invest", "tem_slice"), tp: SBMM.viewer3d.temProbe(),
+           text: el.textContent, core: el.querySelector(".twscore").dataset };
+});
+console.log("TEM workspace:", JSON.stringify(Object.assign({}, w1, { text: w1.text.length })));
+if (!w1.ws || !(w1.panelW > 300) || !w1.rightGone || !w1.lcol || !w1.frameClear)
+  { console.log("FAIL: the TEM workspace did not take the right dock's place", w1); process.exit(1); }
+if (w1.src !== "pit" || !(w1.terrain > 0) || w1.clipped !== w1.terrain || w1.ground !== "solid")
+  { console.log("FAIL: the excavation did not cut the ground (or left it see-through)", w1); process.exit(1); }
+if (!w1.stat || w1.stat.walls !== 4 || !(w1.stat.floorCells > 100) || !(w1.stat.covered > 0.3))
+  { console.log("FAIL: the excavation has no painted walls or floor", w1.stat); process.exit(1); }
+if (!w1.slice || w1.tp.slices !== 1) { console.log("FAIL: the slice is not the floor of the cut", w1.tp); process.exit(1); }
+if (!(w1.ext >= 200) || !/^[nsew]$/.test(w1.side) || Math.max(w1.length, w1.width) !== w1.spec.w + w1.ext)
+  { console.log("FAIL: the cut is not open toward the view", w1); process.exit(1); }
+if (+w1.core.depth !== 60 || !(+w1.core.cells > 100)) { console.log("FAIL: the core does not show the model at the cut's centre", w1.core); process.exit(1); }
+if (/\b(click|drag|use the|you can|to see|hover)\b/i.test(w1.text)) { console.log("FAIL: the workspace panel carries an instruction", w1.text); process.exit(1); }
+
+/* a depth step moves the slice sheet IN PLACE: no job, no full rebuild, and
+   the cut follows */
+const w2 = await page.evaluate(async () => {
+  const wait = ms => new Promise(r => setTimeout(r, ms));
+  const z0 = SBMM.viewer3d.temProbe().sliceZ, fs0 = SBMM.viewer3d.frameStats();
+  const jobs0 = SBMM.compute.stats.workerJobs + SBMM.compute.stats.syncJobs;
+  SBMM.geophys.apply("depth", 120);
+  await wait(900);
+  const z1 = SBMM.viewer3d.temProbe().sliceZ, fs1 = SBMM.viewer3d.frameStats();
+  SBMM.viewer3d.requestRender(); await wait(1200);
+  return { dz: +(z0[0] - z1[0]).toFixed(2), full: fs1.overlayFull - fs0.overlayFull,
+           jobs: SBMM.compute.stats.workerJobs + SBMM.compute.stats.syncJobs - jobs0, pit: SBMM.viewer3d.pitState().depth,
+           core: +document.querySelector("#temWs .twscore").dataset.depth,
+           big: document.querySelector('#temWs [data-o="depth"]').textContent };
+});
+console.log("TEM depth step:", JSON.stringify(w2));
+if (Math.abs(w2.dz - 60) > 0.01 || w2.full !== 0 || w2.jobs !== 0) { console.log("FAIL: a depth step was not the fast path", w2); process.exit(1); }
+if (w2.pit !== 120 || w2.core !== 120 || w2.big !== "120") { console.log("FAIL: the cut or the panel did not follow the depth", w2); process.exit(1); }
+
+/* the panel's own controls: the open side off, a size, a layer step, the core */
+await page.click('#temWs [data-p="open"]');
+await page.selectOption('#temWs [data-k="size"]', "400");
+await page.waitForFunction(() => { const p = SBMM.viewer3d.pitState(); return p.on && p.ext === 0 && p.length === 400 && p.width === 400; },
+  null, { timeout: 30000 });
+const L0 = await page.evaluate(() => SBMM.geophys.layerInfo(SBMM.geophys.depth()).l);
+await page.click('#temWs [data-a="down"]');
+const L1 = await page.evaluate(() => SBMM.geophys.layerInfo(SBMM.geophys.depth()).l);
+const cb = await page.$("#temWs .twscore"), cbb = await cb.boundingBox();
+await page.mouse.move(cbb.x + cbb.width / 2, cbb.y + cbb.height * 0.8);
+await page.mouse.down(); await page.mouse.up();
+const dCore = await page.evaluate(() => ({ d: SBMM.geophys.depth(), dm: SBMM.geophys.dmax() }));
+const expect = (0.8 * 300 - 14) / (300 - 24) * dCore.dm;
+console.log("TEM panel controls:", JSON.stringify({ L0, L1, dCore, expect: Math.round(expect) }));
+if (L1 !== L0 + 1) { console.log("FAIL: the layer step did not move down one layer", L0, L1); process.exit(1); }
+if (Math.abs(dCore.d - expect) > 6) { console.log("FAIL: a press on the core did not set the depth under it", dCore, expect); process.exit(1); }
+await page.click('#temWs [data-p="open"]');
+
+/* the card shows what the workspace moved, and the descent plays and stops */
+const w3 = await page.evaluate(async () => {
+  const wait = ms => new Promise(r => setTimeout(r, ms));
+  await SBMM.geophys.open();
+  SBMM.temws.stepLayer(-1);
+  await wait(300);
+  const card = SBMM.geophys.card(), inp = card && card.querySelector('[data-tem="depth"]');
+  const out = { cardDepth: inp ? +inp.value : null, depth: SBMM.geophys.depth() };
+  const d0 = SBMM.geophys.depth();
+  document.querySelector('#temWs [data-a="play"]').click();
+  await wait(1200);
+  out.played = SBMM.geophys.depth() - d0; out.playing = SBMM.temws.state().playing;
+  document.querySelector('#temWs [data-a="play"]').click();
+  out.stopped = !SBMM.temws.state().playing;
+  return out;
+});
+console.log("TEM card sync + descent:", JSON.stringify(w3));
+if (w3.cardDepth !== w3.depth) { console.log("FAIL: the card did not follow the workspace's depth", w3); process.exit(1); }
+if (!(w3.played > 0) || !w3.playing || !w3.stopped) { console.log("FAIL: the descent did not play and stop", w3); process.exit(1); }
+
+/* block 9e's contract holds with the cut open: an idle view renders nothing */
+const w4 = await page.evaluate(async () => {
+  const wait = ms => new Promise(r => setTimeout(r, ms));
+  let prev = SBMM.viewer3d.stats().renderCount;
+  for (let i = 0; i < 40; i++) { await wait(1000); const n = SBMM.viewer3d.stats().renderCount; if (n === prev) break; prev = n; }
+  const a = SBMM.viewer3d.stats().renderCount;
+  await wait(3000);
+  return { renders: SBMM.viewer3d.stats().renderCount - a };
+});
+console.log("TEM workspace idle:", JSON.stringify(w4));
+if (w4.renders > 1) { console.log("FAIL: the workspace keeps the 3D view rendering when idle", w4); process.exit(1); }
+
+/* closing puts everything back */
+await page.click('#temWs [data-a="close"]');
+const w5 = await page.evaluate(() => ({ ws: document.body.classList.contains("temws"), clip: SBMM.viewer3d.clipState().on,
+  rd: getComputedStyle(document.getElementById("rightdock")).display, lcol: document.body.classList.contains("lcol"),
+  v3d: SBMM.viewer3d.isOpen(), ground: SBMM.viewer3d.groundNow ? SBMM.viewer3d.groundNow() : null }));
+console.log("TEM workspace closed:", JSON.stringify(w5), "before:", JSON.stringify(w0));
+if (w5.ws || w5.clip || w5.rd === "none" || w5.lcol !== w0.lcol || w5.v3d !== w0.v3d)
+  { console.log("FAIL: closing the TEM workspace did not put the app back", w5, w0); process.exit(1); }
+
+/* TEMWS with a depth, and without the payload a toast */
+const w6 = await page.evaluate(async () => {
+  SBMM.cmd.run("TEMWS 45");
+  for (let i = 0; i < 100 && !SBMM.temws.isOpen(); i++) await new Promise(r => setTimeout(r, 100));
+  const out = { open: SBMM.temws.isOpen(), depth: SBMM.geophys.depth() };
+  SBMM.temws.close();
+  const keep = SBMM_DATA.tem2026; delete SBMM_DATA.tem2026;
+  let t = "", err = null;
+  try { await SBMM.temws.open(); t = (document.getElementById("toast") || {}).textContent || ""; } catch (e) { err = String(e); }
+  SBMM_DATA.tem2026 = keep;
+  out.toast = t; out.err = err; out.stillShut = !SBMM.temws.isOpen();
+  return out;
+});
+console.log("TEMWS:", JSON.stringify(w6));
+if (!w6.open || w6.depth !== 45) { console.log("FAIL: TEMWS 45 did not open the workspace at 45 ft", w6); process.exit(1); }
+if (w6.err || !/not in this build/.test(w6.toast) || !w6.stillShut) { console.log("FAIL: the workspace did not refuse with a toast without its payload", w6); process.exit(1); }
+
+await page.evaluate(() => {
+  SBMM.geophys.apply("depth", 30);
+  SBMM.layerState.set("invest", "tem_slice", { on: false });
+  SBMM.layerState.set("invest", "tem_soundings", { on: false });
+  const c = SBMM.geophys.card(); if (c && c.isConnected) c.remove();
+  if (SBMM.viewer3d.isOpen()) SBMM.viewer3d.toggle();
+});
+});
+
 await block("9x. drainage", async () => {
 /* 9x. drainage — the whole-site catchment map (v14, docs/V14_DRAINAGE_SPEC.md) */
 /* ==================================================================== */

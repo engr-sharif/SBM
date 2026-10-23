@@ -275,9 +275,11 @@ SBMM.geophys = (function () {
     return { canvas: cv, f, depth, up, W, H,
              bounds: [R.x0 - h, R.y0 - h, R.x0 + (nx - 1) * R.dx + h, R.y0 + (ny - 1) * R.dx + h] };
   }
+  const sliceKey = () => sigKey() + "|" + S.depth;
   function paintSlice() {
     if (!R) return null;
     slice = sliceAt(S.depth);
+    if (slice) slice.key = sliceKey();
     return slice;
   }
 
@@ -335,13 +337,26 @@ SBMM.geophys = (function () {
     if (paintRaf) return;
     paintRaf = requestAnimationFrame(() => { paintRaf = 0; paintNow(); });
   }
+  /* v37: while the 3D view covers the whole stage nobody can see the map's
+     slice, and re-encoding it as a PNG on every depth step is most of what a
+     step costs — so it waits for the map to show again */
+  let mapDirty = false;
+  const mapHidden = () => !!(SBMM.viewer3d && SBMM.viewer3d.isOpen && SBMM.viewer3d.isOpen())
+    && !document.body.classList.contains("v3dsplit");
   function paintNow() {
     recolourPoints();
+    if (R && on("tem_slice") && overlay && mapHidden()) {
+      mapDirty = true;
+      paintSectionLines();
+      refreshCard();
+      return;
+    }
+    mapDirty = false;
     if (!R || !on("tem_slice")) {
       if (overlay) { SBMM.map.removeLayer(overlay); overlay = null; }
       slice = null;
     } else {
-      const s = paintSlice();
+      const s = slice && slice.key === sliceKey() ? slice : paintSlice();
       if (s) {
         const b = s.bounds, url = s.canvas.toDataURL("image/png");
         const bb = [[b[1], b[0]], [b[3], b[2]]];
@@ -680,40 +695,16 @@ SBMM.geophys = (function () {
     card.appendChild(box);
     box.addEventListener("input", ev => {
       const t = ev.target, k = t.dataset.tem;
-      if (k === "ewI" || k === "nsI" || k === "voxLo" || k === "voxHi") {
-        S[k] = +t.value;
-        const o = card.querySelector(`[data-tem-o="${k === "voxLo" || k === "voxHi" ? "vox" : k}"]`);
-        if (o) o.textContent = k === "ewI" ? `N ${fmt0(R.y0 + S.ewI * R.dx)}`
-          : k === "nsI" ? `E ${fmt0(R.x0 + S.nsI * R.dx)}` : voxWords();
-        save(); paintSectionLines(); soon3d();
-        return;
-      }
-      if (k !== "depth") return;
-      S.depth = +t.value;
-      save(); paint(); soon3d();
+      if (LIVE.has(k)) apply(k, +t.value);
     });
     box.addEventListener("change", ev => {
       const t = ev.target, k = t.dataset.tem;
-      if (!k || k === "depth" || k === "ewI" || k === "nsI" || k === "voxLo" || k === "voxHi") return;
+      if (!k || LIVE.has(k)) return;
       if (k === "ground") {
         if (SBMM.viewer3d && SBMM.viewer3d.setGround) SBMM.viewer3d.setGround(t.value);
         return;
       }
-      if (["stack", "stackStep", "ew", "ns", "vox", "cols", "colW"].includes(k)) {
-        S[k] = t.type === "checkbox" ? t.checked : +t.value;
-        save(); paintSectionLines(); soon3d();
-        return;
-      }
-      const rerun = ["method", "vgType", "cell", "blank", "per"].includes(k);
-      if (t.type === "checkbox") S[k] = t.checked;
-      else if (k === "nCont") { const n = +t.value; S.contours = n > 0; if (n > 0) S.nCont = n; }
-      else S[k] = typeof DEF[k] === "number" ? +t.value : t.value;
-      if (k === "prop") autoRange();
-      if (k === "prop" && S.prop === "sig" && S.method !== "krig") toast("kriging standard error comes with the kriging method only");
-      save();
-      if (rerun) {
-        run().then(res => { if (res) { if (S.prop === "sig") autoRange(); paintNow(); soon3d(); } });
-      } else { paintNow(); soon3d(); }
+      apply(k, t.type === "checkbox" ? t.checked : t.value);
     });
     const acts = document.createElement("div");
     acts.className = "pop-actions";
@@ -721,18 +712,127 @@ SBMM.geophys = (function () {
       + `<span class="minib" data-a="csv" title="The slice as CSV (easting, northing, value)">slice CSV</span>`
       + `<span class="minib" data-a="model" title="Every node and every layer as CSV">model CSV</span>`
       + `<span class="minib" data-a="fit" title="Colour range from 2–98 % of the soundings">fit range</span>`
-      + `<span class="minib" data-a="cal" title="Resistivity against the 2025 borings' logged classes (TEMCAL)">vs borings</span>`;
+      + `<span class="minib" data-a="cal" title="Resistivity against the 2025 borings' logged classes (TEMCAL)">vs borings</span>`
+      + (document.body.classList.contains("field") ? ""
+         : `<span class="minib" data-a="ws" title="The TEM workspace: the model in 3D with the ground cut open to the slice (TEMWS)">workspace</span>`);
     acts.addEventListener("click", ev => {
       const b = ev.target.closest("[data-a]"); if (!b) return;
-      const a = b.dataset.a;
-      if (a === "png") exportPng();
-      else if (a === "csv") download("SBMM_TEM_slice_" + S.depth + "ft.csv", new Blob([sliceCsv()], { type: "text/csv" }));
-      else if (a === "model") download("SBMM_TEM_model.csv", new Blob([modelCsv()], { type: "text/csv" }));
-      else if (a === "fit") { autoRange(); paintNow(); soon3d(); }
-      else if (a === "cal") openCalibration();
+      if (b.dataset.a === "ws") { if (SBMM.temws) SBMM.temws.open(); return; }
+      action(b.dataset.a);
     });
     card.appendChild(acts);
     SBMM.results.appendNote(card, NOTE);
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* v37 — the ONE way a setting moves. The card and the TEM workspace   */
+  /* (js/temws.js) both call it, and it emits `tem` so whichever of the  */
+  /* two did not move the control can show the new value.               */
+  /* ------------------------------------------------------------------ */
+  /* the sliders that act on every input event rather than on release */
+  const LIVE = new Set(["depth", "ewI", "nsI", "voxLo", "voxHi"]);
+  const RERUN = new Set(["method", "vgType", "cell", "blank", "per"]);
+  const DRAW3D = new Set(["stack", "stackStep", "ew", "ns", "vox", "cols", "colW", "ewI", "nsI", "voxLo", "voxHi"]);
+  function emit(k) { if (SBMM.events) SBMM.events.emit("tem", { key: k }); }
+  async function apply(k, v) {
+    if (!(k in DEF)) return;
+    if (k === "depth") {
+      const d = Math.max(0, Math.min(Math.floor(dmax()), Math.round(+v)));
+      if (!isFinite(d)) return;
+      S.depth = d; save(); paint();
+      /* the 3D view moves the slice sheet and recolours the dots in place;
+         a full overlay rebuild only when it could not */
+      const fast = SBMM.viewer3d && SBMM.viewer3d.temDepth && SBMM.viewer3d.temDepth();
+      if (!fast) soon3d();
+      emit(k);
+      return;
+    }
+    if (DRAW3D.has(k)) {
+      S[k] = typeof DEF[k] === "boolean" ? !!v : +v;
+      save(); paintSectionLines(); soon3d(); emit(k);
+      return;
+    }
+    if (typeof DEF[k] === "boolean") S[k] = !!v;
+    else if (k === "nCont") { const n = +v; S.contours = n > 0; if (n > 0) S.nCont = n; }
+    else S[k] = typeof DEF[k] === "number" ? +v : v;
+    if (k === "prop") autoRange();
+    if (k === "prop" && S.prop === "sig" && S.method !== "krig") toast("kriging standard error comes with the kriging method only");
+    save();
+    if (RERUN.has(k)) {
+      const res = await run();
+      if (res) { if (S.prop === "sig") autoRange(); paintNow(); soon3d(); }
+    } else { paintNow(); soon3d(); }
+    emit(k);
+  }
+  /* the card shows what the workspace moved */
+  function syncCard() {
+    if (!card || !card.isConnected) return;
+    for (const el of card.querySelectorAll("[data-tem]")) {
+      const k = el.dataset.tem;
+      if (k === "ground" || !(k in DEF) && k !== "nCont") continue;
+      if (el.type === "checkbox") el.checked = !!S[k];
+      else if (document.activeElement !== el) el.value = k === "nCont" ? (S.contours ? S.nCont : 0) : S[k];
+    }
+    if (R) {
+      const set = (k, t) => { const o = card.querySelector(`[data-tem-o="${k}"]`); if (o) o.textContent = t; };
+      set("ewI", `N ${fmt0(R.y0 + sectionIdx("ew") * R.dx)}`);
+      set("nsI", `E ${fmt0(R.x0 + sectionIdx("ns") * R.dx)}`);
+      set("vox", voxWords());
+    }
+    refreshCard();
+  }
+  /* the layer a depth sits in, and the model's depth of record */
+  function layerInfo(depth) {
+    const D = data(), l = layerAt(depth);
+    return { l, n: D.nl, top: D.top_ft[l], bot: D.bot_ft[l] };
+  }
+  /* a pit wall in the 3D view: the model down a line of points, depth 0 at
+     the top row to the deepest layer at the bottom, over a soil ground where
+     there is no model (js/viewer3d.js stretches it to the cut's own depth) */
+  function wallImage(pts, rows) {
+    const H = rows || 192, W = Math.max(2, Math.min(320, pts.length));
+    const cv = document.createElement("canvas"); cv.width = W; cv.height = H;
+    const x = cv.getContext("2d");
+    const g = x.createLinearGradient(0, 0, 0, H);
+    g.addColorStop(0, "#6A5440"); g.addColorStop(1, "#1C1611");
+    x.fillStyle = g; x.fillRect(0, 0, W, H);
+    let covered = 0;
+    if (R && data()) {
+      const arr = propArr(), DM = dmax();
+      const samp = [];
+      for (let c = 0; c < W; c++) samp.push(pts[Math.round(c / (W - 1) * (pts.length - 1))]);
+      for (const q of samp) if (isFinite(gridValue(arr, gxOf(q[0]), gyOf(q[1]), 5))) covered++;
+      if (covered && arr) {
+        const m = paintCanvas(W, H, (c, r) => {
+          const q = samp[c];
+          return toProp(gridValue(arr, gxOf(q[0]), gyOf(q[1]), (r + 0.5) / H * DM));
+        });
+        x.drawImage(m, 0, 0);
+      }
+      /* a faint rule every 50 ft, so a wall can be read for depth */
+      x.fillStyle = "rgba(255,255,255,.16)";
+      for (let d = 50; d < DM; d += 50) x.fillRect(0, Math.round(d / DM * H), W, 1);
+    }
+    cv.dataset.covered = String(covered / W);
+    return cv;
+  }
+  /* the model straight down one point: [{d, v, color}] every `step` ft */
+  function core(x, y, n) {
+    const out = [], DM = dmax(), N = n || 160;
+    if (!R) return out;
+    const arr = propArr();
+    for (let i = 0; i < N; i++) {
+      const d = (i + 0.5) / N * DM, v = toProp(gridValue(arr, gxOf(x), gyOf(y), d));
+      out.push({ d, v, color: S.prop === "sig" ? null : colorOf(v) });
+    }
+    return out;
+  }
+  function action(a) {
+    if (a === "png") exportPng();
+    else if (a === "csv") download("SBMM_TEM_slice_" + S.depth + "ft.csv", new Blob([sliceCsv()], { type: "text/csv" }));
+    else if (a === "model") download("SBMM_TEM_model.csv", new Blob([modelCsv()], { type: "text/csv" }));
+    else if (a === "fit") { autoRange(); paintNow(); soon3d(); emit("range"); }
+    else if (a === "cal") openCalibration();
   }
 
   /* ------------------------------------------------------------------ */
@@ -807,6 +907,10 @@ SBMM.geophys = (function () {
           await ensure("tem_slice");
         } });
     rows.tem_slice.row.title = "log10 resistivity interpolated layer by layer, sliced at a depth below ground";
+    if (SBMM.events) {
+      SBMM.events.on("tem", syncCard);
+      SBMM.events.on("view", () => { if (mapDirty && !mapHidden()) paintNow(); });
+    }
     built = true;
   }
 
@@ -853,7 +957,7 @@ SBMM.geophys = (function () {
   }
   function slice3d() {
     if (!R || !on("tem_slice")) return null;
-    if (!slice || slice.depth !== S.depth) paintSlice();
+    if (!slice || slice.key !== sliceKey()) paintSlice();
     if (!slice) return null;
     return { canvas: slice.canvas, nx: R.nx, ny: R.ny, dx: R.dx, x0: R.x0, y0: R.y0,
              mask: R.mask, depth: S.depth,
@@ -1198,6 +1302,12 @@ SBMM.geophys = (function () {
   return {
     build, open, run, data, hoverText, valueAt, points3d, slice3d, pick3d, snapItems,
     columns3d, pickColumn, wantsSeeThrough,
+    apply, action, wallImage, core, layerInfo, dmax: () => data() ? dmax() : 0,
+    depth: () => S.depth, colorFor: v => colorOf(v), ensure,
+    unit: () => PROP[S.prop].unit, propName: () => PROP[S.prop].name,
+    options: () => ({ cmap: Object.keys(CMAPS).map(k => [k, CMAP_NAME[k]]),
+                      method: Object.keys(METHOD_NAME).map(k => [k, METHOD_NAME[k]]),
+                      vgType: Object.keys(VG_NAME).map(k => [k, VG_NAME[k]]) }),
     model3d, sectionImage, sigKey, calibrate, calibCsv, holeProfileSvg, valueAtDepth, rhoAt,
     paintSectionLines, openCalibration,
     popupHtml, profileSvg, soundingCsv, sliceCsv, modelCsv, legendSvg,

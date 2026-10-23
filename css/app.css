@@ -3162,3 +3162,44 @@ body.field #ldLate{top:calc(var(--topH) + 10px)}
 .bwtem tr.temrow.cur td{background:var(--panel3);color:var(--ink)}
 .bwtem .temthr{margin:8px 0 4px;color:var(--ink)}
 .bwtem .temnote{color:var(--mut);font-size:10.5px}
+
+/* =====================================================================
+   v37 — the TEM workspace (js/temws.js). Its panel takes the right dock's
+   place while it is open: --dockR follows it, so the frame, the 3D toolbar,
+   the nav column and every fit keep clear of it exactly as they keep clear
+   of the dock. Desktop and tablet only — on a phone TEMWS opens the card.
+   ===================================================================== */
+body:not(.field){--twsW:348px}
+body.temws:not(.field){--dockR:calc(var(--gap) * 2 + var(--twsW))}
+body.temws:not(.field) #rightdock{display:none}
+#temWs{display:none}
+body.temws:not(.field) #temWs{display:flex;flex-direction:column;position:fixed;z-index:1100;
+  top:var(--fT);bottom:var(--botH);right:var(--gap);width:var(--twsW);border-radius:var(--r3);overflow:hidden}
+#temWs[hidden]{display:none !important}
+#temWs .twsh{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;
+  padding:10px 12px 8px;border-bottom:1px solid var(--line)}
+#temWs .twsh b{display:block;font-size:14px;color:var(--ink)}
+#temWs .twssub{display:block;font-size:11px;color:var(--mut);margin-top:2px}
+#temWs .twsx{background:none;border:0;color:var(--mut);font-size:20px;line-height:1;cursor:pointer;
+  padding:0 4px;border-radius:6px}
+#temWs .twsx:hover{color:var(--ink);background:var(--panel2)}
+#temWs .twsb{overflow-y:auto;flex:1;padding:8px 12px 12px;gap:10px}
+#temWs section{display:flex;flex-direction:column;gap:6px;padding-top:8px;border-top:1px solid var(--line)}
+#temWs section:first-child{border-top:0;padding-top:0}
+#temWs h4{margin:0;font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--mut);font-weight:600}
+#temWs .twsdepth{display:grid;grid-template-columns:60px 1fr;gap:4px 10px;align-items:start}
+#temWs .twscore{width:60px;height:300px;cursor:ns-resize;touch-action:none;border-radius:6px}
+#temWs .twscore:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+#temWs .twsread{display:flex;flex-direction:column;gap:5px;min-width:0}
+#temWs .twsdbig{font-size:28px;line-height:1;color:var(--ink);font-variant-numeric:tabular-nums}
+#temWs .twsdbig small{font-size:11px;color:var(--mut);font-family:inherit}
+#temWs .twsval{color:var(--ink);font-size:12px}
+#temWs .twsnear{font-size:11px}
+#temWs .twsread input[type=range]{width:100%;accent-color:var(--acc);margin-top:auto}
+#temWs .twsbtns{display:flex;flex-wrap:wrap;gap:5px}
+#temWs .twsbtns .minib.on{background:var(--accdim);border-color:var(--acc);color:var(--ink)}
+#temWs .twschks{display:grid;grid-template-columns:1fr 1fr;gap:4px 8px}
+#temWs .twsleg svg{max-width:100%;height:auto}
+#temWs .twscal{font-size:11.5px;line-height:1.5;color:var(--ink2)}
+#temWs .twsacts{flex-direction:row;flex-wrap:wrap;gap:5px}
+#temWs .mono[data-o="cut"],#temWs .mono[data-o="model"]{font-size:10.5px}
