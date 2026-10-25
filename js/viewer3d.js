@@ -2119,6 +2119,103 @@ SBMM.viewer3d = (function () {
           put(im, 1);
         }
       }
+      /* v38: the TEM interpretations (js/teminterp.js) — the base of the
+         waste as a surface below the ground, coloured by thickness; a stick
+         from the ground down to it at each proposed boring; the conductive
+         band as a flat sheet at its mid elevation, and the least-resistive
+         route across it. Below ground by construction, so noClip, like the
+         slice. */
+      const TI = SBMM.teminterp && SBMM.teminterp.scene3d ? SBMM.teminterp.scene3d() : null;
+      if (TI && TI.waste) {
+        const Wd = TI.waste, wnx = Wd.nx, wny = Wd.ny, n = wnx * wny, op = Wd.opacity;
+        const pos = new Float32Array(n * 3), col = new Float32Array(n * 3), ok = new Uint8Array(n);
+        for (let iy = 0; iy < wny; iy++) for (let ix = 0; ix < wnx; ix++) {
+          const id = iy * wnx + ix, x = Wd.x0 + ix * Wd.dx, y = Wd.y0 + iy * Wd.dx, d = Wd.depth[id];
+          const [zg] = SBMM.elev(x, y);
+          ok[id] = isFinite(d) && !isNaN(zg) ? 1 : 0;
+          pos[id * 3] = x - CX; pos[id * 3 + 1] = y - CY; pos[id * 3 + 2] = (ok[id] ? zg - d : ZMID) - ZMID;
+          col[id * 3] = Wd.color[id * 3]; col[id * 3 + 1] = Wd.color[id * 3 + 1]; col[id * 3 + 2] = Wd.color[id * 3 + 2];
+        }
+        const ind = [];
+        for (let iy = 0; iy < wny - 1; iy++) for (let ix = 0; ix < wnx - 1; ix++) {
+          const q = iy * wnx + ix, b2 = q + 1, c2 = q + wnx, d2 = c2 + 1;
+          if (ok[q] && ok[b2] && ok[c2] && ok[d2]) ind.push(q, b2, d2, q, d2, c2);
+        }
+        if (ind.length) {
+          const g = new THREE.BufferGeometry();
+          g.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+          g.setAttribute("color", new THREE.BufferAttribute(col, 3));
+          g.setIndex(ind);
+          g.computeVertexNormals();
+          const m = new THREE.Mesh(g, new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide,
+            transparent: op < 0.999, opacity: op, depthWrite: op >= 0.999 }));
+          m.renderOrder = 2; m.userData.noClip = true;
+          m.userData.pick = { kind: "teminterp", what: "waste" };
+          addG.add(tag(m, "invest", "tem_waste"));
+        }
+        if (Wd.targets && Wd.targets.length) {
+          const seg = [], dots = [];
+          for (const t of Wd.targets) {
+            const [zg] = SBMM.elev(t.x, t.y);
+            if (isNaN(zg)) continue;
+            seg.push(t.x - CX, t.y - CY, zg + 6 - ZMID, t.x - CX, t.y - CY, zg - t.depth - ZMID);
+            dots.push(t.x - CX, t.y - CY, zg + 6 - ZMID);
+          }
+          if (seg.length) {
+            const gs = new THREE.BufferGeometry();
+            gs.setAttribute("position", new THREE.Float32BufferAttribute(seg, 3));
+            const ls = new THREE.LineSegments(gs, new THREE.LineBasicMaterial({ color: 0xF2D04B }));
+            ls.renderOrder = 3; ls.userData.noClip = true;
+            addG.add(tag(ls, "invest", "tem_waste"));
+            const gd = new THREE.BufferGeometry();
+            gd.setAttribute("position", new THREE.Float32BufferAttribute(dots, 3));
+            const po = new THREE.Points(gd, dotMaterial({ size: 10, color: 0xF2D04B }));
+            po.userData.pick = { kind: "teminterp", what: "target" };
+            addG.add(tag(po, "invest", "tem_waste"));
+          }
+        }
+      }
+      if (TI && TI.seep) {
+        const Sd = TI.seep, snx = Sd.nx, sny = Sd.ny, n = snx * sny, op = Sd.opacity, zs = Sd.z - ZMID;
+        const pos = new Float32Array(n * 3), uv = new Float32Array(n * 2);
+        for (let iy = 0; iy < sny; iy++) for (let ix = 0; ix < snx; ix++) {
+          const id = iy * snx + ix;
+          pos[id * 3] = Sd.x0 + ix * Sd.dx - CX; pos[id * 3 + 1] = Sd.y0 + iy * Sd.dx - CY; pos[id * 3 + 2] = zs;
+          /* the canvas is a pixel run per NODE, so a node sits at its pixel's centre */
+          uv[id * 2] = (ix + 0.5) / snx; uv[id * 2 + 1] = (iy + 0.5) / sny;
+        }
+        const okS = id => isFinite(Sd.ok[id]);
+        const ind = [];
+        for (let iy = 0; iy < sny - 1; iy++) for (let ix = 0; ix < snx - 1; ix++) {
+          const q = iy * snx + ix, b2 = q + 1, c2 = q + snx, d2 = c2 + 1;
+          if (okS(q) && okS(b2) && okS(c2) && okS(d2)) ind.push(q, b2, d2, q, d2, c2);
+        }
+        if (ind.length) {
+          const g = new THREE.BufferGeometry();
+          g.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+          g.setAttribute("uv", new THREE.BufferAttribute(uv, 2));
+          g.setIndex(ind);
+          const m = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ map: texOf(Sd.canvas), side: THREE.DoubleSide,
+            transparent: true, opacity: op, depthWrite: false }));
+          m.renderOrder = 2; m.userData.noClip = true;
+          m.userData.pick = { kind: "teminterp", what: "seep" };
+          addG.add(tag(m, "invest", "tem_seep"));
+        }
+        /* the route is THE result, so it is a tube (a GL line is one pixel)
+           and it draws over the see-through ground rather than under it */
+        if (Sd.route && Sd.route.length > 1) {
+          const path = new THREE.CurvePath();
+          for (let i = 1; i < Sd.route.length; i++) {
+            const a = Sd.route[i - 1], b = Sd.route[i];
+            path.add(new THREE.LineCurve3(new THREE.Vector3(a[0] - CX, a[1] - CY, zs + 1), new THREE.Vector3(b[0] - CX, b[1] - CY, zs + 1)));
+          }
+          const tube = new THREE.Mesh(new THREE.TubeGeometry(path, Math.max(8, Sd.route.length * 3), 3.5, 6, false),
+            new THREE.MeshBasicMaterial({ color: 0xF2D04B, transparent: true, opacity: 0.95, depthTest: false }));
+          tube.renderOrder = 6; tube.userData.noClip = true;
+          tube.userData.pick = { kind: "teminterp", what: "route" };
+          addG.add(tag(tube, "invest", "tem_seep"));
+        }
+      }
       for (const [cv, t] of temTex) if (!used.has(cv)) { t.dispose(); temTex.delete(cv); }
     }
     /* the storm-drainage network (v12 §5.1): the conduits draped on the ground
@@ -4951,8 +5048,13 @@ SBMM.viewer3d = (function () {
   function groundBeforeDraw() {
     const a = GROUND_ALPHA[groundNow()];
     if (a === 1 && !GROUND.touched) return;
-    for (const t of terrainMeshes) {
-      const mat = t && t.mesh && t.mesh.material;
+    /* v38: the ground plane beyond the survey too. It sits at the site's
+       lowest ground less 25 ft, so anything under the ground deeper than that
+       (the conductive band below the impoundment, a deep slice) is BELOW it,
+       and a see-through terrain over an opaque plane still hid all of it */
+    const mats = terrainMeshes.map(t => t && t.mesh && t.mesh.material);
+    if (envPlane && envPlane.material) mats.push(envPlane.material);
+    for (const mat of mats) {
       if (!mat || Array.isArray(mat)) continue;
       const u = mat.uniforms && mat.uniforms.uOpacity;
       const o = mat.userData._g0;

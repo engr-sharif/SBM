@@ -5476,6 +5476,426 @@ var SBMM_COMPUTE = (function SBMMComputeModule() {
     };
   }
 
+  /* =====================================================================
+     v38 — TEM INTERPRETATIONS (js/teminterp.js): the base of the waste
+     from the borings and the TEM together, and the conductive ground
+     between the Herman impoundment and Clear Lake. Both read the `tem`
+     kernel's grid as it is (log10 Ω·m per layer, its blanking mask, its
+     ground) and add nothing to it.
+     ===================================================================== */
+
+  /* a node column's value at a depth: linear between layer mid-depths, the
+     model viewer's blend (js/geophys.js baseAt with blend on) */
+  function tiColVal(LG, N, id, mids, NL, d) {
+    if (d <= mids[0]) return LG[id];
+    if (d >= mids[NL - 1]) return LG[(NL - 1) * N + id];
+    var l = 0;
+    while (l < NL - 2 && d >= mids[l + 1]) l++;
+    var f = (d - mids[l]) / (mids[l + 1] - mids[l]);
+    return LG[l * N + id] * (1 - f) + LG[(l + 1) * N + id] * f;
+  }
+  /* the TEM's own reading of a base: the depth (within maxFt) of the
+     steepest DROP in log10 resistivity, measured over ±1 ft — resistive
+     waste over conductive native soil, which is what the 2025 borings say
+     this site is on balance (js/geophys.js calibrate). 0 when the column
+     never drops. */
+  function tiBreak(LG, N, id, mids, NL, maxFt) {
+    var best = 0, bd = 0;
+    for (var d = 1; d <= maxFt; d += 0.5) {
+      var g = tiColVal(LG, N, id, mids, NL, d - 1) - tiColVal(LG, N, id, mids, NL, d + 1);
+      if (g > best) { best = g; bd = d; }
+    }
+    return bd;
+  }
+  /* the same, at an arbitrary point: the column bilinear between the four
+     nodes around it, NaN-aware, NaN when the nearest node is blanked */
+  function tiBreakAt(job, x, y, mids, maxFt) {
+    var nx = job.nx, ny = job.ny, N = nx * ny, NL = job.nl, LG = job.log, M = job.mask;
+    var gx = (x - job.x0) / job.dx, gy = (y - job.y0) / job.dx;
+    if (gx < 0 || gy < 0 || gx > nx - 1 || gy > ny - 1) return NaN;
+    if (!M[Math.round(gy) * nx + Math.round(gx)]) return NaN;
+    var ix = Math.min(nx - 2, Math.floor(gx)), iy = Math.min(ny - 2, Math.floor(gy));
+    var fx = gx - ix, fy = gy - iy;
+    var ids = [iy * nx + ix, iy * nx + ix + 1, (iy + 1) * nx + ix, (iy + 1) * nx + ix + 1];
+    var ws = [(1 - fx) * (1 - fy), fx * (1 - fy), (1 - fx) * fy, fx * fy];
+    var col = new Float64Array(NL), l, k;
+    for (l = 0; l < NL; l++) {
+      var s = 0, sw = 0;
+      for (k = 0; k < 4; k++) if (M[ids[k]] && ws[k] > 0) {
+        var v = LG[l * N + ids[k]];
+        if (v === v) { s += v * ws[k]; sw += ws[k]; }
+      }
+      col[l] = sw > 0 ? s / sw : NaN;
+    }
+    return tiBreak(col, 1, 0, mids, NL, maxFt);
+  }
+  /* dense Gauss-Jordan inverse with partial pivoting; null when singular */
+  function tiInvert(A, n) {
+    var M = new Float64Array(n * 2 * n), r, c, k;
+    for (r = 0; r < n; r++) {
+      for (c = 0; c < n; c++) M[r * 2 * n + c] = A[r * n + c];
+      M[r * 2 * n + n + r] = 1;
+    }
+    for (c = 0; c < n; c++) {
+      var p = c, mx = Math.abs(M[c * 2 * n + c]);
+      for (r = c + 1; r < n; r++) { var a = Math.abs(M[r * 2 * n + c]); if (a > mx) { mx = a; p = r; } }
+      if (!(mx > 1e-10)) return null;
+      if (p !== c) for (k = 0; k < 2 * n; k++) { var t = M[c * 2 * n + k]; M[c * 2 * n + k] = M[p * 2 * n + k]; M[p * 2 * n + k] = t; }
+      var d = M[c * 2 * n + c];
+      for (k = 0; k < 2 * n; k++) M[c * 2 * n + k] /= d;
+      for (r = 0; r < n; r++) {
+        if (r === c) continue;
+        var f = M[r * 2 * n + c];
+        if (f === 0) continue;
+        for (k = 0; k < 2 * n; k++) M[r * 2 * n + k] -= f * M[c * 2 * n + k];
+      }
+    }
+    var out = new Float64Array(n * n);
+    for (r = 0; r < n; r++) for (c = 0; c < n; c++) out[r * n + c] = M[r * 2 * n + n + c];
+    return out;
+  }
+  /* kriging with a linear drift — ordinary kriging when the drift is the
+     constant alone, kriging with an external drift when it is (1, s). The
+     covariance is exponential with a nugget, C(0) = sill, so the predictor is
+     exact at a datum: with every hole in, it returns that hole's depth. */
+  function tiCov(h, sill, nug, range) { return h < 1e-9 ? sill : (sill - nug) * Math.exp(-3 * h / range); }
+  function tiSetup(P, nd, sill, nug, range) {
+    var n = P.length, K = n + nd, A = new Float64Array(K * K), i, j, a;
+    for (i = 0; i < n; i++) {
+      for (j = 0; j < n; j++) A[i * K + j] = tiCov(Math.hypot(P[i].x - P[j].x, P[i].y - P[j].y), sill, nug, range);
+      for (a = 0; a < nd; a++) {
+        var f = a === 0 ? 1 : P[i].s;
+        A[i * K + n + a] = f; A[(n + a) * K + i] = f;
+      }
+    }
+    var Ai = tiInvert(A, K);
+    return Ai ? { Ai: Ai, K: K, n: n, nd: nd, P: P, sill: sill, nug: nug, range: range, rhs: new Float64Array(K), w: new Float64Array(K) } : null;
+  }
+  function tiPredict(S, x, y, s) {
+    var K = S.K, n = S.n, rhs = S.rhs, w = S.w, Ai = S.Ai, r, c;
+    for (r = 0; r < n; r++) rhs[r] = tiCov(Math.hypot(S.P[r].x - x, S.P[r].y - y), S.sill, S.nug, S.range);
+    rhs[n] = 1;
+    if (S.nd > 1) rhs[n + 1] = s;
+    var z = 0, v = S.sill;
+    for (r = 0; r < K; r++) {
+      var a = 0;
+      for (c = 0; c < K; c++) a += Ai[r * K + c] * rhs[c];
+      w[r] = a;
+    }
+    for (r = 0; r < n; r++) z += w[r] * S.P[r].d;
+    for (r = 0; r < K; r++) v -= w[r] * rhs[r];
+    return [z, Math.sqrt(Math.max(0, v))];
+  }
+  function tiVar(a) {
+    var n = a.length, m = 0, i, s = 0;
+    for (i = 0; i < n; i++) m += a[i];
+    m /= n;
+    for (i = 0; i < n; i++) s += (a[i] - m) * (a[i] - m);
+    return s / n;
+  }
+  /* ordinary least squares d = a + b·s, and Pearson's r */
+  function tiOls(P) {
+    var n = P.length, mx = 0, my = 0, sxy = 0, sxx = 0, syy = 0, i;
+    for (i = 0; i < n; i++) { mx += P[i].s; my += P[i].d; }
+    mx /= n; my /= n;
+    for (i = 0; i < n; i++) {
+      sxy += (P[i].s - mx) * (P[i].d - my); sxx += (P[i].s - mx) * (P[i].s - mx); syy += (P[i].d - my) * (P[i].d - my);
+    }
+    var b = sxx > 0 ? sxy / sxx : 0;
+    return { a: my - b * mx, b: b, r: sxx > 0 && syy > 0 ? sxy / Math.sqrt(sxx * syy) : 0 };
+  }
+  /* leave-one-out over the holes inside the survey: each in turn is taken out
+     of the data and predicted from the rest (depth floored at 0, as the map
+     is). The variogram whose error is least is the one the map uses. */
+  function tiLoo(data, test, nd, sill, nug, range) {
+    var se = 0, n = 0, out = [];
+    for (var t = 0; t < test.length; t++) {
+      var rest = [];
+      for (var i = 0; i < data.length; i++) if (data[i] !== test[t]) rest.push(data[i]);
+      if (rest.length < nd + 2) return null;
+      var S = tiSetup(rest, nd, sill, nug, range);
+      if (!S) return null;
+      var z = Math.max(0, tiPredict(S, test[t].x, test[t].y, test[t].s)[0]);
+      out.push(z);
+      se += (z - test[t].d) * (z - test[t].d); n++;
+    }
+    return n ? { rmse: Math.sqrt(se / n), n: n, pred: out } : null;
+  }
+
+  function temWasteJob(job, onProgress) {
+    var t0 = Date.now(), prog = function (p) { if (onProgress) onProgress(p); };
+    var nx = job.nx | 0, ny = job.ny | 0, N = nx * ny, NL = job.nl | 0, dx = job.dx, M = job.mask, LG = job.log;
+    if (!(N > 0) || !(NL > 1) || !LG || LG.length !== N * NL || !M || M.length !== N) throw new Error("temwaste: the model grid does not match");
+    var mids = [], l, i, id;
+    for (l = 0; l < NL; l++) mids.push((job.top_ft[l] + job.bot_ft[l]) / 2);
+    var maxFt = job.breakFt > 0 ? job.breakFt : 60;
+    var ranges = job.ranges && job.ranges.length ? job.ranges : [150, 300, 600, 1200, 2400];
+    var nugs = job.nugs && job.nugs.length ? job.nugs : [0, 0.25, 0.5, 0.75];
+    /* the covariate at every node */
+    var cov = new Float32Array(N).fill(NaN);
+    for (id = 0; id < N; id++) if (M[id]) cov[id] = tiBreak(LG, N, id, mids, NL, maxFt);
+    prog(0.2);
+    /* the holes: every logged contact is data for the borings-only model; the
+       ones the TEM reaches are data for both, and they are the test set */
+    var all = [], inS = [], hs = job.holes || [];
+    for (i = 0; i < hs.length; i++) {
+      var h = hs[i];
+      if (!(h.d >= 0) || !isFinite(h.x) || !isFinite(h.y)) continue;
+      var s = tiBreakAt(job, h.x, h.y, mids, maxFt);
+      var rec = { id: h.id, x: h.x, y: h.y, d: h.d, s: isFinite(s) ? s : NaN, inSurvey: isFinite(s) };
+      all.push(rec);
+      if (rec.inSurvey) inS.push(rec);
+    }
+    if (inS.length < 4) throw new Error("temwaste: " + inS.length + " logged borings inside the survey — four are needed");
+    var models = {};
+    var fit = function (name, data, nd) {
+      var sill;
+      var ols = nd > 1 ? tiOls(data) : null;
+      if (ols) {
+        var res = [];
+        for (i = 0; i < data.length; i++) res.push(data[i].d - ols.a - ols.b * data[i].s);
+        sill = Math.max(1, tiVar(res));
+      } else {
+        var dd = [];
+        for (i = 0; i < data.length; i++) dd.push(data[i].d);
+        sill = Math.max(1, tiVar(dd));
+      }
+      var best = null;
+      for (var a = 0; a < ranges.length; a++) for (var b = 0; b < nugs.length; b++) {
+        var cv = tiLoo(data, inS, nd, sill, nugs[b] * sill, ranges[a]);
+        if (cv && (!best || cv.rmse < best.rmse - 1e-12)) best = { rmse: cv.rmse, n: cv.n, range: ranges[a], nugRatio: nugs[b], sill: sill, pred: cv.pred };
+      }
+      if (best) { best.nd = nd; best.data = data; if (ols) { best.a = ols.a; best.b = ols.b; best.r = ols.r; } }
+      models[name] = best;
+    };
+    fit("borings", all, 1);
+    prog(0.45);
+    fit("tem", inS, 2);
+    prog(0.7);
+    /* the plain average of the other holes — the floor any map must beat */
+    var se0 = 0;
+    for (i = 0; i < inS.length; i++) {
+      var sm = 0, sn = 0;
+      for (var j = 0; j < all.length; j++) if (all[j] !== inS[i]) { sm += all[j].d; sn++; }
+      se0 += Math.pow(sm / sn - inS[i].d, 2);
+    }
+    var meanRmse = Math.sqrt(se0 / inS.length);
+    var want = job.method === "borings" || job.method === "tem" ? job.method : "auto";
+    /* "auto" keeps the simpler map unless the TEM earns its place: it must cut
+       the cross-validated error by `gain` (a tenth by default), not merely
+       match it — a tie between two maps is a tie, not a finding */
+    var gain = job.gain >= 0 && job.gain < 1 ? +job.gain : 0.1;
+    var chosen = want !== "auto" ? want
+      : (models.tem && (!models.borings || models.tem.rmse <= models.borings.rmse * (1 - gain)) ? "tem" : "borings");
+    var B = models[chosen];
+    if (!B) throw new Error("temwaste: the " + chosen + " model could not be solved");
+    var S = tiSetup(B.data, B.nd, B.sill, B.nugRatio * B.sill, B.range);
+    if (!S) throw new Error("temwaste: the kriging system is singular");
+    var depth = new Float32Array(N).fill(NaN), se = new Float32Array(N).fill(NaN);
+    var vol = 0, area = 0, sum = 0, mx = 0, cells = 0;
+    for (var iy = 0; iy < ny; iy++) for (var ix = 0; ix < nx; ix++) {
+      id = iy * nx + ix;
+      if (!M[id]) continue;
+      var r = tiPredict(S, job.x0 + ix * dx, job.y0 + iy * dx, cov[id]);
+      var z = Math.max(0, r[0]);
+      depth[id] = z; se[id] = r[1];
+      cells++; sum += z; if (z > mx) mx = z;
+      vol += z * dx * dx;
+      if (z >= 1) area += dx * dx;
+    }
+    prog(0.92);
+    /* new borings where the map knows least: the largest standard error, then
+       the next largest no closer than `spacing` to any already chosen */
+    var nT = job.targets >= 0 ? job.targets | 0 : 5, sp = job.spacing > 0 ? job.spacing : 200, targets = [];
+    var taken = new Uint8Array(N);
+    for (var t = 0; t < nT; t++) {
+      var bi = -1, bv = -1;
+      for (id = 0; id < N; id++) if (M[id] && !taken[id] && se[id] > bv) { bv = se[id]; bi = id; }
+      if (bi < 0) break;
+      var tx = job.x0 + (bi % nx) * dx, ty = job.y0 + Math.floor(bi / nx) * dx;
+      targets.push({ x: tx, y: ty, depth: depth[bi], se: se[bi], s: cov[bi] });
+      var rr = Math.ceil(sp / dx);
+      for (var jy = Math.max(0, Math.floor(bi / nx) - rr); jy <= Math.min(ny - 1, Math.floor(bi / nx) + rr); jy++)
+        for (var jx = Math.max(0, (bi % nx) - rr); jx <= Math.min(nx - 1, (bi % nx) + rr); jx++)
+          if (Math.hypot((jx - bi % nx) * dx, (jy - Math.floor(bi / nx)) * dx) < sp) taken[jy * nx + jx] = 1;
+    }
+    var strip = function (m) {
+      if (!m) return null;
+      var o = { rmse: m.rmse, n: m.n, range: m.range, nugRatio: m.nugRatio, sill: m.sill, holes: m.data.length };
+      if (m.r != null) { o.r = m.r; o.a = m.a; o.b = m.b; }
+      return o;
+    };
+    var holesOut = [];
+    for (i = 0; i < all.length; i++) {
+      var hh = all[i], k = inS.indexOf(hh);
+      holesOut.push({ id: hh.id, x: hh.x, y: hh.y, d: hh.d, s: hh.inSurvey ? hh.s : null, inSurvey: hh.inSurvey,
+                      loo: k >= 0 ? B.pred[k] : null });
+    }
+    prog(1);
+    return {
+      result: {
+        nx: nx, ny: ny, dx: dx, x0: job.x0, y0: job.y0, depth: depth, se: se, cov: cov,
+        method: chosen, asked: want, breakFt: maxFt, gain: gain,
+        cv: { borings: strip(models.borings), tem: strip(models.tem), mean: { rmse: meanRmse, n: inS.length } },
+        holes: holesOut, cells: cells, volume_yd3: vol / 27, area_ft2: area,
+        mean_ft: cells ? sum / cells : 0, max_ft: mx, targets: targets, spacing: sp,
+        ms: Date.now() - t0
+      },
+      transfer: [depth.buffer, se.buffer, cov.buffer]
+    };
+  }
+
+  /* the conductive ground in an ELEVATION band: per node the band's
+     harmonic-mean resistivity (the one resistivity that passes the same
+     current through the band's thickness — thickness over conductance) and
+     its conductance in siemens; then the route from the source nodes (the
+     impoundment) to the sink nodes (the lake) whose most resistive point is
+     least resistive — that point's resistivity is the lowest threshold at
+     which one continuous conductive zone joins the two — with ties broken on
+     the route's own integral of resistivity along its length. */
+  function temSeepJob(job, onProgress) {
+    var t0 = Date.now(), prog = function (p) { if (onProgress) onProgress(p); };
+    var nx = job.nx | 0, ny = job.ny | 0, N = nx * ny, NL = job.nl | 0, dx = job.dx, M = job.mask, LG = job.log, G = job.surf;
+    if (!(N > 0) || !LG || LG.length !== N * NL || !G || G.length !== N) throw new Error("temseep: the model grid does not match");
+    var zT = +job.zTop, zB = +job.zBot;
+    if (!(zT > zB)) throw new Error("temseep: the band's top must be above its bottom");
+    var FTM = 1200 / 3937;
+    var rho = new Float32Array(N).fill(NaN), cond = new Float32Array(N).fill(NaN), id, l;
+    var vals = [];
+    for (id = 0; id < N; id++) {
+      if (!M[id] || !(G[id] === G[id])) continue;
+      var S = 0, T = 0;
+      for (l = 0; l < NL; l++) {
+        var eT = G[id] - job.top_ft[l], eB = G[id] - job.bot_ft[l];
+        var a = Math.min(zT, eT), b = Math.max(zB, eB);
+        if (!(a > b)) continue;
+        var v = LG[l * N + id];
+        if (!(v === v)) continue;
+        var th = (a - b) * FTM;
+        S += th / Math.pow(10, v); T += th;
+      }
+      if (T > 0) { rho[id] = T / S; cond[id] = S; vals.push(T / S); }
+    }
+    prog(0.3);
+    vals.sort(function (p, q) { return p - q; });
+    var pc = function (p) { return vals.length ? vals[Math.min(vals.length - 1, Math.round(p * (vals.length - 1)))] : NaN; };
+    /* the threshold: as given, or the band's own lowest tenth (`thrPct`) */
+    var thrPct = job.thrPct > 0 && job.thrPct < 1 ? +job.thrPct : 0.1;
+    var thr = job.thr > 0 ? +job.thr : pc(thrPct), thrAuto = !(job.thr > 0);
+    /* the conductive cells, and those of them in one 8-connected zone with
+       both a source and a sink cell */
+    var src = job.src, dst = job.dst, below = new Uint8Array(N), comp = new Int32Array(N).fill(-1), linked = new Uint8Array(N);
+    var aC = 0;
+    for (id = 0; id < N; id++) if (rho[id] < thr) { below[id] = 1; aC += dx * dx; }
+    var stack = new Int32Array(N), nc = 0, linkedComps = 0;
+    for (id = 0; id < N; id++) {
+      if (!below[id] || comp[id] >= 0) continue;
+      var top = 0, hasS = false, hasD = false, members = [];
+      stack[top++] = id; comp[id] = nc;
+      while (top) {
+        var c = stack[--top];
+        members.push(c);
+        if (src && src[c]) hasS = true;
+        if (dst && dst[c]) hasD = true;
+        var cx = c % nx, cy = (c - cx) / nx;
+        for (var oy = -1; oy <= 1; oy++) for (var ox = -1; ox <= 1; ox++) {
+          if (!ox && !oy) continue;
+          var qx = cx + ox, qy = cy + oy;
+          if (qx < 0 || qy < 0 || qx >= nx || qy >= ny) continue;
+          var q = qy * nx + qx;
+          if (below[q] && comp[q] < 0) { comp[q] = nc; stack[top++] = q; }
+        }
+      }
+      if (hasS && hasD) { linkedComps++; for (var m2 = 0; m2 < members.length; m2++) linked[members[m2]] = 1; }
+      nc++;
+    }
+    prog(0.55);
+    /* the bottleneck route: Dijkstra on (max resistivity met, ∫ρ dl) */
+    var route = null, srcN = 0, dstN = 0;
+    if (src && dst) {
+      var KM = new Float64Array(N).fill(Infinity), KS = new Float64Array(N).fill(Infinity), prev = new Int32Array(N).fill(-1), done = new Uint8Array(N);
+      var hk1 = [], hk2 = [], hid = [];
+      var less = function (i1, i2) { return hk1[i1] < hk1[i2] || (hk1[i1] === hk1[i2] && hk2[i1] < hk2[i2]); };
+      var swap = function (i1, i2) {
+        var t1 = hk1[i1]; hk1[i1] = hk1[i2]; hk1[i2] = t1;
+        t1 = hk2[i1]; hk2[i1] = hk2[i2]; hk2[i2] = t1;
+        t1 = hid[i1]; hid[i1] = hid[i2]; hid[i2] = t1;
+      };
+      var push = function (k1, k2, n2) {
+        hk1.push(k1); hk2.push(k2); hid.push(n2);
+        var i3 = hid.length - 1;
+        while (i3 > 0) { var p3 = (i3 - 1) >> 1; if (!less(i3, p3)) break; swap(i3, p3); i3 = p3; }
+      };
+      var popTop = function () {
+        var out = [hk1[0], hk2[0], hid[0]], last = hid.length - 1;
+        swap(0, last); hk1.pop(); hk2.pop(); hid.pop();
+        var i4 = 0;
+        for (;;) {
+          var a4 = 2 * i4 + 1, b4 = a4 + 1, m4 = i4;
+          if (a4 < hid.length && less(a4, m4)) m4 = a4;
+          if (b4 < hid.length && less(b4, m4)) m4 = b4;
+          if (m4 === i4) break;
+          swap(i4, m4); i4 = m4;
+        }
+        return out;
+      };
+      for (id = 0; id < N; id++) {
+        if (!(rho[id] === rho[id])) continue;
+        if (dst[id]) dstN++;
+        if (src[id]) { srcN++; KM[id] = rho[id]; KS[id] = 0; push(rho[id], 0, id); }
+      }
+      var end = -1;
+      while (hid.length) {
+        var tp = popTop(), cu = tp[2];
+        if (done[cu]) continue;
+        done[cu] = 1;
+        if (dst[cu]) { end = cu; break; }
+        var ux = cu % nx, uy = (cu - ux) / nx;
+        for (var py = -1; py <= 1; py++) for (var px = -1; px <= 1; px++) {
+          if (!px && !py) continue;
+          var vx = ux + px, vy = uy + py;
+          if (vx < 0 || vy < 0 || vx >= nx || vy >= ny) continue;
+          var nv = vy * nx + vx;
+          if (done[nv] || !(rho[nv] === rho[nv])) continue;
+          var k1 = Math.max(tp[0], rho[nv]), k2 = tp[1] + Math.hypot(px, py) * dx * (rho[cu] + rho[nv]) / 2;
+          if (k1 < KM[nv] || (k1 === KM[nv] && k2 < KS[nv])) { KM[nv] = k1; KS[nv] = k2; prev[nv] = cu; push(k1, k2, nv); }
+        }
+      }
+      if (end >= 0) {
+        var nodes = [];
+        for (var cc = end; cc >= 0; cc = prev[cc]) nodes.push(cc);
+        nodes.reverse();
+        var pts = [], rs = [], len = 0, lenBelow = 0;
+        for (var u = 0; u < nodes.length; u++) {
+          var nn = nodes[u];
+          pts.push([job.x0 + (nn % nx) * dx, job.y0 + Math.floor(nn / nx) * dx]);
+          rs.push(rho[nn]);
+          if (u) {
+            var seg = Math.hypot(pts[u][0] - pts[u - 1][0], pts[u][1] - pts[u - 1][1]);
+            len += seg;
+            if (rho[nn] < thr && rho[nodes[u - 1]] < thr) lenBelow += seg;
+          }
+        }
+        var bi = 0;
+        for (u = 1; u < rs.length; u++) if (rs[u] > rs[bi]) bi = u;
+        var sr = rs.slice().sort(function (p, q) { return p - q; });
+        route = { nodes: nodes, pts: pts, rho: rs, length_ft: len, bottleneck: rs[bi], at: pts[bi],
+                  median: sr[sr.length >> 1], belowFrac: len > 0 ? lenBelow / len : 0,
+                  resistance: KS[end], start: pts[0], end: pts[pts.length - 1] };
+      }
+    }
+    prog(1);
+    return {
+      result: {
+        nx: nx, ny: ny, dx: dx, x0: job.x0, y0: job.y0, zTop: zT, zBot: zB, thr: thr, thrAuto: thrAuto, thrPct: thrPct,
+        rho: rho, cond: cond, below: below, linked: linked, linkedZones: linkedComps,
+        area_ft2: aC, stats: { n: vals.length, p10: pc(0.1), p50: pc(0.5), p90: pc(0.9), min: pc(0), max: pc(1) },
+        route: route, srcN: srcN, dstN: dstN, ms: Date.now() - t0
+      },
+      transfer: [rho.buffer, cond.buffer, below.buffer, linked.buffer]
+    };
+  }
+
   function runJob(kind, job, onProgress) {
     if (kind === "volume") return volumeGrid(job, onProgress);
     if (kind === "isopach") return isopachGrid(job, onProgress);
@@ -5497,6 +5917,8 @@ var SBMM_COMPUTE = (function SBMMComputeModule() {
     if (kind === "accum") return accumJob(job, onProgress);
     if (kind === "hydraulics") return hydraulicsJob(job, onProgress);
     if (kind === "tem") return temJob(job, onProgress);
+    if (kind === "temwaste") return temWasteJob(job, onProgress);
+    if (kind === "temseep") return temSeepJob(job, onProgress);
     throw new Error("unknown compute job: " + kind);
   }
 

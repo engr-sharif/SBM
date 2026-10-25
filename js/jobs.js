@@ -20,7 +20,7 @@ SBMM.compute = (function () {
   /* v36: a kernel with no WebAssembly port runs as JavaScript whatever core
      the worker carries, and the card that says which core computed it must say
      so (js/results.js stampBackend) */
-  const JS_ONLY = new Set(["tem"]);
+  const JS_ONLY = new Set(["tem", "temwaste", "temseep"]);
 
   /* v17 §5b: sized from the CPU, min 2 max 8. An M-series iPad has 8-10 cores
      and was being given one worker; a two-core build box still gets two, which

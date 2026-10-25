@@ -17,6 +17,52 @@ All three are offline-only by design. Nothing in this app calls out to the inter
 
 ---
 
+## v9.47 — what the TEM says about the waste and the water (2026-10-25)
+
+Two interpretations of the 2026 TEM survey, under **Data ▾ → TEM geophysics**
+(and as tabs of the TEM workspace: *Model · Base of waste · Conductive zones*).
+
+**Base of waste** (`TEMWASTE`)
+
+- The 2025 borings' logged native contact mapped across the surveyed ground:
+  a thickness map, the base of the waste as a surface in 3D, the volume, and
+  the standard error of the map.
+- The TEM is offered to the map as a second variable — the depth of the
+  steepest drop in resistivity in the top 60 ft — and is used only if it makes
+  the map measurably better. That is tested by leaving each boring out in turn
+  and predicting it from the rest.
+- **What it found on this site:** it does not. The TEM's break depth correlates
+  with the logged contact at r = 0.45 over the 13 borings inside the survey, and
+  the cross-validated error is ±12.4 ft from the borings alone, ±12.2 ft with
+  the TEM, and ±12.8 ft for the plain average of the holes. Between holes the
+  logged base varies more than 13 borings can resolve. The card says so in one
+  line.
+- **Proposed borings:** five locations where the map knows least, at least
+  200 ft apart, with the predicted base and its uncertainty — on the map, in
+  3D, and as CSV / GeoJSON.
+- Open water (the impoundment, the lake, the ponds) is left out of the map and
+  the volume.
+
+**Conductive zones — impoundment to Clear Lake** (`TEMSEEP`)
+
+- The resistivity of a band of ground below the impoundment's surveyed water
+  level (1,336.45 ft): 0–50, 0–100, 50–150 or 100–200 ft below it.
+- The ground under a threshold (the band's most conductive tenth by default,
+  or 4–10 Ω·m) is outlined; zones that reach both the impoundment and the lake
+  are outlined in yellow.
+- **The least-resistive route** from the impoundment to Clear Lake, and its
+  most resistive point — the lowest threshold at which one continuous
+  conductive zone joins the two waters. In the 0–100 ft band that is
+  **10.0 Ω·m**, against a band median of 10.5 Ω·m: the route is only slightly
+  more conductive than the ground around it.
+- A section along the route: the model from the ground down past the band,
+  the band's two elevations and the impoundment's water level.
+- Conductive ground can be mineralised water or clay, and the TEM alone does
+  not tell them apart — the card says so. Well EC data would let this be read
+  as pore-water conductivity.
+
+Both are planning-level interpretations; both export CSV and GeoJSON.
+
 ## v9.46 — the TEM workspace: the ground cut open to the slice (2026-10-23)
 
 - **Data ▾ → TEM geophysics** (or `TEMWS`) opens a workspace of its own: the

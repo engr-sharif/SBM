@@ -254,6 +254,19 @@ SBMM.cmd = (function () {
         const d = parseFloat(String(v || "").trim());
         SBMM.temws.open({ depth: isFinite(d) ? d : null });
       } },
+    /* v38: the TEM's two interpretations, each a tab of the workspace */
+    { n: "TEMWASTE", a: ["BASEOFWASTE", "WASTEBASE"],
+      d: "base of waste — the 2025 borings mapped across the TEM survey, with the TEM where it helps",
+      f: () => {
+        if (!SBMM.teminterp) { toast("this build has no TEM survey"); return; }
+        SBMM.teminterp.open("waste");
+      } },
+    { n: "TEMSEEP", a: ["SEEPAGE", "CONDUCTIVE"],
+      d: "conductive zones — low-resistivity ground between the Herman impoundment and Clear Lake",
+      f: () => {
+        if (!SBMM.teminterp) { toast("this build has no TEM survey"); return; }
+        SBMM.teminterp.open("seep");
+      } },
     { n: "TEMCAL", a: ["TEMBORINGS"],
       d: "TEM resistivity against the 2025 borings' logged classes, in the log window",
       arg: "boring (e.g. SB-9)",

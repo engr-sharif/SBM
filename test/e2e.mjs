@@ -6814,6 +6814,195 @@ await page.evaluate(() => {
 });
 });
 
+await block("9f12. the TEM interpretations: base of waste and conductive zones (v38)", async () => {
+/* v38 — Data ▾ → TEM geophysics → Base of waste / Conductive zones: the two
+   interpretations as tabs of the workspace, their map and 3D layers, their
+   cards and exports. The kernels' arithmetic is test/kernels.mjs --only
+   teminterp; this is the app around it. Numbers asserted here are read off
+   the result, never restated, so a re-run model moves the test with it. */
+const d0 = await page.evaluate(() => {
+  const m = document.getElementById("siteMenu"), ids = [...m.querySelectorAll(".toolbtn")].map(b => b.id);
+  return { order: ids.slice(ids.indexOf("temMenuBtn"), ids.indexOf("temMenuBtn") + 3),
+           sub: ["temWasteMenuBtn", "temSeepMenuBtn"].map(id => document.getElementById(id).classList.contains("tsub")),
+           jobs: SBMM.compute.stats.workerJobs + SBMM.compute.stats.syncJobs };
+});
+console.log("TEM sub-items:", JSON.stringify(d0));
+if (d0.order.join(",") !== "temMenuBtn,temWasteMenuBtn,temSeepMenuBtn" || d0.sub.some(v => !v))
+  { console.log("FAIL: the two interpretations are not sub-items under TEM geophysics in Data ▾", d0); process.exit(1); }
+
+/* through the menu, as a user would */
+await page.click("#siteMenuBtn");
+await page.waitForTimeout(250);
+await page.click("#temWasteMenuBtn");
+await page.waitForFunction(() => SBMM.teminterp.waste() && SBMM.temws.isOpen() && SBMM.temws.state().tab === "waste"
+  && SBMM.viewer3d.isOpen(), null, { timeout: 180000 });
+await page.waitForFunction(() => (SBMM.viewer3d.layersDrawn()["invest/tem_waste"] || 0) >= 2, null, { timeout: 60000 }).catch(() => {});
+const d1 = await page.evaluate(() => {
+  const W = SBMM.teminterp.waste(), el = document.getElementById("temWs");
+  const pane = el.querySelector('[data-pane="waste"]'), model = el.querySelector('[data-pane="model"]');
+  const f = pane.querySelector('[data-o="wfind"]');
+  const ld = SBMM.viewer3d.layersDrawn();
+  /* the status-bar reading at the first proposed boring */
+  const t0 = W.targets[0];
+  return { method: W.method, cv: W.cv, holes: W.holes.length, inS: W.holes.filter(h => h.inSurvey).length,
+           targets: W.targets.length, cells: W.cells, wet: W.wetNodes, vol: W.volume_yd3,
+           shown: !pane.hidden && model.hidden, tabs: [...el.querySelectorAll(".twstab")].map(b => b.dataset.tab + ":" + b.getAttribute("aria-selected")),
+           finding: f && f.dataset.temFinding, findText: f && f.textContent, rows: pane.querySelectorAll(".tir").length,
+           tgtRows: pane.querySelectorAll("tr[data-tgt]").length, leg: !!pane.querySelector(".tileg"),
+           slice: SBMM.layerState.isOn("invest", "tem_slice"), pit: SBMM.viewer3d.pitState().on,
+           ground: SBMM.viewer3d.groundNow(), drawn: ld["invest/tem_waste"] || 0,
+           markers: (() => { let n = 0; SBMM.map.eachLayer(l => { if (l._tiTarget != null) n++; }); return n; })(),
+           hover: SBMM.teminterp.hoverText(t0.x, t0.y),
+           /* the map must not extend over open water */
+           wetMapped: (() => { let n = 0; const D = SBMM_DATA.design_gis, H = D.features.find(q => q.properties.name === "Herman Impoundment").geometry.coordinates[0];
+             const inR = (r, x, y) => { let c = false; for (let i = 0, j = r.length - 1; i < r.length; j = i++) { const a = r[i], b = r[j]; if ((a[1] > y) !== (b[1] > y) && x < (b[0] - a[0]) * (y - a[1]) / (b[1] - a[1]) + a[0]) c = !c; } return c; };
+             for (let id = 0; id < W.depth.length; id++) if (isFinite(W.depth[id]) && inR(H, W.x0 + (id % W.nx) * W.dx, W.y0 + Math.floor(id / W.nx) * W.dx)) n++; return n; })() };
+});
+console.log("TEM base of waste:", JSON.stringify(Object.assign({}, d1, { cv: undefined, findText: undefined })),
+            "| cv", d1.cv.borings.rmse.toFixed(2), d1.cv.tem.rmse.toFixed(2), d1.cv.mean.rmse.toFixed(2));
+if (!d1.shown || d1.tabs.join(",") !== "model:false,waste:true,seep:false")
+  { console.log("FAIL: Data ▾ → Base of waste did not open the workspace at its tab", d1); process.exit(1); }
+if (!(d1.inS >= 4) || !(d1.holes >= d1.inS) || !(d1.vol > 0) || !(d1.cells > 0) || d1.wetMapped !== 0 || !(d1.wet > 0))
+  { console.log("FAIL: the base-of-waste result is not a map of the dry survey footprint from the borings", d1); process.exit(1); }
+/* the auto rule, read off the result: the TEM is used only when it cuts the
+   borings' cross-validated error by the stated tenth */
+const temWins = d1.cv.tem.rmse <= d1.cv.borings.rmse * 0.9;
+if (d1.method !== (temWins ? "tem" : "borings")) { console.log("FAIL: auto did not apply its own rule", d1.method, d1.cv); process.exit(1); }
+if (!d1.finding || !d1.findText || d1.rows < 8 || d1.tgtRows !== d1.targets || !d1.leg)
+  { console.log("FAIL: the base-of-waste tab does not state its result", d1); process.exit(1); }
+if (d1.slice || d1.pit || d1.ground !== "see")
+  { console.log("FAIL: under an interpretation the slice and the cut must step aside and the ground go see-through", d1); process.exit(1); }
+if (d1.drawn < 2 || d1.markers !== d1.targets || !/waste \d+ ± \d+ ft/.test(d1.hover))
+  { console.log("FAIL: the base of waste is not on the map and in 3D", d1); process.exit(1); }
+
+/* the card, and the voice rule over it */
+await page.evaluate(() => { SBMM.teminterp.showCard("waste"); });
+await voiceCheck("the base-of-waste card");
+const d2 = await page.evaluate(() => {
+  const c = SBMM.teminterp.card("waste");
+  const csv = SBMM.teminterp.wasteCsv().trim().split("\n"), tc = SBMM.teminterp.targetsCsv().trim().split("\n");
+  const gj = SBMM.teminterp.geojson("waste");
+  return { card: !!(c && c.isConnected), finding: c && c.querySelector("[data-tem-finding]").dataset.temFinding,
+           csvRows: csv.length - 2, cells: SBMM.teminterp.waste().cells, tRows: tc.length - 2,
+           gj: gj.features.length, gjType: gj.features[0] && gj.features[0].geometry.type };
+});
+console.log("TEM base-of-waste card:", JSON.stringify(d2));
+if (!d2.card || !d2.finding || d2.csvRows !== d2.cells || d2.tRows !== d1.targets || d2.gj !== d1.targets || d2.gjType !== "Point")
+  { console.log("FAIL: the base-of-waste card or its exports", d2); process.exit(1); }
+
+/* the Conductive zones tab: the other interpretation steps off */
+await page.click('#temWs [data-tab="seep"]');
+await page.waitForFunction(() => SBMM.teminterp.seep() && SBMM.temws.state().tab === "seep", null, { timeout: 120000 });
+await page.waitForFunction(() => (SBMM.viewer3d.layersDrawn()["invest/tem_seep"] || 0) >= 2, null, { timeout: 60000 }).catch(() => {});
+const d3 = await page.evaluate(() => {
+  const S = SBMM.teminterp.seep(), pane = document.querySelector('#temWs [data-pane="seep"]'), ld = SBMM.viewer3d.layersDrawn();
+  const f = pane.querySelector('[data-o="sfind"]'), sec = pane.querySelector(".tisec");
+  /* an independent reading of the route: its own most resistive node */
+  const r = S.route, mx = r ? Math.max(...r.rho) : NaN;
+  return { band: [S.zTop, S.zBot], wl: S.wl, thr: S.thr, thrAuto: S.thrAuto, p10: S.stats.p10,
+           src: S.srcN, dst: S.dstN, route: !!r, bottleneck: r && r.bottleneck, mx, linked: S.linkedZones,
+           startInH: r ? S.route.nodes[0] : null, finding: f && f.dataset.temFinding,
+           rows: pane.querySelectorAll(".tir").length, sec: !!sec, bands: sec ? sec.querySelectorAll(".tiband").length : 0,
+           wlLine: sec ? sec.querySelectorAll(".tiwl").length : 0,
+           wasteOn: SBMM.layerState.isOn("invest", "tem_waste"), drawn: ld["invest/tem_seep"] || 0,
+           wasteDrawn: ld["invest/tem_waste"] || 0, ground: SBMM.viewer3d.groundNow() };
+});
+console.log("TEM conductive zones:", JSON.stringify(d3));
+if (d3.wasteOn || d3.wasteDrawn) { console.log("FAIL: the Conductive zones tab left the base of waste on", d3); process.exit(1); }
+/* the band is read off the surveyed water level, and the route runs from the
+   impoundment to the lake with its bottleneck its own most resistive node */
+if (!d3.wl || Math.abs(d3.band[0] - d3.wl.z) > 1e-9 || Math.abs(d3.band[0] - d3.band[1] - 100) > 1e-9)
+  { console.log("FAIL: the default band is not 0–100 ft below the impoundment's water level", d3); process.exit(1); }
+if (!d3.thrAuto || Math.abs(d3.thr - d3.p10) > 1e-9) { console.log("FAIL: the default threshold is not the band's lowest tenth", d3); process.exit(1); }
+if (!(d3.src > 0) || !(d3.dst > 0) || !d3.route || Math.abs(d3.bottleneck - d3.mx) > 1e-9)
+  { console.log("FAIL: no route from the impoundment to the lake, or its bottleneck is not its most resistive node", d3); process.exit(1); }
+if (d3.drawn < 2 || !d3.sec || d3.bands !== 2 || d3.wlLine !== 1 || d3.rows < 8 || !d3.finding)
+  { console.log("FAIL: the Conductive zones tab, its section or its 3D", d3); process.exit(1); }
+
+/* the threshold by hand, through the panel's own select: the bottleneck is
+   the threshold at which a zone first joins, so just over it one joins */
+const d4 = await page.evaluate(async () => {
+  const wait = ms => new Promise(r => setTimeout(r, ms));
+  const S0 = SBMM.teminterp.seep(), b = S0.route.bottleneck;
+  const sel = document.querySelector('#temWs [data-pane="seep"] [data-ti-k="sThr"]');
+  const opts = [...sel.options].map(o => +o.value).filter(v => v > 0);
+  const over = opts.find(v => v > b), under = [...opts].reverse().find(v => v < b);
+  const out = { b, over, under };
+  for (const [k, v] of [["over", over], ["under", under]]) {
+    if (v == null) continue;
+    sel.value = String(v); sel.dispatchEvent(new Event("change", { bubbles: true }));
+    for (let i = 0; i < 100 && !(SBMM.teminterp.seep() && SBMM.teminterp.seep().thr === v); i++) await wait(100);
+    out[k + "Linked"] = SBMM.teminterp.seep().linkedZones;
+    out[k + "Find"] = document.querySelector('#temWs [data-o="sfind"]').dataset.temFinding;
+  }
+  sel.value = "0"; sel.dispatchEvent(new Event("change", { bubbles: true }));
+  for (let i = 0; i < 100 && !(SBMM.teminterp.seep() && SBMM.teminterp.seep().thrAuto); i++) await wait(100);
+  return out;
+});
+console.log("TEM threshold by hand:", JSON.stringify(d4));
+if (d4.over != null && !(d4.overLinked >= 1 && d4.overFind === "joined"))
+  { console.log("FAIL: a threshold over the bottleneck must join the two waters", d4); process.exit(1); }
+if (d4.under != null && d4.underLinked !== 0)
+  { console.log("FAIL: a threshold under the bottleneck must not join them", d4); process.exit(1); }
+
+/* back to the Model tab: the slice and the cut come back, idle is idle */
+const d5 = await page.evaluate(async () => {
+  const wait = ms => new Promise(r => setTimeout(r, ms));
+  document.querySelector('#temWs [data-tab="model"]').click();
+  await wait(400);
+  const out = { slice: SBMM.layerState.isOn("invest", "tem_slice"), pit: SBMM.viewer3d.pitState().on, tab: SBMM.temws.state().tab };
+  const wasAnim = SBMM.viewer3d.animateWater();
+  SBMM.viewer3d.animateWater(false);
+  let prev = SBMM.viewer3d.stats().renderCount, quiet = 0;
+  for (let i = 0; i < 60 && quiet < 2; i++) {
+    await wait(1000);
+    const n = SBMM.viewer3d.stats().renderCount, tb = !!(SBMM.terrain3d && SBMM.terrain3d.stats && SBMM.terrain3d.stats().building);
+    quiet = (n === prev && !tb) ? quiet + 1 : 0; prev = n;
+  }
+  const a = SBMM.viewer3d.stats().renderCount;
+  await wait(3000);
+  out.idle = SBMM.viewer3d.stats().renderCount - a;
+  SBMM.viewer3d.animateWater(wasAnim);
+  return out;
+});
+console.log("TEM back to the model:", JSON.stringify(d5));
+if (!d5.slice || !d5.pit || d5.tab !== "model") { console.log("FAIL: the Model tab did not put the slice and the cut back", d5); process.exit(1); }
+if (d5.idle > 1) { console.log("FAIL: the interpretations keep the 3D view rendering when idle", d5); process.exit(1); }
+
+/* the commands, and the refusals without the payload */
+const d6 = await page.evaluate(async () => {
+  const wait = ms => new Promise(r => setTimeout(r, ms));
+  SBMM.cmd.run("TEMSEEP");
+  for (let i = 0; i < 40 && SBMM.temws.state().tab !== "seep"; i++) await wait(100);
+  const out = { seepTab: SBMM.temws.state().tab };
+  SBMM.cmd.run("TEMWASTE");
+  for (let i = 0; i < 40 && SBMM.temws.state().tab !== "waste"; i++) await wait(100);
+  out.wasteTab = SBMM.temws.state().tab;
+  SBMM.temws.close();
+  out.closed = !SBMM.temws.isOpen() && SBMM.temws.state().tab === "model";
+  const keep = SBMM_DATA.tem2026; delete SBMM_DATA.tem2026;
+  const toasts = [];
+  try {
+    for (const k of ["waste", "seep"]) { await SBMM.teminterp.open(k); toasts.push((document.getElementById("toast") || {}).textContent || ""); await wait(150); }
+  } catch (e) { out.err = String(e); }
+  SBMM_DATA.tem2026 = keep;
+  out.toasts = toasts; out.shut = !SBMM.temws.isOpen();
+  return out;
+});
+console.log("TEM interpretation commands:", JSON.stringify(d6));
+if (d6.seepTab !== "seep" || d6.wasteTab !== "waste" || !d6.closed)
+  { console.log("FAIL: TEMSEEP / TEMWASTE did not open their tabs, or closing did not reset them", d6); process.exit(1); }
+if (d6.err || !d6.shut || d6.toasts.length !== 2 || d6.toasts.some(t => !/not in this build/.test(t)))
+  { console.log("FAIL: the interpretations did not refuse with a toast without the TEM payload", d6); process.exit(1); }
+
+await page.evaluate(() => {
+  for (const id of ["tem_waste", "tem_seep", "tem_slice", "tem_soundings"]) SBMM.layerState.set("invest", id, { on: false });
+  for (const k of ["waste", "seep"]) { const c = SBMM.teminterp.card(k); if (c && c.isConnected) c.remove(); }
+  const c = SBMM.geophys.card(); if (c && c.isConnected) c.remove();
+  if (SBMM.viewer3d.isOpen()) SBMM.viewer3d.toggle();
+});
+});
+
 await block("9x. drainage", async () => {
 /* 9x. drainage — the whole-site catchment map (v14, docs/V14_DRAINAGE_SPEC.md) */
 /* ==================================================================== */
@@ -7665,6 +7854,8 @@ parity = await page.evaluate(async () => {
   for (let i = 0; i < 240 && SBMM.accum && !SBMM.accum.hasResult(); i++) await wait(500);
   /* v36: and the TEM depth slice, whose first tick runs its interpolation */
   for (let i = 0; i < 120 && SBMM.geophys && SBMM.geophys.data() && !SBMM.geophys.slice(); i++) await wait(250);
+  /* v38: and its two interpretations, whose first tick runs their kernels */
+  for (let i = 0; i < 120 && SBMM.teminterp && SBMM.geophys.data() && !(SBMM.teminterp.waste() && SBMM.teminterp.seep()); i++) await wait(250);
   /* the CAD groups parse their geometry lazily on first enable */
   await wait(4000);
   const wasOpen = SBMM.viewer3d.isOpen();

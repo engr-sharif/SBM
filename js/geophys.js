@@ -344,6 +344,7 @@ SBMM.geophys = (function () {
   const mapHidden = () => !!(SBMM.viewer3d && SBMM.viewer3d.isOpen && SBMM.viewer3d.isOpen())
     && !document.body.classList.contains("v3dsplit");
   function paintNow() {
+    if (!data()) { if (overlay) { SBMM.map.removeLayer(overlay); overlay = null; } slice = null; return; }
     recolourPoints();
     if (R && on("tem_slice") && overlay && mapHidden()) {
       mapDirty = true;
@@ -677,7 +678,7 @@ SBMM.geophys = (function () {
     return out;
   }
   function refreshCard() {
-    if (!card || !card.isConnected || !R) return;
+    if (!card || !card.isConnected || !R || !data()) return;
     SBMM.results.setRows(card, cardRows());
     const o = card.querySelector('[data-tem-o="depth"]');
     if (o) o.textContent = fmt(S.depth, 0) + " ft";
@@ -883,7 +884,8 @@ SBMM.geophys = (function () {
   /* ------------------------------------------------------------------ */
   async function ensure(rowId) {
     const res = await run();
-    if (!res) { if (rowId) SBMM.layerState.set("invest", rowId, { on: false }); return null; }
+    /* the payload is read live, so it is asked again after the await */
+    if (!res || !data()) { if (rowId) SBMM.layerState.set("invest", rowId, { on: false }); return null; }
     paintNow();
     if (!card || !card.isConnected) showCard();
     soon3d();
@@ -1072,7 +1074,8 @@ SBMM.geophys = (function () {
   /* "auto" ground (js/viewer3d.js): see-through whenever the model is drawn
      under it, because a solid ground hides every bit of it */
   function wantsSeeThrough() {
-    return !!(data() && ((R && on("tem_slice")) || (on("tem_soundings") && S.cols)));
+    return !!(data() && ((R && on("tem_slice")) || (on("tem_soundings") && S.cols)
+      || (SBMM.teminterp && SBMM.teminterp.wantsSeeThrough())));
   }
 
   /* the two section lines on the 2D map, so a reader knows where they cut

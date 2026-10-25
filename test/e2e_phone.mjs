@@ -346,6 +346,21 @@ const tws = await page.evaluate(async () => {
 });
 console.log("TEM workspace (phone):", JSON.stringify(tws));
 if (tws.returned !== false || tws.ws || !tws.card) fail("the TEM workspace opened on a phone instead of the card", tws);
+/* v38: and its two interpretations open their cards there too */
+const tin = await page.evaluate(async () => {
+  const out = {};
+  for (const k of ["waste", "seep"]) {
+    await SBMM.teminterp.open(k);
+    out[k] = { ws: document.body.classList.contains("temws"),
+               card: !!document.querySelector(`#resBody .ticard[data-ti="${k}"]`),
+               finding: (document.querySelector(`#resBody .ticard[data-ti="${k}"] [data-tem-finding]`) || {}).textContent || "" };
+    SBMM.layerState.set("invest", k === "waste" ? "tem_waste" : "tem_seep", { on: false });
+  }
+  return out;
+});
+console.log("TEM interpretations (phone):", JSON.stringify(tin));
+for (const k of ["waste", "seep"])
+  if (tin[k].ws || !tin[k].card || !tin[k].finding) fail("TEM" + k.toUpperCase() + " did not open its card on a phone", tin);
 if (errors.length) fail("page errors opening the TEM slice on a phone", errors.slice(0, 4));
 
 /* the 2025 boring logs are ~300 kB and are NOT a heavy payload: they ride in a
