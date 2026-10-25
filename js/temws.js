@@ -41,6 +41,13 @@ SBMM.temws = (function () {
   const SIZES = [150, 250, 400, 600, 800, 1000, 1400, 2000];
   let el = null, active = false, pit = { on: true, open: true, cx: NaN, cy: NaN, w: 600, h: 600 };
   let before = null, coreCache = null, playT = 0, wired = false;
+  /* v38: the panel's three tabs — the model, and the two interpretations
+     js/teminterp.js mounts. Under an interpretation the cut and the depth
+     slice step aside (both come back with the Model tab): the base of waste
+     and the conductive band are read through a see-through ground, and a cut
+     and a slice in front of them hide exactly what they show. */
+  const TABS = [["model", "Model"], ["waste", "Base of waste"], ["seep", "Conductive zones"]];
+  let tab = "model", hidSlice = false, selfOff = false;
 
   /* ------------------------------------------------------------------ */
   /* open / close                                                        */
@@ -55,7 +62,7 @@ SBMM.temws = (function () {
       return false;
     }
     if (o.depth != null && isFinite(o.depth)) G().apply("depth", +o.depth);
-    if (active) { paintAll(); return true; }
+    if (active) { if (o.tab) setTab(o.tab); paintAll(); return true; }
     const res = await G().run();
     if (!res) return false;
     wire();
@@ -75,11 +82,13 @@ SBMM.temws = (function () {
     frameCut();
     paintAll();
     if (SBMM.shell) { SBMM.shell.relayout(); setTimeout(() => SBMM.shell.relayout(), 260); }
+    if (o.tab && o.tab !== "model") setTab(o.tab);
     return true;
   }
   function close() {
     if (!active) return false;
     stopPlay();
+    if (tab !== "model") setTab("model", true);
     active = false;
     if (SBMM.viewer3d) SBMM.viewer3d.setPit(null);
     document.body.classList.remove("temws");
@@ -106,7 +115,9 @@ SBMM.temws = (function () {
   /* ------------------------------------------------------------------ */
   function applyPit() {
     if (!SBMM.viewer3d) return;
-    if (!active || !pit.on) { SBMM.viewer3d.setPit(null); return; }
+    /* taking the cut away ourselves must not read as a fence replacing it
+       (the `pit` listener below) — that would switch it off for good */
+    if (!active || !pit.on || tab !== "model") { selfOff = true; try { SBMM.viewer3d.setPit(null); } finally { selfOff = false; } return; }
     SBMM.viewer3d.setPit({ cx: pit.cx, cy: pit.cy, w: pit.w, h: pit.h, open: pit.open });
   }
   /* the centre of the soundings (their medians — the survey is lines, and a
@@ -208,7 +219,9 @@ SBMM.temws = (function () {
       `<header class="twsh"><div><b>TEM geophysics</b>`
       + `<span class="twssub">TEM2Go · LCI models · May 2026 · ${fmt0(D.n)} soundings to ${fmt0(DM())} ft</span></div>`
       + `<button class="twsx" data-a="close" title="Close the TEM workspace" aria-label="Close the TEM workspace">×</button></header>`
-      + `<div class="twsb temctl">`
+      + `<nav class="twstabs" role="tablist" aria-label="TEM analyses">` + TABS.map(([k, t]) =>
+          `<button class="twstab${k === tab ? " on" : ""}" role="tab" data-tab="${k}" aria-selected="${k === tab}">${esc(t)}</button>`).join("") + `</nav>`
+      + `<div class="twsb temctl" data-pane="model"${tab === "model" ? "" : " hidden"}>`
       /* depth: the core and the readout */
       + `<section class="twsdepth">`
       + `<canvas class="twscore" width="60" height="300" role="slider" tabindex="0" aria-label="Depth below ground"`
@@ -279,8 +292,14 @@ SBMM.temws = (function () {
       + `<button class="minib" data-a="csv" title="The slice as CSV (easting, northing, value)">slice CSV</button>`
       + `<button class="minib" data-a="model" title="Every node and every layer as CSV">model CSV</button>`
       + `<button class="minib" data-a="card" title="The results card">card</button></section>`
-      + `</div>`;
+      + `</div>`
+      + `<div class="twsb temctl" data-pane="waste" data-ti-pane="waste"${tab === "waste" ? "" : " hidden"}></div>`
+      + `<div class="twsb temctl" data-pane="seep" data-ti-pane="seep"${tab === "seep" ? "" : " hidden"}></div>`;
     wireCore();
+    if (SBMM.teminterp) {
+      SBMM.teminterp.mount("waste", el.querySelector('[data-pane="waste"]'));
+      SBMM.teminterp.mount("seep", el.querySelector('[data-pane="seep"]'));
+    }
   }
 
   /* everything the panel shows that a setting can move */
@@ -466,7 +485,31 @@ SBMM.temws = (function () {
     }
     G().apply(k, t.type === "checkbox" ? t.checked : t.value);
   }
+  /* the tab: its pane shown, and under an interpretation the cut and the
+     slice out of the way and the interpretation computed */
+  function setTab(t, quiet) {
+    if (!TABS.some(x => x[0] === t)) return;
+    tab = t;
+    if (el) {
+      for (const b of el.querySelectorAll(".twstab")) { const onT = b.dataset.tab === t; b.classList.toggle("on", onT); b.setAttribute("aria-selected", String(onT)); }
+      for (const p of el.querySelectorAll("[data-pane]")) p.hidden = p.dataset.pane !== t;
+    }
+    if (t === "model") {
+      if (hidSlice) { hidSlice = false; rowSet("tem_slice", true); }
+    } else if (on("tem_slice")) { hidSlice = true; rowSet("tem_slice", false); }
+    applyPit();
+    if (quiet) return;
+    if (t !== "model" && SBMM.teminterp) SBMM.teminterp.activate(t).then(() => { if (active && tab === t) frameTab(t); });
+    else frameCut();
+    paintAll();
+  }
+  function frameTab(t) {
+    const b = el && el.querySelector(`[data-pane="${t}"] [data-ti-a="${t === "waste" ? "wframe" : "sframe"}"]`);
+    if (b) b.click();
+  }
   function onClick(e) {
+    const tb = e.target.closest("[data-tab]");
+    if (tb) { stopPlay(); setTab(tb.dataset.tab); return; }
     const b = e.target.closest("[data-a]");
     if (!b) return;
     const a = b.dataset.a;
@@ -502,7 +545,7 @@ SBMM.temws = (function () {
       if (!active) return;
       /* a fence clip box took the cut's place (the spec is gone while the
          view is open — closing 3D keeps it, to put the cut back on reopen) */
-      if (ps && !ps.on && !ps.spec && pit.on && SBMM.viewer3d && SBMM.viewer3d.isOpen()) pit.on = false;
+      if (!selfOff && ps && !ps.on && !ps.spec && pit.on && SBMM.viewer3d && SBMM.viewer3d.isOpen()) pit.on = false;
       paintAll();
     });
     SBMM.events.on("layers", ({ group }) => { if (active && (group === "invest" || group == null)) paintAll(); });
@@ -512,10 +555,10 @@ SBMM.temws = (function () {
   }
 
   function state() {
-    return { open: active, pit: Object.assign({}, pit), playing: !!playT,
+    return { open: active, pit: Object.assign({}, pit), playing: !!playT, tab,
              panel: !!(el && !el.hidden), depth: G() ? G().depth() : null };
   }
   return { open, close, isOpen: () => active, state, setSize, centreOnView, centreOnSurvey: () => centreOnSurvey(true),
            fitSurvey, setPit: p => { Object.assign(pit, p || {}); applyPit(); paintAll(); },
-           play, stopPlay, stepLayer, paint: paintAll };
+           play, stopPlay, stepLayer, paint: paintAll, setTab: t => setTab(t) };
 })();

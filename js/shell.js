@@ -368,6 +368,10 @@ SBMM.shell = (function () {
     if (lm) lm.onclick = () => { if (SBMM.cmd) SBMM.cmd.run("LOGWIN"); };
     const tm = $("temMenuBtn");
     if (tm) tm.onclick = () => { if (SBMM.cmd) SBMM.cmd.run("TEMWS"); };
+    const tw = $("temWasteMenuBtn");
+    if (tw) tw.onclick = () => { if (SBMM.cmd) SBMM.cmd.run("TEMWASTE"); };
+    const ts = $("temSeepMenuBtn");
+    if (ts) ts.onclick = () => { if (SBMM.cmd) SBMM.cmd.run("TEMSEEP"); };
     const fm = $("fenceMenuBtn");
     if (fm) fm.onclick = () => { if (SBMM.cmd) SBMM.cmd.run("FENCE"); };
     const dm = $("dsMenuBtn");

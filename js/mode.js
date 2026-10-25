@@ -495,7 +495,9 @@ SBMM.status = (function () {
        row is off, when there is no result and when the cell has none. */
     const up = ((SBMM.accum && SBMM.accum.hoverText) ? SBMM.accum.hoverText(x, y) : "")
       /* v36: the TEM depth slice's value under the pointer, while it is on */
-      + ((SBMM.geophys && SBMM.geophys.hoverText) ? SBMM.geophys.hoverText(x, y) : "");
+      + ((SBMM.geophys && SBMM.geophys.hoverText) ? SBMM.geophys.hoverText(x, y) : "")
+      /* v38: the base of waste and the band resistivity, while their rows are on */
+      + ((SBMM.teminterp && SBMM.teminterp.hoverText) ? SBMM.teminterp.hoverText(x, y) : "");
     document.getElementById("sDem").textContent = src + (ch > 0.5 ? ` · veg ${fmt(ch, 0)} ft` : "") + up;
   }
   function scale() {

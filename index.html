@@ -166,6 +166,8 @@ window.SBMM_BUILD="full";
 <div id="siteMenu" class="menu tmenu" role="menu">
   <button class="toolbtn" id="logsMenuBtn" title="Boring logs — the 44 holes of the 2025 investigation (LOGWIN)"><svg class="ic16"><use href="#i-list"/></svg><span class="tlbl">Boring logs</span></button>
   <button class="toolbtn" id="temMenuBtn" title="TEM geophysics — the 2026 resistivity model in 3D with the ground cut open (TEMWS)"><svg class="ic16"><use href="#i-core"/></svg><span class="tlbl">TEM geophysics</span></button>
+  <button class="toolbtn tsub" id="temWasteMenuBtn" title="Base of waste — the 2025 borings mapped across the survey, with the TEM where it helps (TEMWASTE)"><span class="tlbl">Base of waste</span></button>
+  <button class="toolbtn tsub" id="temSeepMenuBtn" title="Conductive zones — low-resistivity ground between the Herman impoundment and Clear Lake (TEMSEEP)"><span class="tlbl">Conductive zones — impoundment to lake</span></button>
   <button class="toolbtn" id="fenceMenuBtn" title="Fence diagram — a section through the borings along a line (FENCE)"><svg class="ic16"><use href="#i-section"/></svg><span class="tlbl">Fence diagram</span></button>
   <button class="toolbtn" id="sheetsTopBtn" title="Sheets — open any of the 20 design drawings (SHEETS)"><svg class="ic16"><use href="#i-doc"/></svg><span class="tlbl">Sheets</span></button>
   <button class="toolbtn" id="tableBtn" title="Sample results table [T]"><svg class="ic16"><use href="#i-flask"/></svg><span class="tlbl">Samples table</span> <kbd>T</kbd></button>
@@ -1262,6 +1264,10 @@ window.SBMM_HEAVY = [
 <script src="js/survey.js"></script>
 <script src="js/siteareas.js"></script>
 <script src="js/geophys.js"></script>
+<!-- v38: two interpretations of the TEM — the base of waste and the conductive
+     zones between the Herman impoundment and Clear Lake; before js/temws.js,
+     whose tabs mount them -->
+<script src="js/teminterp.js"></script>
 <!-- v37: the TEM workspace — Data ▾ → TEM geophysics; after js/geophys.js,
      whose one setter it shares with the results card -->
 <script src="js/temws.js"></script>

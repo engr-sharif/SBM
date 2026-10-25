@@ -185,6 +185,15 @@ SBMM.pick3d = (function () {
           return SBMM.geophys && SBMM.geophys.pickColumn ? SBMM.geophys.pickColumn(ix && ix.index != null ? ix.index : -1) : null;
         }
       };
+      /* v38: the TEM interpretations — a proposed boring, the route, the
+         base-of-waste surface and the band sheet */
+      case "teminterp": return {
+        object3d: o, kind: "teminterp", priority: P,
+        hit(ix) {
+          const pk = o.userData.pick;
+          return SBMM.teminterp ? SBMM.teminterp.pick3d(pk.what, ix && ix.index != null ? Math.floor(ix.index / (pk.per || 1)) : 0) : null;
+        }
+      };
       case "sample": return {
         object3d: o, kind: "sample", priority: P,
         hit(ix) {

@@ -3942,6 +3942,196 @@ function secTem() {
   }
 }
 
+/* ======================== 17. TEM INTERPRETATIONS ======================== */
+/* v38 — `temwaste` and `temseep` (js/teminterp.js runWaste / runSeep). The
+   synthetic cases are arithmetic identities; the site numbers at the end are
+   recorded from this commit and labelled as regression guards. */
+function tiRing(gis, name) {
+  for (const f of gis.features) {
+    const p = f.properties || {};
+    if (p.layer === "water" && p.name === name && f.geometry && f.geometry.type === "Polygon") return f.geometry.coordinates[0];
+  }
+  return null;
+}
+/* a synthetic model: nl layers of 5 ft, resistive (log10 2) above a drop at
+   `dropAt(ix, iy)` ft and conductive (log10 1) below it */
+function tiSynth(nx, ny, dx, nl, dropAt, val) {
+  const N = nx * ny, log = new Float32Array(N * nl), mask = new Uint8Array(N).fill(1);
+  const top = [], bot = [];
+  for (let l = 0; l < nl; l++) { top.push(l * 5); bot.push(l * 5 + 5); }
+  for (let iy = 0; iy < ny; iy++) for (let ix = 0; ix < nx; ix++) {
+    const id = iy * nx + ix;
+    for (let l = 0; l < nl; l++) log[l * N + id] = val ? val(ix, iy, l) : ((top[l] + bot[l]) / 2 < dropAt(ix, iy) ? 2 : 1);
+  }
+  return { nx, ny, dx, x0: 1000, y0: 2000, nl, mask, log, top_ft: top, bot_ft: bot };
+}
+/* an independent ordinary-kriging leave-one-out: its own covariance, its own
+   elimination, nothing shared with js/compute.js but the definition */
+function tiOkLoo(data, test, sill, nug, range) {
+  const cov = h => h < 1e-9 ? sill : (sill - nug) * Math.exp(-3 * h / range);
+  let se = 0;
+  for (const t of test) {
+    const P = data.filter(h => h !== t), n = P.length, K = n + 1;
+    const A = [], b = [];
+    for (let i = 0; i < n; i++) {
+      const row = [];
+      for (let j = 0; j < n; j++) row.push(cov(Math.hypot(P[i].x - P[j].x, P[i].y - P[j].y)));
+      row.push(1); A.push(row); b.push(cov(Math.hypot(P[i].x - t.x, P[i].y - t.y)));
+    }
+    A.push(new Array(n).fill(1).concat([0])); b.push(1);
+    for (let c = 0; c < K; c++) {
+      let p = c; for (let r = c + 1; r < K; r++) if (Math.abs(A[r][c]) > Math.abs(A[p][c])) p = r;
+      [A[c], A[p]] = [A[p], A[c]]; [b[c], b[p]] = [b[p], b[c]];
+      for (let r = 0; r < K; r++) { if (r === c) continue; const f = A[r][c] / A[c][c]; for (let k = c; k < K; k++) A[r][k] -= f * A[c][k]; b[r] -= f * b[c]; }
+    }
+    let z = 0;
+    for (let i = 0; i < n; i++) z += (b[i] / A[i][i]) * P[i].d;
+    se += Math.pow(Math.max(0, z) - t.d, 2);
+  }
+  return Math.sqrt(se / test.length);
+}
+function secTeminterp() {
+  console.log("\n§17.1  temwaste — a base that IS a linear function of the TEM break");
+  {
+    /* the drop deepens eastward, so the break does too; every hole's depth is
+       exactly 3 + 0.5 × its own break, so kriging with the break as external
+       drift must reproduce the trend at EVERY node, not only at the holes */
+    const job = tiSynth(30, 24, 10, 16, (ix) => 12 + ix * 1.5);
+    const holes = [];
+    for (const [ix, iy] of [[2, 3], [7, 18], [12, 6], [16, 20], [21, 10], [26, 4], [27, 19], [4, 12], [14, 13], [23, 15]])
+      holes.push({ id: "H" + ix + "_" + iy, x: job.x0 + ix * job.dx, y: job.y0 + iy * job.dx, d: 0 });
+    const first = C.runJob("temwaste", Object.assign({}, job, { holes, method: "tem", targets: 0 })).result;
+    for (let i = 0; i < holes.length; i++) holes[i].d = 3 + 0.5 * first.holes[i].s;
+    const W = C.runJob("temwaste", Object.assign({}, job, { holes, method: "auto", targets: 3 })).result;
+    exact("auto picks borings + TEM", W.method, "tem");
+    let worst = 0;
+    for (let id = 0; id < W.depth.length; id++) worst = Math.max(worst, Math.abs(W.depth[id] - (3 + 0.5 * W.cov[id])));
+    atMost("worst |map - (3 + 0.5 break)|", +worst.toExponential(2), 1e-6, " ft");
+    atMost("cross-validated error, TEM", +W.cv.tem.rmse.toExponential(2), 1e-6, " ft");
+    near("TEM break vs depth, r", W.cv.tem.r, 1, 1e-9);
+    exact("proposed borings", W.targets.length, 3);
+    /* spaced: no two proposals closer than the spacing */
+    let close = 0;
+    for (let a = 0; a < W.targets.length; a++) for (let b = a + 1; b < W.targets.length; b++)
+      if (Math.hypot(W.targets[a].x - W.targets[b].x, W.targets[a].y - W.targets[b].y) < W.spacing) close++;
+    exact("proposals inside the spacing", close, 0);
+  }
+  console.log("\n§17.2  temwaste — kriging is exact at a datum, and the leave-one-out is the definition");
+  {
+    const job = tiSynth(26, 26, 10, 12, (ix, iy) => 20 + 5 * Math.sin(ix / 4) + iy * 0.3);
+    const pts = [[1, 2], [5, 20], [9, 9], [13, 3], [17, 22], [21, 12], [24, 5], [3, 14], [12, 16], [19, 7], [8, 24]];
+    const depths = [4, 18, 9, 22, 12, 7, 15, 25, 3, 11, 16];
+    const holes = pts.map(([ix, iy], i) => ({ id: "B" + i, x: job.x0 + ix * job.dx, y: job.y0 + iy * job.dx, d: depths[i] }));
+    const W = C.runJob("temwaste", Object.assign({}, job, { holes, method: "borings", targets: 2 })).result;
+    let worst = 0;
+    pts.forEach(([ix, iy], i) => { worst = Math.max(worst, Math.abs(W.depth[iy * job.nx + ix] - depths[i])); });
+    atMost("worst |map - logged| at the holes", +worst.toExponential(2), 1e-6, " ft");
+    let worstSe = 0;
+    pts.forEach(([ix, iy]) => { worstSe = Math.max(worstSe, W.se[iy * job.nx + ix]); });
+    atMost("standard error at the holes", +worstSe.toExponential(2), 1e-4, " ft");
+    const B = W.cv.borings, data = holes.map(h => ({ x: h.x, y: h.y, d: h.d }));
+    const ref = tiOkLoo(data, data, B.sill, B.nugRatio * B.sill, B.range);
+    near("leave-one-out vs an independent OK", B.rmse, ref, 1e-9, " ft");
+    /* the average of the others is the floor, computed here from scratch */
+    let se0 = 0;
+    for (const t of data) { const o = data.filter(h => h !== t); se0 += Math.pow(o.reduce((p, h) => p + h.d, 0) / o.length - t.d, 2); }
+    near("plain-average baseline", W.cv.mean.rmse, Math.sqrt(se0 / data.length), 1e-9, " ft");
+    /* the volume is the map integrated at the cell, by construction — to the
+       map's own Float32 storage (the kernel sums the doubles it stored from) */
+    let v = 0;
+    for (let id = 0; id < W.depth.length; id++) if (Number.isFinite(W.depth[id])) v += W.depth[id] * job.dx * job.dx;
+    near("volume = sum(depth x cell) / 27", W.volume_yd3, v / 27, 0.01, " yd3");
+  }
+  console.log("\n§17.3  temseep — a uniform model, and a planted channel with one resistive gap");
+  {
+    const FTM = 1200 / 3937;
+    const uni = tiSynth(20, 12, 10, 40, () => 0, () => 1);       // 10 ohm-m everywhere
+    const N = uni.nx * uni.ny, surf = new Float32Array(N).fill(500), src = new Uint8Array(N), dst = new Uint8Array(N);
+    for (let iy = 0; iy < uni.ny; iy++) { src[iy * uni.nx] = 1; dst[iy * uni.nx + uni.nx - 1] = 1; }
+    const U = C.runJob("temseep", Object.assign({}, uni, { surf, zTop: 480, zBot: 400, src, dst })).result;
+    let wr = 0, wc = 0;
+    for (let id = 0; id < N; id++) { wr = Math.max(wr, Math.abs(U.rho[id] - 10)); wc = Math.max(wc, Math.abs(U.cond[id] - 80 * FTM / 10)); }
+    atMost("uniform: worst |rho - 10|", +wr.toExponential(2), 1e-4, " ohm-m");
+    atMost("uniform: worst |S - h/rho|", +wc.toExponential(2), 1e-5, " S");
+    near("uniform: bottleneck", U.route.bottleneck, 10, 1e-4, " ohm-m");
+    near("uniform: route length = the straight run", U.route.length_ft, (uni.nx - 1) * uni.dx, 1e-6, " ft");
+
+    /* 20 ohm-m ground, a 2 ohm-m channel along row 6 from the source column to
+       the sink column, and one node of 5 ohm-m in it at column 9 */
+    const ch = tiSynth(20, 12, 10, 40, () => 0, (ix, iy) => iy === 6 ? (ix === 9 ? Math.log10(5) : Math.log10(2)) : Math.log10(20));
+    const job = Object.assign({}, ch, { surf, zTop: 480, zBot: 400, src, dst });
+    const A = C.runJob("temseep", Object.assign({}, job, { thr: 3 })).result;
+    near("channel: bottleneck = the gap", A.route.bottleneck, 5, 1e-4, " ohm-m");
+    exact("channel: the route stays in the channel", A.route.nodes.every(id => Math.floor(id / ch.nx) === 6), true);
+    exact("channel, thr 3: zones joining both", A.linkedZones, 0);
+    const B = C.runJob("temseep", Object.assign({}, job, { thr: 6 })).result;
+    exact("channel, thr 6: zones joining both", B.linkedZones, 1);
+    near("channel, thr 6: conductive area", B.area_ft2, ch.nx * ch.dx * ch.dx, 1e-6, " ft2");
+  }
+  console.log("\n§17.4  the site, as js/teminterp.js builds the jobs (recorded from this commit — regression guards)");
+  {
+    const Rp = JSON.parse(fs.readFileSync(path.join(REPO, "data", "tem2026.json"), "utf8"));
+    const gis = JSON.parse(fs.readFileSync(path.join(REPO, "data", "design_gis.json"), "utf8"));
+    const logs = JSON.parse(fs.readFileSync(path.join(REPO, "data", "borings_logs.json"), "utf8"));
+    const survey = JSON.parse(fs.readFileSync(path.join(REPO, "data", "datasets", "ds_survey_2026.json"), "utf8"));
+    const R = C.runJob("tem", temAppJob(Rp)).result;
+    const inRing = (r, x, y) => pointInPoly(x, y, r);
+    /* js/teminterp.js dryMask: open water out of the waste map */
+    const water = gis.features.filter(f => (f.properties || {}).layer === "water" && f.geometry && f.geometry.type === "Polygon")
+      .map(f => f.geometry.coordinates[0]);
+    const dry = new Uint8Array(R.mask);
+    for (let iy = 0; iy < R.ny; iy++) for (let ix = 0; ix < R.nx; ix++) {
+      const id = iy * R.nx + ix;
+      if (dry[id] && water.some(r => inRing(r, R.x0 + ix * R.dx, R.y0 + iy * R.dx))) dry[id] = 0;
+    }
+    /* holesNear: every logged native contact within 400 ft of the grid */
+    const pad = 400, x1 = R.x0 + (R.nx - 1) * R.dx, y1 = R.y0 + (R.ny - 1) * R.dx;
+    const holes = logs.holes.filter(h => h.contacts && h.contacts.native_contact != null && Number.isFinite(h.x)
+      && h.x >= R.x0 - pad && h.x <= x1 + pad && h.y >= R.y0 - pad && h.y <= y1 + pad)
+      .map(h => ({ id: h.id, x: h.x, y: h.y, d: +h.contacts.native_contact }));
+    const grid = { nx: R.nx, ny: R.ny, dx: R.dx, x0: R.x0, y0: R.y0, nl: Rp.nl, log: R.log, top_ft: Rp.top_ft, bot_ft: Rp.bot_ft };
+    const [wo, wms] = timed(() => C.runJob("temwaste", Object.assign({}, grid, { mask: dry, holes, method: "auto", breakFt: 60, targets: 5, spacing: 200 })));
+    const W = wo.result;
+    budget("temwaste, the site", wms, 3000);
+    exact("holes used / inside the survey", W.cv.borings.holes + " / " + W.cv.mean.n, "21 / 13");
+    exact("map from (auto)", W.method, "borings");
+    near("error, borings only", +W.cv.borings.rmse.toFixed(2), 12.43, 0.01, " ft");
+    near("error, borings + TEM", +W.cv.tem.rmse.toFixed(2), 12.21, 0.01, " ft");
+    near("error, plain average", +W.cv.mean.rmse.toFixed(2), 12.80, 0.01, " ft");
+    near("TEM break vs contact, r", +W.cv.tem.r.toFixed(3), 0.446, 0.001);
+    pct("waste volume, dry footprint", Math.round(W.volume_yd3), 647160, 0.5);
+    exact("proposed borings", W.targets.length, 5);
+
+    const wl = survey.points.find(p => p.id === "Water Level").a.elevation;
+    exact("impoundment water level, surveyed", wl, 1336.45);
+    const H = tiRing(gis, "Herman Impoundment"), Lk = tiRing(gis, "Clear Lake"), N = R.nx * R.ny;
+    const src = new Uint8Array(N), dst = new Uint8Array(N);
+    for (let iy = 0; iy < R.ny; iy++) for (let ix = 0; ix < R.nx; ix++) {
+      const id = iy * R.nx + ix, x = R.x0 + ix * R.dx, y = R.y0 + iy * R.dx;
+      if (!R.mask[id]) continue;
+      if (inRing(H, x, y)) src[id] = 1;
+      if (inRing(Lk, x, y)) dst[id] = 1;
+    }
+    const [so, sms] = timed(() => C.runJob("temseep", Object.assign({}, grid, { mask: R.mask, surf: R.surf,
+      zTop: wl, zBot: wl - 100, thr: 0, thrPct: 0.1, src, dst })));
+    const S = so.result;
+    budget("temseep, the site", sms, 1000);
+    exact("source / sink nodes", S.srcN + " / " + S.dstN, "106 / 23");
+    near("threshold, the band's lowest 10 %", +S.thr.toFixed(3), 6.324, 0.001, " ohm-m");
+    near("lowest connecting resistivity", +S.route.bottleneck.toFixed(3), 10.042, 0.001, " ohm-m");
+    near("route length", +S.route.length_ft.toFixed(1), 951.1, 0.1, " ft");
+    exact("zones joining both waters", S.linkedZones, 0);
+    /* the bottleneck IS the threshold at which a zone first joins: just over
+       it one zone joins, just under it none does */
+    const over = C.runJob("temseep", Object.assign({}, grid, { mask: R.mask, surf: R.surf, zTop: wl, zBot: wl - 100,
+      thr: S.route.bottleneck * 1.0001, src, dst })).result;
+    const under = C.runJob("temseep", Object.assign({}, grid, { mask: R.mask, surf: R.surf, zTop: wl, zBot: wl - 100,
+      thr: S.route.bottleneck * 0.9999, src, dst })).result;
+    exact("zones joining, just over the bottleneck", over.linkedZones >= 1, true);
+    exact("zones joining, just under it", under.linkedZones, 0);
+  }
+}
+
 /* ============================== run ====================================== */
 const SECTIONS = [
   { key: "volume", run: secVolume },
@@ -3960,6 +4150,7 @@ const SECTIONS = [
   { key: "accum", run: secAccum },
   { key: "hydraulics", run: secHydraulics },
   { key: "tem", run: secTem },
+  { key: "teminterp", run: secTeminterp },
   { key: "wasm", run: secWasm }
 ];
 
@@ -3985,7 +4176,7 @@ if (!WASM.ok && backendArg !== "js") {
 /* every kernel runJob dispatches must have a section here (V11 spec §2.4) */
 const COVERED = ["volume", "isopach", "raster", "contours", "design", "balance", "sections",
                  "wand", "cbound", "toecrest", "stands", "trees", "flowpath", "overtop", "catchment",
-                 "drainage", "runoff", "accum", "hydraulics", "tem"];
+                 "drainage", "runoff", "accum", "hydraulics", "tem", "temwaste", "temseep"];
 {
   const src = fs.readFileSync(path.join(REPO, "js", "compute.js"), "utf8");
   const dispatched = [...src.matchAll(/if \(kind === "([a-z]+)"\) return /g)].map(m => m[1]);

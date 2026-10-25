@@ -1299,6 +1299,19 @@ await block("18. the TEM geophysics (v36)", async () => {
   if (T.missing) fail("the field build has no TEM survey — it is not in FIELD_EXCLUDE", T);
   if (T.n !== 1032 || T.nl !== 20) fail("the field build's TEM payload is not 1,032 x 20", T);
   if (T.slice !== 30 || !T.card || !/Ω·m/.test(T.first || "")) fail("TEM 30 built no slice or card in field mode", T);
+  /* v38: the two interpretations, as cards in field mode */
+  const I = await page.evaluate(async () => {
+    const out = {};
+    for (const k of ["waste", "seep"]) {
+      const ok = await SBMM.teminterp.open(k);
+      const c = document.querySelector(`#resBody .ticard[data-ti="${k}"]`);
+      out[k] = { ok, card: !!c, rows: c ? c.querySelectorAll(".rrow").length : 0, ws: document.body.classList.contains("temws") };
+      SBMM.layerState.set("invest", k === "waste" ? "tem_waste" : "tem_seep", { on: false });
+    }
+    return out;
+  });
+  console.log("TEM interpretations (field):", JSON.stringify(I));
+  for (const k of ["waste", "seep"]) if (!I[k].ok || !I[k].card || !(I[k].rows >= 5) || I[k].ws) fail("TEM " + k + " built no card in field mode", I);
 });
 
 /* ===================================================================== */

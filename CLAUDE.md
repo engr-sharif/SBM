@@ -414,6 +414,7 @@ terrain source, which needs an explicit decision + README/test update).
 | labmetals.js | **v28 — lab metals by depth** from the earlier apps (`SBMM_DATA.lab_metals`, `tools/build_imports.py`): the interval table in a boring / test-pit popup and on the log card, the full validated suite on a sample popup, the ROD / PMB levels and `level(sym, v)`; `SBMM.labMetals` |
 | geophys.js | **v36 — the 2026 TEM2Go geophysics** (`SBMM_DATA.tem2026`): the soundings row and the depth-slice row under *Geophysics — TEM 2026* in Investigations, the `tem` job, the slice painted in the contractor's colour maps, the card with the viewer's controls in feet, the sounding popup's profile with the nearest boring's contacts, the CSV/PNG exports, the status-bar value, the 3D dots and slice sheet, `TEM`; `SBMM.geophys` |
 | temws.js | **v37 — the TEM workspace**: Data ▾ → *TEM geophysics* / `TEMWS` — a panel in the right dock's place with every TEM control, the core (a virtual boring at the centre of the cut, draggable for depth), the descent, and the 3D view opened with the ground cut open to the slice (`SBMM.viewer3d.setPit`); on a phone it opens the card; `SBMM.temws` |
+| teminterp.js | **v38 — two interpretations of the TEM**: *Base of waste* (the 2025 borings' logged native contact kriged across the dry survey footprint, the TEM break depth as an external drift only when it wins the leave-one-out, the standard error, the proposed borings) and *Conductive zones* (an elevation band below the impoundment's surveyed water level, its harmonic-mean resistivity, the least-resistive route from Herman to Clear Lake and its bottleneck, the section along it); the two layer rows, the cards, the workspace tabs it mounts, the 3D spec, the exports, `TEMWASTE` / `TEMSEEP`; `SBMM.teminterp` |
 | siteareas.js | **v28 — the named site areas of SBMM.kmz** (`SBMM_DATA.site_areas`): one Investigations row (off by default), 3D drape, snap, GeoJSON/DXF on `SITE-AREAS`; `SBMM.siteAreas` |
 | borewin.js | **v23 Phase A — the boring-log window** on the sheet-window chassis: the Log tab as a real log sheet at 1 in = 5 ft with the depth cursor, Compare (2–6 holes on one elevation datum, correlation lines, printed separations), the 44-hole Table, the printed log sheet through `js/report.js`, the hole picker, `LOGWIN`; `SBMM.borewin` |
 | fence.js | **v23 Phase B — the fence diagram**: the `fence` store feature (a section through the subsurface along a drawn line), `projectHoles`/`groundProfile`, the SVG the Fence tab, the PNG and the 3D texture are all drawn from, the cut on the map (alignment + swath band + a tick per projected hole), the CSV, the **section-coordinate DXF** (X = station ft, Y = elevation ft) and `FENCE`; `SBMM.fence` |
@@ -3518,6 +3519,81 @@ keep clear of the panel exactly as they keep clear of the dock; the left dock is
 collapsed on open and restored on close, and 3D is closed again on close if it
 was closed before. Field mode is untouched: there `TEMWS` opens the card.
 Nothing serialises — the cut is a view, like the clip box.
+
+## v38 — what the TEM says about the waste and the water
+
+Kernels `temwaste` and `temseep` in `js/compute.js` (no WASM port, so both are
+in `JS_ONLY` in `js/jobs.js`; `VERSION` stays 10); host `js/teminterp.js`
+(`SBMM.teminterp`); harness section `teminterp` in `test/kernels.mjs`; e2e
+block **"9f12. the TEM interpretations: base of waste and conductive zones
+(v38)"** (shard 2), one assertion each in `test/e2e_field.mjs` (block 18) and
+`test/e2e_phone.mjs` (block 4); shots `test/teminterp_shots.mjs`. Both
+kernels read the `tem` job's grid as it stands (log10 Ω·m per layer, its mask,
+its `surf`) and add nothing to it; a model re-run re-runs them.
+
+The engineer asked what else the TEM could say about the site. Two answers, each built
+to say plainly when the answer is "not much":
+
+**Base of waste.** The logged native contact (the app's lead answer, never
+the strata reading) kriged over the survey: exponential covariance with a
+nugget, ordinary kriging from the borings alone, or kriging with an external
+drift (`d = a + b·s`) where `s` is the TEM's **break depth** — the depth of
+the steepest drop in log10 ρ, over ±1 ft, in the top 60 ft. Range (150–2,400
+ft) and nugget share (0–75 %) are chosen by **leave-one-out over the holes
+inside the survey**, for both models, and the plain average of the other holes
+is reported beside them as the floor. **On this site the TEM does not earn its
+place**: r = 0.45 over 13 holes, ±12.4 ft borings only, ±12.2 with TEM, ±12.8
+for the average — the finding line says so (`data-tem-finding="flat"`). Five
+things will be walked into again:
+
+- **"auto" needs the TEM to cut the error by a tenth** (`gain`, 0.1), not to
+  tie. 12.2 against 12.4 is a tie; picking the TEM on it would put a map on
+  screen that claims a geophysical basis it does not have.
+- **Kriging is exact at a datum** (`C(0)` = sill, the nugget only off the
+  diagonal), so the map honours every hole and its standard error is 0 there;
+  the harness asserts both, and restates the leave-one-out with an independent
+  ordinary-kriging solver.
+- **Open water is out of the domain** (`dryMask()` — every EA water polygon
+  the grid touches). The TEM grid reaches 106 nodes over the impoundment and
+  23 over the lake; a thickness of waste under open water is not a quantity.
+- **Proposed borings are the largest standard error, greedily, 200 ft apart.**
+  On this map that is mostly the edges of the survey away from the holes — the
+  honest answer for a map whose error is flat.
+- **The 3D surface is lidar minus depth** (the analysis ground, `SBMM.elev`),
+  the map's colour on its vertices.
+
+**Conductive zones.** Per node the **harmonic-mean resistivity** of an
+ELEVATION band — thickness over conductance, the one resistivity that passes
+the same current — with the band set from the impoundment's surveyed water
+level (`SBMM.water.surveyFacts`, 1,336.45 ft) and the model's own ground
+(`surf`). Conductive = under a threshold (the band's lowest 10 % by default).
+Then a Dijkstra on **(max ρ met, ∫ρ dl)** from the nodes inside EA's Herman
+Impoundment polygon to the nodes inside Clear Lake: the **bottleneck** of that
+route is the lowest threshold at which one 8-connected conductive zone joins
+the two waters, and the harness asserts that identity directly (a threshold a
+hair over it joins, a hair under it does not). Recorded, 0–100 ft band:
+threshold 6.32 Ω·m, bottleneck **10.04 Ω·m**, band median 10.5, route 951 ft,
+no zone joining at the default threshold.
+
+- **The backdrop ground plane goes see-through with the ground** (v38, in
+  `groundBeforeDraw`). It sits at the site's lowest ground less 25 ft, so the
+  band sheet at ~1,286 ft was BELOW it and invisible under a see-through
+  terrain — the same latent defect v37 found for the cut.
+- **A tab of the workspace shows its own analysis.** Under *Base of waste* or
+  *Conductive zones* the cut and the depth slice step aside (both come back
+  with *Model*), and the other interpretation's row goes off. The cut is taken
+  away with `selfOff` set, because the `pit` listener otherwise reads its own
+  removal as "a fence replaced the cut" and switches it off for good.
+- **The route is a tube drawn over the ground** (`depthTest:false`): a GL line
+  is one pixel, and under a see-through ground it was dimmed to nothing.
+- **The band map is the hydrogeophysics scale** (blue conductive) between the
+  band's 2nd and 98th percentiles, with the conductive ground outlined white
+  and the joining zones yellow — a translucent "everything above the
+  threshold" wash made the whole sheet invisible in 3D.
+- **The payload is asked again after every await** (`ensure()` here and in
+  `js/geophys.js`, which also gained the guard in `paintNow` /
+  `refreshCard`): block 9f12 deletes it while a slice row restored by the
+  workspace's close is still awaiting its job.
 
 ## Undo and redo (v9.4) — the both-closures rule and `readd`
 

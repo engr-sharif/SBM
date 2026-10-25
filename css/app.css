@@ -3203,3 +3203,47 @@ body.temws:not(.field) #temWs{display:flex;flex-direction:column;position:fixed;
 #temWs .twscal{font-size:11.5px;line-height:1.5;color:var(--ink2)}
 #temWs .twsacts{flex-direction:row;flex-wrap:wrap;gap:5px}
 #temWs .mono[data-o="cut"],#temWs .mono[data-o="model"]{font-size:10.5px}
+
+/* =====================================================================
+   v38 — the TEM interpretations (js/teminterp.js): the workspace's tabs,
+   their panes, the cards, the map's proposed-boring pills. The Data ▾
+   sub-items sit indented under "TEM geophysics" with a hairline.
+   ===================================================================== */
+.menu.tmenu .toolbtn.tsub{padding-left:36px;font-size:12.5px;color:var(--ink2);position:relative}
+.menu.tmenu .toolbtn.tsub::before{content:"";position:absolute;left:21px;top:4px;bottom:4px;width:1px;background:var(--line)}
+#temWs .twstabs{display:flex;gap:2px;padding:6px 10px 0;border-bottom:1px solid var(--line)}
+#temWs .twstab{flex:1;background:none;border:0;border-bottom:2px solid transparent;color:var(--mut);
+  font:inherit;font-size:12px;padding:6px 4px 7px;cursor:pointer;border-radius:6px 6px 0 0;white-space:nowrap}
+#temWs .twstab:hover{color:var(--ink);background:rgba(255,255,255,.04)}
+#temWs .twstab.on{color:var(--ink);border-bottom-color:var(--acc)}
+#temWs .twstab:focus-visible{outline:2px solid var(--acc);outline-offset:-2px}
+#temWs .twsb[hidden]{display:none !important}
+.tifind{font-size:12.5px;line-height:1.45;color:var(--ink);padding:7px 9px;border-radius:8px;
+  background:rgba(242,208,75,.08);border:1px solid rgba(242,208,75,.22)}
+.tifind:empty{display:none}
+.tirows{display:flex;flex-direction:column;gap:3px;font-size:11.5px}
+.tir{display:flex;justify-content:space-between;gap:10px;align-items:baseline}
+.tir span{color:var(--mut);font-family:system-ui,sans-serif;flex:0 0 auto;max-width:48%}
+.tir b{color:var(--ink);font-weight:500;text-align:right;font-variant-numeric:tabular-nums}
+.tir[title]{cursor:help}
+.tisub{font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--mut);margin-top:6px}
+.tilegh{font-size:11px;color:var(--mut);margin-bottom:-2px}
+.tileg,.tisec{max-width:100%;height:auto;display:block}
+.tikey{display:flex;flex-direction:column;gap:3px;font-size:11px;color:var(--ink2)}
+.tisw{display:flex;align-items:center;gap:7px}
+.tisw i{display:inline-block;width:14px;height:10px;border-radius:2px}
+.tisw i.tiroute{height:3px;background:#F2D04B;box-shadow:0 0 0 1.5px rgba(11,16,19,.6)}
+.titab{width:100%;border-collapse:collapse;font-size:11px}
+.titab th{color:var(--mut);font-weight:500;text-align:right;padding:2px 4px;border-bottom:1px solid var(--line);font-family:system-ui,sans-serif}
+.titab td{text-align:right;padding:2px 4px;color:var(--ink2);font-variant-numeric:tabular-nums}
+.titab th:first-child,.titab td:first-child{text-align:left}
+.titab tr[data-tgt]{cursor:pointer}
+.titab tr[data-tgt]:hover td{color:var(--ink);background:rgba(255,255,255,.04)}
+.tidet summary{cursor:pointer;color:var(--mut);font-size:11px;margin:6px 0 4px}
+.tinote{font-size:10.5px;line-height:1.45}
+.ticard .tibody{display:flex;flex-direction:column;gap:6px;margin-top:6px}
+.titgt{background:none;border:0}
+.titgt span{display:inline-block;min-width:22px;padding:1px 4px;border-radius:9px;text-align:center;
+  font:600 10.5px/14px ui-monospace,monospace;color:#0B1013;background:#F2D04B;
+  box-shadow:0 0 0 1.5px rgba(11,16,19,.75),0 1px 4px rgba(0,0,0,.5)}
+.tipop{display:flex;flex-direction:column;gap:3px;font-size:12px}
