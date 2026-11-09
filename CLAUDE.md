@@ -409,7 +409,8 @@ terrain source, which needs an explicit decision + README/test update).
 | sections.js | stationed cross-sections, end-area check, CSV |
 | report.js | print-ready report sheets (browser Print → PDF) |
 | smartbound.js | WAND (memo top-hat pile delineation), CBOUND (contour-snap), TOE, STANDS |
-| trees.js | individual tree detection over CHM, canvas dot layer, CSV inventory |
+| trees.js | **the tree layer and the inventory (v39)**: the baked site-wide tree table (`SBMM_DATA.trees_site`) decoded on first show, the live kernel as the fallback, the 2D crowns (a sprite per form and colour, at true crown size), the one colour rule `rgbOf`, the popup record `tree(i)`, the min-height filter both views read, `TREES`, the CSV; `SBMM.trees` |
+| trees3d.js | **v39 — trees in 3D**: each tree an instance of one of nine `InstancedMesh`es (three forms x three levels of detail), generated geometry, `relod()` dealing the levels by camera distance inside a drawn frame, one soft ground shadow per tree that follows the sun; `SBMM.trees3d` |
 | borelogs.js | **the 2025 boring logs (OpenGround)** — the strip log in a results card (class profile, strata + USCS, SPT with the pocket penetrometer, pH against the acid threshold, method bands, the water symbol), the TWO contact statements drawn together and reconciled nowhere, the 44-hole `LOGS` table, the CSV and the PNG, the popup button, `LOG` / `LOGS`, the class palette every other view reads through `classColor()`, and since v23 **the column renderer `column()`** every face of the borings is drawn by; `SBMM.borelogs` |
 | labmetals.js | **v28 — lab metals by depth** from the earlier apps (`SBMM_DATA.lab_metals`, `tools/build_imports.py`): the interval table in a boring / test-pit popup and on the log card, the full validated suite on a sample popup, the ROD / PMB levels and `level(sym, v)`; `SBMM.labMetals` |
 | geophys.js | **v36 — the 2026 TEM2Go geophysics** (`SBMM_DATA.tem2026`): the soundings row and the depth-slice row under *Geophysics — TEM 2026* in Investigations, the `tem` job, the slice painted in the contractor's colour maps, the card with the viewer's controls in feet, the sounding popup's profile with the nearest boring's contacts, the CSV/PNG exports, the status-bar value, the 3D dots and slice sheet, `TEM`; `SBMM.geophys` |
@@ -5097,3 +5098,96 @@ clears both trailing buttons (`right:68px`).
 
 **The one finding that is not code** is `docs/V25_REVIEW.md` §0: the GitHub Pages
 site serves the whole tree publicly, gate password and cultural payload included.
+
+## v39 — real trees: the site-wide tree table, 2D crowns, instanced 3D trees
+
+`tools/fetch_usgs_lidar.py`, `tools/build_trees.py`, `tools/trees_detect.mjs`,
+`data/trees_site.json` -> `datajs/d_trees_site.js` (448 kB, a plain script tag,
+**in every build**), `js/trees.js` (rewritten), `js/trees3d.js` (new), the tree
+block in `js/viewer3d.js`, `quality()` / `#v3dQuality`. E2E block **"9f13. the
+trees (v39)"** (shard 2), one assertion in `test/e2e_field.mjs`; shots
+`test/trees_shots.mjs` (`shots:trees`). **No kernel work** (`VERSION` stays 10)
+and no analysis number moves.
+
+The engineer: *"redo that layer to show much better fully built tree layers
+that are actually trees instead of blobs"*, and *"could you use other sources
+to get those trees outside the lidar window?"*
+
+**The table.** 24,310 trees over the whole surveyed site, one row each:
+position, height, crown radius and area, a FORM, an ortho tint, a source.
+
+- **Inside the mine window: the app's own canopy model**, through the same
+  `trees` kernel `js/trees.js` used to run on first show — run at build time by
+  `tools/trees_detect.mjs`, which loads `js/compute.js` the way
+  `test/kernels.mjs` does. **There is one detector.** 4,179 detections, of
+  which **262 sit on one of EA's building polygons and are dropped** (a canopy
+  model cannot tell a roof from a crown): 3,917.
+- **Outside it: the public USGS 3DEP lidar** (project
+  `CA_NorthCoastRanges_2_B23`), because only one tile of the surveyor's point
+  cloud was ever delivered. `tools/fetch_usgs_lidar.py` reads the project's
+  Entwine octree in the public bucket `usgs-lidar-public` and downloads only
+  the 3,425 nodes over the site (852 MB, 146 M returns; NOT committed).
+  `tools/build_trees.py` turns the returns into a **2-ft canopy model over the
+  APP'S OWN GROUND** (the DEM stack) and runs the same kernel: 20,393 trees.
+- **The check, and it is recorded in the payload (`validation`, `usgs`).** The
+  two surveys overlap across the whole mine window. USGS ground minus the
+  app's ground: **median -0.10 ft** (IQR -0.22..+0.07) over 38.6 M ground
+  returns. **85.5 %** of the USGS trees there match a site-lidar tree, 85.6 %
+  of the site trees of 20 ft and over are found, and the height difference is
+  **-0.3 ft median**. Block 9f13 asserts those stay inside bounds.
+- **The form is the crown's shape, not a species**: brush under 13 ft; conifer
+  from 30 ft where the crown is pointed (mean canopy height on a ring at half
+  the crown radius under 0.62 of the apex) or slender; broadleaf otherwise.
+- **`buildings`**: a height for each of EA's 103 building polygons (75th
+  percentile of the canopy model inside it), for the 3D view to extrude later.
+  Nothing reads it yet.
+
+**A build without the table falls back to the live kernel** over `SBMM.chm`,
+as before (no tint, form by slenderness). The field build has no canopy model
+and now HAS trees: `TREES` there is no longer a refusal, and the field harness
+says so.
+
+Seven things that will be walked into again:
+
+- **The rockyweb LAZ tiles are behind a bot challenge** (HTTP 429 with a
+  meta-refresh page); the EPT copy on AWS is not. And **Python's own HTTPS
+  stalls through this box's proxy** while curl does not, so the fetcher makes
+  every request through curl; **pyproj tries to download datum grids and hangs**
+  unless `PROJ_NETWORK=OFF`, which both tools set.
+- **The EPT is EPSG:3857 metres, heights NAVD88 metres.** It goes to EPSG:6418
+  through pyproj and `3937/1200`; the proof it landed is the ground offset
+  above, not the code.
+- **The USGS returns carry no building class** (only 1, 2, 7, 9, 18, 20), so
+  the roof filter is EA's polygons for both surveys.
+- **ONE colour rule, `SBMM.trees.rgbOf`**, read by the 2D sprites and the 3D
+  instances: the ortho was flown in January (a leafless oak reads grey, a
+  shaded crown nearly black), so the photo sets the hue and the tree-to-tree
+  variety, the form sets the base, and the brightness is clamped to what
+  foliage has.
+- **The 3D vertex shades run to ~2.5 on purpose.** The scene's Lambert lighting
+  lands a sunlit surface at about half its albedo, and the ortho under the
+  trees is lit the same way; a crown has to average ~2 to sit at the brightness
+  of the photograph of itself. **When the lighting changes (the next step),
+  `leaf()` in `js/trees3d.js` changes with it.**
+- **`relod()` runs inside a frame that is being drawn** (the render loop's pose
+  check, beside the point names), re-deals only after the camera has travelled
+  a fifth of the near ring, and never asks for a frame — block 9f13 asserts 0
+  renders over three idle seconds with every tree on. The far level carries no
+  `userData.pick`; the near and mid levels map `instanceId` to the tree through
+  `userData.treeIdx`.
+- **A crown is drawn at true size in 2D, so most of the mine area is "on a
+  tree".** `onMapClick` asks `SBMM.pick2d.probe` first and stands down when
+  anything else under the pointer acts on a click. And **a harness that taps
+  the map turns the tree layer off first** (the field harness does).
+
+`SBMM.viewer3d.quality()` is the ONE "realistic / standard" switch (View
+settings, remembered as `SBMM.view.pref("quality")`); a phone, the field build
+and any `lowMem()` profile are always `standard`. Standard draws every tree
+with no near level and a smaller mid cap. `SBMM.viewer3d.lookFrom(x, y, z, tx,
+ty, tz)` and `project(x, y, z)` are harness hooks; `lookFrom` awaits
+`refreshTerrainForCamera()` because an instant placement is not a gesture and
+the quadtree would otherwise keep the previous camera's tiles.
+
+Recorded: 24,310 trees (3,917 site lidar / 20,393 USGS; 14,427 broadleaf /
+1,713 conifer / 8,170 brush); ~1.3 M triangles with every tree on at a
+close camera (411 near / 3,808 mid / 20,091 far, shadows included).

@@ -147,6 +147,7 @@ const SHOTS = [
   ["sheets",   [R("test/sheets_shots.mjs"), INDEX],          "folder"],
   ["hydro3",   [R("test/hydro3_shots.mjs"), INDEX],          "folder"],
   ["loader",   [R("test/loader_shots.mjs"), INDEX],          "folder"],
+  ["trees",    [R("test/trees_shots.mjs"), INDEX],           "folder"],
   ["field",    [R("test/field_shots.mjs"), FIELD],           "field"],
 ];
 for (const [n, args, build] of SHOTS)

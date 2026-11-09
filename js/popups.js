@@ -242,9 +242,14 @@ SBMM.popups = (function () {
   /* trees (js/trees.js canopy detection)                              */
   /* ---------------------------------------------------------------- */
   function forTree(t) {
-    return `<b>Tree ${esc(String(t.id != null ? t.id : ""))}</b><br>`
+    const gz = SBMM.elev(t.x, t.y)[0];
+    return `<b>Tree ${esc(String(t.id != null ? t.id : ""))}</b>`
+      + (t.form ? ` · ${esc(t.form.toLowerCase())}` : "") + `<br>`
       + attrTable([["Height (ft)", t.h], ["Crown radius (ft)", t.r],
-                   ["Ground (ft)", isNaN(SBMM.elev(t.x, t.y)[0]) ? null : SBMM.elev(t.x, t.y)[0]]])
+                   ["Crown area (ft²)", t.area != null ? Math.round(t.area) : null],
+                   ["Ground (ft)", isNaN(gz) ? null : gz],
+                   ["Top (ft)", isNaN(gz) ? null : gz + t.h],
+                   ["Source", t.source || null]])
       + coordLine(t.x, t.y);
   }
 

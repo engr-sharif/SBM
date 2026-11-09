@@ -569,6 +569,11 @@ window.SBMM_BUILD="full";
       <label>Ground <select id="v3dGround" title="How the terrain draws over what is under it — auto is see-through while a TEM layer is on">
         <option value="auto">auto</option><option value="solid">solid</option>
         <option value="see">see-through</option><option value="hidden">hidden</option></select></label>
+      <!-- v39: one switch for the heavier rendering (trees as trees today; light,
+           water and the rest as they land). A phone and the field build are
+           always light. -->
+      <label>Rendering <select id="v3dQuality" title="Realistic draws each tree as a tree, with shadows; standard is lighter on the graphics card">
+        <option value="realistic">realistic</option><option value="standard">standard</option></select></label>
       <!-- v26: saved 3D views (camera bookmarks), remembered with the view prefs -->
       <div class="v3dmarks"><div class="v3dmkh">Saved views <button class="minib" id="v3dMarkSave" title="Save the current camera as a named view">save view</button>
         <button class="minib" id="v3dTourBtn" title="One slow orbit of the mine area — any input stops it">fly the site</button></div>
@@ -1131,6 +1136,7 @@ window.SBMM_HASHES = {
 "datajs/d_lab_metals.js":"bed673763281",
 "datajs/d_site_areas.js":"a4a35a21bde6",
 "datajs/d_tem2026.js":"0e83ca0c7653",
+"datajs/d_trees_site.js":"87ee383f1f32",
 "datajs/d_cultural.js":"ed4f73889a77"
 };
 /* SBMM_HASHES_END */
@@ -1233,6 +1239,7 @@ window.SBMM_HEAVY = [
 <!-- v36: the 2026 TEM2Go geophysics (tools/build_tem2026.py): 1,032 soundings x
      20 resistivity layers (~150 kB), in every build -->
 <script src="datajs/d_tem2026.js"></script>
+<script src="datajs/d_trees_site.js"></script>
 <script src="datajs/d_cultural.js"></script>
 
 <script src="js/compute.js"></script>
@@ -1303,6 +1310,7 @@ window.SBMM_HEAVY = [
 <script src="js/report.js"></script>
 <script src="js/smartbound.js"></script>
 <script src="js/trees.js"></script>
+<script src="js/trees3d.js"></script>
 <script src="js/features.js"></script>
 <script src="js/io.js"></script>
 <script src="js/table.js"></script>

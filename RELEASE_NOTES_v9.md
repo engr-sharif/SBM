@@ -17,6 +17,36 @@ All three are offline-only by design. Nothing in this app calls out to the inter
 
 ---
 
+## v9.48 — trees that are trees, across the whole site (2026-11-09)
+
+The tree layer used to be one draped sheet coloured by height, a dot per tree,
+and only over the mine area. It is now every tree on the surveyed site, drawn
+as a tree.
+
+- **In 3D** each tree has a trunk and a crown sized from its own lidar height
+  and crown width, in one of three forms (broadleaf, conifer, brush) read off
+  the crown's shape, coloured from the aerial photo, with a soft shadow that
+  follows the sun control. Nearby trees are drawn in full detail and distant
+  ones more simply, so the whole site stays smooth.
+- **In 2D** each tree is drawn at its true crown size, lit from the north-west.
+  Zoomed far out they become dots. *Colour by height* in the legend brings the
+  old height colours back.
+- **The whole site, not just the mine area.** 24,310 trees: 3,917 from the
+  January 2024 site lidar inside the mine area, and 20,393 outside it from the
+  public USGS lidar of the county. Where the two surveys overlap, 85 % of the
+  USGS trees match a site-lidar tree and heights agree to 0.3 ft (median); the
+  USGS ground agrees with ours to 0.1 ft. Each tree's popup names its survey.
+- **Roofs are no longer counted as trees**: 262 detections on building
+  footprints were dropped.
+- `TREES` opens the inventory (counts by form and by survey, heights, crown
+  sizes) and the CSV carries form and source. The layer now works in the field
+  build and on a phone.
+- **View settings → Rendering** switches between *realistic* (the default) and
+  *standard*, which is lighter on the graphics card.
+
+The app still makes no network calls; the USGS data was downloaded once to
+build the table that ships with it.
+
 ## v9.47 — what the TEM says about the waste and the water (2026-10-25)
 
 Two interpretations of the 2026 TEM survey, under **Data ▾ → TEM geophysics**
