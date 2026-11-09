@@ -680,6 +680,32 @@ if (want("geomcache")) {
      two-core build box with nothing else running. */
   ok("the rebuild's main-thread cost stays small (recorded from v26: < 120 ms)",
     r.c.cpuMs < 120, r.c.cpuMs);
+
+  /* v40 — AN OVER-FULL CACHE MUST NOT COST A TILE. Every geometry a build
+     inserts trims the cache, and a cached geometry the same build was about to
+     use could be evicted before its turn: the tile was then dropped from the
+     drawn set, a hole in the ground until the camera moved. The budget here is
+     set so that some of a view's tiles survive in the cache to the next build
+     and are then squeezed out by it — the condition, arranged. */
+  const h = await page.evaluate(async () => {
+    const st = () => SBMM.viewer3d.stats().tiles;
+    const out = [];
+    for (const mb of [70, 45, 30]) {
+      SBMM.terrain3d.setGeomBudget(mb * 1e6);
+      for (const [x, y] of [[6372250, 2128350], [6371700, 2128900], [6371150, 2129650], [6371700, 2128900], [6372250, 2128350]]) {
+        SBMM.viewer3d.openAt(x, y);
+        await window.__settle3d();
+        const s = st();
+        out.push({ mb, drawn: s.tiles, selected: s.lastSelectTiles, evicted: s.geomEvicted });
+      }
+    }
+    SBMM.terrain3d.setGeomBudget(0);
+    return out;
+  });
+  const holes = h.filter(v => v.drawn !== v.selected);
+  console.log("   over-budget:", JSON.stringify(h.map(v => v.mb + ":" + v.drawn + "/" + v.selected)), "evicted", h[h.length - 1].evicted);
+  ok("the over-budget run really evicted geometry", h[h.length - 1].evicted > h[0].evicted, `${h[0].evicted} -> ${h[h.length - 1].evicted}`);
+  ok("with the geometry cache over budget every selected tile is still drawn", holes.length === 0, JSON.stringify(holes));
 }
 
 /* ----------------------------------------------------------------- map2d -- */

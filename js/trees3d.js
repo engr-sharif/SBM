@@ -174,14 +174,14 @@ SBMM.trees3d = (function () {
     };
   }
 
-  const TRUNK = [0.95, 0.74, 0.60];
+  const TRUNK = [0.52, 0.41, 0.33];
   /* foliage shade: dark underneath and inside, full colour on top */
-  /* The numbers run past 1 on purpose: the scene's Lambert lighting lands a
-     sunlit surface at roughly half its albedo, and the ortho under the trees is
-     lit the same way — so a crown has to average about 2 to sit at the
-     brightness of the photograph of itself it is standing on. */
+  /* Dark underneath and inside, a little over full colour on top. With the
+     v40 lighting a level sunlit surface returns its albedo, so these sit
+     around 1 (before v40 the scene ran at half brightness and they were
+     doubled to compensate). */
   const leaf = (lo, hi) => z01 => {
-    const s = 0.8 + 1.7 * (lo + (hi - lo) * Math.pow(clamp(z01, 0, 1), 0.8));
+    const s = 0.42 + 0.86 * (lo + (hi - lo) * Math.pow(clamp(z01, 0, 1), 0.8));
     return [s, s * 1.02, s * 0.96];
   };
 
@@ -314,6 +314,10 @@ SBMM.trees3d = (function () {
         mesh.userData.treeIdx = idx;
         mesh.userData.treeLod = lod; mesh.userData.treeForm = NAMES[f];
         if (lod < 2) mesh.userData.pick = { kind: "tree" };
+        /* v40: a tree throws a shadow and does not take one — a shadow map
+           across a few hundred triangles of crown is acne, and the crown's own
+           shading already says which side the sun is on */
+        mesh.castShadow = !!ctx.castShadows;
         group.add(mesh);
         row.push({ mesh, idx });
       }
@@ -322,7 +326,9 @@ SBMM.trees3d = (function () {
 
     let shadow = null;
     const total = count[0] + count[1] + count[2];
-    if (total) {
+    /* the soft discs are the shadow where there is no shadow map (standard
+       rendering); with one, the trees cast their own */
+    if (total && !ctx.castShadows) {
       shadow = new THREE.InstancedMesh(shadowGeometry(), new THREE.MeshBasicMaterial({
         vertexColors: true, transparent: true, depthWrite: false,
         polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -6 }), total);

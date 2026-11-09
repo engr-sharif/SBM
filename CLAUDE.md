@@ -410,6 +410,7 @@ terrain source, which needs an explicit decision + README/test update).
 | report.js | print-ready report sheets (browser Print → PDF) |
 | smartbound.js | WAND (memo top-hat pile delineation), CBOUND (contour-snap), TOE, STANDS |
 | trees.js | **the tree layer and the inventory (v39)**: the baked site-wide tree table (`SBMM_DATA.trees_site`) decoded on first show, the live kernel as the fallback, the 2D crowns (a sprite per form and colour, at true crown size), the one colour rule `rgbOf`, the popup record `tree(i)`, the min-height filter both views read, `TREES`, the CSV; `SBMM.trees` |
+| atmos3d.js | **v40 — the sky and the light**: the analytic sky dome's shader, the sun's colour and strength and the sky fill as one function of the sun's elevation (`light(el)`), the horizon colour the fog takes (`horizonColour`), `sunDir`; `SBMM.atmos3d` |
 | trees3d.js | **v39 — trees in 3D**: each tree an instance of one of nine `InstancedMesh`es (three forms x three levels of detail), generated geometry, `relod()` dealing the levels by camera distance inside a drawn frame, one soft ground shadow per tree that follows the sun; `SBMM.trees3d` |
 | borelogs.js | **the 2025 boring logs (OpenGround)** — the strip log in a results card (class profile, strata + USCS, SPT with the pocket penetrometer, pH against the acid threshold, method bands, the water symbol), the TWO contact statements drawn together and reconciled nowhere, the 44-hole `LOGS` table, the CSV and the PNG, the popup button, `LOG` / `LOGS`, the class palette every other view reads through `classColor()`, and since v23 **the column renderer `column()`** every face of the borings is drawn by; `SBMM.borelogs` |
 | labmetals.js | **v28 — lab metals by depth** from the earlier apps (`SBMM_DATA.lab_metals`, `tools/build_imports.py`): the interval table in a boring / test-pit popup and on the log card, the full validated suite on a sample popup, the ROD / PMB levels and `level(sym, v)`; `SBMM.labMetals` |
@@ -5191,3 +5192,100 @@ the quadtree would otherwise keep the previous camera's tiles.
 Recorded: 24,310 trees (3,917 site lidar / 20,393 USGS; 14,427 broadleaf /
 1,713 conifer / 8,170 brush); ~1.3 M triangles with every tree on at a
 close camera (411 near / 3,808 mid / 20,091 far, shadows included).
+
+## v40 — the sky, the light and the cast shadows
+
+`js/atmos3d.js` (`SBMM.atmos3d`, new, loaded before `js/viewer3d.js`), the
+`v40 — cast shadows` section of `js/viewer3d.js`, one line in `js/terrain3d.js`
+and three in `js/trees3d.js`. E2E block **"9f14. the sky, the light and the
+cast shadows (v40)"** (shard 2); shots `test/light_shots.mjs` (`shots:light`).
+No kernel work (`VERSION` stays 10), no analysis number moves.
+
+**What was wrong.** three r160's lights are physical (`useLegacyLights` is
+off): a Lambert surface returns albedo x irradiance / pi. The two lights had
+been set by eye at 0.85 (sky) and 1.15 (sun), so **level ground in full sun
+rendered at 0.48 of the photograph draped on it** — the whole 3D view ran at
+half brightness under a fixed dark gradient, and nothing cast a shadow.
+
+**ONE INPUT: where the sun is** (the existing azimuth / elevation control).
+`applySun()` asks `SBMM.atmos3d` for everything that follows from it:
+
+- `light(el)` — the sun's colour and strength and the sky fill. At 35 degrees:
+  sun 2.7, sky 1.15, so level sunlit ground returns **0.86** of its albedo, a
+  slope square to the sun 1.2, ground in shadow 0.37 — a shadow is a little
+  under half its sunlit neighbour, which is what makes it read over a
+  photograph that already carries its own. Block 9f14 asserts the balance from
+  the two numbers (between 0.78 and 1.1).
+- the sky dome's shader (`buildSky`): zenith and horizon colours by sun
+  elevation, a forward-scattering glow and a disc. An analytic sky, a handful
+  of arithmetic per pixel, no texture and no file.
+- `horizonColour(el)` — the same numbers in JavaScript, which is the fog's
+  colour, so the ground plane fades into the sky it meets. The fog is linear
+  4,000 → 78,000 ft: a tenth of the way across the site, all of it by the
+  edge of the world.
+
+**There is NO tone-mapping curve, on purpose.** The drapes are photographs and
+the analysis layers are colour scales; a curve would move both. The balance is
+kept where very little clips instead. `MeshBasicMaterial` things (lines,
+labels, the TEM sheets) are unlit and unchanged.
+
+**The shadow map** (`SHD`, `shadowSetup`, `shadowBeforeDraw`): ONE 4,096-px map
+fitted to a square around the orbit target whose half-width follows the camera
+range (450–9,000 ft), its centre snapped to its own texels. Six rules:
+
+- **It is rendered only when a caster or the light moved** — `SHD.dirty` is
+  set by the sun, a terrain swap (`onSwap`), an overlay rebuild that built the
+  trees, and the relief slider — or when the camera has left the square it was
+  fitted to. `renderer.shadowMap.autoUpdate` is off and the fit runs inside a
+  frame that is being drawn, so an idle view renders nothing and re-fits
+  nothing (9f14 asserts both).
+- **Realistic rendering only.** `quality() === "standard"` (a phone, the field
+  build, `lowMem()`) has no shadow map at all; there the trees keep their soft
+  discs. `setQuality` calls `shadowSetup()`, which marks every material
+  `needsUpdate` — a material compiled without shadows has to be compiled again.
+- **The photo-draped ground casts and receives** (`groundShadows(mesh)`, handed
+  to `js/terrain3d.js` through the context; the whole-DEM build calls it too).
+  **The shader rasters do not**: a slope map with a shadow across it is a slope
+  map with wrong values in it.
+- **A tree casts and does not receive** — a shadow map across a few hundred
+  triangles of crown is acne, and the crown's own shading already says which
+  side the sun is on. With a shadow map the soft discs are not built
+  (`castShadows` in the build context).
+- `normalBias` is 1.6 texels of the current fit, set at each fit.
+- The light's own position is re-derived at each fit (target + sun direction x
+  D); `applySun()`'s position is what a build without `atmos3d` gets.
+
+**WHERE THE SUN STARTS** (`SUN_PHOTO`, `SUN_RELIEF`, `sunAuto`). Over the
+orthophoto it starts **where it was when the photograph was taken — azimuth
+180, elevation 33**: a late-January midday, measured off the photo's own tree
+shadows against the canopy model (the brightness difference between "in a
+tree's shadow" and "not" over open ground peaks at due south; the elevation is
+the flight date's noon sun at this latitude). So the shadows the view casts
+fall ON the shadows the photo already has, instead of across them. Over a
+shader raster it starts in the north-west (315 / 35), because relief lit from
+the south reads inside out. `setStyle` calls `sunFollowStyle`. **The moment the
+control is moved the sun is the user's** (`sunAuto` false, remembered as
+`SBMM.view.pref("sunAuto")`; a remembered sun from before v40 has no flag and
+is treated as the user's); **as photographed** in View settings hands it back.
+`SBMM.viewer3d.sun(az, el)` is a user set — a harness that wants the default
+back calls `sunAsPhotographed()`.
+
+**AND A TERRAIN HOLE THAT PREDATES ALL OF THIS, found while photographing it.**
+`js/terrain3d.js` asked "is this tile's geometry cached" when a build began and
+"give it to me" when the tile's turn came — and every geometry the build
+inserted in between ran `geomTrim()`. On a session that had filled the
+geometry budget (220 MB: a few minutes of moving about), an entry could be
+evicted between the two, no mesh had been requested for it, and **the tile was
+silently dropped from the drawn set: a hole in the ground until the camera
+moved.** Entries a build is going to use are now pinned for that build
+(`pin === generation`) and a tile whose geometry is gone anyway is built
+afresh. `test/terrain3d.mjs --only geomcache` arranges the condition with
+`setGeomBudget` and requires drawn === selected (it read 21 of 29 before).
+
+Two harness notes: `test/e2e_field.mjs` waits for the three TEM rows before its
+3D parity table (it raced them on a loaded box), and
+`SBMM.viewer3d.shadowProbe()` / `internals()` are hooks — the probe reads pixels
+back from the GPU, so it is NOT in `stats()`.
+
+**`leaf()` in `js/trees3d.js` came back to ~1** (it was doubled in v39 to
+compensate for the half-bright scene), as the v39 note said it would.

@@ -443,7 +443,7 @@ SBMM.terrain3d = (function () {
     const all = [...geomCache.values()].sort((a, b) => a.used - b.used);
     for (const r of all) {
       if (geomBytes <= budget * 0.85) break;
-      if (r.live) continue;
+      if (r.live || r.pin === generation) continue;      // on screen, or about to be
       geomCache.delete(r.key);
       geomBytes -= r.allBytes;
       stat.geomEvicted++;
@@ -661,9 +661,19 @@ SBMM.terrain3d = (function () {
         for (const [k, t, rec] of loaded) {
           if (!rec || !rec.z32) continue;
           const gk = k + "|" + step;
-          if (!geomCache.has(gk)) {
+          const have = geomCache.get(gk);
+          if (!have) {
             meshP.set(k, Dem.tileMeshAsync(Object.assign(meshArgs(t[0], t[1], t[2], step),
                                                          { z32: rec.z32 })));
+          } else {
+            /* THIS BUILD IS GOING TO USE IT, so it must not be the next thing
+               evicted: every geometry the loop below inserts calls geomTrim(),
+               and an entry that was in the cache here and gone by the time its
+               turn came used to be DROPPED FROM THE DRAWN SET — a hole in the
+               ground that stayed until the camera moved, on any session that
+               had filled the geometry budget. Pinned for the build, and the
+               loop below builds it afresh if it is gone all the same. */
+            have.used = ++geomClock; have.pin = myGen;
           }
           if (style === "ortho" || !gpuRaster) drapeP.set(k, drapeFetch(t[0], t[1], t[2]));
         }
@@ -692,7 +702,10 @@ SBMM.terrain3d = (function () {
         let gc = geomCache.get(gk);
         if (gc) { gc.used = ++geomClock; stat.geomHits++; }
         else {
-          const m = await (meshP.get(k) || Promise.resolve(null));
+          /* no mesh was requested because the geometry was cached when this
+             build began; if it has been evicted since, build it now */
+          const m = await (meshP.get(k) ||
+            Dem.tileMeshAsync(Object.assign(meshArgs(t[0], t[1], t[2], step), { z32: rec.z32 })));
           if (myGen !== generation) { for (const r of built.values()) dispose(r); return false; }
           if (!m) continue;
           stat.geomMisses++;
@@ -720,6 +733,10 @@ SBMM.terrain3d = (function () {
           }
           o.mesh = new THREE.Mesh(gc.geom, o.mat);
           o.mesh.scale.z = ctx.exag();
+          /* v40: the photo-draped ground throws and takes the sun's shadows.
+             The shader rasters do not — a slope map with a shadow across it
+             is a slope map with wrong values in it. */
+          if (ctx.groundShadows && o.mat.isMeshLambertMaterial) ctx.groundShadows(o.mesh);
           /* whatever the ortho pyramid has for this tile; a missing drape
              leaves the mesh white rather than leaving the tile out */
           if (got) applyDrape(o, drapeCompose(t[0], t[1], t[2], got));

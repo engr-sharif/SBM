@@ -17,6 +17,32 @@ All three are offline-only by design. Nothing in this app calls out to the inter
 
 ---
 
+## v9.49 — daylight: a real sky, balanced light and cast shadows (2026-11-09)
+
+The 3D view used to sit under a fixed dark gradient at about half the
+brightness of the aerial photo, with no shadows.
+
+- **A sky that follows the sun control**: blue overhead, pale at the horizon,
+  bright around the sun, and warm when the sun is low.
+- **The ground is as bright as its photograph.** Level ground in sun now shows
+  the aerial photo at its own brightness; slopes facing the sun are lighter and
+  slopes facing away darker.
+- **Cast shadows.** Hills and trees throw shadows across the ground, and they
+  move with the sun control. Close up they are crisp; from far away they show
+  the shape of the land.
+- **Haze** toward the horizon, so the ground beyond the survey fades into the
+  sky instead of ending at a line.
+- Colour scales (elevation, slope, TEM, isopach) are unchanged: no shadows
+  fall on them and their colours are not shifted.
+- **The sun starts where it was in the aerial photo** (due south, 33° up — a
+  late-January midday, measured from the photo's own tree shadows), so the
+  shadows the view casts fall on the shadows already in the photo. Move the sun
+  control and it is yours; *as photographed* in View settings puts it back.
+- *Standard* rendering (and any phone or the field build) keeps the new sky
+  and light but skips the shadow pass.
+- **Fixed: patches of ground going missing in 3D** after moving around the site
+  for a few minutes. They stayed missing until the camera moved again.
+
 ## v9.48 — trees that are trees, across the whole site (2026-11-09)
 
 The tree layer used to be one draped sheet coloured by height, a dot per tree,

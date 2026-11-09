@@ -555,9 +555,10 @@ window.SBMM_BUILD="full";
       <label class="chk"><input type="checkbox" id="v3dClampTerrain" checked> Keep camera above the ground</label>
       <!-- v15 §3.2: the key light. The 2D hillshade is lit from somewhere; this
            is where the 3D view is lit from, and it is remembered. -->
-      <label>Sun azimuth / elevation <span class="mono" id="v3dSunVal">315° / 35°</span>
-        <input type="range" id="v3dSunAz" min="0" max="360" step="5" value="315">
-        <input type="range" id="v3dSunEl" min="5" max="85" step="1" value="35"></label>
+      <label>Sun azimuth / elevation <span class="mono" id="v3dSunVal">180° / 33°</span>
+        <button class="minib" id="v3dSunPhoto" title="Put the sun where it was when the aerial photo was taken (due south, 33°), so cast shadows fall on the photo's own">as photographed</button>
+        <input type="range" id="v3dSunAz" min="0" max="360" step="5" value="180">
+        <input type="range" id="v3dSunEl" min="5" max="85" step="1" value="33"></label>
       <!-- v13 §3.1: the flow-path particles. Default on, remembered in the same
            localStorage record js/view.js keeps the camera in. -->
       <label class="chk"><input type="checkbox" id="v3dAnimWater" checked> Animate water</label>
@@ -1315,6 +1316,7 @@ window.SBMM_HEAVY = [
 <script src="js/io.js"></script>
 <script src="js/table.js"></script>
 <script src="js/terrain3d.js"></script>
+<script src="js/atmos3d.js"></script>
 <script src="js/viewer3d.js"></script>
 <script src="js/pick3d.js"></script>
 <script src="js/sheetmarks.js"></script>
