@@ -205,10 +205,12 @@ SBMM.pick3d = (function () {
       case "tree": return {
         object3d: o, kind: "tree", priority: P,
         hit(ix) {
-          const d = SBMM.trees && SBMM.trees.data;
-          const i = ix && ix.index != null ? ix.index : -1;
-          if (!d || i < 0 || i >= d.n) return null;
-          const t2 = { id: i + 1, x: d.x[i], y: d.y[i], h: d.h[i], r: d.radius[i] };
+          /* v39: a tree is an INSTANCE of one of js/trees3d.js's meshes, and the
+             mesh carries which tree each instance is */
+          const map = o.userData.treeIdx;
+          const k = ix && ix.index != null ? ix.index : -1;
+          const t2 = SBMM.trees && SBMM.trees.tree ? SBMM.trees.tree(map && k >= 0 ? map[k] : k) : null;
+          if (!t2) return null;
           return { title: "Tree " + t2.id, html: SBMM.popups.forTree(t2), xyz: [t2.x, t2.y] };
         }
       };

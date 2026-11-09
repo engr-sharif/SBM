@@ -30,6 +30,7 @@ SBMM.viewer3d = (function () {
   let projGroup = null, featGroup = null, addG = null;
   let SHW = [], OVL = [], SHW_P = [], OVL_P = [];
   let canopyMesh = null;   // kept out of terrainMeshes so picking stays on bare earth
+  let treesOn = false;     // v39: js/trees3d.js has a live build in the overlay group
   let contourGroup = null; // survey contours, built lazily on first check then just toggled
   let CX = 0, CY = 0, ZMID = 0;
   /* v37: one texture per TEM canvas, shared by the overlay rebuild and the
@@ -277,6 +278,7 @@ SBMM.viewer3d = (function () {
        relights the whole terrain without recomputing a single raster — which
        is what v15 asked for and what a CPU raster could never do */
     if (SBMM.terrain3d) SBMM.terrain3d.setSun(sunAz, sunEl);
+    if (treesOn && SBMM.trees3d) SBMM.trees3d.setSun(sunAz, sunEl);     // the tree shadows follow it
     requestRender();
   }
   function setSun(az, el, remember) {
@@ -463,6 +465,27 @@ SBMM.viewer3d = (function () {
   function texBudget() {
     return (SBMM.touch && SBMM.touch.profile && SBMM.touch.profile() === "phone")
       ? PHONE_TEX_PX : Infinity;
+  }
+
+  /* v39 — ONE QUALITY SWITCH. "realistic" is the default wherever the machine
+     can afford it; a phone, the field build and any low-memory profile are
+     always "standard", whatever was remembered — the same reason texBudget()
+     and DRAPE_K are per profile. Modules that have a heavier and a lighter way
+     to draw the same thing (js/trees3d.js is the first) ask this and nothing
+     else. */
+  function quality() {
+    if ((SBMM.lowMem && SBMM.lowMem()) || (SBMM.touch && SBMM.touch.profile && SBMM.touch.profile() === "phone"))
+      return "standard";
+    const p = SBMM.view && SBMM.view.pref ? SBMM.view.pref("quality") : undefined;
+    return p === "standard" ? "standard" : "realistic";
+  }
+  function setQuality(q) {
+    q = q === "standard" ? "standard" : "realistic";
+    if (SBMM.view && SBMM.view.pref) SBMM.view.pref("quality", q);
+    const el = $("v3dQuality");
+    if (el && el.value !== quality()) el.value = quality();
+    if (scene) { rebuildOverlays(); requestRender(); }
+    return quality();
   }
 
   /* v22 §G — THE DRAPE LEVEL IS A TEXTURE BUDGET, NOT THE MESH LEVEL.
@@ -2769,23 +2792,23 @@ SBMM.viewer3d = (function () {
       addG.add(pointsObj);
     }
 
-    /* detected trees, when the canopy detector has been run. One billboard per
-       tree at crown top, so the 3D view can answer "what is that tree" the same
-       way the 2D dot layer does. */
+    /* the trees (v39): each one drawn as a tree — js/trees3d.js. Instanced, so
+       the whole site is a handful of draw calls; the levels of detail are
+       dealt by treesRelod() from the render loop, in a frame that is being
+       drawn anyway. */
     const td = SBMM.trees && SBMM.trees.data;
-    if (PROJ && td && td.n && LS("base", "trees_detected")) {
-      const pos = [];
-      for (let i = 0; i < td.n; i++) {
-        const [z0] = SBMM.elev(td.x[i], td.y[i]);
-        pos.push(td.x[i] - CX, td.y[i] - CY, (isNaN(z0) ? ZMID : z0) - ZMID + td.h[i]);
+    if (PROJ) treesOn = false;
+    if (PROJ && td && td.n && SBMM.trees3d && LS("base", "trees_detected")) {
+      const tg = SBMM.trees3d.build(td, { CX, CY, ZMID, sunAz, sunEl, minShow: SBMM.trees.minShow(),
+                                          light: quality() !== "realistic" });
+      if (tg) {
+        tag(tg, "base", "trees_detected");
+        tg.traverse(o => { if (o !== tg) tag(o, "base", "trees_detected"); });
+        addG.add(tg);
+        treesOn = true;
+        SBMM.trees3d.relod(camera.position, zx, true);
       }
-      const g = new THREE.BufferGeometry();
-      g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
-      const tp = new THREE.Points(g, dotMaterial({ size: 12, color: 0x6FBF7F, opacity: .9 }));
-      tp.userData.pick = { kind: "tree" };
-      tag(tp, "base", "trees_detected");
-      addG.add(tp);
-    }
+    } else if (PROJ && SBMM.trees3d) SBMM.trees3d.dispose();
 
     /* cultural resources (§7) — CONFIDENTIAL, drawn only while the group is on.
        Same draped-ring treatment as the design areas, plus a marker per isolate,
@@ -4024,7 +4047,12 @@ SBMM.viewer3d = (function () {
          candidates is a fraction of a millisecond. */
       const cp = camera.position, cq = camera.quaternion;
       const pose = cp.x + 3.1 * cp.y + 7.3 * cp.z + 1e4 * (cq.x + 2 * cq.y + 3 * cq.z + 4 * cq.w);
-      if (pose !== ptPose) { ptPose = pose; refreshPointLabels(); }
+      if (pose !== ptPose) {
+        ptPose = pose; refreshPointLabels();
+        /* v39: the trees' levels of detail follow the camera the same way — a
+           re-deal happens inside a frame that is being drawn, never on its own */
+        if (treesOn) SBMM.trees3d.relod(cp, exag(), false);
+      }
       /* v20 §3, trap 4: the quadtree re-selects on a SETTLED camera, never per
          frame. update() returns without asking for a frame when the drawn set
          has not changed, which is what keeps an idle view at zero renders. */
@@ -4260,6 +4288,9 @@ SBMM.viewer3d = (function () {
       /* how the ground draws over what is under it (the TEM model) */
       const gs = $("v3dGround");
       if (gs) { gs.value = GROUND.mode; gs.onchange = e => setGround(e.target.value); }
+      /* v39: realistic / standard rendering */
+      const qs = $("v3dQuality");
+      if (qs) { qs.value = quality(); qs.onchange = e => setQuality(e.target.value); }
     }
     wireBookmarks();
     { const tb = $("v3dTourBtn"); if (tb) tb.onclick = e => { e.stopPropagation(); setTimeout(() => flyAround(), 0); }; }
@@ -4721,6 +4752,7 @@ SBMM.viewer3d = (function () {
       })(),
       contoursVisible: !!(contourGroup && contourGroup.visible),
       canopyVisible: !!(canopyMesh && canopyMesh.visible),
+      quality: quality(), trees: treesOn && SBMM.trees3d ? SBMM.trees3d.stats() : null,
       isopachDraped: !!drapeMesh.isopach,
       waterDraped: !!drapeMesh.water,
       /* v13: the animated flow and the stage surface */
@@ -5594,6 +5626,29 @@ SBMM.viewer3d = (function () {
       return out;
     },
     setGround, ground: () => GROUND.mode, groundNow,
+    quality, setQuality,
+    /* v39: put the camera AT a point looking at another (State Plane ft and
+       elevation ft) — what a shots script needs and the orbit rig has no
+       one-call way to say */
+    /* where a State Plane point at an elevation lands on the page (client px),
+       for a harness that has to click on something it can only name */
+    project(x, y, z) {
+      if (!camera || !renderer) return null;
+      camera.updateMatrixWorld();
+      camera.matrixWorldInverse.copy(camera.matrixWorld).invert();
+      const v = new THREE.Vector3(x - CX, y - CY, (z - ZMID) * exag()).project(camera);
+      const r = renderer.domElement.getBoundingClientRect();
+      return { x: r.left + (v.x + 1) / 2 * r.width, y: r.top + (1 - v.y) / 2 * r.height,
+               inView: v.z > -1 && v.z < 1 && Math.abs(v.x) <= 1 && Math.abs(v.y) <= 1 };
+    },
+    async lookFrom(x, y, z, tx, ty, tz) {
+      if (!nav) return;
+      const zx = exag(), T = new THREE.Vector3(tx - CX, ty - CY, (tz - ZMID) * zx);
+      const dx = x - tx, dy = y - ty, dz = (z - tz) * zx, r = Math.hypot(dx, dy, dz);
+      nav.place(T, r, Math.atan2(dx, dy), Math.acos(clamp(dz / r, -1, 1)), true);
+      /* an instant placement is not a gesture, so the quadtree is told */
+      return refreshTerrainForCamera();
+    },
     bookmarks, saveBookmark, goBookmark, removeBookmark, wireBookmarks,
     toggleFly, isFly: () => !!(nav && nav.mode() === "fly"),
     navMode: () => (nav ? nav.mode() : null),

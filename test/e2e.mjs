@@ -7003,6 +7003,165 @@ await page.evaluate(() => {
 });
 });
 
+await block("9f13. the trees (v39)", async () => {
+/* v39 — the tree layer drawn from the baked site-wide table: the payload, the
+   2D crowns, the 3D instanced trees with their levels of detail, the pick, and
+   the idle contract with trees on. Counts are read off the payload, never
+   restated, so a rebuilt table moves the test with it. */
+const t0 = await page.evaluate(async () => {
+  const P = SBMM_DATA.trees_site;
+  if (!P) return { payload: false };
+  const jobs0 = SBMM.compute.stats.workerJobs + SBMM.compute.stats.syncJobs;
+  SBMM.layerState.set("base", "trees_detected", { on: true });
+  const t = Date.now();
+  while (!(SBMM.trees && SBMM.trees.data) && Date.now() - t < 20000) await new Promise(r => setTimeout(r, 50));
+  const d = SBMM.trees.data, st = SBMM.trees.stats();
+  const jobs1 = SBMM.compute.stats.workerJobs + SBMM.compute.stats.syncJobs;
+  /* no tree on a building; site-lidar trees inside the canopy window, USGS trees outside it */
+  const pip = (poly, x, y) => { let c = false; for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const a = poly[i], b = poly[j];
+    if ((a[1] > y) !== (b[1] > y) && x < (b[0] - a[0]) * (y - a[1]) / (b[1] - a[1]) + a[0]) c = !c; } return c; };
+  const blds = SBMM_DATA.design_gis.features.filter(f => f.properties.layer === "bldg" && f.geometry.type === "Polygon")
+    .map(f => f.geometry.coordinates[0]);
+  const W = [6370069, 2127238, 6370069 + 2871, 2127238 + 3881];
+  let onRoof = 0, siteOut = 0, usgsIn = 0, lowH = 0, noGround = 0;
+  for (let i = 0; i < d.n; i++) {
+    const x = d.x[i], y = d.y[i];
+    for (const b of blds) if (pip(b, x, y)) { onRoof++; break; }
+    const inW = x >= W[0] - 1 && x <= W[2] + 1 && y >= W[1] - 1 && y <= W[3] + 1;
+    if (d.src[i] === 0 && !inW) siteOut++;
+    if (d.src[i] === 1 && inW) usgsIn++;
+    if (d.h[i] < 6) lowH++;
+    if (isNaN(SBMM.elev(x, y)[0])) noGround++;
+  }
+  const v = P.validation || {};
+  return { payload: true, n: P.n, dataN: d.n, baked: st.baked, counts: st.counts, jobs: jobs1 - jobs0,
+           onRoof, siteOut, usgsIn, lowH, noGround, blds: blds.length, buildings: (P.buildings || []).length,
+           matched: v.usgs_matched_pct, dh: v.height_diff_ft && v.height_diff_ft.median,
+           offset: P.usgs && P.usgs.ground_offset_ft, label: (document.querySelector('#layers .lyr[data-lid="trees_detected"]') || {}).textContent || "" };
+});
+console.log("TREES v39:", JSON.stringify(t0));
+if (!t0.payload) { console.log("FAIL: the tree table (SBMM_DATA.trees_site) is not in this build"); process.exit(1); }
+if (!t0.baked || t0.dataN !== t0.n || !(t0.n > 20000)) { console.log("FAIL: the tree layer did not load the baked table", t0); process.exit(1); }
+if (t0.jobs !== 0) { console.log("FAIL: turning the tree layer on ran " + t0.jobs + " compute job(s) — the table is baked"); process.exit(1); }
+if (t0.counts.site + t0.counts.usgs !== t0.n || t0.counts.broadleaf + t0.counts.conifer + t0.counts.brush !== t0.n ||
+    !(t0.counts.site > 3000) || !(t0.counts.usgs > 10000) || !(t0.counts.conifer > 100) || !(t0.counts.brush > 100))
+  { console.log("FAIL: the tree counts do not add up", t0.counts); process.exit(1); }
+if (t0.onRoof || t0.siteOut || t0.usgsIn || t0.lowH)
+  { console.log("FAIL: a tree on a building / from the wrong survey for where it stands / under the 6-ft minimum", t0); process.exit(1); }
+if (t0.noGround > t0.n * 0.002) { console.log("FAIL: " + t0.noGround + " trees stand where the app has no ground"); process.exit(1); }
+if (!(t0.matched >= 75) || !(Math.abs(t0.dh) <= 1.5) || !(Math.abs(t0.offset) <= 0.5))
+  { console.log("FAIL: the recorded check of the USGS lidar against the site lidar is outside its bounds", t0); process.exit(1); }
+if (t0.buildings !== t0.blds) { console.log("FAIL: not every building polygon got a height", t0.buildings, "of", t0.blds); process.exit(1); }
+
+/* ---- 2D: crowns at true size, and a click that does not steal ---- */
+const t2 = await page.evaluate(async () => {
+  const d = SBMM.trees.data;
+  SBMM.map.fitBounds([[2128350, 6371050], [2128700, 6371600]], { animate: false });
+  await new Promise(r => setTimeout(r, 700));
+  const cv = document.getElementById("treeCanvas"), g = cv.getContext("2d");
+  const px = g.getImageData(0, 0, cv.width, cv.height).data;
+  let painted = 0; for (let i = 3; i < px.length; i += 4 * 97) if (px[i] > 0) painted++;
+  const legend = (document.querySelector(".treelegend .tcount") || {}).textContent || "";
+  /* a tree with nothing else under it: the click opens the tree */
+  const b = SBMM.map.getBounds();
+  let free = -1, shared = -1;
+  for (let i = 0; i < d.n && (free < 0 || shared < 0); i++) {
+    if (d.x[i] < b.getWest() || d.x[i] > b.getEast() || d.y[i] < b.getSouth() || d.y[i] > b.getNorth()) continue;
+    const acts = SBMM.pick2d.probe(L.latLng(d.y[i], d.x[i])).some(c => c.acts);
+    if (!acts && free < 0) free = i;
+    if (acts && shared < 0) shared = i;
+  }
+  const fire = i => { SBMM.map.closePopup(); SBMM.map.fire("click", { latlng: L.latLng(d.y[i], d.x[i]) }); };
+  let popFree = "", popShared = null;
+  if (free >= 0) { fire(free); popFree = (document.querySelector(".treepop .leaflet-popup-content") || {}).textContent || ""; }
+  /* asked of the map, not of the DOM: a closing popup's element outlives it by its fade */
+  const treeOpen = () => { const p = SBMM.map._popup; return !!(p && p.isOpen() && /treepop/.test(p.options.className || "")); };
+  if (shared >= 0) { fire(shared); popShared = treeOpen(); }
+  SBMM.map.closePopup();
+  /* the height filter is one setting for both views */
+  SBMM.trees.setMinShow(30);
+  await new Promise(r => setTimeout(r, 300));
+  const legend30 = (document.querySelector(".treelegend .tcount") || {}).textContent || "";
+  SBMM.trees.setMinShow(6);
+  return { painted, legend, legend30, free, shared, popFree: popFree.slice(0, 160), popShared };
+});
+console.log("TREES 2D:", JSON.stringify(t2));
+if (!(t2.painted > 200)) { console.log("FAIL: the 2D tree canvas is empty over a stand of trees"); process.exit(1); }
+if (!/shown of/.test(t2.legend)) { console.log("FAIL: the tree legend does not count what is shown", t2.legend); process.exit(1); }
+if (t2.free < 0 || !/Tree \d+/.test(t2.popFree) || !/Source/.test(t2.popFree) || !/Height/.test(t2.popFree))
+  { console.log("FAIL: a click on a crown with nothing else under it did not open the tree popup", t2); process.exit(1); }
+if (t2.shared >= 0 && t2.popShared) { console.log("FAIL: a tree answered a click that another feature owns"); process.exit(1); }
+{ const n6 = parseInt(t2.legend.replace(/,/g, ""), 10), n30 = parseInt(t2.legend30.replace(/,/g, ""), 10);
+  if (!(n30 < n6)) { console.log("FAIL: the minimum-height filter did not thin the 2D layer", t2.legend, t2.legend30); process.exit(1); } }
+
+/* ---- 3D: every tree an instance, three levels of detail, a pick, idle ---- */
+/* opened here, not through the open3d fixture: that is cached, and block 9f12
+   before this one leaves the 3D view closed */
+if (!(await page.evaluate(() => SBMM.viewer3d.isOpen()))) await page.evaluate(async () => { await SBMM.viewer3d.toggle(); });
+await page.waitForFunction(() => document.getElementById("v3dStatus").textContent === "" &&
+  document.getElementById("view3d").style.display === "block", null, { timeout: 90000 });
+await page.waitForTimeout(1200);
+const t3 = await page.evaluate(async () => {
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  const d = SBMM.trees.data;
+  const wasAnim = SBMM.viewer3d.animateWater();
+  SBMM.viewer3d.animateWater(false);                // a visible flow animates by design (block 9f8 does the same)
+  await sleep(600);
+  const s0 = SBMM.viewer3d.stats();
+  const drawn = (s0.layersDrawn || {})["base/trees_detected"] > 0;
+  /* a tall site-lidar tree, and the camera a little way off it */
+  let pick = -1;
+  for (let i = 0; i < d.n; i++) if (d.src[i] === 0 && d.h[i] > 38 && d.h[i] < 60 && d.form[i] === 0) { pick = i; break; }
+  const x = d.x[pick], y = d.y[pick], gz = SBMM.elev(x, y)[0], h = d.h[pick];
+  await SBMM.viewer3d.lookFrom(x - 150, y - 150, gz + 150, x, y, gz + h * 0.6);
+  await sleep(2500);
+  const s1 = SBMM.viewer3d.stats();
+  const at = SBMM.viewer3d.project(x, y, gz + h * 0.72);
+  const cv = document.getElementById("v3dCanvas");
+  const fire = t => cv.dispatchEvent(new MouseEvent(t, { bubbles: true, button: 0, clientX: at.x, clientY: at.y }));
+  fire("mousedown"); fire("mouseup"); fire("click");
+  await sleep(400);
+  const card = SBMM.pick3d.cardOpen() ? (SBMM.pick3d.cardHtml() || "") : "";
+  document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+  /* idle: with the camera parked and the trees on, nothing asks for a frame */
+  await sleep(2500);
+  const r0 = SBMM.viewer3d.stats().renderCount;
+  await sleep(3000);
+  const r1 = SBMM.viewer3d.stats().renderCount;
+  /* the height filter reaches 3D; the lighter rendering drops the near level */
+  SBMM.trees.setMinShow(30); await sleep(500);
+  const s30 = SBMM.viewer3d.stats().trees;
+  SBMM.trees.setMinShow(6); await sleep(300);
+  SBMM.viewer3d.setQuality("standard"); await sleep(500);
+  const sStd = SBMM.viewer3d.stats().trees, qStd = SBMM.viewer3d.quality();
+  SBMM.viewer3d.setQuality("realistic"); await sleep(500);
+  const sBack = SBMM.viewer3d.stats().trees;
+  SBMM.viewer3d.animateWater(wasAnim);
+  return { tree: pick + 1, h, drawn, far: s0.trees, near: s1.trees, at, card: card.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").slice(0, 420),
+           idle: r1 - r0, s30, sStd, qStd, sBack };
+});
+console.log("TREES 3D:", JSON.stringify(t3));
+if (!t3.far || t3.far.trees !== t0.n || t3.far.near + t3.far.mid + t3.far.far !== t0.n)
+  { console.log("FAIL: the 3D view does not draw every tree of the table as an instance", t3.far); process.exit(1); }
+if (!t3.drawn) { console.log("FAIL: the trees are not tagged base/trees_detected for the parity table"); process.exit(1); }
+if (!(t3.far.shadows === t0.n)) { console.log("FAIL: not every tree has a ground shadow", t3.far); process.exit(1); }
+if (!(t3.near.near > 20) || !(t3.near.near <= 700) || !(t3.near.relods > t3.far.relods))
+  { console.log("FAIL: moving the camera into a stand did not deal trees to the near level of detail", t3.near); process.exit(1); }
+if (!t3.at || !t3.at.inView || !new RegExp("Tree " + t3.tree + "\\b").test(t3.card) || !/Source/.test(t3.card))
+  { console.log("FAIL: a click on a tree in 3D did not open that tree's card", t3.tree, t3.card); process.exit(1); }
+if (t3.idle > 1) { console.log("FAIL: the 3D view keeps rendering with the trees on and the camera parked (" + t3.idle + " renders in 3 s)"); process.exit(1); }
+if (!(t3.s30.trees < t0.n) || !(t3.s30.trees > 500)) { console.log("FAIL: the minimum-height filter did not reach the 3D trees", t3.s30); process.exit(1); }
+if (t3.qStd !== "standard" || !t3.sStd.light || t3.sStd.near !== 0 || t3.sStd.trees !== t0.n)
+  { console.log("FAIL: standard rendering should draw every tree with no near level", t3.sStd); process.exit(1); }
+if (t3.sBack.light) { console.log("FAIL: realistic rendering did not come back", t3.sBack); process.exit(1); }
+
+await page.evaluate(() => {
+  SBMM.layerState.set("base", "trees_detected", { on: false });
+  if (SBMM.viewer3d.isOpen()) SBMM.viewer3d.toggle();
+});
+});
+
 await block("9x. drainage", async () => {
 /* 9x. drainage — the whole-site catchment map (v14, docs/V14_DRAINAGE_SPEC.md) */
 /* ==================================================================== */

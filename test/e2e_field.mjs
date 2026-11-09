@@ -298,8 +298,16 @@ absent = await page.evaluate(async () => {
   SBMM.layerMan.open();                 await pause();
   out.layerManOpen = !!document.getElementById("layerMan");
   SBMM.isopach.dialog();                await pause();
-  await SBMM.trees.cmdTrees();          await pause();
   await SBMM.smartbound.cmdStands();    await pause();
+  /* v39: the trees are NOT a refusal any more. The field build drops the
+     canopy model, but the tree layer is drawn from the baked table
+     (SBMM_DATA.trees_site), which is small and ships in every build. */
+  await SBMM.trees.cmdTrees();          await pause();
+  const ts = SBMM.trees.stats();
+  out.trees = ts ? { n: ts.n, baked: ts.baked, usgs: ts.counts && ts.counts.usgs } : null;
+  out.treeCard = /Tree inventory/.test((document.getElementById("resBody") || {}).textContent || "");
+  /* off again: a crown is a click target, and the blocks below tap the map */
+  SBMM.layerState.set("base", "trees_detected", { on: false });
   return out;
 });
 await wait(400);
@@ -314,6 +322,9 @@ if (absent.sheets !== 20 || absent.sheetsWithRender !== 0)
   fail("the sheet manifest should list all 20 with no renders", absent);
 if (!absent.designGis || absent.designGis < 500) fail("the native design GIS is missing", absent);
 if (absent.layerManOpen) fail("the Layer manager opened with no CAD payload to manage");
+if (!absent.trees || !absent.trees.baked || !(absent.trees.n > 20000) || !(absent.trees.usgs > 10000) || !absent.treeCard)
+  fail("the tree table should be in the field build and the inventory should open", absent.trees);
+console.log("  trees:", JSON.stringify(absent.trees), "· inventory card", absent.treeCard);
 for (const re of [/field build|full-sheet render/i, /native CAD payload/i,
                   /design surface/i, /canopy height model/i])
   if (!absentToasts.some(t => re.test(t)))
