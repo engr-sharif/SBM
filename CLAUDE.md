@@ -5542,8 +5542,8 @@ Six things that will be walked into again:
   and widens or unwidens the contour group, which is built once.
 - **Widths say what a line is**: the user's own features 2.3 px, project
   linework 1.5 px, a whole merged reference layer (`drapedBatch`) 1.25 px with
-  a lighter casing, the survey contours 1.0 px, the selection halo 6 px with
-  no casing. A line object can carry `userData.wideOpts`
+  a lighter casing, the survey contours 1.0 px with NO casing (a hillside of
+  cased contours is a mesh), the selection halo 6 px with no casing. A line object can carry `userData.wideOpts`
   (`{width, casing, casingAlpha, casingColor}`) or `userData.noWide`.
 
 `SBMM.viewer3d.wideProbe()` is the harness hook (lines, how many are wide,

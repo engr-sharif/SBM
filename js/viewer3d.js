@@ -665,7 +665,9 @@ SBMM.viewer3d = (function () {
   }
   /* v44: lines with a width (js/lines3d.js) — the realistic rendering's; the
      lighter one keeps WebGL's own one-pixel lines and the v15 drop shadow */
-  const CONTOUR_WIDE = { width: 1.0, casing: 0.7, casingAlpha: 0.38 };
+  /* the contours are a field of lines, not a line: no casing at all (forty
+     cased lines across a hillside is a mesh), just the soft edge */
+  const CONTOUR_WIDE = { width: 1.0, casing: 0 };
   function wideOn() { return !!SBMM.lines3d && quality() === "realistic"; }
   function wideViewport() {
     if (!SBMM.lines3d || !renderer) return;
