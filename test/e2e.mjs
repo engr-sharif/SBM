@@ -6661,21 +6661,27 @@ await page.waitForFunction(() => SBMM.temws.isOpen() && SBMM.viewer3d.isOpen()
 await page.evaluate(() => SBMM.geophys.apply("depth", 60));
 /* the clip planes are claimed at DRAW time, so a terrain tile swapped in
    since the last frame is unclipped until the next one: wait for the frame,
-   not just the swap (in a sequenced run that read 25 of 28 tiles clipped) */
-await page.waitForFunction(() => { const p = SBMM.viewer3d.pitState(), pr = SBMM.viewer3d.clipProbe();
-  return p.on && p.depth === 60 && p.stat && p.stat.walls === 4 && pr.terrain > 0 && pr.terrainClipped === pr.terrain; },
-  null, { timeout: 60000 }).catch(() => {});
-const w1 = await page.evaluate(() => {
+   not just the swap (in a sequenced run that read 25 of 28 tiles clipped).
+   AND THE READING IS TAKEN IN THE SAME TURN AS THE CHECK: with the wait and
+   the reading as two round trips, a swap that landed between them (the
+   quadtree is still refining after the flight in) read 21 of 26 on CI with
+   nothing wrong in the app. */
+const w1Read = () => {
   const P = SBMM.viewer3d.pitState(), C = SBMM.viewer3d.clipState(), pr = SBMM.viewer3d.clipProbe();
   const el = document.getElementById("temWs"), rd = document.getElementById("rightdock");
   const fr = SBMM.shell.frame(), r = el.getBoundingClientRect();
-  return { ws: document.body.classList.contains("temws"), panelW: el.offsetWidth, rightGone: getComputedStyle(rd).display === "none",
+  const out = { ws: document.body.classList.contains("temws"), panelW: el.offsetWidth, rightGone: getComputedStyle(rd).display === "none",
            lcol: document.body.classList.contains("lcol"), frameClear: fr.x + fr.w <= r.left + 1,
            src: C.src, terrain: pr.terrain, clipped: pr.terrainClipped, ground: P.ground, stat: P.stat,
            ext: P.ext, side: P.side, length: P.length, width: P.width, spec: P.spec,
            slice: SBMM.layerState.isOn("invest", "tem_slice"), tp: SBMM.viewer3d.temProbe(),
            text: el.textContent, core: el.querySelector(".twscore").dataset };
-});
+  out.core = { depth: out.core.depth, boring: out.core.boring, cells: out.core.cells };
+  out.settled = !!(P.on && P.depth === 60 && P.stat && P.stat.walls === 4 && pr.terrain > 0 && pr.terrainClipped === pr.terrain);
+  return out;
+};
+const w1 = await page.waitForFunction(`(() => { const o = (${w1Read.toString()})(); return o.settled ? o : false; })()`,
+  null, { timeout: 60000 }).then(h => h.jsonValue()).catch(() => page.evaluate(w1Read));
 console.log("TEM workspace:", JSON.stringify(Object.assign({}, w1, { text: w1.text.length })));
 if (!w1.ws || !(w1.panelW > 300) || !w1.rightGone || !w1.lcol || !w1.frameClear)
   { console.log("FAIL: the TEM workspace did not take the right dock's place", w1); process.exit(1); }
