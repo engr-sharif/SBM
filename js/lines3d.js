@@ -36,13 +36,19 @@
 
 SBMM.lines3d = (function () {
 
-  const U = { uRes: { value: new THREE.Vector2(1, 1) }, uPR: { value: 1 } };
+  const WHITE = new THREE.DataTexture(new Uint8Array([255, 255, 255, 255]), 1, 1, THREE.RGBAFormat, THREE.UnsignedByteType);
+  WHITE.needsUpdate = true;
+  /* uEdge / uEdgeBox (v46): how far inside the survey a point is, so a line
+     fades out with the ground it lies on (js/terrain3d.js). White until set. */
+  const U = { uRes: { value: new THREE.Vector2(1, 1) }, uPR: { value: 1 },
+              uEdge: { value: WHITE }, uEdgeBox: { value: new THREE.Vector4(0, 0, 1, 1) } };
   let made = 0;
 
   const VERT = `
     #define AA_PX 0.75
-    uniform vec2 uRes; uniform float uPR; uniform float uHalf;
+    uniform vec2 uRes; uniform float uPR; uniform float uHalf; uniform vec4 uEdgeBox;
     attribute vec3 aOther; attribute vec2 aParam; attribute float aDist;
+    varying vec2 vEdgeUv;
     #ifdef WIDE_COLOR
       attribute vec3 aColor; varying vec3 vWideColor;
     #endif
@@ -82,6 +88,7 @@ SBMM.lines3d = (function () {
       gl_Position.xy += off / ( uRes * 0.5 ) * cp.w;
       vSide = aParam.x;
       vDist = aDist;
+      vEdgeUv = ( position.xy - uEdgeBox.xy ) / uEdgeBox.zw;
       #ifdef WIDE_COLOR
         vWideColor = aColor;
       #endif
@@ -93,6 +100,7 @@ SBMM.lines3d = (function () {
     #define AA_PX 0.75
     uniform vec3 uColor; uniform vec3 uCase; uniform float uOpacity; uniform float uCaseA;
     uniform float uHalf; uniform float uCore; uniform float uPR; uniform float uDash; uniform float uGap;
+    uniform sampler2D uEdge; varying vec2 vEdgeUv;
     #ifdef WIDE_COLOR
       varying vec3 vWideColor;
     #endif
@@ -110,7 +118,8 @@ SBMM.lines3d = (function () {
       #ifdef WIDE_COLOR
         base *= vWideColor;
       #endif
-      gl_FragColor = vec4( mix( uCase, base, core ), uOpacity * edge * mix( uCaseA, 1.0, core ) );
+      float inS = texture2D( uEdge, vEdgeUv ).r;                 /* 1 inside the survey, 0 at its land limit */
+      gl_FragColor = vec4( mix( uCase, base, core ), uOpacity * edge * mix( uCaseA, 1.0, core ) * inS );
       if ( gl_FragColor.a < 0.01 ) discard;
       #include <colorspace_fragment>
       #include <fog_fragment>
@@ -181,7 +190,7 @@ SBMM.lines3d = (function () {
     const dashed = !!m0.isLineDashedMaterial;
     const mat = new THREE.ShaderMaterial({
       uniforms: Object.assign(THREE.UniformsUtils.clone(THREE.UniformsLib.fog), {
-        uRes: U.uRes, uPR: U.uPR,
+        uRes: U.uRes, uPR: U.uPR, uEdge: U.uEdge, uEdgeBox: U.uEdgeBox,
         uColor: { value: m0.color },                       // the SAME colour object: a highlight on the line moves this
         uCase: { value: new THREE.Color(opts.casingColor != null ? opts.casingColor : 0x070B0E) },
         uCaseA: { value: opts.casingAlpha != null ? opts.casingAlpha : 0.62 },
@@ -252,8 +261,13 @@ SBMM.lines3d = (function () {
     U.uRes.value.set(Math.max(1, wPx), Math.max(1, hPx));
     U.uPR.value = pixelRatio || 1;
   }
+  /* the survey-edge field, its box in the SCENE's own x/y (a line's object space) */
+  function setEdge(tex, x0, y0, w, h) {
+    U.uEdge.value = tex || WHITE;
+    if (tex) U.uEdgeBox.value.set(x0, y0, w, h); else U.uEdgeBox.value.set(0, 0, 1, 1);
+  }
   function count(root) { let n = 0; if (root) root.traverse(o => { if (o.userData && o.userData.wide) n++; }); return n; }
   function stats() { return { made, res: [U.uRes.value.x, U.uRes.value.y], pr: U.uPR.value }; }
 
-  return { widen, unwiden, wideFor, setViewport, count, stats };
+  return { widen, unwiden, wideFor, setViewport, setEdge, count, stats };
 })();

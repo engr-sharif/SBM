@@ -669,6 +669,13 @@ SBMM.viewer3d = (function () {
      cased lines across a hillside is a mesh), just the soft edge */
   const CONTOUR_WIDE = { width: 1.0, casing: 0 };
   function wideOn() { return !!SBMM.lines3d && quality() === "realistic"; }
+  /* v46: the survey-edge fade is the tiled, realistic ground's (js/terrain3d.js) */
+  function edgeOn() { return lodOn && quality() === "realistic" && !!(SBMM.terrain3d && SBMM.terrain3d.edgeAt); }
+  function wideEdge() {
+    if (!SBMM.lines3d || !SBMM.lines3d.setEdge) return;
+    const f = edgeOn() && SBMM.terrain3d.edgeField ? SBMM.terrain3d.edgeField() : null;
+    if (f) SBMM.lines3d.setEdge(f.tex, f.x0 - CX, f.y0 - CY, f.w, f.h); else SBMM.lines3d.setEdge(null);
+  }
   function wideViewport() {
     if (!SBMM.lines3d || !renderer) return;
     const pr = renderer.getPixelRatio(), cv = renderer.domElement;
@@ -3030,7 +3037,9 @@ SBMM.viewer3d = (function () {
     if (PROJ) treesOn = false;
     if (PROJ && td && td.n && SBMM.trees3d && LS("base", "trees_detected")) {
       const tg = SBMM.trees3d.build(td, { CX, CY, ZMID, sunAz, sunEl, minShow: SBMM.trees.minShow(),
-                                          light: quality() !== "realistic", castShadows: shadowsWanted() });
+                                          light: quality() !== "realistic", castShadows: shadowsWanted(),
+                                          /* v46: with the ground's edge fade, what stands on it fades too */
+                                          edgeAt: edgeOn() ? SBMM.terrain3d.edgeAt : null });
       if (tg) {
         tag(tg, "base", "trees_detected");
         tg.traverse(o => { if (o !== tg) tag(o, "base", "trees_detected"); });
@@ -3126,6 +3135,7 @@ SBMM.viewer3d = (function () {
       shadow(SHW_F, featGroup);
     } else {
       /* reference linework quieter than the user's own, which is quieter than nothing */
+      wideEdge();
       if (PROJ) SBMM.lines3d.widen(projGroup, { width: 1.5 });
       SBMM.lines3d.widen(featGroup, { width: 2.3 });
     }

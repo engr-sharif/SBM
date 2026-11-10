@@ -5610,3 +5610,56 @@ fine dashed line on a faint casing.
   lake takes the blue wash too; the always-on lake fill under the photographs
   (`paintLake`, v26) is unchanged.
 
+## v46 — where the survey ends on land, the ground dissolves
+
+The `v46` section of `js/terrain3d.js` (`edgeTexture`, `edgeAt`, `edgeField`),
+the dither in `groundMaterial`, `uEdge` in `js/lines3d.js`, the per-tree factor
+in `js/trees3d.js`, `edgeOn()` / `wideEdge()` in `js/viewer3d.js`. E2E block
+**"9f19. the survey's edge dissolves on land (v46)"** (shard 3); shots
+`test/edge_shots.mjs` (`shots:edge`, `--standard` for the before). No kernel
+work; the analysis grids are read, never written.
+
+**What was wrong.** The lidar stops at a property line or a flight line, and
+the drawn ground stopped with it: a cut edge standing over the backdrop, as if
+the hills ended at a cliff.
+
+**ONE FIELD: how far inside the survey a point is** — 0 at the limit, 1 at
+240 ft (`EDGE_FT`) and beyond, on a 16-ft grid over the site DEM (606 x 556),
+by a two-pass chamfer distance transform, smooth-stepped. Built once, on the
+first ground material. Three things read it:
+
+- **the ground** (`groundMaterial`): a fragment is discarded when the field is
+  below an interleaved-gradient-noise threshold in SCREEN space. **A dither,
+  not blending** — the ground keeps writing depth and stays in the opaque
+  pass, so sorting, the shadow map, the clip box and the see-through ground
+  are untouched. `customProgramCacheKey` moved to `sbmm-ground-v46`;
+- **the wide lines** (`SBMM.lines3d.setEdge`, a shared uniform, white until
+  set): alpha times the field, so a boundary or a contour fades with the
+  ground it lies on instead of standing over nothing. The box is handed over
+  in the SCENE's x/y (a line's object space);
+- **the trees** (`ctx.edgeAt` → `td._edgeK`): an instance is scaled by the
+  field (smooth-stepped 0.12–0.6), so a tree shrinks away with its ground.
+  **Every tree is still an instance** — block 9f13's "the 3D view draws every
+  tree of the table" holds — and its popup still gives its real height.
+
+Four things that will be walked into again:
+
+- **"THE LIMIT" IS WHERE THE GROUND RUNS OUT ON LAND.** At Clear Lake's shore
+  the lidar also ends, and that is a real edge with the lake's own sheet
+  against it. So EA's water polygons are rasterised into the "inside" mask
+  before the transform (the 2D canvas does it: `fill()`).
+- **AND STROKED SEVEN CELLS WIDE.** The lidar's water edge and EA's drafted
+  shoreline do not meet exactly, and a 16-ft sliver of "no ground, no water"
+  between them is a land limit to the transform: the first cut faded the
+  shore wherever the two disagreed. Where the gap is wider than ~50 ft the
+  lidar really does end on land short of the shore, and it fades there.
+- **Realistic rendering and the tiled ground only** (`edgeOn()`): the lighter
+  rendering's ground, lines and trees are exactly as they were, and the
+  shader rasters (hillshade, slope, elevation) do not fade — a slope map with
+  a stipple across it is a slope map with holes in it.
+- The field's lookup is unconditional and its texture has no mips (the v41
+  rule about a mip-mapped lookup inside a branch).
+
+`SBMM.terrain3d.edgeInfo()` → `{real, cell, w, h, fadeFt, fadedAcres}` (175.5
+acres of ground are inside the fade); `edgeAt(x, y)` is the field at a point.
+
