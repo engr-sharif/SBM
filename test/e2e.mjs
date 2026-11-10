@@ -7739,6 +7739,69 @@ if (!(HI.own.casing > 0) || !(HI.sel.casing > 0)) { console.log("FAIL: the user'
 if (!HI.cand.length || !/Limit of excavation/.test(HI.cand[0])) { console.log("FAIL: the pointer on a limit of excavation did not land on it", HI.cand); process.exit(1); }
 });
 
+await block("9f22. one label scale and halo; 3D chips step up before they drop (v49)", async () => {
+/* v49 — every label on the 2D map shares four sizes and one halo (css/app.css),
+   and a 3D chip that lands on another is tried one and two rows higher on its
+   own vertical leader before it is dropped — so more labels survive and no two
+   leaders can cross. */
+const LB = await page.evaluate(async () => {
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  /* the computed style of each label class, on a detached-from-layout probe */
+  const host = document.createElement("div");
+  host.style.cssText = "position:absolute;left:-9999px;top:0";
+  host.innerHTML = '<div class="stalbl">x</div><div class="pondlbl"><span>x</span></div><div class="flowend"><span class="lbl">x</span></div>'
+    + '<div class="spillmk"><span class="lbl">x</span></div><div class="drainlbl">x</div><div class="plname">x<small>y</small></div>'
+    + '<div class="plname lake">x</div><div class="dsmk"><span class="dslbl">x</span></div><div class="excdepth"><span>x</span></div><div class="fplbl"><span>x</span></div>';
+  document.body.appendChild(host);
+  const cs = sel => { const e = host.querySelector(sel), c = getComputedStyle(e); return { size: c.fontSize, halo: c.textShadow }; };
+  const css = { sta: cs(".stalbl"), pond: cs(".pondlbl span"), flow: cs(".flowend .lbl"), spill: cs(".spillmk .lbl"), drain: cs(".drainlbl"),
+                place: cs(".plname"), placeSmall: cs(".plname small"), lake: cs(".plname.lake"), ds: cs(".dsmk .dslbl"),
+                exc: cs(".excdepth span"), fp: cs(".fplbl span") };
+  host.remove();
+  /* 3D: five chips on one point */
+  const V = SBMM.viewer3d;
+  if (!V.isOpen()) await V.toggle();
+  await new Promise(r => { const t0 = Date.now(); const k = () => (document.getElementById("v3dStatus").textContent === "" || Date.now() - t0 > 60000) ? r() : setTimeout(k, 200); k(); });
+  await sleep(1500);
+  const wasAnim = V.animateWater(); V.animateWater(false);
+  const ptWas = document.getElementById("v3dPtLabels").checked;
+  if (ptWas) document.getElementById("v3dPtLabels").click();
+  const x = 6372300, y = 2128300, z = SBMM.elev(x, y)[0];
+  await V.lookFrom(x + 300, y - 300, z + 320, x, y, z);
+  await sleep(1500);
+  V.setWaterStage({ level: z + 40, rings: [[[x - 30, y - 30], [x + 30, y - 30], [x + 30, y + 30], [x - 30, y + 30]]],
+    labels: ["one", "two", "three", "four", "five"].map((t, i) => ({ key: "v49-" + i, text: "v49 " + t, x, y, z: z + 40, priority: 90 - i, color: "#55C1FF" })) });
+  await sleep(1200);
+  const mine = V.labels3dProbe().filter(c => /v49-/.test(c.key)), lifted = V.stats().labelsLifted;
+  const r0 = V.stats().renderCount;
+  await sleep(2500);
+  const idle = V.stats().renderCount - r0;
+  V.setWaterStage(null);
+  if (ptWas) document.getElementById("v3dPtLabels").click();
+  V.animateWater(wasAnim);
+  await sleep(400);
+  return { css, mine, lifted, idle };
+});
+console.log("LABELS v49:", JSON.stringify(LB));
+{ const c = LB.css, halos = [c.sta, c.pond, c.flow, c.spill, c.drain, c.place, c.ds].map(q => q.halo);
+  if (halos.some(h => !h || h === "none") || new Set(halos).size !== 1)
+    { console.log("FAIL: the map labels do not share one halo", halos); process.exit(1); }
+  const sizes = new Set(Object.values(c).map(q => q.size));
+  if (sizes.size > 4 || c.place.size !== "12px" || c.lake.size !== "14px" || c.exc.size !== "11px" || c.pond.size !== "10px")
+    { console.log("FAIL: the map labels are not on the four-size scale", JSON.stringify(c)); process.exit(1); } }
+if (LB.mine.length !== 3) { console.log("FAIL: five chips on one point should leave three (rows 0, 1, 2), got " + LB.mine.length, LB.mine); process.exit(1); }
+{ const rows = LB.mine.map(m => m.rows).sort().join(","), xs = new Set(LB.mine.map(m => m.sx));
+  if (rows !== "0,1,2") { console.log("FAIL: the surviving chips are not on rows 0, 1 and 2", rows); process.exit(1); }
+  if (xs.size !== 1) { console.log("FAIL: a lifted chip left its leader's vertical", [...xs]); process.exit(1); }
+  for (let i = 0; i < LB.mine.length; i++) for (let j = i + 1; j < LB.mine.length; j++) {
+    const a = LB.mine[i], b = LB.mine[j];
+    if (Math.abs(a.sx - b.sx) < a.hw + b.hw && Math.abs(a.sy - b.sy) < a.hh + b.hh)
+      { console.log("FAIL: two kept chips overlap", a, b); process.exit(1); }
+  } }
+if (LB.idle > 1) { console.log("FAIL: an idle view rendered " + LB.idle + " frames with the labels up"); process.exit(1); }
+await page.evaluate(() => { if (SBMM.viewer3d.isOpen()) SBMM.viewer3d.toggle(); });
+});
+
 await block("9x. drainage", async () => {
 /* 9x. drainage — the whole-site catchment map (v14, docs/V14_DRAINAGE_SPEC.md) */
 /* ==================================================================== */
