@@ -17,6 +17,14 @@ All three are offline-only by design. Nothing in this app calls out to the inter
 
 ---
 
+## v9.56 — boreholes as columns, clearer point symbols (2026-11-10)
+
+- **In 3D a boring, well or test pit is a column in its log's colours**: a
+  clear line from across the site, and a round column the width of the hole
+  when you are beside it.
+- **In 2D the well and boring symbols have a dark outline** so they read over
+  the aerial photo, and wells use the standard monitoring-well symbol.
+
 ## v9.55 — the edge of the survey fades out (2026-11-10)
 
 - **Where the survey ends on land, the 3D ground now fades out** over the last

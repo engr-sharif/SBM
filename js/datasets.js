@@ -238,10 +238,32 @@ SBMM.datasets = (function () {
   }
 
   /* ---------- symbols ---------- */
+  /* v47: every symbol is drawn twice — a dark, slightly wider copy under the
+     symbol itself — so an open ring or a cross reads over a bright photograph
+     as surely as a filled dot does. The well is the plan symbol for a
+     monitoring well: a circle with two opposite quarters filled. */
   function svgSymbol(shape, color, size) {
     const s = size * 2, c = size, r = size - 1;
     const stroke = `stroke="#0D1215" stroke-width="1"`;
-    let body;
+    let body, halo = "";
+    const H = `fill="none" stroke="#0A0F12" stroke-opacity=".62" stroke-linejoin="round"`;
+    switch (shape) {
+      case "well": {
+        const rr = r - 0.4, q = (a0, a1) => {
+          const x0 = c + rr * Math.cos(a0), y0 = c + rr * Math.sin(a0), x1 = c + rr * Math.cos(a1), y1 = c + rr * Math.sin(a1);
+          return `<path d="M${c} ${c} L${x0.toFixed(2)} ${y0.toFixed(2)} A${rr} ${rr} 0 0 1 ${x1.toFixed(2)} ${y1.toFixed(2)} Z" fill="${color}"/>`;
+        };
+        halo = `<circle cx="${c}" cy="${c}" r="${rr}" ${H} stroke-width="3.6"/>`;
+        body = `<circle cx="${c}" cy="${c}" r="${rr}" fill="#0D1215" fill-opacity=".35" stroke="${color}" stroke-width="1.6"/>`
+          + q(-Math.PI / 2, 0) + q(Math.PI / 2, Math.PI);
+        return `<svg width="${s}" height="${s}" viewBox="0 0 ${s} ${s}">${halo}${body}</svg>`;
+      }
+      case "boring":
+        halo = `<rect x="1" y="1" width="${s - 2}" height="${s - 2}" ${H} stroke-width="3.6"/>`;
+        body = `<rect x="1" y="1" width="${s - 2}" height="${s - 2}" fill="#0D1215" fill-opacity=".35" stroke="${color}" stroke-width="1.8"/>
+        <path d="M1 1 L${s - 1} ${s - 1} M${s - 1} 1 L1 ${s - 1}" stroke="${color}" stroke-width="1.3"/>`;
+        return `<svg width="${s}" height="${s}" viewBox="0 0 ${s} ${s}">${halo}${body}</svg>`;
+    }
     switch (shape) {
       case "square": body = `<rect x="1" y="1" width="${s - 2}" height="${s - 2}" fill="${color}" ${stroke}/>`; break;
       case "triangle": body = `<polygon points="${c},1 ${s - 1},${s - 1} 1,${s - 1}" fill="${color}" ${stroke}/>`; break;

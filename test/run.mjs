@@ -156,6 +156,7 @@ const SHOTS = [
   ["lines",    [R("test/lines_shots.mjs"), INDEX],           "folder"],
   ["map2d",    [R("test/map2d_shots.mjs"), INDEX],           "folder"],
   ["edge",     [R("test/edge_shots.mjs"), INDEX],            "folder"],
+  ["columns",  [R("test/columns_shots.mjs"), INDEX],         "folder"],
   ["field",    [R("test/field_shots.mjs"), FIELD],           "field"],
 ];
 for (const [n, args, build] of SHOTS)

@@ -2995,6 +2995,9 @@ SBMM.viewer3d = (function () {
           }));
           stick.renderOrder = 2;
           stick.userData.noClip = true;        // v27: below ground, shown in the trench
+          /* v47: the hole as a column — never thinner than 4 px, as wide as a
+             2.4-ft column close up, shaded round, in its log's own colours */
+          stick.userData.wideOpts = { width: 4, casing: 1, casingAlpha: 0.7, world: 1.2, round: true };
           /* the stick belongs to the same record as the dot above it — clicking
              the borehole, not just its cap, has to open the log */
           /* segPt[k] is the record the k-th SEGMENT belongs to — js/pick3d.js
@@ -3260,7 +3263,11 @@ SBMM.viewer3d = (function () {
         segments: o.geometry ? o.geometry.getAttribute("position").count / 2 : 0,
         records: pk.idx ? pk.idx.length : 0,
         colors: [...cols],
-        vertexColors: !!(o.material && o.material.vertexColors)
+        vertexColors: !!(o.material && o.material.vertexColors),
+        /* v47: drawn as a column? (js/lines3d.js) */
+        column: o.userData._wide ? { worldFt: o.userData._wide.material.uniforms.uWorld.value,
+                                     round: o.userData._wide.material.uniforms.uRound.value > 0.5,
+                                     colours: !!o.userData._wide.geometry.getAttribute("aColor") } : null
       });
     });
     return out;
