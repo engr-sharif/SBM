@@ -957,8 +957,104 @@ SBMM.terrain3d = (function () {
     return coverTex;
   }
   /* the uniforms every ground material shares */
+  /* v46 — WHERE THE SURVEY ENDS ON LAND, THE GROUND DISSOLVES. The lidar stops
+     at a property line or a flight line, and the drawn ground used to stop
+     with it: a cut edge standing over the backdrop, as if the hills ended at a
+     cliff. This is a site-wide texture of HOW FAR INSIDE THE SURVEY a point
+     is, 0 at the limit and 1 at EDGE_FT and beyond; the ground's shader thins
+     the surface out against it with a screen-space dither, so the last few
+     hundred feet fade into whatever is behind them.
+
+     "The limit" is where the ground runs out ON LAND. Where it runs out at
+     water — Clear Lake's shore — there is no fade: the shoreline is a real
+     edge and the lake's own sheet meets it (js/water3d.js). So EA's water
+     polygons count as inside. A dither, not blending: the ground keeps
+     writing depth and stays in the opaque pass, so nothing about sorting,
+     shadows or the see-through ground changes. */
+  const EDGE_FT = 240, EDGE_CELL = 16;
+  let edgeTex = null, edgeMeta = null;
+  function edgeTexture() {
+    if (edgeTex) return edgeTex;
+    const flat = new THREE.DataTexture(new Uint8Array([255]), 1, 1, THREE.RedFormat, THREE.UnsignedByteType);
+    flat.needsUpdate = true;
+    edgeTex = flat; edgeMeta = { x0: 0, y0: 0, w: 1, h: 1, real: false };
+    const D = SBMM.demSite;
+    if (!D || !D.m || !D.z) return edgeTex;
+    try {
+      const m = D.m, st = Math.max(1, Math.round(EDGE_CELL / m.cell)), cell = st * m.cell;
+      const W = Math.floor(m.w / st), H = Math.floor(m.h / st);
+      const inside = new Uint8Array(W * H);
+      for (let j = 0; j < H; j++) for (let i = 0; i < W; i++)
+        if (!isNaN(D.z[(j * st) * m.w + i * st])) inside[j * W + i] = 1;
+      /* EA's water bodies are inside too: rasterised by the 2D canvas, north up */
+      const G = window.SBMM_DATA && SBMM_DATA.design_gis;
+      if (G && G.features) {
+        const cv = document.createElement("canvas"); cv.width = W; cv.height = H;
+        const g = cv.getContext("2d", { willReadFrequently: true });
+        g.fillStyle = "#fff"; g.strokeStyle = "#fff"; g.lineWidth = 7; g.lineJoin = "round";
+        for (const f of G.features) {
+          if (!f.properties || f.properties.layer !== "water" || !f.geometry || f.geometry.type !== "Polygon") continue;
+          const r = f.geometry.coordinates[0];
+          g.beginPath();
+          r.forEach((q, k) => { const x = (q[0] - m.x0) / cell, y = H - (q[1] - m.y0) / cell; if (k) g.lineTo(x, y); else g.moveTo(x, y); });
+          g.closePath(); g.fill();
+          /* and a few cells past its outline: the lidar's water edge and EA's
+             drafted shoreline do not meet exactly, and a 16-ft sliver of "no
+             ground, no water" between them is a land limit to the transform —
+             the shore then faded wherever the two disagreed */
+          g.stroke();
+        }
+        const px = g.getImageData(0, 0, W, H).data;
+        for (let j = 0; j < H; j++) for (let i = 0; i < W; i++)
+          if (px[((H - 1 - j) * W + i) * 4] > 127) inside[j * W + i] = 1;
+      }
+      /* two-pass chamfer distance to the nearest cell that is not inside; the
+         grid's own border is NOT a limit where the water runs off it */
+      const BIG = 1e6, d = new Float32Array(W * H), A = 1, B = Math.SQRT2;
+      for (let k = 0; k < d.length; k++) d[k] = inside[k] ? BIG : 0;
+      for (let j = 0; j < H; j++) for (let i = 0; i < W; i++) {
+        const k = j * W + i; if (!d[k]) continue;
+        let v = d[k];
+        if (i > 0) v = Math.min(v, d[k - 1] + A);
+        if (j > 0) { v = Math.min(v, d[k - W] + A); if (i > 0) v = Math.min(v, d[k - W - 1] + B); if (i < W - 1) v = Math.min(v, d[k - W + 1] + B); }
+        d[k] = v;
+      }
+      for (let j = H - 1; j >= 0; j--) for (let i = W - 1; i >= 0; i--) {
+        const k = j * W + i; if (!d[k]) continue;
+        let v = d[k];
+        if (i < W - 1) v = Math.min(v, d[k + 1] + A);
+        if (j < H - 1) { v = Math.min(v, d[k + W] + A); if (i < W - 1) v = Math.min(v, d[k + W + 1] + B); if (i > 0) v = Math.min(v, d[k + W - 1] + B); }
+        d[k] = v;
+      }
+      const out = new Uint8Array(W * H);
+      let faded = 0;
+      for (let k = 0; k < d.length; k++) {
+        const t = Math.min(1, d[k] * cell / EDGE_FT);
+        out[k] = Math.round(255 * t * t * (3 - 2 * t));
+        if (inside[k] && t < 1) faded++;
+      }
+      const t2 = new THREE.DataTexture(out, W, H, THREE.RedFormat, THREE.UnsignedByteType);
+      t2.magFilter = THREE.LinearFilter; t2.minFilter = THREE.LinearFilter;
+      t2.wrapS = t2.wrapT = THREE.ClampToEdgeWrapping;
+      t2.colorSpace = THREE.NoColorSpace; t2.unpackAlignment = 1; t2.needsUpdate = true;
+      edgeTex = t2; flat.dispose();
+      /* texel k is centred on its cell, so the box runs half a cell past the first and last */
+      edgeMeta = { x0: m.x0 - cell / 2, y0: m.y0 - cell / 2, w: W * cell, h: H * cell, real: true, W, H, cell,
+                   fadedAcres: +(faded * cell * cell / 43560).toFixed(1), data: out };
+    } catch (e) { console.warn("3D survey-edge fade:", e); }
+    return edgeTex;
+  }
+  /* how far inside the survey a point is, 0..1 — for the harness */
+  function edgeAt(x, y) {
+    edgeTexture();
+    if (!edgeMeta || !edgeMeta.real) return null;
+    const i = clamp(Math.floor((x - edgeMeta.x0) / edgeMeta.cell), 0, edgeMeta.W - 1),
+          j = clamp(Math.floor((y - edgeMeta.y0) / edgeMeta.cell), 0, edgeMeta.H - 1);
+    return edgeMeta.data[j * edgeMeta.W + i] / 255;
+  }
+
   const GROUND_U = { uNoise: { value: null }, uCover: { value: null }, uSite: { value: null },
-                     uDetail: { value: null }, uAo: { value: 1 } };
+                     uDetail: { value: null }, uAo: { value: 1 }, uEdge: { value: null }, uEdgeBox: { value: null } };
   function groundMaterial(o) {
     const mat = new THREE.MeshLambertMaterial({ color: 0xffffff });
     if (!shadeWanted()) return mat;
@@ -968,6 +1064,9 @@ SBMM.terrain3d = (function () {
       GROUND_U.uSite.value = new THREE.Vector4(coverMeta.x0, coverMeta.y0, coverMeta.w, coverMeta.h);
       /* fade start, fade end (ft from the eye), strength */
       GROUND_U.uDetail.value = new THREE.Vector3(40, 420, 1.0);
+      GROUND_U.uEdge.value = edgeTexture();
+      /* the edge texture's box, in feet from the cover raster's corner (what uTile is in) */
+      GROUND_U.uEdgeBox.value = new THREE.Vector4(coverMeta.x0 - edgeMeta.x0, coverMeta.y0 - edgeMeta.y0, edgeMeta.w, edgeMeta.h);
     }
     const r = SBMM.tiles.rect(o.z, o.x, o.y);
     const U = mat.userData.u = {
@@ -984,9 +1083,18 @@ SBMM.terrain3d = (function () {
         .replace("#include <common>", `#include <common>
 uniform sampler2D uShade; uniform float uShadeK; uniform vec3 uTile;
 uniform sampler2D uNoise; uniform sampler2D uCover; uniform vec4 uSite; uniform vec3 uDetail; uniform float uAo;
+uniform sampler2D uEdge; uniform vec4 uEdgeBox;
 uniform mat3 normalMatrix;
 varying vec2 vTileUv;`)
         .replace("#include <map_fragment>", `#include <map_fragment>
+	{
+		/* v46: the survey's edge on land. A screen-space dither against how far
+		   inside the survey this fragment is; the lookup is unconditional (no
+		   mips on that texture, but the rule is the rule) */
+		float inS = texture2D( uEdge, ( uTile.xy + vTileUv * uTile.z + uEdgeBox.xy ) / uEdgeBox.zw ).r;
+		float ign = fract( 52.9829189 * fract( dot( gl_FragCoord.xy, vec2( 0.06711056, 0.00583715 ) ) ) );
+		if ( inS < 0.996 && inS < ign * 0.98 + 0.02 ) discard;
+	}
 	{
 		vec2 wft = uTile.xy + vTileUv * uTile.z;
 		float dEye = length( vViewPosition );
@@ -1010,7 +1118,7 @@ varying vec2 vTileUv;`)
 		reflectedLight.directDiffuse *= mix( 1.0, ao, 0.5 );
 	}`);
     };
-    mat.customProgramCacheKey = () => "sbmm-ground-v41";
+    mat.customProgramCacheKey = () => "sbmm-ground-v46";
     return mat;
   }
   function applyShade(r, data) {
@@ -1103,7 +1211,9 @@ varying vec2 vTileUv;`)
     },
     /* the records viewer3d keeps in `terrainMeshes`, in its own shape, so
        raycasting, the relief slider and stats() go on working unchanged */
-    shadeProbe,
+    shadeProbe, edgeAt,
+    /* the field itself, for whatever else has to fade with the ground (js/lines3d.js) */
+    edgeField: () => { edgeTexture(); return edgeMeta && edgeMeta.real ? { tex: edgeTex, x0: edgeMeta.x0, y0: edgeMeta.y0, w: edgeMeta.w, h: edgeMeta.h } : null; }, edgeInfo: () => { edgeTexture(); return edgeMeta ? { real: edgeMeta.real, cell: edgeMeta.cell, w: edgeMeta.W, h: edgeMeta.H, fadeFt: EDGE_FT, fadedAcres: edgeMeta.fadedAcres } : null; },
     records() {
       return [...drawn.values()].map(r => ({ mesh: r.mesh, nx: r.side, ny: r.side,
                                              stride: r.step, dem: SBMM.demSite,

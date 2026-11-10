@@ -7573,6 +7573,51 @@ if (!M2.cand.length || !/Structure/.test(M2.cand[0].name) || M2.cand.some(c => /
   { console.log("FAIL: the pointer on a building did not land on EA's structure", M2.cand); process.exit(1); }
 });
 
+await block("9f19. the survey's edge dissolves on land (v46)", async () => {
+/* v46 — js/terrain3d.js thins the photo-draped ground out over the last 240 ft
+   before the survey ends ON LAND, against a site-wide "how far inside" field.
+   The field is the contract: 1 well inside, falling to 0 at a land limit, and
+   NOT falling at a shoreline, where EA's water polygons count as inside. */
+if (!(await page.evaluate(() => SBMM.viewer3d.isOpen()))) await page.evaluate(async () => { await SBMM.viewer3d.toggle(); });
+await page.waitForFunction(() => document.getElementById("v3dStatus").textContent === "" &&
+  document.getElementById("view3d").style.display === "block", null, { timeout: 90000 });
+await page.waitForTimeout(1200);
+const EG = await page.evaluate(async () => {
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  const V = SBMM.viewer3d, T = SBMM.terrain3d, wasAnim = V.animateWater();
+  V.animateWater(false);
+  const info = T.edgeInfo();
+  const has = (x, y) => !isNaN(SBMM.elev(x, y)[0]);
+  /* well inside: the middle of the mine area */
+  const mid = T.edgeAt(6372300, 2128300);
+  /* the land limit: walk east from the mine until the lidar runs out */
+  let xe = 6372300; const ye = 2126900;
+  while (has(xe, ye) && xe < 6379000) xe += 8;
+  const atLimit = T.edgeAt(xe - 24, ye), back = T.edgeAt(xe - 400, ye), half = T.edgeAt(xe - 120, ye);
+  /* a shoreline: walk west from the lots until the lidar runs out, at Clear Lake */
+  const lake = SBMM_DATA.design_gis.features.find(f => f.properties.layer === "water" && /Clear Lake/.test(f.properties.name)).geometry.coordinates[0];
+  const inLake = (x, y) => { let c = false; for (let i = 0, j = lake.length - 1; i < lake.length; j = i++) { const a = lake[i], b = lake[j];
+    if ((a[1] > y) !== (b[1] > y) && x < (b[0] - a[0]) * (y - a[1]) / (b[1] - a[1]) + a[0]) c = !c; } return c; };
+  let xs = 6370600; const ys = 2129100;
+  while (has(xs, ys) && xs > 6367000) xs -= 8;
+  const shoreIsLake = inLake(xs - 40, ys), atShore = T.edgeAt(xs + 24, ys);
+  await V.lookFrom(xe - 900, ye - 700, SBMM.elev(xe - 300, ye)[0] + 500, xe - 60, ye, SBMM.elev(xe - 60, ye)[0]);
+  await sleep(3000);
+  const r0 = V.stats().renderCount;
+  await sleep(3000);
+  const idle = V.stats().renderCount - r0;
+  V.animateWater(wasAnim);
+  return { info, mid, atLimit, half, back, shoreIsLake, atShore, idle, xe, xs };
+});
+console.log("SURVEY EDGE v46:", JSON.stringify(EG));
+if (!EG.info || !EG.info.real || !(EG.info.fadedAcres > 5)) { console.log("FAIL: the survey-edge field was not built", EG.info); process.exit(1); }
+if (EG.mid !== 1 || EG.back !== 1) { console.log("FAIL: ground well inside the survey is being thinned out", EG.mid, EG.back); process.exit(1); }
+if (!(EG.atLimit < 0.2) || !(EG.half > EG.atLimit && EG.half < 1)) { console.log("FAIL: the ground does not fade towards a land limit", EG.atLimit, EG.half); process.exit(1); }
+if (!EG.shoreIsLake || !(EG.atShore > 0.95)) { console.log("FAIL: the ground fades at Clear Lake's shore, which is a real edge", EG.shoreIsLake, EG.atShore); process.exit(1); }
+if (EG.idle > 1) { console.log("FAIL: with the edge fade an idle view rendered " + EG.idle + " frames"); process.exit(1); }
+await page.evaluate(() => { if (SBMM.viewer3d.isOpen()) SBMM.viewer3d.toggle(); });
+});
+
 await block("9x. drainage", async () => {
 /* 9x. drainage — the whole-site catchment map (v14, docs/V14_DRAINAGE_SPEC.md) */
 /* ==================================================================== */

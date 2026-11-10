@@ -17,6 +17,13 @@ All three are offline-only by design. Nothing in this app calls out to the inter
 
 ---
 
+## v9.55 — the edge of the survey fades out (2026-11-10)
+
+- **Where the survey ends on land, the 3D ground now fades out** over the last
+  240 ft instead of ending in a cut edge, and the lines and trees on it fade
+  with it. The lake shore is unchanged — that edge is real.
+- Realistic rendering only.
+
 ## v9.54 — the 2D map: relief in the photo, and clearer map layers (2026-11-10)
 
 - **The shape of the ground shows in the aerial photo.** The hillshade is

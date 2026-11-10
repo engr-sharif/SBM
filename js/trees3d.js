@@ -338,7 +338,21 @@ SBMM.trees3d = (function () {
       group.add(shadow);
     }
 
-    cur = { group, td, sets, shadow, show, lim, CX: ctx.CX, CY: ctx.CY, ZMID: ctx.ZMID,
+    /* v46: the survey-edge factor per tree, once (the field does not change) */
+    let edge = null;
+    if (ctx.edgeAt) {
+      if (!td._edgeK) {
+        const a = new Float32Array(n);
+        for (let i = 0; i < n; i++) {
+          const e = ctx.edgeAt(td.x[i], td.y[i]);
+          const t = e == null ? 1 : Math.min(1, Math.max(0, (e - 0.12) / 0.48));
+          a[i] = Math.max(0.001, t * t * (3 - 2 * t));
+        }
+        td._edgeK = a;
+      }
+      edge = td._edgeK;
+    }
+    cur = { group, td, sets, shadow, show, lim, edge, CX: ctx.CX, CY: ctx.CY, ZMID: ctx.ZMID,
             lodAt: null, counts: [0, 0, 0], total, sun: [ctx.sunAz, ctx.sunEl] };
     layShadows();
     return group;
@@ -349,7 +363,10 @@ SBMM.trees3d = (function () {
   /* ------------------------------------------------------------------ */
   const M = new THREE.Matrix4();
   function matrixFor(td, i, c) {
-    const r = td.radius[i], h = td.h[i];
+    /* v46: towards the land limit of the survey a tree shrinks away with the
+       ground it stands on (c.edge is 1 well inside, 0 at the limit) */
+    const k = c.edge ? c.edge[i] : 1;
+    const r = td.radius[i] * k, h = td.h[i] * k;
     const a = hash(i, 1) * Math.PI * 2, ca = Math.cos(a), sa = Math.sin(a);
     const sx = r * (0.92 + 0.16 * hash(i, 2)), sy = r * (0.92 + 0.16 * hash(i, 3));
     const e = M.elements;
