@@ -971,6 +971,8 @@ CAD_BASEMAP_F = /^cad_(contour|parcel|road|bldg|fence|tree|util|env|symbol|misc|
 fieldMissing = fieldParity.rows.filter(r => {
   if (r.n) return false;
   if (r.group === "base" && /^(Hillshade|Ortho|Slope|Aspect|Elevation tint)/.test(r.label)) return false;
+  /* v45: the hillshade blended into the 2D photo; the 3D ground is lit from the lidar itself */
+  if (r.group === "base" && r.id === "relief_shade") return false;
   if (r.group === "design" && (r.id === "sheets3d" || r.id === "sheet_footprints")) return false;
   if (r.group === "design" && /^C-\d|^G-\d/.test(r.label)) return false;
   if (CAD_BASEMAP_F.test(r.id)) return false;
