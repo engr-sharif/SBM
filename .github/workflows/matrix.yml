@@ -36,7 +36,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # the desktop e2e in five shards per build (test/run.mjs E2E_CUTS);
+          # the desktop e2e in six shards per build (test/run.mjs E2E_CUTS);
           # test/check.mjs fails if a shard here and a cut there disagree
           - step: e2e:folder:1
             also: split3d:folder
@@ -48,6 +48,8 @@ jobs:
             also: ""
           - step: e2e:folder:5
             also: ""
+          - step: e2e:folder:6
+            also: ""
           - step: e2e:dist:1
             also: split3d:dist
           - step: e2e:dist:2
@@ -57,6 +59,8 @@ jobs:
           - step: e2e:dist:4
             also: ""
           - step: e2e:dist:5
+            also: ""
+          - step: e2e:dist:6
             also: ""
           - step: field
             also: ""

@@ -65,10 +65,12 @@ node test/run.mjs --list           # every step, its build, what it needs
 SBMM_GPU=1 node test/run.mjs       # render on a real GPU (§2 below)
 ```
 
-- **CI runs the desktop e2e in SHARDS (v28), five per build since v44** —
-  `e2e:folder:1..5` and `e2e:dist:1..5` (the second shard had grown to forty
-  minutes with the 3D rendering blocks 9f13 onward, so it is cut again at
-  9f13), cut at the block names in `E2E_CUTS` in `test/run.mjs` and run as
+- **CI runs the desktop e2e in SHARDS (v28), six per build since v45** —
+  `e2e:folder:1..6` and `e2e:dist:1..6` (the second shard had grown to forty
+  minutes with the 3D rendering blocks 9f13 onward, so v44 cut it at 9f13;
+  what was left of it was still thirty-five, so v45 cuts it again at 9j,
+  which opens on its own: run alone, 9j to 9f13 is 13 blocks and passes),
+  cut at the block names in `E2E_CUTS` in `test/run.mjs` and run as
   `--from A --until B` (a half-open range; `--until` is new in `test/lib/blocks.mjs`,
   and an EXACT block name wins over a prefix because two blocks start "9z."). Locally
   the full `e2e:folder` / `e2e:dist` are still the default and are unchanged.
