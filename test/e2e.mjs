@@ -7349,6 +7349,90 @@ if (!W.stage || !W.stage.water) { console.log("FAIL: the overtopping stage surfa
 await page.evaluate(() => { if (SBMM.viewer3d.isOpen()) SBMM.viewer3d.toggle(); });
 });
 
+await block("9f16. built features in 3D (v43)", async () => {
+/* v43 — js/built3d.js: with their rows on, EA's building footprints stand up
+   at the lidar's height under the photograph's roof colour, the fence lines
+   are fences and the power poles are poles. The counts are read off the same
+   payloads the module reads; a click on a building answers with EA's feature;
+   a row switched off takes its solids with it; an idle view renders nothing. */
+if (!(await page.evaluate(() => SBMM.viewer3d.isOpen()))) await page.evaluate(async () => { await SBMM.viewer3d.toggle(); });
+await page.waitForFunction(() => document.getElementById("v3dStatus").textContent === "" &&
+  document.getElementById("view3d").style.display === "block", null, { timeout: 90000 });
+await page.waitForTimeout(1200);
+const BF = await page.evaluate(async () => {
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  const V = SBMM.viewer3d, LS = SBMM.layerState, wasAnim = V.animateWater();
+  V.animateWater(false);
+  const rows = ["gis_bldg", "gis_fence", "gis_util"], was = rows.map(id => LS.isOn("design", id));
+  const treesWas = LS.isOn("base", "trees_detected");
+  LS.set("base", "trees_detected", { on: false });           // nothing in front of the building the click is aimed at
+  rows.forEach(id => LS.set("design", id, { on: true }));
+  await sleep(2500);
+  const G = SBMM_DATA.design_gis.features, T = SBMM_DATA.trees_site;
+  const ref = {
+    bldg: G.filter(f => f.properties.layer === "bldg" && f.geometry.type === "Polygon").length,
+    /* the footprints that stand up: the lidar finds something there, and it is not an enclosure */
+    stand: T.buildings.filter(b => {
+      const r = G[b.feature].geometry.coordinates[0];
+      let a = 0; for (let i = 0; i < r.length - 1; i++) a += r[i][0] * r[i + 1][1] - r[i + 1][0] * r[i][1];
+      return b.h_ft >= 5 && Math.abs(a / 2) <= 15000 && Math.abs(a / 2) >= 20;
+    }).length,
+    fence: G.filter(f => f.properties.layer === "fence").length,
+    poles: G.filter(f => f.properties.layer === "util" && /power pole/i.test(f.properties.name || "")).length,
+    heights: T.buildings.length, roofs: T.buildings.filter(b => Array.isArray(b.rgb) && b.rgb.length === 3).length
+  };
+  const s1 = V.stats();
+  /* a plain rectangular building with a height, and a click on it */
+  let pickF = null;
+  for (const b of T.buildings) {
+    const f = G[b.feature], r = f.geometry.coordinates[0];
+    if (r.length !== 5 || !(b.h_ft > 10 && b.h_ft < 22)) continue;
+    let a = 0; for (let i = 0; i < 4; i++) a += r[i][0] * r[i + 1][1] - r[i + 1][0] * r[i][1];
+    if (Math.abs(a / 2) > 900) { pickF = { f, b }; break; }
+  }
+  const r = pickF.f.geometry.coordinates[0];
+  const cx = (r[0][0] + r[1][0] + r[2][0] + r[3][0]) / 4, cy = (r[0][1] + r[1][1] + r[2][1] + r[3][1]) / 4, gz = SBMM.elev(cx, cy)[0];
+  await V.lookFrom(cx + 110, cy - 110, gz + 120, cx, cy, gz + 8);
+  await sleep(2500);
+  const at = V.project(cx, cy, gz + pickF.b.h_ft);
+  const cv = document.getElementById("v3dCanvas");
+  const fire = t => cv.dispatchEvent(new MouseEvent(t, { bubbles: true, button: 0, clientX: at.x, clientY: at.y }));
+  fire("mousedown"); fire("mouseup"); fire("click");
+  await sleep(400);
+  const card = SBMM.pick3d.cardOpen() ? (SBMM.pick3d.cardHtml() || "") : "";
+  document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+  /* idle */
+  await sleep(2500);
+  const r0 = V.stats().renderCount;
+  await sleep(3000);
+  const idle = V.stats().renderCount - r0;
+  /* a row off takes its solids with it */
+  LS.set("design", "gis_bldg", { on: false }); await sleep(1500);
+  const s2 = V.stats();
+  rows.forEach((id, i) => LS.set("design", id, { on: was[i] }));
+  LS.set("base", "trees_detected", { on: treesWas });
+  await sleep(1200);
+  V.animateWater(wasAnim);
+  return { ref, built: s1.built, drawn: rows.map(id => (s1.layersDrawn || {})["design/" + id] || 0), card: card.replace(/<[^>]+>/g, " ").slice(0, 160),
+           inView: at.inView, idle, built2: s2.built, drawn2: (s2.layersDrawn || {})["design/gis_bldg"] || 0,
+           preset: SBMM.layerTree.presetNames().includes("Site as it stands"), h: pickF.b.h_ft };
+});
+console.log("BUILT 3D v43:", JSON.stringify(BF));
+if (BF.ref.heights !== BF.ref.bldg || BF.ref.roofs !== BF.ref.bldg)
+  { console.log("FAIL: not every building footprint carries a baked height and roof colour", BF.ref); process.exit(1); }
+if (!BF.built || BF.built.buildings !== BF.ref.stand || !(BF.ref.stand > 80))
+  { console.log("FAIL: the buildings did not stand up", BF.built, BF.ref); process.exit(1); }
+if (BF.built.fences !== BF.ref.fence || !(BF.built.fencePosts > 2000) || !(BF.built.fenceFt > 30000))
+  { console.log("FAIL: the fences were not built from EA's fence lines", BF.built, BF.ref); process.exit(1); }
+if (BF.built.poles !== BF.ref.poles) { console.log("FAIL: a pole was not built for each power pole", BF.built, BF.ref); process.exit(1); }
+if (BF.drawn.some(n => !(n > 0))) { console.log("FAIL: a built-feature row drew nothing in 3D", BF.drawn); process.exit(1); }
+if (!BF.inView || !/Structure/.test(BF.card)) { console.log("FAIL: a click on a building did not answer with EA's structure", BF.inView, BF.card); process.exit(1); }
+if (BF.idle > 1) { console.log("FAIL: with the built features on an idle view rendered " + BF.idle + " frames"); process.exit(1); }
+if (BF.built2 && BF.built2.buildings) { console.log("FAIL: the buildings stayed after their row was switched off", BF.built2); process.exit(1); }
+if (!BF.preset) { console.log("FAIL: the 'Site as it stands' preset is missing"); process.exit(1); }
+await page.evaluate(() => { if (SBMM.viewer3d.isOpen()) SBMM.viewer3d.toggle(); });
+});
+
 await block("9x. drainage", async () => {
 /* 9x. drainage — the whole-site catchment map (v14, docs/V14_DRAINAGE_SPEC.md) */
 /* ==================================================================== */

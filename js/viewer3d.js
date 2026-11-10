@@ -107,6 +107,8 @@ SBMM.viewer3d = (function () {
   let stageGroup = null, stageKey = null, stageInfo = null;
   /* v42: the mapped water bodies as water (js/water3d.js) */
   let waterGroup = null, waterOn = true, waterPrefRead = false;
+  /* v43: what js/built3d.js stood up on the last overlay rebuild */
+  let builtInfo = null;
   /* last terrain raycast, keyed to the cursor position — raycasting a 1.5M-vertex mesh
      is the expensive part of hovering, so the wheel handler reuses the hover's result */
   let lastPick = { x: -1e9, y: -1e9, p: null, t: 0 };
@@ -2146,8 +2148,29 @@ SBMM.viewer3d = (function () {
        rings3d() never returned. Merged per layer: 580 features, ~10 draw calls,
        and a click still names the feature it hit. */
     if (PROJ && SBMM.designGIS && SBMM.designGIS.batch3d) {
+      /* v43: the buildings, the fences and the power poles stand up
+         (js/built3d.js) in place of the outline, the line and the dot */
+      const B3 = SBMM.built3d, bctx = { CX, CY, ZMID, elev: (x, y) => SBMM.elev(x, y)[0] };
+      builtInfo = null;
       for (const b of SBMM.designGIS.batch3d()) {
         const col = new THREE.Color(b.color || "#cccccc").getHex();
+        if (B3) {
+          try {
+            if (b.key === "bldg") {
+              const r = B3.buildings(b.lines, bctx);
+              if (r.mesh) { tag(r.mesh, "design", "gis_bldg"); addG.add(r.mesh); b.lines = r.rest;
+                            (builtInfo = builtInfo || {}).buildings = r.n; SHD.dirty = true; }
+            } else if (b.key === "fence") {
+              const r = B3.fences(b.lines, bctx);
+              if (r) { tag(r.wire, "design", "gis_fence"); tag(r.posts, "design", "gis_fence"); addG.add(r.group); b.lines = [];
+                       Object.assign(builtInfo = builtInfo || {}, { fences: r.n, fencePosts: r.nPosts, fenceFt: r.ft }); SHD.dirty = true; }
+            } else if (b.key === "util") {
+              const r = B3.poles(b.points, bctx);
+              if (r.mesh) { tag(r.mesh, "design", "gis_util"); addG.add(r.mesh); b.points = r.rest;
+                            (builtInfo = builtInfo || {}).poles = r.n; SHD.dirty = true; }
+            }
+          } catch (e) { console.warn("3D built features:", e); }
+        }
         if (b.lines.length) {
           const o = drapedBatch(b.lines, col);
           if (o) {
@@ -4993,6 +5016,7 @@ SBMM.viewer3d = (function () {
         ? [+waterAnim[0].pos[0].toFixed(3), +waterAnim[0].pos[1].toFixed(3),
            +waterAnim[0].pos[2].toFixed(3)] : null,
       waterStage: stageInfo, zmid: ZMID,
+      built: builtInfo,
       water: waterGroup && SBMM.water3d ? Object.assign({ visible: waterGroup.visible, scaleZ: waterGroup.scale.z }, SBMM.water3d.stats()) : null,
       /* v15: the label layer and the parity table */
       labels3d: labels3d.size,

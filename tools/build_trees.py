@@ -289,6 +289,67 @@ def tints(x, y, r):
     return np.clip(np.rint(s / n), 0, 255).astype(np.uint8)
 
 
+def roof_colours(blds):
+    """the mean orthophoto colour inside each building footprint — the roof as
+    the photograph shows it — from the finest ortho that covers the footprint.
+    Pixels within 1.5 ft of the outline are left out where the footprint is big
+    enough (the outline is drafted, the roof's edge in the photo is not on it)."""
+    Image.MAX_IMAGE_PIXELS = None
+    srcs = []
+    for name in ("ortho_mine", "ortho_site"):
+        b = json.load(open(os.path.join(REPO, "data", name + ".json")))
+        im = np.asarray(Image.open(os.path.join(REPO, "data", name + ".jpg")).convert("RGB"))
+        srcs.append((b, im))
+    out = {}
+    for k, poly in blds:
+        px = np.array([p[0] for p in poly]); py = np.array([p[1] for p in poly])
+        cx, cy = px.mean(), py.mean()
+        for b, im in srcs:
+            if not (b["x0"] <= px.min() and px.max() <= b["x1"] and b["y0"] <= py.min() and py.max() <= b["y1"]):
+                continue
+            Hh, Ww = im.shape[:2]
+            sx = Ww / (b["x1"] - b["x0"]); sy = Hh / (b["y1"] - b["y0"])
+            c0 = int(np.floor((px.min() - b["x0"]) * sx)); c1 = int(np.ceil((px.max() - b["x0"]) * sx))
+            r0 = int(np.floor((b["y1"] - py.max()) * sy)); r1 = int(np.ceil((b["y1"] - py.min()) * sy))
+            cc, rr = np.meshgrid(np.arange(c0, c1 + 1), np.arange(r0, r1 + 1))
+            gx = b["x0"] + (cc.ravel() + 0.5) / sx; gy = b["y1"] - (rr.ravel() + 0.5) / sy
+            # an inset copy of the footprint (towards its centroid)
+            d = np.hypot(px - cx, py - cy); k_in = np.clip(1.0 - 1.5 / np.maximum(d, 1e-6), 0.5, 1.0)
+            inner = [[cx + (x - cx) * q, cy + (y - cy) * q] for x, y, q in zip(px, py, k_in)]
+            m = pip_mask(inner, gx, gy)
+            if m.sum() < 6:
+                m = pip_mask(poly, gx, gy)
+            if not m.any():
+                continue
+            cols = np.clip(cc.ravel()[m], 0, Ww - 1); rows = np.clip(rr.ravel()[m], 0, Hh - 1)
+            v = im[rows, cols].astype(np.float64).mean(0)
+            out[k] = [int(round(float(c))) for c in v]
+            break
+    return out
+
+
+def roofs_only():
+    """add (or refresh) the roof colours of an existing payload, without the lidar"""
+    path = os.path.join(REPO, "data", "trees_site.json")
+    payload = json.load(open(path))
+    cols = roof_colours(buildings())
+    n = 0
+    for rec in payload["buildings"]:
+        if rec["feature"] in cols:
+            rec["rgb"] = cols[rec["feature"]]; n += 1
+    write_payload(payload)
+    print(f"roof colours for {n} of {len(payload['buildings'])} buildings")
+
+
+def write_payload(payload):
+    js = json.dumps(payload, separators=(",", ":"))
+    with open(os.path.join(REPO, "data", "trees_site.json"), "w") as f:
+        f.write(js)
+    with open(os.path.join(REPO, "datajs", "d_trees_site.js"), "w") as f:
+        f.write('window.SBMM_DATA=window.SBMM_DATA||{};SBMM_DATA["trees_site"]=' + js + ";\n")
+    print(f"wrote data/trees_site.json and datajs/d_trees_site.js ({len(js) / 1024:.0f} kB)")
+
+
 def b64(a):
     return base64.b64encode(np.ascontiguousarray(a).tobytes()).decode("ascii")
 
@@ -296,9 +357,15 @@ def b64(a):
 # ----------------------------------------------------------------------------
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("work")
+    ap.add_argument("work", nargs="?")
     ap.add_argument("--usgs", help="directory tools/fetch_usgs_lidar.py wrote")
+    ap.add_argument("--roofs", action="store_true",
+                    help="only add the roof colours to the existing payload (needs no lidar)")
     a = ap.parse_args()
+    if a.roofs:
+        return roofs_only()
+    if not a.work:
+        ap.error("a work directory is required (or --roofs)")
     os.makedirs(a.work, exist_ok=True)
     from scipy.spatial import cKDTree
 
@@ -412,6 +479,10 @@ def main():
             continue
         bout.append(dict(feature=k, h_ft=round(float(np.percentile(hv, 75)), 1), src=which))
     print(f"buildings: a height for {len(bout)} of {len(blds)} polygons")
+    rc = roof_colours(blds)
+    for rec in bout:
+        if rec["feature"] in rc:
+            rec["rgb"] = rc[rec["feature"]]
 
     X0, Y0 = smeta["x0"], smeta["y0"]
     payload = dict(
@@ -436,12 +507,7 @@ def main():
             r=b64(np.clip(np.rint(r / 0.25), 0, 255).astype("u1")),
             area=b64(np.clip(np.rint(area), 0, 65535).astype("<u2")),
             form=b64(form), src=b64(src), tint=b64(tint)))
-    js = json.dumps(payload, separators=(",", ":"))
-    with open(os.path.join(REPO, "data", "trees_site.json"), "w") as f:
-        f.write(js)
-    with open(os.path.join(REPO, "datajs", "d_trees_site.js"), "w") as f:
-        f.write('window.SBMM_DATA=window.SBMM_DATA||{};SBMM_DATA["trees_site"]=' + js + ";\n")
-    print(f"wrote data/trees_site.json and datajs/d_trees_site.js ({len(js) / 1024:.0f} kB)")
+    write_payload(payload)
 
 
 if __name__ == "__main__":

@@ -139,6 +139,14 @@ SBMM.popups = (function () {
         + `<span style="opacity:.7"> — ${p.depth_ft <= 0.75 ? "6 in call-out" : "sheet-note default"}</span><br>`;
     if (p.z_min_ft != null)
       h += `<span style="opacity:.8">design grade ${fmt(p.z_min_ft, 1)}–${fmt(p.z_max_ft, 1)} ft</span><br>`;
+    /* v43: a building's height off the lidar (tools/build_trees.py) — what the
+       3D view stands it up to. Where a tree overhangs the roof this reads the
+       tree, which is why it is "about". */
+    if (p.layer === "bldg" && g && SBMM.built3d) {
+      const rec = SBMM.built3d.records().get(g);
+      if (rec && rec.h_ft > 0)
+        h += `about ${fmt0(rec.h_ft)} ft high<span style="opacity:.7"> · lidar${rec.src === 1 ? " (USGS 3DEP)" : ""}</span><br>`;
+    }
     if (p.apn) h += `<span style="opacity:.7">APN ${esc(p.apn)}</span><br>`;
     if (p.remedy) h += `<span style="opacity:.7">${esc(p.remedy)}</span><br>`;
     if (p.cad_layer)
