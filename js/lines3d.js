@@ -40,6 +40,7 @@ SBMM.lines3d = (function () {
   let made = 0;
 
   const VERT = `
+    #define AA_PX 0.75
     uniform vec2 uRes; uniform float uPR; uniform float uHalf;
     attribute vec3 aOther; attribute vec2 aParam; attribute float aDist;
     #ifdef WIDE_COLOR
@@ -71,7 +72,10 @@ SBMM.lines3d = (function () {
       d = L > 1e-4 ? d / L : vec2( 1.0, 0.0 );
       if ( aParam.y > 0.5 ) d = -d;                    /* always from the segment's start to its end */
       vec2 n = vec2( -d.y, d.x );
-      float h = uHalf * uPR;
+      /* the quad is the line plus a fringe of AA_PX on each side for the soft
+         edge to live in: without the fringe a one-pixel line has nowhere to
+         fade and comes out at half strength or less */
+      float h = uHalf * uPR + AA_PX;
       /* out to the side, and half a width past the end so two segments meet without a notch */
       vec2 off = n * aParam.x * h + d * ( aParam.y > 0.5 ? 1.0 : -1.0 ) * h * 0.5;
       gl_Position = cp;
@@ -86,6 +90,7 @@ SBMM.lines3d = (function () {
     }`;
 
   const FRAG = `
+    #define AA_PX 0.75
     uniform vec3 uColor; uniform vec3 uCase; uniform float uOpacity; uniform float uCaseA;
     uniform float uHalf; uniform float uCore; uniform float uPR; uniform float uDash; uniform float uGap;
     #ifdef WIDE_COLOR
@@ -97,9 +102,10 @@ SBMM.lines3d = (function () {
     void main() {
       #include <clipping_planes_fragment>
       if ( uDash > 0.0 && mod( vDist, uDash + uGap ) > uDash ) discard;
-      float d = abs( vSide ) * uHalf * uPR;                    /* pixels from the centre line */
-      float edge = 1.0 - smoothstep( uHalf * uPR - 1.0, uHalf * uPR, d );
-      float core = 1.0 - smoothstep( uCore * uPR - 0.5, uCore * uPR + 0.5, d );
+      float d = abs( vSide ) * ( uHalf * uPR + AA_PX );        /* pixels from the centre line */
+      /* coverage: full inside the width, falling to nothing across one pixel at its edge */
+      float edge = clamp( uHalf * uPR + 0.5 - d, 0.0, 1.0 );
+      float core = clamp( uCore * uPR + 0.5 - d, 0.0, 1.0 );
       vec3 base = uColor;
       #ifdef WIDE_COLOR
         base *= vWideColor;

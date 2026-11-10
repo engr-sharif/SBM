@@ -5533,6 +5533,10 @@ Six things that will be walked into again:
   drawing buffer's size: `wideViewport()` hands `SBMM.lines3d.setViewport`
   the canvas's own `width`/`height` on every `resize()`. A wide line sized
   against the wrong buffer is the wrong width on one axis.
+- **The quad is the line plus a 0.75-px fringe each side, and the edge is
+  COVERAGE** (`clamp(half + 0.5 - d, 0, 1)`). The first cut softened the edge
+  inside the line's own width, so a one-pixel line had nowhere to fade and
+  drew at a quarter strength: the survey contours vanished with no error.
 - **Each segment runs half a width past its ends**, so two segments meet
   without a notch; there are no real joins. At these widths that is enough.
 - **With wide lines the drop shadow is not built at all** (`WIDE` at the end
