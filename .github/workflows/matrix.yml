@@ -95,16 +95,27 @@ jobs:
         working-directory: test
         run: npm install --no-audit --no-fund
 
-      # A hung download or package mirror used to hold this step until the
-      # job's own 60-minute limit, before a single test had started (two jobs
-      # of one run did, 2026-11-10). Each attempt gets eight minutes; a normal
-      # one takes well under one.
+      # The runner's package mirror sometimes takes 30-40 s to refuse each of
+      # the nine font packages --with-deps installs, and a stalled apt-get used
+      # to hold this step until the job's own 60-minute limit, before a single
+      # test had started (2026-11-10, twice). So: apt gives up on a quiet
+      # mirror after 12 s and tries the next one; the system packages are
+      # installed under a time limit that runs AS ROOT (an unprivileged timeout
+      # cannot stop the root apt-get, which then holds the dpkg lock against
+      # every retry); and a failed attempt clears that lock before the next.
       - name: Install Chromium
         working-directory: test
         run: |
+          printf 'Acquire::Retries "4";\nAcquire::http::Timeout "12";\nAcquire::https::Timeout "12";\n' \
+            | sudo tee /etc/apt/apt.conf.d/80-ci-timeouts > /dev/null
+          npx playwright install chromium
           for n in 1 2 3; do
-            if timeout -k 20 480 npx playwright install --with-deps chromium; then exit 0; fi
-            echo "playwright install: attempt $n failed or timed out"
+            if sudo timeout -k 30 420 env "PATH=$PATH" npx playwright install-deps chromium; then exit 0; fi
+            echo "playwright install-deps: attempt $n failed or timed out"
+            sudo pkill -9 -x apt-get || true
+            sudo pkill -9 -x dpkg || true
+            sudo rm -f /var/lib/dpkg/lock-frontend /var/lib/dpkg/lock /var/cache/apt/archives/lock
+            sudo dpkg --configure -a || true
             sleep 10
           done
           exit 1
