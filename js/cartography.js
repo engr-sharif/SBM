@@ -203,6 +203,70 @@ SBMM.carto = (function () {
       stroke: false, fillColor: "#1B3A47", fillOpacity: 1, interactive: false }).addTo(map);
   }
 
+  /* v45 — RELIEF IN THE PHOTOGRAPH. The orthophoto is flat: it was flown at
+     midday in January and what relief it has is whatever shadow the trees
+     cast. The hillshade knows the shape of the ground exactly. So the two
+     hillshades are laid over the photographs a second time, in a pane of their
+     own that BLENDS with what is under it (overlay: a slope facing the
+     light lifts the photo, a slope facing away deepens it, level ground is
+     left very nearly alone) — the cut faces, the benches and the gullies read
+     in 2D the way they do in the 3D view.
+
+     It is a picture effect and nothing else: it has its own row (Relief
+     shading, on by default), it is only ever drawn while a photograph is on
+     (over a hillshade or the plan basemap it would be relief on relief), it
+     takes no pointer event, and nothing that READS an image — the 3D drape,
+     the exports, the 2D basemap-stack test, which looks at the raster pane —
+     sees it. */
+  let relief = null;
+  function anyOrtho() {
+    const LS = SBMM.layerState;
+    if (!LS || !LS.groupList) return true;
+    try {
+      const g = LS.groupList().find(x => x.id === "base");
+      for (const r of g.layers.values()) if (/^ortho/.test(r.id) && r.on) return true;
+    } catch (e) { return true; }
+    return false;
+  }
+  function reliefGate() {
+    const el = SBMM.map && SBMM.map.getContainer();
+    if (el) el.classList.toggle("noortho", !anyOrtho());
+  }
+  function paintRelief() {
+    const map = SBMM.map, D = window.SBMM_DATA;
+    if (!map || relief || !D) return;
+    const srcS = D.hs_site_jpg || D.hs_site_png, srcA = D.hs_abp_jpg || D.hs_abp_png;
+    if (!srcS && !srcA) return;                     // a build without the hillshades: no row, nothing drawn
+    if (!map.getPane("relief")) {
+      const p = map.createPane("relief");
+      p.style.zIndex = 262; p.style.pointerEvents = "none";
+      p.classList.add("reliefpane");
+    }
+    const parts = [];
+    if (srcS && SBMM.demSite) parts.push([L.imageOverlay(srcS, SBMM.demSite.bounds(), { pane: "relief", opacity: 1, zIndex: 1, interactive: false }), "hs_site"]);
+    if (srcA && SBMM.demAbp) parts.push([L.imageOverlay(srcA, SBMM.demAbp.bounds(), { pane: "relief", opacity: 1, zIndex: 2, interactive: false }), "hs_abp"]);
+    const grp = L.layerGroup(parts.map(q => q[0]));
+    /* the row's opacity slider moves the PANE, so the two images stay one picture */
+    grp.setOpacity = v => { const p = map.getPane("relief"); if (p) p.style.opacity = String(v); };
+    relief = { group: grp, parts };
+    const row = SBMM.addLayerRow("base", "Relief shading", grp,
+      { id: "relief_shade", checked: true, opacity: 0.65, swatch: "#B9B4A6" });
+    if (row && row.row) row.row.title = "The hillshade blended into the orthophoto, so the shape of the ground reads in the photograph. Drawn only while a photograph is on.";
+    relief.row = row;
+    for (const [ly, name] of parts) clean(ly, name);
+    reliefGate();
+    if (SBMM.events && SBMM.events.on) SBMM.events.on("layers", ev => { if (!ev || ev.group === "base") reliefGate(); });
+  }
+  function setRelief(on) { if (SBMM.layerState) SBMM.layerState.set("base", "relief_shade", { on: !!on }); }
+  function reliefState() {
+    const map = SBMM.map, p = map && map.getPane("relief");
+    return { built: !!relief, on: !!(SBMM.layerState && SBMM.layerState.isOn("base", "relief_shade")),
+             images: relief ? relief.parts.filter(q => q[0]._map).length : 0,
+             gated: !!(map && map.getContainer().classList.contains("noortho")),
+             blend: p ? getComputedStyle(p).mixBlendMode : null,
+             shown: !!(p && getComputedStyle(p).display !== "none") };
+  }
+
   /* Density by zoom (§10): a point layer drawn at full size over the whole
      site is a carpet — 140 samples in a few hundred screen pixels. Below
      zoom -1 each circle marker in a registered group is drawn smaller, in
@@ -241,7 +305,9 @@ SBMM.carto = (function () {
     clean(Ls.hsSite, "hs_site");
     clean(Ls.hsAbp, "hs_abp");
     paintLake();
+    paintRelief();
   }
 
-  return { wire, densify, densityAt: kAt, stats: () => JSON.parse(JSON.stringify(stats)), maskFor, maskPixels };
+  return { wire, densify, densityAt: kAt, stats: () => JSON.parse(JSON.stringify(stats)), maskFor, maskPixels,
+           setRelief, relief: reliefState };
 })();

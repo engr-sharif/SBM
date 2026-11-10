@@ -17,6 +17,17 @@ All three are offline-only by design. Nothing in this app calls out to the inter
 
 ---
 
+## v9.54 — the 2D map: relief in the photo, and clearer map layers (2026-11-10)
+
+- **The shape of the ground shows in the aerial photo.** The hillshade is
+  blended into the photograph, so slopes, pit walls, benches and gullies read
+  in 2D without changing the photo's colours. *Relief shading* in the layer
+  list turns it off or adjusts its strength.
+- **Roads, buildings, fences and water are drawn the way a map draws them**:
+  roads on a dark outline, buildings as light footprints with a soft shadow,
+  water as a blue wash inside a shoreline, fences as a fine dashed line.
+- Clicking and hovering these layers work exactly as before.
+
 ## v9.53 — lines you can read in 3D (2026-11-10)
 
 Every line in the 3D view used to be one pixel wide and jagged.

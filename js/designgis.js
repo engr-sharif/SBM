@@ -102,6 +102,48 @@ SBMM.designGIS = (function () {
       : { color: EXC_1FT, weight: 2.6, dashArray: null, fillColor: EXC_1FT, fillOpacity: 0.13 };
   }
 
+  /* v45 — WHAT A THING IS, DRAWN AS THAT. The existing-conditions layers used
+     to be one thin line each in the layer's colour, so a road edge, a
+     building, a fence and a pond read as four colours of the same wire. Each
+     now gets the convention a map reader already knows:
+
+       roads      the line on a dark casing, so it holds over photograph and plan alike
+       buildings  a light footprint with a soft shadow cast to the north-east
+                  (the side the photograph's own shadows fall on), so a
+                  building stands off the ground it is on
+       water      a blue wash inside a shoreline drawn twice — dark outside, light inside
+       fences     a fine dashed line on a faint casing
+
+     Every under-layer is `interactive: false` and is added BEFORE the layer it
+     dresses, so the layer itself stays the one thing the pointer, the pick
+     engine, the snap index and the popup see. */
+  const SHADOW_FT = [2.2, 3.4];                 // a building's 2D shadow: east and north, in feet
+  function dress(key, g, rings, col, grp) {
+    const under = o => Object.assign({ pane: "vectors", interactive: false }, o);
+    if (key === "road" && g.type === "LineString") {
+      L.polyline(rings, under({ color: "#0B1114", weight: 4.4, opacity: 0.55, lineCap: "round" })).addTo(grp);
+      return { color: "#D9DEE2", weight: 1.7, opacity: 0.95 };
+    }
+    if (key === "fence" && g.type === "LineString") {
+      L.polyline(rings, under({ color: "#0B1114", weight: 2.8, opacity: 0.38 })).addTo(grp);
+      return { color: col, weight: 1.15, dashArray: "7 4", opacity: 0.95 };
+    }
+    if (key === "bldg") {
+      if (g.type === "Polygon") {
+        const sh = rings.map(r => r.map(q => [q[0] + SHADOW_FT[1], q[1] + SHADOW_FT[0]]));
+        L.polygon(sh, under({ stroke: false, fillColor: "#05080A", fillOpacity: 0.42 })).addTo(grp);
+        return { color: "#F4EFE6", weight: 1.5, fillColor: "#EFE9DD", fillOpacity: 0.26, opacity: 0.95 };
+      }
+      L.polyline(rings, under({ color: "#0B1114", weight: 3.2, opacity: 0.45 })).addTo(grp);
+      return { color: "#F4EFE6", weight: 1.3, opacity: 0.95 };
+    }
+    if (key === "water" && g.type === "Polygon") {
+      L.polygon(rings, under({ color: "#0C2A3E", weight: 4.2, opacity: 0.6, fill: false })).addTo(grp);
+      return { color: "#9AD6FF", weight: 1.3, fillColor: "#3F96D8", fillOpacity: 0.2, opacity: 0.95 };
+    }
+    return null;
+  }
+
   function buildLayer(spec, subName) {
     const feats = byLayer[spec.key] || [];
     if (!feats.length) return;
@@ -140,16 +182,19 @@ SBMM.designGIS = (function () {
                               owner: "gis:exc", latlng: [c[1], c[0]] });
           }
         } else {
-          lyr = L.polygon(rings, {
+          const st = dress(spec.key, g, rings, col, grp);
+          lyr = L.polygon(rings, Object.assign({
             pane: "vectors", color: col, weight: spec.group === "design" ? 2.2 : 1.3,
             fillColor: col, fillOpacity: spec.group === "design" ? 0.12 : 0.05
-          });
+          }, st || {}));
         }
       } else if (g.type === "LineString") {
-        lyr = L.polyline(g.coordinates.map(q => [q[1], q[0]]), {
+        const ll = g.coordinates.map(q => [q[1], q[0]]);
+        const st = dress(spec.key, g, ll, col, grp);
+        lyr = L.polyline(ll, Object.assign({
           pane: "vectors", color: col, weight: spec.key === "haul" ? 2.6 : 1.8,
           dashArray: spec.key === "daylight" ? "5 3" : null
-        });
+        }, st || {}));
       } else if (g.type === "Point") {
         lyr = L.circleMarker([g.coordinates[1], g.coordinates[0]], {
           pane: "vectors", radius: 2.8, color: "#0D1215", weight: 1,
@@ -396,6 +441,16 @@ SBMM.designGIS = (function () {
              excluded: D.excluded, layers: D.layers };
   }
 
-  return { build, volumeOf, rings3d, batch3d, snapPaths, geoFeatures, dxfEntities,
+  /* v45: how a layer is dressed — the layers the pointer can reach against the
+     under-layers that only draw (a harness hook) */
+  function dressed(key) {
+    const g = groups[key];
+    if (!g) return null;
+    let main = 0, under = 0;
+    g.eachLayer(l => { if (l.options && l.options.interactive === false) under++; else if (l._gis) main++; });
+    return { main, under };
+  }
+
+  return { build, volumeOf, rings3d, batch3d, snapPaths, geoFeatures, dxfEntities, dressed,
            provenance, counts: null };
 })();

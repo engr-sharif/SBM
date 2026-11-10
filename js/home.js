@@ -48,7 +48,8 @@ SBMM.home = (function () {
      cultural group is never touched — it is off at every start by design and
      only its acknowledgement may turn it on. */
   const CURATED_ON = new Set([
-    "base/ortho_site_1_5_ft", "base/ortho_mine_area_6_in", "base/ortho_abp_3_in", "base/place_names"
+    "base/ortho_site_1_5_ft", "base/ortho_mine_area_6_in", "base/ortho_abp_3_in", "base/place_names",
+    "base/relief_shade"
   ]);
   /* rows left exactly as they are: the 3D sheet-drape master is a switch about
      HOW a sheet is shown when one is asked for, not a layer on the map */

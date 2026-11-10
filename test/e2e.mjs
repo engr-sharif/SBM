@@ -7500,6 +7500,79 @@ if (!(WL.p3.wide > 0) || WL.p3.wide !== WL.p3.lines) { console.log("FAIL: the wi
 await page.evaluate(() => { if (SBMM.viewer3d.isOpen()) SBMM.viewer3d.toggle(); });
 });
 
+await block("9f18. the 2D map: relief shading and map styling (v45)", async () => {
+/* v45 — js/cartography.js blends the hillshade into the orthophoto in a pane of
+   its own (never the raster pane, so nothing that reads an image sees it), and
+   js/designgis.js dresses the existing-conditions layers with casings, a
+   building shadow and a shoreline — every under-layer non-interactive, so the
+   pointer still lands on EA's own feature. */
+await page.evaluate(() => { if (SBMM.viewer3d.isOpen()) SBMM.viewer3d.toggle(); });
+await page.waitForTimeout(600);
+const M2 = await page.evaluate(async () => {
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  const LS = SBMM.layerState;
+  const base = LS.groupList().find(g => g.id === "base");
+  const orthos = [...base.layers.values()].filter(r => /^ortho/.test(r.id)).map(r => ({ id: r.id, on: r.on }));
+  const reliefWas = LS.isOn("base", "relief_shade");
+  LS.set("base", "relief_shade", { on: true });
+  LS.set("base", orthos[0].id, { on: true });
+  await sleep(400);
+  const r1 = SBMM.carto.relief();
+  /* the raster pane still holds only what it held: the relief is not in it */
+  const inRaster = SBMM.map.getPane("raster").querySelectorAll("img").length;
+  const inRelief = SBMM.map.getPane("relief").querySelectorAll("img").length;
+  const ptr = getComputedStyle(SBMM.map.getPane("relief")).pointerEvents;
+  /* no photograph on: the relief steps aside (it would be relief on relief) */
+  orthos.forEach(o => LS.set("base", o.id, { on: false }));
+  await sleep(300);
+  const r2 = SBMM.carto.relief();
+  orthos.forEach(o => LS.set("base", o.id, { on: o.on }));
+  LS.set("base", orthos[0].id, { on: true });
+  await sleep(300);
+  /* its own switch */
+  LS.set("base", "relief_shade", { on: false }); await sleep(300);
+  const r3 = SBMM.carto.relief();
+  LS.set("base", "relief_shade", { on: true }); await sleep(300);
+  const r4 = SBMM.carto.relief();
+  /* the dressed layers */
+  const rows = ["gis_bldg", "gis_road", "gis_fence", "gis_water"], was = rows.map(id => LS.isOn("design", id));
+  rows.forEach(id => LS.set("design", id, { on: true }));
+  await sleep(600);
+  const G = SBMM_DATA.design_gis.features;
+  const n = (k, t) => G.filter(f => f.properties.layer === k && (!t || f.geometry.type === t)).length;
+  const dressed = { bldg: SBMM.designGIS.dressed("bldg"), road: SBMM.designGIS.dressed("road"),
+                    fence: SBMM.designGIS.dressed("fence"), water: SBMM.designGIS.dressed("water") };
+  const ref = { bldg: n("bldg"), road: n("road"), fence: n("fence"), water: n("water") };
+  /* the pointer on a building lands on EA's structure, never on its shadow */
+  const b = G.find(f => f.properties.layer === "bldg" && f.geometry.type === "Polygon" && f.geometry.coordinates[0].length === 5);
+  const r = b.geometry.coordinates[0];
+  const cx = (r[0][0] + r[1][0] + r[2][0] + r[3][0]) / 4, cy = (r[0][1] + r[1][1] + r[2][1] + r[3][1]) / 4;
+  SBMM.map.setView([cy, cx], 2, { animate: false });
+  await sleep(700);
+  const cand = SBMM.pick2d.probe(L.latLng(r[0][1], r[0][0]));
+  rows.forEach((id, i) => LS.set("design", id, { on: was[i] }));
+  orthos.forEach(o => LS.set("base", o.id, { on: o.on }));
+  LS.set("base", "relief_shade", { on: reliefWas });
+  await sleep(300);
+  return { r1, r2, r3, r4, inRaster, inRelief, ptr, dressed, ref, cand: cand.slice(0, 4),
+           firstVisit: SBMM.home && SBMM.home.curated ? SBMM.home.curated("base", "relief_shade") : null };
+});
+console.log("MAP 2D v45:", JSON.stringify(M2));
+if (!M2.r1.built || M2.r1.images < 1 || M2.r1.blend !== "overlay" || !M2.r1.shown || M2.r1.gated)
+  { console.log("FAIL: the relief shading is not blended over the photograph", M2.r1); process.exit(1); }
+if (M2.inRelief < 1 || M2.ptr !== "none") { console.log("FAIL: the relief is not in its own inert pane", M2.inRelief, M2.ptr); process.exit(1); }
+if (!M2.r2.gated || M2.r2.shown) { console.log("FAIL: with no photograph on the relief shading is still drawn", M2.r2); process.exit(1); }
+if (M2.r3.images !== 0 || !(M2.r4.images >= 1)) { console.log("FAIL: the relief row does not switch it", M2.r3, M2.r4); process.exit(1); }
+if (M2.firstVisit !== true) { console.log("FAIL: a first visit does not get the relief shading"); process.exit(1); }
+for (const k of ["bldg", "road", "fence", "water"]) {
+  const d = M2.dressed[k];
+  if (!d || d.main !== M2.ref[k]) { console.log("FAIL: the " + k + " layer lost a feature to its styling", d, M2.ref[k]); process.exit(1); }
+  if (!(d.under >= d.main)) { console.log("FAIL: the " + k + " layer is not dressed", d); process.exit(1); }
+}
+if (!M2.cand.length || !/Structure/.test(M2.cand[0].name) || M2.cand.some(c => /^feature$/i.test(c.name)))
+  { console.log("FAIL: the pointer on a building did not land on EA's structure", M2.cand); process.exit(1); }
+});
+
 await block("9x. drainage", async () => {
 /* 9x. drainage — the whole-site catchment map (v14, docs/V14_DRAINAGE_SPEC.md) */
 /* ==================================================================== */
@@ -8411,6 +8484,7 @@ exemptReason = function exemptReason(r) {
     return "the 3D terrain drape (toolbar picker)";
   if (r.group === "design" && r.id === "sheets3d") return "master switch for the per-sheet drapes";
   if (r.group === "base" && r.id === "place_names") return "2D map labels (v26); the 3D view has its own label layer";
+  if (r.group === "base" && r.id === "relief_shade") return "2D relief blended into the photo (v45); the 3D ground is lit from the lidar itself";
   if (r.group === "design" && r.id === "sheet_footprints") return "2D click targets; in 3D you click the drape";
   if (r.group === "design" && /^C-\d|^G-\d/.test(r.label)) return "a plan sheet, draped on request (⛰)";
   if (CAD_BASEMAP.has(r.id)) return "EA CAD base map — 2D only (drape budget, see the block header)";
@@ -11242,7 +11316,8 @@ treeUnexplained = treeNew.filter(k => !/^invest\//.test(k) && !/^base\/contours_
                                          && k !== "framework/accum_streams"
                                          && k !== "framework/where_water"
                                          && k !== "mywork/borings"
-                                         && k !== "base/place_names");
+                                         && k !== "base/place_names"
+                                         && k !== "base/relief_shade");
 console.log("layer tree:", tree.rows.length, "rows in the state,", tree.domRows, "in the DOM,",
             tree.subs.length, "sub-groups |", tree.swatches, "symbology swatches |",
             "baseline", treeBase.keys.length, "rows — missing", treeMissing.length,

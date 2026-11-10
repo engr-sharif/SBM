@@ -117,6 +117,7 @@ const STEPS = [
    position puts it in, with no edit here. */
 export const E2E_CUTS = [
   "9b. EA residential Final Design payload",
+  "9j. one layer state (§1/§4) and the tool-mode machine (§2)",
   "9f13. the trees (v39)",
   "9y. 3D parity",
   "9ae. boring logs",
@@ -153,6 +154,7 @@ const SHOTS = [
   ["water3d",  [R("test/water3d_shots.mjs"), INDEX],         "folder"],
   ["built",    [R("test/built_shots.mjs"), INDEX],           "folder"],
   ["lines",    [R("test/lines_shots.mjs"), INDEX],           "folder"],
+  ["map2d",    [R("test/map2d_shots.mjs"), INDEX],           "folder"],
   ["field",    [R("test/field_shots.mjs"), FIELD],           "field"],
 ];
 for (const [n, args, build] of SHOTS)
