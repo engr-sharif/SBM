@@ -3252,3 +3252,14 @@ body.temws:not(.field) #temWs{display:flex;flex-direction:column;position:fixed;
 .treelegend .tsw{display:inline-block;width:9px;height:9px;border-radius:50%;margin:0 4px 0 6px;vertical-align:-1px;
   box-shadow:0 0 0 1px rgba(8,14,18,.7)}
 .treelegend .tkey .tsw:first-child{margin-left:0}
+
+/* v45 — relief shading: the hillshade blended into the photograph (js/cartography.js).
+   The PANE blends, so its two images stay one picture; it is taken away while no
+   photograph is on, where it would be relief drawn on relief. The hillshade's
+   median is 179 of 255 (level ground under a 45-degree sun), and `overlay`
+   leaves the picture alone at exactly half — so the pane is brought down by
+   127.5/179 first: level ground is then untouched, a slope facing the light
+   lifts and one facing away deepens, and the photograph is not washed out. */
+.leaflet-pane.reliefpane{mix-blend-mode:overlay;filter:brightness(.712);opacity:.65}
+#map.noortho .leaflet-pane.reliefpane{display:none}
+

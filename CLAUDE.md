@@ -5556,3 +5556,55 @@ Six things that will be walked into again:
 whether a base still draws, whether the colour is shared, shadows left);
 `stats().wideLines` counts them.
 
+## v45 — the 2D map: relief in the photograph, and layers drawn as what they are
+
+`paintRelief()` in `js/cartography.js`, `dress()` in `js/designgis.js`, the
+`v45` block at the end of `css/app.css`, `base/relief_shade` in `CURATED_ON`
+(`js/home.js`). E2E block **"9f18. the 2D map: relief shading and map styling
+(v45)"** (shard 2); shots `test/map2d_shots.mjs` (`shots:map2d`). No kernel
+work; nothing that reads an image changes.
+
+**Relief shading.** The orthophoto is flat — flown at midday in January, its
+only relief is tree shadow. The two hillshades are laid over the photographs a
+second time in a pane of their own (`relief`, z 262, `pointer-events:none`)
+whose CSS **blends** with what is under it. Five rules:
+
+- **The PANE blends, not the images** (`.reliefpane{mix-blend-mode:overlay}`),
+  so the site and mine hillshades stay one picture and the row's opacity
+  slider moves the pane (`grp.setOpacity`).
+- **`overlay` leaves a picture alone at exactly half grey, and the hillshade's
+  median is 179 of 255** (level ground under a 45-degree sun). So the pane
+  carries `filter:brightness(.712)` — 127.5/179 — first. Without it (and with
+  `soft-light`, the first attempt) level ground was lifted and the whole
+  photograph washed out. If the hillshades are ever regenerated with another
+  sun, re-measure the median and change that number.
+- **It is drawn only while a photograph is on** (`#map.noortho`, set by
+  `reliefGate()` on every `layers` event of the base group): over a hillshade
+  or the plan basemap it would be relief on relief.
+- **It is NOT in the raster pane**, deliberately: `test/terrain3d.mjs --only
+  map2d` reads that pane's paint order and fails on a coarse raster over a
+  fine one, the 3D drape and the exports read the orthos themselves, and none
+  of them should see a picture effect.
+- Row `base/relief_shade` ("Relief shading", default ON, in the first-visit
+  set). It is a dated exemption in block 9z's baseline and exempt in block
+  9y's parity table (the 3D ground is lit from the lidar itself). The two
+  images get the same no-data masks the hillshade basemaps get (`clean`).
+
+**Layers drawn as what they are** (`dress(key, g, rings, col, grp)`). The
+existing-conditions layers were one thin line each in the layer's colour. Now:
+roads are a light line on a dark casing; buildings a light footprint with a
+soft shadow offset 2.2 ft east and 3.4 ft north (the side the photograph's own
+shadows fall on); water a blue wash inside a shoreline drawn twice; fences a
+fine dashed line on a faint casing.
+
+- **Every under-layer is `interactive:false` and is added to the group BEFORE
+  the layer it dresses.** `js/pick2d.js`, the canvas pass-through in
+  `js/map.js` and block 9f9's "no layer answers 'feature'" walk all skip a
+  non-interactive layer, so the pointer, the popup and the snap index still
+  see exactly EA's feature. `SBMM.designGIS.dressed(key)` → `{main, under}` is
+  the harness hook; block 9f18 requires `main` to equal the payload's count.
+- The row's legend swatch is still the layer's own colour.
+- Clear Lake's own polygon is in the `water` layer, so with that row on the
+  lake takes the blue wash too; the always-on lake fill under the photographs
+  (`paintLake`, v26) is unchanged.
+
