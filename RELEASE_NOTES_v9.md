@@ -17,6 +17,16 @@ All three are offline-only by design. Nothing in this app calls out to the inter
 
 ---
 
+## v9.57 — the 2D map says what matters (2026-11-10)
+
+- **The lines the map is about have a dark outline**: your own drawings, the
+  decision units, the limits of excavation, the storm network and the survey
+  linework read clearly over the photo.
+- **Context steps back**: lots, parcels, operable units and site areas are
+  thin lines with almost no fill.
+- Polygon fills are lighter throughout, so the photo under them stays readable.
+- Clicking, hovering, snapping and editing are unchanged.
+
 ## v9.56 — boreholes as columns, clearer point symbols (2026-11-10)
 
 - **In 3D a boring, well or test pit is a column in its log's colours**: a

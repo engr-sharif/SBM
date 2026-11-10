@@ -6661,21 +6661,27 @@ await page.waitForFunction(() => SBMM.temws.isOpen() && SBMM.viewer3d.isOpen()
 await page.evaluate(() => SBMM.geophys.apply("depth", 60));
 /* the clip planes are claimed at DRAW time, so a terrain tile swapped in
    since the last frame is unclipped until the next one: wait for the frame,
-   not just the swap (in a sequenced run that read 25 of 28 tiles clipped) */
-await page.waitForFunction(() => { const p = SBMM.viewer3d.pitState(), pr = SBMM.viewer3d.clipProbe();
-  return p.on && p.depth === 60 && p.stat && p.stat.walls === 4 && pr.terrain > 0 && pr.terrainClipped === pr.terrain; },
-  null, { timeout: 60000 }).catch(() => {});
-const w1 = await page.evaluate(() => {
+   not just the swap (in a sequenced run that read 25 of 28 tiles clipped).
+   AND THE READING IS TAKEN IN THE SAME TURN AS THE CHECK: with the wait and
+   the reading as two round trips, a swap that landed between them (the
+   quadtree is still refining after the flight in) read 21 of 26 on CI with
+   nothing wrong in the app. */
+const w1Read = () => {
   const P = SBMM.viewer3d.pitState(), C = SBMM.viewer3d.clipState(), pr = SBMM.viewer3d.clipProbe();
   const el = document.getElementById("temWs"), rd = document.getElementById("rightdock");
   const fr = SBMM.shell.frame(), r = el.getBoundingClientRect();
-  return { ws: document.body.classList.contains("temws"), panelW: el.offsetWidth, rightGone: getComputedStyle(rd).display === "none",
+  const out = { ws: document.body.classList.contains("temws"), panelW: el.offsetWidth, rightGone: getComputedStyle(rd).display === "none",
            lcol: document.body.classList.contains("lcol"), frameClear: fr.x + fr.w <= r.left + 1,
            src: C.src, terrain: pr.terrain, clipped: pr.terrainClipped, ground: P.ground, stat: P.stat,
            ext: P.ext, side: P.side, length: P.length, width: P.width, spec: P.spec,
            slice: SBMM.layerState.isOn("invest", "tem_slice"), tp: SBMM.viewer3d.temProbe(),
            text: el.textContent, core: el.querySelector(".twscore").dataset };
-});
+  out.core = { depth: out.core.depth, boring: out.core.boring, cells: out.core.cells };
+  out.settled = !!(P.on && P.depth === 60 && P.stat && P.stat.walls === 4 && pr.terrain > 0 && pr.terrainClipped === pr.terrain);
+  return out;
+};
+const w1 = await page.waitForFunction(`(() => { const o = (${w1Read.toString()})(); return o.settled ? o : false; })()`,
+  null, { timeout: 60000 }).then(h => h.jsonValue()).catch(() => page.evaluate(w1Read));
 console.log("TEM workspace:", JSON.stringify(Object.assign({}, w1, { text: w1.text.length })));
 if (!w1.ws || !(w1.panelW > 300) || !w1.rightGone || !w1.lcol || !w1.frameClear)
   { console.log("FAIL: the TEM workspace did not take the right dock's place", w1); process.exit(1); }
@@ -7664,6 +7670,73 @@ for (const s of SY.sticks)
 if (SY.std.some(Boolean)) { console.log("FAIL: the lighter rendering draws columns too", SY.std); process.exit(1); }
 if (SY.idle > 1) { console.log("FAIL: with the columns an idle view rendered " + SY.idle + " frames"); process.exit(1); }
 await page.evaluate(() => { if (SBMM.viewer3d.isOpen()) SBMM.viewer3d.toggle(); });
+});
+
+await block("9f21. the 2D line hierarchy: a casing on the canvas (v48)", async () => {
+/* v48 — js/cartography.js teaches Leaflet's canvas renderer a `casing` option,
+   so a line that has to be read over the photograph is stroked dark and wide
+   and then as itself, with no second layer. The hierarchy: the user's own
+   work, the decision units, the limits of excavation, the storm network —
+   cased; lots and parcels — thin and uncased. */
+const HI = await page.evaluate(async () => {
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  const LS = SBMM.layerState;
+  if (SBMM.viewer3d.isOpen()) await SBMM.viewer3d.toggle();
+  const rows = [["design", "gis_exc"], ["design", "gis_lots"], ["framework", "dus"], ["framework", "storm_cad"]];
+  const was = rows.map(r => LS.isOn(r[0], r[1]));
+  rows.forEach(r => LS.set(r[0], r[1], { on: true }));
+  await sleep(600);
+  /* what the patched routine does, on a recording context */
+  const rec = layer => {
+    const calls = [];
+    const ctx = { setLineDash() {}, fill() { calls.push(["fill"]); },
+      stroke() { calls.push(["stroke", this.lineWidth, this.strokeStyle, +(+this.globalAlpha).toFixed(2)]); } };
+    L.Canvas.prototype._fillStroke.call({}, ctx, layer);
+    return calls;
+  };
+  const plain = rec({ options: { stroke: true, weight: 2, color: "#ff0000", opacity: 1 } });
+  const cased = rec({ options: { stroke: true, weight: 2, color: "#ff0000", opacity: 1, casing: 1.1 } });
+  /* the layers on the map */
+  const found = { exc: null, lot: null, du: null, storm: null };
+  SBMM.map.eachLayer(l => {
+    const o = l.options || {};
+    if (l._gis && l._gis.props && l._gis.props.layer === "exc" && !found.exc) found.exc = { casing: o.casing || 0, weight: o.weight };
+    if (l._gis && l._gis.props && l._gis.props.layer === "lots" && !found.lot) found.lot = { casing: o.casing || 0, weight: o.weight, fill: o.fillOpacity };
+  });
+  const tipOf = l => { try { const t = l.getTooltip && l.getTooltip(); const c = t && t.getContent(); return typeof c === "string" ? c : ""; } catch (e) { return ""; } };
+  SBMM.map.eachLayer(l => {
+    const o = l.options || {};
+    if (!found.du && /^DU-/.test(tipOf(l)) && l instanceof L.Polygon) found.du = { casing: o.casing || 0, fill: o.fillOpacity };
+  });
+  /* the user's own line */
+  const f = SBMM.tools.newFeature("line", [[6372000, 2128150], [6372250, 2128300]], { name: "v48 line" });
+  await sleep(300);
+  const own = { casing: (f.layer.options || {}).casing || 0 };
+  SBMM.store.select(f.id); await sleep(200);
+  const sel = { casing: (f.layer.options || {}).casing || 0, weight: f.layer.options.weight };
+  /* the pointer still lands on the limit of excavation */
+  const exc = SBMM_DATA.design_gis.features.find(x => x.properties.layer === "exc" && x.geometry.type === "Polygon");
+  const r = exc.geometry.coordinates[0], mx = (r[0][0] + r[1][0]) / 2, my = (r[0][1] + r[1][1]) / 2;
+  SBMM.map.setView([my, mx], 2, { animate: false }); await sleep(700);
+  const cand = SBMM.pick2d.probe(L.latLng(my, mx)).slice(0, 3).map(c => c.name);
+  SBMM.store.select(null);
+  SBMM.tools.deleteFeature(f);
+  rows.forEach((r2, i) => LS.set(r2[0], r2[1], { on: was[i] }));
+  await sleep(300);
+  return { patched: !!L.Canvas.prototype._sbmmCased, plain, cased, found, own, sel, cand };
+});
+console.log("2D HIERARCHY v48:", JSON.stringify(HI));
+if (!HI.patched) { console.log("FAIL: the canvas renderer was not taught the casing"); process.exit(1); }
+{ const ps = HI.plain.filter(c => c[0] === "stroke"), cs = HI.cased.filter(c => c[0] === "stroke");
+  if (ps.length !== 1 || ps[0][1] !== 2) { console.log("FAIL: a path with no casing is no longer stroked once, as itself", HI.plain); process.exit(1); }
+  if (cs.length !== 2 || Math.abs(cs[0][1] - 4.2) > 1e-6 || cs[1][1] !== 2 || cs[1][2] !== "#ff0000" || cs[0][2] === "#ff0000")
+    { console.log("FAIL: a cased path is not stroked wide and dark and then as itself", HI.cased); process.exit(1); } }
+if (!HI.found.exc || !(HI.found.exc.casing > 0)) { console.log("FAIL: the limits of excavation are not cased", HI.found.exc); process.exit(1); }
+if (!HI.found.du || !(HI.found.du.casing > 0)) { console.log("FAIL: the decision units are not cased", HI.found.du); process.exit(1); }
+if (!HI.found.lot || HI.found.lot.casing !== 0 || !(HI.found.lot.weight <= 1.1) || !(HI.found.lot.fill <= 0.04))
+  { console.log("FAIL: the lots are not drawn as quiet context", HI.found.lot); process.exit(1); }
+if (!(HI.own.casing > 0) || !(HI.sel.casing > 0)) { console.log("FAIL: the user's own line lost its casing (on creation or on selection)", HI.own, HI.sel); process.exit(1); }
+if (!HI.cand.length || !/Limit of excavation/.test(HI.cand[0])) { console.log("FAIL: the pointer on a limit of excavation did not land on it", HI.cand); process.exit(1); }
 });
 
 await block("9x. drainage", async () => {

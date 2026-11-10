@@ -56,7 +56,8 @@ SBMM.survey = (function () {
       if (g.type !== "LineString") continue;
       const lyr = L.polyline(g.coordinates.map(q => [q[1], q[0]]), {
         pane: "vectors", color: col, weight: heavy ? 2.4 : 1.2,
-        dashArray: spec.key === "survey_pipe" ? "8 4" : null, opacity: heavy ? 0.95 : 0.7
+        dashArray: spec.key === "survey_pipe" ? "8 4" : null, opacity: heavy ? 0.95 : 0.7,
+        casing: heavy ? 1 : 0
       });
       lyr.bindTooltip(tip(p), { sticky: true, className: "ctip" });
       lyr._gis = { props: p, geom: g };

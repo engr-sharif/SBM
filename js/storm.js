@@ -439,7 +439,8 @@ SBMM.storm = (function () {
       const ln = L.polyline(ll, {
         pane: "vectors", color: broken ? COL_BROKEN : (cap || COL), weight: broken ? 3 : 2.5,
         opacity: broken ? 1 : .92, lineCap: "round", lineJoin: "round",
-        dashArray: broken ? "2 5" : (drawn ? null : "9 6")
+        dashArray: broken ? "2 5" : (drawn ? null : "9 6"),
+        casing: 1.1                              // v48: the network is the subject wherever it is on
       });
       ln.bindTooltip(conduitTip(c), { sticky: true, className: "ctip" });
       ln.on("click", ev => {
