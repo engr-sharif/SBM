@@ -95,9 +95,19 @@ jobs:
         working-directory: test
         run: npm install --no-audit --no-fund
 
+      # A hung download or package mirror used to hold this step until the
+      # job's own 60-minute limit, before a single test had started (two jobs
+      # of one run did, 2026-11-10). Each attempt gets eight minutes; a normal
+      # one takes well under one.
       - name: Install Chromium
         working-directory: test
-        run: npx playwright install --with-deps chromium
+        run: |
+          for n in 1 2 3; do
+            if timeout -k 20 480 npx playwright install --with-deps chromium; then exit 0; fi
+            echo "playwright install: attempt $n failed or timed out"
+            sleep 10
+          done
+          exit 1
 
       - name: Preflight
         run: node test/run.mjs --only check
