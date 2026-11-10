@@ -17,6 +17,24 @@ All three are offline-only by design. Nothing in this app calls out to the inter
 
 ---
 
+## v9.51 — water that looks like water (2026-11-10)
+
+The 3D view had no water: Clear Lake was the dark backdrop, and the
+impoundment and the ponds were just the aerial photo.
+
+- **Clear Lake, the Herman impoundment and the ponds are water surfaces**: they
+  reflect the sky, ripple, and catch the sun. With a low sun the lake takes the
+  colour of the evening sky.
+- **Each surface sits at the level the lidar recorded**, and the ground itself
+  decides where the shoreline is, so water meets the land where it really does.
+  A mapped water body with no water in the lidar is left dry.
+- **Inland water keeps its real colour**: the surface is mostly a reflection
+  over the aerial photo, so the impoundment still looks like the impoundment.
+- **The overtopping analysis's flood stage is drawn the same way**, so a stage
+  above today's level reads as water rather than as blue glass.
+- The water only moves while the view is moving; a still view stays still.
+- *View settings → Water surfaces* turns them off.
+
 ## v9.50 — the ground itself: relief lit from the lidar (2026-11-10)
 
 - **Every foot of the ground is lit from the lidar**, not from the simplified

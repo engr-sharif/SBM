@@ -565,6 +565,8 @@ window.SBMM_BUILD="full";
       <!-- v31: the names of the wells, borings, pits, samples and storm structures
            nearest the camera; default on, remembered with the view prefs -->
       <label class="chk"><input type="checkbox" id="v3dPtLabels" checked> Point names</label>
+      <!-- v42: Clear Lake, the impoundment and the ponds drawn as water -->
+      <label class="chk"><input type="checkbox" id="v3dWater" checked> Water surfaces</label>
       <!-- 2026-10-19: how the terrain draws over what is under it (the TEM
            model). Auto is see-through while a TEM layer is on. -->
       <label>Ground <select id="v3dGround" title="How the terrain draws over what is under it — auto is see-through while a TEM layer is on">
@@ -1317,6 +1319,7 @@ window.SBMM_HEAVY = [
 <script src="js/table.js"></script>
 <script src="js/terrain3d.js"></script>
 <script src="js/atmos3d.js"></script>
+<script src="js/water3d.js"></script>
 <script src="js/viewer3d.js"></script>
 <script src="js/pick3d.js"></script>
 <script src="js/sheetmarks.js"></script>

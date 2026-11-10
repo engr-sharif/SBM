@@ -45,28 +45,35 @@ SBMM.atmos3d = (function () {
   function zenith(sz) { return mix3(ZEN_LOW, ZEN_DAY, dayness(sz)); }
   function horizon(sz) { return mix3(HOR_LOW, HOR_DAY, dayness(sz)); }
 
-  const GLSL_SKY = `
-    uniform vec3 uSun;
-    varying vec3 vDir;
-    vec3 mix3(vec3 a, vec3 b, float t) { return a + (b - a) * t; }
-    void main() {
-      vec3 v = normalize(vDir);
-      float sz = uSun.z;
+  /* THE SKY AS A FUNCTION, shared: the dome draws it, and the water
+     (js/water3d.js) reflects it — so a lake reflects the sky that is actually
+     overhead, at whatever hour the sun control says it is. */
+  const GLSL_SKY_FN = `
+    vec3 atmosMix(vec3 a, vec3 b, float t) { return a + (b - a) * t; }
+    vec3 atmosSky(vec3 v, vec3 sun, float disc) {
+      float sz = sun.z;
       float day = smoothstep(0.02, 0.42, sz);
-      vec3 zen = mix3(vec3(${ZEN_LOW.join(",")}), vec3(${ZEN_DAY.join(",")}), day);
-      vec3 hor = mix3(vec3(${HOR_LOW.join(",")}), vec3(${HOR_DAY.join(",")}), day);
-      vec3 sunc = mix3(vec3(${SUN_LOW.join(",")}), vec3(${SUN_DAY.join(",")}), day);
+      vec3 zen = atmosMix(vec3(${ZEN_LOW.join(",")}), vec3(${ZEN_DAY.join(",")}), day);
+      vec3 hor = atmosMix(vec3(${HOR_LOW.join(",")}), vec3(${HOR_DAY.join(",")}), day);
+      vec3 sunc = atmosMix(vec3(${SUN_LOW.join(",")}), vec3(${SUN_DAY.join(",")}), day);
       float h = max(v.z, 0.0);
       /* overhead to horizon: most of the change happens in the lowest fifteen degrees */
-      vec3 col = mix3(hor, zen, pow(h, 0.42));
-      float mu = max(dot(v, uSun), 0.0);
+      vec3 col = atmosMix(hor, zen, pow(h, 0.42));
+      float mu = max(dot(v, sun), 0.0);
       /* the forward-scattering glow, wide and then tight, strongest low in the sky */
       col += sunc * (0.10 * pow(mu, 6.0) + 0.35 * pow(mu, 48.0)) * (1.0 - 0.55 * h);
       /* the disc */
-      col += sunc * 6.0 * smoothstep(0.99955, 0.99985, mu);
+      col += sunc * 6.0 * disc * smoothstep(0.99955, 0.99985, mu);
       /* under the horizon: the haze the fog fades the ground into, a little darker further down */
-      if (v.z < 0.0) col = mix3(hor, hor * 0.72, clamp(-v.z * 4.0, 0.0, 1.0));
-      gl_FragColor = vec4(col, 1.0);
+      if (v.z < 0.0) col = atmosMix(hor, hor * 0.72, clamp(-v.z * 4.0, 0.0, 1.0));
+      return col;
+    }`;
+  const GLSL_SKY = `
+    uniform vec3 uSun;
+    varying vec3 vDir;
+    ${GLSL_SKY_FN}
+    void main() {
+      gl_FragColor = vec4(atmosSky(normalize(vDir), uSun, 1.0), 1.0);
       #include <colorspace_fragment>
     }`;
 
@@ -124,6 +131,6 @@ SBMM.atmos3d = (function () {
     return (out || new THREE.Color()).setRGB(h[0], h[1], h[2]);
   }
 
-  return { buildSky, sunDir, light, horizonColour, zenith, horizon,
+  return { buildSky, sunDir, light, horizonColour, zenith, horizon, GLSL_SKY_FN,
            dayness: elDeg => dayness(Math.sin(elDeg * Math.PI / 180)) };
 })();

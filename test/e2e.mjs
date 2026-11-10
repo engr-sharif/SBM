@@ -7250,6 +7250,105 @@ if (!L.sh4.on) { console.log("FAIL: the shadow map did not come back with realis
 await page.evaluate(() => { if (SBMM.viewer3d.isOpen()) SBMM.viewer3d.toggle(); });
 });
 
+await block("9f15. water in 3D (v42)", async () => {
+/* v42 — js/water3d.js: every water body EA mapped is a sheet at the lidar's
+   own flat return, the terrain cuts its shoreline, it reflects js/atmos3d.js's
+   sky, and its ripples advance only with frames that are drawn anyway. The
+   contract, not a picture: which bodies get a sheet and at what level, that
+   an idle view still renders nothing, that the sheets follow the relief
+   slider, step aside for a see-through ground, and that the overtopping
+   stage surface is the same water. */
+if (!(await page.evaluate(() => SBMM.viewer3d.isOpen()))) await page.evaluate(async () => { await SBMM.viewer3d.toggle(); });
+await page.waitForFunction(() => document.getElementById("v3dStatus").textContent === "" &&
+  document.getElementById("view3d").style.display === "block", null, { timeout: 90000 });
+await page.waitForTimeout(1200);
+const W = await page.evaluate(async () => {
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  const V = SBMM.viewer3d, wasAnim = V.animateWater(), ground0 = V.ground();
+  V.animateWater(false);
+  V.setGround("solid");
+  const was = V.water3d();
+  V.water3d(true); await sleep(600);
+  const st = V.stats().water;
+  /* the references, read off the same sources the module reads: EA's polygons
+     and the lidar under them */
+  const polys = SBMM_DATA.design_gis.features.filter(f => f.properties.layer === "water" && f.geometry.type === "Polygon");
+  const herman = polys.find(f => /Herman/.test(f.properties.name)).geometry.coordinates[0];
+  let hx = 0, hy = 0; for (const q of herman) { hx += q[0]; hy += q[1]; } hx /= herman.length; hy /= herman.length;
+  const hermanLidar = SBMM.elev(hx, hy)[0];
+  /* a look across Clear Lake from above the west shore of the mine */
+  const lakePt = [6369400, 2128900];
+  await V.lookFrom(6371000, 2128700, 1700, lakePt[0], lakePt[1], 1326);
+  await sleep(2500);
+  const px = () => {
+    const P = V.project(lakePt[0], lakePt[1], 1326.5), cv = document.getElementById("v3dCanvas"), r = cv.getBoundingClientRect();
+    const c2 = document.createElement("canvas"); c2.width = Math.round(r.width); c2.height = Math.round(r.height);
+    const g = c2.getContext("2d"); g.drawImage(cv, 0, 0, c2.width, c2.height);
+    const d = g.getImageData(Math.round(P.x - r.left) - 3, Math.round(P.y - r.top) - 3, 7, 7).data;
+    let R = 0, G = 0, B = 0; for (let i = 0; i < d.length; i += 4) { R += d[i]; G += d[i + 1]; B += d[i + 2]; }
+    const n = d.length / 4; return { inView: P.inView, rgb: [Math.round(R / n), Math.round(G / n), Math.round(B / n)] };
+  };
+  const lakeOn = px();
+  /* idle: nothing asks for a frame and the ripples hold still */
+  const r0 = V.stats().renderCount, ph0 = V.stats().water.phase;
+  await sleep(3000);
+  const idle = V.stats().renderCount - r0, phIdle = V.stats().water.phase - ph0;
+  /* frames that are drawn anyway move them */
+  await V.lookFrom(6371050, 2128700, 1700, lakePt[0], lakePt[1], 1326); await sleep(700);
+  await V.lookFrom(6371000, 2128700, 1700, lakePt[0], lakePt[1], 1326); await sleep(1800);
+  const phMoved = V.stats().water.phase - ph0;
+  /* the relief slider carries the sheets with the ground */
+  const ex = document.getElementById("v3dExag"), ex0 = ex.value;
+  ex.value = "2"; ex.dispatchEvent(new Event("input", { bubbles: true })); await sleep(400);
+  const scale2 = V.stats().water.scaleZ;
+  ex.value = ex0; ex.dispatchEvent(new Event("input", { bubbles: true })); await sleep(400);
+  const scale1 = V.stats().water.scaleZ, exNow = +ex0;
+  /* a see-through ground is for what is under it: the sheets step aside */
+  V.setGround("see"); await sleep(900);
+  const visSee = V.stats().water.visible;
+  V.setGround("solid"); await sleep(900);
+  const visSolid = V.stats().water.visible;
+  /* off is off, and the lake is then the backdrop again */
+  V.water3d(false); await sleep(1500);
+  const off = V.stats().water, lakeOff = px();
+  V.water3d(true); await sleep(900);
+  const back = V.stats().water;
+  /* the overtopping stage surface is the same water */
+  V.setWaterStage({ level: 1340, rings: [[[hx - 100, hy - 100], [hx + 100, hy - 100], [hx + 100, hy + 100], [hx - 100, hy + 100]]], labels: [] });
+  await sleep(500);
+  const stage = V.stats().waterStage;
+  V.setWaterStage(null);
+  V.water3d(was); V.setGround(ground0); V.animateWater(wasAnim);
+  await sleep(500);
+  return { n: st && st.bodies, list: st && st.list, skipped: st && st.skipped, hermanLidar, lakeOn, lakeOff, idle, phIdle, phMoved,
+           scale1, scale2, exNow, visSee, visSolid, off: !!off, back: back && back.bodies, stage, polys: polys.length };
+});
+console.log("WATER 3D v42:", JSON.stringify(W));
+if (!W.n || W.n < 8) { console.log("FAIL: fewer than eight water bodies were given a sheet", W.n); process.exit(1); }
+{ const lake = W.list.find(b => b.lake), her = W.list.find(b => /Herman/.test(b.name));
+  if (!lake || !(lake.acres > 400)) { console.log("FAIL: Clear Lake has no sheet", lake); process.exit(1); }
+  if (!(lake.level > 1325.5 && lake.level < 1327.5)) { console.log("FAIL: Clear Lake is drawn at " + lake.level + " ft, not at the lidar's shoreline"); process.exit(1); }
+  /* the impoundment's sheet is at the lidar's own flat return there */
+  if (!her || Math.abs(her.level - W.hermanLidar) > 0.3) { console.log("FAIL: the impoundment's sheet is not at the lidar's water return", her, W.hermanLidar); process.exit(1); }
+  for (const b of W.list) {
+    if (!(b.drawnAt > b.level && b.drawnAt - b.level <= 0.5)) { console.log("FAIL: a sheet is not a few tenths over its level", b); process.exit(1); }
+    if (!b.lake && !(b.flat >= 0.10)) { console.log("FAIL: a body with no flat lidar return was given a sheet", b); process.exit(1); }
+  } }
+/* a polygon that got no sheet says why, and every polygon is one or the other (EA ships most of them twice) */
+if ((W.skipped || []).some(s => !s.why)) { console.log("FAIL: a water body was skipped without a reason", W.skipped); process.exit(1); }
+if (W.n + (W.skipped || []).length > W.polys) { console.log("FAIL: more sheets than polygons", W.n, W.skipped, W.polys); process.exit(1); }
+if (W.idle > 1 || W.phIdle !== 0) { console.log("FAIL: with water on an idle view rendered " + W.idle + " frame(s) and the ripples advanced " + W.phIdle); process.exit(1); }
+if (!(W.phMoved > 0)) { console.log("FAIL: the ripples did not advance with drawn frames"); process.exit(1); }
+if (Math.abs(W.scale2 - 2) > 1e-6 || Math.abs(W.scale1 - W.exNow) > 1e-6) { console.log("FAIL: the water sheets did not follow the relief slider", W.scale1, W.scale2); process.exit(1); }
+if (W.visSee !== false || W.visSolid !== true) { console.log("FAIL: the sheets did not step aside for a see-through ground", W.visSee, W.visSolid); process.exit(1); }
+if (W.off || !(W.back >= 8)) { console.log("FAIL: the water switch did not take the sheets away and bring them back", W.off, W.back); process.exit(1); }
+if (!W.lakeOn.inView) { console.log("FAIL: the lake probe point is not in view"); process.exit(1); }
+{ const a = W.lakeOn.rgb, b = W.lakeOff.rgb, d = Math.abs(a[0] - b[0]) + Math.abs(a[1] - b[1]) + Math.abs(a[2] - b[2]);
+  if (!(d > 12)) { console.log("FAIL: Clear Lake looks the same with the water on and off", a, b); process.exit(1); } }
+if (!W.stage || !W.stage.water) { console.log("FAIL: the overtopping stage surface is not drawn as water", W.stage); process.exit(1); }
+await page.evaluate(() => { if (SBMM.viewer3d.isOpen()) SBMM.viewer3d.toggle(); });
+});
+
 await block("9x. drainage", async () => {
 /* 9x. drainage — the whole-site catchment map (v14, docs/V14_DRAINAGE_SPEC.md) */
 /* ==================================================================== */

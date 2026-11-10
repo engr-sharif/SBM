@@ -105,6 +105,8 @@ SBMM.viewer3d = (function () {
   /* v13 §3.2 — the overtopping stage surface, owned by js/water.js through
      setWaterStage() and cleared when the analysis closes. */
   let stageGroup = null, stageKey = null, stageInfo = null;
+  /* v42: the mapped water bodies as water (js/water3d.js) */
+  let waterGroup = null, waterOn = true, waterPrefRead = false;
   /* last terrain raycast, keyed to the cursor position — raycasting a 1.5M-vertex mesh
      is the expensive part of hovering, so the wheel handler reuses the hover's result */
   let lastPick = { x: -1e9, y: -1e9, p: null, t: 0 };
@@ -295,6 +297,43 @@ SBMM.viewer3d = (function () {
     return g;
   }
 
+  /* v42 — the lake, the impoundment and the ponds. Built once: the polygons
+     are EA's and the levels are the lidar's, and neither changes in a session.
+     The sheets step aside while the ground is see-through or hidden, because
+     that mode exists to show what is UNDER the ground and a reflective sheet
+     over it is one more thing in the way. */
+  function buildWater() {
+    if (waterGroup) { scene.remove(waterGroup); waterGroup = null; }
+    if (!waterPrefRead) {
+      waterPrefRead = true;
+      const wp = SBMM.view && SBMM.view.pref ? SBMM.view.pref("water3d") : undefined;
+      waterOn = wp === undefined ? true : !!wp;
+    }
+    if (!SBMM.water3d || !waterOn) { if (SBMM.water3d) SBMM.water3d.dispose(); return; }
+    try {
+      waterGroup = SBMM.water3d.build({ CX, CY, ZMID, sunAz, sunEl });
+    } catch (e) { console.warn("3D water:", e); waterGroup = null; }
+    if (!waterGroup) return;
+    waterGroup.scale.z = exag();
+    scene.add(waterGroup);
+  }
+  function setWater3d(on) {
+    waterOn = !!on;
+    const el = $("v3dWater");
+    if (el && el.checked !== waterOn) el.checked = waterOn;
+    if (SBMM.view && SBMM.view.pref) SBMM.view.pref("water3d", waterOn);
+    if (scene) { buildWater(); requestRender(); }
+    return waterOn;
+  }
+  function waterBeforeDraw(now) {
+    if (waterGroup) {
+      const vis = groundNow() === "solid";
+      if (waterGroup.visible !== vis) waterGroup.visible = vis;
+    }
+    /* the ripples advance with the frames that are being drawn anyway */
+    if ((waterGroup || stageGroup) && SBMM.water3d) SBMM.water3d.tick(now);
+  }
+
   function applySun() {
     if (!sunLight) return;
     const az = sunAz * Math.PI / 180, el = sunEl * Math.PI / 180, d = 14000;
@@ -325,6 +364,7 @@ SBMM.viewer3d = (function () {
        is what v15 asked for and what a CPU raster could never do */
     if (SBMM.terrain3d) SBMM.terrain3d.setSun(sunAz, sunEl);
     if (treesOn && SBMM.trees3d) SBMM.trees3d.setSun(sunAz, sunEl);     // the tree shadows follow it
+    if (SBMM.water3d) SBMM.water3d.setSun(sunAz, sunEl);                // and the water reflects it
     SHD.dirty = true;                                                   // and so do the cast shadows
     requestRender();
   }
@@ -1075,7 +1115,10 @@ SBMM.viewer3d = (function () {
     const zc = spec.level - ZMID;
     const geo = new THREE.ShapeGeometry(shapes);
     geo.translate(0, 0, zc);
-    const mesh = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({
+    /* v42: the flood stage is water, and is drawn as the lake and the ponds
+       are (js/water3d.js) — the analysis blue under the sky's reflection */
+    const wm = SBMM.water3d && SBMM.water3d.stageMaterial ? SBMM.water3d.stageMaterial() : null;
+    const mesh = new THREE.Mesh(geo, wm || new THREE.MeshBasicMaterial({
       color: 0x55C1FF, transparent: true, opacity: 0.34, depthWrite: false,
       side: THREE.DoubleSide, toneMapped: false }));
     mesh.renderOrder = 5;
@@ -1101,7 +1144,7 @@ SBMM.viewer3d = (function () {
     const pa = geo.getAttribute("position");
     stageInfo = { level: spec.level, z: +pa.array[2].toFixed(4), rings: rings.length,
                   shapes: shapes.length, labels: (spec.labels || []).length,
-                  verts: pa.count };
+                  verts: pa.count, water: !!wm };
     requestRender();
   }
 
@@ -4040,6 +4083,7 @@ SBMM.viewer3d = (function () {
     envGroup.userData.noClip = true;
     scene.add(envGroup);
     applySun();                 // again, now that the ground plane exists to be tinted
+    buildWater();
 
     raycaster = new THREE.Raycaster();
     nav = makeNav(renderer.domElement);
@@ -4250,6 +4294,7 @@ SBMM.viewer3d = (function () {
         clipBeforeDraw();
         shadowBeforeDraw();
         const tR = performance.now(); FS.sky += tR - tS;
+        waterBeforeDraw(tR);
         renderer.render(scene, camera);
         fsAdd("render", performance.now() - tR);
         updateCompass();
@@ -4275,6 +4320,7 @@ SBMM.viewer3d = (function () {
       if (sheetGroup) sheetGroup.scale.z = zx;
       if (stageGroup) stageGroup.scale.z = zx;
       if (envGroup) envGroup.scale.z = zx;
+      if (waterGroup) waterGroup.scale.z = zx;
       for (const k in drapeMesh) drapeMesh[k].scale.z = zx;
       $("v3dExagVal").textContent = zx.toFixed(1) + "×";
       nav.st.forceApply = true;
@@ -4448,6 +4494,9 @@ SBMM.viewer3d = (function () {
       ptOn = rp === undefined ? true : !!rp;
       const pl = $("v3dPtLabels");
       if (pl) { pl.checked = ptOn; pl.onchange = e => setPointLabels(e.target.checked); }
+      /* v42: the water surfaces, default on, remembered beside them */
+      const ws = $("v3dWater");
+      if (ws) { ws.checked = waterOn; ws.onchange = e => setWater3d(e.target.checked); }
       /* how the ground draws over what is under it (the TEM model) */
       const gs = $("v3dGround");
       if (gs) { gs.value = GROUND.mode; gs.onchange = e => setGround(e.target.value); }
@@ -4944,6 +4993,7 @@ SBMM.viewer3d = (function () {
         ? [+waterAnim[0].pos[0].toFixed(3), +waterAnim[0].pos[1].toFixed(3),
            +waterAnim[0].pos[2].toFixed(3)] : null,
       waterStage: stageInfo, zmid: ZMID,
+      water: waterGroup && SBMM.water3d ? Object.assign({ visible: waterGroup.visible, scaleZ: waterGroup.scale.z }, SBMM.water3d.stats()) : null,
       /* v15: the label layer and the parity table */
       labels3d: labels3d.size,
       labelsVisible: lblVisible,
@@ -5866,6 +5916,7 @@ SBMM.viewer3d = (function () {
       return out;
     },
     sunAsPhotographed, sunAuto: () => sunAuto,
+    water3d: on => on === undefined ? waterOn : setWater3d(on),
     sun: (az, el) => { if (az === undefined && el === undefined) return { az: sunAz, el: sunEl };
                        setSun(az, el); return { az: sunAz, el: sunEl }; },
     lookAt: startLookAt,

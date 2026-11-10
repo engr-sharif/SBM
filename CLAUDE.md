@@ -411,6 +411,7 @@ terrain source, which needs an explicit decision + README/test update).
 | smartbound.js | WAND (memo top-hat pile delineation), CBOUND (contour-snap), TOE, STANDS |
 | trees.js | **the tree layer and the inventory (v39)**: the baked site-wide tree table (`SBMM_DATA.trees_site`) decoded on first show, the live kernel as the fallback, the 2D crowns (a sprite per form and colour, at true crown size), the one colour rule `rgbOf`, the popup record `tree(i)`, the min-height filter both views read, `TREES`, the CSV; `SBMM.trees` |
 | atmos3d.js | **v40 — the sky and the light**: the analytic sky dome's shader, the sun's colour and strength and the sky fill as one function of the sun's elevation (`light(el)`), the horizon colour the fog takes (`horizonColour`), `sunDir`; `SBMM.atmos3d` |
+| water3d.js | **v42 — water in 3D**: a sheet per water body EA mapped, at the lidar's own flat return, its shoreline cut by the terrain; one shader (the sky of `js/atmos3d.js` reflected through a Fresnel term, ripples, the sun's glint) shared with the overtopping stage surface; `tick()` advancing the ripples only on frames that are drawn anyway; `SBMM.water3d` |
 | trees3d.js | **v39 — trees in 3D**: each tree an instance of one of nine `InstancedMesh`es (three forms x three levels of detail), generated geometry, `relod()` dealing the levels by camera distance inside a drawn frame, one soft ground shadow per tree that follows the sun; `SBMM.trees3d` |
 | borelogs.js | **the 2025 boring logs (OpenGround)** — the strip log in a results card (class profile, strata + USCS, SPT with the pocket penetrometer, pH against the acid threshold, method bands, the water symbol), the TWO contact statements drawn together and reconciled nowhere, the 44-hole `LOGS` table, the CSV and the PNG, the popup button, `LOG` / `LOGS`, the class palette every other view reads through `classColor()`, and since v23 **the column renderer `column()`** every face of the borings is drawn by; `SBMM.borelogs` |
 | labmetals.js | **v28 — lab metals by depth** from the earlier apps (`SBMM_DATA.lab_metals`, `tools/build_imports.py`): the interval table in a boring / test-pit popup and on the log card, the full validated suite on a sample popup, the ROD / PMB levels and `level(sym, v)`; `SBMM.labMetals` |
@@ -5347,3 +5348,75 @@ shows.
 transitions (morphing). With the light coming from the texture, a tile changing
 level no longer changes how it is lit, which was most of what a pop looked
 like; the remaining geometric step is under the skirts. It is not claimed.
+
+## v42 — water in 3D
+
+`js/water3d.js` (`SBMM.water3d`, new, loaded after `js/atmos3d.js`), the
+`buildWater` / `waterBeforeDraw` section of `js/viewer3d.js`, the stage
+material in `setWaterStage`, `#v3dWater`. E2E block **"9f15. water in 3D
+(v42)"** (shard 2); shots `test/water3d_shots.mjs` (`shots:water3d`). No kernel
+work (`VERSION` stays 10), no analysis number moves.
+
+**What was wrong.** The 3D view had no water. Clear Lake was the backdrop
+plane showing through where the lidar has no ground, and the impoundment and
+the ponds were whatever the aerial photo had painted on the lidar's flat
+return.
+
+**A sheet per water body EA mapped** (`design_gis` layer `water`, each polygon
+once — the geodatabase and the CAD both carry most of them). Five rules:
+
+- **THE TERRAIN CUTS THE SHORELINE.** A sheet is one flat `ShapeGeometry` a
+  few feet LARGER than EA's polygon (`grown()`), `depthWrite:false`, and the
+  ground in front of it hides it wherever the ground stands above the level.
+  So the shoreline is the level's contour on the lidar, not a drafted outline
+  the lidar then disagrees with all the way round.
+- **THE LEVEL IS THE LIDAR'S FLAT RETURN, AND A BODY WITHOUT ONE GETS NO
+  SHEET** (`levelOf`). The commonest ground elevation to a tenth of a foot
+  among a grid of samples inside the polygon, accepted when at least a tenth
+  of the samples sit within 0.3 ft of it and no more than a twentieth lie
+  below it — i.e. the flat is the lowest ground there. That one rule draws the
+  Northwest Pit's water at the bottom of the pit (14 % of its polygon) and
+  refuses a polygon over ground the lidar never saw. Clear Lake has no lidar
+  ground at all, so its samples are walked along EA's shoreline. The sheet
+  sits 0.35 ft over the level (0.2 for the lake) with a `polygonOffset`, or it
+  fights the flat return for depth from a few thousand feet.
+  **These are DRAWING levels.** The surveyed water levels the overtopping
+  analysis reports are `js/water.js`'s and are not read here.
+- **An inland sheet is mostly see-through** (`KIND.pond`, opacity 0.30 looking
+  straight down, all mirror at a grazing angle): the aerial photograph draped
+  on the lidar under it is the record of what colour that water is, and the
+  impoundment is not the colour of a pond. Clear Lake has no photograph under
+  it and carries its own colour (`KIND.lake`).
+- **The straight edges of EA's lake polygon are a drawing limit, not a
+  shore** (`straightEdges`, segments over 600 ft: the west and north limits
+  and the north-east diagonal). The sheet fades out over 900 ft towards them,
+  into the backdrop, instead of stopping at a line.
+- **THE RIPPLES RUN NO CLOCK.** `tick(now)` is called from `waterBeforeDraw`,
+  inside a frame that is being drawn anyway, and advances the phase by the
+  time since the last drawn frame (capped at 0.12 s, so a pause is not a long
+  time for the water). Nothing here asks for a frame: an idle view renders
+  nothing and the water holds still (block 9f15 asserts both).
+
+**One shader** (`material(kind, edges)`): the sky function of `js/atmos3d.js`
+(`GLSL_SKY_FN`, the same one the dome draws) reflected off a rippled normal
+through a Schlick Fresnel term, the sun's glint, fog, and the clipping chunks
+with `clipping: true` — a ShaderMaterial ignores `clippingPlanes` without them
+(the v27 rule), and the fence trench and the TEM cut have to cut the water
+too. The sheets are NOT `noClip`.
+
+- **The overtopping stage surface is the same water** (`stageMaterial()`,
+  `KIND.stage`): the analysis blue under the sky's reflection, still
+  see-through enough to read the ground. `stats().waterStage.water` says so.
+  Its pick registration is untouched.
+- **The sheets step aside while the ground is see-through or hidden**
+  (`waterBeforeDraw`, per draw): that mode exists to show what is under the
+  ground.
+- The group's `scale.z` follows the relief slider like every other group.
+- **Water surfaces** in View settings (`#v3dWater`, `SBMM.view.pref("water3d")`,
+  default on; `SBMM.viewer3d.water3d(on)`). Both renderings draw it — it is a
+  dozen flat meshes and a few cosines per water pixel.
+- The sheets carry no `userData.pick` and no `userData.layer`: a click on
+  water lands on the ground or on EA's own polygon as before, and block 9y's
+  parity table has no row for them (they belong to no layer; they are the
+  scene, like the sky).
+
