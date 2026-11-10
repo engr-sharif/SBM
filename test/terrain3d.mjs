@@ -26,6 +26,7 @@
      meshport  the tile mesh built in the worker against the same function
                called inline, element for element
      geomcache a camera move away and back rebuilds no geometry
+     shade     per-pixel normals and occlusion from the lidar, on every drawn tile
      map2d     the 2D basemap stack at high zoom over the mine window
 
    Slow under software GL on purpose — the timeouts come from test/lib/browser.mjs
@@ -38,7 +39,7 @@ import { unlock } from "./gate.mjs";
 
 const target = process.argv[2], label = process.argv[3] || "folder";
 const SECTIONS = ["lod", "quality", "onefoot", "idle", "gpu", "seams",
-                  "drape", "band", "frames", "meshport", "geomcache", "map2d"];
+                  "drape", "band", "frames", "meshport", "geomcache", "shade", "map2d"];
 if (process.argv.includes("--list")) { console.log(SECTIONS.join(" ")); process.exit(0); }
 let only = null;
 if (process.argv.includes("--only")) only = new Set(process.argv[process.argv.indexOf("--only") + 1].split(","));
@@ -706,6 +707,80 @@ if (want("geomcache")) {
   console.log("   over-budget:", JSON.stringify(h.map(v => v.mb + ":" + v.drawn + "/" + v.selected)), "evicted", h[h.length - 1].evicted);
   ok("the over-budget run really evicted geometry", h[h.length - 1].evicted > h[0].evicted, `${h[0].evicted} -> ${h[h.length - 1].evicted}`);
   ok("with the geometry cache over budget every selected tile is still drawn", holes.length === 0, JSON.stringify(holes));
+}
+
+/* ----------------------------------------------------------------- shade -- */
+/* v41 — the photo-draped ground is lit per pixel from the lidar: each drawn
+   tile carries a shade texture (normal in RGB, ambient occlusion in A) built
+   in the tile worker. What is asserted is that the texture SAYS WHAT THE
+   GROUND IS: its normals are the analysis grids' own, at every sample
+   including the ones along a tile's edge (which is what "no seam" means), its
+   occlusion is open on open ground, and standard rendering has none of it. */
+if (want("shade")) {
+  console.log("\n== shade — per-pixel normals and occlusion from the lidar ==");
+  const r = await page.evaluate(async () => {
+    const V = SBMM.viewer3d, T3 = SBMM.terrain3d;
+    const q0 = V.quality();
+    if (q0 !== "realistic") { V.setQuality("realistic"); await new Promise(r => setTimeout(r, 1500)); }
+    V.openAt(6371700, 2128900);
+    await window.__settle3d();
+    const st = () => V.stats().tiles;
+    const s1 = st();
+    /* every drawn tile: a point in the middle, and one half a cell inside each edge */
+    const tiles = T3.drawnTiles();
+    let n = 0, worst = 0, sumAo = 0, flatAo = [], edge = 0, edgeWorst = 0, none = 0, aoLo = 1, aoHi = 0;
+    const ref = (x, y, c) => {
+      const z0 = SBMM.elev(x, y)[0], ze = SBMM.elev(x + c, y)[0], zw = SBMM.elev(x - c, y)[0],
+            zn = SBMM.elev(x, y + c)[0], zs = SBMM.elev(x, y - c)[0];
+      if ([z0, ze, zw, zn, zs].some(v => isNaN(v))) return null;
+      const nx = -(ze - zw) / (2 * c), ny = -(zn - zs) / (2 * c), l = Math.hypot(nx, ny, 1);
+      return [nx / l, ny / l, 1 / l];
+    };
+    for (const t of tiles) {
+      const c = t.cellFt, [x0, y0] = t.rect;
+      const pts = [[128, 128, 0], [0, 100, 1], [255, 140, 1], [90, 0, 1], [170, 255, 1], [40, 60, 0], [200, 210, 0]];
+      for (const [i, j, isEdge] of pts) {
+        const x = x0 + i * c, y = y0 + j * c;
+        const p = T3.shadeProbe(x, y), want = ref(x, y, c);
+        if (!p) { none++; continue; }
+        if (!want) continue;
+        const d = Math.max(Math.abs(p.n[0] - want[0]), Math.abs(p.n[1] - want[1]), Math.abs(p.n[2] - want[2]));
+        n++; if (d > worst) worst = d;
+        if (isEdge) { edge++; if (d > edgeWorst) edgeWorst = d; }
+        sumAo += p.ao; aoLo = Math.min(aoLo, p.ao); aoHi = Math.max(aoHi, p.ao);
+        if (Math.hypot(want[0], want[1]) / want[2] < 0.03) flatAo.push(p.ao);
+      }
+    }
+    /* idle: the shading asks for no frame of its own */
+    await new Promise(r => setTimeout(r, 1500));
+    const r0 = V.stats().renderCount;
+    await new Promise(r => setTimeout(r, 2500));
+    const idle = V.stats().renderCount - r0;
+    /* standard rendering carries none of it; realistic brings it back */
+    V.setQuality("standard"); await new Promise(r => setTimeout(r, 1500)); await window.__settle3d();
+    const s2 = st();
+    V.setQuality("realistic"); await new Promise(r => setTimeout(r, 1500)); await window.__settle3d();
+    const s3 = st();
+    if (q0 !== "realistic") V.setQuality(q0);
+    return { s1: s1.shade, tiles: s1.tiles, n, worst, edge, edgeWorst, none, meanAo: sumAo / Math.max(1, n), aoLo, aoHi,
+             flat: flatAo.length, flatAo: flatAo.length ? flatAo.reduce((a, b) => a + b, 0) / flatAo.length : null,
+             idle, s2: s2.shade, s2tiles: s2.tiles, s3: s3.shade, s3tiles: s3.tiles };
+  });
+  console.log("   realistic:", JSON.stringify(r.s1), "of", r.tiles, "tiles");
+  console.log("   normals: " + r.n + " samples, worst |Δ| " + r.worst.toFixed(4) + "; " + r.edge + " on a tile edge, worst " + r.edgeWorst.toFixed(4));
+  console.log("   occlusion: mean " + r.meanAo.toFixed(3) + ", range " + r.aoLo.toFixed(2) + " to " + r.aoHi.toFixed(2) +
+              "; " + r.flat + " level samples, mean " + (r.flatAo == null ? "—" : r.flatAo.toFixed(3)));
+  ok("every drawn tile carries a shade texture", r.s1.on && r.s1.tiles === r.tiles && r.none === 0, `${r.s1.tiles} of ${r.tiles}, ${r.none} unanswered`);
+  ok("they were built in the tile worker, not on the main thread", r.s1.worker > 0 && r.s1.main === 0, `worker ${r.s1.worker}, main ${r.s1.main}`);
+  /* one step of the 8-bit packing is 1/127.5 = 0.0078; anything near that is the encoding, not the ground */
+  ok("the normals are the analysis grids' own (to the 8-bit packing)", r.n > 100 && r.worst < 0.012, r.worst.toFixed(4));
+  ok("... along the tile edges too — no seam", r.edge > 50 && r.edgeWorst < 0.012, r.edgeWorst.toFixed(4));
+  ok("occlusion stays in range and varies", r.aoLo >= 0.19 && r.aoHi <= 1.001 && r.aoHi - r.aoLo > 0.15, `${r.aoLo.toFixed(2)}..${r.aoHi.toFixed(2)}`);
+  ok("level ground is open to the sky", r.flat > 5 && r.flatAo > 0.85, r.flatAo);
+  ok("the land-cover raster drives the close-up detail", r.s1.cover === true, r.s1.cover);
+  ok("the shading asks for no frame of its own", r.idle <= 1, r.idle);
+  ok("standard rendering carries no shade textures", r.s2.on === false && r.s2.tiles === 0 && r.s2tiles > 0, JSON.stringify(r.s2));
+  ok("realistic brings them back", r.s3.on && r.s3.tiles === r.s3tiles, `${r.s3.tiles} of ${r.s3tiles}`);
 }
 
 /* ----------------------------------------------------------------- map2d -- */
