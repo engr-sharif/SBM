@@ -46,7 +46,8 @@ SBMM.lines3d = (function () {
 
   const VERT = `
     #define AA_PX 0.75
-    uniform vec2 uRes; uniform float uPR; uniform float uHalf; uniform vec4 uEdgeBox;
+    uniform vec2 uRes; uniform float uPR; uniform float uHalf; uniform vec4 uEdgeBox; uniform float uWorld;
+    varying float vHalfPx;
     attribute vec3 aOther; attribute vec2 aParam; attribute float aDist;
     varying vec2 vEdgeUv;
     #ifdef WIDE_COLOR
@@ -81,7 +82,14 @@ SBMM.lines3d = (function () {
       /* the quad is the line plus a fringe of AA_PX on each side for the soft
          edge to live in: without the fringe a one-pixel line has nowhere to
          fade and comes out at half strength or less */
-      float h = uHalf * uPR + AA_PX;
+      /* v47: a line can also have a width ON THE GROUND (uWorld, feet): it is
+         then never thinner than its pixel width and, close up, as wide as the
+         thing it stands for — a borehole seen from across the site is a line,
+         and from beside it a column */
+      float hp = uHalf * uPR;
+      if ( uWorld > 0.0 && persp ) hp = max( hp, uWorld * projectionMatrix[ 1 ][ 1 ] * uRes.y * 0.5 / max( cp.w, 1e-3 ) );
+      vHalfPx = hp;
+      float h = hp + AA_PX;
       /* out to the side, and half a width past the end so two segments meet without a notch */
       vec2 off = n * aParam.x * h + d * ( aParam.y > 0.5 ? 1.0 : -1.0 ) * h * 0.5;
       gl_Position = cp;
@@ -100,7 +108,7 @@ SBMM.lines3d = (function () {
     #define AA_PX 0.75
     uniform vec3 uColor; uniform vec3 uCase; uniform float uOpacity; uniform float uCaseA;
     uniform float uHalf; uniform float uCore; uniform float uPR; uniform float uDash; uniform float uGap;
-    uniform sampler2D uEdge; varying vec2 vEdgeUv;
+    uniform sampler2D uEdge; varying vec2 vEdgeUv; varying float vHalfPx; uniform float uRound;
     #ifdef WIDE_COLOR
       varying vec3 vWideColor;
     #endif
@@ -110,14 +118,17 @@ SBMM.lines3d = (function () {
     void main() {
       #include <clipping_planes_fragment>
       if ( uDash > 0.0 && mod( vDist, uDash + uGap ) > uDash ) discard;
-      float d = abs( vSide ) * ( uHalf * uPR + AA_PX );        /* pixels from the centre line */
+      float d = abs( vSide ) * ( vHalfPx + AA_PX );            /* pixels from the centre line */
       /* coverage: full inside the width, falling to nothing across one pixel at its edge */
-      float edge = clamp( uHalf * uPR + 0.5 - d, 0.0, 1.0 );
-      float core = clamp( uCore * uPR + 0.5 - d, 0.0, 1.0 );
+      float edge = clamp( vHalfPx + 0.5 - d, 0.0, 1.0 );
+      float corePx = vHalfPx - ( uHalf - uCore ) * uPR;        /* the casing keeps its own pixel width */
+      float core = clamp( corePx + 0.5 - d, 0.0, 1.0 );
       vec3 base = uColor;
       #ifdef WIDE_COLOR
         base *= vWideColor;
       #endif
+      /* a round column: lit across its width, darker towards both sides */
+      if ( uRound > 0.5 ) { float s = clamp( d / max( corePx, 0.5 ), 0.0, 1.0 ); base *= 0.52 + 0.48 * sqrt( 1.0 - s * s ); }
       float inS = texture2D( uEdge, vEdgeUv ).r;                 /* 1 inside the survey, 0 at its land limit */
       gl_FragColor = vec4( mix( uCase, base, core ), uOpacity * edge * mix( uCaseA, 1.0, core ) * inS );
       if ( gl_FragColor.a < 0.01 ) discard;
@@ -140,7 +151,9 @@ SBMM.lines3d = (function () {
     return seg.length ? seg : null;
   }
 
-  /* opts: { width (px, the coloured core), casing (px each side), casingColor, casingAlpha } */
+  /* opts: { width (px, the coloured core), casing (px each side), casingColor, casingAlpha,
+             world (ft: a half-width on the ground the line is never thinner than, close up),
+             round (shade the width as a column) } */
   function wideFor(o, opts) {
     const seg = segmentsOf(o);
     if (!seg) return null;
@@ -196,7 +209,8 @@ SBMM.lines3d = (function () {
         uCaseA: { value: opts.casingAlpha != null ? opts.casingAlpha : 0.62 },
         uOpacity: { value: m0.opacity == null ? 1 : m0.opacity },
         uHalf: { value: w / 2 + casing }, uCore: { value: w / 2 },
-        uDash: { value: dashed ? m0.dashSize : 0 }, uGap: { value: dashed ? m0.gapSize : 0 }
+        uDash: { value: dashed ? m0.dashSize : 0 }, uGap: { value: dashed ? m0.gapSize : 0 },
+        uWorld: { value: opts.world > 0 ? opts.world : 0 }, uRound: { value: opts.round ? 1 : 0 }
       }),
       vertexShader: VERT, fragmentShader: FRAG,
       transparent: true, depthWrite: false, depthTest: m0.depthTest !== false,

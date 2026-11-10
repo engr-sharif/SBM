@@ -7618,6 +7618,54 @@ if (EG.idle > 1) { console.log("FAIL: with the edge fade an idle view rendered "
 await page.evaluate(() => { if (SBMM.viewer3d.isOpen()) SBMM.viewer3d.toggle(); });
 });
 
+await block("9f20. boreholes as columns, point symbols with a halo (v47)", async () => {
+/* v47 — a depth stick is drawn as a column: never thinner than its pixel
+   width, as wide as a 2.4-ft column close up, shaded round, in its own log
+   colours (js/lines3d.js `world` / `round`). In 2D every point symbol carries
+   a dark halo and the well is the plan symbol for a monitoring well. */
+const SY = await page.evaluate(async () => {
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  const LS = SBMM.layerState, V = SBMM.viewer3d;
+  if (V.isOpen()) await V.toggle();
+  const inv = LS.groupList().find(g => g.id === "invest");
+  const rows = [...inv.layers.values()].filter(r => /wells|borings|test pits/i.test(r.label)).map(r => ({ id: r.id, on: r.on, label: r.label }));
+  rows.forEach(r => LS.set("invest", r.id, { on: true }));
+  await sleep(800);
+  const svgs = [...document.querySelectorAll(".dsmk svg")].map(e => e.innerHTML);
+  const well = svgs.find(h => /<path d="M[\d.]+ [\d.]+ L[^"]+ A/.test(h)) || "";
+  const boring = svgs.find(h => /<rect/.test(h) && /M1 1 L/.test(h)) || "";
+  const sym = { n: svgs.length, wellHalo: /stroke-opacity="\.62"/.test(well), wellQuarters: (well.match(/<path /g) || []).length,
+                boringHalo: /stroke-opacity="\.62"/.test(boring) };
+  await V.toggle();
+  await new Promise(r => { const t0 = Date.now(); const k = () => (document.getElementById("v3dStatus").textContent === "" || Date.now() - t0 > 60000) ? r() : setTimeout(k, 200); k(); });
+  await sleep(3000);
+  const wasAnim = V.animateWater(); V.animateWater(false);
+  const sticks = V.datasetSticks();
+  await sleep(2500);
+  const r0 = V.stats().renderCount;
+  await sleep(3000);
+  const idle = V.stats().renderCount - r0;
+  V.setQuality("standard"); await sleep(2500);
+  const sticksStd = V.datasetSticks();
+  V.setQuality("realistic"); await sleep(2500);
+  V.animateWater(wasAnim);
+  rows.forEach(r => LS.set("invest", r.id, { on: r.on }));
+  await sleep(500);
+  return { sym, rows: rows.length, sticks: sticks.map(s => ({ ds: s.dsId, seg: s.segments, colours: s.colors.length, column: s.column })),
+           std: sticksStd.map(s => !!s.column), idle };
+});
+console.log("COLUMNS + SYMBOLS v47:", JSON.stringify(SY));
+if (!(SY.sym.n > 50) || !SY.sym.wellHalo || SY.sym.wellQuarters !== 2 || !SY.sym.boringHalo)
+  { console.log("FAIL: the 2D point symbols are not drawn with a halo, or the well is not the quartered circle", SY.sym); process.exit(1); }
+if (!SY.sticks.length) { console.log("FAIL: no depth stick was drawn in 3D"); process.exit(1); }
+for (const s of SY.sticks)
+  if (!s.column || !(s.column.worldFt > 0) || !s.column.round || !s.column.colours)
+    { console.log("FAIL: a depth stick is not drawn as a round column in its own colours", s); process.exit(1); }
+if (SY.std.some(Boolean)) { console.log("FAIL: the lighter rendering draws columns too", SY.std); process.exit(1); }
+if (SY.idle > 1) { console.log("FAIL: with the columns an idle view rendered " + SY.idle + " frames"); process.exit(1); }
+await page.evaluate(() => { if (SBMM.viewer3d.isOpen()) SBMM.viewer3d.toggle(); });
+});
+
 await block("9x. drainage", async () => {
 /* 9x. drainage — the whole-site catchment map (v14, docs/V14_DRAINAGE_SPEC.md) */
 /* ==================================================================== */

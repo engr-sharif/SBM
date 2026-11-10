@@ -5663,3 +5663,34 @@ Four things that will be walked into again:
 `SBMM.terrain3d.edgeInfo()` → `{real, cell, w, h, fadeFt, fadedAcres}` (175.5
 acres of ground are inside the fade); `edgeAt(x, y)` is the field at a point.
 
+## v47 — boreholes as columns in 3D, point symbols with a halo in 2D
+
+`world` / `round` in `js/lines3d.js`, `stick.userData.wideOpts` in
+`js/viewer3d.js`, `svgSymbol()` in `js/datasets.js`. E2E block **"9f20.
+boreholes as columns, point symbols with a halo (v47)"** (shard 3); shots
+`test/columns_shots.mjs` (`shots:columns`). No kernel work.
+
+- **A depth stick is a column.** It is still the ONE `LineSegments` per
+  dataset it has been since v9.25 — one object, one pick registration, the
+  segment-to-record map, the log's own colours per vertex, `noClip`,
+  `depthTest:false` — and the wide-line child draws it with two new options:
+  **`world`** (feet), a half-width on the GROUND the line is never thinner
+  than close up (`max(pixel half-width, world x projection scale / w)` in the
+  vertex shader, so across the site a hole is a 4-px line and beside it a
+  2.4-ft column), and **`round`**, which shades the width as a cylinder
+  (`0.52 + 0.48·sqrt(1 − s²)`). The casing keeps its own pixel width whatever
+  the core grows to (`corePx = vHalfPx − (uHalf − uCore)·uPR`).
+  Geometry cylinders were NOT built: a tube a foot across is sub-pixel from
+  anywhere but beside it, and it would be a second object per dataset to keep
+  in step with the pick and the stratum cursor.
+- `SBMM.viewer3d.datasetSticks()` reports `column: {worldFt, round, colours}`
+  per stick; block 9ae's "distinct colours" assertion still reads the base
+  line's own colour attribute, which is untouched.
+- **2D point symbols carry a dark halo** (`svgSymbol`): the open symbols — the
+  well's ring, the boring's crossed square — are drawn over a wider dark copy
+  of themselves and a translucent dark fill, so they read over a bright
+  photograph as surely as a filled dot. **The well is the plan symbol for a
+  monitoring well**: a circle with two opposite quarters filled. The shapes
+  each dataset uses, their colours and their sizes are unchanged.
+- The lighter rendering keeps the plain stick.
+
