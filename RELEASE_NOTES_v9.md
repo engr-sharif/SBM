@@ -17,6 +17,24 @@ All three are offline-only by design. Nothing in this app calls out to the inter
 
 ---
 
+## v9.52 — buildings, fences and power poles stand up (2026-11-10)
+
+In 3D a house was an outline on the ground, a fence a line and a power pole a
+dot.
+
+- **Buildings are buildings**: each footprint rises to the height the lidar
+  measured, with a pitched roof on simple rectangular buildings, in the roof's
+  own colour from the aerial photo. Click one for EA's record and its height.
+- **Fences are fences**: wire panels on posts along every fence line.
+- **Power poles are poles**, with a crossarm.
+- They cast shadows like the trees do.
+- Turn on *Buildings and structures*, *Fences and gates* and *Utilities and
+  poles* in the layer list — or pick the new **Site as it stands** preset,
+  which switches on the photo, the trees and these three together.
+- Heights of fences and poles are typical, not surveyed; roof shapes are a
+  common pitch, not surveyed. Footprints, positions and building heights are
+  the real ones.
+
 ## v9.51 — water that looks like water (2026-11-10)
 
 The 3D view had no water: Clear Lake was the dark backdrop, and the

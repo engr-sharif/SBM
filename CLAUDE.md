@@ -412,6 +412,7 @@ terrain source, which needs an explicit decision + README/test update).
 | trees.js | **the tree layer and the inventory (v39)**: the baked site-wide tree table (`SBMM_DATA.trees_site`) decoded on first show, the live kernel as the fallback, the 2D crowns (a sprite per form and colour, at true crown size), the one colour rule `rgbOf`, the popup record `tree(i)`, the min-height filter both views read, `TREES`, the CSV; `SBMM.trees` |
 | atmos3d.js | **v40 — the sky and the light**: the analytic sky dome's shader, the sun's colour and strength and the sky fill as one function of the sun's elevation (`light(el)`), the horizon colour the fog takes (`horizonColour`), `sunDir`; `SBMM.atmos3d` |
 | water3d.js | **v42 — water in 3D**: a sheet per water body EA mapped, at the lidar's own flat return, its shoreline cut by the terrain; one shader (the sky of `js/atmos3d.js` reflected through a Fresnel term, ripples, the sun's glint) shared with the overtopping stage surface; `tick()` advancing the ripples only on frames that are drawn anyway; `SBMM.water3d` |
+| built3d.js | **v43 — built features in 3D**: EA's building footprints extruded to the lidar's height under the photograph's roof colour (gable on a plain rectangle, flat otherwise), fence lines as wire panels on posts, power poles as poles; each layer one or two draw calls with a triangle-to-feature `owner` for the pick; `SBMM.built3d` |
 | trees3d.js | **v39 — trees in 3D**: each tree an instance of one of nine `InstancedMesh`es (three forms x three levels of detail), generated geometry, `relod()` dealing the levels by camera distance inside a drawn frame, one soft ground shadow per tree that follows the sun; `SBMM.trees3d` |
 | borelogs.js | **the 2025 boring logs (OpenGround)** — the strip log in a results card (class profile, strata + USCS, SPT with the pocket penetrometer, pH against the acid threshold, method bands, the water symbol), the TWO contact statements drawn together and reconciled nowhere, the 44-hole `LOGS` table, the CSV and the PNG, the popup button, `LOG` / `LOGS`, the class palette every other view reads through `classColor()`, and since v23 **the column renderer `column()`** every face of the borings is drawn by; `SBMM.borelogs` |
 | labmetals.js | **v28 — lab metals by depth** from the earlier apps (`SBMM_DATA.lab_metals`, `tools/build_imports.py`): the interval table in a boring / test-pit popup and on the log card, the full validated suite on a sample popup, the ROD / PMB levels and `level(sym, v)`; `SBMM.labMetals` |
@@ -5419,4 +5420,70 @@ too. The sheets are NOT `noClip`.
   water lands on the ground or on EA's own polygon as before, and block 9y's
   parity table has no row for them (they belong to no layer; they are the
   scene, like the sky).
+
+## v43 — built features in 3D: buildings, fences, power poles
+
+`js/built3d.js` (`SBMM.built3d`, new), the batch loop in `js/viewer3d.js`
+`rebuildOverlaysInner`, the `gisSolid` pick kind in `js/pick3d.js`, a height
+row in `SBMM.popups.forGis`, `roof_colours()` / `--roofs` in
+`tools/build_trees.py`, the **Site as it stands** preset in
+`js/layertree.js`. E2E block **"9f16. built features in 3D (v43)"** (shard 2);
+shots `test/built_shots.mjs` (`shots:built`). No kernel work (`VERSION` stays
+10), no analysis number moves.
+
+**What was wrong.** EA's CAD carries the buildings as footprints, the fences as
+lines and the power poles as points, and the 3D view drew exactly that: an
+outline on the ground where a house stands, a line where a fence runs, a dot
+at the foot of a pole — beside trees that stand up and cast shadows.
+
+With their rows on (`design/gis_bldg`, `gis_fence`, `gis_util` — all OFF by
+default, as before) the three layers are solids, in BOTH renderings:
+
+- **Buildings** (`buildings(items, ctx)`): each footprint extruded from 1.5 ft
+  under its lowest ground to an eave, with a **gable along the long side where
+  the footprint is a plain four-cornered polygon** (71 of 103) and a flat roof
+  otherwise. **What is measured and what is not** is in the file's header and
+  is the rule: the footprint is EA's, the height is the lidar's
+  (`trees_site.buildings[].h_ft`, the 75th percentile of the canopy model
+  inside the footprint), the roof colour is the photograph's (`rgb`, the mean
+  ortho colour inside the footprint inset 1.5 ft, from the finest ortho that
+  covers it — `tools/build_trees.py --roofs` adds it to an existing payload
+  with no lidar). The roof SHAPE is not surveyed; the pitch is a common one
+  (rise = a fifth of the short side, 7 ft at most).
+- **The height is clamped** (`heightsFor`): eave 7.5–22 ft (6.5–10 for a
+  footprint under 250 sq ft). The baked heights run 0–51 ft because the canopy
+  model reads a TREE where one overhangs a roof; the popup says "about N ft
+  high · lidar" with the unclamped number, which is the honest one.
+- **Fences** (`fences`): a 4.5-ft wire panel (a chain-link tile with a top
+  rail, alpha-blended, `depthWrite:false`) and an `InstancedMesh` post every
+  8 ft, following the ground; a sample with no lidar ground BREAKS the run
+  (the rule every draped line follows). 39,658 ft of fence, ~5,000 posts. The
+  height is a typical one, not surveyed.
+- **Power poles** (`poles`): a 34-ft pole and an 8-ft crossarm at each of the
+  86 points EA names *Power pole*, the crossarm square to the nearest other
+  pole. The height is typical, not surveyed, and **no wires are drawn** — EA
+  drew no conductors and joining the poles would invent a circuit. Every other
+  `util` point (wells, signs, monuments, structures) stays the dot it was.
+
+Five things that will be walked into again:
+
+- **The solids REPLACE the outline, the line and the dot** in the batch loop
+  (`b.lines = r.rest`), so each carries the layer's pick itself: kind
+  **`gisSolid`**, `userData.owner[faceIndex]` → the item → the same
+  `SBMM.popups.forGis` the 2D map binds. `js/pick3d.js`'s hit record gained
+  `face` (the intersection's `faceIndex`) for it. A building's open linework
+  and inner rings (`rest`) are still draped as lines.
+- **The record lookup is by geometry object identity** (`records()`: EA's
+  feature `geometry` → the baked record), because `batch3d()` hands over
+  `it.geom` and not the feature index.
+- **They cast shadows and the buildings receive them**; each builder marks
+  `SHD.dirty` in the batch loop, or a house built after the last shadow fit
+  casts nothing until the sun moves.
+- `stats().built` (`{buildings, fences, fencePosts, fenceFt, poles}`) is the
+  harness hook; it is reset on every project-half overlay rebuild.
+- **Roads are NOT in this step, and that is a finding.** EA draws a road as
+  its two EDGES, not as a centreline or a polygon (the v14 Phase 2 cover
+  builder met the same thing), so there is no ribbon to extrude; the
+  photograph already carries the surface. The edge lines get proper cased
+  lines with the rest of the linework in the next step.
 

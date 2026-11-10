@@ -238,6 +238,21 @@ SBMM.pick3d = (function () {
                    html: SBMM.popups.forGis(it.props || {}, it.geom) };
         }
       };
+      /* v43: a layer stood up as solids (js/built3d.js: the buildings, the
+         fences, the power poles). One mesh per layer; the triangle a click
+         lands on maps back to EA's feature through the owner array, so the
+         answer is the popup the 2D map gives for that feature. */
+      case "gisSolid": return {
+        object3d: o, kind: "gis", priority: t.points ? 3 : 2,
+        hit(ix) {
+          const own = o.userData.owner || [];
+          const it = t.items[ix && ix.face != null && own[ix.face] != null ? own[ix.face] : 0];
+          if (!it) return null;
+          return { title: (it.props && it.props.name) || "Design feature",
+                   html: SBMM.popups.forGis(it.props || {}, it.geom),
+                   xyz: it.x != null ? [it.x, it.y] : undefined };
+        }
+      };
       case "gisPts": return {
         object3d: o, kind: "gis", priority: P,
         hit(ix) {
@@ -352,7 +367,8 @@ SBMM.pick3d = (function () {
       if (!best || entry.priority > best.entry.priority
           || (entry.priority === best.entry.priority && h.distance < best.hit.distance)) {
         /* an InstancedMesh reports its instance, not an index */
-        best = { entry, hit: { distance: h.distance, index: h.index != null ? h.index : h.instanceId, point: h.point.clone() } };
+        best = { entry, hit: { distance: h.distance, index: h.index != null ? h.index : h.instanceId, point: h.point.clone(),
+                               face: h.faceIndex } };
       }
     }
     return best;

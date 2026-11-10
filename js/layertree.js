@@ -791,6 +791,9 @@ SBMM.layerTree = (function () {
   const BUILTIN = [
     ["Terrain", "The ground and nothing else — hillshade, imagery, the survey contours.",
       (r, g) => g === "base" ? /^(hillshade|ortho)/.test(r.id) || r.id === "contours_site" : false],
+    ["Site as it stands", "The aerial photo with the trees, the buildings, the fences and the poles standing on it — the 3D view of the place.",
+      (r, g) => g === "base" ? /^ortho/.test(r.id) || r.id === "trees_detected" || r.id === "place_names"
+        : g === "design" ? /^gis_(bldg|fence|util)$/.test(r.id) : false],
     ["Design review", "EA's native design geometry and the drawing set, over the site framework.",
       (r, g) => g === "design" ? /^gis_|^sheets3d$|^sheet_footprints$/.test(r.id)
         : g === "framework" ? /^(dus|piles)$/.test(r.id)
