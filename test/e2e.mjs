@@ -9344,7 +9344,16 @@ if (bwAxes.missDepth > 1 || bwAxes.missElev > 1)
      is dispatches nothing, and a full run can leave it exactly there */
   await page.mouse.move(box.x + box.width / 2 + 3, box.y + box.height / 2 - 4);
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2, { steps: 2 });
-  await page.waitForTimeout(300);
+  /* ON THE CONDITION, not on a clock. Block 9ae leaves the 3D view open behind
+     this window, and a frame of it in flight holds the main thread — and with
+     it the mousemove — for as long as the frame takes: 300 ms was enough until
+     v40's shadow sampling made a software-GL frame longer than that. If the
+     cursor never arrives the assertion below still says so. */
+  await page.waitForFunction(() => {
+    const c = document.querySelector(".blwin .bwcur");
+    return !!c && !c.hidden && +c.dataset.ft > 0;
+  }, null, { timeout: 30000 }).catch(() => {});
+  await page.waitForTimeout(150);
   bwCurAt = [box.x + box.width / 2, box.y + box.height / 2];
 }
 bwCur = await page.evaluate(([px, py]) => {
