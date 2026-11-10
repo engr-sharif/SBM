@@ -367,6 +367,7 @@ SBMM.viewer3d = (function () {
     if (SBMM.terrain3d) SBMM.terrain3d.setSun(sunAz, sunEl);
     if (treesOn && SBMM.trees3d) SBMM.trees3d.setSun(sunAz, sunEl);     // the tree shadows follow it
     if (SBMM.water3d) SBMM.water3d.setSun(sunAz, sunEl);                // and the water reflects it
+    drapeSun();                                                         // v50: and the analysis drapes are shaded by it
     SHD.dirty = true;                                                   // and so do the cast shadows
     requestRender();
   }
@@ -1800,6 +1801,41 @@ SBMM.viewer3d = (function () {
     ["accum", () => SBMM.accum && SBMM.accum.drapeSpec && SBMM.accum.drapeSpec()]
   ];
   const drapeMesh = {}, drapeKey = {};
+  /* v50 — AN ANALYSIS DRAPE TAKES THE RELIEF. The isopach, the drainage and
+     accumulation maps, the runoff depth and the rest are colour scales draped
+     flat-lit over the ground, and a flat colour hides the shape it lies on.
+     The drape stays the unlit material it was — a colour scale must not pick
+     up the sun's colour or a cast shadow — and is only MODULATED by the
+     hillshade of its own surface, normalised so LEVEL GROUND IS EXACTLY THE
+     LEGEND'S COLOUR: f = (n . sun) / sun.z, clamped, mixed in at DRAPE_RELIEF.
+     The normal is the geometry's own, corrected for the relief slider (a
+     surface stretched by s in z has its normal's xy scaled by s). */
+  const DRAPE_RELIEF = 0.5;
+  const DRAPE_U = { uSunR: { value: new THREE.Vector3(0, 0, 1) }, uZx: { value: 1 }, uRelief: { value: DRAPE_RELIEF } };
+  function reliefOnDrape(mat) {
+    mat.onBeforeCompile = sh => {
+      Object.assign(sh.uniforms, DRAPE_U);
+      sh.vertexShader = sh.vertexShader
+        .replace("#include <common>", "#include <common>\nvarying vec3 vDrapeN;")
+        .replace("#include <begin_vertex>", "#include <begin_vertex>\n\tvDrapeN = normal;");
+      sh.fragmentShader = sh.fragmentShader
+        .replace("#include <common>", "#include <common>\nuniform vec3 uSunR; uniform float uZx; uniform float uRelief; varying vec3 vDrapeN;")
+        .replace("#include <map_fragment>", `#include <map_fragment>
+	{
+		vec3 dn = normalize( vec3( vDrapeN.xy * uZx, vDrapeN.z ) );
+		if ( dn.z < 0.0 ) dn = -dn;
+		float f = clamp( dot( dn, uSunR ) / max( uSunR.z, 0.2 ), 0.42, 1.28 );
+		diffuseColor.rgb *= mix( 1.0, f, uRelief );
+	}`);
+    };
+    mat.customProgramCacheKey = () => "sbmm-drape-relief-v50";
+    mat.userData.relief = true;
+    return mat;
+  }
+  function drapeSun() {
+    if (SBMM.atmos3d) SBMM.atmos3d.sunDir(sunAz, Math.max(sunEl, 8), DRAPE_U.uSunR.value);
+    DRAPE_U.uZx.value = exag();
+  }
   function refreshDrapes() { return Promise.all(DRAPES.map(d => syncDrape(d[0], d[1]))); }
   function refreshIsopach() { return refreshDrapes(); }
   async function syncDrape(name, specOf) {
@@ -1850,10 +1886,13 @@ SBMM.viewer3d = (function () {
       g.setAttribute("position", new THREE.BufferAttribute(pos, 3));
       g.setAttribute("uv", new THREE.BufferAttribute(uv, 2));
       g.setIndex(idx);
-      const mesh = new THREE.Mesh(g, new THREE.MeshBasicMaterial({
+      g.computeVertexNormals();
+      const dmat = new THREE.MeshBasicMaterial({
         map: tex, transparent: true, depthWrite: false, alphaTest: 0.02,
         side: THREE.DoubleSide, toneMapped: false
-      }));
+      });
+      reliefOnDrape(dmat);
+      const mesh = new THREE.Mesh(g, dmat);
       mesh.renderOrder = 4;
       mesh.scale.z = exag();
       if (spec.layer) mesh.userData.layer = spec.layer;      // §3.1 parity
@@ -4405,6 +4444,7 @@ SBMM.viewer3d = (function () {
       if (envGroup) envGroup.scale.z = zx;
       if (waterGroup) waterGroup.scale.z = zx;
       for (const k in drapeMesh) drapeMesh[k].scale.z = zx;
+      DRAPE_U.uZx.value = zx;
       $("v3dExagVal").textContent = zx.toFixed(1) + "×";
       nav.st.forceApply = true;
       requestRender();
@@ -5079,6 +5119,9 @@ SBMM.viewer3d = (function () {
            +waterAnim[0].pos[2].toFixed(3)] : null,
       waterStage: stageInfo, zmid: ZMID,
       built: builtInfo,
+      drapes: Object.keys(drapeMesh).map(k => ({ name: k, relief: !!(drapeMesh[k].material.userData && drapeMesh[k].material.userData.relief),
+                                                 normals: !!drapeMesh[k].geometry.getAttribute("normal") })),
+      drapeRelief: { k: DRAPE_U.uRelief.value, zx: DRAPE_U.uZx.value, sun: DRAPE_U.uSunR.value.toArray().map(v => +v.toFixed(3)) },
       wideLines: SBMM.lines3d ? SBMM.lines3d.count(scene) : 0,
       water: waterGroup && SBMM.water3d ? Object.assign({ visible: waterGroup.visible, scaleZ: waterGroup.scale.z }, SBMM.water3d.stats()) : null,
       /* v15: the label layer and the parity table */

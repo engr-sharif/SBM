@@ -5756,3 +5756,41 @@ halo; 3D chips step up before they drop (v49)"** (shard 3).
 - The 3D chips' own look (the dark plate, the coloured rim, the monospace
   face) is unchanged: it was already one style.
 
+## v50 — analysis colour maps take the relief
+
+`reliefGate()` / the relief pane's z-index in `js/cartography.js`;
+`reliefOnDrape()` / `DRAPE_U` in `js/viewer3d.js`. E2E block **"9f23.
+analysis colour maps take the relief (v50)"** (shard 3); shots
+`test/analysis_shots.mjs` (`shots:analysis`). No kernel work; no raster's
+VALUES change — the status-bar read-out, the legends and every export are the
+unshaded numbers they were.
+
+A computed raster is a colour scale laid flat over the ground, and a flat
+colour hides the very shape it is about.
+
+- **2D: the relief pane moved above the `analysis` pane** (z 325: above
+  `analysis` at 320, below `vectors` at 420). Everything drawn in that pane —
+  slope, aspect, the elevation tint, the canopy height, the accumulation
+  raster, the land cover and runoff depth, the TEM slice and the two TEM
+  interpretations, the isopach, the cut/fill map, the rim band — is shaded by
+  the v45 hillshade blend with no code of its own. `reliefGate()` now shows the
+  relief while a photograph OR an analysis image is on (`#map.noortho` means
+  neither); it is re-evaluated on every `layers` event and on
+  `layeradd` / `layerremove` of an analysis-pane layer, because a computed
+  raster arrives when its job lands, not when its row is ticked.
+  `SBMM.carto.relief().analysis` counts the images.
+- **3D: an analysis drape is modulated, not lit.** The drapes (`DRAPES`:
+  isopach, the rim band, land cover, accumulation) stay `MeshBasicMaterial` —
+  a colour scale must not pick up the sun's colour or a cast shadow — and
+  `reliefOnDrape()` patches in one factor: `f = (n · sun) / sun.z`, clamped to
+  0.42–1.28 and mixed in at `DRAPE_RELIEF` (0.5). **Level ground is exactly
+  the legend's colour** (f = 1); a slope facing the sun lifts, one facing away
+  deepens. The normal is the drape geometry's own (`computeVertexNormals`),
+  corrected for the relief slider in the shader (a surface stretched by s in z
+  has its normal's xy scaled by s: `uZx`, set by the slider). The sun is the
+  view's sun, floored at 8 degrees so the division stays sane.
+- The 3D shader rasters (hillshade, slope, aspect, elevation) already shade
+  themselves per pixel from the DEM (v20 §4) and are untouched.
+- `stats().drapes` (`{name, relief, normals}`) and `stats().drapeRelief`
+  (`{k, zx, sun}`) are the harness hooks.
+
