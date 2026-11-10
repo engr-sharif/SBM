@@ -98,8 +98,8 @@ SBMM.designGIS = (function () {
   function excStyle(depth) {
     /* §4: 1.0 ft solid red, 0.5 ft dashed orange */
     return depth <= 0.75
-      ? { color: EXC_HALF, weight: 2.4, dashArray: "7 4", fillColor: EXC_HALF, fillOpacity: 0.10 }
-      : { color: EXC_1FT, weight: 2.6, dashArray: null, fillColor: EXC_1FT, fillOpacity: 0.13 };
+      ? { color: EXC_HALF, weight: 2.4, dashArray: "7 4", fillColor: EXC_HALF, fillOpacity: 0.09, casing: 1.1 }
+      : { color: EXC_1FT, weight: 2.6, dashArray: null, fillColor: EXC_1FT, fillOpacity: 0.11, casing: 1.1 };
   }
 
   /* v45 — WHAT A THING IS, DRAWN AS THAT. The existing-conditions layers used
@@ -183,10 +183,13 @@ SBMM.designGIS = (function () {
           }
         } else {
           const st = dress(spec.key, g, rings, col, grp);
+          /* v48: EA's design polygons are cased; the lots, parcels and
+             operable units are context — thin, uncased, the faintest fill */
+          const design = spec.group === "design";
           lyr = L.polygon(rings, Object.assign({
-            pane: "vectors", color: col, weight: spec.group === "design" ? 2.2 : 1.3,
-            fillColor: col, fillOpacity: spec.group === "design" ? 0.12 : 0.05
-          }, st || {}));
+            pane: "vectors", color: col, weight: design ? 2.2 : 1.0, opacity: design ? 1 : 0.8,
+            fillColor: col, fillOpacity: design ? 0.09 : 0.03
+          }, design ? { casing: 1, casingOpacity: 0.5 } : {}, st || {}));
         }
       } else if (g.type === "LineString") {
         const ll = g.coordinates.map(q => [q[1], q[0]]);
@@ -194,7 +197,7 @@ SBMM.designGIS = (function () {
         lyr = L.polyline(ll, Object.assign({
           pane: "vectors", color: col, weight: spec.key === "haul" ? 2.6 : 1.8,
           dashArray: spec.key === "daylight" ? "5 3" : null
-        }, st || {}));
+        }, spec.group === "design" ? { casing: 0.9, casingOpacity: 0.5 } : {}, st || {}));
       } else if (g.type === "Point") {
         lyr = L.circleMarker([g.coordinates[1], g.coordinates[0]], {
           pane: "vectors", radius: 2.8, color: "#0D1215", weight: 1,

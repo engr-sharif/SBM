@@ -267,6 +267,49 @@ SBMM.carto = (function () {
              shown: !!(p && getComputedStyle(p).display !== "none") };
   }
 
+  /* v48 — A LINE CAN HAVE A CASING. The map is `preferCanvas`, and Leaflet's
+     canvas strokes a path once, in one colour. A line that has to be read over
+     a photograph wants a dark edge; the way to give it one used to be a second
+     layer under the first (v45's roads). This teaches the canvas renderer the
+     option instead: `casing: <px each side>` (and `casingColor`,
+     `casingOpacity`) on ANY path — the path is filled, stroked wide and dark,
+     then stroked as itself. No second layer, so nothing extra to hit-test,
+     pick, snap to, restyle on selection or keep in step while a vertex is
+     dragged; a path without the option goes through Leaflet's own routine
+     untouched.
+     Leaflet pads a path's redraw rectangle by its weight + 1 px, so a casing
+     of up to weight/2 + 1 is inside it; wider would leave a ghost when a
+     neighbour repaints.
+
+     THE HIERARCHY the casing is used for (the same idea as the 3D widths):
+       your own drawings, the decision units, the limits of excavation,
+       the storm network, the survey          — cased, at full weight
+       EA's design lines, the piles            — cased, lighter
+       lots, parcels, operable units, site areas — thin, uncased, faint fill
+     so the first thing the eye lands on is the thing the map is about. */
+  (function casedCanvas() {
+    if (!window.L || !L.Canvas || L.Canvas.prototype._sbmmCased) return;
+    const F0 = L.Canvas.prototype._fillStroke;
+    L.Canvas.include({
+      _sbmmCased: true,
+      _fillStroke(ctx, layer) {
+        const o = layer.options;
+        if (!(o.casing > 0) || !o.stroke || o.weight === 0) return F0.call(this, ctx, layer);
+        if (o.fill) { ctx.globalAlpha = o.fillOpacity; ctx.fillStyle = o.fillColor || o.color; ctx.fill(o.fillRule || "evenodd"); }
+        if (ctx.setLineDash) ctx.setLineDash([]);
+        ctx.globalAlpha = o.casingOpacity == null ? 0.55 : o.casingOpacity;
+        ctx.lineWidth = o.weight + 2 * o.casing;
+        ctx.strokeStyle = o.casingColor || "#0A0F12";
+        ctx.lineCap = "round"; ctx.lineJoin = "round";
+        ctx.stroke();
+        if (ctx.setLineDash) ctx.setLineDash(o._dashArray || []);
+        ctx.globalAlpha = o.opacity; ctx.lineWidth = o.weight; ctx.strokeStyle = o.color;
+        ctx.lineCap = o.lineCap; ctx.lineJoin = o.lineJoin;
+        ctx.stroke();
+      }
+    });
+  })();
+
   /* Density by zoom (§10): a point layer drawn at full size over the whole
      site is a carpet — 140 samples in a few hundred screen pixels. Below
      zoom -1 each circle marker in a registered group is drawn smaller, in

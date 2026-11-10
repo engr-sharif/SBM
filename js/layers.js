@@ -141,7 +141,7 @@ SBMM.buildLayers = function () {
   SBMM_DATA.dus.forEach((d, di) => {
     const c = DU_COLOR[d.name] || "#ccc";
     const rings = [d.ring.map(p => [p[1], p[0]]), ...(d.holes || []).map(h => h.map(p => [p[1], p[0]]))];
-    const poly = L.polygon(rings, { pane: "vectors", color: c, weight: 2, fillColor: c, fillOpacity: .14 })
+    const poly = L.polygon(rings, { pane: "vectors", color: c, weight: 2, fillColor: c, fillOpacity: .10, casing: 1 })
       .bindTooltip(d.name, { sticky: true, className: "ctip" }).addTo(duGrp);
     poly.on("click", () => {
       /* net of its holes (DU-3 has two), and the volume button names THIS
@@ -163,7 +163,7 @@ SBMM.buildLayers = function () {
     const label = p.name || (p.props ? `${p.props.pile} — part ${p.props.part} (topo)` : "pile");
     if (!traced) SBMM.pileIndex.push({ label, ring: p.ring, props: p.props || {} });
     const poly = L.polygon(p.ring.map(q => [q[1], q[0]]),
-      { pane: "vectors", color: traced ? "#E8B34B" : "#8BE04B", weight: traced ? 1.5 : 2, dashArray: traced ? "5 4" : null, fill: true, fillOpacity: 0.001 })
+      { pane: "vectors", color: traced ? "#E8B34B" : "#8BE04B", weight: traced ? 1.5 : 2, dashArray: traced ? "5 4" : null, fill: true, fillOpacity: 0.001, casing: 0.9, casingOpacity: 0.45 })
       .bindTooltip(label + (p.props && p.props.pile_vol_yd3_best ? ` · best ${fmt0(p.props.pile_vol_yd3_best)} yd³ (whole pile)` : ""),
         { sticky: true, className: "ctip" }).addTo(pileGrp);
     const idx = traced ? -1 : SBMM.pileIndex.length - 1;

@@ -42,8 +42,8 @@ SBMM.siteAreas = (function () {
     for (const f of D.features) {
       const p = props(f), g = geom(f);
       const lyr = L.polygon(f.rings.map(r => r.map(q => [q[1], q[0]])), {
-        pane: "vectors", color: COLOR, weight: 1.6, dashArray: "6 4",
-        fill: true, fillOpacity: 0.04, opacity: 0.9
+        pane: "vectors", color: COLOR, weight: 1.2, dashArray: "6 4",
+        fill: true, fillOpacity: 0.03, opacity: 0.85
       });
       lyr.bindTooltip(`<b>${esc(f.name)}</b>`, { sticky: true, className: "ctip" });
       lyr._gis = { props: p, geom: g };

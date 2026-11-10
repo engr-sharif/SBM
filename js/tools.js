@@ -86,15 +86,16 @@ SBMM.tools = (function () {
   /* ================== feature construction ================== */
   const styles = {
     spot:    { color: "#FFD34D", weight: 2 },
-    line:    { pane: "drawings", color: "#4FB3CE", weight: 2.5 },
-    area:    { pane: "drawings", color: "#4FB3CE", weight: 2, fillOpacity: .10 },
-    volume:  { pane: "drawings", color: "#4FCE9B", weight: 2.5, fillOpacity: .12 },
-    profile: { pane: "drawings", color: "#C792EA", weight: 2.5 },
+    /* v48: `casing` — your own work is the top of the map's hierarchy (js/cartography.js) */
+    line:    { pane: "drawings", color: "#4FB3CE", weight: 2.5, casing: 1.1 },
+    area:    { pane: "drawings", color: "#4FB3CE", weight: 2, fillOpacity: .10, casing: 1.1 },
+    volume:  { pane: "drawings", color: "#4FCE9B", weight: 2.5, fillOpacity: .12, casing: 1.1 },
+    profile: { pane: "drawings", color: "#C792EA", weight: 2.5, casing: 1.1 },
     dim:     { pane: "drawings", color: "#E8B34B", weight: 1.4 },
     text:    { pane: "drawings", color: "#E8EEF1", weight: 1.4 },
     /* phase 3 — earthworks */
-    surface: { pane: "drawings", color: "#4FD8E6", weight: 2, fillOpacity: .07 },
-    sections:{ pane: "drawings", color: "#F0A6D0", weight: 2.5 },
+    surface: { pane: "drawings", color: "#4FD8E6", weight: 2, fillOpacity: .07, casing: 1 },
+    sections:{ pane: "drawings", color: "#F0A6D0", weight: 2.5, casing: 1.1 },
     /* v10 — water reads as water everywhere it appears (§7) */
     flow:    { pane: "drawings", color: "#55C1FF", weight: 2.75 },
     /* v11 §4.4 — a field photo: a framed thumbnail marker, not a stroked shape */

@@ -5694,3 +5694,38 @@ boreholes as columns, point symbols with a halo (v47)"** (shard 3); shots
   each dataset uses, their colours and their sizes are unchanged.
 - The lighter rendering keeps the plain stick.
 
+## v48 — the 2D line hierarchy: a casing on the canvas
+
+`casedCanvas()` in `js/cartography.js`; `casing` on the styles in
+`js/tools.js`, `js/layers.js`, `js/designgis.js`, `js/storm.js`,
+`js/survey.js`. E2E block **"9f21. the 2D line hierarchy: a casing on the
+canvas (v48)"** (shard 3); shots `test/hier2d_shots.mjs` (`shots:hier2d`).
+
+**The canvas renderer has a `casing` option.** The map is `preferCanvas`, and
+Leaflet's canvas strokes a path once. `L.Canvas.prototype._fillStroke` is
+wrapped: a path with `casing: <px each side>` (and optionally `casingColor`,
+`casingOpacity`) is filled, stroked `weight + 2·casing` wide in the dark
+casing colour with round joins and no dash, then stroked as itself. **A path
+without the option goes through Leaflet's own routine untouched** — block 9f21
+records both on a mock context.
+
+- **No second layer**, so nothing extra to hit-test, pick, snap to, restyle on
+  selection or keep in step while a vertex is dragged; `setStyle` on a
+  selection keeps the option. (v45's roads and buildings predate this and
+  still use under-layers; either is fine — a shadow or a second outline of a
+  different shape needs a layer, a casing does not.)
+- **Leaflet pads a path's redraw rectangle by `weight + 1` px**, so a casing up
+  to `weight/2 + 1` is inside it. A wider one leaves a ghost when a neighbour
+  repaints.
+- It is the CANVAS renderer only. The `water` pane's SVG flow lines and the
+  pick highlight are not cased.
+
+**The hierarchy** (the same idea as the 3D widths in v44): the user's own
+drawings, the decision units, the limits of excavation, the storm network and
+the heavy survey lines are cased at full weight; EA's design lines and the
+piles are cased more lightly; **the lots, the parcels, the operable units and
+the site areas are context** — 1.0–1.2 px, no casing, a fill of 3 %. Polygon
+fills came down across the board (decision units 14 → 10 %, design polygons
+12 → 9 %, excavation 13 → 11 %) so the photograph under a polygon stays
+readable.
+

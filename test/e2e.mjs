@@ -7666,6 +7666,73 @@ if (SY.idle > 1) { console.log("FAIL: with the columns an idle view rendered " +
 await page.evaluate(() => { if (SBMM.viewer3d.isOpen()) SBMM.viewer3d.toggle(); });
 });
 
+await block("9f21. the 2D line hierarchy: a casing on the canvas (v48)", async () => {
+/* v48 — js/cartography.js teaches Leaflet's canvas renderer a `casing` option,
+   so a line that has to be read over the photograph is stroked dark and wide
+   and then as itself, with no second layer. The hierarchy: the user's own
+   work, the decision units, the limits of excavation, the storm network —
+   cased; lots and parcels — thin and uncased. */
+const HI = await page.evaluate(async () => {
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  const LS = SBMM.layerState;
+  if (SBMM.viewer3d.isOpen()) await SBMM.viewer3d.toggle();
+  const rows = [["design", "gis_exc"], ["design", "gis_lots"], ["framework", "dus"], ["framework", "storm_cad"]];
+  const was = rows.map(r => LS.isOn(r[0], r[1]));
+  rows.forEach(r => LS.set(r[0], r[1], { on: true }));
+  await sleep(600);
+  /* what the patched routine does, on a recording context */
+  const rec = layer => {
+    const calls = [];
+    const ctx = { setLineDash() {}, fill() { calls.push(["fill"]); },
+      stroke() { calls.push(["stroke", this.lineWidth, this.strokeStyle, +(+this.globalAlpha).toFixed(2)]); } };
+    L.Canvas.prototype._fillStroke.call({}, ctx, layer);
+    return calls;
+  };
+  const plain = rec({ options: { stroke: true, weight: 2, color: "#ff0000", opacity: 1 } });
+  const cased = rec({ options: { stroke: true, weight: 2, color: "#ff0000", opacity: 1, casing: 1.1 } });
+  /* the layers on the map */
+  const found = { exc: null, lot: null, du: null, storm: null };
+  SBMM.map.eachLayer(l => {
+    const o = l.options || {};
+    if (l._gis && l._gis.props && l._gis.props.layer === "exc" && !found.exc) found.exc = { casing: o.casing || 0, weight: o.weight };
+    if (l._gis && l._gis.props && l._gis.props.layer === "lots" && !found.lot) found.lot = { casing: o.casing || 0, weight: o.weight, fill: o.fillOpacity };
+  });
+  const tipOf = l => { try { const t = l.getTooltip && l.getTooltip(); const c = t && t.getContent(); return typeof c === "string" ? c : ""; } catch (e) { return ""; } };
+  SBMM.map.eachLayer(l => {
+    const o = l.options || {};
+    if (!found.du && /^DU-/.test(tipOf(l)) && l instanceof L.Polygon) found.du = { casing: o.casing || 0, fill: o.fillOpacity };
+  });
+  /* the user's own line */
+  const f = SBMM.tools.newFeature("line", [[6372000, 2128150], [6372250, 2128300]], { name: "v48 line" });
+  await sleep(300);
+  const own = { casing: (f.layer.options || {}).casing || 0 };
+  SBMM.store.select(f.id); await sleep(200);
+  const sel = { casing: (f.layer.options || {}).casing || 0, weight: f.layer.options.weight };
+  /* the pointer still lands on the limit of excavation */
+  const exc = SBMM_DATA.design_gis.features.find(x => x.properties.layer === "exc" && x.geometry.type === "Polygon");
+  const r = exc.geometry.coordinates[0], mx = (r[0][0] + r[1][0]) / 2, my = (r[0][1] + r[1][1]) / 2;
+  SBMM.map.setView([my, mx], 2, { animate: false }); await sleep(700);
+  const cand = SBMM.pick2d.probe(L.latLng(my, mx)).slice(0, 3).map(c => c.name);
+  SBMM.store.select(null);
+  SBMM.tools.deleteFeature(f);
+  rows.forEach((r2, i) => LS.set(r2[0], r2[1], { on: was[i] }));
+  await sleep(300);
+  return { patched: !!L.Canvas.prototype._sbmmCased, plain, cased, found, own, sel, cand };
+});
+console.log("2D HIERARCHY v48:", JSON.stringify(HI));
+if (!HI.patched) { console.log("FAIL: the canvas renderer was not taught the casing"); process.exit(1); }
+{ const ps = HI.plain.filter(c => c[0] === "stroke"), cs = HI.cased.filter(c => c[0] === "stroke");
+  if (ps.length !== 1 || ps[0][1] !== 2) { console.log("FAIL: a path with no casing is no longer stroked once, as itself", HI.plain); process.exit(1); }
+  if (cs.length !== 2 || Math.abs(cs[0][1] - 4.2) > 1e-6 || cs[1][1] !== 2 || cs[1][2] !== "#ff0000" || cs[0][2] === "#ff0000")
+    { console.log("FAIL: a cased path is not stroked wide and dark and then as itself", HI.cased); process.exit(1); } }
+if (!HI.found.exc || !(HI.found.exc.casing > 0)) { console.log("FAIL: the limits of excavation are not cased", HI.found.exc); process.exit(1); }
+if (!HI.found.du || !(HI.found.du.casing > 0)) { console.log("FAIL: the decision units are not cased", HI.found.du); process.exit(1); }
+if (!HI.found.lot || HI.found.lot.casing !== 0 || !(HI.found.lot.weight <= 1.1) || !(HI.found.lot.fill <= 0.04))
+  { console.log("FAIL: the lots are not drawn as quiet context", HI.found.lot); process.exit(1); }
+if (!(HI.own.casing > 0) || !(HI.sel.casing > 0)) { console.log("FAIL: the user's own line lost its casing (on creation or on selection)", HI.own, HI.sel); process.exit(1); }
+if (!HI.cand.length || !/Limit of excavation/.test(HI.cand[0])) { console.log("FAIL: the pointer on a limit of excavation did not land on it", HI.cand); process.exit(1); }
+});
+
 await block("9x. drainage", async () => {
 /* 9x. drainage — the whole-site catchment map (v14, docs/V14_DRAINAGE_SPEC.md) */
 /* ==================================================================== */
