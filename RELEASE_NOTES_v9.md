@@ -17,6 +17,15 @@ All three are offline-only by design. Nothing in this app calls out to the inter
 
 ---
 
+## v9.58 — labels: one style, and fewer lost in 3D (2026-11-10)
+
+- **Map labels share one set of sizes and one dark halo**, so place names,
+  pond levels, drainage acreages, depths and point names read the same way
+  over the photo.
+- **In 3D, labels that would overlap step up a row instead of disappearing**,
+  so more of them stay on screen; their leader lines stay straight and never
+  cross.
+
 ## v9.57 — the 2D map says what matters (2026-11-10)
 
 - **The lines the map is about have a dark outline**: your own drawings, the

@@ -1259,6 +1259,7 @@ SBMM.viewer3d = (function () {
   const LBL_LIFT_PX = 30;         // how far above its anchor the chip floats, px
   const LBL_MAX = 120;            // §2.3 (60 until v31: the point names share it)
   const LBL_PAD = 3;              // px of clearance between two kept chips
+  const LBL_ROWS = 2;             // v49: rows a clashing chip is lifted before it is dropped
   let labelGroup = null;
   const labels3d = new Map();                 // key -> record
   const labelSrc = { overlay: [], stage: [], points: [] };
@@ -1490,18 +1491,35 @@ SBMM.viewer3d = (function () {
           || rec.sy + rec.hh < -40 || rec.sy - rec.hh > H + 40) {
         rec.sprite.visible = false; rec.leader.visible = false; continue;
       }
-      rec.dist = dist;
+      rec.dist = dist; rec.wpp = wpp; rec.rows = 0;
       LBL_ORDER.push(rec);
     }
     LBL_ORDER.sort((a, b) => b.priority - a.priority || a.dist - b.dist);
     let n = 0;
+    const ROW = LBL_PX + LBL_PAD + 1;
     for (let i = 0; i < LBL_ORDER.length; i++) {
       const r = LBL_ORDER[i];
-      let clash = false;
-      for (let j = 0; j < n; j++) {
-        const k = LBL_ORDER[j];
-        if (Math.abs(r.sx - k.sx) < r.hw + k.hw + LBL_PAD
-            && Math.abs(r.sy - k.sy) < r.hh + k.hh + LBL_PAD) { clash = true; break; }
+      /* v49: a chip that lands on one already kept is not dropped at once —
+         it is tried one and then two rows HIGHER on its own leader first.
+         The leader stays where it was, straight up the screen from the
+         anchor, so it only gets longer: two leaders are parallel whatever
+         row their chips end on, and can never cross. */
+      let clash = true, row = 0;
+      for (; row <= LBL_ROWS && clash; row++) {
+        const sy = r.sy - row * ROW;
+        clash = false;
+        for (let j = 0; j < n; j++) {
+          const k = LBL_ORDER[j];
+          if (Math.abs(r.sx - k.sx) < r.hw + k.hw + LBL_PAD
+              && Math.abs(sy - k.sy) < r.hh + k.hh + LBL_PAD) { clash = true; break; }
+        }
+      }
+      row--;
+      if (!clash && row > 0) {
+        r.sy -= row * ROW; r.rows = row;
+        r.sprite.position.addScaledVector(LV_U, row * ROW * r.wpp);
+        const lp = r.lpos;
+        lp[3] = r.sprite.position.x; lp[4] = r.sprite.position.y; lp[5] = r.sprite.position.z;
       }
       r.sprite.visible = !clash;
       r.leader.visible = !clash;
@@ -5066,6 +5084,7 @@ SBMM.viewer3d = (function () {
       /* v15: the label layer and the parity table */
       labels3d: labels3d.size,
       labelsVisible: lblVisible,
+      labelsLifted: (() => { let k = 0; for (const r of labels3d.values()) if (r.sprite.visible && r.rows > 0) k++; return k; })(),
       labelTexts: [...labels3d.values()].filter(r => r.sprite.visible).map(r => r.text).sort(),
       /* v31: the point names — how many points offer one, how many the
          nearest-first pick handed the layer, and which are on screen */
@@ -5986,6 +6005,12 @@ SBMM.viewer3d = (function () {
     },
     sunAsPhotographed, sunAuto: () => sunAuto,
     water3d: on => on === undefined ? waterOn : setWater3d(on),
+    /* v49: the chips as they were last placed — a harness hook */
+    labels3dProbe() {
+      const out = [];
+      for (const [key, r] of labels3d) if (r.sprite.visible) out.push({ key, sx: +r.sx.toFixed(1), sy: +r.sy.toFixed(1), hw: +r.hw.toFixed(1), hh: r.hh, rows: r.rows || 0 });
+      return out;
+    },
     /* v44: what the wide-line pass did to the lines under the overlay and the
        contours — a harness hook, like datasetSticks() */
     wideProbe() {

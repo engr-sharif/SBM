@@ -5729,3 +5729,30 @@ fills came down across the board (decision units 14 → 10 %, design polygons
 12 → 9 %, excavation 13 → 11 %) so the photograph under a polygon stays
 readable.
 
+## v49 — one label scale and halo; 3D chips step up before they drop
+
+The `v49` block at the end of `css/app.css`; `LBL_ROWS` in
+`updateLabels3d()` (`js/viewer3d.js`). E2E block **"9f22. one label scale and
+halo; 3D chips step up before they drop (v49)"** (shard 3).
+
+- **Every label on the 2D map shares four sizes and one halo.** The labels
+  were written a module at a time — 10, 10.5, 11 and 12 px, five different
+  text shadows. `:root` now carries `--ml-xs/s/m/l` (10 / 11 / 12 / 14 px) and
+  `--ml-halo`, and one block at the END of `css/app.css` puts every map label
+  class on them (`.stalbl`, `.pondlbl span`, `.flowend .lbl`, `.spillmk .lbl`,
+  `.drainlbl`, `.plname` and its variants, `.dsmk .dslbl`, `.excdepth span`,
+  `.fplbl span`). **It is at the end on purpose**: the rules have the same
+  specificity as the originals and win by order. A new map label class goes
+  into that block, not into its own module's CSS with its own size.
+  `js/labels.js` still decides what is shown, from the boxes these rules give.
+- **A 3D chip that lands on one already kept is tried one and then two rows
+  higher before it is dropped** (`LBL_ROWS = 2`, a row = chip height + pad +
+  1 px). It is lifted along the camera's up vector, so **its leader stays the
+  vertical it was and only gets longer — two leaders are parallel whatever
+  rows their chips end on and cannot cross.** Nothing is allocated: the lifted
+  position is written into the sprite and the leader's existing 6-float array.
+  `stats().labelsLifted` counts the lifted chips; `labels3dProbe()` is the
+  placed chips (`{key, sx, sy, hw, hh, rows}`).
+- The 3D chips' own look (the dark plate, the coloured rim, the monospace
+  face) is unchanged: it was already one style.
+

@@ -3263,3 +3263,21 @@ body.temws:not(.field) #temWs{display:flex;flex-direction:column;position:fixed;
 .leaflet-pane.reliefpane{mix-blend-mode:overlay;filter:brightness(.712);opacity:.65}
 #map.noortho .leaflet-pane.reliefpane{display:none}
 
+/* v49 — ONE TYPE SCALE AND ONE HALO FOR EVERY LABEL ON THE MAP.
+   The labels were written one module at a time: 10, 10.5, 11 and 12 px, five
+   different text shadows, and two that had none worth the name. They are all
+   the same kind of thing — words standing on a photograph — so they share
+   four sizes and one halo. Numbers are monospace, names are not. Nothing
+   here changes what a label says, where it stands or whether it is shown
+   (js/labels.js still decides that, from the boxes these rules produce). */
+:root{
+  --ml-xs:10px; --ml-s:11px; --ml-m:12px; --ml-l:14px;
+  --ml-halo:0 0 2px #05080A,0 0 2px #05080A,0 0 4px #05080A,0 1px 3px rgba(0,0,0,.85);
+}
+.stalbl,.pondlbl span,.flowend .lbl,.spillmk .lbl,.drainlbl,.plname,.dsmk .dslbl{text-shadow:var(--ml-halo)}
+.stalbl,.pondlbl span,.fplbl span{font-size:var(--ml-xs)}
+.flowend .lbl,.spillmk .lbl,.drainlbl,.excdepth span,.plname small,.plname.pile,.dsmk .dslbl{font-size:var(--ml-s)}
+.plname{font-size:var(--ml-m)}
+.plname.lake{font-size:var(--ml-l)}
+.drainlbl{line-height:1.25}
+
