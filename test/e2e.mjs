@@ -7433,6 +7433,73 @@ if (!BF.preset) { console.log("FAIL: the 'Site as it stands' preset is missing")
 await page.evaluate(() => { if (SBMM.viewer3d.isOpen()) SBMM.viewer3d.toggle(); });
 });
 
+await block("9f17. lines with a width in 3D (v44)", async () => {
+/* v44 — js/lines3d.js: under the realistic rendering every line in the 3D
+   overlay is drawn as a constant-width, anti-aliased, cased line by a child
+   mesh, while the line object itself stays (invisible) as the pick target and
+   the carrier of its layer tag. The contract: every line is converted, the
+   base stops drawing, the wide line follows the base material's colour, a
+   click on a line still answers, the drop shadow is gone (and comes back with
+   the lighter rendering), and an idle view renders nothing. */
+if (!(await page.evaluate(() => SBMM.viewer3d.isOpen()))) await page.evaluate(async () => { await SBMM.viewer3d.toggle(); });
+await page.waitForFunction(() => document.getElementById("v3dStatus").textContent === "" &&
+  document.getElementById("view3d").style.display === "block", null, { timeout: 90000 });
+await page.waitForTimeout(1200);
+const WL = await page.evaluate(async () => {
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  const V = SBMM.viewer3d, LS = SBMM.layerState, wasAnim = V.animateWater();
+  V.animateWater(false);
+  const dusWas = LS.isOn("framework", "dus"), conWas = LS.isOn("base", "contours_site"), treesWas = LS.isOn("base", "trees_detected");
+  const excWas = LS.isOn("design", "gis_exc");
+  LS.set("base", "trees_detected", { on: false });
+  LS.set("framework", "dus", { on: true });
+  LS.set("design", "gis_exc", { on: true });
+  LS.set("base", "contours_site", { on: true });
+  await sleep(3500);
+  const p1 = V.wideProbe(), st = SBMM.lines3d.stats(), cv = document.getElementById("v3dCanvas");
+  const res = { res: st.res, canvas: [cv.width, cv.height] };
+  /* a click on a limit of excavation's outline still names it */
+  const exc = SBMM_DATA.design_gis.features.find(f => f.properties.layer === "exc" && f.geometry.type === "Polygon");
+  const du = { name: "Limit of excavation" }, ring = exc.geometry.coordinates[0];
+  const q = [(ring[0][0] + ring[1][0]) / 2, (ring[0][1] + ring[1][1]) / 2], gz = SBMM.elev(q[0], q[1])[0];
+  await V.lookFrom(q[0] + 60, q[1] - 60, gz + 70, q[0], q[1], gz);
+  await sleep(2500);
+  const at = V.project(q[0], q[1], gz + 3);
+  const fire = t => cv.dispatchEvent(new MouseEvent(t, { bubbles: true, button: 0, clientX: at.x, clientY: at.y }));
+  fire("mousedown"); fire("mouseup"); fire("click");
+  await sleep(400);
+  const card = SBMM.pick3d.cardOpen() ? (SBMM.pick3d.cardHtml() || "").replace(/<[^>]+>/g, " ").slice(0, 120) : "";
+  document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+  await sleep(2500);
+  const r0 = V.stats().renderCount;
+  await sleep(3000);
+  const idle = V.stats().renderCount - r0;
+  /* the lighter rendering: GL lines and the drop shadow, as before */
+  V.setQuality("standard"); await sleep(2500);
+  const p2 = V.wideProbe();
+  V.setQuality("realistic"); await sleep(2500);
+  const p3 = V.wideProbe();
+  LS.set("framework", "dus", { on: dusWas }); LS.set("base", "contours_site", { on: conWas }); LS.set("base", "trees_detected", { on: treesWas });
+  LS.set("design", "gis_exc", { on: excWas });
+  await sleep(800);
+  V.animateWater(wasAnim);
+  return { p1, res, card, du: du.name, inView: at.inView, idle, p2, p3 };
+});
+console.log("WIDE LINES v44:", JSON.stringify(WL));
+if (!(WL.p1.wide > 0) || WL.p1.wide !== WL.p1.lines) { console.log("FAIL: not every 3D line was given a width", WL.p1); process.exit(1); }
+if (WL.p1.baseStillDrawn !== 0) { console.log("FAIL: a widened line is still drawn as a GL line under its wide one", WL.p1); process.exit(1); }
+if (WL.p1.colourShared !== WL.p1.wide) { console.log("FAIL: a wide line does not follow its line's own colour", WL.p1); process.exit(1); }
+if (WL.p1.shadows !== 0) { console.log("FAIL: the drop shadow is still built beside the cased lines", WL.p1); process.exit(1); }
+if (!(WL.p1.contoursWide > 0)) { console.log("FAIL: the survey contours were not given a width", WL.p1); process.exit(1); }
+if (WL.res.res[0] !== WL.res.canvas[0] || WL.res.res[1] !== WL.res.canvas[1])
+  { console.log("FAIL: the wide lines are not sized against the drawing buffer", WL.res); process.exit(1); }
+if (!WL.inView || WL.card.indexOf(WL.du) < 0) { console.log("FAIL: a click on a limit of excavation's outline did not name it", WL.du, "|", WL.card); process.exit(1); }
+if (WL.idle > 1) { console.log("FAIL: with wide lines an idle view rendered " + WL.idle + " frames"); process.exit(1); }
+if (WL.p2.wide !== 0 || !(WL.p2.shadows > 0)) { console.log("FAIL: the lighter rendering did not go back to GL lines and the drop shadow", WL.p2); process.exit(1); }
+if (!(WL.p3.wide > 0) || WL.p3.wide !== WL.p3.lines) { console.log("FAIL: the wide lines did not come back with the realistic rendering", WL.p3); process.exit(1); }
+await page.evaluate(() => { if (SBMM.viewer3d.isOpen()) SBMM.viewer3d.toggle(); });
+});
+
 await block("9x. drainage", async () => {
 /* 9x. drainage — the whole-site catchment map (v14, docs/V14_DRAINAGE_SPEC.md) */
 /* ==================================================================== */

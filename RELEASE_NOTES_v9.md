@@ -17,6 +17,18 @@ All three are offline-only by design. Nothing in this app calls out to the inter
 
 ---
 
+## v9.53 — lines you can read in 3D (2026-11-10)
+
+Every line in the 3D view used to be one pixel wide and jagged.
+
+- **Boundaries, limits of excavation, pipes, routes and contours are smooth
+  lines with a real width and a dark outline**, so they read clearly over the
+  aerial photo from any distance and any angle.
+- **Width says what a line is**: your own drawings are the heaviest, project
+  linework lighter, reference layers and contours the quietest.
+- Hovering and clicking a line work as before.
+- Realistic rendering only; standard rendering and phones are unchanged.
+
 ## v9.52 — buildings, fences and power poles stand up (2026-11-10)
 
 In 3D a house was an outline on the ground, a fence a line and a power pole a

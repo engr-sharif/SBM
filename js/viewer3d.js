@@ -663,12 +663,26 @@ SBMM.viewer3d = (function () {
     const p = SBMM.view && SBMM.view.pref ? SBMM.view.pref("quality") : undefined;
     return p === "standard" ? "standard" : "realistic";
   }
+  /* v44: lines with a width (js/lines3d.js) — the realistic rendering's; the
+     lighter one keeps WebGL's own one-pixel lines and the v15 drop shadow */
+  /* the contours are a field of lines, not a line: no casing at all (forty
+     cased lines across a hillside is a mesh), just the soft edge */
+  const CONTOUR_WIDE = { width: 1.0, casing: 0 };
+  function wideOn() { return !!SBMM.lines3d && quality() === "realistic"; }
+  function wideViewport() {
+    if (!SBMM.lines3d || !renderer) return;
+    const pr = renderer.getPixelRatio(), cv = renderer.domElement;
+    SBMM.lines3d.setViewport(cv.width, cv.height, pr);
+  }
   function setQuality(q) {
     q = q === "standard" ? "standard" : "realistic";
     if (SBMM.view && SBMM.view.pref) SBMM.view.pref("quality", q);
     const el = $("v3dQuality");
     if (el && el.value !== quality()) el.value = quality();
     if (scene) {
+      if (contourGroup && SBMM.lines3d) {
+        if (wideOn()) SBMM.lines3d.widen(contourGroup, CONTOUR_WIDE); else SBMM.lines3d.unwiden(contourGroup);
+      }
       shadowSetup(); rebuildOverlays();
       /* the ground's materials are built for one rendering or the other */
       if (lodOn) rebuildTerrain().catch(e => console.warn("terrain rebuild:", e));
@@ -2005,6 +2019,7 @@ SBMM.viewer3d = (function () {
     const o = new THREE.LineSegments(g, new THREE.LineBasicMaterial({
       color: colorHex, transparent: true, opacity: 0.9 }));
     o.userData.owner = owner;
+    o.userData.wideOpts = { width: 1.25, casing: 0.9, casingAlpha: 0.5 };   // v44: a whole reference layer, drawn quietly
     return o;
   }
 
@@ -2602,6 +2617,7 @@ SBMM.viewer3d = (function () {
           opacity: 0.34, depthTest: false, depthWrite: false });
         const h = new THREE.Line(o.geometry, m);
         h.renderOrder = 7;
+        h.userData.wideOpts = { width: 6, casing: 0 };       // v44: a glow, not an outlined line
         haloMats.push(m);
         addG.add(h);
       };
@@ -3102,8 +3118,17 @@ SBMM.viewer3d = (function () {
       sm.renderOrder = 1;
       into.add(sm);
     };
-    if (PROJ) shadow(SHW_P, projGroup);
-    shadow(SHW_F, featGroup);
+    /* v44: with wide lines every line carries its own dark casing, so the
+       drop shadow is not built at all — two outlines on one line is a blur */
+    const WIDE = wideOn();
+    if (!WIDE) {
+      if (PROJ) shadow(SHW_P, projGroup);
+      shadow(SHW_F, featGroup);
+    } else {
+      /* reference linework quieter than the user's own, which is quieter than nothing */
+      if (PROJ) SBMM.lines3d.widen(projGroup, { width: 1.5 });
+      SBMM.lines3d.widen(featGroup, { width: 2.3 });
+    }
     /* §3.1: the isopach heat map has no layer row of its own, so the only thing
        that can say the 3D drape IS the isopach is a label on it */
     if (PROJ && drapeMesh.isopach && SBMM.isopach && SBMM.isopach.drapeSpec) {
@@ -4402,6 +4427,7 @@ SBMM.viewer3d = (function () {
         await new Promise(r => setTimeout(r, 30));
         contourGroup = buildContourGroup();
         contourGroup.scale.z = exag();
+        if (wideOn()) SBMM.lines3d.widen(contourGroup, CONTOUR_WIDE);
         scene.add(contourGroup);
         $("v3dStatus").textContent = "";
       }
@@ -4739,6 +4765,7 @@ SBMM.viewer3d = (function () {
     const pr = pixelRatio();
     if (Math.abs(renderer.getPixelRatio() - pr) > 1e-3) renderer.setPixelRatio(pr);
     renderer.setSize(w, h, false);
+    wideViewport();
     camera.aspect = w / h; camera.updateProjectionMatrix();
     requestRender();
   }
@@ -5017,6 +5044,7 @@ SBMM.viewer3d = (function () {
            +waterAnim[0].pos[2].toFixed(3)] : null,
       waterStage: stageInfo, zmid: ZMID,
       built: builtInfo,
+      wideLines: SBMM.lines3d ? SBMM.lines3d.count(scene) : 0,
       water: waterGroup && SBMM.water3d ? Object.assign({ visible: waterGroup.visible, scaleZ: waterGroup.scale.z }, SBMM.water3d.stats()) : null,
       /* v15: the label layer and the parity table */
       labels3d: labels3d.size,
@@ -5941,6 +5969,25 @@ SBMM.viewer3d = (function () {
     },
     sunAsPhotographed, sunAuto: () => sunAuto,
     water3d: on => on === undefined ? waterOn : setWater3d(on),
+    /* v44: what the wide-line pass did to the lines under the overlay and the
+       contours — a harness hook, like datasetSticks() */
+    wideProbe() {
+      const out = { lines: 0, wide: 0, baseStillDrawn: 0, colourShared: 0, shadows: 0, contoursWide: 0 };
+      const walk = (root, key) => {
+        if (!root) return;
+        root.traverse(o => {
+          if (!o.isLine || !o.material) return;
+          out.lines++;
+          const w = o.userData._wide;
+          if (!w) { if (o.material.color && o.material.color.getHex() === 0x0A1014) out.shadows++; return; }
+          out.wide++; if (key) out[key]++;
+          if (o.material.visible !== false) out.baseStillDrawn++;
+          if (w.material.uniforms.uColor.value === o.material.color) out.colourShared++;
+        });
+      };
+      walk(overlayGroup); walk(contourGroup, "contoursWide");
+      return out;
+    },
     sun: (az, el) => { if (az === undefined && el === undefined) return { az: sunAz, el: sunEl };
                        setSun(az, el); return { az: sunAz, el: sunEl }; },
     lookAt: startLookAt,

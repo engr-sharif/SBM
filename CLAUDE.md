@@ -65,8 +65,10 @@ node test/run.mjs --list           # every step, its build, what it needs
 SBMM_GPU=1 node test/run.mjs       # render on a real GPU (§2 below)
 ```
 
-- **CI runs the desktop e2e in SHARDS (v28), four per build** — `e2e:folder:1..4` and
-  `e2e:dist:1..4`, cut at the block names in `E2E_CUTS` in `test/run.mjs` and run as
+- **CI runs the desktop e2e in SHARDS (v28), five per build since v44** —
+  `e2e:folder:1..5` and `e2e:dist:1..5` (the second shard had grown to forty
+  minutes with the 3D rendering blocks 9f13 onward, so it is cut again at
+  9f13), cut at the block names in `E2E_CUTS` in `test/run.mjs` and run as
   `--from A --until B` (a half-open range; `--until` is new in `test/lib/blocks.mjs`,
   and an EXACT block name wins over a prefix because two blocks start "9z."). Locally
   the full `e2e:folder` / `e2e:dist` are still the default and are unchanged.
@@ -413,6 +415,7 @@ terrain source, which needs an explicit decision + README/test update).
 | atmos3d.js | **v40 — the sky and the light**: the analytic sky dome's shader, the sun's colour and strength and the sky fill as one function of the sun's elevation (`light(el)`), the horizon colour the fog takes (`horizonColour`), `sunDir`; `SBMM.atmos3d` |
 | water3d.js | **v42 — water in 3D**: a sheet per water body EA mapped, at the lidar's own flat return, its shoreline cut by the terrain; one shader (the sky of `js/atmos3d.js` reflected through a Fresnel term, ripples, the sun's glint) shared with the overtopping stage surface; `tick()` advancing the ripples only on frames that are drawn anyway; `SBMM.water3d` |
 | built3d.js | **v43 — built features in 3D**: EA's building footprints extruded to the lidar's height under the photograph's roof colour (gable on a plain rectangle, flat otherwise), fence lines as wire panels on posts, power poles as poles; each layer one or two draw calls with a triangle-to-feature `owner` for the pick; `SBMM.built3d` |
+| lines3d.js | **v44 — lines with a width in 3D**: `widen(root)` gives every `THREE.Line` under a root a child mesh that draws it as a constant-pixel-width, anti-aliased, cased line, while the line object itself stops drawing and stays as the pick target; the child follows the parent material's colour and opacity; `SBMM.lines3d` |
 | trees3d.js | **v39 — trees in 3D**: each tree an instance of one of nine `InstancedMesh`es (three forms x three levels of detail), generated geometry, `relod()` dealing the levels by camera distance inside a drawn frame, one soft ground shadow per tree that follows the sun; `SBMM.trees3d` |
 | borelogs.js | **the 2025 boring logs (OpenGround)** — the strip log in a results card (class profile, strata + USCS, SPT with the pocket penetrometer, pH against the acid threshold, method bands, the water symbol), the TWO contact statements drawn together and reconciled nowhere, the 44-hole `LOGS` table, the CSV and the PNG, the popup button, `LOG` / `LOGS`, the class palette every other view reads through `classColor()`, and since v23 **the column renderer `column()`** every face of the borings is drawn by; `SBMM.borelogs` |
 | labmetals.js | **v28 — lab metals by depth** from the earlier apps (`SBMM_DATA.lab_metals`, `tools/build_imports.py`): the interval table in a boring / test-pit popup and on the log card, the full validated suite on a sample popup, the ROD / PMB levels and `level(sym, v)`; `SBMM.labMetals` |
@@ -5486,4 +5489,70 @@ Five things that will be walked into again:
   builder met the same thing), so there is no ribbon to extrude; the
   photograph already carries the surface. The edge lines get proper cased
   lines with the rest of the linework in the next step.
+
+## v44 — lines with a width in 3D
+
+`js/lines3d.js` (`SBMM.lines3d`, new), `wideOn()` / `wideViewport()` and the
+end of `rebuildOverlaysInner` in `js/viewer3d.js`. E2E block **"9f17. lines
+with a width in 3D (v44)"** (shard 2); shots `test/lines_shots.mjs`
+(`shots:lines`, `--standard` for the before). No kernel work.
+
+**What was wrong.** WebGL draws a line one pixel wide whatever width is asked
+for and does not anti-alias it. Every boundary, contour, pipe and route in the
+3D view was a one-pixel stair-step, kept readable over the photograph only by
+the v15 drop shadow — a second copy 1.3 ft lower, which reads as an outline
+from above and as a second line from the side.
+
+**A line object stays exactly what it was** — a `THREE.Line` / `LineSegments`
+/ `LineLoop` with its geometry, its `userData` (the layer tag, the pick, the
+owner array) and its place in the scene. `widen(root)` makes it stop DRAWING
+(`material.visible = false`) and gives it one child: a mesh of a quad per
+segment, widened in the vertex shader perpendicular to the segment on the
+SCREEN, with a soft edge and a dark casing in the fragment shader. So nothing
+about picking, the parity table or disposal changed:
+
+- **The raycaster still hits the line**, and every pick kind that maps a
+  segment index to a feature (`gisBatch`, the datasets' sticks, the storm
+  network) is untouched. The child's `raycast` is a no-op.
+- **The child follows its parent's material.** Its colour uniform IS the
+  parent material's `color` object, and its opacity is copied from the
+  parent's in `onBeforeRender` — so `js/pick3d.js`'s hover highlight and the
+  selection halo's pulse, which both write to the parent's material, move the
+  wide line with no code of their own. **Do not clone the colour.**
+- Block 9y still counts the object it always counted; disposing a group
+  disposes the child with it.
+
+Six things that will be walked into again:
+
+- **Three declares `attribute vec3 color` itself when `USE_COLOR` is
+  defined**, so a ShaderMaterial that defines it and declares the attribute
+  compiles with a redefinition error. The vertex colours here are `aColor`
+  behind `WIDE_COLOR`.
+- **An end behind the eye is brought to the near plane before the divide**
+  (`trim`), or a segment that crosses the camera plane is thrown across the
+  screen. Same rule three's own `LineMaterial` follows.
+- **Widths are in CSS pixels times the renderer's pixel ratio**, against the
+  drawing buffer's size: `wideViewport()` hands `SBMM.lines3d.setViewport`
+  the canvas's own `width`/`height` on every `resize()`. A wide line sized
+  against the wrong buffer is the wrong width on one axis.
+- **The quad is the line plus a 0.75-px fringe each side, and the edge is
+  COVERAGE** (`clamp(half + 0.5 - d, 0, 1)`). The first cut softened the edge
+  inside the line's own width, so a one-pixel line had nowhere to fade and
+  drew at a quarter strength: the survey contours vanished with no error.
+- **Each segment runs half a width past its ends**, so two segments meet
+  without a notch; there are no real joins. At these widths that is enough.
+- **With wide lines the drop shadow is not built at all** (`WIDE` at the end
+  of the rebuild): two outlines on one line is a blur. The lighter rendering
+  (`quality() === "standard"`: a phone, the field build) keeps WebGL's lines
+  and the drop shadow exactly as they were; `setQuality` rebuilds the overlay
+  and widens or unwidens the contour group, which is built once.
+- **Widths say what a line is**: the user's own features 2.3 px, project
+  linework 1.5 px, a whole merged reference layer (`drapedBatch`) 1.25 px with
+  a lighter casing, the survey contours 1.0 px with NO casing (a hillside of
+  cased contours is a mesh), the selection halo 6 px with no casing. A line object can carry `userData.wideOpts`
+  (`{width, casing, casingAlpha, casingColor}`) or `userData.noWide`.
+
+`SBMM.viewer3d.wideProbe()` is the harness hook (lines, how many are wide,
+whether a base still draws, whether the colour is shared, shadows left);
+`stats().wideLines` counts them.
 
