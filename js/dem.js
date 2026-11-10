@@ -292,6 +292,66 @@ function demTileMeshMain(d) {
   return { pos: pos, uv: uv, nrm: nrm, idx: idx, ni: ni, verts: nv, side: V, zlo: lo, zhi: hi };
 }
 
+/* v41 — A TILE'S RELIEF, PER PIXEL. The mesh is a level of detail; the lidar
+   under it is not, and what makes ground read as ground is the light on every
+   foot of it. This turns a tile's heights into the two things the ground
+   shader needs and the mesh cannot carry:
+
+     RGB  the surface normal at every sample, object space (x east, y north,
+          z up), from central differences — so the light falls on the terrain
+          the lidar measured whatever density the mesh was built at;
+     A    ambient occlusion: how much of the sky each sample can see. In each
+          of eight directions the steepest angle up to the horizon is found at
+          1, 2, 4, 8 and 16 cells out, and what is left open is the answer.
+          Gullies, benches, the toe of a cut and the foot of a wall go darker
+          in the fill light, which is what they do outdoors.
+
+   It is the same kind of function demTileMeshMain is: DOM-free, SBMM-free and
+   THREE-free, stringified into the Blob worker by Dem.workerSource() and
+   called inline as Dem.tileShade where there is no worker — one
+   implementation, two threads. Keep `</scr` + `ipt` out of it.
+
+   d = { zp, N, A, cell, k }
+        zp    Float32 heights, row 0 = SOUTH, (N + 2A) square: the tile with
+              an apron of A cells on every side, so a normal at the tile's
+              edge and the occlusion near it see the ground beyond the edge
+              and two tiles meet without a seam. NaN = no ground.
+        k     occlusion strength (1 = the geometric value)
+   -> Uint8Array N*N*4, row 0 = SOUTH */
+function demTileShadeMain(d) {
+  var zp = d.zp, N = d.N, A = d.A, cell = d.cell, k = d.k == null ? 1 : d.k;
+  var P = N + 2 * A, out = new Uint8Array(N * N * 4);
+  var DX = [1, 1, 0, -1, -1, -1, 0, 1], DY = [0, 1, 1, 1, 0, -1, -1, -1];
+  var STEP = [1, 2, 4, 8, 16], ns = 0;
+  while (ns < STEP.length && STEP[ns] <= A) ns++;
+  for (var j = 0; j < N; j++) {
+    for (var i = 0; i < N; i++) {
+      var p = (j + A) * P + (i + A), z0 = zp[p], o = (j * N + i) * 4;
+      if (z0 !== z0) { out[o] = 128; out[o + 1] = 128; out[o + 2] = 255; out[o + 3] = 255; continue; }
+      var ze = zp[p + 1], zw = zp[p - 1], zn = zp[p + P], zs = zp[p - P];
+      if (ze !== ze) ze = z0; if (zw !== zw) zw = z0; if (zn !== zn) zn = z0; if (zs !== zs) zs = z0;
+      var nx = -(ze - zw) / (2 * cell), ny = -(zn - zs) / (2 * cell), l = Math.sqrt(nx * nx + ny * ny + 1);
+      out[o] = Math.round((nx / l * 0.5 + 0.5) * 255);
+      out[o + 1] = Math.round((ny / l * 0.5 + 0.5) * 255);
+      out[o + 2] = Math.round((1 / l * 0.5 + 0.5) * 255);
+      var occ = 0;
+      for (var q = 0; q < 8; q++) {
+        var dx = DX[q], dy = DY[q], run = (dx && dy ? 1.41421356 : 1) * cell, mt = 0;
+        for (var s = 0; s < ns; s++) {
+          var m = STEP[s], v = zp[p + dy * m * P + dx * m];
+          if (v !== v) break;
+          var t = (v - z0) / (m * run);
+          if (t > mt) mt = t;
+        }
+        occ += mt / Math.sqrt(1 + mt * mt);       // sin of the horizon angle: 0 open, 1 a wall
+      }
+      var ao = 1 - k * occ / 8;
+      out[o + 3] = Math.round((ao < 0.2 ? 0.2 : ao > 1 ? 1 : ao) * 255);
+    }
+  }
+  return out;
+}
+
 function demDecodeWorkerMain() {
   self.onmessage = function (ev) {
     var d = ev.data, id = d.id;
@@ -304,6 +364,12 @@ function demDecodeWorkerMain() {
       if (!m) { self.postMessage({ id: id, empty: true }); return; }
       self.postMessage({ id: id, mesh: m },
         [m.pos.buffer, m.uv.buffer, m.nrm.buffer, m.idx.buffer]);
+      return;
+    }
+    /* v41 — the THIRD kind: a tile's per-pixel normals and ambient occlusion */
+    if (d.op === "shade") {
+      var sh = demTileShadeMain(d);
+      self.postMessage({ id: id, shade: sh }, [sh.buffer]);
       return;
     }
     /* feature-detect INSIDE the worker: a browser can have Worker and still
@@ -344,7 +410,7 @@ SBMM.perf.demWorkers = 0;
    scans both. */
 Dem.workerSource = function () {
   return "/* SBMM DEM decode worker — generated at runtime from js/dem.js */\n" +
-    '"use strict";\n' + demTileMeshMain.toString() + "\n(" +
+    '"use strict";\n' + demTileMeshMain.toString() + "\n" + demTileShadeMain.toString() + "\n(" +
     demDecodeWorkerMain.toString() + ")();\n";
 };
 Dem.workerUrl = function () {
@@ -479,6 +545,23 @@ Dem.tileMesh = demTileMeshMain;
 /* which path each mesh took — the e2e and test/terrain3d.mjs both assert that
    a healthy browser really built them in the pool rather than inline */
 Dem.meshStats = { worker: 0, main: 0 };
+Dem.shadeStats = { worker: 0, main: 0 };
+/* v41: a tile's normals and occlusion. `args.zp` is built for this call and is
+   TRANSFERRED — unlike a tile's own z32, nothing else holds it. */
+Dem.tileShade = demTileShadeMain;
+Dem.tileShadeAsync = async function (args) {
+  const pool = Dem.tilePool();
+  if (pool.length) {
+    let keep = null;
+    try { keep = args.zp.slice(); } catch (e) { keep = null; }      // for the fallback below
+    const r = await Dem._poolSend(Object.assign({}, args, { op: "shade" }), [args.zp.buffer]);
+    if (r && r.shade) { Dem.shadeStats.worker++; return r.shade; }
+    if (!keep) return null;
+    args = Object.assign({}, args, { zp: keep });
+  }
+  Dem.shadeStats.main++;
+  return demTileShadeMain(args);
+};
 Dem.tileMeshAsync = async function (args) {
   const pool = Dem.tilePool();
   if (pool.length) {

@@ -17,6 +17,20 @@ All three are offline-only by design. Nothing in this app calls out to the inter
 
 ---
 
+## v9.50 — the ground itself: relief lit from the lidar (2026-11-10)
+
+- **Every foot of the ground is lit from the lidar**, not from the simplified
+  3D mesh. Cut faces, benches, gullies and the toe of a slope are sharper, and
+  they stay sharp in the distance instead of softening.
+- **Hollows are darker than open ground** (ambient occlusion), the way they are
+  outdoors: the inside of a gully or the foot of a wall sits in softer light.
+- **Close up**, where the aerial photo runs out of pixels, the ground is broken
+  up by fine detail that depends on what it is — grass and bare ground take it,
+  pavement, roofs and water do not.
+- Nothing is measured from any of this: quantities still come from the same
+  survey grids.
+- Realistic rendering only; standard rendering and phones are unchanged.
+
 ## v9.49 — daylight: a real sky, balanced light and cast shadows (2026-11-09)
 
 The 3D view used to sit under a fixed dark gradient at about half the

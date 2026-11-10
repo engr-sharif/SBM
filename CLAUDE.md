@@ -5289,3 +5289,61 @@ back from the GPU, so it is NOT in `stats()`.
 
 **`leaf()` in `js/trees3d.js` came back to ~1** (it was doubled in v39 to
 compensate for the half-bright scene), as the v39 note said it would.
+
+## v41 — the ground is lit per pixel from the lidar
+
+`demTileShadeMain` in `js/dem.js` (the tile worker's third operation,
+`Dem.tileShade` / `Dem.tileShadeAsync`), the `v41: ground shading` section of
+`js/terrain3d.js`, `shade` in the viewer's terrain context. Harness section
+**`shade`** in `test/terrain3d.mjs`. No kernel work (`VERSION` stays 10); the
+analysis grids are read, never written.
+
+**What changes.** The mesh is a level of detail; the lidar under it is not.
+Each drawn tile of the photo drape now carries a 256 x 256 **shade texture**
+built from its own heights — the surface normal in RGB (object space, central
+differences), ambient occlusion in A (horizon angle in eight directions at
+1, 2, 4, 8 and 16 cells) — and the ground's material reads the light from
+that. The geometry decides where the surface is; the lidar decides how it is
+lit, at every level of detail. Cut faces, benches and gullies are where it
+shows.
+
+- **It is three's own `MeshLambertMaterial`, patched through `onBeforeCompile`**
+  (`groundMaterial`), not a new shader: fog, shadows, the clip box and the
+  see-through ground go on working because it is the same material. Three
+  things are added — the normal (through `normalMatrix`, so the relief slider
+  tilts the light with the mesh), the occlusion (the fill light x A, the direct
+  light x half of it), and a close-up detail term.
+- **The apron is what makes it seamless.** A normal at a tile's edge and the
+  occlusion near it need the ground beyond the edge, so the worker is handed
+  the tile with 16 cells around it (`shadePadded`): from the neighbouring tile
+  when it is in the cache (`SBMM.tiles.peek`), otherwise from `SBMM.elev` — a
+  tile pixel IS a grid node at every level (the v20 rule), so the two agree to
+  the bit. The harness compares the texture with the analysis grids at 170
+  samples, 97 of them on a tile edge: worst difference **0.0039**, which is
+  half a step of the 8-bit packing.
+- **The texture is sampled at `uv + 0.5/256`**: tile pixel i sits at
+  `x0 + i*cell`, i.e. at u = i/256, and a texel's centre is at (i + 0.5)/256.
+- **A MIP-MAPPED LOOKUP INSIDE A BRANCH HAS NO DEFINED DERIVATIVES.** The
+  detail noise was first sampled inside `if (fade > 0.004)`; SwiftShader
+  answered with the smallest mip — one flat grey — and the detail was silently
+  absent. It is sampled unconditionally. The same trap is open to any shader
+  written here.
+- **The detail term is deliberately quiet**: two scales of tiling noise in
+  world feet (so it does not swim), stretched back out after filtering, faded
+  from 40 to 420 ft from the eye and scaled by the LAND COVER — a site-wide
+  strength texture made from `SBMM_DATA.cover_png` by matching each pixel to
+  its class colour (`COVER_DETAIL`: full on grass, bare ground and waste,
+  little on gravel, none on pavement, roofs and water). It breaks up the
+  photograph where it has run out of pixels; it does not invent a surface.
+  Without the cover payload it is one grey texel.
+- **Realistic rendering only** (`ctx.shade()`); `setQuality` rebuilds the
+  terrain, because a tile's material is built for one rendering or the other.
+  The shade data is cached per tile (`shadeCache`, 180 tiles); the textures
+  die with their tile records.
+- The shader rasters (hillshade, slope, elevation) are untouched: they already
+  light themselves per pixel from the DEM (v20 §4).
+
+**What was NOT built**, and it was in the plan: geometric level-of-detail
+transitions (morphing). With the light coming from the texture, a tile changing
+level no longer changes how it is lit, which was most of what a pop looked
+like; the remaining geometric step is under the skirts. It is not claimed.

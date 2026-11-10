@@ -460,6 +460,7 @@ SBMM.viewer3d = (function () {
       quality: qualityPx, drapeK, drapeFloor,
       zRange: () => SBMM._zrSite || SBMM.demSite.zRange(),
       groundShadows,
+      shade: () => quality() === "realistic",     // v41: per-pixel relief on the photo-draped ground
       onSwap: () => {
         terrainMeshes = SBMM.terrain3d.records();
         SBMM._v3dVerts = terrainMeshes.reduce((n, t) => n + t.nx * t.ny, 0);
@@ -625,7 +626,12 @@ SBMM.viewer3d = (function () {
     if (SBMM.view && SBMM.view.pref) SBMM.view.pref("quality", q);
     const el = $("v3dQuality");
     if (el && el.value !== quality()) el.value = quality();
-    if (scene) { shadowSetup(); rebuildOverlays(); requestRender(); }
+    if (scene) {
+      shadowSetup(); rebuildOverlays();
+      /* the ground's materials are built for one rendering or the other */
+      if (lodOn) rebuildTerrain().catch(e => console.warn("terrain rebuild:", e));
+      requestRender();
+    }
     return quality();
   }
 

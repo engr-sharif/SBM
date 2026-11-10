@@ -13,7 +13,7 @@
                  got committed and broke the Pages build.
    3. worker   — no `</script` inside a function that is stringified into a
                  Blob worker (js/compute.js, js/dem.js's demDecodeWorkerMain
-                 and demTileMeshMain):
+                 demTileMeshMain and demTileShadeMain):
                  tools/build_dist.py's js_safe would mangle it.
    4. aliases  — no duplicate command alias in js/cmdline.js. Aliases resolve
                  first-match over one flat table, so a duplicate silently kills
@@ -99,6 +99,7 @@ const bad  = (n, msg, rows = []) => { fails++; console.log(`FAIL ${n} — ${msg}
   scan("js/dem.js", "function demDecodeWorkerMain");
   /* v22 §G — the tile mesh builder is stringified into the same Blob worker */
   scan("js/dem.js", "function demTileMeshMain");
+  scan("js/dem.js", "function demTileShadeMain");
   rows.length ? bad("worker", "a Blob-worker function carries </script — js_safe would mangle it", rows)
               : ok("worker", "Blob-worker sources are clean");
 }

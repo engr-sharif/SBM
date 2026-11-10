@@ -656,7 +656,7 @@ SBMM.terrain3d = (function () {
          The tile's Float32Array is NOT transferred — it belongs to
          SBMM.tiles' cache and transferring it would silently empty it;
          Dem.tileMeshAsync copies it (256 kB) and transfers the copy. */
-      const meshP = new Map(), drapeP = new Map();
+      const meshP = new Map(), drapeP = new Map(), shadeP = new Map();
       blk(() => {
         for (const [k, t, rec] of loaded) {
           if (!rec || !rec.z32) continue;
@@ -676,6 +676,7 @@ SBMM.terrain3d = (function () {
             have.used = ++geomClock; have.pin = myGen;
           }
           if (style === "ortho" || !gpuRaster) drapeP.set(k, drapeFetch(t[0], t[1], t[2]));
+          if (shadeWanted()) shadeP.set(k, shadeFor(t[0], t[1], t[2], rec.z32).catch(() => null));
         }
       });
 
@@ -719,13 +720,14 @@ SBMM.terrain3d = (function () {
           });
         }
         const got = drapeP.has(k) ? await drapeP.get(k) : null;
+        const shd = shadeP.has(k) ? await shadeP.get(k) : null;
         if (myGen !== generation) { for (const r of built.values()) dispose(r); return false; }
         const r = blk(() => {
           const o = { key: k, z: t[0], x: t[1], y: t[2], geom: gc.geom, verts: gc.verts,
                       side: gc.side, step, tris: gc.tris, zlo: gc.zlo, zhi: gc.zhi,
                       bytes: gc.bytes, gkey: gk, texPx: 0, ftPerPx: null, texBytes: 0 };
           if (style === "ortho" || !gpuRaster) {
-            o.mat = new THREE.MeshLambertMaterial({ color: 0xffffff });
+            o.mat = groundMaterial(o);
           } else {
             o.demTex = demTexture(rec.z32, L.zmin != null ? L.zmin : 1325,
                                   L.step != null ? L.step : 0.02);
@@ -740,6 +742,7 @@ SBMM.terrain3d = (function () {
           /* whatever the ortho pyramid has for this tile; a missing drape
              leaves the mesh white rather than leaving the tile out */
           if (got) applyDrape(o, drapeCompose(t[0], t[1], t[2], got));
+          if (shd) applyShade(o, shd);
           return o;
         });
         if (r) built.set(k, r);
@@ -784,10 +787,260 @@ SBMM.terrain3d = (function () {
      which is the whole point of the cache — a tile that leaves the drawn set
      and comes back a second later must cost nothing. Everything a record owns
      outright (its material, its drape texture, its DEM texture) is disposed. */
+  /* ------------------------------------------------- v41: ground shading -- */
+  /* THE PHOTO-DRAPED GROUND IS LIT PER PIXEL FROM THE LIDAR.
+
+     The mesh is a level of detail (a 257 x 257 grid at best, far coarser in the
+     distance) and until now its vertex normals were all the light had to go on:
+     relief softened with distance, popped when a tile changed level, and at any
+     range showed less of the ground than the lidar holds. Each tile now carries
+     a 256 x 256 "shade" texture made from its own heights by Dem.tileShade —
+     the surface normal in RGB, ambient occlusion in A — and the ground
+     material reads the light from that. The geometry still decides where the
+     surface IS; the lidar decides how it is LIT, at every level of detail.
+
+     Three things are added to three's own Lambert shader through
+     onBeforeCompile, and nothing is taken away (fog, shadows, the clip box and
+     the see-through ground all go on working, because they are the same
+     material):
+
+       normal     from the shade texture, through normalMatrix — so the relief
+                  slider, which scales the mesh in z, tilts the light with it;
+       occlusion  the fill light is multiplied by A, and the direct light by
+                  half of it: a gully is darker in the shade and still reads
+                  in the sun;
+       detail     within a few hundred feet the photograph runs out (half a
+                  foot a pixel at best), so the albedo is broken up by two
+                  octaves of tiling noise, in world feet so it does not swim,
+                  scaled by WHAT THE GROUND IS — the land-cover raster: full on
+                  grass, bare ground and mine waste, little on gravel, none on
+                  pavement, roofs and water.
+
+     Realistic rendering only (ctx.shade()). Standard, a phone and the field
+     build keep the plain material — the same reason texBudget() is per
+     profile. */
+  const SHADE_A = 16;                 // apron, cells — the occlusion's reach
+  const shadeCache = new Map();       // "z/x/y" -> { data: Uint8Array, used }
+  const SHADE_KEEP = 180;
+  let shadeClock = 0, noiseTex = null, coverTex = null, coverMeta = null;
+  const shadeStat = { built: 0, hits: 0, apronPeek: 0, apronElev: 0 };
+  function shadeWanted() { return !!(ctx && ctx.shade && ctx.shade()) && (style === "ortho" || !gpuRaster); }
+
+  /* the tile's heights with an apron of the ground around it. A neighbouring
+     tile that is already in the cache is read directly; where it is not, the
+     apron comes from the analysis grids — a tile pixel IS a grid node at every
+     level (the v20 rule), so the two agree to the bit and no seam can open
+     along a level-of-detail boundary. */
+  function shadePadded(z, x, y, z32) {
+    const A = SHADE_A, P = N + 2 * A, zp = new Float32Array(P * P).fill(NaN);
+    for (let j = 0; j < N; j++) zp.set(z32.subarray(j * N, j * N + N), (j + A) * P + A);
+    const r = SBMM.tiles.rect(z, x, y), cell = SBMM.tiles.cellOf(z);
+    for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+      if (!dx && !dy) continue;
+      /* the strip of the apron this neighbour covers, in padded coordinates */
+      const i0 = dx < 0 ? 0 : dx > 0 ? A + N : A, i1 = dx < 0 ? A : dx > 0 ? P : A + N;
+      const j0 = dy < 0 ? 0 : dy > 0 ? A + N : A, j1 = dy < 0 ? A : dy > 0 ? P : A + N;
+      const nb = SBMM.tiles.peek("dem", z, x + dx, y + dy);
+      if (nb && nb.z32 && nb.z32.length === N * N) {
+        shadeStat.apronPeek++;
+        for (let j = j0; j < j1; j++) {
+          const sj = j - A - dy * N;
+          for (let i = i0; i < i1; i++) zp[j * P + i] = nb.z32[sj * N + (i - A - dx * N)];
+        }
+      } else {
+        shadeStat.apronElev++;
+        for (let j = j0; j < j1; j++) {
+          const Y = r[1] + (j - A) * cell;
+          for (let i = i0; i < i1; i++) zp[j * P + i] = SBMM.elev(r[0] + (i - A) * cell, Y)[0];
+        }
+      }
+    }
+    return zp;
+  }
+  async function shadeFor(z, x, y, z32) {
+    const key = z + "/" + x + "/" + y, hit = shadeCache.get(key);
+    if (hit) { hit.used = ++shadeClock; shadeStat.hits++; return hit.data; }
+    const data = await Dem.tileShadeAsync({ zp: shadePadded(z, x, y, z32), N, A: SHADE_A,
+                                            cell: SBMM.tiles.cellOf(z), k: 2.0 });
+    if (!data) return null;
+    shadeStat.built++;
+    shadeCache.set(key, { data, used: ++shadeClock });
+    if (shadeCache.size > SHADE_KEEP) {
+      const old = [...shadeCache.entries()].sort((a, b) => a[1].used - b[1].used).slice(0, shadeCache.size - SHADE_KEEP);
+      for (const [k] of old) shadeCache.delete(k);
+    }
+    return data;
+  }
+  function shadeTexture(data) {
+    const t = new THREE.DataTexture(data, N, N, THREE.RGBAFormat, THREE.UnsignedByteType);
+    t.magFilter = THREE.LinearFilter; t.minFilter = THREE.LinearFilter;
+    t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping;
+    t.colorSpace = THREE.NoColorSpace;
+    t.needsUpdate = true;
+    return t;
+  }
+  /* two octaves of value noise that tile, in R and G, mid-grey on average */
+  function noiseTexture() {
+    if (noiseTex) return noiseTex;
+    const S = 256, d = new Uint8Array(S * S * 4);
+    const lat = (seed, n) => { const a = new Float32Array(n * n); let h = seed >>> 0;
+      for (let i = 0; i < a.length; i++) { h = (h * 1664525 + 1013904223) >>> 0; a[i] = h / 4294967296; } return a; };
+    const sm = t => t * t * (3 - 2 * t);
+    const oct = (L, n, u, v) => { const fx = u * n, fy = v * n, i = Math.floor(fx), j = Math.floor(fy), tx = sm(fx - i), ty = sm(fy - j);
+      const a = L[(j % n) * n + (i % n)], b = L[(j % n) * n + ((i + 1) % n)], c = L[((j + 1) % n) * n + (i % n)], e = L[((j + 1) % n) * n + ((i + 1) % n)];
+      return a + (b - a) * tx + (c - a) * ty + (a - b - c + e) * tx * ty; };
+    const LR = [lat(11, 8), lat(12, 16), lat(13, 32), lat(14, 64)], LG = [lat(21, 8), lat(22, 16), lat(23, 32), lat(24, 64)];
+    const NN = [8, 16, 32, 64], W = [0.42, 0.28, 0.18, 0.12];
+    for (let j = 0; j < S; j++) for (let i = 0; i < S; i++) {
+      let r = 0, g = 0;
+      for (let o = 0; o < 4; o++) { r += W[o] * oct(LR[o], NN[o], i / S, j / S); g += W[o] * oct(LG[o], NN[o], i / S, j / S); }
+      const k = (j * S + i) * 4;
+      d[k] = Math.round(clamp((r - 0.5) * 1.9 + 0.5, 0, 1) * 255);
+      d[k + 1] = Math.round(clamp((g - 0.5) * 1.9 + 0.5, 0, 1) * 255);
+      d[k + 2] = 128; d[k + 3] = 255;
+    }
+    const t = new THREE.DataTexture(d, S, S, THREE.RGBAFormat, THREE.UnsignedByteType);
+    t.wrapS = t.wrapT = THREE.RepeatWrapping;
+    t.magFilter = THREE.LinearFilter; t.minFilter = THREE.LinearMipmapLinearFilter;
+    t.generateMipmaps = true; t.colorSpace = THREE.NoColorSpace; t.needsUpdate = true;
+    return (noiseTex = t);
+  }
+  /* how much close-up detail each land-cover class takes, as a site-wide
+     texture: the cover raster's own colours ARE its class palette, so a pixel
+     is matched to the nearest class colour. Without the cover payload the
+     texture is one grey texel and every surface takes the same detail. */
+  const COVER_DETAIL = { nodata: 0.6, water: 0, paved: 0.08, roof: 0, gravel: 0.45, waste: 0.9, bare: 0.9, grass: 1, woods: 0.75 };
+  function coverTexture() {
+    if (coverTex) return coverTex;
+    const flat = () => { const t = new THREE.DataTexture(new Uint8Array([200, 200, 200, 255]), 1, 1, THREE.RGBAFormat, THREE.UnsignedByteType);
+      t.colorSpace = THREE.NoColorSpace; t.needsUpdate = true; return t; };
+    coverTex = flat();
+    const C = SBMM_DATA && SBMM_DATA.cover, url = SBMM_DATA && SBMM_DATA.cover_png;
+    const o = SBMM.tiles.rect(SBMM.tiles.levels("dem")[0], 0, 0);
+    coverMeta = { x0: o[0], y0: o[1], w: 1, h: 1, real: false };
+    if (!C || !C.grid || !url || !Array.isArray(C.classes)) return coverTex;
+    coverMeta = { x0: C.grid.x0, y0: C.grid.y0, w: C.grid.w * C.grid.cell, h: C.grid.h * C.grid.cell, real: false };
+    const img = new Image();
+    img.onload = () => {
+      try {
+        const W = Math.round(C.grid.w / 4), H = Math.round(C.grid.h / 4);
+        const cv = document.createElement("canvas"); cv.width = W; cv.height = H;
+        const g = cv.getContext("2d", { willReadFrequently: true });
+        g.imageSmoothingEnabled = false;
+        g.drawImage(img, 0, 0, W, H);
+        const px = g.getImageData(0, 0, W, H).data, out = new Uint8Array(W * H * 4);
+        const pal = C.classes.map(c => [c.rgb[0], c.rgb[1], c.rgb[2], Math.round(255 * (COVER_DETAIL[c.key] == null ? 0.6 : COVER_DETAIL[c.key]))]);
+        for (let j = 0; j < H; j++) for (let i = 0; i < W; i++) {
+          const s2 = (j * W + i) * 4;
+          let best = 0, bd = 1e9;
+          for (let c = 0; c < pal.length; c++) {
+            const dr = px[s2] - pal[c][0], dg = px[s2 + 1] - pal[c][1], db = px[s2 + 2] - pal[c][2], dd = dr * dr + dg * dg + db * db;
+            if (dd < bd) { bd = dd; best = c; }
+          }
+          const k = ((H - 1 - j) * W + i) * 4;             // row 0 = south, so v = northing
+          out[k] = out[k + 1] = out[k + 2] = pal[best][3]; out[k + 3] = 255;
+        }
+        /* a NEW texture, not a new image on the old one: the 1 x 1 placeholder's
+           storage is immutable once uploaded. Every ground material reads the
+           uniform object, so swapping its value reaches all of them. */
+        const t2 = new THREE.DataTexture(out, W, H, THREE.RGBAFormat, THREE.UnsignedByteType);
+        t2.magFilter = THREE.LinearFilter; t2.minFilter = THREE.LinearFilter;
+        t2.colorSpace = THREE.NoColorSpace; t2.needsUpdate = true;
+        const old = coverTex;
+        coverTex = t2; GROUND_U.uCover.value = t2;
+        old.dispose();
+        coverMeta.real = true;
+        if (ctx) ctx.requestRender();
+      } catch (e) { console.warn("ground detail: the land-cover raster could not be read", e); }
+    };
+    img.src = url;
+    return coverTex;
+  }
+  /* the uniforms every ground material shares */
+  const GROUND_U = { uNoise: { value: null }, uCover: { value: null }, uSite: { value: null },
+                     uDetail: { value: null }, uAo: { value: 1 } };
+  function groundMaterial(o) {
+    const mat = new THREE.MeshLambertMaterial({ color: 0xffffff });
+    if (!shadeWanted()) return mat;
+    if (!GROUND_U.uNoise.value) {
+      GROUND_U.uNoise.value = noiseTexture();
+      GROUND_U.uCover.value = coverTexture();
+      GROUND_U.uSite.value = new THREE.Vector4(coverMeta.x0, coverMeta.y0, coverMeta.w, coverMeta.h);
+      /* fade start, fade end (ft from the eye), strength */
+      GROUND_U.uDetail.value = new THREE.Vector3(40, 420, 1.0);
+    }
+    const r = SBMM.tiles.rect(o.z, o.x, o.y);
+    const U = mat.userData.u = {
+      uShade: { value: null }, uShadeK: { value: 0 },
+      /* the tile's SW corner in feet from the cover raster's, and its size */
+      uTile: { value: new THREE.Vector3(r[0] - coverMeta.x0, r[1] - coverMeta.y0, r[2] - r[0]) }
+    };
+    mat.onBeforeCompile = sh => {
+      Object.assign(sh.uniforms, GROUND_U, U);
+      sh.vertexShader = sh.vertexShader
+        .replace("#include <common>", "#include <common>\nvarying vec2 vTileUv;")
+        .replace("#include <uv_vertex>", "#include <uv_vertex>\n\tvTileUv = uv;");
+      sh.fragmentShader = sh.fragmentShader
+        .replace("#include <common>", `#include <common>
+uniform sampler2D uShade; uniform float uShadeK; uniform vec3 uTile;
+uniform sampler2D uNoise; uniform sampler2D uCover; uniform vec4 uSite; uniform vec3 uDetail; uniform float uAo;
+uniform mat3 normalMatrix;
+varying vec2 vTileUv;`)
+        .replace("#include <map_fragment>", `#include <map_fragment>
+	{
+		vec2 wft = uTile.xy + vTileUv * uTile.z;
+		float dEye = length( vViewPosition );
+		float fade = ( 1.0 - smoothstep( uDetail.x, uDetail.y, dEye ) ) * texture2D( uCover, wft / uSite.zw ).r * uDetail.z;
+		/* sampled UNCONDITIONALLY: a mip-mapped lookup inside a branch has no
+		   defined derivatives, and a renderer is free to answer with the
+		   smallest mip — one flat grey, i.e. no detail at all, with no error */
+		/* two scales, in world feet: patches a few feet across and grain under
+		   a foot. The texture's own contrast is spent by the time it has been
+		   filtered down to a pixel, so it is stretched back out here. */
+		float n = texture2D( uNoise, wft / 58.0 ).r * 0.5 + texture2D( uNoise, wft / 11.0 ).g * 0.5;
+		diffuseColor.rgb *= mix( 1.0, 0.74 + 0.52 * smoothstep( 0.34, 0.66, n ), fade );
+	}`)
+        .replace("#include <normal_fragment_maps>", `#include <normal_fragment_maps>
+	vec4 tShade = texture2D( uShade, vTileUv + vec2( ${(0.5 / N).toFixed(8)} ) );
+	if ( uShadeK > 0.5 ) normal = normalize( normalMatrix * ( tShade.xyz * 2.0 - 1.0 ) );`)
+        .replace("#include <aomap_fragment>", `#include <aomap_fragment>
+	if ( uShadeK > 0.5 ) {
+		float ao = mix( 1.0, tShade.a, uAo );
+		reflectedLight.indirectDiffuse *= ao;
+		reflectedLight.directDiffuse *= mix( 1.0, ao, 0.5 );
+	}`);
+    };
+    mat.customProgramCacheKey = () => "sbmm-ground-v41";
+    return mat;
+  }
+  function applyShade(r, data) {
+    if (!data || !r.mat || !r.mat.userData.u) return;
+    r.shadeTex = shadeTexture(data);
+    r.mat.userData.u.uShade.value = r.shadeTex;
+    r.mat.userData.u.uShadeK.value = 1;
+  }
+  /* what the shade texture says at a point of a drawn tile — for the harness */
+  function shadeProbe(x, y) {
+    let best = null;
+    for (const r of drawn.values()) {
+      const q = SBMM.tiles.rect(r.z, r.x, r.y);
+      if (x < q[0] || x >= q[2] || y < q[1] || y >= q[3]) continue;
+      if (!best || r.z < best.z) best = r;
+    }
+    const c = best && shadeCache.get(best.z + "/" + best.x + "/" + best.y);
+    if (!best || !c || !best.shadeTex) return null;
+    const cell = SBMM.tiles.cellOf(best.z), q = SBMM.tiles.rect(best.z, best.x, best.y);
+    const i = clamp(Math.round((x - q[0]) / cell), 0, N - 1), j = clamp(Math.round((y - q[1]) / cell), 0, N - 1), o = (j * N + i) * 4;
+    const d = c.data, nx = d[o] / 127.5 - 1, ny = d[o + 1] / 127.5 - 1, nz = d[o + 2] / 127.5 - 1;
+    return { z: best.z, cell, tile: [best.x, best.y], n: [nx, ny, nz], ao: d[o + 3] / 255,
+             slopePct: 100 * Math.hypot(nx, ny) / Math.max(nz, 1e-6) };
+  }
+
   function dispose(r) {
     if (r.geom && !r.gkey) r.geom.dispose();
     if (r.mat) { if (r.mat.map) r.mat.map.dispose(); r.mat.dispose(); }
     if (r.demTex) r.demTex.dispose();
+    if (r.shadeTex) r.shadeTex.dispose();
   }
 
   function setRasterStyle(r) {
@@ -850,6 +1103,7 @@ SBMM.terrain3d = (function () {
     },
     /* the records viewer3d keeps in `terrainMeshes`, in its own shape, so
        raycasting, the relief slider and stats() go on working unchanged */
+    shadeProbe,
     records() {
       return [...drawn.values()].map(r => ({ mesh: r.mesh, nx: r.side, ny: r.side,
                                              stride: r.step, dem: SBMM.demSite,
@@ -890,6 +1144,9 @@ SBMM.terrain3d = (function () {
         texBytes, texMB: +(texBytes / 1e6).toFixed(1),
         geomCacheTiles: geomCache.size, geomCacheMB: +(geomBytes / 1e6).toFixed(1),
         geomBudgetMB: +(geomBudget() / 1e6).toFixed(0),
+        shade: { on: shadeWanted(), tiles: [...drawn.values()].filter(r => r.shadeTex).length, cached: shadeCache.size,
+                 built: shadeStat.built, hits: shadeStat.hits, apronPeek: shadeStat.apronPeek, apronElev: shadeStat.apronElev,
+                 worker: Dem.shadeStats.worker, main: Dem.shadeStats.main, cover: !!(coverMeta && coverMeta.real) },
         meshWorker: Dem.meshStats ? Dem.meshStats.worker : 0,
         meshMain: Dem.meshStats ? Dem.meshStats.main : 0,
         gpuRaster, webgl2, maxTiles: MAX_TILES, ...stat
