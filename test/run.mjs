@@ -117,6 +117,7 @@ const STEPS = [
    position puts it in, with no edit here. */
 export const E2E_CUTS = [
   "9b. EA residential Final Design payload",
+  "9f13. the trees (v39)",
   "9y. 3D parity",
   "9ae. boring logs",
 ];
