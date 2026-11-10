@@ -158,6 +158,7 @@ const SHOTS = [
   ["edge",     [R("test/edge_shots.mjs"), INDEX],            "folder"],
   ["columns",  [R("test/columns_shots.mjs"), INDEX],         "folder"],
   ["hier2d",   [R("test/hier2d_shots.mjs"), INDEX],          "folder"],
+  ["analysis", [R("test/analysis_shots.mjs"), INDEX],        "folder"],
   ["field",    [R("test/field_shots.mjs"), FIELD],           "field"],
 ];
 for (const [n, args, build] of SHOTS)

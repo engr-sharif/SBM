@@ -213,8 +213,9 @@ SBMM.carto = (function () {
      in 2D the way they do in the 3D view.
 
      It is a picture effect and nothing else: it has its own row (Relief
-     shading, on by default), it is only ever drawn while a photograph is on
-     (over a hillshade or the plan basemap it would be relief on relief), it
+     shading, on by default), it is only ever drawn while a photograph or an
+     analysis raster is on (over a bare hillshade or the plan basemap it would
+     be relief on relief), it
      takes no pointer event, and nothing that READS an image — the 3D drape,
      the exports, the 2D basemap-stack test, which looks at the raster pane —
      sees it. */
@@ -228,9 +229,26 @@ SBMM.carto = (function () {
     } catch (e) { return true; }
     return false;
   }
+  /* v50: the computed rasters take the relief too. Slope, the elevation tint,
+     the drainage and accumulation maps, the runoff depth, the TEM slice, the
+     isopach — every one of them is a colour scale laid flat over the ground,
+     and a flat colour hides the very shape it is about. They all live in the
+     `analysis` pane, and the relief pane sits just above it (z 325), so
+     whatever is drawn there is shaded by the ground under it. The relief is
+     therefore drawn while a photograph OR an analysis raster is on. */
+  function analysisImages() {
+    const p = SBMM.map && SBMM.map.getPane("analysis");
+    return p ? p.querySelectorAll("img").length : 0;
+  }
+  let gateQueued = false;
   function reliefGate() {
     const el = SBMM.map && SBMM.map.getContainer();
-    if (el) el.classList.toggle("noortho", !anyOrtho());
+    if (el) el.classList.toggle("noortho", !(anyOrtho() || analysisImages() > 0));
+  }
+  function reliefGateSoon() {
+    if (gateQueued) return;
+    gateQueued = true;
+    (window.requestAnimationFrame || (f => setTimeout(f, 30)))(() => { gateQueued = false; reliefGate(); });
   }
   function paintRelief() {
     const map = SBMM.map, D = window.SBMM_DATA;
@@ -239,7 +257,7 @@ SBMM.carto = (function () {
     if (!srcS && !srcA) return;                     // a build without the hillshades: no row, nothing drawn
     if (!map.getPane("relief")) {
       const p = map.createPane("relief");
-      p.style.zIndex = 262; p.style.pointerEvents = "none";
+      p.style.zIndex = 325; p.style.pointerEvents = "none";     // above `analysis` (320), below `vectors` (420)
       p.classList.add("reliefpane");
     }
     const parts = [];
@@ -255,13 +273,16 @@ SBMM.carto = (function () {
     relief.row = row;
     for (const [ly, name] of parts) clean(ly, name);
     reliefGate();
-    if (SBMM.events && SBMM.events.on) SBMM.events.on("layers", ev => { if (!ev || ev.group === "base") reliefGate(); });
+    if (SBMM.events && SBMM.events.on) SBMM.events.on("layers", reliefGateSoon);
+    /* an analysis raster arrives when its job lands, not when its row is ticked */
+    map.on("layeradd layerremove", ev => { const l = ev.layer; if (l && l.options && l.options.pane === "analysis") reliefGateSoon(); });
   }
   function setRelief(on) { if (SBMM.layerState) SBMM.layerState.set("base", "relief_shade", { on: !!on }); }
   function reliefState() {
     const map = SBMM.map, p = map && map.getPane("relief");
     return { built: !!relief, on: !!(SBMM.layerState && SBMM.layerState.isOn("base", "relief_shade")),
              images: relief ? relief.parts.filter(q => q[0]._map).length : 0,
+             analysis: analysisImages(),
              gated: !!(map && map.getContainer().classList.contains("noortho")),
              blend: p ? getComputedStyle(p).mixBlendMode : null,
              shown: !!(p && getComputedStyle(p).display !== "none") };

@@ -17,6 +17,14 @@ All three are offline-only by design. Nothing in this app calls out to the inter
 
 ---
 
+## v9.59 — analysis maps show the ground under them (2026-11-10)
+
+- **Slope, elevation, drainage, land cover, TEM and cut/fill maps are shaded by
+  the terrain** in both 2D and 3D, so you can see the shape of the ground
+  through the colours. Level ground stays exactly the legend's colour.
+- The values themselves do not change: the status-bar read-out, the legends
+  and exports are as before.
+
 ## v9.58 — labels: one style, and fewer lost in 3D (2026-11-10)
 
 - **Map labels share one set of sizes and one dark halo**, so place names,

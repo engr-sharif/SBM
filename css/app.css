@@ -3262,6 +3262,10 @@ body.temws:not(.field) #temWs{display:flex;flex-direction:column;position:fixed;
    lifts and one facing away deepens, and the photograph is not washed out. */
 .leaflet-pane.reliefpane{mix-blend-mode:overlay;filter:brightness(.712);opacity:.65}
 #map.noortho .leaflet-pane.reliefpane{display:none}
+/* v50: the pane sits above the analysis rasters too (z 325), so slope, the
+   elevation tint, the drainage maps, the TEM slice and the isopach are shaded
+   by the ground they lie on; `noortho` now means "no photograph and no
+   analysis raster". */
 
 /* v49 — ONE TYPE SCALE AND ONE HALO FOR EVERY LABEL ON THE MAP.
    The labels were written one module at a time: 10, 10.5, 11 and 12 px, five

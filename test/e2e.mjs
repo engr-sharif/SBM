@@ -7567,7 +7567,8 @@ console.log("MAP 2D v45:", JSON.stringify(M2));
 if (!M2.r1.built || M2.r1.images < 1 || M2.r1.blend !== "overlay" || !M2.r1.shown || M2.r1.gated)
   { console.log("FAIL: the relief shading is not blended over the photograph", M2.r1); process.exit(1); }
 if (M2.inRelief < 1 || M2.ptr !== "none") { console.log("FAIL: the relief is not in its own inert pane", M2.inRelief, M2.ptr); process.exit(1); }
-if (!M2.r2.gated || M2.r2.shown) { console.log("FAIL: with no photograph on the relief shading is still drawn", M2.r2); process.exit(1); }
+/* v50: an analysis raster keeps the relief on too, so "nothing to shade" is no photograph AND no analysis raster */
+if (M2.r2.analysis === 0 && (!M2.r2.gated || M2.r2.shown)) { console.log("FAIL: with no photograph and no analysis raster on the relief shading is still drawn", M2.r2); process.exit(1); }
 if (M2.r3.images !== 0 || !(M2.r4.images >= 1)) { console.log("FAIL: the relief row does not switch it", M2.r3, M2.r4); process.exit(1); }
 if (M2.firstVisit !== true) { console.log("FAIL: a first visit does not get the relief shading"); process.exit(1); }
 for (const k of ["bldg", "road", "fence", "water"]) {
@@ -7799,6 +7800,73 @@ if (LB.mine.length !== 3) { console.log("FAIL: five chips on one point should le
       { console.log("FAIL: two kept chips overlap", a, b); process.exit(1); }
   } }
 if (LB.idle > 1) { console.log("FAIL: an idle view rendered " + LB.idle + " frames with the labels up"); process.exit(1); }
+await page.evaluate(() => { if (SBMM.viewer3d.isOpen()) SBMM.viewer3d.toggle(); });
+});
+
+await block("9f23. analysis colour maps take the relief (v50)", async () => {
+/* v50 — in 2D the relief pane sits above the analysis pane, so a computed
+   raster is shaded by the ground under it and the relief is drawn while a
+   photograph OR an analysis raster is on. In 3D an analysis drape stays the
+   unlit colour scale it was and is modulated by the hillshade of its own
+   surface, level ground exactly the legend's colour. The land-cover raster is
+   the cheap one to ask it of: a baked image, a 2D overlay and a 3D drape. */
+const AR = await page.evaluate(async () => {
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  const LS = SBMM.layerState, V = SBMM.viewer3d;
+  if (V.isOpen()) await V.toggle();
+  if (!(SBMM.runoff && LS.rec && LS.rec("framework", "runoff_cover"))) return { skipped: "no land-cover row in this build" };
+  const base = LS.groupList().find(g => g.id === "base");
+  const orthos = [...base.layers.values()].filter(r => /^ortho/.test(r.id)).map(r => ({ id: r.id, on: r.on }));
+  const coverWas = LS.isOn("framework", "runoff_cover"), reliefWas = LS.isOn("base", "relief_shade");
+  LS.set("base", "relief_shade", { on: true });
+  orthos.forEach(o => LS.set("base", o.id, { on: false }));
+  LS.set("framework", "runoff_cover", { on: true });
+  await sleep(1500);
+  const withCover = SBMM.carto.relief();
+  const z = { relief: +SBMM.map.getPane("relief").style.zIndex, analysis: +SBMM.map.getPane("analysis").style.zIndex,
+              vectors: +SBMM.map.getPane("vectors").style.zIndex };
+  LS.set("framework", "runoff_cover", { on: false });
+  await sleep(600);
+  const without = SBMM.carto.relief();
+  orthos.forEach(o => LS.set("base", o.id, { on: o.on }));
+  /* 3D */
+  LS.set("framework", "runoff_cover", { on: true });
+  await V.toggle();
+  await new Promise(r => { const t0 = Date.now(); const k = () => (document.getElementById("v3dStatus").textContent === "" || Date.now() - t0 > 60000) ? r() : setTimeout(k, 200); k(); });
+  const wasAnim = V.animateWater(); V.animateWater(false);
+  let s1 = null;
+  for (let i = 0; i < 40; i++) { await sleep(500); s1 = V.stats(); if ((s1.drapes || []).some(d => d.name === "cover")) break; }
+  const ex = document.getElementById("v3dExag"), ex0 = ex.value;
+  ex.value = "2"; ex.dispatchEvent(new Event("input", { bubbles: true })); await sleep(300);
+  const zx2 = V.stats().drapeRelief.zx;
+  ex.value = ex0; ex.dispatchEvent(new Event("input", { bubbles: true })); await sleep(300);
+  const sun0 = V.stats().sun, auto0 = V.sunAuto(), d0 = V.stats().drapeRelief.sun;
+  V.sun(90, 20); await sleep(400);
+  const d1 = V.stats().drapeRelief.sun;
+  if (auto0) V.sunAsPhotographed(); else V.sun(sun0.az, sun0.el);
+  await sleep(2500);
+  const r0 = V.stats().renderCount;
+  await sleep(3000);
+  const idle = V.stats().renderCount - r0;
+  V.animateWater(wasAnim);
+  LS.set("framework", "runoff_cover", { on: coverWas }); LS.set("base", "relief_shade", { on: reliefWas });
+  await sleep(500);
+  return { withCover, without, z, drapes: s1.drapes, k: s1.drapeRelief.k, zx1: s1.drapeRelief.zx, exag: +ex0, zx2, d0, d1, idle };
+});
+console.log("ANALYSIS RELIEF v50:", JSON.stringify(AR));
+if (AR.skipped) console.log("  (skipped: " + AR.skipped + ")");
+else {
+  if (!(AR.z.relief > AR.z.analysis && AR.z.relief < AR.z.vectors)) { console.log("FAIL: the relief pane is not between the analysis rasters and the vectors", AR.z); process.exit(1); }
+  if (!(AR.withCover.analysis >= 1) || AR.withCover.gated || !AR.withCover.shown)
+    { console.log("FAIL: with an analysis raster on and no photograph, the relief is not drawn", AR.withCover); process.exit(1); }
+  if (AR.without.analysis === 0 && !AR.without.gated) { console.log("FAIL: with nothing to shade the relief is still drawn", AR.without); process.exit(1); }
+  const cover = (AR.drapes || []).find(d => d.name === "cover");
+  if (!cover || !cover.relief || !cover.normals) { console.log("FAIL: the 3D analysis drape does not take the relief", AR.drapes); process.exit(1); }
+  if (!(AR.k > 0 && AR.k < 1) || Math.abs(AR.zx1 - AR.exag) > 1e-6 || Math.abs(AR.zx2 - 2) > 1e-6)
+    { console.log("FAIL: the drape relief does not follow the relief slider", AR.k, AR.zx1, AR.zx2); process.exit(1); }
+  if (JSON.stringify(AR.d0) === JSON.stringify(AR.d1) || !(AR.d1[2] > 0)) { console.log("FAIL: the drape relief does not follow the sun", AR.d0, AR.d1); process.exit(1); }
+  if (AR.idle > 1) { console.log("FAIL: an idle view rendered " + AR.idle + " frames with a shaded drape"); process.exit(1); }
+}
 await page.evaluate(() => { if (SBMM.viewer3d.isOpen()) SBMM.viewer3d.toggle(); });
 });
 
