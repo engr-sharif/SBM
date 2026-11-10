@@ -198,7 +198,37 @@ SBMM.viewer3d = (function () {
   const SKY_TOP = 0x0B1A26, SKY_HORIZON = 0x22343E, SKY_BOTTOM = 0x080D10;
   const LAKE = 0x14303C;
   let skyMesh = null, envGroup = null, sunLight = null, hemiLight = null;
-  let sunAz = 315, sunEl = 35;
+  /* v40 — WHERE THE SUN STARTS. Over the orthophoto it starts where it WAS when
+     the photograph was taken — due south, 33 degrees up: a late-January midday,
+     measured off the photo's own tree shadows against the canopy model — so the
+     shadows the view casts fall on the shadows the photo already has, instead of
+     across them. Over a shader raster (hillshade, slope, elevation) it starts
+     where a relief map is lit from, the north-west, because relief lit from the
+     south reads inside out. The moment the sun control is touched the choice is
+     the user's and is remembered; "as photographed" hands it back. */
+  const SUN_PHOTO = { az: 180, el: 33 }, SUN_RELIEF = { az: 315, el: 35 };
+  let sunAz = SUN_PHOTO.az, sunEl = SUN_PHOTO.el, sunAuto = true;
+  function sunDefaultFor(style) { return !style || style === "ortho" ? SUN_PHOTO : SUN_RELIEF; }
+  function syncSunUI() {
+    const a = $("v3dSunAz"), e = $("v3dSunEl");
+    if (a) a.value = String(sunAz);
+    if (e) e.value = String(sunEl);
+  }
+  function sunFollowStyle(style) {
+    if (!sunAuto) return;
+    const d = sunDefaultFor(style);
+    if (d.az === sunAz && d.el === sunEl) return;
+    sunAz = d.az; sunEl = d.el;
+    syncSunUI(); applySun();
+  }
+  function sunAsPhotographed() {
+    sunAuto = true;
+    if (SBMM.view && SBMM.view.pref) SBMM.view.pref("sunAuto", true);
+    const st = $("v3dStyle");
+    const d = sunDefaultFor(st ? st.value : "ortho");
+    sunAz = d.az; sunEl = d.el;
+    syncSunUI(); applySun();
+  }
 
   function buildSky() {
     const R = 30000;
@@ -274,19 +304,128 @@ SBMM.viewer3d = (function () {
                           Math.max(0.08, Math.sin(el)) * d);
     const lab = $("v3dSunVal");
     if (lab) lab.textContent = Math.round(sunAz) + "° / " + Math.round(sunEl) + "°";
+    /* v40: the sky, the sunlight's colour and strength, the fill from the sky
+       and the haze are all one function of where the sun is (js/atmos3d.js) */
+    if (SBMM.atmos3d) {
+      const L = SBMM.atmos3d.light(sunEl);
+      sunLight.color.copy(L.sun); sunLight.intensity = L.sunIntensity;
+      if (hemiLight) { hemiLight.color.copy(L.sky); hemiLight.groundColor.copy(L.ground); hemiLight.intensity = L.hemiIntensity; }
+      if (skyMesh && skyMesh.material.uniforms) SBMM.atmos3d.sunDir(sunAz, sunEl, skyMesh.material.uniforms.uSun.value);
+      if (scene && scene.fog) { SBMM.atmos3d.horizonColour(sunEl, scene.fog.color); scene.background.copy(scene.fog.color); }
+      /* the world beyond the survey is unlit (js/backdrop.js's own picture), so
+         under a daylight sky it is lifted to sit in the same day — the same
+         grid and contours, brighter — and left as it is when the sun is low */
+      if (envPlane && envPlane.material && envPlane.material.color) {
+        const k = 1 + 1.9 * SBMM.atmos3d.dayness(sunEl);
+        envPlane.material.color.setRGB(k * 0.92, k, k * 1.06);
+      }
+    }
     /* v20 §4: the shader rasters carry the sun as a uniform, so moving it
        relights the whole terrain without recomputing a single raster — which
        is what v15 asked for and what a CPU raster could never do */
     if (SBMM.terrain3d) SBMM.terrain3d.setSun(sunAz, sunEl);
     if (treesOn && SBMM.trees3d) SBMM.trees3d.setSun(sunAz, sunEl);     // the tree shadows follow it
+    SHD.dirty = true;                                                   // and so do the cast shadows
     requestRender();
   }
+
+  /* ------------------------------------------------------------------ */
+  /* v40 — cast shadows                                                  */
+  /* ------------------------------------------------------------------ */
+  /* ONE shadow map, fitted to the ground being looked at: a square around the
+     orbit target whose half-width follows the camera's range, so a close view
+     gets crisp tree shadows (a quarter of a foot per texel at 500 ft) and a
+     site-wide one gets the shape of the hills.
+
+     IT IS RENDERED ONLY WHEN SOMETHING THAT CASTS OR THE LIGHT HAS MOVED —
+     the sun, the terrain's drawn set, the overlays (the trees), the relief
+     slider — or when the camera has travelled out of the square it was fitted
+     to. Never per frame: renderer.shadowMap.autoUpdate is off, and the fit
+     runs inside a frame that is being drawn anyway, so an idle view still
+     renders nothing. Standard rendering has no shadow map at all. */
+  const SHD = { on: false, dirty: true, size: 0, half: 0, cx: NaN, cy: NaN, cz: NaN, fits: 0 };
+  const SHD_T = new THREE.Vector3(), SHD_D = new THREE.Vector3();
+  function shadowsWanted() { return quality() === "realistic"; }
+  function shadowSetup() {
+    if (!renderer || !sunLight) return;
+    const want = shadowsWanted();
+    if (want === SHD.on) return;
+    SHD.on = want;
+    renderer.shadowMap.enabled = want;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.shadowMap.autoUpdate = false;
+    sunLight.castShadow = want;
+    if (want) {
+      const max = renderer.capabilities.maxTextureSize || 4096;
+      SHD.size = Math.min(4096, max);
+      sunLight.shadow.mapSize.set(SHD.size, SHD.size);
+      if (!sunLight.target.parent) scene.add(sunLight.target);
+    }
+    /* a material compiled without shadows has to be compiled again with them */
+    scene.traverse(o => {
+      if (!o.material) return;
+      (Array.isArray(o.material) ? o.material : [o.material]).forEach(m => { m.needsUpdate = true; });
+    });
+    SHD.dirty = true;
+  }
+  /* called once per DRAWN frame, before the draw */
+  function shadowBeforeDraw() {
+    if (!SHD.on || !nav) return;
+    const T = nav.st.target, r = nav.st.sph.r;
+    const half = clamp(r * 1.15, 450, 9000);
+    const far = Math.hypot(T.x - SHD.cx, T.y - SHD.cy, T.z - SHD.cz);
+    if (!SHD.dirty && far < SHD.half * 0.22 && half < SHD.half * 1.3 && half > SHD.half * 0.6) return;
+    /* snap the centre to the map's own texels, so a small move does not make
+       every shadow edge crawl */
+    const texel = 2 * half / SHD.size;
+    SHD_T.set(Math.round(T.x / texel) * texel, Math.round(T.y / texel) * texel, T.z);
+    SBMM.atmos3d.sunDir(sunAz, Math.max(sunEl, 8), SHD_D);
+    const D = half * 3 + 4000;
+    sunLight.target.position.copy(SHD_T);
+    sunLight.position.copy(SHD_T).addScaledVector(SHD_D, D);
+    sunLight.target.updateMatrixWorld();
+    const c = sunLight.shadow.camera;
+    c.left = -half; c.right = half; c.top = half; c.bottom = -half; c.near = 10; c.far = 2 * D;
+    c.updateProjectionMatrix();
+    /* both biases are in units of THIS fit: the normal offset is 1.6 texels,
+       and the depth bias half a texel expressed as a fraction of the light's
+       depth range — a constant here would be feet of offset on a wide fit and
+       every tree's shadow would stand clear of its trunk */
+    sunLight.shadow.normalBias = texel * 1.6;
+    sunLight.shadow.bias = -(texel * 0.5) / (c.far - c.near);
+    renderer.shadowMap.needsUpdate = true;
+    SHD.dirty = false; SHD.half = half; SHD.cx = T.x; SHD.cy = T.y; SHD.cz = T.z; SHD.fits++;
+  }
+  /* a harness hook, NOT part of stats(): it reads pixels back from the GPU */
+  function shadowProbe() {
+    /* how much of the shadow map anything was drawn into — a map nothing
+       casts into is all "far", which is what "no shadows" looks like from
+       the inside */
+    const sh = sunLight && sunLight.shadow, rt = sh && sh.map;
+    if (!rt || !renderer) return null;
+    const n = 64, step = Math.floor(rt.width / n), buf = new Uint8Array(4);
+    let hit = 0, tot = 0;
+    for (let j = 0; j < n; j += 4) for (let i = 0; i < n; i += 4) {
+      renderer.readRenderTargetPixels(rt, i * step, j * step, 1, 1, buf);
+      tot++; if (!(buf[0] === 255 && buf[1] === 255 && buf[2] === 255 && buf[3] === 255) && (buf[0] | buf[1] | buf[2] | buf[3])) hit++;
+    }
+    const c = sh.camera;
+    return { w: rt.width, drawn: hit, of: tot, cam: [c.left, c.right, c.near, c.far].map(v => Math.round(v)),
+             light: sunLight.position.toArray().map(v => Math.round(v)), target: sunLight.target.position.toArray().map(v => Math.round(v)),
+             bias: sh.bias, nb: +sh.normalBias.toFixed(2), type: renderer.shadowMap.type };
+  }
+  /* a mesh that is part of the lit ground: it throws and takes shadows */
+  function groundShadows(mesh) { if (mesh) { mesh.castShadow = true; mesh.receiveShadow = true; } return mesh; }
+
   function setSun(az, el, remember) {
     if (az != null) sunAz = clamp(az, 0, 360);
     if (el != null) sunEl = clamp(el, 5, 85);
     applySun();
-    if (remember !== false && SBMM.view && SBMM.view.pref) {
-      SBMM.view.pref("sunAz", sunAz); SBMM.view.pref("sunEl", sunEl);
+    if (remember !== false) {
+      sunAuto = false;                       // the user's choice from here on
+      if (SBMM.view && SBMM.view.pref) {
+        SBMM.view.pref("sunAz", sunAz); SBMM.view.pref("sunEl", sunEl); SBMM.view.pref("sunAuto", false);
+      }
     }
   }
   const exag = () => parseFloat($("v3dExag").value);
@@ -320,9 +459,11 @@ SBMM.viewer3d = (function () {
       exag, requestRender, maxAniso,
       quality: qualityPx, drapeK, drapeFloor,
       zRange: () => SBMM._zrSite || SBMM.demSite.zRange(),
+      groundShadows,
       onSwap: () => {
         terrainMeshes = SBMM.terrain3d.records();
         SBMM._v3dVerts = terrainMeshes.reduce((n, t) => n + t.nx * t.ny, 0);
+        SHD.dirty = true;                    // v40: new ground casts new shadows
       }
     };
   }
@@ -484,7 +625,7 @@ SBMM.viewer3d = (function () {
     if (SBMM.view && SBMM.view.pref) SBMM.view.pref("quality", q);
     const el = $("v3dQuality");
     if (el && el.value !== quality()) el.value = quality();
-    if (scene) { rebuildOverlays(); requestRender(); }
+    if (scene) { shadowSetup(); rebuildOverlays(); requestRender(); }
     return quality();
   }
 
@@ -629,6 +770,7 @@ SBMM.viewer3d = (function () {
   }
 
   async function setStyle(kind) {
+    sunFollowStyle(kind);
     if (lodOn) {
       await SBMM.terrain3d.setStyle(kind);
       terrainMeshes = SBMM.terrain3d.records();
@@ -2800,13 +2942,14 @@ SBMM.viewer3d = (function () {
     if (PROJ) treesOn = false;
     if (PROJ && td && td.n && SBMM.trees3d && LS("base", "trees_detected")) {
       const tg = SBMM.trees3d.build(td, { CX, CY, ZMID, sunAz, sunEl, minShow: SBMM.trees.minShow(),
-                                          light: quality() !== "realistic" });
+                                          light: quality() !== "realistic", castShadows: shadowsWanted() });
       if (tg) {
         tag(tg, "base", "trees_detected");
         tg.traverse(o => { if (o !== tg) tag(o, "base", "trees_detected"); });
         addG.add(tg);
         treesOn = true;
         SBMM.trees3d.relod(camera.position, zx, true);
+        SHD.dirty = true;
       }
     } else if (PROJ && SBMM.trees3d) SBMM.trees3d.dispose();
 
@@ -3059,6 +3202,7 @@ SBMM.viewer3d = (function () {
     for (const t of built) {
       t.mesh = new THREE.Mesh(t.geom, new THREE.MeshLambertMaterial({ color: 0xffffff }));
       t.mesh.scale.z = zx0;                 // match the slider's current value
+      groundShadows(t.mesh);
       scene.add(t.mesh);
       terrainMeshes.push(t);
     }
@@ -3850,7 +3994,10 @@ SBMM.viewer3d = (function () {
     scene = new THREE.Scene();
     /* the dome is what is actually seen; this is only what shows through it */
     scene.background = new THREE.Color(SKY_HORIZON);
-    scene.fog = new THREE.Fog(SKY_HORIZON, 9000, 38000);
+    /* v40: haze, not murk — a tenth of the way to the horizon's colour across
+       the site, all of the way by the edge of the world, where the ground
+       plane meets the sky. applySun() gives it the horizon's own colour. */
+    scene.fog = SBMM.atmos3d ? new THREE.Fog(SKY_HORIZON, 4000, 78000) : new THREE.Fog(SKY_HORIZON, 9000, 38000);
 
     camera = new THREE.PerspectiveCamera(55, 1, 5, 90000);
     camera.up.set(0, 0, 1);
@@ -3868,17 +4015,25 @@ SBMM.viewer3d = (function () {
     {
       const az = SBMM.view && SBMM.view.pref ? SBMM.view.pref("sunAz") : undefined;
       const el = SBMM.view && SBMM.view.pref ? SBMM.view.pref("sunEl") : undefined;
-      if (typeof az === "number") sunAz = az;
-      if (typeof el === "number") sunEl = el;
+      const auto = SBMM.view && SBMM.view.pref ? SBMM.view.pref("sunAuto") : undefined;
+      /* a remembered sun from before v40 has no flag beside it: it was set by
+         hand, so it stays the user's */
+      sunAuto = auto === undefined ? !(typeof az === "number" || typeof el === "number") : !!auto;
+      if (!sunAuto) {
+        if (typeof az === "number") sunAz = az;
+        if (typeof el === "number") sunEl = el;
+      }
     }
-    applySun();
-    skyMesh = buildSky();
+    skyMesh = SBMM.atmos3d ? SBMM.atmos3d.buildSky(30000) : buildSky();
     skyMesh.userData.noClip = true;
     scene.add(skyMesh);
+    applySun();
+    shadowSetup();
     envGroup = buildEnv();
     envGroup.scale.z = exag();
     envGroup.userData.noClip = true;
     scene.add(envGroup);
+    applySun();                 // again, now that the ground plane exists to be tinted
 
     raycaster = new THREE.Raycaster();
     nav = makeNav(renderer.domElement);
@@ -4087,6 +4242,7 @@ SBMM.viewer3d = (function () {
         updateSky();
         groundBeforeDraw();
         clipBeforeDraw();
+        shadowBeforeDraw();
         const tR = performance.now(); FS.sky += tR - tS;
         renderer.render(scene, camera);
         fsAdd("render", performance.now() - tR);
@@ -4103,6 +4259,7 @@ SBMM.viewer3d = (function () {
     $("v3dExag").oninput = () => {
       const zx = exag();
       terrainMeshes.forEach(t => t.mesh.scale.z = zx);
+      SHD.dirty = true;                     // the relief moved every caster
       if (lodOn) SBMM.terrain3d.setExag(zx);
       if (canopyMesh) canopyMesh.scale.z = zx;
       if (overlayGroup) overlayGroup.scale.z = zx;
@@ -4340,6 +4497,8 @@ SBMM.viewer3d = (function () {
       const a = $("v3dSunAz"), el = $("v3dSunEl");
       if (a) { a.value = String(sunAz); a.oninput = ev => setSun(parseFloat(ev.target.value), null); }
       if (el) { el.value = String(sunEl); el.oninput = ev => setSun(null, parseFloat(ev.target.value)); }
+      const ph = $("v3dSunPhoto");
+      if (ph) ph.onclick = ev => { ev.preventDefault(); sunAsPhotographed(); };
       applySun();
     }
     /* §3.2 — the keyboard. 1,2,4,5,6 are the view presets and Shift+3 is the
@@ -4753,6 +4912,17 @@ SBMM.viewer3d = (function () {
       contoursVisible: !!(contourGroup && contourGroup.visible),
       canopyVisible: !!(canopyMesh && canopyMesh.visible),
       quality: quality(), trees: treesOn && SBMM.trees3d ? SBMM.trees3d.stats() : null,
+      shadows: (() => {
+        /* what the shadow pass actually has to work with: a map that exists,
+           ground that takes shadows and things that throw them */
+        let cast = 0, recv = 0;
+        if (scene) scene.traverse(o => { if (o.isMesh) { if (o.castShadow) cast++; if (o.receiveShadow) recv++; } });
+        return { on: SHD.on, mapPx: SHD.on ? SHD.size : 0, halfFt: SHD.on ? Math.round(SHD.half) : 0, fits: SHD.fits,
+                 map: !!(sunLight && sunLight.shadow && sunLight.shadow.map), casters: cast, receivers: recv,
+                 enabled: !!(renderer && renderer.shadowMap.enabled), lightCasts: !!(sunLight && sunLight.castShadow) };
+      })(),
+      light: sunLight ? { sun: +sunLight.intensity.toFixed(2), sky: hemiLight ? +hemiLight.intensity.toFixed(2) : 0,
+                          atmos: !!(skyMesh && skyMesh.userData.atmosSky) } : null,
       isopachDraped: !!drapeMesh.isopach,
       waterDraped: !!drapeMesh.water,
       /* v13: the animated flow and the stage surface */
@@ -5627,6 +5797,10 @@ SBMM.viewer3d = (function () {
     },
     setGround, ground: () => GROUND.mode, groundNow,
     quality, setQuality,
+    /* the live scene, renderer and sun light — for the console and for a harness that
+       has to ask three.js something stats() does not carry */
+    internals: () => ({ scene, renderer, camera, sunLight, hemiLight }),
+    shadowProbe,
     /* v39: put the camera AT a point looking at another (State Plane ft and
        elevation ft) — what a shots script needs and the orbit rig has no
        one-call way to say */
@@ -5685,6 +5859,7 @@ SBMM.viewer3d = (function () {
       });
       return out;
     },
+    sunAsPhotographed, sunAuto: () => sunAuto,
     sun: (az, el) => { if (az === undefined && el === undefined) return { az: sunAz, el: sunEl };
                        setSun(az, el); return { az: sunAz, el: sunEl }; },
     lookAt: startLookAt,

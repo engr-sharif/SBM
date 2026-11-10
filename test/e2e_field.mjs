@@ -945,6 +945,12 @@ fieldParity = await page.evaluate(async () => {
   for (const g of ["framework", "design", "invest", "mywork"]) LS.setGroup(g, true);
   /* the drainage rows run their job on the first tick (4 ft in this build) */
   for (let i = 0; i < 120 && SBMM.drainage && !SBMM.drainage.hasResult(); i++) await w(500);
+  /* and so do the three TEM rows (the slice, then the two interpretations that
+     read it): on a loaded box the parity table used to be read before they
+     landed and reported all three as drawing nothing */
+  for (let i = 0; i < 120 && SBMM.geophys && SBMM.geophys.data() && !SBMM.geophys.slice(); i++) await w(250);
+  for (let i = 0; i < 120 && SBMM.teminterp && SBMM.geophys && SBMM.geophys.data()
+       && !(SBMM.teminterp.waste() && SBMM.teminterp.seep()); i++) await w(250);
   await w(2000);
   SBMM.viewer3d.refreshOverlays();
   await w(3500);

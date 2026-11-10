@@ -7145,7 +7145,10 @@ console.log("TREES 3D:", JSON.stringify(t3));
 if (!t3.far || t3.far.trees !== t0.n || t3.far.near + t3.far.mid + t3.far.far !== t0.n)
   { console.log("FAIL: the 3D view does not draw every tree of the table as an instance", t3.far); process.exit(1); }
 if (!t3.drawn) { console.log("FAIL: the trees are not tagged base/trees_detected for the parity table"); process.exit(1); }
-if (!(t3.far.shadows === t0.n)) { console.log("FAIL: not every tree has a ground shadow", t3.far); process.exit(1); }
+/* v40: under realistic rendering the trees cast into the shadow map and the
+   soft discs are not built; under standard every tree has its disc */
+if (t3.far.shadows !== 0) { console.log("FAIL: the soft tree shadows were built beside the cast shadows", t3.far); process.exit(1); }
+if (!(t3.sStd.shadows === t0.n)) { console.log("FAIL: under standard rendering not every tree has a ground shadow", t3.sStd); process.exit(1); }
 if (!(t3.near.near > 20) || !(t3.near.near <= 700) || !(t3.near.relods > t3.far.relods))
   { console.log("FAIL: moving the camera into a stand did not deal trees to the near level of detail", t3.near); process.exit(1); }
 if (!t3.at || !t3.at.inView || !new RegExp("Tree " + t3.tree + "\\b").test(t3.card) || !/Source/.test(t3.card))
@@ -7160,6 +7163,91 @@ await page.evaluate(() => {
   SBMM.layerState.set("base", "trees_detected", { on: false });
   if (SBMM.viewer3d.isOpen()) SBMM.viewer3d.toggle();
 });
+});
+
+await block("9f14. the sky, the light and the cast shadows (v40)", async () => {
+/* v40 — js/atmos3d.js: one sun drives the sky, the light's colour and
+   strength, the haze and the shadow map. What is asserted is the CONTRACT —
+   the balance of the light, when the shadow map is re-rendered and when it is
+   not, and that an idle view still renders nothing — not a picture. */
+if (!(await page.evaluate(() => SBMM.viewer3d.isOpen()))) await page.evaluate(async () => { await SBMM.viewer3d.toggle(); });
+await page.waitForFunction(() => document.getElementById("v3dStatus").textContent === "" &&
+  document.getElementById("view3d").style.display === "block", null, { timeout: 90000 });
+await page.waitForTimeout(1200);
+const L = await page.evaluate(async () => {
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  const V = SBMM.viewer3d, wasAnim = V.animateWater();
+  V.animateWater(false);
+  const sun0 = V.stats().sun, auto0 = V.sunAuto();
+  /* WHERE THE SUN STARTS: as photographed over the photo, from the north-west
+     over a relief raster, and the user's own from the moment they move it */
+  const styleSel = document.getElementById("v3dStyle");
+  const setStyle = async v => { styleSel.value = v; styleSel.dispatchEvent(new Event("change", { bubbles: true })); await sleep(2500); };
+  V.sunAsPhotographed(); await sleep(300);
+  const sunPhoto = V.sun();
+  await setStyle("hillshade"); const sunRelief = V.sun();
+  await setStyle("ortho"); const sunBack = V.sun();
+  V.sun(120, 60); await setStyle("hillshade"); const sunUser = V.sun(), autoUser = V.sunAuto();
+  await setStyle("ortho");
+  /* a pixel of sky and a patch of ground, read back off the canvas */
+  const probe = () => {
+    const cv = document.getElementById("v3dCanvas"), c2 = document.createElement("canvas");
+    c2.width = 160; c2.height = 100;
+    const g = c2.getContext("2d");
+    g.drawImage(cv, 0, 0, 160, 100);
+    const px = (x, y) => Array.from(g.getImageData(x, y, 1, 1).data.slice(0, 3));
+    const mean = (x0, y0, x1, y1) => { const d = g.getImageData(x0, y0, x1 - x0, y1 - y0).data; let s = 0;
+      for (let i = 0; i < d.length; i += 4) s += 0.3 * d[i] + 0.59 * d[i + 1] + 0.11 * d[i + 2]; return s / (d.length / 4); };
+    return { sky: px(80, 4), ground: +mean(40, 60, 120, 95).toFixed(1) };
+  };
+  /* a low oblique over the mine area, the horizon in frame */
+  await V.lookFrom(6371130, 2128180, 1560, 6371420, 2128560, 1450);
+  V.sun(315, 35); await sleep(2500);
+  const s1 = V.stats(), day = probe(), inMap = V.shadowProbe();
+  /* idle: nothing asks for a frame, and the shadow map is not re-rendered */
+  const r0 = V.stats().renderCount, f0 = V.stats().shadows.fits;
+  await sleep(3000);
+  const idle = V.stats().renderCount - r0, idleFits = V.stats().shadows.fits - f0;
+  /* the sun moves: one new shadow map, a different light, a different sky */
+  V.sun(250, 8); await sleep(2500);
+  const s2 = V.stats(), low = probe();
+  /* standard rendering: no shadow map at all, the same light */
+  V.setQuality("standard"); await sleep(1500);
+  const s3 = V.stats();
+  V.setQuality("realistic"); await sleep(1500);
+  const s4 = V.stats();
+  if (auto0) V.sunAsPhotographed(); else V.sun(sun0.az, sun0.el);
+  await sleep(800);
+  V.animateWater(wasAnim);
+  return { sunPhoto, sunRelief, sunBack, sunUser, autoUser, light1: s1.light, sh1: s1.shadows, inMap, day, idle, idleFits, light2: s2.light, sh2: s2.shadows, low,
+           sh3: s3.shadows, light3: s3.light, sh4: s4.shadows };
+});
+console.log("LIGHT v40:", JSON.stringify(L));
+if (L.sunPhoto.az !== 180 || L.sunPhoto.el !== 33 || L.sunBack.az !== 180 || L.sunBack.el !== 33)
+  { console.log("FAIL: over the orthophoto the sun does not start where the photo's own sun was", L.sunPhoto, L.sunBack); process.exit(1); }
+if (L.sunRelief.az !== 315 || L.sunRelief.el !== 35)
+  { console.log("FAIL: over a relief raster the sun does not start in the north-west", L.sunRelief); process.exit(1); }
+if (L.sunUser.az !== 120 || L.sunUser.el !== 60 || L.autoUser)
+  { console.log("FAIL: a sun the user set did not survive a drape change", L.sunUser, L.autoUser); process.exit(1); }
+if (!L.light1 || !L.light1.atmos) { console.log("FAIL: the 3D view is not under js/atmos3d.js's sky"); process.exit(1); }
+/* level ground in full sun at 35 degrees returns about its albedo: (sun x sin 35 + sky) / pi */
+{ const k = (L.light1.sun * Math.sin(35 * Math.PI / 180) + L.light1.sky) / Math.PI;
+  if (!(k > 0.78 && k < 1.1)) { console.log("FAIL: the light is not balanced — sunlit level ground returns " + k.toFixed(2) + " of its albedo"); process.exit(1); } }
+if (!L.sh1.on || !(L.sh1.mapPx >= 2048) || !(L.sh1.halfFt >= 450)) { console.log("FAIL: realistic rendering has no shadow map", L.sh1); process.exit(1); }
+/* and something is IN it: a map no caster reached is what "no shadows" looks like from inside */
+if (!L.inMap || !(L.inMap.drawn > 5)) { console.log("FAIL: nothing was drawn into the shadow map", L.inMap); process.exit(1); }
+if (L.idle > 1 || L.idleFits !== 0) { console.log("FAIL: an idle view rendered " + L.idle + " frame(s) and re-fitted the shadow map " + L.idleFits + " time(s)"); process.exit(1); }
+if (!(L.sh2.fits > L.sh1.fits)) { console.log("FAIL: moving the sun did not re-render the shadow map", L.sh1, L.sh2); process.exit(1); }
+if (!(L.light2.sun < L.light1.sun)) { console.log("FAIL: a low sun is not weaker than a high one", L.light1, L.light2); process.exit(1); }
+/* the sky overhead is blue by day; a low sun is warmer and darker */
+if (!(L.day.sky[2] > L.day.sky[0] + 20)) { console.log("FAIL: the daytime sky is not blue", L.day.sky); process.exit(1); }
+if (!(L.low.sky[2] < L.day.sky[2]) || !(L.low.ground < L.day.ground))
+  { console.log("FAIL: a low sun did not darken the sky and the ground", L.day, L.low); process.exit(1); }
+if (!(L.day.ground > 45)) { console.log("FAIL: the sunlit ground is dim (mean luma " + L.day.ground + ")"); process.exit(1); }
+if (L.sh3.on || L.sh3.mapPx !== 0) { console.log("FAIL: standard rendering still has a shadow map", L.sh3); process.exit(1); }
+if (Math.abs(L.light3.sun - L.light2.sun) > 0.01) { console.log("FAIL: the rendering switch changed the light"); process.exit(1); }
+if (!L.sh4.on) { console.log("FAIL: the shadow map did not come back with realistic rendering", L.sh4); process.exit(1); }
+await page.evaluate(() => { if (SBMM.viewer3d.isOpen()) SBMM.viewer3d.toggle(); });
 });
 
 await block("9x. drainage", async () => {
@@ -9256,7 +9344,16 @@ if (bwAxes.missDepth > 1 || bwAxes.missElev > 1)
      is dispatches nothing, and a full run can leave it exactly there */
   await page.mouse.move(box.x + box.width / 2 + 3, box.y + box.height / 2 - 4);
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2, { steps: 2 });
-  await page.waitForTimeout(300);
+  /* ON THE CONDITION, not on a clock. Block 9ae leaves the 3D view open behind
+     this window, and a frame of it in flight holds the main thread — and with
+     it the mousemove — for as long as the frame takes: 300 ms was enough until
+     v40's shadow sampling made a software-GL frame longer than that. If the
+     cursor never arrives the assertion below still says so. */
+  await page.waitForFunction(() => {
+    const c = document.querySelector(".blwin .bwcur");
+    return !!c && !c.hidden && +c.dataset.ft > 0;
+  }, null, { timeout: 30000 }).catch(() => {});
+  await page.waitForTimeout(150);
   bwCurAt = [box.x + box.width / 2, box.y + box.height / 2];
 }
 bwCur = await page.evaluate(([px, py]) => {
