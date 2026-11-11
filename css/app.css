@@ -3517,9 +3517,9 @@ body:not(.field) #v3dViewPop{width:min(480px,calc(100% - var(--dockL) - var(--do
 .res.folded h4{margin-bottom:0}
 .res.folded > :not(h4):not(.rows){display:none}
 .res.folded .rows > :not(.rrow.big){display:none}
-.res.folded .rows .rrow.big{margin-top:3px;font-size:12px;opacity:.9}
-.res.folded .rows .rrow.big b{font-size:13px}
-.res [data-a="fold"]{font-size:11px}
+.res.folded .rows .rrow.big{margin-top:3px;font-size:var(--t3);opacity:.9}
+.res.folded .rows .rrow.big b{font-size:var(--t3)}
+.res [data-a="fold"]{font-size:var(--t2)}
 .res [data-a="fold"]::before{content:"▾"}
 .res.folded [data-a="fold"]::before{content:"▸"}
 .res [data-a="win"]::before{content:"⧉"}
