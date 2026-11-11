@@ -4731,7 +4731,8 @@ SBMM.viewer3d = (function () {
         ? [+waterAnim[0].pos[0].toFixed(3), +waterAnim[0].pos[1].toFixed(3),
            +waterAnim[0].pos[2].toFixed(3)] : null,
       waterStage: stageInfo, zmid: ZMID,
-      built: builtInfo,
+      /* a COPY: the counts are updated in place as one layer's solids come and go */
+      built: builtInfo ? Object.assign({}, builtInfo) : null,
       drapes: Object.keys(drapeMesh).map(k => ({ name: k, relief: !!(drapeMesh[k].material.userData && drapeMesh[k].material.userData.relief),
                                                  normals: !!drapeMesh[k].geometry.getAttribute("normal") })),
       drapeRelief: { k: DRAPE_U.uRelief.value, zx: DRAPE_U.uZx.value, sun: DRAPE_U.uSunR.value.toArray().map(v => +v.toFixed(3)) },
