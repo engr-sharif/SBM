@@ -1928,11 +1928,10 @@ SBMM.water = (function () {
     el.appendChild(ch);
 
     /* the band legend */
-    const leg = document.createElement("div");
-    leg.className = "legend rimleg";
-    leg.innerHTML = `<span class="mono">at spill</span>
-      <span class="rampbar" style="background:linear-gradient(90deg,#FF4D3D,#FF8A3D,#FFD166,#FFF3B0)"></span>
-      <span class="mono">+${RIM_RANGE} ft</span>`;
+    const leg = SBMM.legend.make({ kind: "ramp", cls: "rimleg", units: "ft above the spill",
+      stops: ["#FF4D3D", "#FF8A3D", "#FFD166", "#FFF3B0"], min: 0, max: RIM_RANGE,
+      ticks: [{ v: 0, label: "at spill" }, { v: 1, label: "+1" }, { v: 2, label: "+2" }, { v: RIM_RANGE, label: "+" + RIM_RANGE + " ft" }],
+      read: (x, y) => bandAt(x, y) }).el;
     el.appendChild(leg);
 
     const btns = document.createElement("div");

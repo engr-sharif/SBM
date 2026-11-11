@@ -34,7 +34,12 @@ SBMM.analysis = (function () {
   function specFor(kind, dem) {
     if (kind === "slope") return { kind: "slope", ramp: RAMPS.slope };
     if (kind === "aspect") return { kind: "aspect" };
-    const zr = dem === SBMM.demSite ? SBMM._zrSite : SBMM._zrAbp;
+    /* ONE scale for both images (v59). The mine-area image used to be
+       stretched over its own elevation range, so one colour meant two
+       elevations either side of the mine window's edge — and the legend,
+       which said only "low -> high", could not be given numbers. The 3D
+       elevation drape has always used the site's range. */
+    const zr = SBMM._zrSite;
     return { kind: "hypso", ramp: RAMPS.hypso, zlo: zr[0], zhi: zr[1] };
   }
 
@@ -110,12 +115,22 @@ SBMM.analysis = (function () {
 SBMM.buildAnalysisLayers = function () {
   SBMM._zrSite = SBMM.demSite.zRange();
   SBMM._zrAbp = SBMM.demAbp.zRange();
-  for (const [kind, label, legendHtml] of [
-    ["slope", "Slope (0–45°+)",
-      `<span class="rampbar" style="background:linear-gradient(90deg,${RAMPS.slope.map(c => `rgb(${c.join(",")})`).join(",")})"></span><span class="mono">0° → 45°+</span>`],
-    ["aspect", "Aspect (grid north)", `<span class="mono">hue = facing direction</span>`],
-    ["hypso", "Elevation tint",
-      `<span class="rampbar" style="background:linear-gradient(90deg,${RAMPS.hypso.map(c => `rgb(${c.join(",")})`).join(",")})"></span><span class="mono">low → high</span>`]]) {
+  /* v59: each raster's legend is the shared one (js/legend.js) — the scale the
+     raster is painted with, in numbers, with a marker at the value under the
+     pointer. */
+  const zr = SBMM._zrSite, zt = [];
+  { const step = (zr[1] - zr[0]) > 600 ? 200 : 100;
+    for (let v = Math.ceil(zr[0] / step) * step; v <= zr[1]; v += step) zt.push({ v, label: fmt0(v) }); }
+  const HUES = []; for (let h = 0; h <= 360; h += 30) HUES.push(`hsl(${h} 55% 55%)`);
+  for (const [kind, label, lid, spec] of [
+    ["slope", "Slope (0–45°+)", "slope_0_45",
+      { stops: RAMPS.slope, min: 0, max: 45, units: "degrees",
+        ticks: [{ v: 0, label: "0°" }, { v: 15, label: "15°" }, { v: 30, label: "30°" }, { v: 45, label: "45°+" }] }],
+    ["aspect", "Aspect (grid north)", "aspect_grid_north",
+      { stops: HUES, min: 0, max: 360, units: "facing",
+        ticks: [{ v: 0, label: "N" }, { v: 90, label: "E" }, { v: 180, label: "S" }, { v: 270, label: "W" }, { v: 360, label: "N" }] }],
+    ["hypso", "Elevation tint", "elevation_tint",
+      { stops: RAMPS.hypso, min: zr[0], max: zr[1], units: "ft", ticks: zt }]]) {
     const holder = L.layerGroup();  // placeholder; children attach on first show
     SBMM.addLayerRow("ana", label, holder, {
       checked: false, opacity: .75,
@@ -125,8 +140,9 @@ SBMM.buildAnalysisLayers = function () {
         grp.setOpacity = v => grp.eachLayer(l => l.setOpacity(v));
       }
     });
-    const lg = document.createElement("div"); lg.className = "legend"; lg.innerHTML = legendHtml;
-    $("anaLayers").appendChild(lg);
+    const lg = SBMM.legend.make(Object.assign({ kind: "ramp", cls: "lyrlg", reader: kind, row: { g: "base", l: lid } }, spec));
+    lg.el.dataset.lg = kind;
+    $("anaLayers").appendChild(lg.el);
   }
   // custom contour generator UI
   const box = document.createElement("div"); box.className = "genrow";
@@ -150,24 +166,27 @@ SBMM.buildAnalysisLayers = function () {
     SBMM.readout.register({ id: "slope", on: on("slope_0_45", "slope"),
       at(x, y) {
         const q = SBMM.slopeAt(x, y);
-        return q ? { name: "Slope", value: `${fmt(q.slopeDeg, 1)}° · ${fmt0(q.slopePct)} %`, key: q.slopeDeg.toFixed(1) } : null;
+        return q ? { name: "Slope", value: `${fmt(q.slopeDeg, 1)}° · ${fmt0(q.slopePct)} %`, key: q.slopeDeg.toFixed(1), v: q.slopeDeg } : null;
       } });
     SBMM.readout.register({ id: "aspect", on: on("aspect_grid_north", "aspect"),
       at(x, y) {
         const q = SBMM.slopeAt(x, y);
         if (!q || isNaN(q.aspectDeg)) return null;
+        /* under half a degree of slope the raster is painted grey: level
+           ground faces nowhere, and the reading says so */
+        if (q.slopeDeg < 0.5) return { name: "Aspect", value: "level", key: "level" };
         const a = ((q.aspectDeg % 360) + 360) % 360;
-        return { name: "Aspect", value: `${fmt0(a)}° ${COMPASS[Math.round(a / 45) % 8]}`, key: a.toFixed(0) };
+        return { name: "Aspect", value: `${fmt0(a)}° ${COMPASS[Math.round(a / 45) % 8]}`, key: a.toFixed(0), v: a };
       } });
     SBMM.readout.register({ id: "hypso", on: on("elevation_tint", "hypso"),
       at(x, y) {
         const z = SBMM.elev(x, y)[0];
-        return isNaN(z) ? null : { name: "Elevation", value: `${fmt(z, 1)} ft`, key: z.toFixed(1) };
+        return isNaN(z) ? null : { name: "Elevation", value: `${fmt(z, 1)} ft`, key: z.toFixed(1), v: z };
       } });
     SBMM.readout.register({ id: "canopy", row: { g: "base", l: "canopy" },
       at(x, y) {
         const h = SBMM.chm ? SBMM.canopy(x, y) : NaN;
-        return h > 0.5 ? { name: "Canopy height", value: `${fmt0(h)} ft`, key: h.toFixed(0) } : null;
+        return h > 0.5 ? { name: "Canopy height", value: `${fmt0(h)} ft`, key: h.toFixed(0), v: h } : null;
       } });
   }
 };
@@ -192,8 +211,11 @@ SBMM.buildCanopyLayer = function () {
     }
   });
   r.row.id = "anaCanopyRow";
-  const lg = document.createElement("div"); lg.className = "legend";
-  lg.innerHTML = `<span class="rampbar" style="background:linear-gradient(90deg,${RAMPS.canopy.map(c => `rgb(${c.join(",")})`).join(",")})"></span><span class="mono">2 → 100+ ft</span>`;
+  /* the canopy raster is painted from 2 ft up, on a 0-100 ft scale */
+  const lg = SBMM.legend.make({ kind: "ramp", cls: "lyrlg", reader: "canopy", row: { g: "base", l: "canopy" },
+    stops: RAMPS.canopy, min: 0, max: 100, units: "ft",
+    ticks: [{ v: 2, label: "2" }, { v: 25, label: "25" }, { v: 50, label: "50" }, { v: 75, label: "75" }, { v: 100, label: "100+" }] }).el;
+  lg.dataset.lg = "canopy";
   const anchor = $("anaGenRow");
   if (anchor) { $("anaLayers").insertBefore(r.row, anchor); $("anaLayers").insertBefore(lg, anchor); }
   else $("anaLayers").appendChild(lg);

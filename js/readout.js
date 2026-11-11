@@ -19,14 +19,16 @@
        on(ctx),            … or this decides instead (ctx.view is "2d" | "3d":
                            a 2D row is not always what the 3D ground wears)
        at(x, y, ctx)       null, or { name, value, lines?, dim?, graphic?,
-                                      html?, key?, rows?, rec? }
+                                      html?, key?, rows?, rec?, v?, cls? }
      })
 
    `name` is what the layer is ("Slope"), `value` what it reads here
    ("12.4° · 22 %"). `rows` are what the Point card lists (default: one row,
    name and value). `html` replaces the chip's standard two lines for a reader
    that draws its own (the TEM probe's core). `rec` is the module's own record
-   and rides along on the `readout` event.
+   and rides along on the `readout` event. `v` (a number in the legend's
+   units) or `cls` (a class id) is where the reading sits on the layer's own
+   legend (js/legend.js): the legend's marker follows it.
 
    WHO ASKS.
      · the chip at the pointer (js/tip.js), when nothing with a name is under
@@ -103,6 +105,16 @@ SBMM.readout = (function () {
     }
     return null;
   }
+  /* ONE reader's answer, by id (v59): a legend asks its own layer where the
+     pointer is on its scale, whichever layer the chip is naming. A reader
+     that can be put on a scale answers `v` (a number, in the legend's units)
+     or `cls` (the id of a class). */
+  function read(id, x, y, ctx) {
+    ctx = ctx || { view: "2d" };
+    if (!isFinite(x) || !isFinite(y)) return null;
+    const r = readers.find(q => q.id === id);
+    return r && isOn(r, ctx) ? ask(r, x, y, ctx) : null;
+  }
   /* THE CARD a click on bare ground opens (3b). A reader may carry its own —
        card(x, y, ctx) -> { html, title?, at?: [x, y], className?, maxWidth?, minWidth? }
      — where a general "Point" card would say less than the layer can (the TEM
@@ -165,11 +177,13 @@ SBMM.readout = (function () {
     const a = top(x, y, { view });
     lastHover = { view, x, y, id: a ? a.id : null, name: a ? a.name : null, value: a ? a.value : null };
     if (a) { stats.answers++; say(a, view, cx, cy); } else if (T()) T().release("readout");
+    if (SBMM.legend) SBMM.legend.track(view, x, y);
     note(view, x, y, a);
     return a;
   }
   function leave() {
     if (T()) T().release("readout");
+    if (SBMM.legend) SBMM.legend.clear();
     note("", NaN, NaN, null);
   }
 
@@ -250,6 +264,6 @@ SBMM.readout = (function () {
     }
   }
 
-  return { register, unregister, at, top, rows, cardAt, hover, leave, wire, ORDER,
+  return { register, unregister, at, top, rows, read, cardAt, hover, leave, wire, ORDER,
            list: () => readers.map(r => r.id), stats: () => Object.assign({}, stats), last: () => lastHover };
 })();

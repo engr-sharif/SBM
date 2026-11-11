@@ -6609,3 +6609,69 @@ same TEM settings lived on a card and in the workspace panel.
   workspace and keep the whole card (`[data-temcard="full"]`). A harness that
   set a TEM option through a card control calls `apply` when the control is
   not there.
+
+## v59 — one legend
+
+Contract: `docs/V56_REVIEW_PLAN.md` step 4c. New file `js/legend.js`
+(`SBMM.legend`, loaded after `js/readout.js`); `SBMM.readout.read(id, x, y,
+ctx)`; `v` / `cls` on the readers; the legends of slope, aspect, the elevation
+tint, canopy height, flow accumulation, cut/fill, the isopach, the rim band,
+land cover and where-the-water-goes; the legend card on the map in
+`js/layertree.js`; the `v59` block at the end of `css/app.css`. E2E block
+**"9f27. one legend"** (shard 4). No kernel work.
+
+**What was wrong.** Sixteen legends drawn four ways, and three of them did not
+say what their colours mean: slope said "0° → 45°+" beside a bar with no
+numbers on it, the elevation tint said "low → high", and aspect had no bar at
+all. Only the TEM slice's showed where the value under the pointer sits.
+
+`SBMM.legend.make(spec) -> { el, setMarker(v), update(spec), remove() }` — a
+`ramp` (stops, `min`/`max`, `scale: "lin" | "log"`, `ticks` or `ends`,
+optionally `steps`) or `classes` (`[{ id, color, label, value }]`). The bar is
+a CSS gradient (no SVG gradient ids), so a "transparent" stop is just a stop.
+
+Six things that will be walked into again:
+
+- **THE MARKER FOLLOWS THE LAYER'S OWN READER.** A legend names a reader
+  (`reader: "slope"`) and `SBMM.legend.track(view, x, y)` — called from
+  `SBMM.readout.hover`, the frame the chip is already being worked out in —
+  asks `SBMM.readout.read(id, …)` for each legend ON SCREEN and writes ONE
+  style (`left`, or a class `on`), only when it changed. A reader that can be
+  put on a scale answers `v` (a number in the legend's units) or `cls` (a
+  class id). **A new raster gets a reader with `v` or `cls`, and its legend
+  for free.** Nothing here asks for a frame.
+- **A legend that belongs to ONE of several things takes `read`, not
+  `reader`.** The `cutfill` reader answers for whichever volume's map is under
+  the pointer; each volume's card has its own legend, so its spec carries
+  `read: (x, y, ctx) => value | null`. The rim band's does too.
+- **A legend that is not on screen is not asked** (`offsetParent`): a folded
+  card, a closed sub-group, a hidden pane. A harness that reads a marker has
+  to have the legend visible — Terrain analysis starts folded.
+- **THE ELEVATION TINT IS ONE SCALE NOW.** The mine-area image was stretched
+  over its own elevation range and the site image over the site's, so one
+  colour meant two elevations either side of the mine window's edge — which is
+  why its legend could only say "low → high". Both images use the site's
+  range (`specFor` in `js/analysis.js`), as the 3D elevation drape always has.
+  Display only; block 9f27 asserts the two specs agree.
+- **The two ends of a cut/fill or isopach bar say ±M**, the stretch the map is
+  painted with. They used to carry the deepest cut and the deepest fill, which
+  are not what the two end colours mean; those numbers are rows on the card.
+  The aspect reading says "level" under half a degree of slope, where the
+  raster is painted grey.
+- **`row: { g, l }` on a spec hands the scale to the legend card on the map**
+  (`SBMM.legend.rowHtml`), which draws it under the row's name. That card now
+  compares its markup with what it last WROTE, not with `innerHTML`: the
+  browser re-spells a style attribute, so markup carrying one never reads back
+  equal and every `layers` event would have rewritten the card.
+
+The 3D view's elevation scale (`#v3dElevLeg`) is the same component with
+`vertical: true`; its marker is the ground elevation under the pointer in 3D,
+whatever the ground is wearing.
+
+The classes the harnesses read are kept on the new elements (`.isoleg`,
+`.cfleg`, `.rimleg`, `.rnLegend .rnLeg`, `.wwLegend`). `layertree`'s refusal to
+reorder the terrain rows looks for `:scope > .lg` as well as `.legend`.
+**Not moved**, and why: the TEM legends (they are the model for this one and
+carry a draggable range), the tree legend (it is a control: the height
+filter), the sample legend, the boring-log class key, and every print-sheet
+colour bar (a canvas, for paper).

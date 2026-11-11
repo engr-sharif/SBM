@@ -3529,3 +3529,41 @@ body:not(.field) #v3dViewPop{width:min(480px,calc(100% - var(--dockL) - var(--do
 .rswin .res{border:none;background:none;padding:0;margin:0;box-shadow:none}
 .rswin .res h4 [data-a="fold"]{display:none}
 .rswin .shtitle{max-width:70%}
+
+/* =====================================================================
+   v59 — ONE legend (js/legend.js)
+   A colour bar with its numbers and a marker at the value under the pointer,
+   or a row of classes with the one under the pointer lit. Every raster's
+   legend is this; the older .legend / .rampbar rules above are what the
+   legends not yet moved (samples, trees, borings) still use.
+   ===================================================================== */
+.lg{font-size:var(--t1,10px);color:var(--mut);padding:2px 6px 7px;line-height:1.25}
+.lg.lyrlg{padding:1px 10px 8px 26px}
+.res .lg{padding:7px 0 3px}
+.lgh{display:flex;gap:6px;align-items:baseline;margin-bottom:3px}
+.lgt{color:var(--ink2)}
+.lgu,.lgs{font-family:var(--mono)}
+.lgs{margin-left:auto}
+.lgbar{position:relative;height:9px;border-radius:2px;box-shadow:inset 0 0 0 1px #0006}
+.lgmk{position:absolute;top:-3px;bottom:-3px;width:2px;margin-left:-1px;background:#fff;
+  box-shadow:0 0 0 1px #000b;border-radius:1px;pointer-events:none}
+.lgmk[hidden]{display:none}
+.lgends{display:flex;justify-content:space-between;font-family:var(--mono);margin-top:2px}
+.lgticks{position:relative;height:13px;font-family:var(--mono);margin-top:2px}
+.lgticks span{position:absolute;top:0;transform:translateX(-50%);white-space:nowrap}
+.lgticks span.a0{transform:none}
+.lgticks span.a1{transform:translateX(-100%)}
+.lg-classes.rnLegend{display:block}
+.lgcs{display:flex;flex-wrap:wrap;gap:3px 9px}
+.lgc{border-radius:3px;padding:0 3px;margin:0 -3px}
+.lgc.on{color:var(--ink);box-shadow:0 0 0 1px var(--acc);background:#ffffff14}
+.lgsw{width:9px;height:9px;border-radius:2px;display:inline-block;border:1px solid #0006}
+.lgsw.dot{border-radius:50%}
+.lgsw.line{height:3px;border:0}
+/* standing up: the 3D view's elevation scale */
+.lgv{display:flex;flex-direction:column;align-items:center;gap:3px;padding:0;font-family:var(--mono)}
+.lgv .lgbar{width:9px;height:74px}
+.lgv .lgmk{left:-4px;right:-4px;top:auto;bottom:0;width:auto;height:2px;margin:0 0 -1px}
+/* the same scale under a row's name in the legend card on the map */
+.mlscale{padding:0 4px 5px 22px}
+.mlscale .lgc{font-size:var(--t1,10px)}

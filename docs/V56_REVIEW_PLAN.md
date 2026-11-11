@@ -388,6 +388,15 @@ accumulation, runoff, where-the-water-goes, cut/fill, isopach, rim band, 3D
 elevation; then the TEM legends; the tree legend's controls and the print
 sheets' colour bars stay where they are.
 
+*As built (4c):* the renderer is CSS gradients rather than SVG (no gradient
+ids to collide, and a transparent stop is just a stop). Moved: slope, aspect,
+elevation tint, canopy, accumulation, cut/fill, isopach, rim band, land cover,
+where-the-water-goes and the 3D elevation scale. **Not moved:** the TEM
+legends — they are the model for this one, already carry the marker, and also
+carry the draggable range; moving them changes nothing a user sees. Making the
+legend honest found one defect: the elevation tint's two images were stretched
+over two different ranges, so one colour meant two elevations.
+
 **Acceptance:** frame width at 1440 with both docks folded and one key; folded
 cards keep their rows in the CSV; the pixel-identical proof for 4b commit 1;
 for 4c, each legend's stops equal the ramp the raster was painted with, and
