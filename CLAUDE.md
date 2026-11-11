@@ -6675,3 +6675,16 @@ reorder the terrain rows looks for `:scope > .lg` as well as `.legend`.
 carry a draggable range), the tree legend (it is a control: the height
 filter), the sample legend, the boring-log class key, and every print-sheet
 colour bar (a canvas, for paper).
+
+**And one defect the legend's test found, older than the legend** (2026-11-11):
+`SBMM.addLayerRow`'s `show()` awaited a row's `onFirstShow` build and then
+added the layer to the map **whatever the state said by then**. Tick Slope and
+untick it before the raster has been computed (a second or more), and the
+image arrived anyway — on the map with its box unticked, until the row was
+ticked and unticked again. `show()` now asks `SBMM.layerState.isOn` after the
+build. Block 9f24 switches each terrain raster off while it is still building
+(its reading comes from the terrain, not from the image), and now waits for the
+builds and requires **no row that is off to have its layer on the map** — every
+row, through `SBMM.layerTree.refs()`. Block 9f27 finds its image among the ones
+that arrive after its row is switched on, so what an earlier block left on the
+map cannot be measured in its place.

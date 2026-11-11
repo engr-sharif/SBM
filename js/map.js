@@ -178,7 +178,12 @@ SBMM.initMap = function () {
         catch (e) { console.error(e); toast("layer failed: " + e.message); }
         row.classList.remove("busy");
       }
-      if (layer) layer.addTo(SBMM.map);
+      /* the row can be switched off while its first build is still running (a
+         raster takes a second or more); the layer then stays off the map. It
+         used to be added when the build landed whatever the state said: an
+         image on the map with its box unticked, and no way to take it away
+         but ticking and unticking again. */
+      if (layer && SBMM.layerState.isOn(gid, lid)) layer.addTo(SBMM.map);
     };
     const setOpacity = v => {
       if (!layer) return;

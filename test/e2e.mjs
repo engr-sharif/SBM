@@ -8906,6 +8906,17 @@ for (const [row, id, expect] of [
   seen.push(st.text);
   await page.evaluate(r => SBMM.layerState.set("base", r, { on: false }), row);
 }
+/* each of those three was switched off while its image was still being
+   computed (the reading comes from the terrain, not from the image). When the
+   builds land, a row that is off has nothing on the map — every row, not only
+   these three. */
+await page.waitForFunction(() => !document.querySelector("#layers .lyr.busy"), null, { timeout: 180000 });
+await wait(300);
+const strays = await page.evaluate(() => { const bad = [];
+  for (const [k, r] of SBMM.layerTree.refs()) if (r.layer && !r.state().on && SBMM.map.hasLayer(r.layer)) bad.push(k);
+  return bad; });
+if (strays.length) { console.log("FAIL: a row that is switched off has its layer on the map", strays); process.exit(1); }
+console.log("  switched off while building: nothing on the map for a row that is off");
 
 /* C. the order: land cover is an analysis put there on purpose, slope is the
    terrain's own — with both on the cover answers, and the Point card lists both */
@@ -9379,6 +9390,11 @@ const L0 = await page.evaluate(async () => {
   if (SBMM.layersPanel) SBMM.layersPanel.show("catalog");
   LS.set("base", "trees_detected", { on: false });
   for (const l of ["dus", "piles"]) LS.set("framework", l, { on: false });
+  /* every raster this block measures starts OFF: in a run that follows the
+     hover blocks, slope and the land cover are still on, and section A finds
+     its image among the ones that arrive AFTER its row is switched on */
+  for (const l of ["slope_0_45", "aspect_grid_north", "elevation_tint", "canopy"]) try { LS.set("base", l, { on: false }); } catch (e) {}
+  for (const l of ["runoff_cover", "accum_raster", "where_water"]) try { LS.set("framework", l, { on: false }); } catch (e) {}
   SBMM.map.setView([2129100, 6371500], 1, { animate: false });
   /* the sub-group that holds the terrain rasters starts folded; a legend in a
      folded group is not on screen and is not tracked */
@@ -9404,15 +9420,18 @@ for (const r of ["base/slope_0_45", "base/aspect_grid_north", "base/elevation_ti
    the painted mine-area image at a grid node equals the legend's colour at the
    value the layer's reader gives for that node. */
 for (const [row, id] of [["slope_0_45", "slope"], ["elevation_tint", "hypso"]]) {
+  /* the images on the map before the row goes on: whatever an earlier block
+     left there is not this row's, whatever its size */
+  await page.evaluate(() => { const B = window.__lgBase = new Set(); SBMM.map.eachLayer(l => { if (l instanceof L.ImageOverlay && l.options.pane === "analysis") B.add(l); }); });
   await page.evaluate(r => SBMM.layerState.set("base", r, { on: true }), row);
   await page.waitForFunction(() => {
-    let n = 0; SBMM.map.eachLayer(l => { if (l instanceof L.ImageOverlay && l.options.pane === "analysis" && l._image && l._image.complete && l._image.naturalWidth) n++; });
+    let n = 0; SBMM.map.eachLayer(l => { if (l instanceof L.ImageOverlay && l.options.pane === "analysis" && !window.__lgBase.has(l) && l._image && l._image.complete && l._image.naturalWidth) n++; });
     return n >= 2;
   }, null, { timeout: 120000 });
   const A = await page.evaluate(async ([id]) => {
     const d = SBMM.demAbp, m = d.m, b = d.bounds();
     let ov = null;
-    SBMM.map.eachLayer(l => { if (l instanceof L.ImageOverlay && l.options.pane === "analysis" && l._image && l._image.naturalWidth === m.w) ov = l; });
+    SBMM.map.eachLayer(l => { if (l instanceof L.ImageOverlay && l.options.pane === "analysis" && !window.__lgBase.has(l) && l._image && l._image.naturalWidth === m.w) ov = l; });
     if (!ov) return { err: "no mine-area image" };
     const c = document.createElement("canvas"); c.width = m.w; c.height = m.h;
     const g = c.getContext("2d", { willReadFrequently: true }); g.drawImage(ov._image, 0, 0);
@@ -9440,7 +9459,7 @@ for (const [row, id] of [["slope_0_45", "slope"], ["elevation_tint", "hypso"]]) 
   /* off again before the next one: the image is found by its size, and two
      rasters of the mine area are the same size */
   await page.evaluate(r => SBMM.layerState.set("base", r, { on: false }), row);
-  await page.waitForFunction(() => { let n = 0; SBMM.map.eachLayer(l => { if (l instanceof L.ImageOverlay && l.options.pane === "analysis") n++; }); return n === 0; }, null, { timeout: 20000 });
+  await page.waitForFunction(() => { let n = 0; SBMM.map.eachLayer(l => { if (l instanceof L.ImageOverlay && l.options.pane === "analysis" && !window.__lgBase.has(l)) n++; }); return n === 0; }, null, { timeout: 20000 });
 }
 await page.evaluate(() => SBMM.layerState.set("base", "slope_0_45", { on: true }));
 await wait(600);

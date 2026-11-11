@@ -139,7 +139,7 @@
     ["js/popups.js",40167,""],
     ["js/watermark.js",5987,""],
     ["js/shell.js",22278,""],
-    ["js/map.js",16513,""],
+    ["js/map.js",16901,""],
     ["js/tip.js",5534,""],
     ["js/readout.js",11823,""],
     ["js/legend.js",9354,""],
