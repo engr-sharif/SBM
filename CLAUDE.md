@@ -6884,6 +6884,13 @@ request is marked ready for review**, on every push after that, and on demand
 (`workflow_dispatch`). So: push to a draft as often as the work needs, mark it
 ready when it is meant to merge, and merge on the matrix.
 
+**The two artifact uploads cannot fail a job** (`continue-on-error`, five
+minutes each). They are diagnostics: on 2026-11-11 GitHub's artifact service
+answered every request with an error page, and seven jobs whose tests had
+passed went red after ten minutes of retries per upload. A red job is a red
+test step; when the logs artifact is missing, the job summary still carries
+the tail of `PROGRESS`.
+
 Measured and deliberately not done (the plan asked for it): replacing the
 fixed pauses in `test/e2e.mjs` with conditions. There are 506 and they add up
 to 369 seconds of a two-hour run; the time is in software-GL frames and
