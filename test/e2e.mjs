@@ -6900,7 +6900,11 @@ const p52 = await page.evaluate(async () => {
   G.hoverText(R.x0 - 5000, R.y0 - 5000);
   out.dock.markGone = !!(mk && mk.hidden);
   /* back to a depth slice: asking for a depth IS a depth slice */
-  await G.apply("depth", d0); await wait(600);
+  /* the sheet is rebuilt in the next drawn frame (v60: named overlay refreshes
+     are coalesced there), and a software-GL frame can be half a second: wait
+     for the sheet to follow the ground again, not for a fixed time */
+  await G.apply("depth", d0);
+  for (let k = 0; k < 100; k++) { await wait(100); const z = V.temProbe().sliceZ; if (z && Math.abs(z[0] - z[1]) >= 1) break; }
   out.back = { byElev: G.byElev(), depth: G.depth(), sheet: V.temProbe().sliceZ };
   return out;
 });
