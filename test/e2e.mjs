@@ -9095,7 +9095,7 @@ for (const k of K0.kinds) {
   const t3 = await hover(p3.x, p3.y);
   const hl = await page.evaluate(() => SBMM.pick3d.hoverState ? SBMM.pick3d.hoverState() : null);
   await page.mouse.click(p3.x, p3.y);
-  await page.waitForSelector("#pick3dCard", { timeout: 8000 }).catch(() => {});
+  await page.waitForSelector("#pick3dCard .p3body", { timeout: 30000 }).catch(() => {});
   const c3 = await page.evaluate(() => { const n = document.querySelector("#pick3dCard .p3body"), b = n && n.querySelector("b");
     return { open: !!n, head: b ? b.textContent : "", text: n ? n.textContent : "" }; });
   await page.keyboard.press("Escape");
@@ -9195,6 +9195,26 @@ await wait(900);
 const g2 = await page.evaluate(() => !!document.getElementById("pick3dCard"));
 if (g2) { console.log("FAIL: in 3D a click that closed a card opened another"); process.exit(1); }
 console.log("  own drawing: selected in both views, no card; 3D bare ground: Point card, a closing click opens nothing");
+
+/* A CLICK IS TIMED BY WHEN IT HAPPENED, NOT BY WHEN THE PAGE GOT TO IT. The
+   press and the release are sent together; the page is then held busy for
+   half a second while it handles the press (a slow frame does this on a real
+   machine). Timed by handling, that was a 500-ms "hold" and the click was
+   dropped with no sign — which is how this block failed on a slow runner. */
+await wait(900);                                  // clear of the closing click above
+await page.evaluate(() => {
+  const c = document.getElementById("v3dCanvas");
+  const busy = () => { c.removeEventListener("mousedown", busy); const t = performance.now(); while (performance.now() - t < 500) { /* a slow frame */ } };
+  c.addEventListener("mousedown", busy);
+});
+await page.mouse.move(o3p.far.x - 6, o3p.far.y + 3);
+await page.mouse.move(o3p.far.x, o3p.far.y);
+{ const d = page.mouse.down(), u = page.mouse.up(); await Promise.all([d, u]); }
+await page.waitForSelector("#pick3dCard", { timeout: 30000 }).catch(() => {});
+const g3 = await page.evaluate(() => { const c = document.getElementById("pick3dCard"); return c ? c.textContent : null; });
+console.log("  a click across a half-second stall:", g3 ? "opened its card" : "dropped");
+if (!g3 || !/Point/.test(g3)) { console.log("FAIL: a quick click was dropped because the page was busy between the press and the release"); process.exit(1); }
+await page.keyboard.press("Escape");
 
 await page.evaluate(async ([was, id]) => {
   const f = SBMM.store.byId(id); if (f) SBMM.store.remove(f);

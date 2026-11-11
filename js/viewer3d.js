@@ -4478,12 +4478,19 @@ SBMM.viewer3d = (function () {
        misses. Time matters as much as distance — a press-and-hold that ends
        where it started is a parked camera, not a pick. */
     const CLICK_PX = 4, CLICK_MS = 200;
+    /* TIMED BY THE EVENTS, NOT BY WHEN THEY WERE HANDLED (the v20 rule the
+       touch recogniser already follows). This read the clock at handling time,
+       so a slow frame between the press and the release — and a hover asks
+       for one — turned a quick click into a "hold" and it was dropped with no
+       sign: the card simply did not open. `e.timeStamp` is on the clock's own
+       origin and is set when the browser made the event. */
+    const evT = e => (e && typeof e.timeStamp === "number" && e.timeStamp > 0) ? e.timeStamp : performance.now();
     let downAt = null;
-    canvas.addEventListener("mousedown", e => { downAt = [e.clientX, e.clientY, performance.now()]; if (SBMM.readout) SBMM.readout.leave(); });
+    canvas.addEventListener("mousedown", e => { downAt = [e.clientX, e.clientY, evT(e)]; if (SBMM.readout) SBMM.readout.leave(); });
     canvas.addEventListener("mouseleave", () => { if (SBMM.readout) SBMM.readout.leave(); });
     const wasClick = e => !downAt
       || (Math.hypot(e.clientX - downAt[0], e.clientY - downAt[1]) <= CLICK_PX
-          && performance.now() - downAt[2] <= CLICK_MS);
+          && evT(e) - downAt[2] <= CLICK_MS);
     /* v25: one terrain raycast per FRAME, and none while a button is held.
        This ran a brute-force raycast of every drawn 257x257 tile on every
        mousemove, orbit drags included — the drag is the rig's, and the

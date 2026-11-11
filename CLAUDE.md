@@ -6538,6 +6538,18 @@ Eight things that will be walked into again:
   offers the rest. Never set an inline `visibility` on a marker icon — the
   pick engine reads that as "not there".
 
+- **A 3D CLICK IS TIMED BY THE EVENTS, NOT BY WHEN THEY WERE HANDLED** (found
+  by this block failing on a slow CI runner, 2026-11-11). "Was that a click or
+  a parked camera" is 4 px and 200 ms, and the 200 ms was read off the clock
+  when the handlers ran — so a slow frame between the press and the release
+  made a quick click a "hold" and it was dropped silently: the card simply did
+  not open. The hover highlight asks for exactly such a frame. Both ends now
+  read `e.timeStamp` (`evT` in `js/viewer3d.js`; the same in `js/pick3d.js`
+  for "the press closed a card"). It is the v20 rule the touch recogniser
+  already followed. Block 9f25 sends the press and the release together,
+  holds the page busy for half a second while it handles the press, and
+  requires the card.
+
 Smaller: a 3D long press takes the path a tap takes (it used to skip the
 draped-sheet test); in field mode a 3D answer goes to the bottom card
 (`SBMM.field.card`), as a 2D tap's does; a spot's 2D chip names the spot (it
