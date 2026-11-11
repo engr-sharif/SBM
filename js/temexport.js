@@ -265,7 +265,8 @@ SBMM.temexport = (function () {
     c.strokeStyle = "#111"; c.lineWidth = 1.2; c.strokeRect(lx, by - 8, lw, 22);
     const val = t => lg.log ? lg.lo * Math.pow(lg.hi / lg.lo, t) : lg.lo + (lg.hi - lg.lo) * t;
     c.fillStyle = "#222"; c.textBaseline = "top";
-    [0, 0.5, 1].forEach((t, i) => { c.textAlign = i === 0 ? "left" : i === 2 ? "right" : "center"; c.fillText(fV(val(t)), lx + t * lw, by + 19); });
+    const tick = v => Number.isInteger(+v.toFixed(6)) ? String(Math.round(v)) : fV(v);
+    [0, 0.5, 1].forEach((t, i) => { c.textAlign = i === 0 ? "left" : i === 2 ? "right" : "center"; c.fillText(tick(val(t)), lx + t * lw, by + 19); });
     c.textAlign = "right"; c.textBaseline = "bottom"; c.font = "600 23px Helvetica, Arial, sans-serif";
     c.fillText(lg.label + (lg.log ? " (log scale)" : ""), lx + lw, by - 14);
     if (SBMM.watermark && SBMM.watermark.burn) SBMM.watermark.burn(cv, { size: 18 });
@@ -307,11 +308,12 @@ SBMM.temexport = (function () {
     /* the model */
     const S = G().settings(), rows = G().summaryRows().filter(r => r[0] !== "Run time");
     /* a card's first row is its headline and needs no word for what it is; a table row does */
-    body += `<h2>The model</h2>` + kv(rows.map((r, i) => [i ? r[0] : r[0] + ", median", r[1]]).concat(S.conf ? [["Shading", "faded with the distance to the nearest sounding"]] : []));
+    const blk = h => `<section class="blk">${h}</section>`;
+    body += blk(`<h2>The model</h2>` + kv(rows.map((r, i) => [i ? r[0] : r[0] + ", median", r[1]]).concat(S.conf ? [["Shading", "faded with the distance to the nearest sounding"]] : [])));
     /* the derived map */
     const T = SBMM.temmaps;
     if (T && T.result() && T.on()) {
-      body += `<h2>${e2(T.title().replace("TEM — ", "Derived map — "))}</h2><p>${e2(T.finding().text)}</p>` + kv(T.rows().map(r => [r[0], r[1]]));
+      body += blk(`<h2>${e2(T.title().replace("TEM — ", "Derived map — "))}</h2><p>${e2(T.finding().text)}</p>` + kv(T.rows().map(r => [r[0], r[1]])));
     }
     /* against the borings */
     const C = G().calibrate ? G().calibrate() : null;
@@ -319,11 +321,11 @@ SBMM.temexport = (function () {
       const cl = C.classes, row = k => cl[k] && cl[k].median != null
         ? `<tr><td>${k}</td><td class="n">${fV(cl[k].median)}</td><td class="n">${fV(cl[k].p25)}–${fV(cl[k].p75)}</td><td class="n">${cl[k].holes}</td><td class="n">${cl[k].samples}</td></tr>` : "";
       const t = C.threshold;
-      body += `<h2>Against the 2025 borings</h2>`
+      body += blk(`<h2>Against the 2025 borings</h2>`
         + `<table class="qt"><thead><tr><th>logged class</th><th>median, Ω·m</th><th>middle half</th><th>borings</th><th>feet sampled</th></tr></thead><tbody>`
         + row("waste") + row("native") + row("bedrock") + `</tbody></table>`
         + (t ? `<p>Waste reads ${e2(t.dir)} ${fV(t.rho)} Ω·m: the one resistivity that best separates logged waste from native soil, `
-             + `${Math.round(t.acc * 100)} % balanced accuracy over ${C.holes.length} borings. Classes are the borings' logged contacts.</p>` : "");
+             + `${Math.round(t.acc * 100)} % balanced accuracy over ${C.holes.length} borings. Classes are the borings' logged contacts.</p>` : ""));
     }
     /* the two interpretations, where they have been run */
     const TI = SBMM.teminterp, said = [];
@@ -331,21 +333,21 @@ SBMM.temexport = (function () {
       if (TI.waste()) said.push(["Base of waste", TI.finding("waste")]);
       if (TI.seep()) said.push(["Conductive zones", TI.finding("seep")]);
     }
-    if (said.length) body += `<h2>Interpretations</h2>` + said.map(s => `<p><b>${e2(s[0])}.</b> ${e2(s[1])}</p>`).join("");
+    if (said.length) body += blk(`<h2>Interpretations</h2>` + said.map(s => `<p><b>${e2(s[0])}.</b> ${e2(s[1])}</p>`).join(""));
     /* the pinned probes */
     const TP = SBMM.temprobe, pins = TP && TP.pins ? TP.pins() : [];
     if (pins.length) {
       const pr = pins.map(f => ({ f, p: G().probe(f.pts[0][0], f.pts[0][1], { depth: f.props.provenance.depth }) })).filter(q => q.p.ok);
-      if (pr.length) body += `<h2>Pinned probes</h2><table class="qt"><thead><tr><th>probe</th><th>easting, ft</th><th>northing, ft</th><th>depth, ft</th>`
+      if (pr.length) body += `<section class="blk"><h2>Pinned probes</h2><table class="qt"><thead><tr><th>probe</th><th>easting, ft</th><th>northing, ft</th><th>depth, ft</th>`
         + `<th>elev, ft</th><th>Ω·m</th><th>nearest sounding</th><th>support</th></tr></thead><tbody>`
         + pr.map(q => `<tr><td>${e2(q.f.name)}</td><td class="n">${fmt0(q.p.x)}</td><td class="n">${fmt0(q.p.y)}</td><td class="n">${fmt(q.p.depth, 1)}</td>`
           + `<td class="n">${fmt(q.p.elev, 1)}</td><td class="n">${fV(q.p.rho)}</td>`
           + `<td class="n">${q.p.snd ? e2(q.p.snd.id) + " · " + Math.round(q.p.snd.dist) + " ft · " + fV(q.p.snd.rho) : "—"}</td>`
-          + `<td class="n">${q.p.support ? Math.round(q.p.support.k * 100) + " %" : "—"}</td></tr>`).join("") + `</tbody></table>`;
+          + `<td class="n">${q.p.support ? Math.round(q.p.support.k * 100) + " %" : "—"}</td></tr>`).join("") + `</tbody></table></section>`;
     }
-    body += `<h2>Limits</h2><p>An interpolation of the contractor's inverted resistivity models between soundings. The delivery carries no depth of `
+    body += blk(`<h2>Limits</h2><p>An interpolation of the contractor's inverted resistivity models between soundings. The delivery carries no depth of `
       + `investigation, so the deepest layers are the least constrained. Resistivity does not identify a material: conductive ground is mineralised `
-      + `water or clay. Interpreted; planning-level.</p>`;
+      + `water or clay. Interpreted; planning-level.</p>`);
     return SBMM.report.frame({
       title: "TEM geophysics", sub: "TEM2Go transient electromagnetic survey, LCI resistivity models, May 2026", sheet: "TEM-1",
       cells: [["Coordinate system", "EPSG:6418 · CA SP Zone 2 · ftUS · NAVD88"],
@@ -353,6 +355,8 @@ SBMM.temexport = (function () {
               ["Model", `${G().methodName()} · ${fmt0(R.dx)}-ft cell · within ${fmt0(R.blank)} ft of a sounding`]],
       css: `.temfigs{display:flex;gap:10px;align-items:flex-start}.temfigs figure{flex:1;min-width:0}
 .temfigs.n1 figure{max-width:4.6in;margin:0 auto 6px}
+.temfigs figure img{border:0}
+section.blk{break-inside:avoid;page-break-inside:avoid}
 table.kv td:first-child{width:38%;color:#333}table.kv td.n{white-space:normal}
 h2{break-after:avoid}table,figure{break-inside:avoid}`,
       body });
