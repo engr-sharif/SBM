@@ -6542,3 +6542,58 @@ Smaller: a 3D long press takes the path a tap takes (it used to skip the
 draped-sheet test); in field mode a 3D answer goes to the bottom card
 (`SBMM.field.card`), as a 2D tap's does; a spot's 2D chip names the spot (it
 showed its permanent elevation label).
+
+## v59 — the chrome gets out of the way (layout)
+
+Contract: `docs/V56_REVIEW_PLAN.md` step 4a. `js/shell.js`, `js/mode.js`,
+`js/results.js`, `js/geophys.js`, the `v59` block at the end of `css/app.css`.
+E2E block **"9f26. the docks fold from the keyboard, cards fold, a card opens
+as a window (v59)"** (shard 4); one assertion in block 9f10. No kernel work.
+
+**What was wrong.** The two docks are 277 + 357 px — 44 % of a 1440-px
+screen — with no key to put them away and no memory of having been put away.
+Result cards were prepended and never put away, in a 350-px column, and a
+card with a chart or a table in it could not be read at a readable width. The
+same TEM settings lived on a card and in the workspace panel.
+
+- **`[` folds the left dock, `]` the right, `\` both** ("just the map": it
+  folds while either is open). `js/mode.js`, beside `/`; not while typing, not
+  in field mode (the docks are bottom sheets there).
+- **A fold the USER made is remembered; a fold a module made is not.**
+  `SBMM.shell.collapse(side, on, {user: true})` writes
+  `SBMM.view.pref("docks")` (`{l, r}`) and `SBMM.shell.wire()` restores it.
+  The collapse buttons, the rail buttons, a tab clicked on a folded dock and
+  the three keys are the user's; the TEM workspace taking the left dock out of
+  the way, field mode clearing both, and every harness call are not — so they
+  cannot leak into the next visit (blocks 9z and 9zz reload the page). It is
+  not a view-chip row: a folded dock is its own indicator. Reset to defaults
+  clears it with the rest of the view store.
+- **Cards fold.** The newest card is open; the ones before it fold to their
+  title and headline row (`.res.folded`: everything but the `h4` and the first
+  `.rrow.big` is `display:none`). A click on a title opens or folds it; a card
+  the user opened by hand stays open when the next arrives (`data-keep`);
+  selecting a feature opens its card; tool-option cards (`.toolopt`) never
+  fold. **Nothing is removed**: a folded card is the same element, in the DOM,
+  in `SBMM.results.csv()` and behind every module's reference to it.
+- **THE TITLE'S TEXT DID NOT CHANGE.** The fold chevron and the window button
+  are drawn with CSS `content`, not text nodes: a dozen harness blocks and the
+  CSV read `h4.textContent` and compare it. (The layer tree's toolbar made the
+  same choice in v16 for the same reason.)
+- **The fold state is read at the PRESS.** A press on a card also selects its
+  feature, and selecting opens the card — a click that then toggled what it
+  found would fold the card the same gesture had just opened.
+- **A card as a window** (`SBMM.results.toWindow(el)` / `toColumn(el)`, the
+  ⧉ button). The card — the SAME element, so listeners and references hold —
+  moves into a `.shwin.rswin` floating window (the 4000–4899 band; `.shwin`
+  is what makes `js/mode.js` swallow the tool shortcuts while it has focus),
+  560 px wide. *dock* or Esc puts it back at the top of the column; a card its
+  owner removes while it is out takes the window with it (a MutationObserver
+  on the window's body, disconnected before the deliberate move back).
+  `csv()` walks `#resBody .res, .rswin .res`.
+- **One home per TEM setting.** On a desktop the TEM card is the slice's
+  position (the depth or elevation slider), the legend and the exports
+  (`[data-temcard="summary"]`); every other setting is in the workspace panel
+  and goes through `SBMM.geophys.apply`. A phone and field mode have no
+  workspace and keep the whole card (`[data-temcard="full"]`). A harness that
+  set a TEM option through a card control calls `apply` when the control is
+  not there.

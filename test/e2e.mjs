@@ -6458,11 +6458,15 @@ const t1 = await page.evaluate(async () => {
            core: card && (card.querySelector(".note.core") || {}).dataset,
            hover: G.hoverText(x, y), value: G.valueAt(x, y), ov,
            depthOut: card && card.querySelector('[data-tem-o="depth"]').textContent,
+           /* v59: on a desktop the card is the slice's position, the legend and
+              the exports; every other setting has ONE home, the workspace panel */
+           summary: !!(card && card.querySelector('[data-temcard="summary"]')), dup: card ? card.querySelectorAll('select[data-tem], input[type="checkbox"][data-tem]').length : -1,
            legend: card && card.querySelectorAll(".temleg text").length,
            soundingsOn: SBMM.layerState.isOn("invest", "tem_soundings"), n: D.n };
 });
 console.log("TEM 45:", JSON.stringify(t1));
 if (t1.slice !== 45 || !t1.on) { console.log("FAIL: TEM 45 did not put the 45-ft slice on the map", t1); process.exit(1); }
+if (!t1.summary || t1.dup !== 0) { console.log("FAIL: the desktop TEM card still carries the settings the workspace panel owns", t1.summary, t1.dup); process.exit(1); }
 if (t1.grid[2] !== 20 || t1.grid[3] !== "krig" || !(t1.grid[4] > 3000)) { console.log("FAIL: the default TEM job is not kriging on a 20-ft grid", t1); process.exit(1); }
 if (!t1.fitted || !(t1.vg.range > 0)) { console.log("FAIL: the variogram was not fitted", t1); process.exit(1); }
 if (!t1.card || !/TEM resistivity/.test(t1.title) || !/Ω·m/.test(t1.first)) { console.log("FAIL: the TEM card did not build", t1); process.exit(1); }
@@ -6509,7 +6513,11 @@ await voiceCheck("TEM card");
 const t2 = await page.evaluate(async () => {
   const G = SBMM.geophys, wait = ms => new Promise(r => setTimeout(r, ms));
   const jobs0 = SBMM.compute.stats.workerJobs + SBMM.compute.stats.syncJobs;
-  const set = (k, v) => { const el = document.querySelector(`.temcard [data-tem="${k}"]`); el.value = v;
+  /* v59: on a desktop the card keeps only the slice's position; every other
+     TEM setting lives in the workspace panel and goes through the one setter */
+  const set = (k, v) => { const el = document.querySelector(`.temcard [data-tem="${k}"]`);
+                          if (!el) { SBMM.geophys.apply(k, v); return; }
+                          el.value = v;
                           el.dispatchEvent(new Event(k === "depth" ? "input" : "change", { bubbles: true })); };
   set("depth", 120);
   for (let i = 0; i < 40 && G.slice().depth !== 120; i++) await wait(100);
@@ -7761,7 +7769,9 @@ const m6 = await page.evaluate(async () => {
   const j0 = jobs();
   await G.apply("depth", 55); await wait(300);
   out.stepJobs = jobs() - j0; out.fadedAt55 = alphas();
-  out.box = !!document.querySelector('#resBody [data-tem="conf"]') && document.querySelector('#resBody [data-tem="conf"]').checked;
+  /* v59: the box itself is in the workspace panel on a desktop; what is asked
+     here is that the setting it shows is the setting in force */
+  out.box = SBMM.geophys.settings().conf === true;
   await G.apply("conf", false);
   out.back = alphas();
   await G.apply("depth", 40);
@@ -7777,7 +7787,7 @@ if (!(m6.faded.lo < 255 && m6.faded.lo >= 63 && m6.faded.hi === 255) || !(m6.fad
   { console.log("FAIL: the shading did not fade the slice, or faded it under a quarter", m6.faded, m6.fadedAt55); process.exit(1); }
 if (!m6.probe || Math.abs(m6.probe.k - m6.probe.want) > 1e-9 || !m6.probe.word) { console.log("FAIL: the probe's support is not its distance's", m6.probe); process.exit(1); }
 if (m6.csvHead !== "easting_ft,northing_ft,value,sounding_ft,support") { console.log("FAIL: the slice CSV does not carry the support", m6.csvHead); process.exit(1); }
-if (m6.stepJobs !== 0 || !m6.box) { console.log("FAIL: a depth step under the shading ran a job, or the card's box is not ticked", m6.stepJobs, m6.box); process.exit(1); }
+if (m6.stepJobs !== 0 || !m6.box) { console.log("FAIL: a depth step under the shading ran a job, or the shading setting is not on", m6.stepJobs, m6.box); process.exit(1); }
 if (m6.back.lo !== 255) { console.log("FAIL: switching the shading off left the slice faded", m6.back); process.exit(1); }
 /* put it all away */
 await page.evaluate(async () => {
@@ -9192,6 +9202,142 @@ await page.evaluate(async ([was, id]) => {
   SBMM.layerState.restore(was);
   SBMM.map.closePopup();
 }, [K0.was, OWN.id]);
+});
+
+await block("9f26. the docks fold from the keyboard, cards fold, a card opens as a window (v59)", async () => {
+/* v59 — step 4a of docs/V56_REVIEW_PLAN.md. The two docks were 44 % of a
+   1440-px screen with no key to put them away and no memory of having been put
+   away; result cards piled up open, in a 350-px column, with no way to read
+   one at a readable width. */
+const wait = ms => page.waitForTimeout(ms);
+const dock = () => page.evaluate(() => ({ l: document.body.classList.contains("lcol"), r: document.body.classList.contains("rcol"),
+  w: SBMM.shell.frame().w, pref: SBMM.view.pref("docks") || null }));
+await page.evaluate(async () => {
+  if (SBMM.viewer3d.isOpen()) await SBMM.viewer3d.toggle();
+  if (SBMM.temws && SBMM.temws.off) SBMM.temws.off();
+  SBMM.mode.navigate(); SBMM.map.closePopup();
+  SBMM.shell.collapse("l", false); SBMM.shell.collapse("r", false);
+  /* the right dock puts itself away when it has nothing to show, so it is
+     given something: the fold being measured has to be the key's */
+  window.__v59dock = SBMM.results.card(null, "v59 dock", [["a", "b"]]);
+  SBMM.shell.setRightTab("results");
+  if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+});
+await wait(700);
+const d0 = await dock();
+await page.keyboard.press("]"); await wait(450);
+const d1 = await dock();
+await page.keyboard.press("["); await wait(450);
+const d2 = await dock();
+await page.keyboard.press("["); await page.keyboard.press("]"); await wait(450);
+const d3 = await dock();
+await page.keyboard.press("\\"); await wait(450);
+const d4 = await dock();
+await page.keyboard.press("\\"); await wait(450);
+const d5 = await dock();
+console.log("DOCKS v59:", JSON.stringify({ open: d0.w, rightFolded: d1.w, bothFolded: d2.w, justTheMap: d4.w, back: d5.w, pref: d4.pref }));
+if (d0.l || d0.r) { console.log("FAIL: the docks did not start open", d0); process.exit(1); }
+if (!d1.r || d1.l || !(d1.w > d0.w + 200)) { console.log("FAIL: ] did not fold the right dock", d0, d1); process.exit(1); }
+if (!d2.l || !d2.r || !(d2.w > d1.w + 150)) { console.log("FAIL: [ did not fold the left dock", d1, d2); process.exit(1); }
+if (d3.l || d3.r) { console.log("FAIL: [ and ] did not open the docks again", d3); process.exit(1); }
+if (!d4.l || !d4.r || !d4.pref || !d4.pref.l || !d4.pref.r) { console.log("FAIL: \\ did not fold both docks, or the fold was not remembered", d4); process.exit(1); }
+if (!(d4.w > 1440 - 180)) { console.log("FAIL: with both docks folded the map does not have the window", d4.w); process.exit(1); }
+if (d5.l || d5.r || d5.pref.l || d5.pref.r) { console.log("FAIL: \\ did not bring both docks back", d5); process.exit(1); }
+/* a fold a module makes is not the user's and is not remembered; a key typed
+   into a field is text */
+const d6 = await page.evaluate(async () => {
+  SBMM.shell.collapse("l", true);
+  const p = JSON.stringify(SBMM.view.pref("docks"));
+  SBMM.shell.collapse("l", false);
+  const inp = document.createElement("input"); document.body.appendChild(inp); inp.focus();
+  inp.dispatchEvent(new KeyboardEvent("keydown", { key: "]", bubbles: true }));
+  const typed = document.body.classList.contains("rcol");
+  inp.remove();
+  return { p, typed };
+});
+await page.evaluate(() => { if (window.__v59dock) window.__v59dock.remove(); delete window.__v59dock; SBMM.results.checkEmpty(); });
+if (d6.p !== JSON.stringify({ l: false, r: false }) || d6.typed) { console.log("FAIL: a module's fold was remembered, or a key in a text field folded a dock", d6); process.exit(1); }
+
+/* cards: the newest is open, the ones before it fold to their headline, and
+   nothing of them is gone */
+const C = await page.evaluate(async () => {
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  const RS = SBMM.results, body = document.getElementById("resBody");
+  const mk = n => RS.card(null, "v59 card " + n, [["Headline " + n, n + "00 ft"], ["Second " + n, "s" + n], ["Third " + n, "t" + n]]);
+  const a = mk(1), b = mk(2), c = mk(3);
+  const vis = el => !!(el && el.offsetParent);
+  /* a card's title as every block reads it: the h4's text less the three
+     action glyphs that have always been text (the two new ones are CSS) */
+  const T = el => el.querySelector("h4").textContent.replace(/[⌖✎✕]/g, "").trim();
+  const st = el => ({ folded: el.classList.contains("folded"), head: vis(el.querySelector(".rrow.big")), second: vis(el.querySelectorAll(".rrow")[1]),
+                      title: T(el) });
+  const s1 = { a: st(a), b: st(b), c: st(c), order: [...body.querySelectorAll(".res")].slice(0, 3).map(T) };
+  const csv = RS.csv();
+  /* the user opens an old one: it stays open when the next card arrives */
+  a.querySelector("h4").dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
+  a.querySelector("h4").click();
+  const opened = st(a);
+  const d = mk(4);
+  const s2 = { a: st(a), b: st(b), c: st(c), d: st(d) };
+  /* and folds it again by hand */
+  a.querySelector("h4").dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
+  a.querySelector("h4").click();
+  const refolded = st(a);
+  /* a selected feature's card opens */
+  const f = SBMM.tools.rebuildFeature({ type: "line", name: "v59 line", pts: [[6371400, 2128800], [6371520, 2128860]] });
+  await sleep(300);
+  mk(5);
+  const before = f.card.classList.contains("folded");
+  SBMM.store.select(f.id);
+  await sleep(200);
+  const after = f.card.classList.contains("folded");
+  SBMM.store.select(null);
+  return { s1, rowsInCsv: ["Second 1", "Third 2", "Headline 3"].every(t => csv.indexOf(t) >= 0), opened, s2, refolded, before, after, fid: f.id };
+});
+console.log("CARDS v59:", JSON.stringify(C));
+if (C.s1.c.folded || !C.s1.a.folded || !C.s1.b.folded) { console.log("FAIL: the newest card is not the open one", C.s1); process.exit(1); }
+if (!C.s1.a.head || C.s1.a.second || !C.s1.c.second) { console.log("FAIL: a folded card does not show its headline row and only that", C.s1); process.exit(1); }
+if (C.s1.a.title !== "v59 card 1" || C.s1.order[0] !== "v59 card 3") { console.log("FAIL: a card's title is not the words it was given, or the newest is not first", C.s1); process.exit(1); }
+if (!C.rowsInCsv) { console.log("FAIL: the CSV lost a folded card's rows"); process.exit(1); }
+if (C.opened.folded || C.s2.a.folded || !C.s2.b.folded || !C.s2.c.folded || C.s2.d.folded) { console.log("FAIL: a card the user opened did not stay open when the next arrived", C.opened, C.s2); process.exit(1); }
+if (!C.refolded.folded) { console.log("FAIL: a click on an open card's title did not fold it", C.refolded); process.exit(1); }
+if (!C.before || C.after) { console.log("FAIL: selecting a feature did not open its card", C.before, C.after); process.exit(1); }
+
+/* a card as a window: the same element, at a width it can be read at, still
+   in the CSV; Esc docks it; a card removed while it is out takes the window */
+const W = await page.evaluate(async () => {
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  const RS = SBMM.results, body = document.getElementById("resBody");
+  const el = [...body.querySelectorAll(".res")].find(e => /v59 card 3/.test(e.querySelector("h4").textContent));
+  SBMM.shell.setRightTab("results");            // selecting the line above brought the Inspector forward
+  await sleep(350);
+  const colW = el.getBoundingClientRect().width;
+  el.querySelector('[data-a="win"]').click();
+  await sleep(250);
+  const win = document.querySelector(".rswin");
+  const inWin = !!(win && win.contains(el)), inCol = body.contains(el);
+  const r = win ? win.getBoundingClientRect() : null;
+  const z = win ? +getComputedStyle(win).zIndex : 0;
+  const csv = RS.csv().indexOf("Second 3") >= 0;
+  const open = !el.classList.contains("folded") && !!el.querySelectorAll(".rrow")[2].offsetParent;
+  win.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+  await sleep(250);
+  const docked = body.firstElementChild === el && !document.querySelector(".rswin");
+  /* out again, then removed by its owner */
+  RS.toWindow(el); await sleep(150);
+  el.remove(); await sleep(150);
+  const gone = !document.querySelector(".rswin") && RS.windows() === 0;
+  /* tidy */
+  [...body.querySelectorAll(".res")].forEach(e => { if (/v59 card/.test(e.querySelector("h4").textContent)) e.remove(); });
+  return { colW, inWin, inCol, w: r && r.width, inView: !!r && r.left >= 0 && r.top >= 0 && r.right <= innerWidth && r.bottom <= innerHeight, z, csv, open, docked, gone };
+});
+console.log("CARD WINDOW v59:", JSON.stringify(W));
+if (!W.inWin || W.inCol || !(W.colW > 100) || !(W.w >= 480) || !(W.w > W.colW + 100) || !W.inView) { console.log("FAIL: the card did not move into a readable window", W); process.exit(1); }
+if (!(W.z >= 4000 && W.z < 4900)) { console.log("FAIL: the card window is outside the floating-window band", W.z); process.exit(1); }
+if (!W.csv || !W.open) { console.log("FAIL: a card in a window left the CSV, or is folded", W); process.exit(1); }
+if (!W.docked) { console.log("FAIL: Esc did not put the card back at the top of the column", W); process.exit(1); }
+if (!W.gone) { console.log("FAIL: a card removed while in its window left the window behind", W); process.exit(1); }
+await page.evaluate(id => { const f = SBMM.store.byId(id); if (f) SBMM.tools.deleteFeature(f); SBMM.results.checkEmpty(); }, C.fid);
 });
 
 await block("9x. drainage", async () => {

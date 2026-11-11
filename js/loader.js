@@ -138,7 +138,7 @@
     ["js/view.js",6951,""],
     ["js/popups.js",40167,""],
     ["js/watermark.js",5987,""],
-    ["js/shell.js",20598,""],
+    ["js/shell.js",22278,""],
     ["js/map.js",16513,""],
     ["js/tip.js",5534,""],
     ["js/readout.js",11056,""],
@@ -153,7 +153,7 @@
     ["js/designgis.js",22158,""],
     ["js/survey.js",6298,""],
     ["js/siteareas.js",3503,""],
-    ["js/geophys.js",93904,""],
+    ["js/geophys.js",95015,""],
     ["js/teminterp.js",55467,""],
     ["js/temmaps.js",42737,""],
     ["js/temws.js",45872,""],
@@ -170,7 +170,7 @@
     ["js/analysis.js",10531,""],
     ["js/snap.js",22668,""],
     ["js/draw.js",26416,""],
-    ["js/results.js",4505,""],
+    ["js/results.js",12490,""],
     ["js/tools.js",73274,""],
     ["js/cmdline.js",33400,""],
     ["js/omni.js",25643,""],
@@ -193,7 +193,7 @@
     ["js/pick3d.js",49071,""],
     ["js/sheetmarks.js",35474,""],
     ["js/redline.js",14317,""],
-    ["js/mode.js",24730,""],
+    ["js/mode.js",25225,""],
     ["js/layerman.js",10162,""],
     ["js/isopach.js",20491,""],
     ["js/storm.js",28094,""],
@@ -209,7 +209,7 @@
     ["js/home.js",24704,""],
     ["js/field.js",45408,""],
     ["js/viewstate.js",19036,""],
-    ["js/boot.js",16840,""]
+    ["js/boot.js",16949,""]
   ];
   /* SBMM_SIZES_END */
 

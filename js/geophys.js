@@ -768,14 +768,29 @@ SBMM.geophys = (function () {
       + opts.map(([v, t]) => `<option value="${v}"${String(v) === String(cur) ? " selected" : ""}>${esc(t)}</option>`).join("")
       + "</select>";
   }
+  /* v59 — ONE HOME PER SETTING. On a desktop the TEM workspace panel
+     (js/temws.js) carries every TEM setting, and this card carried all of them
+     a second time: two places to change one thing, and two places to look to
+     see what it was set to. The card keeps the ONE control that is the slice
+     itself — where it is — with the legend and the exports; everything else is
+     in the panel, one button away. A phone and field mode have no workspace,
+     so there the card is still the whole of it. */
+  const fullCard = () => document.body.classList.contains("field") || !SBMM.temws
+    || !!(SBMM.touch && SBMM.touch.profile && SBMM.touch.profile() === "phone");
   function controlsHtml() {
     const DM = Math.floor(dmax());
-    return `<div class="temctl">`
-      + (byElev()
+    const where = byElev()
         ? `<label class="temrow" title="A level slice at an elevation (NAVD88)">Elevation <output data-tem-o="elev">${fmt0(S.elev)} ft</output>`
           + `<input type="range" data-tem="elev" min="${elevRange()[0]}" max="${elevRange()[1]}" step="1" value="${S.elev}" style="direction:rtl"></label>`
         : `<label class="temrow" title="Depth below the ground at each node">Depth <output data-tem-o="depth">${fmt(S.depth, 0)} ft</output>`
-          + `<input type="range" data-tem="depth" min="0" max="${DM}" step="1" value="${S.depth}"></label>`)
+          + `<input type="range" data-tem="depth" min="0" max="${DM}" step="1" value="${S.depth}"></label>`;
+    if (!fullCard())
+      return `<div class="temctl" data-temcard="summary">` + where
+        + `<div class="temlegwrap">${legendSvg()}</div>`
+        + `<div class="temrange mono" title="Colour range, 2–98 % of the soundings">${range ? `${fmtV(range.lo)} – ${fmtV(range.hi)} ${PROP[S.prop].unit}` : ""}</div>`
+        + `</div>`;
+    return `<div class="temctl" data-temcard="full">`
+      + where
       + `<div class="temgrid2">`
       + `<label>Property ${selectHtml("prop", [["res", "Resistivity"], ["cond", "Conductivity"], ["sig", "Kriging s.e."]], S.prop, "What the slice shows")}</label>`
       + `<label>Colours ${selectHtml("cmap", Object.keys(CMAPS).map(k => [k, CMAP_NAME[k]]), S.cmap, "Colour map")}</label>`
@@ -892,7 +907,7 @@ SBMM.geophys = (function () {
       + `<span class="minib" data-a="fit" title="Colour range from 2–98 % of the soundings">fit range</span>`
       + `<span class="minib" data-a="cal" title="Resistivity against the 2025 borings' logged classes (TEMCAL)">vs borings</span>`
       + (document.body.classList.contains("field") ? ""
-         : `<span class="minib" data-a="ws" title="The TEM workspace: the model in 3D with the ground cut open to the slice (TEMWS)">workspace</span>`);
+         : `<span class="minib" data-a="ws" title="The TEM panel: every setting, and the model in 3D with the ground cut open to the slice (TEMWS)">${fullCard() ? "workspace" : "settings"}</span>`);
     acts.addEventListener("click", ev => {
       const b = ev.target.closest("[data-a]"); if (!b) return;
       if (b.dataset.a === "ws") { if (SBMM.temws) SBMM.temws.open(); return; }
