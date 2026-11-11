@@ -396,6 +396,7 @@ terrain source, which needs an explicit decision + README/test update).
 | dem.js | DEM decode — the Blob-URL **decode worker** and `Dem.loadAll` (one worker per payload, all started together) with the main-thread path as the fallback — plus bilinear `at()`, slope/aspect; the DEM stack `SBMM.dems` / `setDems` / `demAt` / `demForBox`; `SBMM.elev`, `SBMM.slopeAt`, `SBMM.canopy` |
 | proj.js | affine SP↔WGS84, coordinate parsing |
 | state.js | feature store (select/groups/visible/locked), `readd`, **undo AND redo** (both closures required), sessions (v7; loads v2+) |
+| viewstate.js | **v56 — nothing changes the view without saying so**: the ONE table of settings that change what is drawn (each read and undone through its owning module), the `view · N` chip in the status bar and its popover, and reset-to-defaults (a reload that keeps the user's work); `SBMM.viewState` |
 | layerstate.js | **`SBMM.layerState` — the one answer to "is this layer on"** — plus the `SBMM.events` bus ('layers', 'mode', 'view') |
 | view.js | `SBMM.view` — remembers the 2D centre/zoom and the 3D orbit camera in localStorage and restores them on boot (guarded, debounced, range-checked) |
 | mode.js | **`SBMM.mode` — the tool-mode state machine (§2)**: modes, cursor, Mode HUD, every single-key shortcut, Esc discipline, Space-to-pan; also `SBMM.status` (the status bar, written by both views) |
@@ -6187,3 +6188,110 @@ that owns it, and nothing here computes.
 - `SBMM.report.frame({title, sub, cells, body, css, sheet})` is the title
   block and the foot for a module that composes its own body; the design-storm
   and scenario sheets still build theirs inline.
+
+## v56 — nothing changes the view without saying so
+
+Contract: `docs/V56_REVIEW_PLAN.md` (the review round, step 1 of 5). New file
+`js/viewstate.js` (`SBMM.viewState`); `forget` / `resetStore` and the `pref`
+event in `js/view.js`; `resetDefaults` + the freeze in `js/layerstate.js`; the
+solo record, `soloState` / `unsolo` / `resetRecord` in `js/layertree.js`; the
+autosave hold in `js/state.js`; the regrouped `#v3dViewPop` in `index.html`;
+the `v56` block at the end of `css/app.css`; `RESET` (`DEFAULTS`, `RESETVIEW`).
+E2E block **"9zz. view state and reset (v56)"** — the LAST block now (it
+reloads twice; 9z is no longer last), one assertion each in
+`test/e2e_field.mjs` and `test/e2e_phone.mjs`. No kernel work.
+
+The app remembers 23 keys and two dozen named preferences; fourteen change what
+is drawn, six had no control anywhere, and nothing on screen said any of them
+was in force. The hazy ground, v25's hidden sheet drapes and "the TEM is not
+there" were one defect.
+
+**ONE TABLE** (`ROWS` in `js/viewstate.js`). A row is a state that changes what
+is drawn (or what an analysis answers), is not at the value this device opens
+with, and has no indicator of its own. Each row is `{id, where, is(), say(),
+undo()}` and reads the OWNING MODULE's getter / undoes through its setter:
+ground (explicit see-through or hidden; or a remembered solid while a TEM layer
+is on), sun, rendering, water surfaces, point names, water animation, backdrop,
+the five console-only rendering preferences, storm drains off, conduits marked
+broken, solo, a "My work" class hidden while it holds the user's features, a
+layer on at under 15 %, the tree height filter, a forced field/touch layout.
+**Not rows**: anything that already says so on screen (TEM on, the clip box,
+fly, relief, drape style, mesh detail, a layer being on or off) and anything
+that changes nothing drawn (the compute core).
+
+- **The chip** is a status-bar toggle beside OSNAP (`#viewChip` in
+  `#viewChipWrap`): hidden at defaults, else `view · N` in amber; its popover
+  (`#viewPop`) lists each row with **undo**, **undo all** and a link to the
+  reset. `where: "3d"` rows count only while 3D is open. Not in field mode (no
+  status bar); the table still answers there.
+- **Evaluation is event-driven**: `layers`, `view`, `mode`, `tem`, `pit`,
+  `field`, the store, the new `pref` event (`SBMM.view.pref` emits it on every
+  write), and `SBMM.viewState.touch()` from the setters with no event (storm,
+  trees, the touch override). Nothing is evaluated before the `boot` event:
+  the rows read module state that does not exist earlier, and `soloState()`
+  on a half-registered group would wrongly drop the record.
+- **A new remembered setting that changes what is drawn gets a row**, or it is
+  the next hazy ground.
+
+**Reset to defaults is a RELOAD, on purpose.** Ten settings are read once, at
+boot or script load. `reset()`: (1) the three stores with debounced or
+in-memory state are rewritten keeping only the WORK inside them and then
+FROZEN until the reload — `SBMM.view.resetStore(["camBookmarks"])`,
+`SBMM.layerState.resetDefaults()`, `SBMM.layerTree.resetRecord()` (keeps
+`presets`); a write queued before the reset (the view store debounces 900 ms)
+would otherwise put everything back; (2) the drawings are saved once more
+WITHOUT the `layers` the autosave also carries; (3) `sbmm.home.v1.defaults` is
+dropped so the first-visit curated layers are applied again; (4) the plain
+keys in `REMOVE` go; (5) a one-shot flag makes the next boot restore the
+drawings without asking (`afterReset()`, called from `js/boot.js` where the
+restore bar is decided). **Never touched**: the gate keys (a reset must not
+lock the app or change when it locks — and the harnesses turn the idle lock
+off through `sbmm.gate.idle`), `sbmm_datasets_auto`, `sbmm.wasm.v1` (changing
+it kills the worker pool), the offline copy and the data stash.
+
+**After a reset the layers are the FIRST-VISIT set** (`SBMM.home.curated`):
+photographs, place names and relief on, every other row off. That is the
+app's default; block 9zz asserts every row against `curated()`.
+
+Five defects this step found by exercising the settings, all older than it:
+
+- **A reload lost every drawing, since v9, in any build with the design
+  surfaces.** `js/refsurf.js` adds EA's four reference surfaces to the store
+  at boot in a batch, which ended in an autosave of a session with no drawings
+  — written over the last visit's, BEFORE boot read them to offer "restore".
+  The bar never appeared. (The field build has no surfaces, which is why it
+  went unnoticed.) `SBMM.store` now HOLDS the autosave (`_hold`) until boot
+  calls `releaseAutosave()` — once the last session has been restored,
+  dismissed, timed out or found empty; a change made in between is written
+  then, unless it would write an empty session. **Anything that changes the
+  store during boot is covered by this; do not add an early `release`.**
+- **With the backdrop off, the world beyond the survey drew WHITE in 3D.**
+  `applySun()` wrote the daylight lift over the ground plane's colour as if it
+  were always the textured plane; it now lifts `userData.base` (white under
+  the backdrop's picture, the lake colour without). And the plane is built
+  once, so `SBMM.backdrop.setEnabled` calls `SBMM.viewer3d.refreshEnv()`.
+- **Every 3D-bar reflow left its parked rows behind.** `reflowBar()` moved the
+  parked drape / relief / detail controls back to the bar and never removed the
+  `.optrow` they sat in, so each resize or dock change added another set of
+  empty labels to the View settings box — a dozen "Drape" lines in a long
+  visit, and most of why the box ran off the top.
+- **Solo was remembered half-way**: the rows it switched off are layer state;
+  how to put them back was memory only. The record now lives in the layer-tree
+  record (`S.solo`), and a solo the user has since changed by hand is dropped
+  rather than "restored" over their choices.
+- **Field mode wrote `detail: std` for good** the first time 3D was opened in
+  it. The programmatic change carries `dataset.auto` and is applied without
+  being remembered. Also: double-clicking a dock grip forgets the stored
+  width; the write-only `sbmm_cmdseen` key is gone.
+
+**The View settings box** (`#v3dViewPop`) is bounded (`max-height` = the stage
+less its bottom anchor, the top chrome and the 3D bar), scrolls inside
+(`.vpscroll`), and is four groups in two columns (`.vpcol` > `.vpsec`):
+*Look* (the parked bar controls, rendering, ground, sun), *Show*, *Camera*,
+*Saved views*, with the renderer line and the diagnostics button as its foot.
+Every id is what it was. `#status:has(#viewPop.open)` lifts the status bar
+over the mode HUD while the chip's popover is open (the popover lives in the
+bar's stacking context).
+
+`SBMM.myWork.counts()` counts EA's reference surfaces as "drawings" (they are
+store features); the hidden-class row counts the user's own features only.

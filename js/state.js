@@ -236,8 +236,26 @@ SBMM.store = {
     if (obj.scenarios && SBMM.scenarios) SBMM.scenarios.restore(obj.scenarios);
     this.emit();
   },
+  /* v56 — THE AUTOSAVE IS HELD UNTIL BOOT HAS DEALT WITH THE LAST SESSION.
+     It is written on every store change, and the app changes its own store
+     while it boots: js/refsurf.js adds EA's four reference surfaces in a
+     batch, which ended in an autosave of a session with no drawings in it —
+     written over the previous visit's drawings BEFORE boot read them to offer
+     "restore". Since v9 a reload has therefore lost every drawing in any
+     build that carries the design surfaces (the field build does not, which
+     is why it went unnoticed there). Boot releases the hold once the last
+     session has been restored, dismissed or found empty; a change made in
+     between is written then, unless it would write an empty session. */
+  _hold: true, _held: false,
+  releaseAutosave() {
+    if (!this._hold) return;
+    this._hold = false;
+    const pending = this._held; this._held = false;
+    if (pending && this.serialize().features.length) this.autosave();
+  },
   autosave() {
     if (this._batch) { this._dirty = true; return; }
+    if (this._hold) { this._held = true; return; }
     try {
       localStorage.setItem("sbmm_session_auto", JSON.stringify(this.serialize()));
       storageGuard.ok("drawings");

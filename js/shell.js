@@ -114,6 +114,8 @@ SBMM.shell = (function () {
     });
     grip.addEventListener("dblclick", () => {
       document.documentElement.style.removeProperty(cssVar);
+      /* v56: and forget it — the old width used to come back on the next visit */
+      try { localStorage.removeItem("sbmm_dock" + side); } catch (err) {}
       relayout();
     });
   }

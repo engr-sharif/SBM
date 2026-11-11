@@ -87,6 +87,7 @@ SBMM.storm = (function () {
     if (SBMM.drainage) SBMM.drainage.markStale();
     if (SBMM.accum) SBMM.accum.markStale();
     if (SBMM.whereWater) SBMM.whereWater.markStale();
+    if (SBMM.viewState) SBMM.viewState.touch();
     if (!quiet)
       toast(on ? "storm drains assumed working — a raindrop reaching a grate goes down the pipe"
                : "storm drains off — every analysis is ground only");
@@ -100,7 +101,7 @@ SBMM.storm = (function () {
     if (over === "broken" || over === "assumed_working") return over;
     return (c && c.status) || "assumed_working";
   }
-  function setStatus(id, st) {
+  function setStatus(id, st, quiet) {
     if (!conduitById[id]) { toast("no storm conduit called " + id); return null; }
     if (st !== "broken" && st !== "assumed_working") { toast("a conduit is either working or broken"); return null; }
     prefs.status[id] = st;
@@ -109,9 +110,11 @@ SBMM.storm = (function () {
     if (SBMM.drainage) SBMM.drainage.markStale();
     if (SBMM.accum) SBMM.accum.markStale();
     if (SBMM.whereWater) SBMM.whereWater.markStale();
-    toast(conduitById[id].id + " marked " + (st === "broken" ? "broken — water stays on the ground here"
-                                                            : "working"));
+    if (!quiet)
+      toast(conduitById[id].id + " marked " + (st === "broken" ? "broken — water stays on the ground here"
+                                                              : "working"));
     if (SBMM.viewer3d.isOpen()) SBMM.viewer3d.refreshOverlays();
+    if (SBMM.viewState) SBMM.viewState.touch();
     return st;
   }
 

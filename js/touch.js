@@ -94,6 +94,7 @@ SBMM.touch = (function () {
     v = (v === "on" || v === "off") ? v : "auto";
     try { v === "auto" ? localStorage.removeItem(OV_KEY) : localStorage.setItem(OV_KEY, v); } catch (e) {}
     apply(true);
+    if (SBMM.viewState) SBMM.viewState.touch();
     return v;
   }
 

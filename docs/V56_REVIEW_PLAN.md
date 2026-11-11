@@ -1,0 +1,376 @@
+# v56–v60 — the review round: the plan
+
+2026-11-11. The contract for the work that follows the app-wide review. Five
+steps, in the order the engineer approved ("all, in that order"). Each step is
+its own pull request (two where a step is two things), is planned here before a
+line of it is written, and ends with its harness block, its section in
+`CLAUDE.md` and before/after pictures.
+
+**The measure of this round is not how much it adds.** Every step removes a way
+the app surprises its user: a setting nobody can see, a photograph that looks
+different in the other view, a pointer that answers differently from layer to
+layer, a panel in the way, a layer switch that rebuilds the world.
+
+## Rules that hold for every step
+
+1. **No number moves.** No kernel is touched (`VERSION` stays 10), no golden
+   moves, the terrain source does not change. A step that needs any of that
+   stops and asks.
+2. **The three builds pass.** Phone and field layouts keep v11's chrome: every
+   chrome change is scoped `body:not(.field)` unless the step says otherwise,
+   and `test/e2e_field.mjs` / `test/e2e_phone.mjs` are the proof.
+3. **An assertion that read the old behaviour moves; it is never deleted.** The
+   fact asserted survives.
+4. **Measured before and after.** Each step names its number (below) and the
+   harness that produces it. Software GL is all this box has; anything that
+   depends on a real GPU says so and is confirmed on the engineer's machine.
+5. **Looked at.** Before/after pictures of every screen a step changes go to
+   `dist/preview/` and to the engineer with the build.
+6. **Who does what.** The design, the core of each step and every verification
+   are done by the planner. Separable, table-driven work (per-kind chip
+   builders, mechanical token replacement, fixed pauses in harnesses, call-site
+   moves) is handed to a second agent in its own worktree with a written brief,
+   and nothing it produces lands before the planner has read the diff and run
+   the blocks.
+
+What was measured before planning is in three inventories (settings,
+hover/click, style/layout) and one probe (2D vs 3D over the same ground); the
+numbers quoted below come from them.
+
+---
+
+## Step 1 (v56) — nothing changes the view without saying so
+
+**The problem, measured.** The app remembers 23 keys and 24 named view
+preferences. Fourteen of them change what is drawn; six have no control at all
+(`backdrop`, `pixelRatio`, `drapeK`, `drapeFloor`, `terrainTiles`,
+`gpuRaster`); several are read only at boot. There is no reset. The hazy-ground
+report, the hidden sheet drapes of v25 and the "remembered solid ground hides
+the TEM" trap are the same defect: *state the user cannot see is changing what
+the user sees.*
+
+### 1a. One table — `js/viewstate.js` (`SBMM.viewState`)
+
+One registry of every state that (i) changes what is drawn or what an analysis
+answers, (ii) is not at the value this device opens with, and (iii) has no
+indicator of its own on screen. A row is
+
+```
+{ id, where: "2d" | "3d" | "both", is() -> bool, say() -> "what it is now",
+  undo() }        // undo acts at once, through the owning module's own setter
+```
+
+The rows (each read through the owning module's API, never a second copy of the
+state):
+
+| row | is non-default when | undo |
+|---|---|---|
+| ground | explicitly see-through or hidden; or remembered solid while a TEM layer is on | `setGround("auto")` |
+| sun | moved off "as photographed" | `sunAsPhotographed()` |
+| rendering | `standard` on a device whose default is `realistic` | `setQuality("realistic")` |
+| water surfaces / point names / water animation | off | on |
+| backdrop | off | on |
+| rendering overrides | any of the five console-only prefs set | cleared, terrain rebuilt |
+| storm drains | master off, or N conduits marked broken | on / all working |
+| solo | a group is soloed (the record now survives a reload) | restore the rows it switched off |
+| my work hidden | a class row off while it holds features | on |
+| layer at 0 % | a row on with opacity under 15 % | 100 % |
+| tree height filter | minimum above 6 ft | 6 ft |
+| layout forced | field or touch override set against what the device is | automatic |
+
+Deliberately **not** rows: anything with its own chip or pressed button (TEM
+on, the clip box, fly mode, relief, drape style, mesh detail), layer on/off
+(the panel shows it), force-JavaScript kernels (changes nothing drawn).
+
+### 1b. The chip
+
+A status-bar toggle beside OSNAP (`#viewChip`, the idiom the bar already has):
+hidden when no row is active; otherwise `view · N` in amber. Its popover lists
+each active row as one line — what it is now, and one **undo** — and **undo
+all**. In 2D only the `2d`/`both` rows count. Not in field mode (no status
+bar there); the reset below is.
+
+Re-evaluation is event-driven: `layers`, `view`, `mode`, `tem`, `pit`, and a
+new `pref` event emitted by `SBMM.view.pref` on a write. No polling, no frame.
+
+### 1c. Reset to defaults
+
+One action — Help → Settings → **Reset to defaults…**, and `RESET` — behind
+one confirmation that says what goes back and what is kept:
+
+- **Goes back to how the app first opens:** layers and their order, panels,
+  every 3D view setting, snaps, the map position and camera, storm switches,
+  forced layouts.
+- **Kept:** drawings, imported data, saved 3D views, saved layer presets,
+  scenarios, the unlock and the idle-lock setting, the offline copy.
+
+It is a **reload**, on purpose: ten of the settings are read only at boot, and
+a reset that leaves half the old state in memory is the defect this step
+exists to remove. Sequence: stop the debounced writers (`SBMM.view`,
+`layerState` — the inventory found a queued write undoes a cleared key);
+rewrite each key keeping only the work inside it (`camBookmarks`; layer-tree
+`presets`); strip `layers` from the autosaved session so its restore cannot
+bring the old layer state back; drop the first-visit stamp so the curated
+default layers are applied again; set a one-shot flag; reload. On the next
+boot the flag restores the autosaved drawings without asking and says so in
+one toast.
+
+### 1d. The View settings box
+
+It is anchored to the bottom of the stage and grows upward, so each release
+pushed its top further off a 900-px window. It becomes a bounded panel:
+`max-height` = the stage between the 3D bar and its own anchor, scrolling
+inside, in four titled groups — *Look* (rendering, ground, sun, drape/relief/
+detail when the bar parks them), *Show* (water, names, animation), *Camera*
+(field of view, sensitivity, fly speed, keep above ground), *Saved views* —
+with the renderer line and the diagnostics button as its foot. Every id stays.
+
+### 1e. The small traps found on the way (same family, fixed here)
+
+- Solo's "put it back" record is kept with the layer-tree record, so a reload
+  no longer strands a soloed group.
+- Field mode's programmatic "standard detail" no longer writes the preference.
+- Double-clicking a dock grip also forgets the stored width.
+- The write-only `sbmm_cmdseen` key goes.
+
+**Found while building it, and fixed in the same step** (each is in
+`CLAUDE.md` "v56"): a reload has been losing every drawing since v9 (a
+boot-time step overwrote the autosave before the restore bar read it); with
+the backdrop off the 3D world beyond the survey drew white; every 3D-bar
+reflow left empty rows behind in the View settings box.
+
+**Acceptance (e2e, new last block "9zz. view state and reset"; it reloads, so
+it runs after 9z):** every row — set it, the chip counts it and names it, undo
+clears it and the module's own getter agrees; chip hidden at defaults; a 2D
+view does not count 3D rows; reset with a drawing, a saved view, a saved
+preset and an imported dataset in place brings every row back to default and
+keeps all four; the popover is inside a 1440x900 window with every control
+reachable. `voiceCheck` on the popover. Field and phone: no chip, `RESET`
+works.
+
+**Risk.** The reset touches the keys the harnesses seed (`sbmm.home.v1`, the
+gate). The block seeds them again after its reset; the gate keys are never
+written.
+
+---
+
+## Step 2 (v57) — the 3D ground is the photograph
+
+**The problem, measured** (`fid` probe: the 2D map and a straight-down 3D view
+of the same ground at the same scale, registered by cross-correlation, the
+photograph alone as the reference):
+
+| | brightness (3D / photo) | sharpness, brightness-normalised |
+|---|---|---|
+| mine area at 1 ft/px | 0.83 | 0.51 |
+| mine area at 0.5 ft/px (the photo's own scale) | 0.84 | 0.33 |
+| ABP at 0.25 ft/px | 0.64 | 0.79 |
+| the same with the lights flat and occlusion off | **1.01** | 0.71 / 0.32 / 0.75 |
+
+So the texture path is neutral (1.01): **the darkness is the light**, and the
+softness is in two places — the mip chain (0.51 → 0.76 at 1 ft/px with
+trilinear off) and whatever remains at the photo's own scale.
+
+**Causes.**
+1. *Light.* v40 balanced the lights so level sunlit ground returns 0.86 of its
+   albedo in linear light; the sky's colour takes it to 0.77, which reads as
+   0.90 on screen; occlusion and slope take the rest. A north-facing bench at
+   the ABP is at 0.64. But the drape is a photograph: it has already been lit.
+2. *Mip chain.* Trilinear filtering blends two levels, and on sloping ground
+   the level-of-detail is biased towards the blurrier one.
+3. *Resampled twice.* The single-file build cuts its tiles from the
+   photographs in memory and the folder build loads re-encoded tile files, and
+   the two measure the same (0.52 / 0.34 against 0.51 / 0.33) — so the tile
+   files are **not** a cause. What both share is two resamplings: the
+   photograph onto the tile lattice, then the tile onto the screen. Each costs
+   about half a pixel of blur; together with the mip blend that is the 0.6–0.8
+   px measured.
+
+**The rule this step sets: level open ground in the sun IS the photograph**
+(factor 1.00). Relief modulates around that — a slope facing the sun lifts, one
+facing away deepens, a cast shadow deepens — exactly the principle the 2D
+relief shading follows (v45: level ground is left alone).
+
+**Design.**
+- `SBMM.atmos3d.light()` is re-balanced so that sun x sin(elevation) + sky = pi
+  in each channel on level ground at the photographed sun, keeping today's
+  shadow-to-sun ratio. Above 1 the factor is rolled off softly so a sunlit
+  slope cannot burn the photograph out (a limit on the *light*, not a tone
+  curve on the picture — v40's rule against a tone curve stands).
+- Occlusion strength is set by the same probe: open level ground must stay at
+  1.00, and a mixed frame of the mine area must average at least 0.93.
+- The drape lookup takes a level-of-detail bias (a uniform; the value chosen
+  by the probe at a top-down and an oblique view, with the anisotropic filter
+  keeping the oblique view from shimmering).
+- Where the drape is shown near the photograph's own scale, the lookup uses a
+  sharper reconstruction than bilinear (a Catmull-Rom filter in the ground
+  shader, realistic rendering only), which is what takes back the blur of the
+  second resampling; the choice is made by the probe, not assumed.
+- Everything else lit by the same lights (trees, buildings, fences) is checked
+  against the ground in the pictures; the unlit analysis drapes and the shader
+  rasters are untouched.
+
+**Acceptance (`test/terrain3d.mjs --only fidelity`, both builds):** level open
+ground 0.97–1.03 of the photograph; mixed frame >= 0.93; normalised sharpness
+at 1 ft/px >= 0.85 and at the photo's scale >= the ceiling the probe finds
+with bilinear resampling (stated in the block, not assumed); 2D and 3D register
+within 1 ft. Block 9f14's light-balance assertion moves to the new rule.
+
+**Cannot be finished here:** frame time and the real look on the RTX machine.
+The step ends with a request for one paste of *copy 3D diagnostics*.
+
+---
+
+## Step 3 (v58) — one "what is this"
+
+**The problem, measured** (23 inconsistencies in the hover/click inventory; the
+ones that decide the design): four different chip elements; the 2D chip shows
+a layer's facts while the 3D tip shows only its id; 3D opens a card by itself
+after 550 ms and 2D never does; a raster's value is at the pointer for the TEM
+slice, in the status bar for accumulation, and nowhere for slope, aspect,
+elevation, land cover and isopach; storm structures, decision units and piles
+answer in 2D and not in 3D; six analysis layers answer in 3D as "Design
+feature" through the wrong builder; bare ground answers a 3D click and not a
+2D one; overlapping things can be cycled in 2D and not in 3D.
+
+**The behaviour, the same in both views:**
+
+| | what happens |
+|---|---|
+| **hover** | ONE chip at the pointer. Line 1: what it is (name · kind). Line 2: its fact (a value with units, a depth, a class). Optionally a small graphic (the boring's mini log, the TEM core). Nothing opens by itself — the 3D dwell card goes, because the chip now says what the card was opened to say. |
+| **click** | a card: the same builder in both views (`js/popups.js`), a Leaflet popup in 2D and the identify card in 3D. Over several things: "also here" in both. |
+| **click your own drawing** | selects it; the Inspector shows it. No floating card in either view. |
+| **click bare ground** | the Point card (coordinates, elevation, slope, and the reading of every analysis raster that is on) in both views — unless the click closed something, in which case it only closes it. |
+| **a raster under the pointer** | its value in the chip, in both views, when no feature is under the pointer. The topmost raster that is on answers. |
+
+**Design.**
+- **`SBMM.tip`** — one chip element, one placement rule (offset, flips at the
+  frame's edges), one arbiter (feature > live surface > raster). `#pickTip`,
+  `#pick3dTip`, `#temTip` and `#waterTip` become this one element; harness
+  selectors move to it.
+- **`SBMM.readout`** — one registry of things that can be read at a point:
+  `register({ id, row: {g, l}, at(x, y) -> { name, text, html? } | null })`.
+  Readers: slope, aspect, elevation tint, canopy, accumulation, land cover,
+  runoff depth, isopach, cut/fill, the rim band and water stage, drainage
+  outlet, where-the-water-goes class, the TEM slice, derived map and two
+  interpretations (their existing probes). 2D asks it at the pointer; 3D asks
+  it at the ground point the per-frame status raycast already finds (no new
+  raycast). The Point card lists every reader that answers. Trees join the 2D
+  pick engine through the same door instead of their own click handler.
+- **Chip content parity** — each kind's chip is one function used by both
+  views (as the popups already are); the 3D `specFor` cases call it.
+- **3D parity** — storm structures, decision units and piles become pickable;
+  drainage, where-the-water-goes, streams, runoff, storm conduits and the PDF
+  boundaries answer with their own builders; DU, pile and the other inline
+  popups move into `js/popups.js`.
+- **Highlight** — the 3D hover highlights the feature, not the whole merged
+  layer (a halo built from the feature's own segments).
+- **Piles of points at whole-site zoom** — where symbols overlap they are drawn
+  as one symbol with a count; the chip names them and the click offers them
+  ("also here"). Nothing becomes unpickable: the v26 rule (shrink, never hide a
+  click target) stands, and the count is drawing only.
+
+Two pull requests: 3a the chip, the readout registry and the dwell; 3b the
+click parity, the 3D kinds and the piles.
+
+**Acceptance (e2e blocks 9f24, 9f25):** a table of (kind, point) pairs — for
+each, the chip text in 2D equals the chip text in 3D, and the card's heading
+and rows are equal; every analysis raster that is on answers at the pointer in
+both views with the value the module's own accessor gives; no card opens on a
+3-second dwell in either view; bare-ground click opens the Point card in both
+and a click that closes a card opens nothing; no chip reads "feature" or
+"Design feature"; an idle pointer still renders nothing (9e). Voice: no chip
+carries an instruction.
+
+**Risk.** This is the step most likely to move existing assertions (9c, 9f6,
+9f7, 9f9, 9t2, 9f12b). They move with the behaviour; the dwell-card assertions
+become "the chip says it".
+
+---
+
+## Step 4 (v59) — the chrome gets out of the way, and is one thing
+
+**The problem, measured.** Docks 277 + 357 px = 44 % of a 1440-px screen
+(collapse is not remembered and has no key); result cards are prepended and
+never fold, in a 357-px column; the same TEM settings live on a card and in the
+workspace panel, the ground mode in three places; 254 distinct colour literals
+(118 of them chrome) against a 24-colour role set; 31 font sizes; 16 legend
+implementations drawn four ways, one of which shows the value under the
+pointer.
+
+**4a. Layout** (first pull request)
+- Docks: collapse is remembered; `[` and `]` fold the left and right dock and
+  `\` folds both (a "just the map" key). The right dock keeps hiding itself
+  when it has nothing to show.
+- Results: the newest card is open and older cards fold to their title row
+  (one click unfolds; nothing is removed, and the CSV still walks every row).
+  Every card gets a **window** button: the card moves into a floating window
+  on the sheet-window chassis, sized for reading, and back.
+- One home per setting: the TEM workspace panel owns the TEM settings on a
+  desktop and the TEM cards become summaries with the exports (a phone, which
+  has no workspace, keeps the controls on the card); the ground mode is
+  controlled from View settings and the TEM panel, and only shown elsewhere.
+
+**4b. One set of colours and sizes** (second pull request, in two commits that
+are verified differently)
+- *Commit 1 — no pixel moves.* The 24 role tokens and a 6-step type scale are
+  defined; every literal that equals a token (within 3 per channel; tints as
+  `rgba(var(--x-rgb), a)`, not `color-mix`, for the iPhone) is replaced.
+  Proof: a screenshot set of 14 screens, pixel-identical before and after.
+- *Commit 2 — the deliberate changes.* The ~55 colours and ~35 sizes that do
+  not fit a token are each either given the nearest role or kept as a named
+  exception; every changed screen is looked at side by side. Data colours
+  (class palettes, ramps, symbology, the log paper) are not touched and are
+  fenced off in one block of `:root`. Dead rules and the two broken `var()`
+  references found by the inventory go.
+
+**4c. One legend** (third pull request) — `SBMM.legend({ kind: "ramp" |
+"classes", stops | classes, title, units, min, max })`, one SVG renderer, and
+a marker at the value under the pointer fed by step 3's readout registry —
+so every colour-scaled layer gains what only the TEM legend has today. The
+layer-tree legend card shows a raster's real ramp. Moved first: analysis,
+accumulation, runoff, where-the-water-goes, cut/fill, isopach, rim band, 3D
+elevation; then the TEM legends; the tree legend's controls and the print
+sheets' colour bars stay where they are.
+
+**Acceptance:** frame width at 1440 with both docks folded and one key; folded
+cards keep their rows in the CSV; the pixel-identical proof for 4b commit 1;
+for 4c, each legend's stops equal the ramp the raster was painted with, and
+the marker sits at the value the readout reports.
+
+---
+
+## Step 5 (v60) — under the hood
+
+**5a. A layer switch rebuilds that layer.** Today any project-layer switch in
+3D runs one 1,067-line function that rebuilds every project layer (76–141 ms,
+4,000–6,000 draped lines). The function becomes a table of builders keyed by
+`(group, layer)`, each owning one `THREE.Group`; a `layers` event rebuilds or
+hides only its own. Labels and the lighter rendering's drop shadows are
+collected per layer and merged at the end as now. The builders move out of
+`js/viewer3d.js` into their own file by family — which is the split the
+handover notes ask for, made where it pays. **Acceptance:** block 9y's parity
+table unchanged; toggling one layer drapes only that layer's lines
+(`frameStats`), and the before/after milliseconds are recorded.
+
+**5b. Cheaper tests.** The ~430 fixed pauses in `test/e2e.mjs` are replaced by
+conditions, block by block, each block run three times under load before and
+after; CI runs the preflight and the node harnesses on a draft's pushes and
+the full matrix when the pull request is marked ready. **Acceptance:** runner
+minutes per merge, before and after; no block slower.
+
+**5c. The map first.** Measure first: how many of the 82 MB a first network
+visit needs before the 2D map can be used. If the terrain grids can land
+after the map — `SBMM.elev` answering "not yet" and every boot-time reader
+waiting on one `SBMM.demReady` — the plan for it is written then, with the
+list of readers, before any of it is built. It is last because it changes the
+boot contract and is the one item here that may be decided against.
+
+---
+
+## What the engineer is asked for
+
+- One paste of **View settings → copy 3D diagnostics** from the RTX machine
+  after step 2 lands.
+- Whether the GitHub Pages site is still public (it serves the gate password
+  and the protected cultural file to anyone with the link).

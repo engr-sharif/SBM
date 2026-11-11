@@ -26,6 +26,10 @@ SBMM.view = (function () {
   const WRITE_MS = 900;
 
   let pending = null, timer = null;
+  /* v56: after resetStore() nothing more is written until the page reloads —
+     a write queued before the reset, or made by a module on its way down,
+     would put back what the reset just cleared */
+  let frozen = false;
 
   function read() {
     try {
@@ -34,6 +38,7 @@ SBMM.view = (function () {
     } catch (e) { return {}; }
   }
   function write(patch) {
+    if (frozen) return;
     pending = Object.assign(pending || read(), patch);
     if (timer) return;
     timer = setTimeout(() => {
@@ -106,8 +111,34 @@ SBMM.view = (function () {
     const o = Object.assign({}, p || {});
     o[key] = val;
     write({ prefs: o });
+    /* v56: one hook for everything that watches a setting (js/viewstate.js) */
+    if (SBMM.events) SBMM.events.emit("pref", { key, value: val });
     return val;
   }
+  /* v56: take a preference back out, so its reader falls to its own default.
+     `pref(k, undefined)` is a READ, which is why this is its own function. */
+  function forget(keys) {
+    const p = (pending && pending.prefs) || read().prefs;
+    const o = Object.assign({}, p || {});
+    let n = 0;
+    for (const k of [].concat(keys)) if (k in o) { delete o[k]; n++; }
+    if (n) { write({ prefs: o }); if (SBMM.events) SBMM.events.emit("pref", { key: null, value: undefined }); }
+    return n;
+  }
+  /* v56 — reset to defaults (js/viewstate.js). The stored record is rewritten
+     NOW, keeping only the named preferences (the user's saved 3D views are
+     work, and they live in this record beside the sun and the drape), the
+     queued write is dropped, and the store is frozen until the reload. */
+  function resetStore(keep) {
+    const p = (pending && pending.prefs) || read().prefs || {};
+    const kept = {};
+    for (const k of keep || []) if (k in p) kept[k] = p[k];
+    if (timer) { clearTimeout(timer); timer = null; }
+    pending = null;
+    frozen = true;
+    try { localStorage.setItem(STORE, JSON.stringify({ prefs: kept })); } catch (e) { /* file:// */ }
+    return Object.keys(kept);
+  }
 
-  return { restore2d, watch, save3d, stored3d, read, pref };
+  return { restore2d, watch, save3d, stored3d, read, pref, forget, resetStore };
 })();

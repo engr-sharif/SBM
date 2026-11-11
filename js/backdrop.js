@@ -268,6 +268,8 @@ SBMM.backdrop = (function () {
     enabled = !!on;
     if (SBMM.view && SBMM.view.pref) SBMM.view.pref("backdrop", enabled);
     repaint();
+    /* v56: the 3D ground plane carries the same picture and is built once */
+    if (SBMM.viewer3d && SBMM.viewer3d.refreshEnv) SBMM.viewer3d.refreshEnv();
   }
 
   /* ---------- the 3D host ------------------------------------------------- */

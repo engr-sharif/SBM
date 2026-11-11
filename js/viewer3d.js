@@ -327,6 +327,9 @@ SBMM.viewer3d = (function () {
     const pl = new THREE.Mesh(new THREE.PlaneGeometry(160000, 160000),
       mat || new THREE.MeshBasicMaterial({ color: LAKE, fog: true, toneMapped: false }));
     pl.userData.backdrop = !!mat;
+    /* what applySun() lifts: white under the backdrop's own picture, the lake
+       colour where there is none (v56) */
+    pl.userData.base = new THREE.Color(mat ? 0xffffff : LAKE);
     envPlane = pl;
     pl.position.z = zr[0] - 25 - ZMID;      // pre-exaggeration; the group scales z
     /* after the terrain for the same reason as the sky: from any view above the
@@ -419,9 +422,14 @@ SBMM.viewer3d = (function () {
       /* the world beyond the survey is unlit (js/backdrop.js's own picture), so
          under a daylight sky it is lifted to sit in the same day — the same
          grid and contours, brighter — and left as it is when the sun is low */
+      /* v56: a LIFT of the plane's own colour, not a colour. With the backdrop
+         switched off the plane is the plain lake colour, and writing the lift
+         over it turned the whole world beyond the survey white. */
       if (envPlane && envPlane.material && envPlane.material.color) {
         const k = 1 + 1.9 * SBMM.atmos3d.dayness(sunEl);
-        envPlane.material.color.setRGB(k * 0.92, k, k * 1.06);
+        const b = envPlane.userData.base;
+        if (b) envPlane.material.color.setRGB(b.r * k * 0.92, b.g * k, b.b * k * 1.06);
+        else envPlane.material.color.setRGB(k * 0.92, k, k * 1.06);
       }
     }
     /* v20 §4: the shader rasters carry the sun as a uniform, so moving it
@@ -4699,7 +4707,11 @@ SBMM.viewer3d = (function () {
       /* v17 §3: remembered, in the same store the camera and the sun use. A
          remembered choice beats a guess — an M-series iPad handles the 1.5 M
          vertex mesh and an A10 does not, and only the owner knows which. */
-      if (SBMM.view && SBMM.view.pref) SBMM.view.pref("detail", detSel.value);
+      /* v56: a change the app made for the device (field mode) is applied and
+         not remembered — only the user's own choice is */
+      const byApp = detSel.dataset.auto === "1";
+      delete detSel.dataset.auto;
+      if (!byApp && SBMM.view && SBMM.view.pref) SBMM.view.pref("detail", detSel.value);
       $("v3dStatus").textContent = "rebuilding terrain…";
       await new Promise(r => setTimeout(r, 30));
       await rebuildTerrain();
@@ -4901,6 +4913,10 @@ SBMM.viewer3d = (function () {
     /* put everything back, then narrow only as far as needed */
     const parked = [...host.querySelectorAll(".v3dopt")];
     for (const o of parked) bar.insertBefore(o, bar.querySelector(".spacer") || last);
+    /* v56: and the rows they were parked in. They were left behind, so every
+       reflow (a resize, a dock opening) added another set of empty "Drape" /
+       "Relief" labels to the View settings box — by the dozen in a long visit. */
+    for (const r of [...host.querySelectorAll(".optrow")]) r.remove();
     host.hidden = true;
     bar.classList.remove("compact", "compact2");
     if (gear) gear.classList.remove("hasopt");
@@ -6244,6 +6260,33 @@ SBMM.viewer3d = (function () {
        "animate water" switch */
     setWaterStage: spec => { if (scene) setWaterStage(spec); },
     animateWater: on => { if (on === undefined) return animOn; setAnimWater(on); return animOn; },
+    /* v56: the backdrop was switched on or off (js/backdrop.js) — the ground
+       plane beyond the survey is built once, with or without its picture, so
+       it is built again. Nothing else in the scene holds it. */
+    refreshEnv() {
+      if (!scene || !envGroup) return false;
+      scene.remove(envGroup);
+      envGroup.traverse(o => { if (o.geometry) o.geometry.dispose();
+        if (o.material) { if (o.material.map) o.material.map.dispose(); o.material.dispose(); } });
+      envGroup = buildEnv();
+      envGroup.scale.z = exag();
+      envGroup.userData.noClip = true;
+      scene.add(envGroup);
+      applySun();
+      requestRender();
+      return true;
+    },
+    /* v56: the names on points, read and set (js/viewstate.js) */
+    pointNames: on => { if (on === undefined) return ptOn; setPointLabels(on); return ptOn; },
+    /* v56: the console-only rendering preferences were just cleared — put the
+       pixel ratio back and re-cut the terrain with the device's own drape rule */
+    async applyOverrides() {
+      if (!open || !renderer) return;
+      resize();
+      await rebuildTerrain();
+      await refreshTerrainForCamera();
+      requestRender();
+    },
     /* v15: the 3D label layer, the parity table and the sun */
     setLabels3d, labelsDrawn: () => [...labels3d.values()].map(r => ({ key: r.key, text: r.text,
       visible: r.sprite.visible, priority: r.priority })),

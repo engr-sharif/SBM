@@ -89,6 +89,13 @@ SBMM.field = (function () {
     if (want) set(true, { persist: false });
     return want;
   }
+  /* v56: forget the stored choice and follow the device again (js/viewstate.js) */
+  function auto() {
+    try { localStorage.removeItem(STORE); } catch (e) {}
+    set(!!sniff(), { persist: false });
+    if (SBMM.viewState) SBMM.viewState.touch();
+    return active;
+  }
 
   function set(want, opts) {
     opts = opts || {};
@@ -105,7 +112,10 @@ SBMM.field = (function () {
       /* §4.3: 3D opens at STANDARD detail on a phone — the high mesh is 1.5 M
          vertices and a phone GPU is not a workstation's */
       const d = document.getElementById("v3dDetail");
-      if (d && d.value === "high") { d.value = "std"; d.dispatchEvent(new Event("change")); }
+      /* v56: flagged, so the 3D view applies it without REMEMBERING it — a
+         device that was put in field mode once used to open 3D at standard
+         detail for good */
+      if (d && d.value === "high") { d.value = "std"; d.dataset.auto = "1"; d.dispatchEvent(new Event("change")); }
       paintMode();
       hookPopups(true);
     } else {
@@ -938,7 +948,7 @@ SBMM.field = (function () {
   }
 
   return {
-    wire, autoDetect, on, set, toggle, sniff,
+    wire, autoDetect, auto, on, set, toggle, sniff,
     /* v17: js/touch.js follows the viewport across the phone/tablet line, but
        only where the user has expressed no preference — a stored choice is a
        decision and an orientation change must not overrule it */

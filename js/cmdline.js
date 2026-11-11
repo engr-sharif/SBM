@@ -350,6 +350,10 @@ SBMM.cmd = (function () {
     { n: "UNDO",  a: ["U"], d: "undo the last action", f: () => SBMM.undo.pop() },
     { n: "REDO",  a: ["RE", "Y"], d: "redo the last undone action (Ctrl+Y)", f: () => SBMM.undo.redo() },
     { n: "CLEAR", a: [], d: "remove every drawn feature", f: () => $("clearBtn").click() },
+    /* v56: every remembered setting back to how the app first opens; drawings,
+       imported data, saved views and presets are kept (js/viewstate.js) */
+    { n: "RESET", a: ["DEFAULTS", "RESETVIEW"], d: "reset to defaults — settings go back, your work is kept",
+      f: () => { if (SBMM.viewState) SBMM.viewState.confirmReset(); } },
     { n: "HELP",  a: ["?", "H"], d: "list every command", f: () => showHelp() },
     /* the password gate (js/gate.js). Forgetting the remembered unlock and
        putting the screen back up is one action, so it is one command. */
@@ -607,7 +611,7 @@ SBMM.cmd = (function () {
        it was for the people who type AutoCAD aliases: ` opens it, and the
        omnibox's ">" hands a line straight to it. (v19.1 already kept it shut on
        a phone, where it cost a 32-px strip of the only map there is.) */
-    try { localStorage.setItem("sbmm_cmdseen", "1"); } catch (err) {}
+    /* v56: the write-only "sbmm_cmdseen" key is gone (v26 removed its reader) */
   }
 
   return { wire, run, ask, asking: () => !!pending, pickFeature, cancelPick, open, commands: () => CMDS, find, showHelp, zoomExtents };

@@ -465,6 +465,7 @@ SBMM.trees = (function () {
     const mi = document.getElementById("treeMin");
     if (mi && +mi.value !== minShow) mi.value = minShow;
     repaint();
+    if (SBMM.viewState) SBMM.viewState.touch();
     if (SBMM.viewer3d && SBMM.viewer3d.refreshOverlays && SBMM.layerState.isOn("base", "trees_detected"))
       SBMM.viewer3d.refreshOverlays();
   }

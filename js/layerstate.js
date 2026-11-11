@@ -96,8 +96,12 @@ SBMM.layerState = (function () {
     restoring = (o && typeof o === "object") ? o : {};
     return restoring;
   }
+  /* v56: set by resetDefaults(). Until the page reloads nothing is written:
+     the in-memory rows still hold the state being reset, and the next persist
+     would write all of it straight back. */
+  let frozen = false;
   function persist() {
-    if (quiet) return;
+    if (quiet || frozen) return;
     try { localStorage.setItem(STORE, JSON.stringify(serialize())); } catch (e) { /* file:// */ }
   }
 
@@ -282,9 +286,14 @@ SBMM.layerState = (function () {
     SBMM.events.emit("layers", { group: null, layer: null, state: null });
     return n;
   }
+  /* v56 — the layer half of "reset to defaults" (js/viewstate.js). `define`
+     keeps no copy of a row's shipped default once a remembered value has been
+     laid over it, so the defaults cannot be put back in place: the record is
+     removed, writing is frozen, and the caller reloads. */
   function resetDefaults() {
     try { localStorage.removeItem(STORE); } catch (e) {}
     restoring = {};
+    frozen = true;
   }
 
   return {
