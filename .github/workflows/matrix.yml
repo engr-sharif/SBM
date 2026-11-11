@@ -103,14 +103,24 @@ jobs:
       # installed under a time limit that runs AS ROOT (an unprivileged timeout
       # cannot stop the root apt-get, which then holds the dpkg lock against
       # every retry); and a failed attempt clears that lock before the next.
+      #
+      # 2026-11-11: the mirror did not answer AT ALL for twenty minutes and all
+      # eighteen jobs failed here, three attempts each, with no test run. What
+      # it could not fetch are nine FONT packages — the runner image already
+      # carries every library Chromium links (apt says so, line by line). So a
+      # mirror that will not answer no longer fails the job: after two
+      # attempts the step asks the one question that matters, whether the
+      # browser starts, and carries on if it does. The app ships its own
+      # typefaces; if a missing system font ever matters to a test, that test
+      # says so by name instead of the whole matrix going red.
       - name: Install Chromium
         working-directory: test
         run: |
-          printf 'Acquire::Retries "4";\nAcquire::http::Timeout "12";\nAcquire::https::Timeout "12";\n' \
+          printf 'Acquire::Retries "2";\nAcquire::http::Timeout "12";\nAcquire::https::Timeout "12";\n' \
             | sudo tee /etc/apt/apt.conf.d/80-ci-timeouts > /dev/null
           npx playwright install chromium
-          for n in 1 2 3; do
-            if sudo timeout -k 30 420 env "PATH=$PATH" npx playwright install-deps chromium; then exit 0; fi
+          for n in 1 2; do
+            if sudo timeout -k 30 240 env "PATH=$PATH" npx playwright install-deps chromium; then exit 0; fi
             echo "playwright install-deps: attempt $n failed or timed out"
             sudo pkill -9 -x apt-get || true
             sudo pkill -9 -x dpkg || true
@@ -118,6 +128,11 @@ jobs:
             sudo dpkg --configure -a || true
             sleep 10
           done
+          if node -e "require('playwright').chromium.launch().then(b => b.close()).then(() => process.exit(0), e => { console.error(String(e)); process.exit(1); })"; then
+            echo "::warning::the package mirror did not answer; Chromium starts with what the runner image has, so the tests run without the extra font packages"
+            exit 0
+          fi
+          echo "::error::the package mirror did not answer and Chromium does not start without the packages it serves"
           exit 1
 
       - name: Preflight
