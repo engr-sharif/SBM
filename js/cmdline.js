@@ -254,6 +254,13 @@ SBMM.cmd = (function () {
         const d = parseFloat(String(v || "").trim());
         SBMM.temws.open({ depth: isFinite(d) ? d : null });
       } },
+    /* v51: TEM off as a whole — every TEM layer, the cut, the cards, the see-through ground */
+    { n: "TEMOFF", a: ["TEMCLOSE", "GEOPHYSOFF"],
+      d: "turn TEM off — every TEM layer off, the cut closed, the ground solid",
+      f: () => {
+        if (!SBMM.temws) { toast("this build has no TEM survey"); return; }
+        if (!SBMM.temws.off(true)) toast("TEM is already off"); else toast("TEM off");
+      } },
     /* v38: the TEM's two interpretations, each a tab of the workspace */
     { n: "TEMWASTE", a: ["BASEOFWASTE", "WASTEBASE"],
       d: "base of waste — the 2025 borings mapped across the TEM survey, with the TEM where it helps",

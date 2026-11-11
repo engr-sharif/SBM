@@ -3285,3 +3285,31 @@ body.temws:not(.field) #temWs{display:flex;flex-direction:column;position:fixed;
 .plname.lake{font-size:var(--ml-l)}
 .drainlbl{line-height:1.25}
 
+/* =====================================================================
+   v51 — TEM as one thing to turn off. The panel's header carries "hide"
+   beside the cross (which now turns TEM off); the chip says a TEM layer is
+   on while the panel is not, bottom-centre of the stage above the mode HUD;
+   the Data menu's row shows TEM's state. Desktop and tablet carry the
+   chip's "open"; a phone has no panel, so there it is "turn off" alone.
+   ===================================================================== */
+#temWs .twshb{display:flex;align-items:center;gap:6px;flex:none}
+#temWs .twshb .minib{padding:2px 8px;font-size:11px}
+#temChip{position:absolute;left:calc(var(--dockL) + (100% - var(--dockL) - var(--dockR))/2);
+  transform:translateX(-50%);bottom:calc(var(--botH) + 52px);z-index:1450;
+  display:flex;align-items:center;gap:8px;padding:5px 8px 5px 12px;border-radius:999px;
+  background:rgba(14,20,24,.92);border:1px solid var(--line2);box-shadow:var(--sh2);
+  font-size:12px;color:var(--ink2);white-space:nowrap;max-width:min(680px,calc(100vw - 24px))}
+#temChip[hidden]{display:none}
+/* only its two buttons take the pointer: the pill itself must never stand between a click and the map */
+#temChip{pointer-events:none}
+#temChip .minib{pointer-events:auto}
+#temChip .tchn{font-weight:650;color:#F1CE7A}
+#temChip .tchw{color:var(--mut);overflow:hidden;text-overflow:ellipsis}
+#temChip .tchw:empty{display:none}
+#temChip .minib{padding:2px 9px;font-size:11px;color:var(--ink2);cursor:pointer}
+#temChip .minib:hover{color:var(--ink);border-color:var(--acc)}
+#temChip .minib[hidden]{display:none}
+body.field #temChip{left:50%;right:auto;transform:translateX(-50%);bottom:auto;top:calc(var(--ftopH) + 8px)}
+body.field.fovl #temChip{display:none}
+#temMenuBtn.on .tlbl::after{content:" · on";color:#F1CE7A;font-weight:600}
+

@@ -422,7 +422,7 @@ terrain source, which needs an explicit decision + README/test update).
 | borelogs.js | **the 2025 boring logs (OpenGround)** — the strip log in a results card (class profile, strata + USCS, SPT with the pocket penetrometer, pH against the acid threshold, method bands, the water symbol), the TWO contact statements drawn together and reconciled nowhere, the 44-hole `LOGS` table, the CSV and the PNG, the popup button, `LOG` / `LOGS`, the class palette every other view reads through `classColor()`, and since v23 **the column renderer `column()`** every face of the borings is drawn by; `SBMM.borelogs` |
 | labmetals.js | **v28 — lab metals by depth** from the earlier apps (`SBMM_DATA.lab_metals`, `tools/build_imports.py`): the interval table in a boring / test-pit popup and on the log card, the full validated suite on a sample popup, the ROD / PMB levels and `level(sym, v)`; `SBMM.labMetals` |
 | geophys.js | **v36 — the 2026 TEM2Go geophysics** (`SBMM_DATA.tem2026`): the soundings row and the depth-slice row under *Geophysics — TEM 2026* in Investigations, the `tem` job, the slice painted in the contractor's colour maps, the card with the viewer's controls in feet, the sounding popup's profile with the nearest boring's contacts, the CSV/PNG exports, the status-bar value, the 3D dots and slice sheet, `TEM`; `SBMM.geophys` |
-| temws.js | **v37 — the TEM workspace**: Data ▾ → *TEM geophysics* / `TEMWS` — a panel in the right dock's place with every TEM control, the core (a virtual boring at the centre of the cut, draggable for depth), the descent, and the 3D view opened with the ground cut open to the slice (`SBMM.viewer3d.setPit`); on a phone it opens the card; `SBMM.temws` |
+| temws.js | **v37 — the TEM workspace**: Data ▾ → *TEM geophysics* / `TEMWS` — a panel in the right dock's place with every TEM control, the core (a virtual boring at the centre of the cut, draggable for depth), the descent, and the 3D view opened with the ground cut open to the slice (`SBMM.viewer3d.setPit`); on a phone it opens the card; since v51 `off()` (TEM off as a whole), `hide()` and the "TEM on" chip; `SBMM.temws` |
 | teminterp.js | **v38 — two interpretations of the TEM**: *Base of waste* (the 2025 borings' logged native contact kriged across the dry survey footprint, the TEM break depth as an external drift only when it wins the leave-one-out, the standard error, the proposed borings) and *Conductive zones* (an elevation band below the impoundment's surveyed water level, its harmonic-mean resistivity, the least-resistive route from Herman to Clear Lake and its bottleneck, the section along it); the two layer rows, the cards, the workspace tabs it mounts, the 3D spec, the exports, `TEMWASTE` / `TEMSEEP`; `SBMM.teminterp` |
 | siteareas.js | **v28 — the named site areas of SBMM.kmz** (`SBMM_DATA.site_areas`): one Investigations row (off by default), 3D drape, snap, GeoJSON/DXF on `SITE-AREAS`; `SBMM.siteAreas` |
 | borewin.js | **v23 Phase A — the boring-log window** on the sheet-window chassis: the Log tab as a real log sheet at 1 in = 5 ft with the depth cursor, Compare (2–6 holes on one elevation datum, correlation lines, printed separations), the 44-hole Table, the printed log sheet through `js/report.js`, the hole picker, `LOGWIN`; `SBMM.borewin` |
@@ -5794,3 +5794,82 @@ colour hides the very shape it is about.
 - `stats().drapes` (`{name, relief, normals}`) and `stats().drapeRelief`
   (`{k, zx, sun}`) are the harness hooks.
 
+
+## v51 — TEM is one thing to turn off; the ground gives way over the survey only
+
+`off()` / `hide()` / `toggle()` / the chip in `js/temws.js`; `anyOn()` /
+`rowsOn()` / `footprint()` / `closeCards()` in `js/geophys.js`; the `v51`
+section of `js/viewer3d.js` (`SEE`, `seeFootprint`, `groundBeforeDraw`);
+`seePatch` and the raster shader in `js/terrain3d.js`; `TEMOFF`; the `v51`
+block at the end of `css/app.css`. E2E block **9f11** (the workspace block)
+carries the contract. No kernel work.
+
+The engineer: *"when I'm looking at the 3D surface, why is everything on the
+terrain hazy?"* and then *"even after I turn it off the ground doesn't return
+back to non-transparent."* The see-through mechanism was never broken — in 17
+on/off sequences the ground came back solid the moment every TEM row was off.
+What was broken is that **nothing turned TEM off**: the panel's cross hid the
+panel and the cut and left the rows on (two of them, from an interpretation
+tab), any row left on kept the WHOLE ground at 35 %, the layer state is
+remembered between visits, and an explicit "see-through" picked in the panel
+was remembered too.
+
+**TEM as one state.** "On" is any of the four rows (`TEM_ROWS`).
+
+- `SBMM.temws.off()` — every TEM row off, the cut closed, the TEM cards
+  closed, a see-through or hidden ground back to auto, the docks and the 3D
+  view back as they were. It is the panel's **cross**, Data ▾ → TEM
+  geophysics while the panel is open (`toggle()`), and `TEMOFF`. It works with
+  the panel hidden and on a phone.
+- `SBMM.temws.hide()` (`close()` is the same function under its old name, and
+  every harness that called it means this) — the panel and the cut away, the
+  layers left on. The header's **hide** button.
+- **The chip** (`#temChip`, bottom-centre above the mode HUD; top-centre on a
+  phone): shown while a TEM row is on and the panel is not — "TEM on · N
+  layers", **open**, **turn off**. Only its two buttons take the pointer.
+  `#temMenuBtn` carries `aria-pressed` and " · on". It is wired on the `boot`
+  event, so a row remembered from the last visit shows it at once.
+- **An explicit see-through or hidden ground is for this visit only.**
+  `setGround` remembers `auto` and `solid`; a stored `see`/`hidden` is not
+  restored.
+- `ensure(rowId)` in `js/geophys.js` puts no card up for a row that was
+  switched off while its job ran — `off()` during a run used to leave a card
+  for a layer that was no longer on.
+
+**Over the survey only.** In `auto` with a TEM layer drawn, the ground gives
+way only where the model is; the rest of the site and the world beyond it are
+drawn exactly as they always are. Five things will be walked into again:
+
+- **It is COVERAGE, not blending.** Every terrain material multiplies its
+  output alpha by `mix(1, uSeeA, mask)` (`seePatch` for the two Lambert
+  grounds, in the source for the raster ShaderMaterial; `userData.seeMask`
+  says a material can), and `groundBeforeDraw` switches the material's
+  `alphaToCoverage` on. On the multisampled canvas a quarter of the ground's
+  samples are kept over the survey (`SEE_A` 0.25 = one of four) and the model
+  shows through the rest **in depth order**. The ground stays in the OPAQUE
+  pass and goes on writing depth, so nothing else in the scene has to know:
+  lines, water, labels, shadows and picking are untouched, and the solid
+  ground is byte-for-byte the ground it was. Blending was designed first and
+  rejected: a blended ground cannot write depth, and without depth every line
+  and water sheet behind a hill shows through the solid part.
+- **The alpha is written AFTER `opaque_fragment`.** three r160 forces an
+  opaque material's alpha to 1 there (`opaque` does not look at
+  `alphaToCoverage` until a later release), so the multiply goes on
+  `gl_FragColor.a`.
+- **The backdrop plane is cut away over the survey too** (`uSeeHole`, a
+  `discard`): it sits at the site's lowest ground less 25 ft and would hide
+  every deeper part of the model (the v38 finding). What shows through the cut
+  is `envFloor`, a dark plane 700 ft lower, hidden unless the cut is on — not
+  the sky's haze.
+- **The mask hugs the nodes the model reaches** (`SBMM.geophys.footprint()`,
+  the `tem` job's own mask, one pass of softening, a border of zeros so the
+  clamped lookup outside the box reads solid). It is NOT grown: see-through
+  ground with no model under it is only a dark patch.
+- **The fallbacks are the old behaviour, whole.** No multisampling
+  (`stats().msaaSamples < 4`), no survey grid yet, the whole-DEM terrain
+  (its materials carry no mask), or an explicit "see-through" / "hidden":
+  the ground is blended as a whole, exactly as before v51.
+  `stats().groundCover` says which is in force.
+
+`groundNow()` still answers `"see"` while a TEM layer is drawn in `auto` —
+what changed is how much of the ground that means.

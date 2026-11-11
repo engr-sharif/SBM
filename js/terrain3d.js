@@ -116,8 +116,10 @@ SBMM.terrain3d = (function () {
     #include <fog_pars_vertex>
     #include <clipping_planes_pars_vertex>
     varying vec2 vUv;
+    varying vec2 vSeeXY;
     void main() {
       vUv = uv;
+      vSeeXY = (modelMatrix * vec4(position, 1.0)).xy;
       vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
       gl_Position = projectionMatrix * mvPosition;
       #include <clipping_planes_vertex>
@@ -129,6 +131,8 @@ SBMM.terrain3d = (function () {
     #include <fog_pars_fragment>
     #include <clipping_planes_pars_fragment>
     varying vec2 vUv;
+    varying vec2 vSeeXY;
+    uniform sampler2D uSeeTex; uniform vec4 uSeeBox; uniform float uSeeA;
     uniform sampler2D uDem;
     uniform sampler2D uRamp;
     uniform float uCell, uZmin, uStep, uTexel, uZlo, uZhi, uContour, uOpacity;
@@ -187,7 +191,8 @@ SBMM.terrain3d = (function () {
         float w = max(1e-4, length(vec2(dFdx(zc), dFdy(zc))));
         col = mix(vec3(0.05, 0.06, 0.07), col, clamp(f / w - 0.5, 0.0, 1.0));
       }
-      gl_FragColor = vec4(col, uOpacity);
+      /* v51: see-through over the TEM survey only (uSeeA is 1 when the ground is solid) */
+      gl_FragColor = vec4(col, uOpacity * mix(1.0, uSeeA, texture2D(uSeeTex, (vSeeXY - uSeeBox.xy) / uSeeBox.zw).r));
       #include <fog_fragment>
     }`;
 
@@ -242,11 +247,12 @@ SBMM.terrain3d = (function () {
         uOpacity: { value: 1 },
         uSunAz: { value: sunAz }, uSunEl: { value: sunEl },
         uMode: { value: MODE[kind] == null ? 0 : MODE[kind] }
-      }),
+      }, seeUniforms()),
       fog: true,
       clipping: true                             // v27: the fence clip box
     });
     m.extensions = { derivatives: true };       // dFdx/dFdy for the contour width
+    m.userData.seeMask = true;
     return m;
   }
 
@@ -1055,9 +1061,44 @@ SBMM.terrain3d = (function () {
 
   const GROUND_U = { uNoise: { value: null }, uCover: { value: null }, uSite: { value: null },
                      uDetail: { value: null }, uAo: { value: 1 }, uEdge: { value: null }, uEdgeBox: { value: null } };
+  /* v51 — SEE-THROUGH OVER THE TEM SURVEY ONLY. The 3D view owns one mask
+     texture (how far inside the TEM survey a point is), its box in scene x/y
+     and one alpha (ctx.seeUniforms(): 1 while the ground is solid). Every
+     terrain material multiplies its OUTPUT alpha by mix(1, alpha, mask) — a
+     no-op until the view switches the material's alphaToCoverage on, at which
+     point the multisampled canvas keeps only that share of the ground's
+     samples over the survey: the ground stays in the opaque pass, goes on
+     writing depth and stays solid everywhere else. The alpha is written
+     AFTER opaque_fragment because r160 forces an opaque material's alpha to
+     1 there. `userData.seeMask` tells the view the material can do it. */
+  let seeFallback = null;
+  function seeUniforms() {
+    if (ctx && ctx.seeUniforms) return ctx.seeUniforms();
+    if (!seeFallback) {
+      const t = new THREE.DataTexture(new Uint8Array([0, 0, 0, 255]), 1, 1, THREE.RGBAFormat, THREE.UnsignedByteType);
+      t.needsUpdate = true;
+      seeFallback = { uSeeTex: { value: t }, uSeeBox: { value: new THREE.Vector4(0, 0, 1, 1) }, uSeeA: { value: 1 } };
+    }
+    return seeFallback;
+  }
+  function seePatch(sh) {
+    Object.assign(sh.uniforms, seeUniforms());
+    sh.vertexShader = sh.vertexShader
+      .replace("#include <common>", "#include <common>\nvarying vec2 vSeeXY;")
+      .replace("#include <project_vertex>", "#include <project_vertex>\n\tvSeeXY = ( modelMatrix * vec4( transformed, 1.0 ) ).xy;");
+    sh.fragmentShader = sh.fragmentShader
+      .replace("#include <common>", "#include <common>\nuniform sampler2D uSeeTex; uniform vec4 uSeeBox; uniform float uSeeA;\nvarying vec2 vSeeXY;")
+      .replace("#include <opaque_fragment>", `#include <opaque_fragment>
+	gl_FragColor.a *= mix( 1.0, uSeeA, texture2D( uSeeTex, ( vSeeXY - uSeeBox.xy ) / uSeeBox.zw ).r );`);
+  }
   function groundMaterial(o) {
     const mat = new THREE.MeshLambertMaterial({ color: 0xffffff });
-    if (!shadeWanted()) return mat;
+    mat.userData.seeMask = true;
+    if (!shadeWanted()) {
+      mat.onBeforeCompile = seePatch;
+      mat.customProgramCacheKey = () => "sbmm-ground-std-v51";
+      return mat;
+    }
     if (!GROUND_U.uNoise.value) {
       GROUND_U.uNoise.value = noiseTexture();
       GROUND_U.uCover.value = coverTexture();
@@ -1117,8 +1158,9 @@ varying vec2 vTileUv;`)
 		reflectedLight.indirectDiffuse *= ao;
 		reflectedLight.directDiffuse *= mix( 1.0, ao, 0.5 );
 	}`);
+      seePatch(sh);
     };
-    mat.customProgramCacheKey = () => "sbmm-ground-v46";
+    mat.customProgramCacheKey = () => "sbmm-ground-v51";
     return mat;
   }
   function applyShade(r, data) {
