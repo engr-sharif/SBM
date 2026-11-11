@@ -6688,3 +6688,63 @@ builds and requires **no row that is off to have its layer on the map** — ever
 row, through `SBMM.layerTree.refs()`. Block 9f27 finds its image among the ones
 that arrive after its row is switched on, so what an earlier block left on the
 map cannot be measured in its place.
+
+## v60 — what the page had stored when it was unloaded is what a reload starts with
+
+The storage guard at the top of `js/gate.js` (`SBMM.keep`); the simulated lossy
+reload in block **9zz**. No kernel work.
+
+**What was wrong.** Block 9zz failed on CI with *everything* the page had
+stored gone after the reset's reload — keys the reset never touches included.
+A probe that logs every storage call (and the unloading page's own view) says:
+
+- the app clears nothing; at `pagehide` the old page still has every key;
+- the reloaded page starts with an empty store, in the same renderer process,
+  and a second page opened in the same profile sees it empty too;
+- **in-memory profile** (what every harness here runs in): about one reload in
+  sixteen under load — main's code and the branch alike, run side by side —
+  and the WHOLE store goes, a key written 70 s earlier with the rest;
+- **on-disk profile**: once in ten reloads when the page had only just
+  opened, never in forty when it had been open twenty seconds. What a real
+  profile can lose is what was written in the last seconds before the reload —
+  and *reset to defaults* writes and reloads at once;
+- a bare page: never (0 of 80). `sessionStorage` survived every lossy reload.
+
+It is the browser, not the app, and it predates this round (main's code does
+it at the same rate). A reload failure in 9z or 9zz that "passes alone" may
+have been this.
+
+**The guard.** At `pagehide` the app's own keys (`sbmm_*` / `sbmm.*`) are
+copied into `sessionStorage["sbmm.keep.v1"]`. The first script of the next
+document, **on a reload only**, puts back any the browser did not keep and
+removes any that were not there at unload; `SBMM.keep.last` is
+`{ reload, age, restored, removed }` and a replay that changed anything says so
+with one `console.warn`. Six rules:
+
+- **The gate's keys never travel.** `sbmm.gate.*` is neither copied nor
+  touched: nothing about being unlocked, or about the idle lock, goes through
+  the tab's session storage. Block 9zz reads the copy and requires that.
+- **A reload only** (`PerformanceNavigationTiming.type === "reload"`). A plain
+  navigation, a duplicated tab or a restored session finds a copy that is not
+  theirs: it is dropped unused. The copy is also dropped at use, after a
+  minute, and when a page returns from the back/forward cache.
+- **The copy is the store AT UNLOAD**, so a key changed by hand (or by a
+  harness) before the reload is honoured — the copy has the change.
+- **It runs before any script reads a setting**, which is why it is in the
+  first script and not in a file of its own: `js/touch.js` reads the field
+  preference at parse time, the view store at its own load.
+- **A value over 1.5 M characters is not copied** (a session full of photos),
+  and is then left exactly as the browser has it.
+- **Nothing in this app writes to localStorage while the page unloads.** If
+  something ever does, it writes before `pagehide` or calls
+  `SBMM.keep.snap()` after — a copy taken before a later write would put the
+  older value back.
+
+**The loss cannot be made to happen on demand**, so block 9zz simulates it
+where it happens: a `pagehide` listener registered after the app's own (the
+copy is already taken) empties the store, and an init script records what the
+next document saw before any app script ran (`null`). The reload must come
+back with the probe key, the drawings offered for restore and
+`restored >= 2`; the same key changed in a `pagehide` listener before a plain
+`goto` must stand, with `restored 0`. The probes behind the numbers above were
+scratch scripts and are not in the repo; the numbers are from 2026-11-11.

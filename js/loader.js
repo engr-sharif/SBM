@@ -44,7 +44,7 @@
   /* tools/stamp_sizes.py rewrites everything between the markers */
   /* SBMM_SIZES_BEGIN */
   var SIZES = [
-    ["js/gate.js",36188,""],
+    ["js/gate.js",41016,""],
     ["js/touch.js",64951,""],
     ["vendor/leaflet.js",147552,""],
     ["vendor/d3-delaunay.min.js",19071,""],

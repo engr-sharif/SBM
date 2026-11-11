@@ -13990,6 +13990,56 @@ await wait9(400);
 const restored = await page.evaluate(() => ({ n: SBMM.store.features.filter(f => f.name === "RELOAD-KEEP").length, bar: !!document.querySelector(".restorebar"),
   stored: (JSON.parse(localStorage.getItem("sbmm_session_auto") || "{}").features || []).length }));
 if (restored.n !== 1 || restored.bar || restored.stored !== savedN) { console.log("FAIL: restore did not bring the drawing back", restored); process.exit(1); }
+
+/* ---- v60: a reload the browser comes back empty from (js/gate.js, the storage guard) ----
+   Chromium can return from a reload without what the page had stored: measured
+   at about one reload in sixteen in this harness's in-memory profile, where
+   the whole store goes. It cannot be made to happen on demand, so it is
+   simulated where it happens: a pagehide listener registered AFTER the app's
+   own (so the app's copy is already taken) empties the store. */
+await page.addInitScript(() => { try { window.__zzFirst = localStorage.getItem("sbmm_zz_keep"); } catch (e) { window.__zzFirst = "?"; } });
+await page.evaluate(() => {
+  localStorage.setItem("sbmm_zz_keep", "A");
+  window.addEventListener("pagehide", () => {
+    sessionStorage.setItem("zz_copy", sessionStorage.getItem("sbmm.keep.v1") || "");
+    const ks = []; for (let i = 0; i < localStorage.length; i++) ks.push(localStorage.key(i));
+    for (const k of ks) if (/^sbmm[_.]/.test(k) && !/^sbmm\.gate\./.test(k)) localStorage.removeItem(k);
+  });
+});
+await page.reload();
+await page.waitForSelector("#loading", { state: "hidden", timeout: 300000 });
+await lateSettled(page);
+const kept = await page.evaluate(() => {
+  let copy = {}; try { copy = JSON.parse(sessionStorage.getItem("zz_copy") || "{}"); } catch (e) {}
+  const ck = Object.keys(copy.k || {});
+  return { first: window.__zzFirst, last: SBMM.keep.last, key: localStorage.getItem("sbmm_zz_keep"),
+           stored: (JSON.parse(localStorage.getItem("sbmm_session_auto") || "{}").features || []).length,
+           bar: !!document.querySelector(".restorebar"), copied: ck.length,
+           gateInCopy: ck.filter(k => /^sbmm\.gate\./.test(k) || k === "sbmm.keep.v1"), used: sessionStorage.getItem("sbmm.keep.v1") === null };
+});
+console.log("a reload the browser came back empty from:", JSON.stringify(kept));
+if (kept.first !== null) { console.log("FAIL: the simulated loss did not empty the store before the page started", kept); process.exit(1); }
+if (!kept.last.reload || kept.last.restored < 2 || kept.key !== "A" || kept.stored !== savedN || !kept.bar)
+  { console.log("FAIL: what the page had stored when it was unloaded was not there after the reload", kept); process.exit(1); }
+if (kept.gateInCopy.length || !kept.used || kept.copied < 2) { console.log("FAIL: the copy carried a gate key, or was not used up", kept); process.exit(1); }
+await page.click("#rsYes");
+await wait9(400);
+/* a plain navigation is NOT a reload: the copy is dropped unused, and a value
+   written after it was taken stands */
+await page.evaluate(() => {
+  localStorage.setItem("sbmm_zz_keep", "A");
+  window.addEventListener("pagehide", () => { localStorage.setItem("sbmm_zz_keep", "B"); });
+});
+await page.goto(page.url().split("?")[0] + "?v60");
+await page.waitForSelector("#loading", { state: "hidden", timeout: 300000 });
+await lateSettled(page);
+const nav = await page.evaluate(() => ({ last: SBMM.keep.last, key: localStorage.getItem("sbmm_zz_keep"), used: sessionStorage.getItem("sbmm.keep.v1") === null,
+  type: (performance.getEntriesByType("navigation")[0] || {}).type }));
+console.log("a plain navigation:", JSON.stringify(nav));
+if (nav.last.reload || nav.last.restored || nav.last.removed || nav.key !== "B" || !nav.used)
+  { console.log("FAIL: a navigation that is not a reload replayed the stored copy", nav); process.exit(1); }
+await page.evaluate(() => { localStorage.removeItem("sbmm_zz_keep"); sessionStorage.removeItem("zz_copy"); });
+if (await page.evaluate(() => !!document.querySelector(".restorebar"))) { await page.click("#rsYes"); await wait9(400); }
 await page.evaluate(() => { for (const f of SBMM.store.features.filter(f => f.name === "RELOAD-KEEP")) SBMM.store.remove(f); });
 await page.evaluate(async () => { await SBMM.viewer3d.toggle(); });
 await settled3d();
