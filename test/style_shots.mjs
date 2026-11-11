@@ -184,6 +184,51 @@ await wait(500);
 await shot("18_modal");
 await page.evaluate(() => document.getElementById("resetNo").click());
 
+/* 20-21. a drawn area: its results card (rows + note), then the Inspector */
+await page.evaluate(() => {
+  const f = SBMM.tools.newFeature("area", [[6371400, 2128600], [6371700, 2128600], [6371700, 2128850], [6371400, 2128850]], "Area style");
+  f.card = SBMM.results.card(f, f.name, []);   // what mkArea does: a feature brings its own card
+  SBMM.tools.recompute(f);
+  SBMM.shell.setRightTab("results");
+  const b = document.getElementById("resBody"); if (b) b.scrollTop = 0;
+});
+await wait(1500);
+await shot("20_area_card");
+await page.evaluate(() => {
+  const f = SBMM.store.features.find(x => x.name === "Area style");
+  SBMM.store.select(f.id); SBMM.shell.setRightTab("inspector");
+});
+await wait(800);
+await shot("21_inspector");
+await page.evaluate(() => { SBMM.store.select(null); SBMM.shell.setRightTab("results"); });
+
+/* 22. the samples table drawer */
+await page.evaluate(() => { document.getElementById("tableBtn").click(); });
+await wait(1200);
+await shot("22_table");
+await page.evaluate(() => { document.getElementById("tableBtn").click(); });
+await wait(500);
+
+/* 23. the layer manager dialog */
+await page.evaluate(() => { SBMM.layerMan.open(); });
+await wait(1200);
+await shot("23_layerman");
+await page.keyboard.press("Escape");
+await wait(500);
+
+/* 24. the omnibox with a result list (shot() would blur the box and close it) */
+await page.evaluate(() => {
+  const t = document.getElementById("toast"); if (t) t.classList.remove("show");
+  const i = document.getElementById("omniIn"); i.focus(); i.value = "SB-1";
+  i.dispatchEvent(new Event("input", { bubbles: true }));
+});
+await wait(1200);
+await page.screenshot({ path: out + "/24_omnibox.png", animations: "disabled", caret: "hide" });
+console.log("shot 24_omnibox");
+await page.keyboard.press("Escape");
+await page.evaluate(() => { const i = document.getElementById("omniIn"); i.value = ""; i.blur(); });
+await wait(500);
+
 /* 19. field mode with the Layers bottom sheet open */
 await page.evaluate(() => { SBMM.field.set(true, { persist: false }); });
 await wait(2000);
