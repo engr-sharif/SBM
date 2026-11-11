@@ -310,5 +310,31 @@ const bad  = (n, msg, rows = []) => { fails++; console.log(`FAIL ${n} — ${msg}
               : ok("shards", `${cuts.length + 1} shards per build, every cut one block, every shard a CI job`);
 }
 
+/* 11. the 3D overlay's two files (v60). js/overlays3d.js is the project half
+   of the overlay, moved out of js/viewer3d.js with its bodies unchanged; what
+   it uses from the viewer is named ONCE in each file — `uses` there, `OVC` /
+   `OVP` here. A name on one side and not the other is `undefined` the first
+   time a section runs, which a browser finds minutes later and this finds in
+   three seconds. */
+if (existsSync(R("js/overlays3d.js"))) {
+  const ov = readFileSync(R("js/overlays3d.js"), "utf8"), vw = readFileSync(R("js/viewer3d.js"), "utf8");
+  const rows = [];
+  const m = ov.match(/uses:\s*(\{[^\n]*\})\s*\};?\s*\n\}\)\(\);/);
+  const grab = (re, what) => { const q = vw.match(re); if (!q) { rows.push("js/viewer3d.js: " + what + " not found"); return []; } return q[1].split(",").map(x => x.trim().split(":")[0].trim()).filter(Boolean); };
+  if (!m) rows.push("js/overlays3d.js does not publish `uses`");
+  else {
+    /* a JS literal, not JSON: each list is taken by name */
+    const uses = {};
+    for (const k of ["tools", "now", "pass", "vars"]) { const q = m[1].match(new RegExp(k + ":\\s*(\\[[^\\]]*\\])")); uses[k] = q ? JSON.parse(q[1]) : (rows.push("`uses` has no " + k), []); }
+    const tools = grab(/const OVC = \{\s*tools:\s*\{([^}]*)\}/, "OVC.tools"), now = grab(/now:\s*\(\)\s*=>\s*\(\{([^}]*)\}\)/, "OVC.now");
+    const pass = grab(/const OVP = \{([^}]*)\}/, "OVP");
+    const vars = [...vw.slice(vw.indexOf("vars: Object.defineProperties"), vw.indexOf("function rebuildOverlays(")).matchAll(/^\s*(\w+):\s*\{\s*get:/gm)].map(q => q[1]);
+    for (const [k, have] of [["tools", tools], ["now", now], ["pass", pass], ["vars", vars]])
+      for (const n of uses[k]) if (!have.includes(n)) rows.push(`js/overlays3d.js uses ${n} (${k}) and js/viewer3d.js does not hand it over`);
+  }
+  rows.length ? bad("overlays3d", "the 3D overlay's two files disagree about what one takes from the other", rows)
+              : ok("overlays3d", "every name js/overlays3d.js uses is handed over by js/viewer3d.js");
+}
+
 console.log(fails ? `\ncheck: ${fails} FAILED` : "\ncheck: all preflight checks passed");
 process.exit(fails ? 1 : 0);

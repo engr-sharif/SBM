@@ -446,6 +446,15 @@ adding into one group through three module-level targets (`addG`, `SHW`,
    vertices, a checksum of positions and colours) is identical before and
    after, on the full scene.
 
+*5a as built.* Both parts are done. Measured on a full scene (framework,
+design and investigations on, software rendering): a single-row switch went
+from 150–680 ms and ~810 draped lines to 1–50 ms and that row's lines; 26 rows
+switched off and on by themselves cost 768 ms in all, with no full rebuild,
+and the scene afterwards is the scene a full rebuild draws. The GPU geometry
+count, which grew by about 740 on every switch and never came down (4,383 to
+13,835 over thirteen switches), is flat. The move's digest is byte-identical
+before and after.
+
 What does not change: one `overlayGroup` root (the pick engine, the TEM depth
 fast path, the relief slider and the parity table all walk it); the feature
 half; the order sections are built in.

@@ -421,6 +421,7 @@ terrain source, which needs an explicit decision + README/test update).
 | water3d.js | **v42 — water in 3D**: a sheet per water body EA mapped, at the lidar's own flat return, its shoreline cut by the terrain; one shader (the sky of `js/atmos3d.js` reflected through a Fresnel term, ripples, the sun's glint) shared with the overtopping stage surface; `tick()` advancing the ripples only on frames that are drawn anyway; `SBMM.water3d` |
 | built3d.js | **v43 — built features in 3D**: EA's building footprints extruded to the lidar's height under the photograph's roof colour (gable on a plain rectangle, flat otherwise), fence lines as wire panels on posts, power poles as poles; each layer one or two draw calls with a triangle-to-feature `owner` for the pick; `SBMM.built3d` |
 | lines3d.js | **v44 — lines with a width in 3D**: `widen(root)` gives every `THREE.Line` under a root a child mesh that draws it as a constant-pixel-width, anti-aliased, cased line, while the line object itself stops drawing and stays as the pick target; the child follows the parent material's colour and opacity; `SBMM.lines3d` |
+| overlays3d.js | **v60 — the project half of the 3D overlay**: every read-only layer the 3D view draws over the ground, in the sections `js/viewer3d.js` opens (the decision units, the piles, EA's GIS and CAD, the survey, the site areas, the TEM model and interpretations, the storm network, the drainage maps, the datasets and their depth sticks, the samples, the trees, the cultural layers, the computed contours). Moved out of the viewer character for character; `begin(C, P)` names what it takes from it; `SBMM.overlays3d` |
 | trees3d.js | **v39 — trees in 3D**: each tree an instance of one of nine `InstancedMesh`es (three forms x three levels of detail), generated geometry, `relod()` dealing the levels by camera distance inside a drawn frame, one soft ground shadow per tree that follows the sun; `SBMM.trees3d` |
 | borelogs.js | **the 2025 boring logs (OpenGround)** — the strip log in a results card (class profile, strata + USCS, SPT with the pocket penetrometer, pH against the acid threshold, method bands, the water symbol), the TWO contact statements drawn together and reconciled nowhere, the 44-hole `LOGS` table, the CSV and the PNG, the popup button, `LOG` / `LOGS`, the class palette every other view reads through `classColor()`, and since v23 **the column renderer `column()`** every face of the borings is drawn by; `SBMM.borelogs` |
 | labmetals.js | **v28 — lab metals by depth** from the earlier apps (`SBMM_DATA.lab_metals`, `tools/build_imports.py`): the interval table in a boring / test-pit popup and on the log card, the full validated suite on a sample popup, the ROD / PMB levels and `level(sym, v)`; `SBMM.labMetals` |
@@ -6839,3 +6840,36 @@ breaks a tie between two objects at the same depth and render order by object
 id, so a section rebuilt later draws after its neighbours where a full rebuild
 would draw it in table order. Overlay lines stand off the ground at different
 heights, so there is no such tie on this scene.
+
+### v60, the file split — `js/overlays3d.js`
+
+The middle 834 lines of the rebuild — every project section — live in
+`js/overlays3d.js` now (`before()` and `after()`, with the user's features,
+which stay in the viewer, built between them). `js/viewer3d.js` is 5,893 lines
+where it was 6,718.
+
+- **The bodies were moved by a script, character for character**, with one
+  rewrite: the five viewer variables a section WRITES (`builtInfo`,
+  `lastCadSkip`, `pointsObj`, `temGround`, `treesOn`) are `VIEWER.<name>`
+  there — accessors the viewer provides (`OVC.vars`). Everything else a body
+  uses is a name: the toolkit (`OVC.tools`, 16 functions and constants), the
+  values known once the scene exists (`OVC.now()`: `CX, CY, ZMID, camera,
+  sunAz, sunEl`), and the pass (`OVP`: `SEC, PROJ, zx, wantsPrefix,
+  wantedWith`). `begin()` copies them into the file's own variables, so the
+  bodies read as they always did.
+- **The proof is a digest.** With every group on, each section's objects,
+  vertices, a checksum of positions, labels, point names and the rows it
+  draws were written out before and after the move: 30 sections, 55 rows, and
+  the two files are byte-identical.
+- **`test/check.mjs` (`overlays3d`) keeps the two lists in step**: a name
+  `js/overlays3d.js` says it uses (`uses`) and the viewer does not hand over
+  fails the preflight. Without it, a missing name is `undefined` the first
+  time that section runs.
+- **A new project layer goes in `js/overlays3d.js`**, inside `SEC("id")`, with
+  its row in `SECTION_ROWS` (which stays in the viewer, beside the handler
+  that reads it). If it needs something more from the viewer, add the name to
+  `OVC` and to `begin()`.
+- The viewer's `SEC()` returns the section (the other file points its own
+  `addG` / `SHW` / `OVL` / `ptCand` at it). The isopach label's section and
+  the finish (shadows, wide lines, labels, point names, the pick sync) stay in
+  the viewer: they are the pass, not a layer.
