@@ -422,7 +422,7 @@ terrain source, which needs an explicit decision + README/test update).
 | borelogs.js | **the 2025 boring logs (OpenGround)** — the strip log in a results card (class profile, strata + USCS, SPT with the pocket penetrometer, pH against the acid threshold, method bands, the water symbol), the TWO contact statements drawn together and reconciled nowhere, the 44-hole `LOGS` table, the CSV and the PNG, the popup button, `LOG` / `LOGS`, the class palette every other view reads through `classColor()`, and since v23 **the column renderer `column()`** every face of the borings is drawn by; `SBMM.borelogs` |
 | labmetals.js | **v28 — lab metals by depth** from the earlier apps (`SBMM_DATA.lab_metals`, `tools/build_imports.py`): the interval table in a boring / test-pit popup and on the log card, the full validated suite on a sample popup, the ROD / PMB levels and `level(sym, v)`; `SBMM.labMetals` |
 | geophys.js | **v36 — the 2026 TEM2Go geophysics** (`SBMM_DATA.tem2026`): the soundings row and the depth-slice row under *Geophysics — TEM 2026* in Investigations, the `tem` job, the slice painted in the contractor's colour maps, the card with the viewer's controls in feet, the sounding popup's profile with the nearest boring's contacts, the CSV/PNG exports, the status-bar value, the 3D dots and slice sheet, `TEM`; `SBMM.geophys` |
-| temws.js | **v37 — the TEM workspace**: Data ▾ → *TEM geophysics* / `TEMWS` — a panel in the right dock's place with every TEM control, the core (a virtual boring at the centre of the cut, draggable for depth), the descent, and the 3D view opened with the ground cut open to the slice (`SBMM.viewer3d.setPit`); on a phone it opens the card; since v51 `off()` (TEM off as a whole), `hide()` and the "TEM on" chip; `SBMM.temws` |
+| temws.js | **v37 — the TEM workspace**: Data ▾ → *TEM geophysics* / `TEMWS` — a panel in the right dock's place with every TEM control, the core (a virtual boring at the centre of the cut, draggable for depth), the descent, and the 3D view opened with the ground cut open to the slice (`SBMM.viewer3d.setPit`); on a phone it opens the card; since v51 `off()` (TEM off as a whole), `hide()` and the "TEM on" chip; since v52 the reading, four views, folding sections and the depth / elevation switch; `SBMM.temws` |
 | teminterp.js | **v38 — two interpretations of the TEM**: *Base of waste* (the 2025 borings' logged native contact kriged across the dry survey footprint, the TEM break depth as an external drift only when it wins the leave-one-out, the standard error, the proposed borings) and *Conductive zones* (an elevation band below the impoundment's surveyed water level, its harmonic-mean resistivity, the least-resistive route from Herman to Clear Lake and its bottleneck, the section along it); the two layer rows, the cards, the workspace tabs it mounts, the 3D spec, the exports, `TEMWASTE` / `TEMSEEP`; `SBMM.teminterp` |
 | siteareas.js | **v28 — the named site areas of SBMM.kmz** (`SBMM_DATA.site_areas`): one Investigations row (off by default), 3D drape, snap, GeoJSON/DXF on `SITE-AREAS`; `SBMM.siteAreas` |
 | borewin.js | **v23 Phase A — the boring-log window** on the sheet-window chassis: the Log tab as a real log sheet at 1 in = 5 ft with the depth cursor, Compare (2–6 holes on one elevation datum, correlation lines, printed separations), the 44-hole Table, the printed log sheet through `js/report.js`, the hole picker, `LOGWIN`; `SBMM.borewin` |
@@ -5873,3 +5873,77 @@ drawn exactly as they always are. Five things will be walked into again:
 
 `groundNow()` still answers `"see"` while a TEM layer is drawn in `auto` —
 what changed is how much of the ground that means.
+
+## v52 — the TEM panel: the reading on top, four views, the slice by elevation
+
+`build()` / `PRESETS` / `secState()` / `depthNow()` in `js/temws.js`; `byElev()`
+/ `fieldNow()` / `soundingNow()` / `depthUnder()` / the legend dock / the
+section handles in `js/geophys.js`; `sheet(cv, depth, elev)`, `temDepth()` and
+`pitUnder()` in `js/viewer3d.js`; the `v52` block at the end of `css/app.css`.
+E2E block **9f11**. No kernel work — the `tem` job's grid is read as it stands.
+
+**The panel** was one scroll of about forty controls. It is now:
+
+- **the reading** — the core, the slice's position with a **depth / elevation**
+  switch, the model layer, the value under the centre of the cut;
+- **the view** — four buttons, then the pieces under a folded *Customise*;
+- **Colour**, **Interpolation** (starts folded), **Against the 2025 borings**
+  as `<details class="twsec" data-sec>`; which are open is remembered in
+  `SBMM.view.pref("temSecs")` (`toggle` does not bubble: it is caught in the
+  capture phase on the panel);
+- the exports.
+
+**A view is a whole answer.** The six "show" boxes fought each other (the
+sounding columns stand in the cut and hide its floor; the slice sheet hides
+the voxels under it), so `PRESETS` sets all of them at once: *Slice in cut*,
+*Sections*, *Soundings* (the measured models and nothing interpolated),
+*Volume*. `presetNow()` is the view the state amounts to, or `""`; the panel
+element carries it as `data-view`. `S.sheet` (new) is whether the slice sheet
+itself is drawn in 3D. The interpretation tabs now take the sounding columns
+out of the way with the cut and the slice (`hidCols`), and put them back.
+
+**The slice is a depth below ground or an elevation** (`S.datum`, `S.elev`).
+By elevation a node's depth is the model's own ground there (`R.surf`) less
+the elevation; above the ground or below the deepest layer there is no value.
+Everything that reads "the slice" asks four functions, so the two datums
+cannot disagree: `byElev()`, `fieldNow()`, `soundingNow(i)`,
+`depthUnder(z)`. In 3D the sheet is level at the elevation, the depth fast
+path (`temDepth`) moves it the same way, and the cut's floor and walls take
+their depth per vertex from `pitUnder(z0)` — never negative: where the ground
+is already below the slice there is nothing to cut. Block 9f11 asserts the
+slice equals the model at (ground − elevation) node for node, that the sheet
+is level, and that an elevation step is the fast path (no job, no full
+overlay rebuild).
+
+Seven things that will be walked into again:
+
+- **NEVER PUT `data-preset` ON THE PANEL.** The click handler finds a view
+  button with `closest("[data-preset]")`, and the panel is an ancestor of every
+  button in it: with the attribute on the panel every click in it — the datum
+  switch, every `data-a` button — was read as a view button and did nothing,
+  with no error. The panel's own attribute is `data-view`.
+- **Two section handles on one spot are one handle.** The two lines cross near
+  the middle of the model, so each handle sits a fifth of the way along its
+  own line; at the middle the N–S handle covered the E–W one and a vertical
+  drag moved nothing.
+- **The lines and handles are kept and moved, never rebuilt.** A drag
+  re-applies the section's index on every move, and rebuilding the marker
+  under the pointer ends the drag it is part of. The handle is a `L.marker`
+  (the line is an SVG path in a pane with no pointer events) and carries a
+  tooltip, so block 9f9's "no layer answers 'feature'" still holds.
+- **One gradient id per legend DRAWING** (`legendN`). The card and the panel
+  drew the legend with one id; `url(#id)` resolves to the first such element
+  in the document — the card's, inside a dock that is not shown while the
+  panel is — so the panel's colour bar painted nothing.
+- **A depth asked for is a depth slice.** `apply("depth", d)` — the card's
+  slider, `TEM 45`, every harness — switches the datum back to depth.
+- **A layer step under an elevation slice floors the elevation**, so the depth
+  it makes is never above the layer's top it asked for.
+- **`depth()` is still the depth SETTING.** The slice's depth under a point is
+  `depthUnder(z)`; the panel's is `depthNow()` (under the centre of the cut).
+
+**The legend on the view** (`#temLegend`, top-left of the stage, clear of the
+3D toolbar; not on a phone): the property, the slice, the colour bar, and a
+marker at the value under the pointer. `hoverText()` — the status bar's
+reading, called for the map and for the 3D ground alike — sets the marker
+with one style write; nothing is re-drawn and no frame is asked for.

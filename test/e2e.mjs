@@ -6472,6 +6472,39 @@ if (t1.ov < 1) { console.log("FAIL: the slice is not an image in the analysis pa
 if (t1.depthOut !== "45 ft" || t1.legend < 2) { console.log("FAIL: the card's depth or legend is wrong", t1); process.exit(1); }
 await voiceCheck("TEM card");
 
+/* v52: a section line drags on the map by its handle — a real pointer drag,
+   because the handle is a marker under the pick engine and the canvases */
+{
+  const was3d = await page.evaluate(async () => { const o = SBMM.viewer3d.isOpen(); if (o) await SBMM.viewer3d.toggle(); return o; });
+  await page.evaluate(() => { SBMM.shell.collapse("l", true); SBMM.geophys.apply("ew", true); SBMM.geophys.apply("ns", true); });
+  await page.waitForFunction(() => SBMM.geophys.sectionHandle("ew") && SBMM.geophys.sectionHandle("ns"), null, { timeout: 30000 });
+  await page.evaluate(() => { const R = SBMM.geophys.result();
+    const b = [[R.y0 - 60, R.x0 - 60], [R.y0 + (R.ny - 1) * R.dx + 60, R.x0 + (R.nx - 1) * R.dx + 60]];
+    SBMM.map.fitBounds(b, SBMM.omni && SBMM.omni.fitPad ? Object.assign({ animate: false }, SBMM.omni.fitPad()) : { animate: false }); });
+  await page.waitForTimeout(900);
+  const hp = await page.evaluate(() => { const q = SBMM.geophys.sectionHandle("ew"), n = SBMM.geophys.sectionHandle("ns");
+    const p = SBMM.map.latLngToContainerPoint([q.lat, q.lng]), r = SBMM.map.getContainer().getBoundingClientRect();
+    const el = document.elementFromPoint(r.left + p.x, r.top + p.y);
+    return { x: r.left + p.x, y: r.top + p.y, idx: q.idx, nsIdx: n.idx, top: el ? String(el.parentElement && el.parentElement.className) : "",
+             apart: Math.hypot(q.lat - n.lat, q.lng - n.lng), ftPerPx: 1 / Math.pow(2, SBMM.map.getZoom()) }; });
+  await page.mouse.move(hp.x, hp.y);
+  await page.mouse.down();
+  for (let k = 1; k <= 10; k++) { await page.mouse.move(hp.x + k, hp.y - k * 9); await page.waitForTimeout(30); }
+  await page.mouse.up();
+  await page.waitForTimeout(500);
+  const hq = await page.evaluate(() => { const q = SBMM.geophys.sectionHandle("ew"), R = SBMM.geophys.result(), n = SBMM.geophys.sectionHandle("ns");
+    return { idx: q.idx, lat: q.lat, line: R.y0 + q.idx * R.dx, set: SBMM.geophys.settings().ewI, nsIdx: n.idx,
+             tip: SBMM.pick2d && SBMM.pick2d.nameOf ? null : null }; });
+  console.log("TEM section drag:", JSON.stringify(hp), "->", JSON.stringify(hq));
+  if (!/temsech-ew/.test(hp.top)) { console.log("FAIL: the E–W section's handle is not the thing under the pointer at its own position", hp); process.exit(1); }
+  if (!(hp.apart > 40)) { console.log("FAIL: the two section handles sit on one spot", hp); process.exit(1); }
+  if (!(hq.idx > hp.idx) || hq.set !== hq.idx || Math.abs(hq.lat - hq.line) > 0.01 || hq.nsIdx !== hp.nsIdx)
+    { console.log("FAIL: dragging the E–W handle north did not move that section (and only that one)", hp, hq); process.exit(1); }
+  await page.evaluate(async was => { SBMM.geophys.apply("ew", false); SBMM.geophys.apply("ns", false); SBMM.shell.collapse("l", false);
+    if (was && !SBMM.viewer3d.isOpen()) await SBMM.viewer3d.toggle(); }, was3d);
+  await page.waitForFunction(() => !SBMM.geophys.sectionHandle("ew"), null, { timeout: 10000 });
+}
+
 /* the controls: a depth step repaints and never re-runs; a method change re-runs */
 const t2 = await page.evaluate(async () => {
   const G = SBMM.geophys, wait = ms => new Promise(r => setTimeout(r, ms));
@@ -6714,7 +6747,9 @@ console.log("TEM depth step:", JSON.stringify(w2));
 if (Math.abs(w2.dz - 60) > 0.01 || w2.full !== 0 || w2.jobs !== 0) { console.log("FAIL: a depth step was not the fast path", w2); process.exit(1); }
 if (w2.pit !== 120 || w2.core !== 120 || w2.big !== "120") { console.log("FAIL: the cut or the panel did not follow the depth", w2); process.exit(1); }
 
-/* the panel's own controls: the open side off, a size, a layer step, the core */
+/* the panel's own controls: the open side off, a size, a layer step, the core.
+   v52: the cut's settings live under "Customise", which starts folded */
+await page.evaluate(() => { for (const d of document.querySelectorAll("#temWs details")) d.open = true; });
 await page.click('#temWs [data-p="open"]');
 await page.selectOption('#temWs [data-k="size"]', "400");
 await page.waitForFunction(() => { const p = SBMM.viewer3d.pitState(); return p.on && p.ext === 0 && p.length === 400 && p.width === 400; },
@@ -6785,6 +6820,116 @@ const w4 = await page.evaluate(async () => {
 console.log("TEM workspace idle:", JSON.stringify(w4));
 if (w4.renders > 1) { console.log("FAIL: the workspace keeps the 3D view rendering when idle " + JSON.stringify(w4)); process.exit(1); }
 
+/* v52 — THE PANEL: the reading on top, four views that each set every "show"
+   switch, the slice by elevation as well as by depth, the legend on the view
+   with a marker at the value under the pointer, a colour bar that paints
+   (two legends used to share one gradient id), and section lines that drag */
+const p52 = await page.evaluate(async () => {
+  const wait = ms => new Promise(r => setTimeout(r, ms));
+  const G = SBMM.geophys, W = SBMM.temws, V = SBMM.viewer3d, out = {};
+  const el = document.getElementById("temWs");
+  /* the layout: the reading first, then the view, then the folding sections */
+  const kids = [...el.querySelector('[data-pane="model"]').children];
+  out.order = kids.map(k => k.tagName === "DETAILS" ? "details:" + k.dataset.sec : k.className.split(" ")[0] || k.tagName.toLowerCase());
+  out.secs = [...el.querySelectorAll("details.twsec")].map(d => d.dataset.sec);
+  /* a section folds and the choice is remembered */
+  const dm = el.querySelector('details[data-sec="model"]');
+  dm.open = false; await wait(60); const shut = SBMM.view.pref("temSecs").model;
+  dm.open = true; await wait(60); out.secRemember = shut === false && SBMM.view.pref("temSecs").model === true;
+  /* the colour bar paints: its gradient is one this drawing defines, and no id is shared */
+  const ids = [...document.querySelectorAll("svg.temleg linearGradient")].map(g => g.id);
+  out.gradUnique = ids.length > 0 && new Set(ids).size === ids.length;
+  const bar = el.querySelector('[data-o="legend"] svg.temleg'), fill = bar && bar.querySelector("rect") && bar.querySelector("rect").getAttribute("fill");
+  out.barOwnGrad = !!(fill && bar.querySelector(fill.replace(/^url\(|\)$/g, "")));
+  /* the four views */
+  out.presets = W.presets();
+  out.views = {};
+  for (const k of ["sections", "soundings", "volume", "cut"]) {
+    el.querySelector(`[data-preset="${k}"]`).click();
+    for (let i = 0; i < 80 && (G.rowsOn().indexOf("tem_slice") >= 0) !== (k !== "soundings"); i++) await wait(50);
+    await wait(700);
+    const S = G.settings(), pressed = [...el.querySelectorAll("[data-preset]")].filter(b => b.getAttribute("aria-pressed") === "true").map(b => b.dataset.preset);
+    out.views[k] = { now: W.state().preset, pressed: pressed.join(","), pit: V.pitState().on, slice: G.rowsOn().indexOf("tem_slice") >= 0,
+                     cols: !!(S.cols && G.rowsOn().indexOf("tem_soundings") >= 0), ew: S.ew, ns: S.ns, vox: S.vox, sheet: S.sheet, stack: S.stack };
+  }
+  /* the slice by ELEVATION: every node is the model at (ground there − elevation) */
+  const d0 = G.depth(), jobs0 = SBMM.compute.stats.workerJobs + SBMM.compute.stats.syncJobs;
+  el.querySelector('[data-datum="elev"]').click();
+  for (let i = 0; i < 40 && !G.byElev(); i++) await wait(50);
+  await wait(900);
+  const R = G.result(), E = G.elev(), f = G.slice().f, DM = G.dmax();
+  let worst = 0, n = 0, above = 0, wrongNaN = 0;
+  for (let id = 0; id < R.nx * R.ny; id += 7) {
+    if (!R.mask[id]) continue;
+    const d = R.surf[id] - E, x = R.x0 + (id % R.nx) * R.dx, y = R.y0 + Math.floor(id / R.nx) * R.dx;
+    if (!(d >= 0 && d <= DM)) { above++; if (isFinite(f[id])) wrongNaN++; continue; }
+    const want = G.valueAtDepth(x, y, d), have = G.valueAt(x, y);
+    if (isFinite(want) && isFinite(have)) { worst = Math.max(worst, Math.abs(Math.log10(have) - Math.log10(want))); n++; }
+  }
+  const z = V.temProbe().sliceZ, fz = V.temProbe().floorZ;
+  out.elev = { byElev: G.byElev(), E, range: G.elevRange(), n, above, wrongNaN, worst: +worst.toExponential(2),
+               sheetZ: z, floorLow: fz ? fz[0] : null,
+               big: el.querySelector('[data-o="depth"]').textContent, unit: el.querySelector('[data-o="dunit"]').textContent.trim(),
+               core: +el.querySelector(".twscore").dataset.depth, under: +W.state().depthNow.toFixed(1),
+               sliderE: !el.querySelector('input[data-k="elev"]').hidden, sliderD: el.querySelector('input[data-k="depth"]').hidden };
+  /* an elevation step is the fast path too, and the layer step moves the slice one layer under the centre */
+  const fs0 = V.frameStats();
+  G.apply("elev", E - 25); await wait(900);
+  const fs1 = V.frameStats(), z2 = V.temProbe().sliceZ;
+  out.elevStep = { dz: +(z[0] - z2[0]).toFixed(2), full: fs1.overlayFull - fs0.overlayFull,
+                   jobs: SBMM.compute.stats.workerJobs + SBMM.compute.stats.syncJobs - jobs0 };
+  const L0 = G.layerInfo(W.state().depthNow).l; W.stepLayer(1); await wait(300);
+  out.elevLayer = [L0, G.layerInfo(W.state().depthNow).l];
+  /* the legend on the view, and its marker at a value */
+  const dock = document.getElementById("temLegend");
+  const cx = R.x0 + Math.floor(R.nx / 2) * R.dx, cy = R.y0 + Math.floor(R.ny / 2) * R.dx;
+  let px = cx, py = cy, v = NaN;
+  for (let k = 0; k < R.nx * R.ny && !isFinite(v); k += 11) { px = R.x0 + (k % R.nx) * R.dx; py = R.y0 + Math.floor(k / R.nx) * R.dx; v = G.valueAt(px, py); }
+  const txt = G.hoverText(px, py), mk = dock && dock.querySelector(".tlgm");
+  out.dock = { shown: !!(dock && !dock.hidden), title: dock ? dock.querySelector("b").textContent : "", sub: dock ? dock.querySelector(".tlgs").textContent : "",
+               hover: txt, mark: dock ? +dock.dataset.mark : null, v: +v.toPrecision(5), markShown: !!(mk && !mk.hidden),
+               left: mk ? parseFloat(mk.style.left) : null };
+  G.hoverText(R.x0 - 5000, R.y0 - 5000);
+  out.dock.markGone = !!(mk && mk.hidden);
+  /* back to a depth slice: asking for a depth IS a depth slice */
+  await G.apply("depth", d0); await wait(600);
+  out.back = { byElev: G.byElev(), depth: G.depth(), sheet: V.temProbe().sliceZ };
+  return out;
+});
+console.log("TEM panel v52:", JSON.stringify(p52));
+if (p52.order[0] !== "twsdepth" || p52.order[1] !== "section")
+  { console.log("FAIL: the panel does not lead with the reading and then the view", p52.order); process.exit(1); }
+if (p52.secs.join(",") !== "view,colour,model,borings" || !p52.secRemember)
+  { console.log("FAIL: the panel's folding sections", p52.secs, p52.secRemember); process.exit(1); }
+if (!p52.gradUnique || !p52.barOwnGrad) { console.log("FAIL: the colour bar's gradient id is shared, so one of the legends paints nothing", p52); process.exit(1); }
+{
+  const V = p52.views, bad = [];
+  const want = { sections: { pit: false, slice: true, cols: false, ew: true, ns: true, vox: false, sheet: true },
+                 soundings: { pit: false, slice: false, cols: true, ew: false, ns: false, vox: false },
+                 volume: { pit: false, slice: true, cols: false, ew: false, ns: false, vox: true, sheet: false },
+                 cut: { pit: true, slice: true, cols: false, ew: false, ns: false, vox: false, sheet: true } };
+  for (const k in want) {
+    if (V[k].now !== k || V[k].pressed !== k) bad.push(k + " not the pressed view: " + JSON.stringify(V[k]));
+    for (const q in want[k]) if (V[k][q] !== want[k][q]) bad.push(k + "." + q + " = " + V[k][q]);
+  }
+  if (p52.presets.join(",") !== "cut,sections,soundings,volume" || bad.length) { console.log("FAIL: the four views", bad, p52.views); process.exit(1); }
+}
+if (!p52.elev.byElev || p52.elev.n < 100 || p52.elev.worst > 1e-5 || p52.elev.wrongNaN)
+  { console.log("FAIL: the elevation slice is not the model at (ground − elevation) node for node", p52.elev); process.exit(1); }
+if (!p52.elev.sheetZ || Math.abs(p52.elev.sheetZ[0] - p52.elev.E) > 0.11 || Math.abs(p52.elev.sheetZ[1] - p52.elev.E) > 0.11)
+  { console.log("FAIL: the 3D slice sheet is not level at the slice's elevation", p52.elev); process.exit(1); }
+if (p52.elev.big.replace(/,/g, "") !== String(p52.elev.E) || !/elevation/.test(p52.elev.unit) || !p52.elev.sliderE || !p52.elev.sliderD
+    || Math.abs(p52.elev.core - p52.elev.under) > 1)
+  { console.log("FAIL: the panel's reading did not follow the elevation slice", p52.elev); process.exit(1); }
+if (Math.abs(p52.elevStep.dz - 25) > 0.11 || p52.elevStep.full !== 0 || p52.elevStep.jobs !== 0)
+  { console.log("FAIL: an elevation step was not the fast path", p52.elevStep); process.exit(1); }
+if (p52.elevLayer[1] !== p52.elevLayer[0] + 1) { console.log("FAIL: the layer step under an elevation slice", p52.elevLayer); process.exit(1); }
+if (!p52.dock.shown || !/Resistivity/.test(p52.dock.title) || !/elevation/.test(p52.dock.sub) || !p52.dock.hover
+    || !p52.dock.markShown || Math.abs(p52.dock.mark - p52.dock.v) > Math.abs(p52.dock.v) * 1e-3 || !(p52.dock.left >= 4 && p52.dock.left <= 244) || !p52.dock.markGone)
+  { console.log("FAIL: the legend on the view / its marker at the hovered value", p52.dock); process.exit(1); }
+if (p52.back.byElev || !p52.back.sheet || Math.abs(p52.back.sheet[0] - p52.back.sheet[1]) < 1)
+  { console.log("FAIL: asking for a depth did not go back to a depth slice", p52.back); process.exit(1); }
+
 /* v51 — TEM IS ONE THING TO TURN OFF. "hide" takes the panel and the cut
    away and leaves the layers, and then the chip says TEM is on; over the
    survey only, the ground gives way by coverage (no terrain material is
@@ -6827,6 +6972,7 @@ if (h1.msaa < 4 && h1.blended !== h1.tiles)
 /* the chip's "open" brings the panel back; a see-through ground picked there is a TEM state */
 await page.click('#temChip [data-c="open"]');
 await page.waitForFunction(() => SBMM.temws.isOpen(), null, { timeout: 60000 });
+await page.evaluate(() => { for (const d of document.querySelectorAll("#temWs details")) d.open = true; });
 await page.selectOption('#temWs [data-k="ground"]', "see");
 const h2 = await frame51();
 if (h2.mode !== "see" || h2.pref === "see" || h2.chip)
