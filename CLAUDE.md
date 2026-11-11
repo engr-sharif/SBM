@@ -426,6 +426,7 @@ terrain source, which needs an explicit decision + README/test update).
 | temprobe.js | **v53 — the TEM probe**: the chip at the pointer over the slice (2D) and over any TEM surface (3D), the card with the depth profile, pinned probes (a `spot` carrying a depth) and the comparison card; the record itself is `SBMM.geophys.probe`; `SBMM.temprobe` |
 | teminterp.js | **v38 — two interpretations of the TEM**: *Base of waste* (the 2025 borings' logged native contact kriged across the dry survey footprint, the TEM break depth as an external drift only when it wins the leave-one-out, the standard error, the proposed borings) and *Conductive zones* (an elevation band below the impoundment's surveyed water level, its harmonic-mean resistivity, the least-resistive route from Herman to Clear Lake and its bottleneck, the section along it); the two layer rows, the cards, the workspace tabs it mounts, the 3D spec, the exports, `TEMWASTE` / `TEMSEEP`; `SBMM.teminterp` |
 | temmaps.js | **v54 — maps derived from the TEM model**: the `temmap` job's two maps on ONE layer row (`invest/tem_map`) — an *interval* between two depths or elevations reduced to the geometric mean, the resistivity along and across the layers, the conductance and the anisotropy; and the *top of the conductor* (or resistor), its depth, elevation and thickness — the workspace's **Maps** tab, the card, the 3D surface spec, the reading at a point, CSV / PNG, `TEMMAP`; `SBMM.temmaps` |
+| temexport.js | **v55 — the TEM out of the app**: the slice or the derived map as an ESRI ASCII grid with its `.prj` and a readme in one stored zip (written here, no library), the whole model as a legacy-ASCII VTK structured grid, and the print-ready TEM sheet (figures with the soundings and the 2025 borings, the model, the derived map, the calibration, the interpretations, the pinned probes) through `SBMM.report.frame` / `present`; `TEMREPORT`, `TEMEXPORT`; `SBMM.temexport` |
 | siteareas.js | **v28 — the named site areas of SBMM.kmz** (`SBMM_DATA.site_areas`): one Investigations row (off by default), 3D drape, snap, GeoJSON/DXF on `SITE-AREAS`; `SBMM.siteAreas` |
 | borewin.js | **v23 Phase A — the boring-log window** on the sheet-window chassis: the Log tab as a real log sheet at 1 in = 5 ft with the depth cursor, Compare (2–6 holes on one elevation datum, correlation lines, printed separations), the 44-hole Table, the printed log sheet through `js/report.js`, the hole picker, `LOGWIN`; `SBMM.borewin` |
 | fence.js | **v23 Phase B — the fence diagram**: the `fence` store feature (a section through the subsurface along a drawn line), `projectHoles`/`groundProfile`, the SVG the Fence tab, the PNG and the 3D texture are all drawn from, the cut on the map (alignment + swath band + a tick per projected hole), the CSV, the **section-coordinate DXF** (X = station ft, Y = elevation ft) and `FENCE`; `SBMM.fence` |
@@ -6040,7 +6041,7 @@ Kernel `temmap` in `js/compute.js` (no WASM port, so it is in `JS_ONLY` in
 `temmap` pick kind in `js/pick3d.js`, the 2D chip in `js/temprobe.js`, the
 fourth tab in `js/temws.js`, `TEMMAP` (`TEMMAPS`, `TEMINTERVAL`, `TEMTOP`).
 Harness section **`temmap`** in `test/kernels.mjs` (57 checks, 0.3 s); e2e
-block **"9f12c. TEM derived maps and data support (v54)"** (shard 2), one
+block **"9f12c. TEM derived maps and data support (v54)"** (shard 3), one
 assertion each in `test/e2e_field.mjs` (block 18) and `test/e2e_phone.mjs`
 (block 4). The kernel reads the `tem` job's grid as it stands (log10 Ω·m per
 layer, its mask, its `surf`) and interpolates nothing again; the `tem` kernel
@@ -6131,3 +6132,58 @@ Nine things that will be walked into again:
   and a depth step under the shading is still none (9f12c asserts it). The
   probe needs only the spacing, which `spacing()` computes once per payload on
   the main thread (a million distances, a few ms) when the job has not run.
+
+## v55 — the TEM out of the app: a GIS grid, a VTK model, a report sheet
+
+`js/temexport.js` (`SBMM.temexport`, new); `frame()` in `js/report.js`;
+`sliceGrid()` / `summaryRows()` in `js/geophys.js`, `grid()` in
+`js/temmaps.js`, `finding(kind)` in `js/teminterp.js`; three more buttons on
+the slice card and the workspace's Model tab, two on the Maps tab;
+`TEMREPORT` (`TEMSHEET`), `TEMEXPORT slice | map | vtk` (`TEMGRID`,
+`TEMVTK`). E2E block **"9f12d. the TEM out of the app: GIS grid, VTK, report
+sheet (v55)"** (shard 3 of six: 9j to 9f13). No kernel work: every number is read off the module
+that owns it, and nothing here computes.
+
+- **The GIS grid is ONE zip of three files**: `<name>.asc` (ESRI ASCII grid),
+  `<name>.prj` and `<name>_readme.txt`. A `.asc` cannot carry a comment, so
+  the readme is where the provenance goes; a `.asc` without its `.prj` is a
+  raster nobody can place; and two downloads from one click are what a browser
+  blocks. `gridPackage(which)` (`"slice"` / `"map"`) is the harness's hook.
+- **The zip is written here** (`zip(files)`: stored, method 0, UTF-8 names, a
+  CRC-32 table) — forty lines, no library, and it works over `file://`. Block
+  9f12d parses the bytes back in NODE and requires `zlib.crc32` to agree on
+  every file and the end record to point at the central directory; `unzip -t`
+  agrees too.
+- **The grid's nodes are cell CENTRES** (`xllcenter` / `yllcenter`), the
+  file's first row is the NORTH row, NoData is -9999, values are six
+  significant figures. The block reads every value back against the app's own
+  array.
+- **The `.prj` is EPSG:6418 as ESRI writes it** (`PRJ`: Lambert conformal
+  conic, central meridian -122, standard parallels 38°20' and 39°50', origin
+  37°40', false easting 6,561,666.667 ftUS, false northing 1,640,416.667
+  ftUS). It was checked once against PROJ: `pyproj` names it "NAD83(2011) /
+  California zone 2 (ftUS)" and transforms through it to the same
+  longitude and latitude as `EPSG:6418`, to the last printed digit.
+- **The VTK is a STRUCTURED_GRID with `double` points.** State Plane eastings
+  are 6.37 million feet and a `float` point is good to half a foot there. A
+  point per node and layer at the layer's mid-depth under the model's own
+  ground; **k runs UP** (the deepest layer first), so the cells are not
+  inside out; a structured grid has a point everywhere, so outside the model's
+  reach `valid` is 0 and the resistivity is -1. Five point scalars:
+  resistivity, its log10, depth, layer, valid. 5.6 MB.
+- **The sheet's figures are drawn for print** (`figure()`): white paper, the
+  picture in its State Plane frame with E/N ticks, the soundings as dots and
+  the 2025 borings as crossed squares with their ids, a scale bar, north, and
+  the colour bar — at 900 px for a figure printed 3.4 in wide, so 23 px type
+  is 6.5 pt on paper. The first cut used 16 px and was unreadable in print.
+  The watermark is burned in (`SBMM.watermark.burn`), as on every canvas
+  export. The figures carry no map layer, so there is nothing for the cultural
+  gate to gate.
+- **The sheet reports the TEM as it stands**: the slice figure when the slice
+  row is on, the derived map's when its row is on (both, side by side, when
+  both are), then the model, the derived map's sentence and rows, the
+  calibration against the borings, the two interpretations where they have
+  been run, the pinned probes, and the limits. `reportHTML()` is the hook.
+- `SBMM.report.frame({title, sub, cells, body, css, sheet})` is the title
+  block and the foot for a module that composes its own body; the design-storm
+  and scenario sheets still build theirs inline.

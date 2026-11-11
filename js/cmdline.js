@@ -290,6 +290,21 @@ SBMM.cmd = (function () {
         const k = String(a || "").trim().toLowerCase();
         SBMM.temmaps.open(k === "top" || k === "interval" ? k : null);
       } },
+    /* v55: the TEM out of the app */
+    { n: "TEMREPORT", a: ["TEMSHEET"],
+      d: "TEM report — a print-ready sheet of the slice, the derived map, the calibration and the pinned probes",
+      f: () => {
+        if (!SBMM.temexport) { toast("this build has no TEM survey"); return; }
+        SBMM.temexport.report();
+      } },
+    { n: "TEMEXPORT", a: ["TEMGRID", "TEMVTK"],
+      d: "TEM export — the slice or the derived map as a GIS grid (zip), or the model as VTK",
+      arg: "slice | map | vtk",
+      f: a => {
+        if (!SBMM.temexport) { toast("this build has no TEM survey"); return; }
+        const k = String(a || "slice").trim().toLowerCase();
+        if (k === "vtk" || k === "model") SBMM.temexport.modelVtk(); else SBMM.temexport.gridZip(k === "map" ? "map" : "slice");
+      } },
     { n: "TEMCAL", a: ["TEMBORINGS"],
       d: "TEM resistivity against the 2025 borings' logged classes, in the log window",
       arg: "boring (e.g. SB-9)",

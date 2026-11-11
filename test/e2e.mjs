@@ -7771,6 +7771,157 @@ await page.evaluate(async () => {
 });
 });
 
+await block("9f12d. the TEM out of the app: GIS grid, VTK, report sheet (v55)", async () => {
+/* v55 — the slice and the derived map as an ESRI ASCII grid with its
+   projection file in one zip, the model as a VTK structured grid, and the
+   print-ready sheet. The files are parsed back HERE, in node: a zip whose
+   CRCs node agrees with, a grid whose every value is the app's own, a VTK
+   whose point and value counts match its header. */
+await page.evaluate(async () => {
+  if (SBMM.temws.isOpen()) SBMM.temws.off(true);
+  if (SBMM.viewer3d.isOpen()) await SBMM.viewer3d.toggle();
+  SBMM.shell.collapse("l", true);
+  for (const [k, v] of [["kind", "top"], ["tThr", 10], ["tDir", "below"], ["tFrom", 0], ["tShow", "depth"]]) await SBMM.temmaps.set(k, v);
+  await SBMM.geophys.open(40);
+  SBMM.temmaps.setRow(true);
+});
+await page.waitForFunction(() => SBMM.geophys.slice() && SBMM.temmaps.result() && SBMM.temmaps.result().what === "top", null, { timeout: 120000 });
+const x1 = await page.evaluate(() => {
+  const X = SBMM.temexport, G = SBMM.geophys, R = G.result(), D = SBMM_DATA.tem2026;
+  const b64 = u => { let s = ""; for (let i = 0; i < u.length; i += 8192) s += String.fromCharCode.apply(null, u.subarray(i, i + 8192)); return btoa(s); };
+  const out = {};
+  for (const w of ["slice", "map"]) {
+    const p = X.gridPackage(w), g = w === "slice" ? G.sliceGrid() : SBMM.temmaps.grid();
+    out[w] = { name: p.name, b64: b64(p.bytes), nx: g.nx, ny: g.ny, dx: g.dx, x0: g.x0, y0: g.y0, v: Array.from(g.v, v => v === v ? v : null) };
+  }
+  out.vtk = X.vtk(); out.grid = { nx: R.nx, ny: R.ny, nl: D.nl, nodes: R.nodes };
+  /* a node's own resistivity and position, to find in the VTK */
+  let id = -1; for (let k = 0; k < R.nx * R.ny; k += 13) if (R.mask[k]) { id = k; break; }
+  out.node = { id, x: R.x0 + (id % R.nx) * R.dx, y: R.y0 + Math.floor(id / R.nx) * R.dx, surf: R.surf[id],
+               rho0: Math.pow(10, R.log[id]), mid0: (D.top_ft[0] + D.bot_ft[0]) / 2 };
+  return out;
+});
+{
+  const zlib = await import("node:zlib");
+  for (const w of ["slice", "map"]) {
+    const P = x1[w], buf = Buffer.from(P.b64, "base64"), files = {};
+    let o = 0, crcBad = 0;
+    while (o + 4 <= buf.length && buf.readUInt32LE(o) === 0x04034b50) {
+      const method = buf.readUInt16LE(o + 8), crc = buf.readUInt32LE(o + 14), sz = buf.readUInt32LE(o + 18), nl = buf.readUInt16LE(o + 26);
+      const name = buf.subarray(o + 30, o + 30 + nl).toString("utf8"), body = buf.subarray(o + 30 + nl, o + 30 + nl + sz);
+      if (method !== 0 || zlib.crc32(body) !== crc) crcBad++;
+      files[name] = body.toString("utf8"); o += 30 + nl + sz;
+    }
+    /* the central directory and the end record follow the last file */
+    const cdOk = buf.readUInt32LE(o) === 0x02014b50 && buf.readUInt32LE(buf.length - 22) === 0x06054b50
+      && buf.readUInt16LE(buf.length - 22 + 10) === 3 && buf.readUInt32LE(buf.length - 22 + 16) === o;
+    const names = Object.keys(files), base = P.name.replace(/\.zip$/, "");
+    const asc = files[base + ".asc"] || "", L = asc.trim().split("\n"), hd = {};
+    for (const l of L.slice(0, 6)) { const [k, v] = l.trim().split(/\s+/); hd[k] = +v; }
+    let worst = 0, cells = 0, nod = 0, shape = L.length - 6 === P.ny;
+    for (let r = 0; r < P.ny && shape; r++) {
+      const row = L[6 + r].trim().split(" ");
+      if (row.length !== P.nx) { shape = false; break; }
+      const iy = P.ny - 1 - r;                                  // the file's first row is the north row
+      for (let ix = 0; ix < P.nx; ix++) {
+        const want = P.v[iy * P.nx + ix], got = +row[ix];
+        if (want == null) { if (got !== -9999) worst = 9; else nod++; continue; }
+        cells++; worst = Math.max(worst, Math.abs(got - want) / Math.max(1e-6, Math.abs(want)));
+      }
+    }
+    const prj = files[base + ".prj"] || "", rd = files[base + "_readme.txt"] || "";
+    console.log("TEM GIS grid (" + w + "):", JSON.stringify({ zip: P.name, bytes: buf.length, files: names, crcBad, cdOk, hd, cells, nodata: nod, worst, shape }));
+    if (names.length !== 3 || crcBad || !cdOk) { console.log("FAIL: the " + w + " grid's zip is not three stored files node's CRC agrees with"); process.exit(1); }
+    if (hd.ncols !== P.nx || hd.nrows !== P.ny || hd.cellsize !== P.dx || Math.abs(hd.xllcenter - P.x0) > 0.001 || Math.abs(hd.yllcenter - P.y0) > 0.001 || hd.NODATA_value !== -9999)
+      { console.log("FAIL: the " + w + " grid's header is not the model's grid", hd); process.exit(1); }
+    if (!shape || !cells || !(worst <= 1e-5)) { console.log("FAIL: the " + w + " grid's values are not the app's, north row first", { shape, cells, worst }); process.exit(1); }
+    if (!/^PROJCS\["NAD_1983_2011_StatePlane_California_II_FIPS_0402_Ft_US"/.test(prj) || prj.indexOf('"Central_Meridian",-122.0') < 0
+        || prj.indexOf('"False_Easting",6561666.666666666') < 0 || prj.indexOf('UNIT["Foot_US",0.3048006096012192]') < 0)
+      { console.log("FAIL: the projection file is not California zone 2 in US survey feet", prj.slice(0, 200)); process.exit(1); }
+    if (rd.indexOf("EPSG:6418") < 0 || rd.indexOf("planning-level") < 0 || rd.indexOf(base + ".asc") < 0)
+      { console.log("FAIL: the readme does not say what the grid is", rd.slice(0, 300)); process.exit(1); }
+  }
+  /* the VTK: header, point count, every scalar's count, one node found */
+  const V = x1.vtk.split("\n"), g = x1.grid, n = g.nx * g.ny * g.nl;
+  const iPts = V.findIndex(l => l.startsWith("POINTS ")), iPd = V.findIndex(l => l.startsWith("POINT_DATA "));
+  const scal = V.map((l, i) => l.startsWith("SCALARS ") ? { name: l.split(" ")[1], i } : null).filter(Boolean);
+  const count = (a, b) => V.slice(a, b).reduce((s, l) => s + (l ? l.trim().split(/\s+/).length : 0), 0);
+  const counts = scal.map((s, k) => count(s.i + 2, k + 1 < scal.length ? scal[k + 1].i : V.length));
+  const valid = V.slice(scal.find(s => s.name === "valid").i + 2).join(" ").trim().split(/\s+/).filter(v => v === "1").length;
+  /* the top layer is the LAST k: its points and its resistivities are the last N of each */
+  const N = g.nx * g.ny, ptLine = V[iPts + 1 + (g.nl - 1) * N + x1.node.id].trim().split(" ").map(Number);
+  const rhoVals = V.slice(scal[0].i + 2, scal[1].i).join(" ").trim().split(/\s+/);
+  const rhoTop = +rhoVals[(g.nl - 1) * N + x1.node.id];
+  const v1 = { head: V[0], kind: V[3], dims: V[4], points: V[iPts], nPts: iPd - iPts - 1, pd: V[iPd], scalars: scal.map(s => s.name).join(","), counts,
+               valid, pt: ptLine, rhoTop };
+  console.log("TEM VTK:", JSON.stringify(v1), "| node", JSON.stringify(x1.node));
+  if (v1.head !== "# vtk DataFile Version 3.0" || v1.kind !== "DATASET STRUCTURED_GRID" || v1.dims !== `DIMENSIONS ${g.nx} ${g.ny} ${g.nl}`
+      || v1.points !== `POINTS ${n} double` || v1.nPts !== n || v1.pd !== `POINT_DATA ${n}`)
+    { console.log("FAIL: the VTK's header does not describe the model grid"); process.exit(1); }
+  if (v1.scalars !== "resistivity_ohm_m,log10_resistivity,depth_ft,layer,valid" || counts.some(c => c !== n) || valid !== g.nodes * g.nl)
+    { console.log("FAIL: the VTK's point data is not a value per point, valid on the model's nodes"); process.exit(1); }
+  if (Math.abs(ptLine[0] - x1.node.x) > 0.01 || Math.abs(ptLine[1] - x1.node.y) > 0.01 || Math.abs(ptLine[2] - (x1.node.surf - x1.node.mid0)) > 0.01
+      || Math.abs(rhoTop / x1.node.rho0 - 1) > 1e-4)
+    { console.log("FAIL: a node of the VTK is not the model's node, top layer last"); process.exit(1); }
+}
+/* the report sheet: the figures, the model, the map, the borings, the pins */
+const x2 = await page.evaluate(async () => {
+  const G = SBMM.geophys, R = G.result(), wait = ms => new Promise(r => setTimeout(r, ms));
+  const p = G.probe(R.x0 + 500, R.y0 + 600, { depth: 40 });
+  let pinned = 0;
+  if (p.ok) { SBMM.temprobe.pin(p); pinned = 1; }
+  const html = await SBMM.temexport.report();
+  await wait(300);
+  const box = document.getElementById("reportModal"), fr = document.getElementById("rmFrame");
+  const doc = new DOMParser().parseFromString(html || "", "text/html");
+  const out = { modal: !!box, frame: !!(fr && fr.srcdoc && fr.srcdoc.length === (html || "").length), pinned,
+    title: (doc.querySelector(".tblock h1") || {}).textContent, author: /Mohammad Sharif/.test(html || ""),
+    figs: doc.querySelectorAll(".temfigs figure img").length, figData: [...doc.querySelectorAll(".temfigs img")].every(i => /^data:image\/png;base64,/.test(i.getAttribute("src"))),
+    caps: [...doc.querySelectorAll("figcaption")].map(c => c.textContent.slice(0, 60)),
+    h2: [...doc.querySelectorAll("h2")].map(h => h.textContent), pinRows: 0, calRows: 0,
+    words: (doc.body.textContent || "").replace(/\s+/g, " ") };
+  for (const t of doc.querySelectorAll("table.qt")) {
+    const th = [...t.querySelectorAll("th")].map(x => x.textContent).join("|");
+    if (/^probe\|/.test(th)) out.pinRows = t.querySelectorAll("tbody tr").length;
+    if (/^logged class/.test(th)) out.calRows = t.querySelectorAll("tbody tr").length;
+  }
+  out.limits = /no depth of investigation/.test(out.words) && /planning-level/.test(out.words);
+  out.mapSaid = out.words.indexOf(SBMM.temmaps.finding().text.replace(/\s+/g, " ")) >= 0;
+  out.words = out.words.length;
+  /* Esc closes the sheet and nothing else */
+  document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+  await wait(100);
+  out.closed = !document.getElementById("reportModal");
+  /* the slice card offers the three */
+  out.btns = !!document.querySelector('#resBody [data-a="asc"]') && !!document.querySelector('#resBody [data-a="vtk"]') && !!document.querySelector('#resBody [data-a="report"]');
+  SBMM.temprobe.pins().slice().forEach(f => SBMM.store.remove(f));
+  return out;
+});
+console.log("TEM report sheet:", JSON.stringify(x2));
+if (!x2.modal || !x2.frame || x2.title !== "TEM geophysics" || !x2.author) { console.log("FAIL: the TEM sheet did not open in the report presenter"); process.exit(1); }
+if (x2.figs !== 2 || !x2.figData) { console.log("FAIL: the TEM sheet does not carry the slice and the derived map as figures", x2.figs, x2.caps); process.exit(1); }
+for (const h of ["The model", "Against the 2025 borings", "Pinned probes", "Limits"])
+  if (x2.h2.indexOf(h) < 0) { console.log("FAIL: the TEM sheet has no section “" + h + "”", x2.h2); process.exit(1); }
+if (!x2.h2.some(h => /^Derived map/.test(h)) || !x2.mapSaid) { console.log("FAIL: the TEM sheet does not state the derived map's result", x2.h2); process.exit(1); }
+if (x2.pinRows !== x2.pinned || x2.calRows < 2 || !x2.limits) { console.log("FAIL: the TEM sheet's probes, calibration or limits", x2); process.exit(1); }
+if (!x2.closed) { console.log("FAIL: Esc did not close the TEM sheet"); process.exit(1); }
+if (!x2.btns) { console.log("FAIL: the slice card does not offer the three exports"); process.exit(1); }
+/* without the payload every export refuses with a toast */
+const x3 = await page.evaluate(async () => {
+  const wait = ms => new Promise(r => setTimeout(r, ms)), keep = SBMM_DATA.tem2026, out = [];
+  delete SBMM_DATA.tem2026;
+  try {
+    for (const f of [() => SBMM.temexport.gridZip("slice"), () => SBMM.temexport.modelVtk(), () => SBMM.temexport.report()]) {
+      const r = await f(); out.push([r === false || r === null, (document.getElementById("toast") || {}).textContent || ""]); await wait(150);
+    }
+  } finally { SBMM_DATA.tem2026 = keep; }
+  return out;
+});
+console.log("TEM exports without the payload:", JSON.stringify(x3));
+if (x3.some(r => !r[0] || r[1].indexOf("not in this build") < 0)) { console.log("FAIL: a TEM export did not refuse without the survey", x3); process.exit(1); }
+await page.evaluate(async () => { SBMM.temws.off(true); SBMM.shell.collapse("l", false); });
+});
+
 await block("9f13. the trees (v39)", async () => {
 /* v39 — the tree layer drawn from the baked site-wide table: the payload, the
    2D crowns, the 3D instanced trees with their levels of detail, the pick, and
