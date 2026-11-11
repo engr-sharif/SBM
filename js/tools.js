@@ -1372,7 +1372,7 @@ SBMM.tools = (function () {
   let seq = {};
   function nextName(base) { seq[base] = (seq[base] || 0) + 1; return `${base} ${seq[base]}`; }
 
-  return { setTool, active, rearm, mapClick, dropSpot, inspectAt, mkVolume, volumeOfPile, volumeOfRing, volumeOfRingPts,
+  return { setTool, active, rearm, mapClick, dropSpot, pushCreate, inspectAt, mkVolume, volumeOfPile, volumeOfRing, volumeOfRingPts,
            editFeature, canEditVertices, canMove,
            zoomTo, rebuildFeature, recompute, applyStyle, redraw, relayer, deleteFeature,
            defaultColor, baseStyle, compVolume, wire,

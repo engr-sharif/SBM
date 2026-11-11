@@ -7221,6 +7221,278 @@ await page.evaluate(() => {
 });
 });
 
+await block("9f12b. the TEM probe (v53)", async () => {
+/* v53 — "when the mouse moves over a layer, it lets me know what I'm looking
+   at": the ONE record (SBMM.geophys.probe), the chip at the pointer in 2D and
+   over every TEM surface in 3D, the card with the profile, and pins that are
+   ordinary point features */
+await page.evaluate(async () => {
+  if (SBMM.temws.isOpen()) SBMM.temws.off(true);
+  if (SBMM.viewer3d.isOpen()) await SBMM.viewer3d.toggle();
+  SBMM.shell.collapse("l", true);
+  await SBMM.geophys.open(40);
+});
+await page.waitForFunction(() => SBMM.geophys.hasResult() && SBMM.geophys.slice(), null, { timeout: 120000 });
+/* A. the record's arithmetic, against the model's own accessors */
+const pa = await page.evaluate(() => {
+  const G = SBMM.geophys, R = G.result(), D = SBMM_DATA.tem2026, out = { n: 0, bad: [] };
+  for (let k = 0; k < R.nx * R.ny; k += 23) {
+    if (!R.mask[k]) continue;
+    const x = R.x0 + (k % R.nx) * R.dx + 3.7, y = R.y0 + Math.floor(k / R.nx) * R.dx + 6.1;
+    const p = G.probe(x, y);
+    if (!p.ok) continue;
+    out.n++;
+    const want = G.rhoAt(x, y, p.depth);
+    let bi = -1, bd = Infinity;
+    for (let i = 0; i < D.n; i++) { const d = Math.hypot(D.x[i] - x, D.y[i] - y); if (d < bd) { bd = d; bi = i; } }
+    const errs = [];
+    if (Math.abs(p.rho - want) > want * 1e-9) errs.push("rho");
+    if (Math.abs(p.cond - 1000 / p.rho) > 1e-9) errs.push("cond");
+    if (Math.abs(p.elev - (p.ground - p.depth)) > 1e-9) errs.push("elev");
+    if (!(p.depth >= p.layer.top - 1e-9 && p.depth < p.layer.bot + 1e-9)) errs.push("layer");
+    if (p.snd.i !== bi || Math.abs(p.snd.dist - bd) > 1e-9) errs.push("sounding");
+    if (p.se != null && Math.abs(Math.log10(p.lo * p.hi) - 2 * Math.log10(p.rho)) > 1e-9) errs.push("range");
+    if (p.col.length !== D.nl) errs.push("col");
+    if (errs.length && out.bad.length < 4) out.bad.push([k, errs]);
+    if (!out.sample) out.sample = { x, y, rho: +p.rho.toPrecision(5), depth: p.depth, snd: p.snd.id, se: p.se != null, reads: p.reads && p.reads.like, ground: +p.ground.toFixed(2) };
+  }
+  const q = out.sample;
+  const g0 = G.probe(q.x, q.y).ground;               // unrounded: the sample above is for the log
+  const pe = G.probe(q.x, q.y, { elev: g0 - 55 }), pd = G.probe(q.x, q.y, { depth: 55 });
+  out.byElev = Math.abs(pe.depth - 55) < 1e-6 && Math.abs(pe.rho - pd.rho) < pd.rho * 1e-9 && pe.datum === "elev";
+  out.above = G.probe(q.x, q.y, { depth: -3 });
+  out.deep = G.probe(q.x, q.y, { depth: G.dmax() + 10 });
+  out.away = G.probe(R.x0 - 4000, R.y0 - 4000);
+  out.csv = G.probeCsv(pd).trim().split("\n");
+  return out;
+});
+console.log("TEM probe record:", JSON.stringify({ n: pa.n, bad: pa.bad, sample: pa.sample, byElev: pa.byElev,
+  above: [pa.above.ok, pa.above.why], deep: [pa.deep.ok, pa.deep.why], away: [pa.away.ok, pa.away.why], csv: pa.csv.length }));
+if (pa.n < 100 || pa.bad.length) { console.log("FAIL: the probe's record disagrees with the model's own accessors", pa.bad, pa.n); process.exit(1); }
+if (!pa.byElev) { console.log("FAIL: a probe asked for by elevation is not the probe at (ground − elevation)"); process.exit(1); }
+if (pa.above.ok || pa.deep.ok || pa.away.ok || !pa.above.why || !pa.deep.why || !pa.away.why)
+  { console.log("FAIL: the probe answered above the ground, below the record or off the survey — or refused without saying why", pa.above, pa.deep, pa.away); process.exit(1); }
+if (pa.csv.length !== 1 + 15 + 1 + 20 && pa.csv.length < 30) { console.log("FAIL: the probe's CSV", pa.csv.length); process.exit(1); }
+if (!pa.sample.se) { console.log("FAIL: the kriged model gave the probe no standard error", pa.sample); process.exit(1); }
+
+/* B. 2D: the chip at the pointer over the slice, and stepping aside for a feature */
+await page.evaluate(() => { const R = SBMM.geophys.result();
+  SBMM.map.fitBounds([[R.y0 - 60, R.x0 - 60], [R.y0 + (R.ny - 1) * R.dx + 60, R.x0 + (R.nx - 1) * R.dx + 60]],
+    SBMM.omni && SBMM.omni.fitPad ? Object.assign({ animate: false }, SBMM.omni.fitPad()) : { animate: false }); });
+await page.waitForTimeout(900);
+const pt = await page.evaluate(() => {
+  const G = SBMM.geophys, R = G.result(), map = SBMM.map, r = map.getContainer().getBoundingClientRect();
+  const F = SBMM.shell.frame ? SBMM.shell.frame() : { x: 60, y: 110, w: innerWidth - 120, h: innerHeight - 220 };
+  const free = (sx, sy) => { const e = document.elementFromPoint(sx, sy); return !!(e && e.closest("#map") && !e.closest(".leaflet-popup, .leaflet-control")); };
+  let model = null, feature = null;
+  for (let k = 0; k < R.nx * R.ny && !model; k += 31) {
+    const x = R.x0 + (k % R.nx) * R.dx + 7, y = R.y0 + Math.floor(k / R.nx) * R.dx + 7, p = G.probe(x, y);
+    if (!p.ok || SBMM.pick2d.probe(L.latLng(y, x)).length) continue;
+    const c = map.latLngToContainerPoint([y, x]), sx = r.left + c.x, sy = r.top + c.y;
+    if (sx < F.x + 60 || sx > F.x + F.w - 80 || sy < F.y + 80 || sy > F.y + F.h - 150 || !free(sx, sy)) continue;
+    model = { x, y, sx, sy, rho: p.rho };
+  }
+  return { model, text: model ? SBMM.temprobe.chipHtml(G.probe(model.x, model.y)).replace(/<[^>]+>/g, "") : "" };
+});
+if (!pt.model) { console.log("FAIL: no free model point on screen to hover"); process.exit(1); }
+await page.mouse.move(pt.model.sx - 40, pt.model.sy - 30);
+await page.mouse.move(pt.model.sx, pt.model.sy, { steps: 4 });
+await page.waitForFunction(() => SBMM.temprobe.state().chip, null, { timeout: 15000 }).catch(() => {});
+const pb = await page.evaluate(() => { const c = document.getElementById("temTip"), r = c.getBoundingClientRect(), d = document.getElementById("temLegend");
+  return { st: SBMM.temprobe.state(), core: !!c.querySelector("svg.tpcore rect"), box: [Math.round(r.left), Math.round(r.top), Math.round(r.width), Math.round(r.height)],
+           inView: r.left >= 0 && r.top >= 0 && r.right <= innerWidth && r.bottom <= innerHeight, pe: getComputedStyle(c).pointerEvents,
+           mark: d ? +d.dataset.mark : null, pick: SBMM.pick2d.state().chip }; });
+console.log("TEM probe 2D chip:", JSON.stringify(pb), "at", JSON.stringify(pt.model));
+if (!pb.st.chip || !pb.core || !/Ω·m/.test(pb.st.text) || !/ft deep/.test(pb.st.text) || !/layer \d+/.test(pb.st.text) || !/measured/.test(pb.st.text))
+  { console.log("FAIL: the pointer is on the slice and the chip does not say what is under it", pb); process.exit(1); }
+if (!pb.inView || pb.pe !== "none") { console.log("FAIL: the chip is off the screen or takes the pointer", pb); process.exit(1); }
+/* a well under the pointer: its own chip is the chip */
+const well = await page.evaluate(() => {
+  const G = SBMM.geophys, map = SBMM.map, r = map.getContainer().getBoundingClientRect(), F = SBMM.shell.frame ? SBMM.shell.frame() : null;
+  for (const m of Object.values(map._layers)) {
+    if (!m.getLatLng || !m._icon || !m.getTooltip || !m.getTooltip()) continue;
+    const ll = m.getLatLng(), p = G.probe(ll.lng, ll.lat);
+    if (!p.ok) continue;
+    const c = map.latLngToContainerPoint(ll), sx = r.left + c.x, sy = r.top + c.y;
+    if (F && (sx < F.x + 40 || sx > F.x + F.w - 40 || sy < F.y + 60 || sy > F.y + F.h - 120)) continue;
+    const e = document.elementFromPoint(sx, sy);
+    if (!e || !e.closest(".leaflet-marker-icon")) continue;
+    return { sx, sy };
+  }
+  return null;
+});
+if (well) {
+  await page.mouse.move(well.sx - 25, well.sy - 25);
+  await page.mouse.move(well.sx, well.sy, { steps: 4 });
+  await page.waitForFunction(() => SBMM.pick2d.state().chip, null, { timeout: 8000 }).catch(() => {});
+  await page.waitForTimeout(200);
+  const pw = await page.evaluate(() => ({ tem: SBMM.temprobe.state().chip, pick: SBMM.pick2d.state().chip, name: SBMM.pick2d.state().target }));
+  console.log("TEM probe over a marker:", JSON.stringify(pw));
+  if (pw.pick && pw.tem) { console.log("FAIL: two chips at one pointer — the TEM chip did not step aside for the feature's", pw); process.exit(1); }
+}
+
+/* C. click: the card, with the profile; pin; undo and redo; a session round trip */
+await page.mouse.move(pt.model.sx - 6, pt.model.sy - 6);
+await page.mouse.click(pt.model.sx, pt.model.sy);
+await page.waitForFunction(() => document.querySelector(".leaflet-popup .tpcard"), null, { timeout: 15000 }).catch(() => {});
+const pc = await page.evaluate(() => {
+  const c = document.querySelector(".leaflet-popup .tpcard");
+  if (!c) return null;
+  const rows = [...c.querySelectorAll(".tptab tr")].map(t => t.children[0].textContent);
+  return { rows, paths: c.querySelectorAll("svg.tpprof path").length, marks: c.querySelectorAll("svg.tpprof line[stroke='#F1CE7A']").length,
+           acts: [...c.querySelectorAll("[data-tp-a]")].map(b => b.dataset.tpA), text: c.textContent.slice(0, 60) };
+});
+console.log("TEM probe card:", JSON.stringify(pc));
+if (!pc || pc.paths < 2 || pc.marks !== 1 || pc.acts.join(",") !== "pin,csv,slice")
+  { console.log("FAIL: a click on the slice did not open the probe card with its profile", pc); process.exit(1); }
+for (const r of ["Resistivity", "Conductivity", "Depth · elevation", "Ground", "Model layer", "Nearest sounding"])
+  if (pc.rows.indexOf(r) < 0) { console.log("FAIL: the probe card is missing its " + r + " row", pc.rows); process.exit(1); }
+const pp = await page.evaluate(async () => {
+  const wait = ms => new Promise(r => setTimeout(r, ms));
+  const T = SBMM.temprobe, n0 = SBMM.store.features.length;
+  document.querySelector('.leaflet-popup [data-tp-a="pin"]').click();
+  await wait(300);
+  const f = T.pins()[0], out = { n: T.pins().length, added: SBMM.store.features.length - n0 };
+  if (!f) return out;
+  out.type = f.type; out.name = f.name; out.prov = f.props.provenance; out.label = f.layer.getTooltip() ? f.layer.getTooltip().getContent() : "";
+  out.title = f.card && f.card.querySelector(".rname") ? f.card.querySelector(".rname").textContent : "";
+  out.box = !!(f.card && f.card.querySelector(".tpbox svg.tpprof"));
+  out.undo = SBMM.undo.labels().undo;
+  SBMM.undo.pop(); out.afterUndo = T.pins().length;
+  SBMM.undo.redo(); out.afterRedo = T.pins().length;
+  /* a second pin, deeper, and the session: only the point and its depth travel */
+  const p2 = SBMM.geophys.probe(f.pts[0][0] + 240, f.pts[0][1] + 160, { depth: 90 });
+  if (p2.ok) T.pin(p2);
+  const jobs0 = SBMM.compute.stats.workerJobs + SBMM.compute.stats.syncJobs;
+  const s = SBMM.store.serialize(), mine = s.features.filter(q => q.props && q.props.provenance && q.props.provenance.source === "tem");
+  T.pins().forEach(q => SBMM.store.remove(q));
+  out.gone = T.pins().length;
+  SBMM.store.restore({ app: "SBMM Site Explorer", version: s.version, features: mine });
+  await wait(400);
+  out.back = T.pins().map(q => [q.name, q.props.provenance.depth, !!(q.card && q.card.querySelector(".tpbox svg.tpprof")), q.layer.getTooltip() ? q.layer.getTooltip().getContent() : ""]);
+  out.jobs = SBMM.compute.stats.workerJobs + SBMM.compute.stats.syncJobs - jobs0;
+  out.geo = (() => { try { return JSON.stringify(SBMM.io.toGeoJSON ? SBMM.io.toGeoJSON() : {}).indexOf("TEM P1") >= 0; } catch (e) { return null; } })();
+  return out;
+});
+console.log("TEM probe pin:", JSON.stringify(pp));
+if (pp.n !== 1 || pp.added !== 1 || pp.type !== "spot" || pp.name !== "TEM P1" || !pp.prov || pp.prov.source !== "tem" || !(pp.prov.depth >= 0))
+  { console.log("FAIL: pinning a probe did not make one point feature carrying its depth", pp); process.exit(1); }
+if (!/P1 · [\d.]+ Ω·m/.test(pp.label) || pp.title !== "TEM P1" || !pp.box) { console.log("FAIL: the pin's label, card title or profile", pp); process.exit(1); }
+if (!/pin TEM P1/.test(pp.undo) || pp.afterUndo !== 0 || pp.afterRedo !== 1) { console.log("FAIL: a pin is not undoable and redoable", pp); process.exit(1); }
+if (pp.gone !== 0 || pp.back.length !== 2 || pp.back[1][1] !== 90 || pp.back.some(b => !b[2] || !/Ω·m/.test(b[3])) || pp.jobs !== 0)
+  { console.log("FAIL: pins did not survive a session round trip with their depth, card and label (and no job)", pp); process.exit(1); }
+
+/* D. every pin on one chart */
+const pd = await page.evaluate(async () => {
+  SBMM.cmd.run("TEMPROBES");
+  await new Promise(r => setTimeout(r, 300));
+  const c = document.querySelector(".tpallcard"), csv = SBMM.temprobe.probesCsv().trim().split("\n");
+  return { card: !!c, paths: c ? c.querySelectorAll("svg.tpprof path").length : 0, rows: c ? c.querySelectorAll(".tpallt tr").length - 1 : 0,
+           csv: csv.length, cols: csv[1].split(",").length, first: csv[2].split(",")[0] };
+});
+console.log("TEM probes card:", JSON.stringify(pd));
+if (!pd.card || pd.paths !== 2 || pd.rows !== 2 || pd.csv !== 4 || pd.cols !== 6 + 20 || pd.first !== "TEM P1")
+  { console.log("FAIL: the comparison card or its CSV", pd); process.exit(1); }
+await voiceCheck("TEM probe");
+
+/* E. 3D: every surface answers for the point under the pointer, and only where it can be seen */
+await page.evaluate(async () => { await SBMM.temws.open(); SBMM.geophys.apply("depth", 40); });
+await page.waitForFunction(() => SBMM.temws.isOpen() && SBMM.viewer3d.isOpen() && SBMM.viewer3d.pitState().on
+  && document.getElementById("v3dStatus").textContent === "" && !(SBMM.viewer3d.stats().tiles || {}).building, null, { timeout: 180000 });
+await page.waitForTimeout(1500);
+const scan = async want => {
+  const b = await page.evaluate(() => { const r = document.getElementById("v3dCanvas").getBoundingClientRect(); const F = SBMM.shell.frame(); return [F.x, F.y, F.w, F.h, r.left, r.top]; });
+  for (const fy of [0.6, 0.52, 0.68, 0.45, 0.75]) for (const fx of [0.5, 0.42, 0.58, 0.34, 0.66, 0.26, 0.74]) {
+    const x = b[0] + b[2] * fx, y = b[1] + b[3] * fy;
+    await page.mouse.move(x - 9, y - 7); await page.mouse.move(x, y, { steps: 2 });
+    await page.waitForTimeout(260);
+    const s = await page.evaluate(() => ({ t: SBMM.temprobe.state().text, chip: SBMM.temprobe.state().chip, m: SBMM.viewer3d.probeMarkState(),
+      r: SBMM.temws.state().reading, hov: document.querySelector("#temWs .twscore").dataset.hover, cur: document.getElementById("v3dCanvas").style.cursor }));
+    if (s.chip && (!want || want.test(s.t))) return Object.assign({ x, y }, s);
+  }
+  return null;
+};
+const e1 = await scan(/depth slice|cut floor|cut wall/);
+console.log("TEM probe 3D, the cut:", JSON.stringify(e1));
+if (!e1 || !/Ω·m/.test(e1.t) || !e1.m || e1.r !== "pointer" || !e1.hov || e1.cur !== "crosshair")
+  { console.log("FAIL: the pointer is in the cut and nothing says what it is on (chip, mark, the panel's core)", e1); process.exit(1); }
+const e2 = await page.evaluate(async e1 => {
+  const wait = ms => new Promise(r => setTimeout(r, ms));
+  const V = SBMM.viewer3d, T = SBMM.temprobe, G = SBMM.geophys, P = V.pitState(), out = {};
+  /* the mark sits where the reading is */
+  const m = V.probeMarkState(), hov = document.querySelector("#temWs .twscore").dataset.hover;
+  const xy = hov.split("@")[1].split(",").map(Number);
+  out.markAtReading = Math.hypot(m[0] - xy[0], m[1] - xy[1]) < 2;
+  /* idle with the pointer resting on the model: no frame is asked for */
+  const r0 = V.stats().renderCount; await wait(1800); out.idle = V.stats().renderCount - r0;
+  /* a part of the slice still under SOLID ground does not answer; inside the cut it does */
+  const C = V.internals(), I = SBMM.viewer3d, cen = I.toWorld({ x: 0, y: 0, z: 0 });
+  const sc = (x, y) => ({ point: { x: x - cen[0], y: y - cen[1], z: 0 } });
+  const B = V.clipState().box || null, R = G.result();
+  out.groundNow = V.groundNow();
+  out.inside = T.accept3d({ what: "slice" }, sc(P.spec.cx, P.spec.cy));
+  out.outside = T.accept3d({ what: "slice" }, sc(P.spec.cx + P.spec.w * 3 + 900, P.spec.cy + 40));
+  out.wall = T.accept3d({ what: "wall" }, sc(P.spec.cx + 9999, P.spec.cy));
+  void C; void B; void R; void e1;
+  return out;
+}, e1);
+console.log("TEM probe 3D rules:", JSON.stringify(e2));
+if (!e2.markAtReading) { console.log("FAIL: the 3D mark is not where the reading is", e2); process.exit(1); }
+if (e2.idle > 1) { console.log("FAIL: a pointer resting on the model keeps the 3D view rendering", e2); process.exit(1); }
+if (e2.groundNow !== "solid" || !e2.inside || e2.outside || !e2.wall)
+  { console.log("FAIL: with the ground solid, the slice should answer inside the cut only (and a wall always)", e2); process.exit(1); }
+/* a click in the cut: the card */
+await page.mouse.move(e1.x - 5, e1.y - 5); await page.mouse.move(e1.x, e1.y);
+await page.mouse.click(e1.x, e1.y);
+await page.waitForFunction(() => document.querySelector("#pick3dCard .tpcard"), null, { timeout: 15000 }).catch(() => {});
+const e3 = await page.evaluate(() => { const c = document.querySelector("#pick3dCard .tpcard"); return c ? { paths: c.querySelectorAll("svg.tpprof path").length, pin: !!c.querySelector('[data-tp-a="pin"]') } : null; });
+console.log("TEM probe 3D card:", JSON.stringify(e3));
+if (!e3 || e3.paths < 2 || !e3.pin) { console.log("FAIL: a click on the model in 3D did not open the probe card", e3); process.exit(1); }
+await page.keyboard.press("Escape");
+/* off the model: the chip, the mark and the panel's reading all go back */
+await page.mouse.move(e1.x, e1.y);
+const off = await page.evaluate(() => { const r = document.getElementById("v3dCanvas").getBoundingClientRect(), F = SBMM.shell.frame(); return [F.x + 30, F.y + 90, r.left]; });
+await page.mouse.move(off[0], off[1], { steps: 3 });
+await page.waitForTimeout(500);
+const e4 = await page.evaluate(() => ({ chip: SBMM.temprobe.state().chip, mark: SBMM.viewer3d.probeMarkState(), r: SBMM.temws.state().reading,
+  hov: document.querySelector("#temWs .twscore").dataset.hover }));
+console.log("TEM probe 3D, off the model:", JSON.stringify(e4));
+if (e4.chip || e4.mark || e4.r !== "centre" || e4.hov) { console.log("FAIL: the pointer left the model and the chip, the mark or the core stayed", e4); process.exit(1); }
+/* sections under a see-through ground, voxels, and the interpretation surfaces */
+await page.evaluate(() => { SBMM.temws.applyPreset("sections"); });
+await page.waitForFunction(() => SBMM.viewer3d.groundNow() === "see" && !SBMM.viewer3d.pitState().on, null, { timeout: 30000 });
+await page.waitForTimeout(2500);
+const e5 = await scan(/section|depth slice/);
+await page.evaluate(() => { SBMM.temws.applyPreset("volume"); });
+await page.waitForTimeout(3000);
+const e6 = await scan(/voxel/);
+console.log("TEM probe 3D, sections / voxels:", JSON.stringify(e5 && e5.t.slice(0, 70)), JSON.stringify(e6 && e6.t.slice(0, 70)));
+if (!e5 || !e6) { console.log("FAIL: the sections or the voxels do not answer the pointer", !!e5, !!e6); process.exit(1); }
+const e7 = await page.evaluate(async () => {
+  const T = SBMM.teminterp; await T.runWaste(); await T.runSeep();
+  const W = T.waste(), S = T.seep(), out = {};
+  let id = -1; for (let k = 0; k < W.depth.length; k += 5) if (isFinite(W.depth[k])) { id = k; break; }
+  const x = W.x0 + (id % W.nx) * W.dx, y = W.y0 + Math.floor(id / W.nx) * W.dx, r = T.readAt("waste", x, y);
+  out.waste = r && Math.abs(r.depth - W.depth[id]) < 1e-9 && /base of waste/.test(r.head) && /±/.test(r.head);
+  let is = -1; for (let k = 0; k < S.rho.length; k += 5) if (isFinite(S.rho[k])) { is = k; break; }
+  const xs = S.x0 + (is % S.nx) * S.dx, ys = S.y0 + Math.floor(is / S.nx) * S.dx, rs = T.readAt("seep", xs, ys);
+  out.seep = rs && Math.abs(rs.rho - S.rho[is]) < 1e-9 && rs.low === (S.rho[is] < S.thr);
+  out.none = T.readAt("waste", W.x0 - 9000, W.y0 - 9000);
+  return out;
+});
+console.log("TEM interpretation readings:", JSON.stringify(e7));
+if (!e7.waste || !e7.seep || e7.none) { console.log("FAIL: an interpretation surface's reading at a point", e7); process.exit(1); }
+/* put it all away */
+await page.evaluate(async () => {
+  SBMM.temprobe.pins().slice().forEach(f => SBMM.store.remove(f));
+  SBMM.temws.applyPreset("cut");
+  SBMM.temws.off(true);
+  for (const c of document.querySelectorAll(".tpallcard")) { const x = c.querySelector('[data-a="del"]'); if (x) x.click(); }
+  if (SBMM.viewer3d.isOpen()) await SBMM.viewer3d.toggle();
+  SBMM.shell.collapse("l", false);
+});
+});
+
 await block("9f13. the trees (v39)", async () => {
 /* v39 — the tree layer drawn from the baked site-wide table: the payload, the
    2D crowns, the 3D instanced trees with their levels of detail, the pick, and

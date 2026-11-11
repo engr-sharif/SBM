@@ -423,6 +423,7 @@ terrain source, which needs an explicit decision + README/test update).
 | labmetals.js | **v28 — lab metals by depth** from the earlier apps (`SBMM_DATA.lab_metals`, `tools/build_imports.py`): the interval table in a boring / test-pit popup and on the log card, the full validated suite on a sample popup, the ROD / PMB levels and `level(sym, v)`; `SBMM.labMetals` |
 | geophys.js | **v36 — the 2026 TEM2Go geophysics** (`SBMM_DATA.tem2026`): the soundings row and the depth-slice row under *Geophysics — TEM 2026* in Investigations, the `tem` job, the slice painted in the contractor's colour maps, the card with the viewer's controls in feet, the sounding popup's profile with the nearest boring's contacts, the CSV/PNG exports, the status-bar value, the 3D dots and slice sheet, `TEM`; `SBMM.geophys` |
 | temws.js | **v37 — the TEM workspace**: Data ▾ → *TEM geophysics* / `TEMWS` — a panel in the right dock's place with every TEM control, the core (a virtual boring at the centre of the cut, draggable for depth), the descent, and the 3D view opened with the ground cut open to the slice (`SBMM.viewer3d.setPit`); on a phone it opens the card; since v51 `off()` (TEM off as a whole), `hide()` and the "TEM on" chip; since v52 the reading, four views, folding sections and the depth / elevation switch; `SBMM.temws` |
+| temprobe.js | **v53 — the TEM probe**: the chip at the pointer over the slice (2D) and over any TEM surface (3D), the card with the depth profile, pinned probes (a `spot` carrying a depth) and the comparison card; the record itself is `SBMM.geophys.probe`; `SBMM.temprobe` |
 | teminterp.js | **v38 — two interpretations of the TEM**: *Base of waste* (the 2025 borings' logged native contact kriged across the dry survey footprint, the TEM break depth as an external drift only when it wins the leave-one-out, the standard error, the proposed borings) and *Conductive zones* (an elevation band below the impoundment's surveyed water level, its harmonic-mean resistivity, the least-resistive route from Herman to Clear Lake and its bottleneck, the section along it); the two layer rows, the cards, the workspace tabs it mounts, the 3D spec, the exports, `TEMWASTE` / `TEMSEEP`; `SBMM.teminterp` |
 | siteareas.js | **v28 — the named site areas of SBMM.kmz** (`SBMM_DATA.site_areas`): one Investigations row (off by default), 3D drape, snap, GeoJSON/DXF on `SITE-AREAS`; `SBMM.siteAreas` |
 | borewin.js | **v23 Phase A — the boring-log window** on the sheet-window chassis: the Log tab as a real log sheet at 1 in = 5 ft with the depth cursor, Compare (2–6 holes on one elevation datum, correlation lines, printed separations), the 44-hole Table, the printed log sheet through `js/report.js`, the hole picker, `LOGWIN`; `SBMM.borewin` |
@@ -5947,3 +5948,85 @@ Seven things that will be walked into again:
 marker at the value under the pointer. `hoverText()` — the status bar's
 reading, called for the map and for the 3D ground alike — sets the marker
 with one style write; nothing is re-drawn and no frame is asked for.
+
+## v53 — the TEM probe: what the pointer is on, and its value
+
+`js/temprobe.js` (`SBMM.temprobe`, new); `probe()` / `probeCsv()` in
+`js/geophys.js`; live surfaces in `js/pick3d.js`; `toWorld()` / `probeMark()`
+and the surface tags in `js/viewer3d.js`; `readAt()` in `js/teminterp.js`; the
+core following the pointer in `js/temws.js`; `TEMPROBES`. E2E block **"9f12b.
+the TEM probe (v53)"** (shard 2). No kernel work: the record is read off the
+`tem` job's grid as it stands.
+
+The engineer: *"when the mouse moves over a layer, it lets me know what I'm
+looking at and the values of that layer or section."* Before this the only
+reading was a note in the status bar, in 2D; in 3D the slice, the cut's floor
+and walls, the sections, the stack and the voxels answered nothing, and the
+two interpretation surfaces answered with a general sentence.
+
+**ONE RECORD — `SBMM.geophys.probe(x, y, at)`.** `at` is `{depth}`, `{elev}` or
+nothing (the current slice). It answers the resistivity and conductivity, the
+kriging standard error as a range (`lo`..`hi`, the value ÷ and × 10^se), the
+depth and elevation, the model layer, the MODEL's ground beside the lidar's,
+the nearest sounding and **its own inverted model at that depth** (measured,
+against interpolated), the nearest 2025 boring within 150 ft and the class its
+**logged contacts** put that depth in, which side of the calibration's one
+threshold the value reads (interpreted, with its accuracy), whether it is
+below the impoundment's surveyed water level, and the model down the point
+layer by layer. Off the survey, above the ground or below the record it is
+`ok: false` with a `why`. Block 9f12b restates it against the model's own
+accessors at 147 nodes.
+
+**Three depths of it** (`js/temprobe.js`):
+
+- **hover** — a chip at the pointer (`#temTip`, one element for 2D and 3D):
+  the value and its range, the depth, elevation and layer, the nearest
+  sounding and what it measured, with the model down the point as a small
+  core. A move writes the chip's position and, when the reading changed, its
+  text; it asks for no frame.
+- **click** — the card: a popup on the map, the identify card in 3D. The full
+  record and the profile — the model against the nearest sounding's own
+  model on one log axis, the boring's contacts as ticks.
+- **pin** — the card's *pin* keeps it. **A pin is a `spot`** whose
+  `props.provenance` is `{source: "tem", depth, elev}`: no new feature type,
+  and so it is in My work, the session (`rebuildFeature` copies provenance),
+  the exports and the undo stack for free. What a pin SHOWS — its label, the
+  block in its results card — is derived by `decorate()` from the model as it
+  stands, and re-derived on every `tem` event and store change. `TEMPROBES`
+  (`PROBES`) puts every pin's profile on one chart with a CSV.
+
+Eight things that will be walked into again:
+
+- **A LIVE SURFACE IS NOT AN OBJECT WITH A NAME.** `js/pick3d.js` hovered an
+  object once and then only moved its tip; a TEM sheet says something
+  different at every point of itself. A registry entry may now carry
+  `live(hit, event)` (asked on EVERY move; it shows its own chip and answers
+  whether it had anything to say), `liveEnd()` and `accept(hit)`. A live
+  entry is never tinted — `highlight()` would turn the whole slice yellow —
+  and the dwell card is skipped for it (its chip is already at the pointer).
+- **A surface answers only where it can be SEEN** (`accept3d`). The pick
+  engine never raycasts the terrain, so the part of a slice still under solid
+  ground would answer through it: with the ground solid, a sheet, a section or
+  a voxel answers inside the cut only; the cut's own walls and floor always.
+- **The cut's walls and floor are not under the overlay group**, so
+  `syncScene()` never sees them: they register themselves
+  (`SBMM.pick3d.registerTem`) and leave when the cut is rebuilt or taken away
+  (`pitUnpick`). Every other surface carries
+  `userData.pick = {kind: "temsurf", what, …}`.
+- **How a surface knows its depth** (`at3d`): the slice and a stack sheet know
+  theirs; a section, a wall and the floor take it from the hit's own height
+  under the MODEL's ground; a voxel is its cell. `SBMM.viewer3d.toWorld(p)`
+  un-scales the relief slider.
+- **The chip steps aside for the pick engine**: in 2D it hides while
+  `SBMM.pick2d` shows a chip and a click is the feature's when anything under
+  the pointer acts on one (the rule the tree layer follows); in 3D points and
+  lines outrank a surface by priority.
+- **The panel's core follows the pointer** through the `temprobe` event
+  (`{rec}` or `{rec: null}`): two text nodes and a 60-px canvas, in one
+  animation frame, and back to the centre of the cut when the pointer leaves.
+  `#temWs[data-reading]` and `.twscore[data-hover]` are the harness hooks.
+- **A pin's card is titled when the point is dropped, before it is named**, so
+  `decorate()` sets `.rname` too.
+- **`SBMM.viewer3d.probeMark(p)`** is ONE sprite, moved; it belongs to no
+  layer, answers no pick, and asks for a frame only when it moves. An idle
+  pointer resting on the model renders nothing (9f12b asserts it).

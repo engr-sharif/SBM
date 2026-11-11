@@ -1051,6 +1051,107 @@ SBMM.geophys = (function () {
     built = true;
   }
 
+  /* ------------------------------------------------------------------ */
+  /* v53 — THE PROBE: everything the model and the site know about one   */
+  /* point. One function, so the 2D chip, the 3D chip, the card, the     */
+  /* panel's core and the CSV all read the same record.                  */
+  /* ------------------------------------------------------------------ */
+  /* `at` is { depth } (ft below the model's ground there), { elev } (ft
+     NAVD88) or nothing, which means the current slice. Everything is read
+     off the `tem` job's grid as it stands — nothing is re-interpolated:
+
+       rho, cond     the model, plan-bilinear inside a layer and the
+                     viewer's blend between layer mid-depths (gridValue)
+       se            the kriging standard error there, log10 Ω·m, and the
+                     range it makes (rho ÷ and × 10^se) — kriging only
+       ground        the MODEL's ground (the soundings' elevations,
+                     interpolated by the kernel); `lidar` beside it
+       snd           the nearest sounding, how far, and ITS OWN inverted
+                     model at this depth — measured, against interpolated
+       boring        the nearest 2025 boring within 150 ft and the class its
+                     LOGGED CONTACTS put this depth in (the fence's rule)
+       reads         which side of the calibration's one threshold the
+                     value falls — interpreted, with its balanced accuracy
+       wet           below the impoundment's surveyed water level
+       col           the model down this point, layer by layer             */
+  function probe(x, y, at) {
+    const out = { ok: false, x, y };
+    if (!R || !data() || !isFinite(x) || !isFinite(y)) { out.why = "no model"; return out; }
+    const gx = gxOf(x), gy = gyOf(y);
+    if (gx < 0 || gy < 0 || gx > R.nx - 1 || gy > R.ny - 1) { out.why = "outside the survey"; return out; }
+    const N = R.nx * R.ny, D = data(), DM = dmax();
+    const ground = R.surf ? bilin(R.surf, R.nx, R.ny, gx, gy) : NaN;
+    const near = R.mask[Math.round(gy) * R.nx + Math.round(gx)];
+    if (!near || !isFinite(ground)) { out.why = "beyond " + fmt0(R.blank) + " ft of a sounding"; return out; }
+    let depth, elev, datum;
+    if (at && at.depth != null) { depth = +at.depth; elev = ground - depth; datum = "depth"; }
+    else if (at && at.elev != null) { elev = +at.elev; depth = ground - elev; datum = "elev"; }
+    else if (byElev()) { elev = S.elev; depth = ground - elev; datum = "elev"; }
+    else { depth = S.depth; elev = ground - depth; datum = "depth"; }
+    out.ground = ground; out.depth = depth; out.elev = elev; out.datum = datum;
+    const [zl] = SBMM.elev ? SBMM.elev(x, y) : [NaN];
+    out.lidar = zl;
+    /* the column, whatever the depth asked for */
+    const col = [];
+    for (let l = 0; l < D.nl; l++) {
+      const v = bilin(R.log.subarray(l * N, (l + 1) * N), R.nx, R.ny, gx, gy);
+      const rho = isFinite(v) ? Math.pow(10, v) : NaN;
+      /* the core is coloured as the slice is; under "kriging s.e." there is no
+         resistivity colour to give it */
+      col.push({ top: D.top_ft[l], bot: D.bot_ft[l], rho,
+                 color: isFinite(rho) && S.prop !== "sig" ? colorOf(S.prop === "cond" ? 1000 / rho : rho) : null });
+    }
+    out.col = col;
+    out.inRecord = depth >= 0 && depth <= DM;
+    if (!out.inRecord) { out.why = depth < 0 ? "above the ground" : "below the deepest layer (" + fmt0(DM) + " ft)"; return out; }
+    const lg = gridValue(R.log, gx, gy, depth);
+    if (!isFinite(lg)) { out.why = "no model here"; return out; }
+    out.ok = true;
+    out.rho = Math.pow(10, lg); out.cond = 1000 / out.rho;
+    const l = layerAt(depth);
+    out.layer = { l, n: D.nl, top: D.top_ft[l], bot: D.bot_ft[l] };
+    if (R.sig) {
+      const se = gridValue(R.sig, gx, gy, depth);
+      if (isFinite(se)) { out.se = se; out.lo = out.rho / Math.pow(10, se); out.hi = out.rho * Math.pow(10, se); }
+    }
+    const ns = nearestSounding(x, y);
+    if (ns.i >= 0) out.snd = { i: ns.i, id: D.id[ns.i], dist: ns.d, rho: Math.pow(10, soundingAt(ns.i, depth)) };
+    const nb = nearestBoring(x, y, 150);
+    if (nb) {
+      let cls = null;
+      for (const [k, a, b] of bandsOfHole(nb.h)) if (depth >= a && depth < b) { cls = k; break; }
+      const c = nb.h.contacts || {};
+      out.boring = { id: nb.h.id, dist: nb.d, cls, native: c.native_contact, bedrock: c.bedrock_top, total: nb.h.depth };
+    }
+    const C = calibrate();
+    if (C && C.threshold && isFinite(C.threshold.rho)) {
+      const T = C.threshold, above = out.rho > T.rho;
+      /* T.dir says which side of the threshold the logged waste falls */
+      const wasteSide = /above|over|>/.test(String(T.dir)) ? above : !above;
+      out.reads = { like: wasteSide ? "waste" : "native", rho: T.rho, acc: T.acc, dir: T.dir, holes: C.holes.length };
+    }
+    try {
+      const wl = SBMM.teminterp && SBMM.teminterp.waterLevel ? SBMM.teminterp.waterLevel() : null;
+      if (wl && isFinite(wl.z)) { out.water = wl.z; out.wet = elev < wl.z; }
+    } catch (e) { /* the water level is a courtesy */ }
+    return out;
+  }
+  /* the record as CSV: the point, then the column */
+  function probeCsv(p, name) {
+    if (!p || !p.col) return "";
+    const f = (v, n) => isFinite(v) ? (+v).toFixed(n == null ? 2 : n) : "";
+    let out = `# TEM probe${name ? " " + name : ""}; EPSG:6418 ft, NAVD88; ${R ? METHOD_NAME[R.method] : ""}; planning-level\n`
+      + `easting_ft,${f(p.x)}\nnorthing_ft,${f(p.y)}\nmodel_ground_ft,${f(p.ground)}\nlidar_ground_ft,${f(p.lidar)}\n`
+      + `depth_ft,${f(p.depth, 1)}\nelevation_ft,${f(p.elev, 1)}\n`
+      + (p.ok ? `resistivity_ohm_m,${+p.rho.toPrecision(4)}\nconductivity_mS_m,${+p.cond.toPrecision(4)}\n` : "")
+      + (p.se != null ? `kriging_se_log10,${p.se.toFixed(3)}\nresistivity_low,${+p.lo.toPrecision(4)}\nresistivity_high,${+p.hi.toPrecision(4)}\n` : "")
+      + (p.snd ? `nearest_sounding,${p.snd.id}\nsounding_distance_ft,${f(p.snd.dist, 0)}\nsounding_resistivity_ohm_m,${+p.snd.rho.toPrecision(4)}\n` : "")
+      + (p.boring ? `nearest_boring,${p.boring.id}\nboring_distance_ft,${f(p.boring.dist, 0)}\nboring_logged_class,${p.boring.cls || ""}\n` : "")
+      + "layer,top_ft,bottom_ft,top_elev_ft,resistivity_ohm_m\n";
+    p.col.forEach((c, i) => { out += `${i + 1},${c.top},${c.bot},${f(p.ground - c.top, 1)},${isFinite(c.rho) ? +c.rho.toPrecision(4) : ""}\n`; });
+    return out;
+  }
+
   /* TEMCAL: the log window's Geophysics tab, at the given boring */
   async function openCalibration(id) {
     if (!data()) { toast("the TEM survey is not in this build"); return; }
@@ -1512,6 +1613,7 @@ SBMM.geophys = (function () {
     byElev, elev: () => S.elev, elevRange, depthUnder, sliceWords, sliceLong, soundingNow,
     sliceSig: () => (byElev() ? "e" + S.elev : "d" + S.depth), dock: paintDock,
     sectionHandle, sectionIdx: d => R ? sectionIdx(d) : -1,
+    probe, probeCsv, soundingRho: (i, d) => Math.pow(10, soundingAt(i, d)),
     unit: () => PROP[S.prop].unit, propName: () => PROP[S.prop].name,
     options: () => ({ cmap: Object.keys(CMAPS).map(k => [k, CMAP_NAME[k]]),
                       method: Object.keys(METHOD_NAME).map(k => [k, METHOD_NAME[k]]),
