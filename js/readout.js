@@ -211,7 +211,11 @@ SBMM.readout = (function () {
     const map = SBMM.map;
     clearTimeout(clickT);
     if (!ev || !ev.latlng || !navigating()) return;
-    if (downState && (downState.popup || downState.sel)) return;
+    /* the press belongs to THIS click and to no later one (a click the code
+       fires has no press of its own) */
+    const closed = downState && (downState.popup || downState.sel);
+    downState = null;
+    if (closed) return;
     if (SBMM.pick2d && SBMM.pick2d.probe && SBMM.pick2d.probe(ev.latlng).some(c => c.acts)) return;
     const x = ev.latlng.lng, y = ev.latlng.lat;
     clickT = setTimeout(() => {

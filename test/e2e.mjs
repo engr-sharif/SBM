@@ -4057,17 +4057,17 @@ stormRest = await page.evaluate(async () => {
   if (!wasOpen) { await SBMM.viewer3d.toggle(); await wait(1400); }
   SBMM.viewer3d.refreshOverlays();
   await wait(600);
-  const withNet = SBMM.pick3d.registered().filter(r => r.kind === "gis").length;
+  const withNet = SBMM.pick3d.registered().filter(r => r.kind === "gis" || r.kind === "card").length;   // v58: a conduit answers through the generic card kind
   SBMM.layerState.set("framework", "storm_cad", { on: false });
   SBMM.layerState.set("framework", "storm_inferred", { on: false });
   SBMM.viewer3d.refreshOverlays();
   await wait(600);
-  const without = SBMM.pick3d.registered().filter(r => r.kind === "gis").length;
+  const without = SBMM.pick3d.registered().filter(r => r.kind === "gis" || r.kind === "card").length;   // v58: a conduit answers through the generic card kind
   SBMM.layerState.set("framework", "storm_cad", { on: true });
   SBMM.layerState.set("framework", "storm_inferred", { on: true });
   SBMM.viewer3d.refreshOverlays();
   await wait(600);
-  const back = SBMM.pick3d.registered().filter(r => r.kind === "gis").length;
+  const back = SBMM.pick3d.registered().filter(r => r.kind === "gis" || r.kind === "card").length;   // v58: a conduit answers through the generic card kind
   if (!wasOpen) { await SBMM.viewer3d.toggle(); await wait(500); }
   /* the exports */
   const fc = SBMM.io.collection("sp");
@@ -8007,12 +8007,18 @@ const t2 = await page.evaluate(async () => {
     if (!acts && free < 0) free = i;
     if (acts && shared < 0) shared = i;
   }
-  const fire = i => { SBMM.map.closePopup(); SBMM.map.fire("click", { latlng: L.latLng(d.y[i], d.x[i]) }); };
-  let popFree = "", popShared = null;
-  if (free >= 0) { fire(free); popFree = (document.querySelector(".treepop .leaflet-popup-content") || {}).textContent || ""; }
   /* asked of the map, not of the DOM: a closing popup's element outlives it by its fade */
   const treeOpen = () => { const p = SBMM.map._popup; return !!(p && p.isOpen() && /treepop/.test(p.options.className || "")); };
-  if (shared >= 0) { fire(shared); popShared = treeOpen(); }
+  /* v58: the click on bare ground is ONE handler (js/readout.js) and its card
+     waits out a double-click, so the popup is waited for, not read at once */
+  const fire = async i => {
+    SBMM.map.closePopup();
+    SBMM.map.fire("click", { latlng: L.latLng(d.y[i], d.x[i]) });
+    for (let k = 0; k < 12 && !treeOpen(); k++) await new Promise(r => setTimeout(r, 100));
+  };
+  let popFree = "", popShared = null;
+  if (free >= 0) { await fire(free); popFree = treeOpen() ? (SBMM.map._popup._contentNode || {}).textContent || "" : ""; }
+  if (shared >= 0) { await fire(shared); popShared = treeOpen(); }
   SBMM.map.closePopup();
   /* the height filter is one setting for both views */
   SBMM.trees.setMinShow(30);
