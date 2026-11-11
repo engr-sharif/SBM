@@ -160,61 +160,85 @@ written.
 of the same ground at the same scale, registered by cross-correlation, the
 photograph alone as the reference):
 
-| | brightness (3D / photo) | sharpness, brightness-normalised |
-|---|---|---|
-| mine area at 1 ft/px | 0.83 | 0.51 |
-| mine area at 0.5 ft/px (the photo's own scale) | 0.84 | 0.33 |
-| ABP at 0.25 ft/px | 0.64 | 0.79 |
-| the same with the lights flat and occlusion off | **1.01** | 0.71 / 0.32 / 0.75 |
+| | brightness (3D / photo) | sharpness, brightness-normalised | "as if blurred by" |
+|---|---|---|---|
+| mine area at 1 ft/px | 0.83 | 0.51 | 0.61 px |
+| mine area at 0.5 ft/px (the photo's own scale) | 0.84 | 0.33 | 0.84 px |
+| ABP at 0.25 ft/px | 0.64 | 0.79 | 0.66 px |
+| the same with the lights flat and occlusion off | **1.01** | 0.44 / 0.30 / 0.57 | |
+| ... and trilinear filtering off | 1.01 | 0.70 / 0.32 / 0.60 | 0.45 / 0.77 / 0.58 px |
 
-So the texture path is neutral (1.01): **the darkness is the light**, and the
-softness is in two places — the mip chain (0.51 → 0.76 at 1 ft/px with
-trilinear off) and whatever remains at the photo's own scale.
+The texture path is neutral (1.01), so **the darkness is the light**. The
+softness is the filtering: the mip blend where the photograph is minified, and
+two bilinear resamplings (photograph to tile lattice, tile to screen) at its
+own scale. The single-file build cuts its tiles from the photographs in memory
+and measures the same as the folder build's tile files, so the tile files are
+not a cause.
 
-**Causes.**
-1. *Light.* v40 balanced the lights so level sunlit ground returns 0.86 of its
-   albedo in linear light; the sky's colour takes it to 0.77, which reads as
-   0.90 on screen; occlusion and slope take the rest. A north-facing bench at
-   the ABP is at 0.64. But the drape is a photograph: it has already been lit.
-2. *Mip chain.* Trilinear filtering blends two levels, and on sloping ground
-   the level-of-detail is biased towards the blurrier one.
-3. *Resampled twice.* The single-file build cuts its tiles from the
-   photographs in memory and the folder build loads re-encoded tile files, and
-   the two measure the same (0.52 / 0.34 against 0.51 / 0.33) — so the tile
-   files are **not** a cause. What both share is two resamplings: the
-   photograph onto the tile lattice, then the tile onto the screen. Each costs
-   about half a pixel of blur; together with the mip blend that is the 0.6–0.8
-   px measured.
+**Five findings decide the design** (the last two were found building it).
 
-**The rule this step sets: level open ground in the sun IS the photograph**
-(factor 1.00). Relief modulates around that — a slope facing the sun lifts, one
-facing away deepens, a cast shadow deepens — exactly the principle the 2D
-relief shading follows (v45: level ground is left alone).
+1. **The photograph is already lit.** Over 3.9 million open-ground cells of the
+   mine area, the photograph's brightness was regressed on the terrain's
+   sun-facing term for suns all round the compass. The fit peaks at azimuth
+   180 (an independent confirmation of "as photographed"), with a slope of 0.52
+   in log-log, and a Lambert-plus-fill model keeps improving up to a direct
+   share of 0.7 — i.e. the photograph carries terrain shading about as strong
+   as the 3D light applies. Lighting the draped photograph therefore shades it
+   twice: a north-facing bench came out at 0.64 of the map.
+2. **The fill light points north.** three's hemisphere light takes its "sky"
+   from its own position, the default is +y, and +y in this scene is north. A
+   north-facing slope has been lit by the sky and level ground by half of it
+   since v15.
+3. **v40's "0.86 of its albedo" was 0.77** once the sky's colour and (2) are
+   counted, which is 0.90 on screen before occlusion and slope take the rest.
+
+4. **The 3D picture was stretched 5 %.** Since the chrome began floating over
+   the stage the canvas has been drawn 838 rows tall and stretched to 880 by
+   CSS — 5 % too tall, and resampled once more.
+5. **Round the 3-in photograph's border the 6-in one was skipped.** A terrain
+   tile straddling the crop's edge was draped from the 3-in tiles over a
+   1 ft/px ancestor.
+
+**The rule: with the sun where the photograph has it, the 3D ground IS the
+photograph.**
+
+**Result** (`test/terrain3d.mjs --only fidelity`): brightness 1.01 / 1.00 /
+1.00 of the photograph (was 0.83 / 0.84 / 0.64); blur 0.41 / 0.51 / 0.34 px
+(was 0.61 / 0.84 / 0.66).
 
 **Design.**
-- `SBMM.atmos3d.light()` is re-balanced so that sun x sin(elevation) + sky = pi
-  in each channel on level ground at the photographed sun, keeping today's
-  shadow-to-sun ratio. Above 1 the factor is rolled off softly so a sunlit
-  slope cannot burn the photograph out (a limit on the *light*, not a tone
-  curve on the picture — v40's rule against a tone curve stands).
-- Occlusion strength is set by the same probe: open level ground must stay at
-  1.00, and a mixed frame of the mine area must average at least 0.93.
-- The drape lookup takes a level-of-detail bias (a uniform; the value chosen
-  by the probe at a top-down and an oblique view, with the anisotropic filter
-  keeping the oblique view from shimmering).
-- Where the drape is shown near the photograph's own scale, the lookup uses a
-  sharper reconstruction than bilinear (a Catmull-Rom filter in the ground
-  shader, realistic rendering only), which is what takes back the blur of the
-  second resampling; the choice is made by the probe, not assumed.
-- Everything else lit by the same lights (trees, buildings, fences) is checked
-  against the ground in the pictures; the unlit analysis drapes and the shader
-  rasters are untouched.
+- *The photograph is shown as photographed and RE-lit.* In the ground's
+  shader the photograph's colour is multiplied by (the light now) / (the light
+  it was photographed in), both evaluated on the same normal. At the
+  photographed sun that ratio is exactly 1. Moving the sun brightens what turns
+  toward it and darkens what turns away. Above 1 the ratio is rolled off (no
+  burn-out); below it is floored at the fill.
+- *Cast shadows and occlusion come in with the relight.* The photograph holds
+  its own shadows — cast by the same trees and roofs — and its own occlusion.
+  With the sun as photographed the shadow map stands down on the ground and
+  the lidar's occlusion is not laid over the photograph's; both fade in as the
+  sun moves off (fully by 18 degrees).
+- *Everything that is not a photograph is lit by the light itself*, and the
+  light is re-levelled by one rule: level ground in the sun, at the elevation
+  the photograph was taken, receives exactly pi. Roofs, trees and solids then
+  return their own colour, and sit at the photograph's brightness. The fill
+  light points up.
+- *The lookup.* A level-of-detail bias toward the sharper mip everywhere; and
+  near the photograph's own scale (under two texels a pixel) a Catmull-Rom
+  reconstruction of the top level instead of bilinear — realistic rendering
+  only, WebGL2 only. The values are chosen by the probe, top-down and oblique.
+- Unlit analysis drapes and the shader rasters are untouched. A drape that is
+  not the photograph (hillshade, slope, elevation) is never "shown as
+  photographed".
 
-**Acceptance (`test/terrain3d.mjs --only fidelity`, both builds):** level open
-ground 0.97–1.03 of the photograph; mixed frame >= 0.93; normalised sharpness
-at 1 ft/px >= 0.85 and at the photo's scale >= the ceiling the probe finds
-with bilinear resampling (stated in the block, not assumed); 2D and 3D register
-within 1 ft. Block 9f14's light-balance assertion moves to the new rule.
+**Acceptance (`test/terrain3d.mjs --only fidelity`, both builds):** at the
+photographed sun, three frames (mine area at 1 and 0.5 ft/px, ABP at 0.25):
+brightness 0.97–1.03 of the photograph; blur-equivalent no worse than the
+figure the probe finds for the new lookup (recorded in the block); 2D and 3D
+registered within 1 ft. With the sun moved 120 degrees the same frame must
+differ (the relight is in force) and stay within 0.6–1.25. Block 9f14's
+light-balance assertion moves to the new rule; the fill light's direction is
+asserted.
 
 **Cannot be finished here:** frame time and the real look on the RTX machine.
 The step ends with a request for one paste of *copy 3D diagnostics*.

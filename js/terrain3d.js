@@ -312,7 +312,29 @@ SBMM.terrain3d = (function () {
         const fx = x * n + i, fy = y * n + j;
         if (SBMM.tiles.has("ortho", zf, fx, fy)) list.push([fx, fy, i, j]);
       }
-      if (list.length) return { z: zf, k, n, list };
+      if (list.length) {
+        /* v57 — EVERY LEVEL BETWEEN, where the finest does not reach. The
+           finest level is partial: the 3-in photograph is one 600-ft crop.
+           A terrain tile that straddles its edge used to be composed from
+           that level over the tile's OWN-level ancestor, so the part the crop
+           does not cover showed 1 ft/px stretched to 0.25 — skipping the 6-in
+           photograph that covers all of it — all the way round the crop's
+           border. The levels between are painted in order, coarse to fine,
+           whenever the finest leaves any of the square uncovered. */
+        const mid = [];
+        if (list.length < n * n) {
+          for (let kk = 1; kk < k; kk++) {
+            const zm = z - kk, nm = 1 << kk, lm = [];
+            if (!SBMM.tiles.levelInfo("ortho", zm)) continue;
+            for (let j = 0; j < nm; j++) for (let i = 0; i < nm; i++) {
+              const fx = x * nm + i, fy = y * nm + j;
+              if (SBMM.tiles.has("ortho", zm, fx, fy)) lm.push([fx, fy, i, j]);
+            }
+            if (lm.length) mid.push({ z: zm, n: nm, list: lm });
+          }
+        }
+        return { z: zf, k, n, list, mid };
+      }
     }
     return null;
   }
@@ -327,8 +349,10 @@ SBMM.terrain3d = (function () {
     const g = (zz, xx, yy) => SBMM.tiles.get("ortho", zz, xx, yy, { priority: 1 }).catch(() => null);
     const baseP = ref ? g(ref.z, ref.x, ref.y) : Promise.resolve(null);
     const fineP = plan ? Promise.all(plan.list.map(t => g(plan.z, t[0], t[1]))) : Promise.resolve([]);
-    const [base, fine] = await Promise.all([baseP, fineP]);
-    return { plan, ref, base, fine };
+    const midP = plan && plan.mid && plan.mid.length
+      ? Promise.all(plan.mid.map(L => Promise.all(L.list.map(t => g(L.z, t[0], t[1]))))) : Promise.resolve([]);
+    const [base, fine, mid] = await Promise.all([baseP, fineP, midP]);
+    return { plan, ref, base, fine, mid };
   }
 
   /* Compose one drape. SYNCHRONOUS on purpose — it is measured as one block.
@@ -362,12 +386,23 @@ SBMM.terrain3d = (function () {
       const sy = ((ref.y * s + s - 1) - y) * sw;
       try { g2.drawImage(base.img, sx, sy, sw, sw, 0, 0, side, side); } catch (e) { /* rounding */ }
     }
+    /* v57: then every level between, coarse to fine, where the finest is partial */
+    const mids = (plan.mid || []);
+    for (let m = 0; m < mids.length; m++) {
+      const L = mids[m], got2 = (got.mid && got.mid[m]) || [], w = side / L.n;
+      for (let i = 0; i < L.list.length; i++) {
+        const t = L.list[i], im = got2[i];
+        if (!im || !im.img) continue;
+        try { g2.drawImage(im.img, t[2] * w, (L.n - 1 - t[3]) * w, w, w); } catch (e) { /* rounding */ }
+      }
+    }
     for (let i = 0; i < plan.list.length; i++) {
       const t = plan.list[i], im = fine[i];
       if (!im || !im.img) continue;
       try { g2.drawImage(im.img, t[2] * N, (plan.n - 1 - t[3]) * N, N, N); } catch (e) { /* rounding */ }
     }
-    return { tex: texFromImage(cv), px: side, ftPerPx: SBMM.tiles.cellOf(plan.z), composed: true };
+    return { tex: texFromImage(cv), px: side, ftPerPx: SBMM.tiles.cellOf(plan.z), composed: true,
+             levels: 1 + mids.length + 1 };
   }
 
   /* Mipmaps, trilinear and the renderer's own anisotropy cap — stated rather
@@ -1091,12 +1126,107 @@ SBMM.terrain3d = (function () {
       .replace("#include <opaque_fragment>", `#include <opaque_fragment>
 	gl_FragColor.a *= mix( 1.0, uSeeA, texture2D( uSeeTex, ( vSeeXY - uSeeBox.xy ) / uSeeBox.zw ).r );`);
   }
+  /* v57 — THE PHOTOGRAPH, AS PHOTOGRAPHED, RE-LIT (the reasoning is at
+     RELIGHT in js/viewer3d.js). Two things, in both ground materials:
+
+     (a) THE LIGHT. three has just accumulated the light as it is now (sun with
+         the shadow map, plus the fill). That is divided by the light the
+         photograph was taken in — the photographed sun and its fill on the
+         SAME normal — and the albedo is multiplied by the ratio. With the sun
+         as photographed the ratio is 1 and the output is the texel. Above 1
+         the ratio is rolled off (a slope turning into the sun brightens, it
+         does not burn); below it is floored (a slope that was in the sun and
+         no longer is darkens to the fill, not to black).
+     (b) THE LOOKUP. A drape is resampled twice — the photograph onto the tile
+         lattice, the tile onto the screen — and each bilinear pass costs about
+         half a pixel of blur; trilinear filtering then blends in the next mip.
+         Measured against the 2D map at the same scale, the 3D ground was "as
+         if blurred by 0.6 to 0.85 px". So: a level-of-detail bias toward the
+         sharper mip everywhere, and near the photograph's own scale (under two
+         texels a pixel) a Catmull-Rom reconstruction of the top level in place
+         of the bilinear one. WebGL2 only (textureLod / textureSize); without
+         it the lookup is three's own. */
+  const RELIGHT_FALLBACK = { uPhotoDir: { value: new THREE.Vector3(0, -0.84, 0.54) },
+    uPhotoSun: { value: new THREE.Vector3(1, 1, 1) }, uPhotoSky: { value: new THREE.Vector3(1, 1, 1) },
+    uPhotoGnd: { value: new THREE.Vector3(0.4, 0.4, 0.4) }, uPhotoNear: { value: 0 }, uRelight: { value: 0 },
+    uLodBias: { value: 0 }, uSharp: { value: 0 } };
+  function relightUniforms() { return (ctx && ctx.relightUniforms) ? ctx.relightUniforms() : RELIGHT_FALLBACK; }
+  const GLSL_DRAPE = `
+uniform float uLodBias; uniform float uSharp;
+vec4 sbmmDrape( vec2 uv ) {
+	/* always sampled: a lookup with implicit derivatives must not sit in a branch */
+	vec4 lin = texture( map, uv, uLodBias );
+	vec2 size = vec2( textureSize( map, 0 ) );
+	vec2 st = uv * size;
+	float fp = max( length( dFdx( st ) ), length( dFdy( st ) ) );      // texels per pixel
+	float k = uSharp * ( 1.0 - smoothstep( 1.25, 2.0, fp ) );
+	if ( k <= 0.001 ) return lin;
+	/* Catmull-Rom over the top level, 9 bilinear taps (explicit level, so the branch is legal) */
+	vec2 tc1 = floor( st - 0.5 ) + 0.5;
+	vec2 f = st - tc1;
+	vec2 w0 = f * ( -0.5 + f * ( 1.0 - 0.5 * f ) );
+	vec2 w1 = 1.0 + f * f * ( -2.5 + 1.5 * f );
+	vec2 w2 = f * ( 0.5 + f * ( 2.0 - 1.5 * f ) );
+	vec2 w3 = f * f * ( -0.5 + 0.5 * f );
+	vec2 w12 = w1 + w2;
+	vec2 t0 = ( tc1 - 1.0 ) / size, t3 = ( tc1 + 2.0 ) / size, t12 = ( tc1 + w2 / w12 ) / size;
+	vec4 c =
+		textureLod( map, vec2( t0.x,  t0.y  ), 0.0 ) * ( w0.x  * w0.y  ) +
+		textureLod( map, vec2( t12.x, t0.y  ), 0.0 ) * ( w12.x * w0.y  ) +
+		textureLod( map, vec2( t3.x,  t0.y  ), 0.0 ) * ( w3.x  * w0.y  ) +
+		textureLod( map, vec2( t0.x,  t12.y ), 0.0 ) * ( w0.x  * w12.y ) +
+		textureLod( map, vec2( t12.x, t12.y ), 0.0 ) * ( w12.x * w12.y ) +
+		textureLod( map, vec2( t3.x,  t12.y ), 0.0 ) * ( w3.x  * w12.y ) +
+		textureLod( map, vec2( t0.x,  t3.y  ), 0.0 ) * ( w0.x  * w3.y  ) +
+		textureLod( map, vec2( t12.x, t3.y  ), 0.0 ) * ( w12.x * w3.y  ) +
+		textureLod( map, vec2( t3.x,  t3.y  ), 0.0 ) * ( w3.x  * w3.y  );
+	return mix( lin, max( c, vec4( 0.0 ) ), k );
+}`;
+  const GLSL_DRAPE_USE = `#ifdef USE_MAP
+	vec4 sampledDiffuseColor = sbmmDrape( vMapUv );
+	diffuseColor *= sampledDiffuseColor;
+#endif`;
+  const GLSL_RELIGHT_PARS = `
+uniform vec3 uPhotoDir; uniform vec3 uPhotoSun; uniform vec3 uPhotoSky; uniform vec3 uPhotoGnd;
+uniform float uPhotoNear; uniform float uRelight;`;
+  const GLSL_OUT = "vec3 outgoingLight = reflectedLight.directDiffuse + reflectedLight.indirectDiffuse + totalEmissiveRadiance;";
+  const GLSL_RELIGHT = GLSL_OUT + `
+#if ( NUM_DIR_LIGHTS > 0 ) && ( NUM_HEMI_LIGHTS > 0 )
+	{
+		vec3 sbAlb = max( diffuseColor.rgb * RECIPROCAL_PI, vec3( 1e-5 ) );
+		/* what three accumulated, as irradiance: the sun through the shadow map, and the fill */
+		vec3 sbDir = reflectedLight.directDiffuse / sbAlb;
+		vec3 sbInd = reflectedLight.indirectDiffuse / sbAlb;
+		/* the sun without the shadow map: the photograph holds its own cast shadows */
+		vec3 sbDir0 = directionalLights[ 0 ].color * saturate( dot( normal, directionalLights[ 0 ].direction ) );
+		vec3 sbNow = mix( sbDir, sbDir0, uPhotoNear ) + sbInd;
+		/* the light it was photographed in, on the same normal */
+		vec3 sbPd = normalize( ( viewMatrix * vec4( uPhotoDir, 0.0 ) ).xyz );
+		vec3 sbThen = uPhotoSun * saturate( dot( normal, sbPd ) )
+			+ mix( uPhotoGnd, uPhotoSky, 0.5 * dot( normal, hemisphereLights[ 0 ].direction ) + 0.5 );
+		vec3 sbR = clamp( sbNow / max( sbThen, vec3( 1e-3 ) ), 0.3, 6.0 );
+		vec3 sbHi = max( sbR - 1.0, 0.0 );
+		sbR = min( sbR, 1.0 ) + sbHi / ( 1.0 + 2.0 * sbHi );
+		outgoingLight = mix( outgoingLight, diffuseColor.rgb * sbR, uRelight );
+	}
+#endif`;
+  function relightPatch(sh) {
+    Object.assign(sh.uniforms, relightUniforms());
+    sh.fragmentShader = sh.fragmentShader
+      .replace("#include <common>", "#include <common>" + GLSL_RELIGHT_PARS)
+      .replace(GLSL_OUT, GLSL_RELIGHT);
+    if (webgl2) sh.fragmentShader = sh.fragmentShader
+      .replace("#include <map_pars_fragment>", "#include <map_pars_fragment>\n#ifdef USE_MAP" + GLSL_DRAPE + "\n#endif")
+      .replace("#include <map_fragment>", GLSL_DRAPE_USE + "\n/*sbmm:after-map*/");
+    else sh.fragmentShader = sh.fragmentShader
+      .replace("#include <map_fragment>", "#include <map_fragment>\n/*sbmm:after-map*/");
+  }
   function groundMaterial(o) {
     const mat = new THREE.MeshLambertMaterial({ color: 0xffffff });
     mat.userData.seeMask = true;
     if (!shadeWanted()) {
-      mat.onBeforeCompile = seePatch;
-      mat.customProgramCacheKey = () => "sbmm-ground-std-v51";
+      mat.onBeforeCompile = sh => { relightPatch(sh); seePatch(sh); };
+      mat.customProgramCacheKey = () => "sbmm-ground-std-v57" + (webgl2 ? "" : "-gl1");
       return mat;
     }
     if (!GROUND_U.uNoise.value) {
@@ -1117,6 +1247,11 @@ SBMM.terrain3d = (function () {
     };
     mat.onBeforeCompile = sh => {
       Object.assign(sh.uniforms, GROUND_U, U);
+      /* v57: the lookup and the relight. Done before the edge / detail code
+         below is spliced in after the map lookup, so that code keeps its
+         anchor: relightPatch() swaps the include for the drape lookup and
+         leaves a marker where the include stood. */
+      relightPatch(sh);
       sh.vertexShader = sh.vertexShader
         .replace("#include <common>", "#include <common>\nvarying vec2 vTileUv;")
         .replace("#include <uv_vertex>", "#include <uv_vertex>\n\tvTileUv = uv;");
@@ -1127,7 +1262,7 @@ uniform sampler2D uNoise; uniform sampler2D uCover; uniform vec4 uSite; uniform 
 uniform sampler2D uEdge; uniform vec4 uEdgeBox;
 uniform mat3 normalMatrix;
 varying vec2 vTileUv;`)
-        .replace("#include <map_fragment>", `#include <map_fragment>
+        .replace("/*sbmm:after-map*/", `/*sbmm:after-map*/
 	{
 		/* v46: the survey's edge on land. A screen-space dither against how far
 		   inside the survey this fragment is; the lookup is unconditional (no
@@ -1160,9 +1295,13 @@ varying vec2 vTileUv;`)
 	}`);
       seePatch(sh);
     };
-    mat.customProgramCacheKey = () => "sbmm-ground-v51";
+    mat.customProgramCacheKey = () => "sbmm-ground-v57" + (webgl2 ? "" : "-gl1");
     return mat;
   }
+  /* v57: how much of the lidar's occlusion is applied. The photograph holds
+     its own; js/viewer3d.js brings this in as the sun leaves the photographed
+     position. */
+  function setAo(v) { GROUND_U.uAo.value = clamp(+v || 0, 0, 1); }
   function applyShade(r, data) {
     if (!data || !r.mat || !r.mat.userData.u) return;
     r.shadeTex = shadeTexture(data);
@@ -1263,7 +1402,7 @@ varying vec2 vTileUv;`)
     },
     meshes() { return [...drawn.values()].map(r => r.mesh); },
     gpuRaster: () => gpuRaster,
-    webgl2: () => webgl2,
+    webgl2: () => webgl2, setAo, ao: () => GROUND_U.uAo.value,
     stats() {
       let verts = 0, tris = 0, bytes = 0, finest = 99, coarsest = -99;
       let texBytes = 0, texPxMax = 0, ftMin = Infinity, ftMax = 0, composed = 0;

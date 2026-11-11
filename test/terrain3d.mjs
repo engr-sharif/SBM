@@ -39,11 +39,15 @@ import { unlock } from "./gate.mjs";
 
 const target = process.argv[2], label = process.argv[3] || "folder";
 const SECTIONS = ["lod", "quality", "onefoot", "idle", "gpu", "seams",
-                  "drape", "band", "frames", "meshport", "geomcache", "shade", "map2d"];
+                  "drape", "band", "frames", "meshport", "geomcache", "shade", "fidelity", "map2d"];
 if (process.argv.includes("--list")) { console.log(SECTIONS.join(" ")); process.exit(0); }
 let only = null;
 if (process.argv.includes("--only")) only = new Set(process.argv[process.argv.indexOf("--only") + 1].split(","));
 const want = s => !only || only.has(s);
+
+/* v57: the blur the fidelity section allows — set from the probe's own
+   measurement of the shipped lookup, with a margin for the software rasteriser */
+const FID_BLUR_MAX = 0.60;
 
 let fails = 0;
 const ok = (name, cond, got) => {
@@ -588,14 +592,20 @@ if (want("frames")) {
      cheap and nowhere near a full rebuild, so: the MEDIAN of the six under
      20 ms, and no single one as dear as half the full rebuild measured in
      this same page a moment earlier (40 ms where that would be less). */
-  const costs = r.per.map(a => a[0]).sort((a, b) => a - b);
-  const worst = costs[costs.length - 1];
-  const median = +((costs[2] + costs[3]) / 2).toFixed(1);
+  /* v57: only a sample in which a rebuild HAPPENED is a selection's cost.
+     The first of the six selects nothing when nothing is selected, so no
+     rebuild runs and `overlayLastMs` is still whatever the last rebuild
+     before the counters were zeroed cost — 267 ms once, a full rebuild a
+     layer's job had asked for a moment earlier, read as "a selection". */
+  const ran = r.per.filter((a, i) => a[1] > (i ? r.per[i - 1][1] : 0));
+  const costs = ran.map(a => a[0]).sort((a, b) => a - b);
+  const worst = costs.length ? costs[costs.length - 1] : 0;
+  const median = costs.length ? +((costs[Math.floor((costs.length - 1) / 2)] + costs[Math.ceil((costs.length - 1) / 2)]) / 2).toFixed(1) : 0;
   const worstCap = Math.max(40, r.fullMs / 2);
   ok("a selection change no longer rebuilds the project half",
     r.sel.drapedLines < 60 && r.sel.overlayFull === 0,
     r.sel.drapedLines + " draped polylines, " + r.sel.overlayFull + " full rebuilds over six selects");
-  ok("a selection change costs under 20 ms of main thread", median < 20, median + " ms (median of six; worst " + worst + ")");
+  ok("a selection change costs under 20 ms of main thread", median < 20, median + " ms (median of the " + costs.length + " that rebuilt; worst " + worst + ")");
   ok("no single selection change costs half a full rebuild", worst < worstCap,
     worst + " ms against a full rebuild of " + r.fullMs + " ms (cap " + (+worstCap.toFixed(1)) + ")");
   ok("the six selects really did rebuild the feature half",
@@ -801,6 +811,120 @@ if (want("shade")) {
    exists. It is a stacking question, so it is answered by reading the stack
    rather than by looking at it: the raster pane's DOM order plus each
    overlay's z-index IS the answer, and nothing here is zoom-gated. */
+/* -------------------------------------------------------------- fidelity -- */
+/* v57: THE 3D GROUND IS THE PHOTOGRAPH. The 2D map and a straight-down 3D view
+   of the same ground, at the same scale, registered by cross-correlation; the
+   photograph alone (the ortho row at 100 %) is the reference.
+
+     brightness  mean luma, 3D / photograph
+     blur        the Gaussian sigma that, applied to the 2D frame, brings its
+                 mean |Laplacian| down to the 3D frame's (after scaling the 3D
+                 frame to the photograph's brightness): "as if blurred by N px"
+
+   Recorded before v57 (v56 on this box, software GL): brightness 0.83 / 0.84 /
+   0.64 and blur 0.61 / 0.84 / 0.66 px at the three frames below. */
+if (want("fidelity")) {
+  console.log("\n== fidelity — the 3D ground is the photograph ==");
+  const fs = await import("node:fs");
+  const W = 360;
+  const luma = (png, cx, cy) => { const o = new Float32Array(W * W), x0 = Math.round(cx - W / 2), y0 = Math.round(cy - W / 2), ch = png.channels, d = png.data;
+    for (let y = 0; y < W; y++) for (let x = 0; x < W; x++) { const i = ((y0 + y) * png.w + x0 + x) * ch; o[y * W + x] = 0.2126 * d[i] + 0.7152 * d[i + 1] + 0.0722 * d[i + 2]; }
+    return o; };
+  const mean = a => { let t = 0; for (const v of a) t += v; return t / a.length; };
+  const lap = a => { let t = 0, n = 0; for (let y = 1; y < W - 1; y++) for (let x = 1; x < W - 1; x++) { const i = y * W + x;
+    t += Math.abs(4 * a[i] - a[i - 1] - a[i + 1] - a[i - W] - a[i + W]); n++; } return t / n; };
+  const blur = (a, sg) => { if (sg < 0.02) return a; const r = Math.max(1, Math.ceil(sg * 3)), k = []; let ks = 0;
+    for (let i = -r; i <= r; i++) { const v = Math.exp(-i * i / (2 * sg * sg)); k.push(v); ks += v; }
+    const t = new Float32Array(W * W), o = new Float32Array(W * W), cl = v => Math.max(0, Math.min(W - 1, v));
+    for (let y = 0; y < W; y++) for (let x = 0; x < W; x++) { let q = 0; for (let i = -r; i <= r; i++) q += a[y * W + cl(x + i)] * k[i + r]; t[y * W + x] = q / ks; }
+    for (let y = 0; y < W; y++) for (let x = 0; x < W; x++) { let q = 0; for (let i = -r; i <= r; i++) q += t[cl(y + i) * W + x] * k[i + r]; o[y * W + x] = q / ks; }
+    return o; };
+  const sigmaFor = (a2, target) => { if (lap(a2) <= target) return 0; let lo = 0, hi = 4;
+    for (let k = 0; k < 20; k++) { const m = (lo + hi) / 2; if (lap(blur(a2, m)) > target) lo = m; else hi = m; } return (lo + hi) / 2; };
+  const ncc = (a, b) => { const A = blur(a, 2), B = blur(b, 2); let best = -2, bs = null;
+    for (let dy = -8; dy <= 8; dy++) for (let dx = -8; dx <= 8; dx++) { let sa = 0, sb = 0, n = 0;
+      for (let y = 24; y < W - 24; y += 2) for (let x = 24; x < W - 24; x += 2) { sa += A[y * W + x]; sb += B[(y + dy) * W + x + dx]; n++; }
+      const ma = sa / n, mb = sb / n; let c = 0, va = 0, vb = 0;
+      for (let y = 24; y < W - 24; y += 2) for (let x = 24; x < W - 24; x += 2) { const p = A[y * W + x] - ma, q = B[(y + dy) * W + x + dx] - mb; c += p * q; va += p * p; vb += q * q; }
+      const r = c / Math.sqrt(va * vb); if (r > best) { best = r; bs = [dx, dy]; } }
+    return { r: best, shift: bs }; };
+  const shot = async name => { const f = "/tmp/fidelity_" + label + "_" + name + ".png"; await page.screenshot({ path: f }); return decodePNG(fs.readFileSync(f)); };
+  const settle = async () => { await page.evaluate(() => window.__settle3d()); await page.waitForTimeout(800); };
+
+  /* the ground alone: every vector layer, the relief blend, the labels and the trees off */
+  const saved = await page.evaluate(() => { const LS = SBMM.layerState, snap = JSON.stringify(LS.serialize());
+    for (const g of LS.groupList()) if (g.id !== "base" && g.id !== "cultural") LS.setGroup(g.id, false);
+    for (const id of ["relief_shade", "place_names", "contours_site", "contours_abp", "trees_detected", "canopy"]) try { LS.set("base", id, { on: false }); } catch (e) {}
+    const docks = { l: document.body.classList.contains("lcol"), r: document.body.classList.contains("rcol") };
+    SBMM.shell.collapse("l", true); SBMM.shell.collapse("r", true);
+    const bd = SBMM.backdrop.stats().enabled; SBMM.backdrop.setEnabled(false);
+    /* A perspective camera over a hillside displaces the ground by its own
+       relief (uphill looks bigger), and at the default 55-degree lens and 1.5x
+       relief that reads as a 2 to 3 ft "offset" between the views on the mine
+       slopes. The comparison is of the picture, not of the lens: the narrowest
+       lens and true relief for the duration. */
+    const set = (id, v) => { const e = document.getElementById(id), was = e.value; e.value = v; e.dispatchEvent(new Event("input", { bubbles: true })); return was; };
+    const fov = set("v3dFov", 20), ex = set("v3dExag", 1);
+    return { snap, docks, bd, q: SBMM.viewer3d.quality(), fov, ex }; });
+  const ORTHOS = ["ortho_abp_3_in", "ortho_mine_area_6_in", "ortho_site_1_5_ft"];
+  const abp = await page.evaluate(() => { const o = SBMM_DATA.ortho_abp; return o ? [(o.x0 + o.x1) / 2, (o.y0 + o.y1) / 2] : null; });
+  const FRAMES = [
+    { name: "mine, 1 ft/px",     C: [6372100, 2128450], Z: 0, was: { b: 0.83, blur: 0.61 } },
+    { name: "mine, 0.5 ft/px",   C: [6372100, 2128450], Z: 1, was: { b: 0.84, blur: 0.84 } },
+    { name: "ABP, 0.25 ft/px",   C: abp,                Z: 2, was: { b: 0.64, blur: 0.66 } }
+  ].filter(f => f.C);
+  const rows = [];
+  for (const F of FRAMES) {
+    const C = F.C;
+    await page.evaluate(async () => { if (SBMM.viewer3d.isOpen()) await SBMM.viewer3d.toggle(); });
+    await page.evaluate(([C, Z, ids]) => { SBMM.map.setView([C[1], C[0]], Z, { animate: false });
+      for (const id of ids) try { SBMM.layerState.set("base", id, { opacity: 1 }); } catch (e) {} }, [C, F.Z, ORTHOS]);
+    await page.waitForTimeout(1800);
+    const m2 = await page.evaluate(C => { const r = document.getElementById("map").getBoundingClientRect();
+      const p = SBMM.map.latLngToContainerPoint([C[1], C[0]]), q = SBMM.map.latLngToContainerPoint([C[1], C[0] + 100]);
+      return { cx: r.left + p.x, cy: r.top + p.y, pxPerFt: (q.x - p.x) / 100 }; }, C);
+    const a2 = luma(await shot("2d_" + F.Z), m2.cx, m2.cy);
+    await page.evaluate(ids => { for (const id of ids) try { SBMM.layerState.set("base", id, { opacity: .9 }); } catch (e) {} }, ORTHOS);
+    await page.evaluate(async () => { if (!SBMM.viewer3d.isOpen()) await SBMM.viewer3d.toggle(); SBMM.viewer3d.setQuality("realistic"); SBMM.viewer3d.sunAsPhotographed(); });
+    const z0 = await page.evaluate(C => { const e = SBMM.elev(C[0], C[1]); return Array.isArray(e) ? e[0] : e; }, C);
+    let h = 2000 / Math.pow(2, F.Z), m3 = null;
+    const where = () => page.evaluate(([C, z0]) => { const p = SBMM.viewer3d.project(C[0], C[1], z0), q = SBMM.viewer3d.project(C[0] + 100, C[1], z0);
+      return { cx: p.x, cy: p.y, pxPerFt: Math.hypot(q.x - p.x, q.y - p.y) / 100 }; }, [C, z0]);
+    for (let it = 0; it < 4; it++) {
+      await page.evaluate(async a => { await SBMM.viewer3d.lookFrom(...a); }, [C[0], C[1] - h * 0.004, z0 + h, C[0], C[1], z0]);
+      await page.waitForTimeout(500);
+      m3 = await where(); h *= m3.pxPerFt / m2.pxPerFt;
+    }
+    await settle(); m3 = await where();
+    const a3 = luma(await shot("3d_" + F.Z), m3.cx, m3.cy);
+    /* the same frame with the sun moved a third of the way round: the relight is in force */
+    await page.evaluate(() => SBMM.viewer3d.sun(300, 33)); await settle();
+    const a4 = luma(await shot("3d_sun_" + F.Z), m3.cx, m3.cy);
+    await page.evaluate(() => SBMM.viewer3d.sunAsPhotographed());
+    const b = mean(a3) / mean(a2), reg = ncc(a2, a3);
+    const a3n = Float32Array.from(a3, v => v / b);
+    const row = { name: F.name, scale: m3.pxPerFt / m2.pxPerFt, bright: b, blur: sigmaFor(a2, lap(a3n)), ncc: reg.r,
+                  shiftFt: Math.hypot(reg.shift[0], reg.shift[1]) / m2.pxPerFt, moved: mean(a4) / mean(a2), was: F.was };
+    rows.push(row);
+    console.log(`   ${F.name.padEnd(18)} brightness ${row.bright.toFixed(3)} (was ${F.was.b})  blur ${row.blur.toFixed(2)} px (was ${F.was.blur})` +
+      `  registered ${row.ncc.toFixed(2)} at ${row.shiftFt.toFixed(1)} ft  · sun moved: ${row.moved.toFixed(3)}`);
+  }
+  for (const r of rows) {
+    ok(`${r.name}: the same scale in both views`, Math.abs(r.scale - 1) < 0.01, r.scale.toFixed(4));
+    ok(`${r.name}: the 3D ground is as bright as the photograph`, r.bright > 0.97 && r.bright < 1.03, r.bright.toFixed(3));
+    ok(`${r.name}: no softer than the lookup allows`, r.blur <= FID_BLUR_MAX, r.blur.toFixed(2) + " px");
+    ok(`${r.name}: 2D and 3D show the same ground`, r.ncc > 0.8, r.ncc.toFixed(3));
+    ok(`${r.name}: registered within 1.5 ft`, r.shiftFt <= 1.5, r.shiftFt.toFixed(2) + " ft");
+    ok(`${r.name}: moving the sun re-lights it`, Math.abs(r.moved - r.bright) > 0.01 && r.moved > 0.6 && r.moved < 1.25, r.moved.toFixed(3));
+  }
+  await page.evaluate(async sv => { SBMM.layerState.restore(JSON.parse(sv.snap));
+    SBMM.shell.collapse("l", sv.docks.l); SBMM.shell.collapse("r", sv.docks.r); SBMM.backdrop.setEnabled(sv.bd);
+    for (const [id, v] of [["v3dFov", sv.fov], ["v3dExag", sv.ex]]) { const e = document.getElementById(id); e.value = v; e.dispatchEvent(new Event("input", { bubbles: true })); }
+    SBMM.viewer3d.setQuality(sv.q);
+    if (!SBMM.viewer3d.isOpen()) await SBMM.viewer3d.toggle(); }, saved);
+  await page.evaluate(() => window.__settle3d());
+}
+
 if (want("map2d")) {
   console.log("\n== map2d — the basemap stack over the mine window at zoom 3 ==");
   const r = await page.evaluate(async () => {

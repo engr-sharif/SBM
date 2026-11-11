@@ -101,15 +101,28 @@ SBMM.atmos3d = (function () {
     return (out || new THREE.Vector3()).set(Math.sin(az) * Math.cos(el), Math.cos(az) * Math.cos(el), Math.sin(el));
   }
 
-  /* the light for a sun at that elevation. With these, level ground in full
-     sun at 35 degrees returns (2.7 * 0.57 + 1.15) / pi = 0.86 of its albedo,
-     a slope square to the sun 1.2, and ground in shadow 0.37 — a shadow is a
-     little under half the brightness of the sunlit ground beside it, which is
-     what makes it read as a shadow over a photograph that already has its own.
-     There is no tone-mapping curve on top: the drapes are photographs and the
-     analysis layers are colour scales, and both have to come out the colour
-     they are, so the balance is kept where very little clips instead. */
-  function light(elDeg) {
+  /* THE LIGHT for a sun at that elevation — v57.
+
+     One rule sets its level: **level ground, in the sun, at the elevation the
+     aerial photograph was taken (REF_EL), receives exactly pi** — so a Lambert
+     surface there returns exactly its own colour. A roof takes the colour the
+     photograph gave it, a tree the colour it was given from the photograph,
+     and nothing is "0.77 of itself" (which is what v40's 2.7 / 1.15 came to
+     once the sky's colour and the fill's direction were counted — it read as
+     a quarter darker than the map).
+
+     The SHAPE is v40's: the sun's share of the light on level ground is a
+     little over half, so ground in shadow is a little under half its sunlit
+     neighbour; a lower sun is weaker and warmer. Only the level moved.
+
+     There is still no tone-mapping curve: the drapes are photographs and the
+     analysis layers are colour scales. The photograph itself is not lit by
+     these numbers at all — see relightUniforms() in js/viewer3d.js: it is
+     shown as photographed and RE-lit by the ratio of this light to the light
+     it was photographed in. */
+  const REF_EL = 33;
+  const lum = c => 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+  function shape(elDeg) {
     const sz = Math.sin(elDeg * Math.PI / 180), day = dayness(sz);
     const sunc = mix3(SUN_LOW, SUN_DAY, day);
     const z = zenith(sz), h = horizon(sz);
@@ -117,13 +130,25 @@ SBMM.atmos3d = (function () {
        full saturation turns every shadow navy */
     const sky = mix3([(z[0] + h[0]) / 2, (z[1] + h[1]) / 2, (z[2] + h[2]) / 2], [1, 1, 1], 0.55);
     const k = Math.max(sky[0], sky[1], sky[2]);
+    return { sz, sunc, sky: [sky[0] / k, sky[1] / k, sky[2] / k],
+             sunI: lerp(1.6, 2.7, sstep(0.05, 0.45, sz)), hemiI: lerp(0.85, 1.15, day) };
+  }
+  const LEVEL_K = (() => { const s = shape(REF_EL);
+    return Math.PI / (s.sunI * lum(s.sunc) * s.sz + s.hemiI * lum(s.sky)); })();
+  function light(elDeg) {
+    const s = shape(elDeg);
     return {
-      sun: new THREE.Color().setRGB(sunc[0], sunc[1], sunc[2]),
-      sunIntensity: lerp(1.6, 2.7, sstep(0.05, 0.45, sz)),
-      sky: new THREE.Color().setRGB(sky[0] / k, sky[1] / k, sky[2] / k),
+      sun: new THREE.Color().setRGB(s.sunc[0], s.sunc[1], s.sunc[2]),
+      sunIntensity: s.sunI * LEVEL_K,
+      sky: new THREE.Color().setRGB(s.sky[0], s.sky[1], s.sky[2]),
       ground: new THREE.Color().setRGB(0.46, 0.43, 0.37),
-      hemiIntensity: lerp(0.85, 1.15, day)
+      hemiIntensity: s.hemiI * LEVEL_K
     };
+  }
+  /* what level ground receives from that light, as a share of pi (1 at REF_EL) */
+  function levelOf(elDeg) {
+    const s = shape(elDeg);
+    return LEVEL_K * (s.sunI * lum(s.sunc) * s.sz + s.hemiI * lum(s.sky)) / Math.PI;
   }
 
   function horizonColour(elDeg, out) {
@@ -131,6 +156,6 @@ SBMM.atmos3d = (function () {
     return (out || new THREE.Color()).setRGB(h[0], h[1], h[2]);
   }
 
-  return { buildSky, sunDir, light, horizonColour, zenith, horizon, GLSL_SKY_FN,
+  return { buildSky, sunDir, light, levelOf, REF_EL, LEVEL_K, horizonColour, zenith, horizon, GLSL_SKY_FN,
            dayness: elDeg => dayness(Math.sin(elDeg * Math.PI / 180)) };
 })();

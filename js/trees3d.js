@@ -180,8 +180,14 @@ SBMM.trees3d = (function () {
      v40 lighting a level sunlit surface returns its albedo, so these sit
      around 1 (before v40 the scene ran at half brightness and they were
      doubled to compensate). */
+  /* v57: the light was re-levelled — level ground in the sun now returns its
+     colour exactly, where it returned 0.77 of it (js/atmos3d.js). LEAF_LEVEL
+     keeps a crown at the brightness it was drawn at: a canopy is darker than
+     open ground in the photograph too, and a crown lit to its full albedo
+     reads as a pale model standing on a photograph. */
+  const LEAF_LEVEL = 0.78;
   const leaf = (lo, hi) => z01 => {
-    const s = 0.42 + 0.86 * (lo + (hi - lo) * Math.pow(clamp(z01, 0, 1), 0.8));
+    const s = LEAF_LEVEL * (0.42 + 0.86 * (lo + (hi - lo) * Math.pow(clamp(z01, 0, 1), 0.8)));
     return [s, s * 1.02, s * 0.96];
   };
 
