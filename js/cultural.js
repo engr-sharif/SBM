@@ -189,6 +189,7 @@ SBMM.cultural = (function () {
   /* ------------------------------------------------------------------ */
   /* popups                                                              */
   /* ------------------------------------------------------------------ */
+  /* v58: also the 3D chip (js/pick3d.js kinds `cultural` / `culturalPt`) */
   function tip(f, spec) {
     return `<b>${esc(f.name)}</b><br><span style="opacity:.75">${esc(spec.name)}</span>`
       + `<br><span class="warntxt">confidential</span>`;
@@ -364,7 +365,7 @@ SBMM.cultural = (function () {
   return {
     build, acknowledge, isAcknowledged, visible, visibleLayers, stampText,
     gateExport, exportMeta, geoFeatures, rings3d, points3d, featureAt,
-    popup, counts, provenance, onVisibilityChanged,
+    popup, tip, counts, provenance, onVisibilityChanged,
     isBuilt: () => built,
     layerRows: () => rows,
     features: k => (byLayer[k] || []).slice(),

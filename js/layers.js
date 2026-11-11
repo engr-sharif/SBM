@@ -532,6 +532,11 @@ SBMM.layersUI = (function () {
   return { wire, refreshCounts, flyTo, extents };
 })();
 
+/* v58: a sample's chip — the 2D tooltip and the 3D chip are this one function */
+SBMM.sampleTip = function (p) {
+  return `<b>${esc(p.id)}</b> · Hg ${p.Hg ?? "—"} · As ${p.As ?? "—"} mg/kg`;
+};
+
 /* point symbology: mode = exc | Hg | As ; filter = fn(p) or null */
 SBMM.symbolizePoints = function (mode, filter) {
   const grp = SBMM.layers.ptGrp;
@@ -557,7 +562,7 @@ SBMM.symbolizePoints = function (mode, filter) {
       .bindPopup(() => SBMM.popups.forSample(p))
       /* the name the hover chip shows (js/pick2d.js renders a layer's own
          tooltip); without it a sample answered "feature" */
-      .bindTooltip(`<b>${esc(p.id)}</b> · Hg ${p.Hg ?? "—"} · As ${p.As ?? "—"} mg/kg`, { sticky: true, className: "ctip" })
+      .bindTooltip(SBMM.sampleTip(p), { sticky: true, className: "ctip" })
       .addTo(grp);
     SBMM.pointMarkers[p.id] = mk;
   }

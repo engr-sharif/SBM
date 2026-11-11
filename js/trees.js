@@ -355,6 +355,7 @@ SBMM.trees = (function () {
         SBMM.map.on("move zoom moveend zoomend resize", repaint);
         window.addEventListener("resize", onWinResize);
         SBMM.map.on("click", onMapClick);
+        registerReader();
         repaint();
       },
       onRemove() {
@@ -386,6 +387,19 @@ SBMM.trees = (function () {
       if (d < ld) { ld = d; loose = i; }
     }
     return best >= 0 ? best : loose;
+  }
+  /* v58: a crown under the pointer says what it is (js/readout.js). The 2D
+     layer is one canvas, not Leaflet vectors, so the pick engine never saw a
+     tree and a hover said nothing. */
+  function registerReader() {
+    if (!SBMM.readout) return;
+    SBMM.readout.register({ id: "trees", on: () => !!(data && SBMM.layerState.isOn("base", "trees_detected")),
+      at(x, y) {
+        const i = nearest(x, y, 0);
+        const t = i >= 0 ? tree(i) : null;
+        return t ? { name: "Tree " + t.id, value: `${fmt0(t.h)} ft ${t.form}`, key: String(t.id),
+                     rows: [["Tree " + t.id, `${fmt0(t.h)} ft ${t.form}`]] } : null;
+      } });
   }
   function onMapClick(ev) {
     if (SBMM.tools.active() || SBMM.draw.isPicking() || SBMM.draw.isDrawing()) return;

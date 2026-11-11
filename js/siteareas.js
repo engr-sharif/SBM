@@ -34,6 +34,8 @@ SBMM.siteAreas = (function () {
              note: "outline from SBMM.kmz · not surveyed" };
   }
   function geom(f) { return { type: "Polygon", coordinates: f.rings }; }
+  /* v58: the 2D tooltip and the 3D chip (js/viewer3d.js tags the outline) */
+  function tip(p) { return `<b>${esc(p.name)}</b>`; }
 
   function build() {
     const D = data();
@@ -45,7 +47,7 @@ SBMM.siteAreas = (function () {
         pane: "vectors", color: COLOR, weight: 1.2, dashArray: "6 4",
         fill: true, fillOpacity: 0.03, opacity: 0.85
       });
-      lyr.bindTooltip(`<b>${esc(f.name)}</b>`, { sticky: true, className: "ctip" });
+      lyr.bindTooltip(tip(p), { sticky: true, className: "ctip" });
       lyr._gis = { props: p, geom: g };
       lyr.on("click", () => lyr.bindPopup(SBMM.popups.forGis(p, g)).openPopup());
       lyr.addTo(group);
@@ -78,5 +80,5 @@ SBMM.siteAreas = (function () {
     return D.features.map(f => ({ layer: "SITE-AREAS", color: COLOR, closed: true, pts: f.rings[0] }));
   }
 
-  return { build, lines3d, snapPaths, geoFeatures, dxfEntities, data, row: () => row, COLOR };
+  return { build, lines3d, snapPaths, geoFeatures, dxfEntities, data, row: () => row, COLOR, tip };
 })();

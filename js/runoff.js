@@ -952,8 +952,22 @@ SBMM.runoff = (function () {
       + `<b>${c.cn[c.hsg]}</b></span>`).join("");
   }
 
+  /* v58: the land-cover class under a point. The class raster is decoded on
+     first use; until it lands a reader says nothing rather than guess. */
+  function coverAt(x, y) {
+    if (!cover) { if (!coverBusy && COVER() && DATA().cover_png) coverRaster(); return null; }
+    const i = Math.round((x - cover.x0) / cover.cell), j = Math.round((y - cover.y0) / cover.cell);
+    if (i < 0 || j < 0 || i >= cover.w || j >= cover.h) return null;
+    const id = cover.data[j * cover.w + i];
+    return id ? classOf(id) : null;
+  }
   function build() {
     if (!COVER() && !RAIN()) return;            // neither payload: no rows at all
+    if (SBMM.readout) SBMM.readout.register({ id: "cover", row: { g: "framework", l: "runoff_cover" },
+      at(x, y) {
+        const c = coverAt(x, y);
+        return c ? { name: "land cover", value: c.name || c.key, key: String(c.id) } : null;
+      } });
     groups.cover = L.layerGroup();
     groups.depth = L.layerGroup();
     const cv = coverOverlay();

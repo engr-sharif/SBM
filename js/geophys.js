@@ -1405,7 +1405,7 @@ SBMM.geophys = (function () {
     return { title: D.id[i],
              html: `<div class="temcolhit mono" data-layer="${l + 1}"><b>${fmtV(v)} ${P.unit}</b> · layer ${l + 1} of ${D.nl} · `
                + `${fmt(D.top_ft[l], 1)}–${fmt(D.bot_ft[l], 1)} ft</div>` + popupHtml(i),
-             xyz: [D.x[i], D.y[i]] };
+             xyz: [D.x[i], D.y[i]], chip: tipFor(i) };
   }
   /* "auto" ground (js/viewer3d.js): see-through whenever the model is drawn
      under it, because a solid ground hides every bit of it */
@@ -1697,7 +1697,8 @@ SBMM.geophys = (function () {
   function pick3d(i) {
     const D = data();
     if (!D || !D.id[i]) return null;
-    return { title: D.id[i], html: popupHtml(i), xyz: [D.x[i], D.y[i]] };
+    /* v58: chip = the 2D dot's own tooltip (tipFor) */
+    return { title: D.id[i], html: popupHtml(i), xyz: [D.x[i], D.y[i]], chip: tipFor(i) };
   }
   function snapItems() {
     const D = data();
@@ -1708,7 +1709,7 @@ SBMM.geophys = (function () {
   }
 
   return {
-    build, open, run, data, hoverText, valueAt, points3d, slice3d, pick3d, snapItems,
+    build, open, run, data, hoverText, valueAt, points3d, slice3d, pick3d, snapItems, tipFor,
     columns3d, pickColumn, wantsSeeThrough, anyOn, rowsOn, footprint, closeCards, TEM_ROWS,
     apply, action, wallImage, core, layerInfo, dmax: () => data() ? dmax() : 0,
     depth: () => S.depth, colorFor: v => colorOf(v), ensure,

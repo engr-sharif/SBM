@@ -255,6 +255,12 @@ SBMM.accum = (function () {
   /* the rows                                                             */
   /* ------------------------------------------------------------------ */
   function build() {
+    /* v58: the raster reads at the pointer (js/readout.js), in both views */
+    if (SBMM.readout) SBMM.readout.register({ id: "accum", row: { g: "framework", l: "accum_raster" },
+      at(x, y) {
+        const v = accAt(x, y);
+        return v > 0 ? { name: "upstream area", value: ac(v) + " ac", key: ac(v) } : null;
+      } });
     groups.streams = L.layerGroup();
     const rast = SBMM.addLayerRow("proj", "Flow accumulation", null,
       { id: "accum_raster", checked: false, swatch: "#2E6FD6", opacity: 0.75, sub: SUB,

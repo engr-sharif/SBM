@@ -73,6 +73,7 @@ SBMM.survey = (function () {
     rows[spec.key] = row;
   }
 
+  /* v58: also the 3D chip (js/viewer3d.js tags the draped line with it) */
   function tip(p) {
     let t = `<b>${esc(p.name || "Survey linework")}</b>`;
     if (p.invert_ft != null) t += `<br>invert ${fmt(p.invert_ft, 2)} ft`;
@@ -141,6 +142,6 @@ SBMM.survey = (function () {
 
   function wire() { /* rows are built from js/layers.js; nothing global */ }
 
-  return { build, wire, lines3d, snapPaths, geoFeatures, dxfEntities, pipeOutlet,
+  return { build, wire, lines3d, snapPaths, geoFeatures, dxfEntities, pipeOutlet, tip,
            data, rows: () => rows };
 })();

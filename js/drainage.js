@@ -337,6 +337,16 @@ SBMM.drainage = (function () {
   }
 
   function build() {
+    /* v58: which outlet a point drains to (js/readout.js). In 2D the catchment
+       polygons answer for themselves; in 3D only their boundaries are drawn,
+       so the ground inside one is where this speaks. */
+    if (SBMM.readout) SBMM.readout.register({ id: "drainage", on: () => !!R && (on("drain_outlet") || on("drain_first")),
+      at(x, y) {
+        const first = !on("drain_outlet");
+        const rec = recOf(first ? firstAt(x, y) : labelAt(x, y));
+        if (!rec) return null;
+        return { name: first ? "first captured by" : "drains to", value: nameOf(rec), lines: [ac(areaOf(rec)) + " ac catchment"], key: nameOf(rec) };
+      } });
     groups.outlet = L.layerGroup();
     groups.first = L.layerGroup();
     groups.paths = L.layerGroup();

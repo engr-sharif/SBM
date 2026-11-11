@@ -137,6 +137,39 @@ SBMM.buildAnalysisLayers = function () {
   $("ctGo").onclick = () => SBMM.analysis.makeCustomContours(parseFloat($("ctInt").value));
 
   if (SBMM.chm) SBMM.buildCanopyLayer();
+
+  /* v58: what these rasters READ at a point (js/readout.js). They had a
+     legend and nothing else — slope and aspect could be looked at and not
+     asked. In 2D a reader is on while its row is; in 3D while the ground is
+     wearing that drape style, which is the 3D view's own choice. */
+  if (SBMM.readout) {
+    const LS = SBMM.layerState;
+    const style3 = () => (SBMM.viewer3d && SBMM.viewer3d.drapeStyle) ? SBMM.viewer3d.drapeStyle() : "";
+    const on = (row, style) => ctx => ctx.view === "3d" ? style3() === style : LS.isOn("base", row);
+    const COMPASS = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
+    SBMM.readout.register({ id: "slope", on: on("slope_0_45", "slope"),
+      at(x, y) {
+        const q = SBMM.slopeAt(x, y);
+        return q ? { name: "Slope", value: `${fmt(q.slopeDeg, 1)}° · ${fmt0(q.slopePct)} %`, key: q.slopeDeg.toFixed(1) } : null;
+      } });
+    SBMM.readout.register({ id: "aspect", on: on("aspect_grid_north", "aspect"),
+      at(x, y) {
+        const q = SBMM.slopeAt(x, y);
+        if (!q || isNaN(q.aspectDeg)) return null;
+        const a = ((q.aspectDeg % 360) + 360) % 360;
+        return { name: "Aspect", value: `${fmt0(a)}° ${COMPASS[Math.round(a / 45) % 8]}`, key: a.toFixed(0) };
+      } });
+    SBMM.readout.register({ id: "hypso", on: on("elevation_tint", "hypso"),
+      at(x, y) {
+        const z = SBMM.elev(x, y)[0];
+        return isNaN(z) ? null : { name: "Elevation", value: `${fmt(z, 1)} ft`, key: z.toFixed(1) };
+      } });
+    SBMM.readout.register({ id: "canopy", row: { g: "base", l: "canopy" },
+      at(x, y) {
+        const h = SBMM.chm ? SBMM.canopy(x, y) : NaN;
+        return h > 0.5 ? { name: "Canopy height", value: `${fmt0(h)} ft`, key: h.toFixed(0) } : null;
+      } });
+  }
 };
 
 /* lidar canopy height — optional payload, so its row is built by a named function

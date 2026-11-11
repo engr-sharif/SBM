@@ -1278,7 +1278,7 @@ SBMM.viewer3d = (function () {
         hit: it => {
           const p = it && it.point;
           const d = SBMM.water && SBMM.water.describeAt && p ? SBMM.water.describeAt(p.x + CX, p.y + CY) : null;
-          return d ? { title: d.title, html: d.html } : null;
+          return d ? { title: d.title, html: d.html, chip: d.chip } : null;
         } });
     }
     const grp = new THREE.Group();
@@ -2341,7 +2341,9 @@ SBMM.viewer3d = (function () {
         const o = drapedLine(r.ring, new THREE.Color(r.color).getHex(), true, 3);
         /* userData.pick is what js/pick3d.js walks the overlay group for; it is
            the only thing that makes a 3D click able to say what it hit (§8) */
-        o.userData.pick = { kind: "gis", props: r.props, geom: r.geom };
+        /* v58: chip = the 2D layer's own tooltip (js/designgis.js tip) */
+        o.userData.pick = { kind: "gis", props: r.props, geom: r.geom,
+                            chip: SBMM.designGIS.tip ? SBMM.designGIS.tip(r.props || {}) : undefined };
         tag(addShadow(SHW, o), "design", "gis_" + ((r.props && r.props.layer) || "design"));
         addG.add(o);
       }
@@ -2399,7 +2401,8 @@ SBMM.viewer3d = (function () {
     if (PROJ && SBMM.survey && SBMM.survey.lines3d) {
       for (const r of SBMM.survey.lines3d()) {
         const o = drapedLine(r.ring, new THREE.Color(r.color).getHex(), false, r.width || 2);
-        o.userData.pick = { kind: "gis", props: r.props, geom: r.geom };
+        o.userData.pick = { kind: "gis", props: r.props, geom: r.geom,
+                            chip: SBMM.survey.tip ? SBMM.survey.tip(r.props || {}) : undefined };
         tag(addShadow(SHW, o), "invest", "survey_" + ((r.props && r.props.layer) || ""));
         addG.add(o);
       }
@@ -2408,7 +2411,8 @@ SBMM.viewer3d = (function () {
     if (PROJ && SBMM.siteAreas && SBMM.siteAreas.lines3d) {
       for (const r of SBMM.siteAreas.lines3d()) {
         const o = drapedLine(r.ring, new THREE.Color(r.color).getHex(), false, r.width || 2);
-        o.userData.pick = { kind: "gis", props: r.props, geom: r.geom };
+        o.userData.pick = { kind: "gis", props: r.props, geom: r.geom,
+                            chip: SBMM.siteAreas.tip ? SBMM.siteAreas.tip(r.props || {}) : undefined };
         tag(addShadow(SHW, o), "invest", "site_areas");
         addG.add(o);
       }
@@ -4409,7 +4413,8 @@ SBMM.viewer3d = (function () {
        where it started is a parked camera, not a pick. */
     const CLICK_PX = 4, CLICK_MS = 200;
     let downAt = null;
-    canvas.addEventListener("mousedown", e => downAt = [e.clientX, e.clientY, performance.now()]);
+    canvas.addEventListener("mousedown", e => { downAt = [e.clientX, e.clientY, performance.now()]; if (SBMM.readout) SBMM.readout.leave(); });
+    canvas.addEventListener("mouseleave", () => { if (SBMM.readout) SBMM.readout.leave(); });
     const wasClick = e => !downAt
       || (Math.hypot(e.clientX - downAt[0], e.clientY - downAt[1]) <= CLICK_PX
           && performance.now() - downAt[2] <= CLICK_MS);
@@ -4431,6 +4436,10 @@ SBMM.viewer3d = (function () {
       /* the status bar reads the same numbers in both views (§2) — it is one
          bar under one stage, so it must not go stale the moment 3D is opened */
       if (p && SBMM.status) SBMM.status.at(p[0], p[1], p[2]);
+      /* v58: and the chip reads the layer the ground is wearing here, when
+         nothing with a name is under the pointer (js/readout.js). The ground
+         point is the one this raycast has just found — no second one. */
+      if (SBMM.readout) { if (p) SBMM.readout.hover("3d", p[0], p[1], e.clientX, e.clientY); else SBMM.readout.leave(); }
       /* live rubber preview while sketching in 3D */
       if (p && SBMM.tools.active() && SBMM.draw.isDrawing()) SBMM.draw.previewAt(p[0], p[1]);
     }
@@ -6268,6 +6277,7 @@ SBMM.viewer3d = (function () {
   }
 
   return {
+    drapeStyle: drapeStyleNow,
     toggle, openAt, flyTo, isOpen: () => open, updateSketch, stats, resize, cameraWorld, diag,
     flyAround, stopFlyAround: () => stopTour(), flyingAround: () => !!tour,
     clipBox, clipOff: () => clipOff(), clipState, clipContains, clipProbe,

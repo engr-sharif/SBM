@@ -388,6 +388,8 @@ terrain source, which needs an explicit decision + README/test update).
 | payloads.js | **v31 — the deferred payloads**: EA's lazy CAD half, the design surfaces' rasters and the 20 full-sheet renders, loaded one at a time AFTER the app is up by `<script src>` injection; `pending(key)` / `when(key)` (which jumps the queue) / `settled()` / `stats()` and the `payload` event; `SBMM.payloads` |
 | touch.js | **the three touch profiles, the ONE gesture recogniser, the loupe, the Done bar and the offline copy (v17)** — `SBMM.touch`: `profile()` / `on()` / `override()` / `lastPointer()`, `gestures(el, handlers)`, `momentum`, the shared loupe and Done bar, long-press-as-right-click, the tooltip chip, the map's press-hold vertex placement, the wake lock, the device diagnostics and the `sw.js` client |
 | redline.js | **freehand ink (v17 §5a)** — the `ink` store feature, event-resolution capture with `getCoalescedEvents`, pressure-driven width per vertex, the 6-swatch palette and eraser, the map host and (through `js/sheetmarks.js`) the sheet-window host; `SBMM.redline` |
+| tip.js | **v58 — the ONE chip at the pointer**: `#tip`, fixed on the body, for both views. Sources claim it (`feature` > `surface` > `readout`) and release it; the chip shows the highest claim, and inside a polygon the readout's line rides along; `SBMM.tip` |
+| readout.js | **v58 — what a layer READS at a point**: one registry (`register({id, order, row | on(ctx), at(x, y, ctx)})`) that the chip asks (the first reader that answers) and the Point card lists (every reader that answers); the 2D pointer listener; `hover(view, x, y, cx, cy)` for the 3D ground point; the `readout` event; `SBMM.readout` |
 | pick2d.js | **v29 — the 2D pick engine**: in Navigate mode ONE answer to "what is under the pointer", asked by the hover and the click alike — ranked candidates across every pane's canvas draw list and every marker element, the lifted symbol / SVG highlight, the name chip `#pickTip`, Tab to cycle, the click fired through `map._fireDOMEvent` on exactly that layer, and the popup's "also here" row; **v30**: in any tool mode a click goes to the tool as a map click at the pointer (`toolClick`); `SBMM.pick2d` |
 | backdrop.js | **v32 — the world beyond the survey**: one painter (gradient, State Plane grid with crosshairs, a seeded procedural contour field that nests by zoom, a glow along the survey edge, all cut away inside the 2-ft DEM's footprint) and two hosts — a canvas in the non-interactive `backdrop` pane (z 150) and the 3D ground plane's texture; `SBMM.backdrop` |
 | labels.js | **the 2D label engine (v15 §2.2)** — one registry for every permanent map label, dedupe by `key`, a greedy screen-space collision pass by priority, `visibility:hidden` never `display`, per-label zoom `gate()`; `SBMM.labels` |
@@ -6389,3 +6391,89 @@ Three things about measuring this:
 `stats().light` gained `level`, `fillUp` and `relight {on, near, ao, lodBias,
 sharp}`. **Cannot be confirmed on this box**: frame time on a real GPU with the
 nine-tap lookup.
+
+## v58 — one chip at the pointer, one registry of readings
+
+Contract: `docs/V56_REVIEW_PLAN.md` step 3 (first half). New files `js/tip.js`
+(`SBMM.tip`) and `js/readout.js` (`SBMM.readout`), loaded after
+`js/layerstate.js`; the rest is `js/pick2d.js`, `js/pick3d.js`,
+`js/temprobe.js`, `js/water.js`, one reader in each module that owns a raster,
+`SBMM.popups.forTerrain`, and the `v58` block at the end of `css/app.css`. E2E
+block **"9f24. one chip at the pointer, one registry of readings (v58)"**
+(shard 4). No kernel work.
+
+**What was wrong.** Four chip elements (`#pickTip`, `#pick3dTip`, `#temTip`,
+`#waterTip`) in three containers with three placement rules. The 2D chip
+showed a layer's facts and the 3D tip only its id. 3D opened the whole card by
+itself after 550 ms and 2D never did. A raster's value was at the pointer for
+the TEM slice, in the status bar for accumulation, after a dwell for the rim
+band, and nowhere at all for slope, aspect, the elevation tint, land cover and
+the isopach.
+
+**ONE CHIP — `SBMM.tip`.** `claim(src, {x, y, html, key, view, info, soft,
+line})` / `release(src)` / `releaseAll()` / `moveTo(x, y)` / `html({lead,
+kind, lines, dim, graphic})` / `state()`. `src` is `feature` (something with a
+name), `surface` (a 3D surface that reads differently at every point of
+itself) or `readout`; the chip shows the highest claim. A source never asks
+who else is talking — the TEM chip's "hide while the pick chip is up" test is
+gone — and the order two rAF callbacks run in cannot matter. The grammar is
+one line of **bold lead + dim kind** (a feature's name and what it is; a
+reading's value and what it is of), then quieter lines. `key` decides when the
+HTML is rewritten: a move that changes nothing writes one `transform`.
+
+**ONE REGISTRY — `SBMM.readout`.** A module that draws something with a value
+at every point registers a reader beside the data. `at()` answers `{name,
+value, lines?, html?, rows?, key?, rec?}` or null. Order is the table in
+`js/readout.js` (`ORDER`): the open overtopping analysis, the four TEM maps,
+cut/fill and isopach, accumulation and land cover, where-the-water-goes and
+drainage, trees, then slope / aspect / elevation / canopy.
+
+Seven things that will be walked into again:
+
+- **A reader is on while its row is — unless `on(ctx)` says otherwise, and in
+  3D it often must.** `ctx.view` is `"2d"` or `"3d"`. The 3D ground wears ONE
+  drape style (`SBMM.viewer3d.drapeStyle()`), which is the 3D view's own
+  choice and not a layer row: slope reads in 3D while the ground wears the
+  slope drape, whatever the 2D row says. And the TEM maps are surfaces UNDER
+  the ground that answer where the ray hits them (`surface` claims through
+  `js/pick3d.js`); the ground above them does not speak for them, so their
+  readers are 2D only.
+- **Inside a polygon the reading rides along.** Decision units, lots and
+  catchments cover most of the ground a raster is looked at over. A feature
+  claim from a polygon's interior (`geo <= 1`, not a marker) is `soft`, and
+  the chip carries the top reading on a second line (`.talso`). A point or a
+  line speaks alone.
+- **3D asks at the ground point the status read-out has already found**
+  (`hoverAt` in `js/viewer3d.js` → `SBMM.readout.hover("3d", …)`): no second
+  terrain raycast, nothing per frame beyond a few array reads, and no frame
+  asked for. Block 9f24 asserts an idle pointer renders nothing.
+- **Navigate mode only**, like the pick engines; a press, a drag, a zoom, the
+  pointer leaving and a mode change all release. The status bar still carries
+  its readings in every mode.
+- **THE DWELL IS GONE, in both views.** `DWELL_MS` and the card it opened are
+  deleted from `js/pick3d.js`; the water's 550-ms chip is a reader. A card
+  opens on a click and on nothing else.
+- **A 3D `hit()` may return `chip`** — the kind's own chip, built by the SAME
+  named function the 2D layer's tooltip is bound with (`SBMM.datasets.tipFor`,
+  `SBMM.sampleTip`, `SBMM.geophys.tipFor`, `SBMM.designGIS.tip`,
+  `SBMM.survey.tip`, `SBMM.siteAreas.tip`, `SBMM.CadNative.tip`,
+  `SBMM.cultural.tip`). A string is rich markup, an object is `{lead, kind,
+  lines}`; without one the `title` is split at " · ". The generic `gis` kind
+  cannot know which module built it, so the TAG carries the chip
+  (`userData.pick.chip`, set in `rebuildOverlaysInner`). **A new pickable kind
+  gets a chip from its 2D tooltip function, not a second wording.**
+- **`SBMM.temprobe.state().chip` means "the chip is up and it is a TEM
+  reading"** — a `surface` claim or one of the `tem_*` readers; the panel's
+  core follows the 2D pointer through the `readout` event (`top.rec` is the
+  probe record).
+
+The Point card (`SBMM.popups.forTerrain(x, y, z, view)`) lists every reader
+that answers in the view that asked. Two older defects went with this: the rim
+description never printed its ground elevation (`SBMM.elev` answers `[z,
+source]` and was read as a number), and a volume's cut/fill map kept no grid
+to read (`f._cf` now).
+
+**Not in this half** (step 3b): the bare-ground click in 2D, "also here" in
+3D, the kinds 3D does not answer yet (storm structures, decision units,
+piles) and the analysis layers that still answer through the generic GIS
+builder.

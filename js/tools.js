@@ -662,6 +662,8 @@ SBMM.tools = (function () {
       [[by0, bx0], [by0 + ny * step, bx0 + nx * step]], { pane: "analysis", opacity: .8 });
     ov.addTo(SBMM.map);
     f.extraLayers = f.extraLayers || []; f.extraLayers.push(ov); f._cfLayer = ov;
+    /* v58: kept so the map can be READ at a point (js/readout.js), not only looked at */
+    f._cf = { h: hGrid, nx, ny, x0: bx0, y0: by0, step, dsn: !!dsn };
     let leg = f.card.querySelector(".cfleg");
     if (!leg) { leg = document.createElement("div"); leg.className = "cfleg legend"; f.card.appendChild(leg); }
     const loLbl = dsn ? "fill" : "cut", hiLbl = dsn ? "cut" : "fill";
@@ -671,8 +673,32 @@ SBMM.tools = (function () {
   }
   function removeCutFill(f) {
     if (f._cfLayer) { SBMM.map.removeLayer(f._cfLayer); if (f.extraLayers) f.extraLayers = f.extraLayers.filter(l => l !== f._cfLayer); f._cfLayer = null; }
+    f._cf = null;
     const leg = f.card && f.card.querySelector(".cfleg"); if (leg) leg.remove();
   }
+
+  /* v58: the height above the base at a point of a volume's cut/fill map —
+     the first volume whose map is on the map and covers the point */
+  function cutFillAt(x, y) {
+    for (const f of SBMM.store.features) {
+      const C = f._cf;
+      if (!C || !f._cfLayer || !SBMM.map.hasLayer(f._cfLayer)) continue;
+      const i = Math.floor((x - C.x0) / C.step), j = Math.floor((y - C.y0) / C.step);
+      if (i < 0 || j < 0 || i >= C.nx || j >= C.ny) continue;
+      const h = C.h[j * C.nx + i];
+      if (!isNaN(h)) return { f, h, dsn: C.dsn };
+    }
+    return null;
+  }
+  if (SBMM.readout) SBMM.readout.register({ id: "cutfill", on: ctx => ctx.view === "2d",
+    at(x, y) {
+      const q = cutFillAt(x, y);
+      if (!q) return null;
+      /* h is terrain minus base: against a design surface a positive h is cut */
+      const w = Math.abs(q.h) < 0.005 ? "at the base" : (q.h > 0) === q.dsn ? "cut" : "fill";
+      return { name: w + " · " + q.f.name, value: `${fmt(Math.abs(q.h), 2)} ft`, key: q.f.id + "|" + q.h.toFixed(2),
+               rows: [[`Height above base (${q.f.name})`, `${fmt(q.h, 2)} ft`]] };
+    } });
 
   /* one-click presets */
   function volumeOfPile(ref) {
