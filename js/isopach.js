@@ -205,6 +205,23 @@ SBMM.isopach = (function () {
   }
   function active() { return current; }
   function drapeSpec() { return drape3d; }
+  /* v58: design minus ground at a point, off the grid the overlay was painted
+     from (positive is fill, the legend's way round) */
+  function valueAt(x, y) {
+    const R = current && current.stats;
+    if (!R || !R.dz || !current.layer || !SBMM.map.hasLayer(current.layer)) return NaN;
+    const i = Math.floor((x - R.x0) / R.cell), j = Math.floor((y - R.y0) / R.cell);
+    if (i < 0 || j < 0 || i >= R.nx || j >= R.ny) return NaN;
+    return R.dz[j * R.nx + i];
+  }
+  if (SBMM.readout) SBMM.readout.register({ id: "isopach", on: () => !!(current && current.layer && SBMM.map.hasLayer(current.layer)),
+    at(x, y) {
+      const v = valueAt(x, y);
+      if (isNaN(v)) return null;
+      const w = Math.abs(v) < 0.005 ? "no change" : v > 0 ? "fill" : "cut";
+      return { name: "isopach · " + current.name, value: `${fmt(Math.abs(v), 2)} ft ${w}`, key: v.toFixed(2),
+               rows: [["Isopach (" + current.name + ")", `${fmt(Math.abs(v), 2)} ft ${w}`]] };
+    } });
 
   /* ------------------------------------------------------------------ */
   /* the picker dialog                                                   */

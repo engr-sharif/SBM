@@ -2138,21 +2138,27 @@ SBMM.water = (function () {
     if (!ov || !ov.R) return null;
     if (inAnalysedWater(x, y)) {
       const parts = levelWords();
-      return { kind: "water", title: parts[0].replace(/<[^>]+>/g, ""),
+      const plain = parts.map(q => q.replace(/<[^>]+>/g, ""));
+      return { kind: "water", title: plain[0],
+               chip: { lead: fmt(ov.level, 2) + " ft", kind: ov.name + " · water level", lines: plain.slice(1, 4) },
                html: `<div class="waterdesc">${parts.map(p => `<div>${p}</div>`).join("")}</div>`
                  + `<div class="pop-actions"><span class="minib" data-wact="slider">level slider</span>`
                  + `<span class="minib" data-wact="card">overtopping card</span></div>` };
     }
     const v = bandAt(x, y);
     if (v != null) {
-      const z = SBMM.elev(x, y), sp = ov.R.primary ? ov.R.primary.level : NaN;
+      /* v58: SBMM.elev answers [z, source]; read as a number it was never one,
+         so the ground elevation printed as a dash */
+      const z = SBMM.elev(x, y)[0], sp = ov.R.primary ? ov.R.primary.level : NaN;
       const gz = Number.isNaN(z) ? null : z;
       const title = `rim here ${gz != null ? fmt(gz, 2) + " ft · " : ""}+${fmt(v, 2)} ft above the spill`;
       const html = `<div class="waterdesc"><div><b>The rim here</b>${gz != null ? ` — ground ${fmt(gz, 2)} ft` : ""}</div>`
         + `<div><b>+${fmt(v, 2)} ft</b> above the spill (${fmt(sp, 2)} ft)`
         + (v < 0.005 ? " — the water leaves here first" : "") + `</div></div>`
         + `<div class="pop-actions"><span class="minib" data-wact="slider">level slider</span></div>`;
-      return { kind: "rim", title, html, ft: v };
+      return { kind: "rim", title, html, ft: v,
+               chip: { lead: "+" + fmt(v, 2) + " ft", kind: "rim above the spill",
+                       lines: [(gz != null ? `ground ${fmt(gz, 2)} ft · ` : "") + `spill ${fmt(sp, 2)} ft`] } };
     }
     return null;
   }
@@ -2177,39 +2183,23 @@ SBMM.water = (function () {
     if (SBMM.map && SBMM.map.closePopup) SBMM.map.closePopup();
   });
 
-  /* 2D: a short dwell over the water or the band shows the chip; a click on
-     the water opens the description as a popup (the water polygon's own popup
-     carries the same summary, see js/popups.js forGis) */
-  let dwellT = null, chip = null, chipAt = null;
-  function chipEl() {
-    if (chip) return chip;
-    chip = document.createElement("div");
-    chip.id = "waterTip";
-    chip.hidden = true;
-    SBMM.map.getContainer().appendChild(chip);
-    return chip;
-  }
-  function hideChip() { if (chip) chip.hidden = true; chipAt = null; }
+  /* v58: the water and the rim band are READ at the pointer like every other
+     raster (js/readout.js) — the chip in both views, at once. Before this the
+     2D map waited 550 ms and showed one line in an element of its own
+     (#waterTip), and 3D opened the whole card unasked. A click on the water
+     still opens the description (the water polygon's own popup carries the
+     same summary, see js/popups.js forGis). */
   function wireDwell() {
     const map = SBMM.map;
-    map.on("mousemove", e => {
-      if (dwellT) clearTimeout(dwellT);
-      if (chipAt && e.containerPoint.distanceTo(chipAt) > 14) hideChip();
-      if (!ov) return;
-      dwellT = setTimeout(() => {
-        dwellT = null;
-        if (!ov || SBMM.draw.isDrawing()) return;
-        const d = describeAt(e.latlng.lng, e.latlng.lat);
-        if (!d) { hideChip(); return; }
-        const el = chipEl();
-        el.textContent = d.title;
-        el.style.left = (e.containerPoint.x + 14) + "px";
-        el.style.top = (e.containerPoint.y + 16) + "px";
-        el.hidden = false;
-        chipAt = e.containerPoint;
-      }, 550);
+    if (SBMM.readout) SBMM.readout.register({
+      id: "water", on: () => !!(ov && ov.R),
+      at(x, y) {
+        const d = describeAt(x, y);
+        if (!d || !d.chip) return null;
+        return { name: d.chip.kind, value: d.chip.lead, lines: d.chip.lines, key: d.kind + "|" + d.title,
+                 rows: [[d.kind === "rim" ? "Rim above the spill" : "Water level (" + ov.name + ")", d.chip.lead]] };
+      }
     });
-    map.on("mouseout zoomstart movestart", () => { if (dwellT) clearTimeout(dwellT); dwellT = null; hideChip(); });
     /* a click on the analysed water body, anywhere the layers below did not
        answer, opens the description — the polygon's own popup does the same
        through js/popups.js when it is the one that answers */
@@ -2222,7 +2212,6 @@ SBMM.water = (function () {
         if (!ov || (map._popup && map._popup.isOpen && map._popup.isOpen())) return;
         const d = describeAt(ll.lng, ll.lat);
         if (!d || d.kind !== "rim") return;
-        hideChip();
         L.popup({ maxWidth: 320 }).setLatLng(ll).setContent(`<div class="pop"><div class="pop-t">${esc(d.title)}</div>${d.html}</div>`).openOn(map);
       }, 30);
     });

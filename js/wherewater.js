@@ -428,6 +428,11 @@ SBMM.whereWater = (function () {
   }
 
   function build() {
+    if (SBMM.readout) SBMM.readout.register({ id: "wherewater", row: { g: "framework", l: "where_water" },
+      at(x, y) {
+        const c = classRec(classAt(x, y));
+        return c ? { name: "where the water goes", value: c.label, lines: [fmt(c.acres, 2) + " ac in this class"], key: c.id } : null;
+      } });
     group = L.layerGroup();
     row = SBMM.addLayerRow("proj", "Where the water goes", group,
       { id: "where_water", checked: false, swatch: CBY.impound.color,

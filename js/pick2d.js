@@ -270,16 +270,11 @@ SBMM.pick2d = (function () {
   }
 
   /* ---------- the chip and the highlight --------------------------------- */
-  function stage() { return document.getElementById("stage") || map.getContainer().parentNode; }
-  function ensureChip() {
-    if (chip) return chip;
-    chip = document.createElement("div");
-    chip.id = "pickTip";
-    chip.setAttribute("role", "status");
-    chip.hidden = true;
-    stage().appendChild(chip);
-    return chip;
-  }
+  /* v58: the chip is js/tip.js's — ONE element for both views and every
+     source. This engine claims it as a `feature`; inside a polygon the claim
+     is `soft`, so the raster under the pointer rides along on a second line. */
+  let chipOn = false, chipSoft = false;
+  const softOf = c => !c.el && c.geo <= 1;
   function chipBody(c, n, idx) {
     const h = tipHtml(c.layer);
     let body;
@@ -288,29 +283,21 @@ SBMM.pick2d = (function () {
       const txt = h || plainName(c.layer);
       const i = txt.indexOf(" · ");
       body = i > 0
-        ? `<b>${esc(txt.slice(0, i))}</b><span class="pkkind">${esc(txt.slice(i + 3))}</span>`
-        : `<b>${esc(txt)}</b>`;
+        ? `<div class="tp1"><b>${esc(txt.slice(0, i))}</b><span class="pkkind">${esc(txt.slice(i + 3))}</span></div>`
+        : `<div class="tp1"><b>${esc(txt)}</b></div>`;
     }
     const more = n > 1 ? `<span class="pkmore">${idx + 1} of ${n} here · Tab</span>` : "";
-    return body + more;
+    return `<div class="tpt">${body}${more}</div>`;
   }
-  function placeChip(cx, cy) {
-    if (!chip || chip.hidden) return;
-    const S = stage().getBoundingClientRect();
-    let x = cx - S.left + 16, y = cy - S.top + 14;
-    const w = chip.offsetWidth, h = chip.offsetHeight;
-    if (x + w > S.width - 6) x = cx - S.left - w - 14;
-    if (y + h > S.height - 6) y = cy - S.top - h - 12;
-    chip.style.transform = `translate(${Math.round(Math.max(4, x))}px,${Math.round(Math.max(4, y))}px)`;
-  }
+  function placeChip(cx, cy) { if (chipOn) SBMM.tip.moveTo(cx, cy); }
   function showChip(c, n, idx, cx, cy) {
-    ensureChip();
-    chip.innerHTML = chipBody(c, n, idx);
-    chip.classList.toggle("info", !c.acts);
-    chip.hidden = false;
-    placeChip(cx, cy);
+    chipOn = true; chipSoft = softOf(c);
+    SBMM.tip.claim("feature", {
+      x: cx, y: cy, view: "2d", html: chipBody(c, n, idx), key: L.stamp(c.layer) + "|" + n + "|" + idx,
+      info: !c.acts, soft: chipSoft
+    });
   }
-  function hideChip() { if (chip) chip.hidden = true; }
+  function hideChip() { if (chipOn) { chipOn = false; SBMM.tip.release("feature"); } }
 
   function ensureHl() {
     if (hl) return hl;
@@ -395,11 +382,13 @@ SBMM.pick2d = (function () {
     const shown = P && P.isOpen && P.isOpen() && P._source === top.layer;
     if (shown) hideChip();
     if (changed) { drawHl(top); if (!shown) showChip(top, Math.max(nAct, 1), top.acts ? idx : 0, ev.clientX, ev.clientY); }
-    else if (!shown) { if (chip && chip.hidden) showChip(top, Math.max(nAct, 1), top.acts ? idx : 0, ev.clientX, ev.clientY); else placeChip(ev.clientX, ev.clientY); }
+    /* the same polygon, but the pointer came off its edge into its interior
+       (or back): whether the reading under it rides along has changed */
+    else if (!shown) { if (!chipOn || chipSoft !== softOf(top)) showChip(top, Math.max(nAct, 1), top.acts ? idx : 0, ev.clientX, ev.clientY); else placeChip(ev.clientX, ev.clientY); }
     map.getContainer().classList.toggle("pkhot", !!top.acts);
   }
   function clear() {
-    if (!cur && !lifted && !(chip && !chip.hidden)) return;
+    if (!cur && !lifted && !chipOn) return;
     cur = null;
     clearHl();
     hideChip();
@@ -518,7 +507,7 @@ SBMM.pick2d = (function () {
 
   /* ---------- keys: Tab cycles what the chip is showing ------------------ */
   function onKey(e) {
-    if (e.key !== "Tab" || !cur || !chip || chip.hidden) return;
+    if (e.key !== "Tab" || !cur || !chipOn) return;
     const a = document.activeElement;
     if (a && a !== document.body && !map.getContainer().contains(a)) return;
     if (cycle(e.shiftKey ? -1 : 1)) { e.preventDefault(); e.stopPropagation(); }
@@ -572,7 +561,7 @@ SBMM.pick2d = (function () {
     }));
   }
   function state() {
-    return { active: active(), chip: !!(chip && !chip.hidden), chipText: chip && !chip.hidden ? chip.textContent : "",
+    return { active: active(), chip: chipOn, chipText: chipOn ? SBMM.tip.state().text : "",
              target: cur && cur.list[cur.idx] ? plainName(cur.list[cur.idx].layer) : null,
              n: cur ? cur.list.filter(c => c.acts).length : 0, markers: markers.size, stats: Object.assign({}, stats) };
   }

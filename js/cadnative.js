@@ -355,6 +355,7 @@ SBMM.CadNative = (function () {
     };
   }
 
+  /* v58: also the 3D chip (js/pick3d.js kind `cad`) */
   function tip(f) {
     let t = `<b>${esc(f.text ? f.text.split("\n")[0].slice(0, 60) : f.layer)}</b>`;
     t += `<br><span style="opacity:.75">${esc(f.type)}</span>`;
@@ -559,7 +560,7 @@ SBMM.CadNative = (function () {
   }
 
   return {
-    build, render, provenance, rings3d, snapPaths, geoFeatures, dxfEntities,
+    build, render, provenance, rings3d, snapPaths, geoFeatures, dxfEntities, tip,
     sheetNotes, surfaceMeta, loadSurface, surfaceReady, surfaceElev,
     /* Layer manager (§6) */
     layerInfo, layerOverride, setLayerOverride, resetLayerOverrides,

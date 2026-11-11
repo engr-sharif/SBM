@@ -138,6 +138,7 @@ function wireWasmSwitch() {
     SBMM.buildAnalysisLayers();
     SBMM.labels.wire();
     if (SBMM.pick2d) SBMM.pick2d.wire();
+    if (SBMM.readout) SBMM.readout.wire();        // v58: after the pick engine, so its claim is made first
     if (SBMM.backdrop) SBMM.backdrop.wire(SBMM.map);
     SBMM.snap.wire();
     SBMM.draw.wire();

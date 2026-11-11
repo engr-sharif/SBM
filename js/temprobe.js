@@ -63,7 +63,7 @@ SBMM.temprobe = (function () {
   /* ------------------------------------------------------------------ */
   /* the chip                                                            */
   /* ------------------------------------------------------------------ */
-  let chip = null, chipKey = "", shown = false;
+  let shown = false;
   function lines(p) {
     const a = `<b class="mono">${fV(p.rho)} Ω·m</b>`
       + (p.lo != null ? `<span class="tpr mono">${fV(p.lo)}–${fV(p.hi)}</span>` : "")
@@ -80,67 +80,53 @@ SBMM.temprobe = (function () {
       + (extra ? `<div class="tp2">${extra}</div>` : "")
       + (c ? `<div class="tp3">${c}</div>` : "") + `</div>`;
   }
-  function ensureChip() {
-    if (chip) return chip;
-    chip = document.createElement("div");
-    chip.id = "temTip";
-    chip.setAttribute("role", "status");
-    chip.hidden = true;
-    document.body.appendChild(chip);
-    return chip;
-  }
-  /* html is what to show; key says when it changed (a move over one value
-     writes two style properties and nothing else) */
+  /* v58: the chip is js/tip.js's. In 3D a TEM surface claims it as a
+     `surface` (it reads differently at every point of itself); in 2D the
+     slice, the derived map and the two interpretations are READERS
+     (js/readout.js), so the chip, the Point card and the legend marker all
+     ask one place. */
   function showChip(cx, cy, html, key) {
-    const el = ensureChip();
-    if (key !== chipKey) { el.innerHTML = html; chipKey = key; }
-    el.hidden = false; shown = true;
-    const w = el.offsetWidth, h = el.offsetHeight, W = window.innerWidth, H = window.innerHeight;
-    let x = cx + 16, y = cy + 18;
-    if (x + w > W - 6) x = cx - w - 14;
-    if (y + h > H - 6) y = cy - h - 12;
-    el.style.left = Math.max(4, x) + "px";
-    el.style.top = Math.max(4, y) + "px";
+    shown = true;
+    SBMM.tip.claim("surface", { x: cx, y: cy, view: "3d", html, key });
   }
   function hideChip() {
-    if (chip && !chip.hidden) chip.hidden = true;
-    if (shown) { shown = false; emit(null); }
+    if (!shown) return;
+    shown = false;
+    if (SBMM.tip) SBMM.tip.release("surface");
+    emit(null);
   }
   const keyOf = p => [p.x.toFixed(1), p.y.toFixed(1), p.depth.toFixed(1), G().sigKey()].join("|");
 
   /* ------------------------------------------------------------------ */
   /* 2D: over the slice                                                  */
   /* ------------------------------------------------------------------ */
-  let raf2 = 0, last2 = null;
   const active2d = () => !!(data() && G() && G().hasResult() && on("tem_slice")
     && !document.body.classList.contains("field"));
-  function onMove2d(ev) {
-    last2 = ev;
-    if (raf2) return;
-    raf2 = requestAnimationFrame(() => { raf2 = 0; move2d(last2); });
-  }
-  function move2d(ev) {
-    if (ev && !active2d() && mapChip2d(ev)) return;
-    if (!ev || !active2d()) { hideChip(); return; }
-    /* a feature's own chip is the chip; so is a pressed button (a pan) */
-    if ((ev.originalEvent && ev.originalEvent.buttons) || (SBMM.pick2d && SBMM.pick2d.state().chip)) { hideChip(); return; }
-    const p = G().probe(ev.latlng.lng, ev.latlng.lat);
-    if (!p.ok) { hideChip(); return; }
-    const oe = ev.originalEvent;
-    showChip(oe.clientX, oe.clientY, chipHtml(p), keyOf(p));
-    emit(p);
-  }
-  /* v54: with the slice off and a derived map on (js/temmaps.js), the chip
-     says what THAT map reads here */
-  function mapChip2d(ev) {
-    const T = SBMM.temmaps;
-    if (!T || !T.on() || !T.result() || document.body.classList.contains("field")) return false;
-    if ((ev.originalEvent && ev.originalEvent.buttons) || (SBMM.pick2d && SBMM.pick2d.state().chip)) return false;
-    const r = T.readAt("map", ev.latlng.lng, ev.latlng.lat);
-    if (!r) return false;
-    showChip(ev.originalEvent.clientX, ev.originalEvent.clientY, `<div class="tpt"><div class="tp1"><b class="mono">${esc(r.head)}</b></div>`
-      + r.lines.map(l => `<div class="tp2">${esc(l)}</div>`).join("") + `</div>`, "map|" + r.key);
-    return true;
+  function readers() {
+    const RO = SBMM.readout;
+    if (!RO) return;
+    const two = ctx => ctx.view === "2d" && !document.body.classList.contains("field");
+    /* in 3D these are surfaces under the ground and answer where the ray hits
+       them (js/pick3d.js); the ground above them does not speak for them */
+    RO.register({ id: "tem_slice", on: ctx => two(ctx) && active2d(),
+      at(x, y) {
+        const p = G().probe(x, y);
+        if (!p.ok) return null;
+        return { name: "TEM resistivity", value: `${fV(p.rho)} Ω·m`, html: chipHtml(p), key: keyOf(p), rec: p,
+                 rows: [["TEM resistivity", `${fV(p.rho)} Ω·m at ${f0(p.depth)} ft`]] };
+      } });
+    RO.register({ id: "tem_map", on: ctx => two(ctx) && !!(SBMM.temmaps && SBMM.temmaps.on() && SBMM.temmaps.result()),
+      at(x, y) {
+        const r = SBMM.temmaps.readAt("map", x, y);
+        return r ? { name: "TEM derived map", value: r.head, lines: r.lines, key: "map|" + r.key } : null;
+      } });
+    for (const what of ["waste", "seep"]) {
+      RO.register({ id: "tem_" + what, on: ctx => two(ctx) && on("tem_" + what) && !!(SBMM.teminterp && SBMM.teminterp.readAt),
+        at(x, y) {
+          const r = SBMM.teminterp.readAt(what, x, y);
+          return r ? { name: what === "waste" ? "TEM base of waste" : "TEM conductive zones", value: r.head, lines: r.lines, key: what + "|" + r.key } : null;
+        } });
+    }
   }
   function onClick2d(ev) {
     if (!active2d() || !ev.latlng) return;
@@ -158,15 +144,19 @@ SBMM.temprobe = (function () {
   function wire() {
     if (wired || !SBMM.map || !data()) return;
     wired = true;
-    SBMM.map.on("mousemove", onMove2d);
-    SBMM.map.on("mouseout movestart zoomstart", hideChip);
+    readers();
     SBMM.map.on("click", onClick2d);
     document.addEventListener("click", onAction);
     if (SBMM.events) {
       /* a slice or colour change while the pointer rests on the map */
-      SBMM.events.on("tem", () => { chipKey = ""; refreshPins(); });
-      SBMM.events.on("layers", ({ group }) => { if (group === "invest" || group == null) { if (!active2d()) hideChip(); } });
+      SBMM.events.on("tem", refreshPins);
       SBMM.events.on("view", hideChip);
+      /* the panel's core follows the pointer over the 2D slice too: the
+         readout says when the slice is what answered, and where */
+      SBMM.events.on("readout", ({ view, top }) => {
+        if (view === "3d") return;
+        emit(top && top.id === "tem_slice" ? top.rec : null);
+      });
     }
     if (SBMM.store && SBMM.store.onChange) SBMM.store.onChange(() => { clearTimeout(decT); decT = setTimeout(refreshPins, 80); });
     refreshPins();
@@ -478,6 +468,11 @@ SBMM.temprobe = (function () {
   return { wire, read: (x, y, at) => G().probe(x, y, at), chipHtml, cardHtml, profileOf, profileSvg,
            hover3d, end3d, click3d, accept3d, hoverInterp,
            pin, pins, isPin, probesCard, probesCsv, decorate, refreshPins,
-           state: () => ({ chip: !!(chip && !chip.hidden), text: chip && !chip.hidden ? chip.textContent : "", pins: pins().length,
-                           card: !!(allCard && allCard.isConnected) }) };
+           /* `chip`: the one chip (js/tip.js) is up and it is a TEM reading —
+              a 3D surface, or one of the four TEM readers in 2D */
+           state: () => {
+             const t = SBMM.tip ? SBMM.tip.state() : { shown: false };
+             const mine = !!(t.shown && (t.src === "surface" || (t.src === "readout" && /^readout\|tem_/.test(t.key))));
+             return { chip: mine, text: mine ? t.text : "", pins: pins().length, card: !!(allCard && allCard.isConnected) };
+           } };
 })();

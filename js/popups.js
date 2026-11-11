@@ -630,7 +630,10 @@ SBMM.popups = (function () {
   /* ---------------------------------------------------------------- */
   /* terrain — the coordinate card §2/§8 call for                      */
   /* ---------------------------------------------------------------- */
-  function forTerrain(x, y, z) {
+  /* v58: `view` ("2d" | "3d", default 2D) says which view asked, so the card
+     lists what every analysis layer that is ON THERE reads at the point
+     (js/readout.js) — the same answers the chip gives, all of them. */
+  function forTerrain(x, y, z, view) {
     const [ez, src] = SBMM.elev(x, y);
     const zz = (z == null || isNaN(z)) ? ez : z;
     const [lo, la] = SBMM.toLL(x, y);
@@ -651,6 +654,10 @@ SBMM.popups = (function () {
       ["Canopy (ft)", ch > 0.5 ? +ch.toFixed(1) : null],
       ["DEM source", src || null]
     ];
+    if (SBMM.readout) {
+      const have = { "Slope": 1, "Aspect": 1, "Canopy height": 1, "Elevation": 1 };   // rows the card always carries
+      for (const r of SBMM.readout.rows(x, y, { view: view === "3d" ? "3d" : "2d" })) if (!have[r[0]]) pairs.push(r);
+    }
     const copyTxt = `${x.toFixed(2)}, ${y.toFixed(2)}, ${isNaN(zz) ? "" : zz.toFixed(2)}`
       + `  (${la.toFixed(6)}, ${lo.toFixed(6)})`;
     return `<b>Point</b><br>` + attrTable(pairs)

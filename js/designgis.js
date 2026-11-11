@@ -304,6 +304,7 @@ SBMM.designGIS = (function () {
     }
   }
 
+  /* v58: also the 3D chip — js/pick3d.js asks it for every designGIS kind */
   function tip(p) {
     let t = `<b>${esc(p.name || "Design feature")}</b>`;
     if (p.sheet) t += `<br><span style="opacity:.75">${esc(p.sheet)}</span>`;
@@ -454,6 +455,6 @@ SBMM.designGIS = (function () {
     return { main, under };
   }
 
-  return { build, volumeOf, rings3d, batch3d, snapPaths, geoFeatures, dxfEntities, dressed,
+  return { build, volumeOf, rings3d, batch3d, snapPaths, geoFeatures, dxfEntities, dressed, tip,
            provenance, counts: null };
 })();

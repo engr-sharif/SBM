@@ -268,31 +268,62 @@ feature" through the wrong builder; bare ground answers a 3D click and not a
 | **a raster under the pointer** | its value in the chip, in both views, when no feature is under the pointer. The topmost raster that is on answers. |
 
 **Design.**
-- **`SBMM.tip`** — one chip element, one placement rule (offset, flips at the
-  frame's edges), one arbiter (feature > live surface > raster). `#pickTip`,
-  `#pick3dTip`, `#temTip` and `#waterTip` become this one element; harness
-  selectors move to it.
-- **`SBMM.readout`** — one registry of things that can be read at a point:
-  `register({ id, row: {g, l}, at(x, y) -> { name, text, html? } | null })`.
-  Readers: slope, aspect, elevation tint, canopy, accumulation, land cover,
-  runoff depth, isopach, cut/fill, the rim band and water stage, drainage
-  outlet, where-the-water-goes class, the TEM slice, derived map and two
-  interpretations (their existing probes). 2D asks it at the pointer; 3D asks
-  it at the ground point the per-frame status raycast already finds (no new
-  raycast). The Point card lists every reader that answers. Trees join the 2D
-  pick engine through the same door instead of their own click handler.
-- **Chip content parity** — each kind's chip is one function used by both
-  views (as the popups already are); the 3D `specFor` cases call it.
-- **3D parity** — storm structures, decision units and piles become pickable;
+- **`SBMM.tip` (`js/tip.js`)** — one chip element, `#tip`, fixed on the body,
+  one placement rule. Three kinds of source may want it, in this order:
+  `feature` (something with a name: the 2D pick engine, a 3D object),
+  `surface` (a 3D surface that reads differently at every point of itself: the
+  TEM sheets) and `readout` (nothing with a name, but a layer that is on can
+  be read here). A source CLAIMS the chip when it has something to say and
+  RELEASES it when it has not; the chip shows the highest claim. Nobody has to
+  know who else is talking, and the order two animation-frame callbacks run in
+  cannot matter. `#pickTip`, `#pick3dTip`, `#temTip` and `#waterTip` are gone.
+- **Inside a polygon the reading rides along.** A decision unit, a lot or a
+  catchment covers most of the ground an engineer looks at a raster over, so
+  "feature beats raster" alone would mean the raster almost never speaks. A
+  feature claim from a polygon's INTERIOR is `soft`: the chip names the
+  polygon and carries the top reading on a second line.
+- **`SBMM.readout` (`js/readout.js`)** — one registry of what a layer reads at
+  a point: `register({ id, order, row | on(ctx), at(x, y, ctx) -> { name,
+  value, lines?, html?, rows?, rec? } })`, registered by the module that owns
+  the data. The first reader that answers, in a fixed order (an open analysis,
+  the TEM maps, cut/fill and isopach, accumulation and land cover, the
+  drainage classes, trees, then the terrain's own slope / aspect / elevation /
+  canopy), is the chip; every reader that answers is a row of the Point card.
+  A reader is on while its row is — except that `ctx.view` lets it say
+  otherwise: in 3D the ground wears ONE drape style, which is the 3D view's
+  own choice, and the TEM is a set of surfaces under the ground that answer
+  where the ray hits them, not where the ground above them is.
+  2D asks at the pointer; 3D asks at the ground point the per-frame status
+  raycast has already found (no second raycast). Navigate mode only.
+- **The dwell goes.** The 3D card that opened by itself after 550 ms, and the
+  2D water chip that waited 550 ms, are both replaced by the chip saying it at
+  once.
+- **Chip content parity** — each kind's chip is one named function, owned by
+  the module that owns the layer, used by the 2D layer's tooltip and returned
+  by the 3D pick's `hit()` as `chip`.
+
+**3b — the click, and what 3D does not answer yet.**
+- **A bare-ground click** is one handler in both views: the top reader's own
+  card where it has one (the TEM probe, the water description, a tree),
+  otherwise the Point card with every reading on it. A click that closed a
+  popup or cleared a selection does only that. In 2D the card waits out a
+  double-click.
+- **Your own drawing** selects in both views; the 3D floating card for it
+  goes (the Inspector is the card). A photo keeps its picture card and the
+  fence strip its nearest-boring card; field mode keeps the card.
+- **"Also here" and Tab** in 3D: the ray's other hits, as in 2D.
+- **3D kinds** — storm structures, decision units and piles become pickable;
   drainage, where-the-water-goes, streams, runoff, storm conduits and the PDF
-  boundaries answer with their own builders; DU, pile and the other inline
-  popups move into `js/popups.js`.
+  boundaries answer with their own builders; the DU and pile popups move into
+  `js/popups.js`.
 - **Highlight** — the 3D hover highlights the feature, not the whole merged
-  layer (a halo built from the feature's own segments).
+  layer (a halo built from the feature's own segments or faces).
 - **Piles of points at whole-site zoom** — where symbols overlap they are drawn
   as one symbol with a count; the chip names them and the click offers them
   ("also here"). Nothing becomes unpickable: the v26 rule (shrink, never hide a
   click target) stands, and the count is drawing only.
+- Field mode's 3D card becomes the bottom card; a long press means the same
+  in both views.
 
 Two pull requests: 3a the chip, the readout registry and the dwell; 3b the
 click parity, the 3D kinds and the piles.

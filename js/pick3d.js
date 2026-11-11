@@ -37,7 +37,7 @@ SBMM.pick3d = (function () {
   /* id -> { id, object3d, kind, priority, hit } */
   const reg = new Map();
   let ctx = null;                  // the viewer3d handles
-  let card = null, tipEl = null;
+  let card = null;
   let hovered = null;              // { id, index } of the entry under the cursor
   let cardAnchor = null;           // scene-space Vector3 the open card is pinned to
   let sceneIds = [];               // registry ids owned by the last syncScene()
@@ -122,6 +122,21 @@ SBMM.pick3d = (function () {
     return 1;
   }
 
+  /* v58: a 2D tooltip string as a chip, read the way js/pick2d.js reads it —
+     markup is shown as is, plain "name · kind" text goes to the two-part
+     chip (showTip escapes it there, as pick2d does) */
+  function asChip(s) {
+    if (s == null || s === "") return undefined;
+    s = String(s);
+    if (/<[a-z]/i.test(s)) return s;
+    const i = s.indexOf(" · ");
+    return { lead: i > 0 ? s.slice(0, i) : s, kind: i > 0 ? s.slice(i + 3) : "" };
+  }
+  /* gisBatch / gisPts / gisSolid are built from js/designgis.js batch3d only */
+  function gisChip(props) {
+    return SBMM.designGIS && SBMM.designGIS.tip ? asChip(SBMM.designGIS.tip(props || {})) : undefined;
+  }
+
   function specFor(o, t) {
     const P = priorityOf(o);
     switch (t.kind) {
@@ -130,7 +145,8 @@ SBMM.pick3d = (function () {
         hit() {
           const f = SBMM.store.byId(t.fid);
           if (!f) return null;
-          return { title: f.name || f.type, html: SBMM.popups.forFeature(f),
+          /* v58: "name · type", the 2D chip's words for a store feature */
+          return { title: (f.name || f.type) + (f.type ? " · " + f.type : ""), html: SBMM.popups.forFeature(f),
                    featureId: f.id, xyz: [f.pts[0][0], f.pts[0][1]] };
         }
       };
@@ -164,8 +180,10 @@ SBMM.pick3d = (function () {
       case "gis": return {
         object3d: o, kind: "gis", priority: P,
         hit() {
+          /* v58: the tag carries the owning module's chip (designGIS, the
+             survey, the site areas); kinds without one fall back to title */
           return { title: (t.props && t.props.name) || "Design feature",
-                   html: SBMM.popups.forGis(t.props || {}, t.geom) };
+                   html: SBMM.popups.forGis(t.props || {}, t.geom), chip: asChip(t.chip) };
         }
       };
       case "cad": return {
@@ -173,7 +191,8 @@ SBMM.pick3d = (function () {
         hit() {
           const f = cadByCoords(t.coords);
           if (!f) return null;
-          return { title: f.layer, html: SBMM.popups.forCad(f) };
+          return { title: f.layer, html: SBMM.popups.forCad(f),
+                   chip: asChip(SBMM.CadNative && SBMM.CadNative.tip ? SBMM.CadNative.tip(f) : null) };
         }
       };
       case "dataset": return {
@@ -188,7 +207,8 @@ SBMM.pick3d = (function () {
           if (t.stick) i = t.idx[Math.floor(i / 2)];
           const p = d.points[i];
           if (!p) return null;
-          return { title: p.id, html: SBMM.popups.forDataset(d, p), xyz: [p.x, p.y] };
+          return { title: p.id, html: SBMM.popups.forDataset(d, p), xyz: [p.x, p.y],
+                   chip: asChip(SBMM.datasets.tipFor ? SBMM.datasets.tipFor(d, p) : null) };
         }
       };
       /* v36: a TEM sounding — the same popup the 2D dot opens */
@@ -238,7 +258,8 @@ SBMM.pick3d = (function () {
         hit(ix) {
           const p = SBMM.samples[ix && ix.index != null ? ix.index : 0];
           if (!p) return null;
-          return { title: p.id, html: SBMM.popups.forSample(p), xyz: [p.x, p.y] };
+          return { title: p.id, html: SBMM.popups.forSample(p), xyz: [p.x, p.y],
+                   chip: asChip(SBMM.sampleTip ? SBMM.sampleTip(p) : null) };
         }
       };
       case "tree": return {
@@ -250,7 +271,10 @@ SBMM.pick3d = (function () {
           const k = ix && ix.index != null ? ix.index : -1;
           const t2 = SBMM.trees && SBMM.trees.tree ? SBMM.trees.tree(map && k >= 0 ? map[k] : k) : null;
           if (!t2) return null;
-          return { title: "Tree " + t2.id, html: SBMM.popups.forTree(t2), xyz: [t2.x, t2.y] };
+          /* v58: the 2D crowns carry no tooltip; the chip names the height and form */
+          return { title: "Tree " + t2.id, html: SBMM.popups.forTree(t2), xyz: [t2.x, t2.y],
+                   chip: { lead: "Tree " + t2.id,
+                           kind: fmt0(t2.h) + " ft" + (t2.form ? " " + String(t2.form).toLowerCase() : "") } };
         }
       };
       case "cultural": return {
@@ -259,7 +283,8 @@ SBMM.pick3d = (function () {
           const D = window.SBMM_DATA && SBMM_DATA.cultural;
           const spec = D && (D.layers || []).find(l => l.key === t.feature.layer);
           return { title: t.feature.name,
-                   html: SBMM.cultural.popup(t.feature, spec || { name: "Cultural resource" }) };
+                   html: SBMM.cultural.popup(t.feature, spec || { name: "Cultural resource" }),
+                   chip: asChip(SBMM.cultural.tip ? SBMM.cultural.tip(t.feature, spec || { name: "Cultural resource" }) : null) };
         }
       };
       /* v15 §3.1: a whole reference layer merged into one LineSegments (or one
@@ -274,7 +299,7 @@ SBMM.pick3d = (function () {
           const it = t.items[own[seg] == null ? 0 : own[seg]];
           if (!it) return null;
           return { title: (it.props && it.props.name) || "Design feature",
-                   html: SBMM.popups.forGis(it.props || {}, it.geom) };
+                   html: SBMM.popups.forGis(it.props || {}, it.geom), chip: gisChip(it.props) };
         }
       };
       /* v43: a layer stood up as solids (js/built3d.js: the buildings, the
@@ -289,7 +314,7 @@ SBMM.pick3d = (function () {
           if (!it) return null;
           return { title: (it.props && it.props.name) || "Design feature",
                    html: SBMM.popups.forGis(it.props || {}, it.geom),
-                   xyz: it.x != null ? [it.x, it.y] : undefined };
+                   xyz: it.x != null ? [it.x, it.y] : undefined, chip: gisChip(it.props) };
         }
       };
       case "gisPts": return {
@@ -298,7 +323,7 @@ SBMM.pick3d = (function () {
           const it = t.items[ix && ix.index != null ? ix.index : 0];
           if (!it) return null;
           return { title: (it.props && it.props.name) || "Design feature",
-                   html: SBMM.popups.forGis(it.props || {}, it.geom), xyz: [it.x, it.y] };
+                   html: SBMM.popups.forGis(it.props || {}, it.geom), xyz: [it.x, it.y], chip: gisChip(it.props) };
         }
       };
       /* v15: a 3D label chip. Whatever built it said what it is about, so the
@@ -316,7 +341,8 @@ SBMM.pick3d = (function () {
           const spec = D && (D.layers || []).find(l => l.key === rec.feature.layer);
           return { title: rec.feature.name,
                    html: SBMM.cultural.popup(rec.feature, spec || { name: "Cultural resource" }),
-                   xyz: [rec.x, rec.y] };
+                   xyz: [rec.x, rec.y],
+                   chip: asChip(SBMM.cultural.tip ? SBMM.cultural.tip(rec.feature, spec || { name: "Cultural resource" }) : null) };
         }
       };
       default: return null;
@@ -418,50 +444,13 @@ SBMM.pick3d = (function () {
   /* hover                                                               */
   /* ------------------------------------------------------------------ */
   let hoverRAF = 0, hoverEvt = null;
-  /* THE DWELL (2026-09-08). A pointer that stops for half a second over
-     something is a question about it: the card opens as a click would, and
-     closes again once the pointer has moved on (a card opened by a CLICK stays).
-     Over bare terrain the one thing worth answering unasked is the water — the
-     rim band and the stage surface of an open overtopping analysis — and that
-     is a single terrain raycast, allowed here because it runs once per dwell
-     and never per move. */
-  const DWELL_MS = 550, DWELL_LEAVE_PX = 10;
-  let dwellT = null, dwellCard = false, dwellAt = null;
-  function armDwell(e) {
-    if (dwellT) clearTimeout(dwellT);
-    if (dwellCard && dwellAt && Math.hypot(e.clientX - dwellAt.x, e.clientY - dwellAt.y) > DWELL_LEAVE_PX) {
-      closeCard(); dwellCard = false; dwellAt = null;
-    }
-    dwellT = setTimeout(() => { dwellT = null; dwell(e); }, DWELL_MS);
-  }
-  let pDown = false;
-  function cancelDwell() { if (dwellT) clearTimeout(dwellT); dwellT = null; }
-  function dwell(e) {
-    if (!ctx || !ctx.isOpen() || card || pDown || SBMM.tools.active()) return;
-    let html = null, title = null, sp = null;
-    if (hovered) {
-      if (hovered.live) return;       // v53: its chip is already at the pointer
-      const got = raycast(e);
-      if (!got) return;
-      let info = null;
-      try { info = got.entry.hit(got.hit); } catch (err) { info = null; }
-      if (!info) return;
-      html = info.html; title = info.title; sp = got.hit.point;
-    } else if (SBMM.water && SBMM.water.active && SBMM.water.active()) {
-      const p = ctx.pickWorld(e);
-      if (!p) return;
-      const d = SBMM.water.describeAt(p[0], p[1]);
-      if (!d) return;
-      html = d.html; title = d.title; sp = ctx.pickScene(e);
-    }
-    if (!html) return;
-    openCard(html, sp, title);
-    dwellCard = true; dwellAt = { x: e.clientX, y: e.clientY };
-    hideTip();
-  }
+  /* v58: THE DWELL IS GONE. From 2026-09-08 a pointer that stopped for half a
+     second opened the identify card by itself — in 3D only, the 2D map never
+     did — because the tip said only a name. The chip now says what the card
+     was opened to say (js/tip.js, and js/readout.js over bare ground), so a
+     card opens on a click and on nothing else, in both views. */
   function onMove(e) {
     hoverEvt = e;
-    armDwell(e);
     if (hoverRAF) return;
     hoverRAF = requestAnimationFrame(() => { hoverRAF = 0; doHover(hoverEvt); });
   }
@@ -504,7 +493,7 @@ SBMM.pick3d = (function () {
     hovered = { id, index: idx, obj: got.entry.object3d };
     highlight(got.entry.object3d, true);
     ctx.dom.style.cursor = "pointer";
-    showTip(info.title || "", e);
+    showTip(info, e);
     ctx.requestRender();
   }
   let liveNow = null;
@@ -544,37 +533,27 @@ SBMM.pick3d = (function () {
     }
   }
 
-  function showTip(txt, e) {
-    if (!txt) { hideTip(); return; }
-    if (!tipEl) {
-      tipEl = document.createElement("div");
-      tipEl.id = "pick3dTip";
-      (document.getElementById("view3d") || document.body).appendChild(tipEl);
+  /* v58: the chip is js/tip.js's, the one the 2D map uses. `info.chip` is the
+     kind's own chip markup — the same function the 2D layer's tooltip is built
+     by, so a well reads the same in both views; `info.title` ("name · kind")
+     is the two-line fallback. */
+  let tipOn = false;
+  function showTip(info, e) {
+    const T = SBMM.tip;
+    if (!T || !info || !(info.chip || info.title) || !e) { hideTip(); return; }
+    let html;
+    if (info.chip && typeof info.chip === "object") html = T.html(info.chip);          // { lead, kind, lines }
+    else if (info.chip) html = `<div class="tpt"><div class="pkrich">${info.chip}</div></div>`;
+    else {
+      const txt = String(info.title), i = txt.indexOf(" · ");
+      html = T.html({ lead: i > 0 ? txt.slice(0, i) : txt, kind: i > 0 ? txt.slice(i + 3) : "" });
     }
-    /* v29: the same two lines as the 2D chip (js/pick2d.js) — the name, then
-       what it is — so a well reads the same in both views */
-    const i = String(txt).indexOf(" · ");
-    tipEl.textContent = "";
-    const b = document.createElement("b");
-    b.textContent = i > 0 ? txt.slice(0, i) : txt;
-    tipEl.appendChild(b);
-    if (i > 0) {
-      const k = document.createElement("span");
-      k.className = "pkkind";
-      k.textContent = txt.slice(i + 3);
-      tipEl.appendChild(k);
-    }
-    tipEl.hidden = false;
-    moveTip(e);
+    tipOn = true;
+    T.claim("feature", { x: e.clientX, y: e.clientY, view: "3d", html,
+      key: "3d|" + (hovered ? hovered.id + "|" + hovered.index : "") });
   }
-  function moveTip(e) {
-    if (!tipEl || tipEl.hidden || !e) return;
-    const host = tipEl.offsetParent || document.body;
-    const r = host.getBoundingClientRect();
-    tipEl.style.left = (e.clientX - r.left) + "px";
-    tipEl.style.top = (e.clientY - r.top) + "px";
-  }
-  function hideTip() { if (tipEl) tipEl.hidden = true; }
+  function moveTip(e) { if (tipOn && e && SBMM.tip) SBMM.tip.moveTo(e.clientX, e.clientY); }
+  function hideTip() { if (tipOn) { tipOn = false; if (SBMM.tip) SBMM.tip.release("feature"); } }
 
   /* ------------------------------------------------------------------ */
   /* the identify card                                                   */
@@ -597,7 +576,6 @@ SBMM.pick3d = (function () {
     }, 0);
   }
   function closeCard() {
-    dwellCard = false; dwellAt = null;
     if (!card) return;
     document.removeEventListener("pointerdown", awayHandler, true);
     document.removeEventListener("keydown", escHandler, true);
@@ -658,7 +636,6 @@ SBMM.pick3d = (function () {
       try { info = got.entry.hit(got.hit); } catch (err) { console.error(err); }
       if (info) {
         openCard(info.html, got.hit.point, info.title);
-        dwellCard = false;
         if (info.featureId) SBMM.store.select(info.featureId);
         return true;
       }
@@ -671,8 +648,7 @@ SBMM.pick3d = (function () {
     const sp = ctx.pickScene(e);
     const d = SBMM.water && SBMM.water.active && SBMM.water.active() && SBMM.water.describeAt
       ? SBMM.water.describeAt(p[0], p[1]) : null;
-    openCard(d ? d.html : SBMM.popups.forTerrain(p[0], p[1], p[2]), sp, d ? d.title : "Point");
-    dwellCard = false;
+    openCard(d ? d.html : SBMM.popups.forTerrain(p[0], p[1], p[2], "3d"), sp, d ? d.title : "Point");
     return true;
   }
 
@@ -789,14 +765,6 @@ SBMM.pick3d = (function () {
        code through `touchDrag` from js/viewer3d.js's long-press instead. */
     const notFinger = e => e.pointerType !== "touch";
     dom.addEventListener("pointermove", e => { if (notFinger(e)) onMove(e); });
-    /* the dwell never fires across a press, a drag or a wheel: those are the
-       camera's, and a card popping up after every orbit would be the opposite
-       of understanding what was wanted */
-    dom.addEventListener("pointerdown", () => { pDown = true; cancelDwell(); }, true);
-    dom.addEventListener("pointerup", () => { pDown = false; cancelDwell(); }, true);
-    dom.addEventListener("pointercancel", () => { pDown = false; cancelDwell(); }, true);
-    dom.addEventListener("wheel", cancelDwell, { capture: true, passive: true });
-    dom.addEventListener("pointerleave", cancelDwell, true);
     dom.addEventListener("pointerleave", () => clearHover());
     dom.addEventListener("pointerdown", e => { if (notFinger(e)) onDown(e); }, true);
     dom.addEventListener("pointermove", e => { if (notFinger(e)) onDrag(e); }, true);

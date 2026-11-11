@@ -7298,7 +7298,7 @@ if (!pt.model) { console.log("FAIL: no free model point on screen to hover"); pr
 await page.mouse.move(pt.model.sx - 40, pt.model.sy - 30);
 await page.mouse.move(pt.model.sx, pt.model.sy, { steps: 4 });
 await page.waitForFunction(() => SBMM.temprobe.state().chip, null, { timeout: 15000 }).catch(() => {});
-const pb = await page.evaluate(() => { const c = document.getElementById("temTip"), r = c.getBoundingClientRect(), d = document.getElementById("temLegend");
+const pb = await page.evaluate(() => { const c = document.getElementById("tip"), r = c.getBoundingClientRect(), d = document.getElementById("temLegend");
   return { st: SBMM.temprobe.state(), core: !!c.querySelector("svg.tpcore rect"), box: [Math.round(r.left), Math.round(r.top), Math.round(r.width), Math.round(r.height)],
            inView: r.left >= 0 && r.top >= 0 && r.right <= innerWidth && r.bottom <= innerHeight, pe: getComputedStyle(c).pointerEvents,
            mark: d ? +d.dataset.mark : null, pick: SBMM.pick2d.state().chip }; });
@@ -7668,16 +7668,16 @@ for (let k = 0; k < 4 && !chipUp; k++) {
   if (k) mpt = (await mapPoint()) || mpt;
   await page.mouse.move(mpt.sx - 24 - 9 * k, mpt.sy - 18 + 7 * k);
   await page.mouse.move(mpt.sx, mpt.sy, { steps: 3 });
-  chipUp = await page.waitForFunction(() => { const t = document.getElementById("temTip"); return t && !t.hidden; }, null, { timeout: 5000 }).then(() => true, () => false);
+  chipUp = await page.waitForFunction(() => { const t = document.getElementById("tip"); return t && !t.hidden; }, null, { timeout: 5000 }).then(() => true, () => false);
 }
 if (!chipUp) console.log("  no TEM chip at the pointer — under it:", JSON.stringify(await page.evaluate(([x, y]) => {
-  const e = document.elementFromPoint(x, y), pk = document.getElementById("pickTip"), ll = SBMM.map.containerPointToLatLng([x - SBMM.map.getContainer().getBoundingClientRect().left, y - SBMM.map.getContainer().getBoundingClientRect().top]);
-  return { el: e ? (e.id || e.className || e.tagName).toString().slice(0, 80) : null, pickTip: !!(pk && pk.offsetParent), pickTipText: pk ? pk.textContent.slice(0, 60) : "",
+  const e = document.elementFromPoint(x, y), pk = document.getElementById("tip"), ll = SBMM.map.containerPointToLatLng([x - SBMM.map.getContainer().getBoundingClientRect().left, y - SBMM.map.getContainer().getBoundingClientRect().top]);
+  return { el: e ? (e.id || e.className || e.tagName).toString().slice(0, 80) : null, tip: SBMM.tip.state().src + " | " + SBMM.tip.state().text.slice(0, 60),
            picks: SBMM.pick2d.probe(ll).length, mode: SBMM.mode.current ? SBMM.mode.current() : null, mapOn: SBMM.layerState.isOn("invest", "tem_map"),
            sliceOn: SBMM.layerState.isOn("invest", "tem_slice"), current: !!(SBMM.temmaps.current && SBMM.temmaps.current()), v3d: SBMM.viewer3d.isOpen(),
            read: (SBMM.temmaps.readAt("map", ll.lng, ll.lat) || {}).head || null }; }, [mpt.sx, mpt.sy])));
 const m4 = await page.evaluate(() => {
-  const T = SBMM.temmaps, t = document.getElementById("temTip"), c = T.card(), csv = T.csv().trim().split("\n"), M = T.result();
+  const T = SBMM.temmaps, t = document.getElementById("tip"), c = T.card(), csv = T.csv().trim().split("\n"), M = T.result();
   return { chip: t && !t.hidden ? t.textContent : null, status: document.getElementById("sDem").textContent,
            overlay: document.querySelectorAll(".leaflet-analysis-pane img, .leaflet-pane.leaflet-analysis-pane img").length,
            card: !!(c && c.isConnected), cardTitle: c ? c.querySelector(".tmtitle").textContent : "", cardFind: c ? (c.querySelector(".tifind") || {}).textContent : "",
@@ -8806,6 +8806,187 @@ else {
   if (AR.idle > 1) { console.log("FAIL: an idle view rendered " + AR.idle + " frames with a shaded drape"); process.exit(1); }
 }
 await page.evaluate(() => { if (SBMM.viewer3d.isOpen()) SBMM.viewer3d.toggle(); });
+});
+
+await block("9f24. one chip at the pointer, one registry of readings (v58)", async () => {
+/* v58 — step 3 of docs/V56_REVIEW_PLAN.md. There were four chip elements and
+   a raster's value lived in four different places or nowhere. Now: ONE chip
+   (js/tip.js), and ONE registry of what a layer reads at a point
+   (js/readout.js) that the chip asks in both views and the Point card lists.
+   The 3D dwell card is gone: nothing opens by itself.
+   Every expected value here is the owning module's own accessor at the point
+   the chip was asked about, so the test moves with the data. */
+const wait = ms => page.waitForTimeout(ms);
+const tipState = () => page.evaluate(() => SBMM.tip.state());
+const hoverTo = async (sx, sy, want) => {
+  let st = null;
+  for (let k = 0; k < 4; k++) {
+    await page.mouse.move(sx - 30 - 7 * k, sy - 22 + 5 * k);
+    await page.mouse.move(sx, sy, { steps: 3 });
+    const ok = await page.waitForFunction(w => { const t = SBMM.tip.state(); return t.shown && (!w || t.src === w); }, want || null, { timeout: 4000 }).then(() => true, () => false);
+    st = await tipState();
+    if (ok) break;
+  }
+  return st;
+};
+const R0 = await page.evaluate(async () => {
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  const LS = SBMM.layerState, V = SBMM.viewer3d;
+  if (V.isOpen()) await V.toggle();
+  SBMM.mode.navigate();
+  if (SBMM.temws && SBMM.temws.off) SBMM.temws.off();
+  SBMM.map.closePopup();
+  const was = {};
+  for (const [g, l] of [["base", "slope_0_45"], ["base", "aspect_grid_north"], ["base", "elevation_tint"], ["base", "canopy"], ["base", "trees_detected"],
+                        ["framework", "runoff_cover"], ["framework", "dus"], ["framework", "piles"]]) was[g + "/" + l] = LS.isOn(g, l);
+  LS.set("base", "trees_detected", { on: false });
+  LS.set("framework", "dus", { on: true });
+  /* the mine area, where every grid has ground */
+  SBMM.map.setView([2129100, 6371500], 1, { animate: false });
+  await sleep(900);
+  return { was, readers: SBMM.readout.list(), old: ["pickTip", "pick3dTip", "temTip", "waterTip"].filter(id => document.getElementById(id)) };
+});
+console.log("READOUT v58: readers", JSON.stringify(R0.readers));
+for (const id of ["slope", "aspect", "hypso", "accum", "isopach", "cutfill", "drainage", "wherewater", "water"])
+  if (!R0.readers.includes(id)) { console.log("FAIL: no reader registered for " + id, R0.readers); process.exit(1); }
+if (R0.old.length) { console.log("FAIL: an old chip element is still in the page", R0.old); process.exit(1); }
+
+/* points to hover: bare ground, the inside of a decision unit, a point marker */
+const pts = await page.evaluate(() => {
+  const map = SBMM.map, r = map.getContainer().getBoundingClientRect(), F = SBMM.shell.frame();
+  const free = (sx, sy) => { const e = document.elementFromPoint(sx, sy); return !!(e && e.closest("#map") && !e.closest(".leaflet-popup, .leaflet-control")); };
+  let bare = null, inside = null, marker = null;
+  for (let sy = F.y + 70; sy < F.y + F.h - 90 && !(bare && inside && marker); sy += 9)
+    for (let sx = F.x + 70; sx < F.x + F.w - 90; sx += 9) {
+      if (!free(sx, sy)) continue;
+      const ll = map.containerPointToLatLng([sx - r.left, sy - r.top]);
+      if (!SBMM.slopeAt(ll.lng, ll.lat)) continue;
+      const c = SBMM.pick2d.probe(ll);
+      if (!c.length) { if (!bare) bare = { sx, sy, x: ll.lng, y: ll.lat }; continue; }
+      if (!inside && c[0].geo <= 1 && !c[0].marker && c.every(q => q.geo <= 1)) inside = { sx, sy, x: ll.lng, y: ll.lat, name: c[0].name };
+      if (!marker && c[0].marker) marker = { sx, sy, name: c[0].name };
+    }
+  return { bare, inside, marker };
+});
+console.log("READOUT points:", JSON.stringify(pts));
+if (!pts.bare || !pts.inside) { console.log("FAIL: no bare ground or no polygon interior on screen to hover"); process.exit(1); }
+
+/* A. with no analysis layer on, bare ground has nothing to say */
+const a0 = await (async () => { await page.mouse.move(pts.bare.sx - 20, pts.bare.sy - 20); await page.mouse.move(pts.bare.sx, pts.bare.sy, { steps: 3 }); await wait(500); return tipState(); })();
+if (a0.shown) { console.log("FAIL: a chip over bare ground with no layer to read", a0); process.exit(1); }
+
+/* B. each terrain raster reads at the pointer, and the value is the module's own */
+const seen = [];
+for (const [row, id, expect] of [
+  ["slope_0_45", "slope", (x, y) => { const q = SBMM.slopeAt(x, y); return fmt(q.slopeDeg, 1) + "°"; }],
+  ["aspect_grid_north", "aspect", (x, y) => { const q = SBMM.slopeAt(x, y); return fmt0(((q.aspectDeg % 360) + 360) % 360) + "°"; }],
+  ["elevation_tint", "hypso", (x, y) => fmt(SBMM.elev(x, y)[0], 1) + " ft"]]) {
+  await page.evaluate(r => SBMM.layerState.set("base", r, { on: true }), row);
+  const st = await hoverTo(pts.bare.sx, pts.bare.sy, "readout");
+  const chk = await page.evaluate(([fn]) => { const L0 = SBMM.readout.last(); return { last: L0, want: L0 ? (new Function("x", "y", "return (" + fn + ")(x, y)"))(L0.x, L0.y) : null }; }, [expect.toString()]);
+  console.log("  reading " + id + ":", JSON.stringify({ text: st.text, src: st.src, view: st.view, last: chk.last && chk.last.id, want: chk.want }));
+  if (!st.shown || st.src !== "readout" || st.view !== "2d" || !chk.last || chk.last.id !== id || st.text.indexOf(chk.want) < 0)
+    { console.log("FAIL: the " + id + " raster does not read at the pointer what its own accessor says", st, chk); process.exit(1); }
+  seen.push(st.text);
+  await page.evaluate(r => SBMM.layerState.set("base", r, { on: false }), row);
+}
+
+/* C. the order: land cover is an analysis put there on purpose, slope is the
+   terrain's own — with both on the cover answers, and the Point card lists both */
+const C = await page.evaluate(async ([x, y]) => {
+  const LS = SBMM.layerState, has = !!(LS.rec && LS.rec("framework", "runoff_cover") && SBMM.runoff && SBMM.runoff.coverRaster);
+  LS.set("base", "slope_0_45", { on: true });
+  if (!has) return { has };
+  LS.set("framework", "runoff_cover", { on: true });
+  const cv = await SBMM.runoff.coverRaster();
+  const i = Math.round((x - cv.x0) / cv.cell), j = Math.round((y - cv.y0) / cv.cell), cls = SBMM.runoff.classes().find(c => c.id === cv.data[j * cv.w + i]);
+  const all = SBMM.readout.at(x, y, { view: "2d" }).map(a => ({ id: a.id, value: a.value }));
+  return { has, cls: cls ? cls.name : null, all, card: SBMM.popups.forTerrain(x, y, null, "2d").replace(/<[^>]+>/g, " ") };
+}, [pts.bare.x, pts.bare.y]);
+if (C.has) {
+  const st = await hoverTo(pts.bare.sx, pts.bare.sy, "readout");
+  console.log("  cover over slope:", JSON.stringify({ text: st.text, all: C.all, cls: C.cls }));
+  if (!C.cls || C.all[0].id !== "cover" || !C.all.some(a => a.id === "slope") || st.text.indexOf(C.cls) < 0)
+    { console.log("FAIL: with land cover and slope both on, the cover does not answer first", C.all, st.text); process.exit(1); }
+  if (C.card.indexOf(C.cls) < 0 || !/land cover/.test(C.card)) { console.log("FAIL: the Point card does not list the land-cover reading", C.card); process.exit(1); }
+  await page.evaluate(() => SBMM.layerState.set("framework", "runoff_cover", { on: false }));
+}
+
+/* D. inside a polygon the polygon names itself and the raster rides along;
+   on a point marker the marker speaks alone */
+const d1 = await hoverTo(pts.inside.sx, pts.inside.sy, "feature");
+console.log("  inside a polygon:", JSON.stringify({ text: d1.text, src: d1.src }), "expected", pts.inside.name);
+if (d1.src !== "feature" || d1.html.indexOf("talso") < 0 || !/°/.test(d1.text) || d1.text.indexOf(pts.inside.name.split(" · ")[0]) < 0)
+  { console.log("FAIL: inside a polygon the chip does not carry the polygon's name and the reading under it", d1, pts.inside); process.exit(1); }
+if (pts.marker) {
+  const d2 = await hoverTo(pts.marker.sx, pts.marker.sy, "feature");
+  console.log("  on a marker:", JSON.stringify({ text: d2.text, src: d2.src }));
+  if (d2.src !== "feature" || d2.html.indexOf("talso") >= 0) { console.log("FAIL: a point marker's chip carries a raster line", d2); process.exit(1); }
+}
+/* nothing opens by itself in 2D: three seconds at rest, no popup */
+await hoverTo(pts.inside.sx, pts.inside.sy, "feature");
+await wait(3000);
+const rest2 = await page.evaluate(() => ({ popup: !!(SBMM.map._popup && SBMM.map._popup.isOpen()), chips: document.querySelectorAll("#tip").length, tip: SBMM.tip.state().shown }));
+if (rest2.popup || rest2.chips !== 1 || !rest2.tip) { console.log("FAIL: a resting pointer in 2D", rest2); process.exit(1); }
+/* a tool owns the pointer: no reading chip */
+const tool = await page.evaluate(async ([sx, sy]) => { SBMM.mode.set("measure.distance"); await new Promise(r => setTimeout(r, 200)); return SBMM.mode.current(); }, [0, 0]);
+await page.mouse.move(pts.bare.sx - 15, pts.bare.sy - 15); await page.mouse.move(pts.bare.sx, pts.bare.sy, { steps: 3 }); await wait(500);
+const inTool = await tipState();
+await page.evaluate(() => SBMM.mode.navigate());
+if (inTool.shown && inTool.src === "readout") { console.log("FAIL: the reading chip showed in a tool mode (" + tool + ")", inTool); process.exit(1); }
+
+/* E. 3D: the ground reads what it is wearing; nothing opens on a dwell; an
+   idle pointer renders nothing */
+const E0 = await page.evaluate(async ([x, y]) => {
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  const V = SBMM.viewer3d, LS = SBMM.layerState;
+  LS.set("framework", "dus", { on: false });
+  await V.toggle();
+  await new Promise(r => { const t0 = Date.now(); const k = () => (document.getElementById("v3dStatus").textContent === "" || Date.now() - t0 > 60000) ? r() : setTimeout(k, 200); k(); });
+  const wasAnim = V.animateWater(); V.animateWater(false);
+  const z = SBMM.elev(x, y)[0];
+  await V.lookFrom(x, y - 500, z + 900, x, y, z);
+  await sleep(1500);
+  const sel = document.getElementById("v3dStyle"), style0 = sel.value;
+  const p = V.project(x, y, z);
+  return { p, style0, wasAnim };
+}, [pts.bare.x, pts.bare.y]);
+const setStyle = v => page.evaluate(async s => { const sel = document.getElementById("v3dStyle"); sel.value = s; sel.dispatchEvent(new Event("change", { bubbles: true })); await new Promise(r => setTimeout(r, 1200)); }, v);
+await setStyle("ortho");
+await page.mouse.move(E0.p.x - 25, E0.p.y - 25); await page.mouse.move(E0.p.x, E0.p.y, { steps: 3 }); await wait(700);
+const e1 = await tipState();
+if (e1.shown && e1.src === "readout") { console.log("FAIL: the 3D ground wears the photograph and the chip read a raster", e1); process.exit(1); }
+await setStyle("slope");
+const e2 = await hoverTo(E0.p.x, E0.p.y, "readout");
+const e2c = await page.evaluate(() => { const L0 = SBMM.readout.last(), q = L0 ? SBMM.slopeAt(L0.x, L0.y) : null; return { last: L0, want: q ? fmt(q.slopeDeg, 1) + "°" : null }; });
+console.log("  3D slope reading:", JSON.stringify({ text: e2.text, view: e2.view, last: e2c.last && [e2c.last.id, Math.round(e2c.last.x), Math.round(e2c.last.y)], want: e2c.want }));
+if (!e2.shown || e2.src !== "readout" || e2.view !== "3d" || !e2c.last || e2c.last.id !== "slope" || e2.text.indexOf(e2c.want) < 0)
+  { console.log("FAIL: the 3D ground wearing the slope drape does not read slope at the pointer", e2, e2c); process.exit(1); }
+if (Math.hypot(e2c.last.x - pts.bare.x, e2c.last.y - pts.bare.y) > 40) { console.log("FAIL: the 3D reading is not at the point under the pointer", e2c.last, pts.bare); process.exit(1); }
+const r0 = await page.evaluate(() => SBMM.viewer3d.stats().renderCount);
+await wait(3200);
+const e3 = await page.evaluate(() => ({ renders: SBMM.viewer3d.stats().renderCount, card: !!document.getElementById("pick3dCard"), tip: SBMM.tip.state().shown, chips: document.querySelectorAll("#tip").length }));
+console.log("  3D at rest for 3 s:", JSON.stringify({ renders: e3.renders - r0, card: e3.card, tip: e3.tip }));
+if (e3.card) { console.log("FAIL: a card opened by itself over a resting pointer in 3D"); process.exit(1); }
+if (e3.renders - r0 > 1) { console.log("FAIL: a resting pointer rendered " + (e3.renders - r0) + " frames"); process.exit(1); }
+if (!e3.tip || e3.chips !== 1) { console.log("FAIL: the chip did not stay, or there are two", e3); process.exit(1); }
+/* a click on that ground: the Point card, with the reading on it */
+await page.mouse.click(E0.p.x, E0.p.y);
+await page.waitForSelector("#pick3dCard", { timeout: 8000 }).catch(() => {});
+const e4 = await page.evaluate(() => { const c = document.getElementById("pick3dCard"); return c ? c.textContent : null; });
+if (!e4 || !/Point/.test(e4) || !/Slope/.test(e4)) { console.log("FAIL: a click on the 3D ground did not open the Point card", e4); process.exit(1); }
+await page.keyboard.press("Escape");
+
+/* voice: a chip states, it does not instruct */
+for (const t of seen.concat([d1.text, e2.text])) if (/\b(click|drag|hover|use the|you can|to see)\b/i.test(t)) { console.log("FAIL: a chip carries an instruction: " + t); process.exit(1); }
+
+await page.evaluate(async ([was, style0, wasAnim]) => {
+  const sel = document.getElementById("v3dStyle"); sel.value = style0; sel.dispatchEvent(new Event("change", { bubbles: true }));
+  SBMM.viewer3d.animateWater(wasAnim);
+  await new Promise(r => setTimeout(r, 600));
+  if (SBMM.viewer3d.isOpen()) await SBMM.viewer3d.toggle();
+  for (const k in was) { const [g, l] = k.split("/"); SBMM.layerState.set(g, l, { on: was[k] }); }
+}, [R0.was, E0.style0, E0.wasAnim]);
 });
 
 await block("9x. drainage", async () => {
