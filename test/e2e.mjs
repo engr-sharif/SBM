@@ -8119,8 +8119,8 @@ const L = await page.evaluate(async () => {
   const styleSel = document.getElementById("v3dStyle");
   const setStyle = async v => { styleSel.value = v; styleSel.dispatchEvent(new Event("change", { bubbles: true })); await sleep(2500); };
   V.sunAsPhotographed(); await sleep(300);
-  const sunPhoto = V.sun();
-  await setStyle("hillshade"); const sunRelief = V.sun();
+  const sunPhoto = V.sun(), lightPhoto = V.stats().light;
+  await setStyle("hillshade"); const sunRelief = V.sun(), lightRelief = V.stats().light;
   await setStyle("ortho"); const sunBack = V.sun();
   V.sun(120, 60); await setStyle("hillshade"); const sunUser = V.sun(), autoUser = V.sunAuto();
   await setStyle("ortho");
@@ -8154,7 +8154,7 @@ const L = await page.evaluate(async () => {
   if (auto0) V.sunAsPhotographed(); else V.sun(sun0.az, sun0.el);
   await sleep(800);
   V.animateWater(wasAnim);
-  return { sunPhoto, sunRelief, sunBack, sunUser, autoUser, light1: s1.light, sh1: s1.shadows, inMap, day, idle, idleFits, light2: s2.light, sh2: s2.shadows, low,
+  return { sunPhoto, sunRelief, sunBack, sunUser, autoUser, lightPhoto, lightRelief, light1: s1.light, sh1: s1.shadows, inMap, day, idle, idleFits, light2: s2.light, sh2: s2.shadows, low,
            sh3: s3.shadows, light3: s3.light, sh4: s4.shadows };
 });
 console.log("LIGHT v40:", JSON.stringify(L));
@@ -8165,9 +8165,18 @@ if (L.sunRelief.az !== 315 || L.sunRelief.el !== 35)
 if (L.sunUser.az !== 120 || L.sunUser.el !== 60 || L.autoUser)
   { console.log("FAIL: a sun the user set did not survive a drape change", L.sunUser, L.autoUser); process.exit(1); }
 if (!L.light1 || !L.light1.atmos) { console.log("FAIL: the 3D view is not under js/atmos3d.js's sky"); process.exit(1); }
-/* level ground in full sun at 35 degrees returns about its albedo: (sun x sin 35 + sky) / pi */
-{ const k = (L.light1.sun * Math.sin(35 * Math.PI / 180) + L.light1.sky) / Math.PI;
-  if (!(k > 0.78 && k < 1.1)) { console.log("FAIL: the light is not balanced — sunlit level ground returns " + k.toFixed(2) + " of its albedo"); process.exit(1); } }
+/* v57: level ground in the sun, at the elevation the photograph was taken,
+   receives exactly pi — a Lambert surface there returns its own colour — and
+   the fill light points UP (it pointed north until v57: three's default +y) */
+if (!(Math.abs(L.lightPhoto.level - 1) < 0.002)) { console.log("FAIL: the light is not balanced — sunlit level ground at the photographed sun returns " + L.lightPhoto.level + " of its albedo"); process.exit(1); }
+if (!L.light1.fillUp || L.light1.fillUp[2] !== 1 || L.light1.fillUp[0] !== 0 || L.light1.fillUp[1] !== 0) { console.log("FAIL: the sky fill light does not point up", L.light1.fillUp); process.exit(1); }
+/* the photograph is shown as photographed: with the sun where the photo has it the relight is the identity,
+   the shadow map stands down on the ground and the lidar's occlusion is not laid over the photo's own ... */
+if (L.lightPhoto.relight.on !== 1 || L.lightPhoto.relight.near !== 1 || L.lightPhoto.relight.ao !== 0) { console.log("FAIL: with the sun as photographed the ground must be the photograph", L.lightPhoto.relight); process.exit(1); }
+/* ... a drape that is not a photograph is lit by the light itself ... */
+if (L.lightRelief.relight.on !== 0) { console.log("FAIL: a relief drape is being shown 'as photographed'", L.lightRelief.relight); process.exit(1); }
+/* ... and once the sun has moved well off, the shadow map and the occlusion are in force */
+if (L.light1.relight.on !== 1 || L.light1.relight.near !== 0 || L.light1.relight.ao !== 1) { console.log("FAIL: with the sun moved the photograph must be re-lit, shadows and occlusion included", L.light1.relight); process.exit(1); }
 if (!L.sh1.on || !(L.sh1.mapPx >= 2048) || !(L.sh1.halfFt >= 450)) { console.log("FAIL: realistic rendering has no shadow map", L.sh1); process.exit(1); }
 /* and something is IN it: a map no caster reached is what "no shadows" looks like from inside */
 if (!L.inMap || !(L.inMap.drawn > 5)) { console.log("FAIL: nothing was drawn into the shadow map", L.inMap); process.exit(1); }

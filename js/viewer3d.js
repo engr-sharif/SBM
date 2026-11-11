@@ -402,6 +402,54 @@ SBMM.viewer3d = (function () {
     if ((waterGroup || stageGroup) && SBMM.water3d) SBMM.water3d.tick(now);
   }
 
+  /* v57 — THE PHOTOGRAPH IS ALREADY LIT. Measured against the lidar (the
+     regression is in docs/V56_REVIEW_PLAN.md step 2): over open ground the
+     photograph's brightness follows the terrain's sun-facing term for a sun
+     due south, about as strongly as the 3D light itself would shade it. So
+     lighting the draped photograph "properly" shades it twice — a north-facing
+     bench came out at 0.64 of the map.
+
+     The photo-draped ground is therefore shown AS PHOTOGRAPHED and RE-lit: its
+     colour is multiplied by (the light now) / (the light it was photographed
+     in), both from the same normal. With the sun where the photograph has it
+     that ratio is exactly 1 — the 3D ground is the photograph — and moving the
+     sun brightens what turns toward it and darkens what turns away, which is
+     what relighting a photograph can honestly do.
+
+     The same goes for cast shadows: the photograph holds its own, cast by the
+     same trees and roofs. With the sun as photographed the shadow map stands
+     down on the ground (uPhotoNear = 1), and it fades in as the sun moves off
+     (0 by 18 degrees). js/terrain3d.js reads these in the ground's shader. */
+  const RELIGHT = {
+    uPhotoDir:  { value: new THREE.Vector3(0, -0.84, 0.54) },   // towards the photographed sun, scene axes
+    uPhotoSun:  { value: new THREE.Vector3(1, 1, 1) },          // its colour x strength
+    uPhotoSky:  { value: new THREE.Vector3(1, 1, 1) },          // the fill it came with, from above ...
+    uPhotoGnd:  { value: new THREE.Vector3(0.4, 0.4, 0.4) },    // ... and from below
+    uPhotoNear: { value: 1 },                                   // 1 = the sun is where the photograph has it
+    uRelight:   { value: 1 },                                   // 0 = three's own lighting (a drape that is not a photograph)
+    uLodBias:   { value: -0.5 },                                // the drape lookup's level-of-detail bias
+    uSharp:     { value: 1 }                                    // 1 = Catmull-Rom near the photograph's own scale
+  };
+  const RELIGHT_V = new THREE.Vector3();
+  function applyRelight() {
+    if (!SBMM.atmos3d) return;
+    const P = SBMM.atmos3d.light(SUN_PHOTO.el);
+    SBMM.atmos3d.sunDir(SUN_PHOTO.az, SUN_PHOTO.el, RELIGHT.uPhotoDir.value);
+    RELIGHT.uPhotoSun.value.set(P.sun.r, P.sun.g, P.sun.b).multiplyScalar(P.sunIntensity);
+    RELIGHT.uPhotoSky.value.set(P.sky.r, P.sky.g, P.sky.b).multiplyScalar(P.hemiIntensity);
+    RELIGHT.uPhotoGnd.value.set(P.ground.r, P.ground.g, P.ground.b).multiplyScalar(P.hemiIntensity);
+    SBMM.atmos3d.sunDir(sunAz, sunEl, RELIGHT_V);
+    const ang = Math.acos(clamp(RELIGHT_V.dot(RELIGHT.uPhotoDir.value), -1, 1)) * 180 / Math.PI;
+    const t = clamp((ang - 2) / 16, 0, 1);
+    RELIGHT.uPhotoNear.value = 1 - t * t * (3 - 2 * t);
+    /* only the photograph is "already lit"; any other drape is a picture of data */
+    RELIGHT.uRelight.value = (drapeStyleNow() === "ortho") ? 1 : 0;
+    RELIGHT.uSharp.value = quality() === "realistic" ? 1 : 0;
+    /* the lidar's occlusion is in the photograph too: it comes in with the relight */
+    if (SBMM.terrain3d && SBMM.terrain3d.setAo) SBMM.terrain3d.setAo(1 - RELIGHT.uPhotoNear.value);
+  }
+  function drapeStyleNow() { const s = $("v3dStyle"); return s ? s.value : "ortho"; }
+
   function applySun() {
     if (!sunLight) return;
     const az = sunAz * Math.PI / 180, el = sunEl * Math.PI / 180, d = 14000;
@@ -418,6 +466,7 @@ SBMM.viewer3d = (function () {
       sunLight.color.copy(L.sun); sunLight.intensity = L.sunIntensity;
       if (hemiLight) { hemiLight.color.copy(L.sky); hemiLight.groundColor.copy(L.ground); hemiLight.intensity = L.hemiIntensity; }
       if (skyMesh && skyMesh.material.uniforms) SBMM.atmos3d.sunDir(sunAz, sunEl, skyMesh.material.uniforms.uSun.value);
+      applyRelight();
       if (scene && scene.fog) { SBMM.atmos3d.horizonColour(sunEl, scene.fog.color); scene.background.copy(scene.fog.color); }
       /* the world beyond the survey is unlit (js/backdrop.js's own picture), so
          under a daylight sky it is lifted to sit in the same day — the same
@@ -575,6 +624,7 @@ SBMM.viewer3d = (function () {
       zRange: () => SBMM._zrSite || SBMM.demSite.zRange(),
       groundShadows,
       seeUniforms: () => { seeInit(); return SEE.u; },   // v51: see-through over the TEM survey only
+      relightUniforms: () => RELIGHT,                    // v57: the photograph is shown as photographed and re-lit
       shade: () => quality() === "realistic",     // v41: per-pixel relief on the photo-draped ground
       onSwap: () => {
         terrainMeshes = SBMM.terrain3d.records();
@@ -757,6 +807,7 @@ SBMM.viewer3d = (function () {
   function setQuality(q) {
     q = q === "standard" ? "standard" : "realistic";
     if (SBMM.view && SBMM.view.pref) SBMM.view.pref("quality", q);
+    applyRelight();                    // v57: the sharper drape filter is the realistic rendering's
     const el = $("v3dQuality");
     if (el && el.value !== quality()) el.value = quality();
     if (scene) {
@@ -913,6 +964,7 @@ SBMM.viewer3d = (function () {
 
   async function setStyle(kind) {
     sunFollowStyle(kind);
+    applyRelight();                    // v57: only the photograph is shown as photographed
     if (lodOn) {
       await SBMM.terrain3d.setStyle(kind);
       terrainMeshes = SBMM.terrain3d.records();
@@ -4292,6 +4344,11 @@ SBMM.viewer3d = (function () {
     camera.updateMatrixWorld();
 
     hemiLight = new THREE.HemisphereLight(0xC9E2F0, 0x2B3238, 0.85);
+    /* v57: UP. A hemisphere light's "sky" is where its position points, the
+       default is three's +y, and +y in this scene is NORTH — so since v15 a
+       north-facing slope was lit by the sky, a south-facing one by the
+       "ground" colour, and level ground got half of each. */
+    hemiLight.position.set(0, 0, 1);
     scene.add(hemiLight);
     sunLight = new THREE.DirectionalLight(0xFFF3DD, 1.15);
     scene.add(sunLight);
@@ -4954,7 +5011,15 @@ SBMM.viewer3d = (function () {
     const bar = el.querySelector(".v3dbar");
     const bh = bar ? bar.offsetHeight : 40;
     el.style.setProperty("--v3dbarH", bh + "px");   // the bar wraps on narrow docks
-    const w = Math.max(1, el.clientWidth), h = Math.max(1, el.clientHeight - bh);
+    /* v57: THE CANVAS'S OWN BOX, not "the view less the bar". Since v26 the
+       3D bar floats over a full-height canvas on the desktop, and the buffer
+       went on being sized as if the bar took its strip: 838 rows drawn and
+       stretched to 880 by CSS. Everything in 3D was 5 % too tall, and the
+       picture was resampled once more on its way to the screen. In field
+       mode the canvas really does sit under the bar, and its box says so. */
+    const cvEl = renderer.domElement;
+    const w = Math.max(1, cvEl.clientWidth || el.clientWidth),
+          h = Math.max(1, cvEl.clientHeight || (el.clientHeight - bh));
     /* a window moved to another screen changes devicePixelRatio, and v24's
        desktop cap is a preference that can move under us */
     const pr = pixelRatio();
@@ -5222,7 +5287,14 @@ SBMM.viewer3d = (function () {
                  enabled: !!(renderer && renderer.shadowMap.enabled), lightCasts: !!(sunLight && sunLight.castShadow) };
       })(),
       light: sunLight ? { sun: +sunLight.intensity.toFixed(2), sky: hemiLight ? +hemiLight.intensity.toFixed(2) : 0,
-                          atmos: !!(skyMesh && skyMesh.userData.atmosSky) } : null,
+                          atmos: !!(skyMesh && skyMesh.userData.atmosSky),
+                          /* v57: what level ground receives, as a share of pi (1 with the sun as photographed);
+                             the fill light's up vector; and the photograph's relight */
+                          level: SBMM.atmos3d && SBMM.atmos3d.levelOf ? +SBMM.atmos3d.levelOf(sunEl).toFixed(4) : null,
+                          fillUp: hemiLight ? hemiLight.position.toArray() : null,
+                          relight: { on: RELIGHT.uRelight.value, near: +RELIGHT.uPhotoNear.value.toFixed(3),
+                                     ao: SBMM.terrain3d && SBMM.terrain3d.ao ? +SBMM.terrain3d.ao().toFixed(3) : null,
+                                     lodBias: RELIGHT.uLodBias.value, sharp: RELIGHT.uSharp.value } } : null,
       isopachDraped: !!drapeMesh.isopach,
       waterDraped: !!drapeMesh.water,
       /* v13: the animated flow and the stage surface */

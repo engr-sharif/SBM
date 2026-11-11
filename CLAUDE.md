@@ -6295,3 +6295,97 @@ bar's stacking context).
 
 `SBMM.myWork.counts()` counts EA's reference surfaces as "drawings" (they are
 store features); the hidden-class row counts the user's own features only.
+
+## v57 — the 3D ground is the photograph
+
+Contract: `docs/V56_REVIEW_PLAN.md` step 2. `light()` / `levelOf()` / `REF_EL`
+in `js/atmos3d.js`; `RELIGHT` / `applyRelight()`, the fill light's direction and
+`resize()` in `js/viewer3d.js`; `relightPatch()` (`GLSL_RELIGHT`, `GLSL_DRAPE`),
+the multi-level `drapePlan` / `drapeCompose` and `setAo` in `js/terrain3d.js`;
+`LEAF_LEVEL` in `js/trees3d.js`. Harness section **`fidelity`** in
+`test/terrain3d.mjs`; block 9f14's balance assertion moved to the new rule. No
+kernel work.
+
+**Measured before** (the 2D map and a straight-down 3D view of the same ground
+at the same scale, the photograph alone as the reference): brightness 0.83 /
+0.84 / 0.64 of the photograph and "as if blurred by" 0.61 / 0.84 / 0.66 px at
+the mine area at 1 and 0.5 ft/px and the ABP at 0.25. **After: 1.01 / 1.00 /
+1.00 and 0.41 / 0.51 / 0.34 px.**
+
+Six causes, each its own fix. Every one will be walked into again:
+
+- **THE PHOTOGRAPH IS ALREADY LIT.** Regressing the photograph's brightness on
+  the terrain's sun-facing term over 3.9 M open-ground cells, for suns all
+  round the compass, peaks at azimuth 180 (an independent confirmation of "as
+  photographed") with a log-log slope of 0.52, and a Lambert-plus-fill fit
+  keeps improving to a direct share of 0.7. The photo carries terrain shading
+  about as strong as the 3D light applies, so lighting it "properly" shades it
+  twice. **The photo-draped ground is shown AS PHOTOGRAPHED and RE-lit**: in
+  the ground's shader the albedo is multiplied by (the light now) / (the light
+  it was photographed in), both on the same normal. At the photographed sun
+  the ratio is exactly 1. It is rolled off above 1 and floored at 0.3.
+  `RELIGHT.uRelight` is 1 only while the drape is the orthophoto — any other
+  drape is a picture of data and is lit by the light itself.
+- **THE SHADOW MAP AND THE LIDAR'S OCCLUSION COME IN WITH THE RELIGHT.** The
+  photograph holds its own cast shadows (the same trees and roofs) and its own
+  occlusion. `uPhotoNear` is 1 with the sun as photographed and 0 by 18
+  degrees off; the shader mixes the sun-with-shadow-map toward the
+  sun-without, and `SBMM.terrain3d.setAo(1 - near)` scales the v41 occlusion.
+  Trees and buildings still cast into the map; the GROUND ignores it at the
+  default sun. **A tree's shadow at the default sun is the photograph's.**
+- **THE FILL LIGHT POINTED NORTH.** A `HemisphereLight` takes its "sky" from
+  its own position, three's default is +y, and +y here is north. Since v15 a
+  north-facing slope was lit by the sky and level ground by half of it.
+  `hemiLight.position.set(0, 0, 1)`.
+- **THE LIGHT IS LEVELLED BY ONE RULE**: level ground in the sun at the
+  elevation the photograph was taken (`REF_EL` 33, which must equal
+  `SUN_PHOTO.el`) receives exactly pi (`LEVEL_K`), so a Lambert surface there
+  returns its own colour. v40's "0.86 of its albedo" was 0.77 once the sky's
+  colour and the fill's direction were counted. Everything that is not the
+  photograph (roofs, trees, solids) is lit by this. `LEAF_LEVEL` (0.78) keeps
+  the tree crowns at the brightness they were drawn at — a crown lit to its
+  full albedo reads as a pale model standing on a photograph.
+- **THE CANVAS WAS STRETCHED 5 %.** Since v26 the 3D bar floats over a
+  full-height canvas (`body:not(.field) #v3dCanvas{top:0;height:100%}`) while
+  `resize()` went on sizing the drawing buffer as "the view less the bar": 838
+  rows stretched to 880 by CSS. Everything in 3D was 5 % too tall and
+  resampled once more. The buffer is now the canvas's own client box. **A
+  harness that measures a distance in 3D pixels must do it in BOTH axes** —
+  the scale check that missed this for eight months measured east only.
+- **A TILE STRADDLING THE EDGE OF THE 3-IN PHOTOGRAPH SKIPPED THE 6-IN ONE.**
+  `drapePlan` took the finest level with ANY sub-tile and composed it over the
+  tile's own-level ancestor, so the part the ABP crop does not cover showed
+  1 ft/px stretched to 0.25 — all the way round the crop's border. The plan
+  now carries `mid`: every level between, painted coarse to fine, whenever the
+  finest leaves part of the square uncovered.
+
+**The lookup** (`sbmmDrape` in `GLSL_DRAPE`, WebGL2 only): a level-of-detail
+bias of -0.5 everywhere, and under two texels a pixel a Catmull-Rom
+reconstruction of the top level (9 bilinear taps) instead of bilinear —
+realistic rendering only (`uSharp`). The biased trilinear lookup is sampled
+UNCONDITIONALLY (implicit derivatives must not sit in a branch — the v41 rule);
+the Catmull-Rom taps use `textureLod`, so their branch is legal. The edge
+dither and the detail noise are spliced in after the lookup at the
+`/*sbmm:after-map*/` marker, not after `#include <map_fragment>`, which the
+patch has replaced.
+
+Three things about measuring this:
+
+- **A perspective camera over a hillside displaces the ground by its own
+  relief.** At the default 55-degree lens and 1.5x relief that read as a 2–3 ft
+  "offset" between 2D and 3D on the mine slopes. The `fidelity` section sets
+  the narrowest lens and true relief for its duration; do not chase that
+  offset as a registration error.
+- **The sharpness number is normalised by brightness** (a darker picture has a
+  smaller Laplacian) and stated as the Gaussian blur of the 2D frame that
+  matches the 3D frame. A raw Laplacian ratio at the photograph's own scale is
+  dominated by pixel noise that any resampling removes.
+- **Image tiles above the finest level are centred on the tile lattice's
+  NODES** (`tools/build_tiles.py` `sample_box` averages a box centred on the
+  node) and drawn over the cell — half a texel north-east. It is under a
+  screen pixel wherever such a level is the one drawn, which is why it was
+  left alone; re-cutting 21 MB of tiles would not show.
+
+`stats().light` gained `level`, `fillUp` and `relight {on, near, ao, lodBias,
+sharp}`. **Cannot be confirmed on this box**: frame time on a real GPU with the
+nine-tap lookup.
