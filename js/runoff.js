@@ -911,6 +911,11 @@ SBMM.runoff = (function () {
     const c = [0, 1, 2].map(i => Math.round(a[1][i] + (b[1][i] - a[1][i]) * t));
     return `rgb(${c[0]},${c[1]},${c[2]})`;
   }
+  /* v58: a catchment's chip on the runoff-depth choropleth (its outlet
+     record) — the 2D tooltip and the 3D tag both read it */
+  function tipFor(c) {
+    return `${esc(c.name)} · ${fmt(c.Q_in, 2)} in · ${fmt(c.volume_acft, 1)} ac-ft`;
+  }
   function paintDepth() {
     if (!groups.depth) return;
     groups.depth.clearLayers();
@@ -925,7 +930,7 @@ SBMM.runoff = (function () {
           pane: "vectors", color: col, weight: 1.2, opacity: .9,
           fillColor: col, fillOpacity: .34
         });
-        pl.bindTooltip(`${esc(c.name)} · ${fmt(c.Q_in, 2)} in · ${fmt(c.volume_acft, 1)} ac-ft`,
+        pl.bindTooltip(tipFor(c),
                        { sticky: true, className: "ctip" });
         pl.on("click", ev => {
           L.DomEvent.stopPropagation(ev);
@@ -1065,7 +1070,7 @@ SBMM.runoff = (function () {
       for (const ring of s.rings)
         for (const run of (runsOf ? runsOf(ring) : [ring]))
           out.push({ ring: run, color: depthColor(c.Q_in), width: 3, closed: false,
-                     label: c.label, props,
+                     label: c.label, outlet: c, props,
                      geom: { type: "LineString", coordinates: run } });
     }
     return out;
@@ -1231,7 +1236,7 @@ SBMM.runoff = (function () {
   }
 
   return {
-    build, wire, cmd, dialog, run, report, csv, drapeSpec, rings3d,
+    build, wire, cmd, dialog, run, report, csv, drapeSpec, rings3d, tipFor,
     assignCover, drawCoverArea, overrides, classes, classByKey, coverRaster,
     storms, stormOf, depthFor, idfFor, provisional, settings,
     result: () => R, hasResult: () => !!R, isBuilt: () => built,

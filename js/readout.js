@@ -103,6 +103,23 @@ SBMM.readout = (function () {
     }
     return null;
   }
+  /* THE CARD a click on bare ground opens (3b). A reader may carry its own —
+       card(x, y, ctx) -> { html, title?, at?: [x, y], className?, maxWidth?, minWidth? }
+     — where a general "Point" card would say less than the layer can (the TEM
+     probe's profile, the water's description, a tree). The first reader that
+     answers AND has one wins; otherwise the answer is null and the caller
+     opens the Point card, which lists every reading. */
+  function cardAt(x, y, ctx) {
+    ctx = ctx || { view: "2d" };
+    if (!isFinite(x) || !isFinite(y)) return null;
+    for (const r of readers) {
+      if (!r.card || !isOn(r, ctx)) continue;
+      let c = null;
+      try { c = r.card(x, y, ctx); } catch (e) { c = null; }
+      if (c && c.html) { c.id = r.id; return c; }
+    }
+    return null;
+  }
   /* the rows the Point card lists */
   function rows(x, y, ctx) {
     const out = [];
@@ -169,11 +186,53 @@ SBMM.readout = (function () {
     const ll = map.mouseEventToLatLng(ev);
     hover("2d", ll.lng, ll.lat, ev.clientX, ev.clientY);
   }
+  /* ---------------------------------------------------------------- */
+  /* 2D: a click on bare ground                                        */
+  /* ---------------------------------------------------------------- */
+  /* The 3D view has always answered a click on the ground with the Point
+     card; the 2D map answered with nothing (the Inspect tool, or a right
+     click, were the only ways to it), and three layers each listened for the
+     map's click on their own (trees, the TEM slice, the rim band). ONE handler
+     now, with three rules:
+       · a click that CLOSED something — a popup, a selection — only closes it;
+       · a feature that answers a click owns it (js/pick2d.js has already
+         fired it; the map's own click still arrives here, as Leaflet always
+         sends it);
+       · the card waits out a double-click, which ends a sketch in this app
+         and is not a question. */
+  const DBL_MS = 230;
+  let downState = null, clickT = 0;
+  function noteDown() {
+    const map = SBMM.map;
+    downState = { popup: !!(map._popup && map._popup.isOpen && map._popup.isOpen()),
+                  sel: !!(SBMM.store && SBMM.store.selectedFeature && SBMM.store.selectedFeature()) };
+  }
+  function click2d(ev) {
+    const map = SBMM.map;
+    clearTimeout(clickT);
+    if (!ev || !ev.latlng || !navigating()) return;
+    if (downState && (downState.popup || downState.sel)) return;
+    if (SBMM.pick2d && SBMM.pick2d.probe && SBMM.pick2d.probe(ev.latlng).some(c => c.acts)) return;
+    const x = ev.latlng.lng, y = ev.latlng.lat;
+    clickT = setTimeout(() => {
+      if (!navigating() || (map._popup && map._popup.isOpen && map._popup.isOpen())) return;   // something else answered
+      const c = cardAt(x, y, { view: "2d" });
+      if (!c) { if (isFinite(SBMM.elev(x, y)[0])) SBMM.tools.inspectAt(x, y); return; }
+      L.popup({ className: c.className || "", maxWidth: c.maxWidth || 320, minWidth: c.minWidth || 50 })
+        .setLatLng(c.at ? [c.at[1], c.at[0]] : [y, x])
+        .setContent(c.title ? `<div class="pop"><div class="pop-t">${T().esc(c.title)}</div>${c.html}</div>` : c.html)
+        .openOn(map);
+    }, DBL_MS);
+  }
+
   function wire() {
     const map = SBMM.map;
     if (!map || wire.done) return;
     wire.done = true;
     const box = map.getContainer();
+    box.addEventListener("pointerdown", noteDown, true);
+    map.on("click", click2d);
+    map.on("dblclick zoomstart", () => clearTimeout(clickT));
     box.addEventListener("mousemove", ev => {
       last = ev;
       if (raf) return;
@@ -187,6 +246,6 @@ SBMM.readout = (function () {
     }
   }
 
-  return { register, unregister, at, top, rows, hover, leave, wire, ORDER,
+  return { register, unregister, at, top, rows, cardAt, hover, leave, wire, ORDER,
            list: () => readers.map(r => r.id), stats: () => Object.assign({}, stats), last: () => lastHover };
 })();

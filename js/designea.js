@@ -366,6 +366,8 @@ SBMM.designEA = (function () {
     });
   }
 
+  /* v58: tip and popupPoly are exported — the 3D tag reads the same chip and
+     the same card the 2D boundary binds */
   function tip(p) {
     let t = `<b>${esc(p.name)}</b><br><span style="opacity:.75">${esc(p.sheet)}</span>`;
     if (p.area_sf) t += ` · ${fmt0(p.area_sf)} ft²`;
@@ -445,6 +447,6 @@ SBMM.designEA = (function () {
              sheets: D.sheets };
   }
 
-  return { build, volumeOf, rings3d, snapPaths, provenance, counts: null,
+  return { build, volumeOf, rings3d, snapPaths, provenance, counts: null, tip, popupPoly,
            autoFootprints, hotFootprint };
 })();

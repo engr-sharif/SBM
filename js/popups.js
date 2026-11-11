@@ -400,6 +400,26 @@ SBMM.popups = (function () {
       + `(${fmt(mo.z, 2)} ft) · the rim stays the surveyed invert</span><br>`;
   }
 
+  /* v58: a decision unit's card, in 2D and 3D — net of its holes (DU-3 has
+     two), and the volume button names THIS polygon by index, because two DUs
+     share a name with a second, smaller part */
+  function forDU(d, di) {
+    const A = polyArea(d.ring) - (d.holes || []).reduce((s, h) => s + polyArea(h), 0);
+    const parts = SBMM_DATA.dus.filter(q => q.name === d.name).length;
+    return `<b>${esc(d.name)}</b>${parts > 1 ? ` <span style="opacity:.7">· one of ${parts} parts</span>` : ""}<br>${fmt(A / 43560, 2)} ac · ${fmt0(A)} ft²
+        <div class="pop-actions"><span class="minib" onclick="SBMM.tools.volumeOfRing(${di})">volume vs. perimeter TIN</span></div>`;
+  }
+  /* v58: a waste pile's card, in 2D and 3D; idx is its SBMM.pileIndex slot
+     (-1 for a traced Fig-2 pile, which the button then names) */
+  function forPile(p, label, idx) {
+    const pr = p.props || {};
+    let html = `<b>${esc(label)}</b>`;
+    if (pr.pile_vol_yd3_best) html += `<br>whole-pile best ${fmt0(pr.pile_vol_yd3_best)} yd³ (${fmt0(pr.pile_vol_yd3_low)}–${fmt0(pr.pile_vol_yd3_high)})<br>
+        footprint ${pr.pile_footprint_area_ac} ac · mean ${pr.pile_mean_height_ft} ft · max ${pr.pile_max_height_ft} ft`;
+    html += `<div class="pop-actions"><span class="minib" onclick="SBMM.tools.volumeOfPile(${idx >= 0 ? idx : `'${esc(p.name || "")}'`})">measure volume now</span></div>`;
+    return html;
+  }
+
   function forStorm(n, c) {
     const S = SBMM.storm;
     if (!S || !S.data()) return "<b>Storm network</b><br><span style=\"opacity:.7\">not in this build</span>";
@@ -687,6 +707,6 @@ SBMM.popups = (function () {
   }
 
   return { forDataset, forGis, forCad, forSample, forTree, forFeature, forTerrain, forStorm,
-           forDrainage, forWhereWater, forRunoff, forStream,
+           forDrainage, forWhereWater, forRunoff, forStream, forDU, forPile,
            attrTable, coordLine, action, run, btn, actions, copyText };
 })();

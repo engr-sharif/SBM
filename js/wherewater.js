@@ -367,6 +367,13 @@ SBMM.whereWater = (function () {
     SBMM.labels.removeOwner("wherewater");
   }
 
+  /* v58: a class's chip (its record, or its id) — the 2D tooltip and the 3D
+     tag both read it */
+  function tipFor(c) {
+    if (c != null && typeof c !== "object") c = classRec(c);
+    return `${esc(c.label)} · ${ac(c.area_ft2)} ac`;
+  }
+
   function paint() {
     if (!R || !group) return;
     clearLayers();
@@ -378,7 +385,7 @@ SBMM.whereWater = (function () {
             pane: "vectors", color: c.color, weight: EDGE_W, opacity: .9,
             fillColor: c.color, fillOpacity: FILL_OP
           });
-          pl.bindTooltip(`${esc(c.label)} · ${ac(c.area_ft2)} ac`, { sticky: true, className: "ctip" });
+          pl.bindTooltip(tipFor(c), { sticky: true, className: "ctip" });
           pl.on("mouseover", () => pl.setStyle({ fillOpacity: FILL_OP + 0.22, weight: EDGE_W + 1 }));
           pl.on("mouseout", () => pl.setStyle({ fillOpacity: FILL_OP, weight: EDGE_W }));
           pl.on("click", ev => {
@@ -593,7 +600,7 @@ SBMM.whereWater = (function () {
         for (const ring of (s.rings || []))
           for (const run2 of SBMM.drainage.groundRuns(ring))
             out.push({ ring: run2, color: c.color, width: 3, closed: false,
-                       props: props(c, s), cls: c.id,
+                       props: props(c, s), cls: c.id, rec: c,
                        geom: { type: "LineString", coordinates: run2 } });
     return out;
   }
@@ -627,7 +634,7 @@ SBMM.whereWater = (function () {
 
   return {
     build, wire, cmd, run, paint, showCard, markStale, show3d,
-    classes, classRec, classAt, rings3d, geoFeatures, dxfEntities, csv, exportGeoJSON,
+    classes, classRec, classAt, rings3d, tipFor, geoFeatures, dxfEntities, csv, exportGeoJSON,
     barrels, hermanTerminals, directIntoImpoundment,
     result: () => R, hasResult: () => !!R, isStale: () => stale,
     CLASSES, NOTE

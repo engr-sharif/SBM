@@ -147,7 +147,10 @@ SBMM.pick3d = (function () {
           if (!f) return null;
           /* v58: "name · type", the 2D chip's words for a store feature */
           return { title: (f.name || f.type) + (f.type ? " · " + f.type : ""), html: SBMM.popups.forFeature(f),
-                   featureId: f.id, xyz: [f.pts[0][0], f.pts[0][1]] };
+                   featureId: f.id, xyz: [f.pts[0][0], f.pts[0][1]],
+                   /* the user's own drawing: a click selects it and the
+                      Inspector is its card (a photo keeps its picture) */
+                   own: f.type !== "photo" };
         }
       };
       /* v23 Phase B — the fence strip. The card is the fence's own popup with
@@ -332,6 +335,29 @@ SBMM.pick3d = (function () {
         object3d: o, kind: "label", priority: 3,
         hit() { return { title: t.title || "Label", html: t.html || ("<b>" + esc(t.title || "") + "</b>") }; }
       };
+      /* v58 (3b): ONE object that answers for itself, and one that answers
+         per element. The tag carries what the 2D layer says about the same
+         thing — its chip and its card, from the same functions — so a kind
+         that is pickable in 2D needs no case of its own here:
+           { kind: "card",  title, chip, html: () => string, xyz?, own? }
+           { kind: "cards", at(i, hit) -> { title, chip, html, xyz?, own? } | null }
+         `html` is a FUNCTION (or `at` returns one): the card is built when it
+         is opened, as a Leaflet popup's is, not on every hover. For `cards`,
+         `i` is the hit's vertex / segment / instance index and `hit` the whole
+         record (`face` for a mesh with a face-to-owner array). */
+      case "card": return {
+        object3d: o, kind: "card", priority: t.priority != null ? t.priority : P,
+        hit() { return { title: t.title || "", chip: asChip(t.chip), html: t.html, xyz: t.xyz, own: t.own }; }
+      };
+      case "cards": return {
+        object3d: o, kind: "cards", priority: t.priority != null ? t.priority : P,
+        hit(ix) {
+          let r = null;
+          try { r = t.at(ix && ix.index != null ? ix.index : 0, ix || {}); } catch (e) { r = null; }
+          if (!r) return null;
+          return { title: r.title || "", chip: asChip(r.chip), html: r.html, xyz: r.xyz, own: r.own };
+        }
+      };
       case "culturalPt": return {
         object3d: o, kind: "cultural", priority: P,
         hit(ix) {
@@ -408,12 +434,15 @@ SBMM.pick3d = (function () {
   }
 
   /* Nearest registered object under the pointer, or null. Terrain is excluded:
-     it is the fallback, tested separately and only on a click. */
-  function raycast(e) {
-    if (!ctx || !reg.size) return null;
+     it is the fallback, tested separately and only on a click.
+     `raycastAll` is the same scan keeping every object the ray met — best
+     first — for a click's "also here" row. */
+  function scan(e, all) {
+    if (!ctx || !reg.size) return all ? [] : null;
     setThresholds();
     ctx.raycaster.setFromCamera(ndc(e), ctx.camera);
     let best = null;
+    const list = all ? [] : null;
     for (const entry of reg.values()) {
       if (!entry.object3d.visible) continue;
       HITS.length = 0;
@@ -430,15 +459,20 @@ SBMM.pick3d = (function () {
       /* Priority first, distance second. Two objects the ray genuinely passes
          through at almost the same depth (a depth stick and its marker cap) are
          resolved by what the user is more likely to be aiming at. */
-      if (!best || entry.priority > best.entry.priority
-          || (entry.priority === best.entry.priority && h.distance < best.hit.distance)) {
-        /* an InstancedMesh reports its instance, not an index */
-        best = { entry, hit: { distance: h.distance, index: h.index != null ? h.index : h.instanceId, point: h.point.clone(),
-                               face: h.faceIndex } };
-      }
+      const better = !best || entry.priority > best.entry.priority
+          || (entry.priority === best.entry.priority && h.distance < best.hit.distance);
+      if (!better && !all) continue;
+      /* an InstancedMesh reports its instance, not an index */
+      const got = { entry, hit: { distance: h.distance, index: h.index != null ? h.index : h.instanceId, point: h.point.clone(),
+                                  face: h.faceIndex } };
+      if (better) best = got;
+      if (all) list.push(got);
     }
-    return best;
+    if (!all) return best;
+    return list.sort((a, b) => (b.entry.priority - a.entry.priority) || (a.hit.distance - b.hit.distance));
   }
+  const raycast = e => scan(e, false);
+  const raycastAll = e => scan(e, true);
 
   /* ------------------------------------------------------------------ */
   /* hover                                                               */
@@ -463,7 +497,10 @@ SBMM.pick3d = (function () {
     const got = raycast(e);
     if (SBMM.viewer3d && SBMM.viewer3d.noteHover) SBMM.viewer3d.noteHover(performance.now() - _t);
     const id = got ? got.entry.id : null;
-    const idx = got ? got.hit.index : null;
+    /* v58: one FEATURE of a merged object is one hover, whichever of its
+       segments or faces is under the pointer — so the chip is not rewritten
+       and the highlight not rebuilt as the pointer runs along a boundary */
+    const idx = got ? elemKey(got.entry.object3d, got.hit) : null;
     /* v53: a live surface answers for the point, on every move */
     if (got && got.entry.live) {
       if (hovered && !(hovered.live && hovered.id === id)) clearHover(true);
@@ -491,7 +528,7 @@ SBMM.pick3d = (function () {
     try { info = got.entry.hit(got.hit); } catch (err) { info = null; }
     if (!info) { ctx.dom.style.cursor = ""; return; }
     hovered = { id, index: idx, obj: got.entry.object3d };
-    highlight(got.entry.object3d, true);
+    highlight(got.entry.object3d, true, got.hit);
     ctx.dom.style.cursor = "pointer";
     showTip(info, e);
     ctx.requestRender();
@@ -511,18 +548,91 @@ SBMM.pick3d = (function () {
     }
     hideTip();
   }
-  /* Highlight without allocating: the emissive/opacity change is done on the
-     material already there, and the original values are stashed on the object
-     the first time it is highlighted. */
-  function highlight(o, on) {
-    if (!o || !o.material) return;
+  /* v58 (3b): THE HOVER LIGHTS THE FEATURE, NOT THE LAYER. A whole layer is
+     often ONE object — every lot line in one LineSegments, every building in
+     one mesh, every well in one Points — and recolouring its material turned
+     the entire layer yellow when one feature was under the pointer. Where an
+     object maps its elements to features (`userData.owner`: one entry per
+     segment, or per face) or is a point cloud, the highlight is a separate
+     object made from that ONE feature's own geometry; an object that IS one
+     feature is still tinted in place, as before. Built when the hovered
+     feature changes, never per move. */
+  function elemKey(o, hit) {
+    const own = o.userData && o.userData.owner;
+    if (own && o.isLineSegments && hit.index != null) return "o" + own[Math.floor(hit.index / 2)];
+    if (own && o.isMesh && !o.isInstancedMesh && hit.face != null) return "o" + own[hit.face];
+    return hit.index;
+  }
+  const HL = 0xFFD34D;
+  let hlObj = null;
+  function dropHl() {
+    if (!hlObj) return;
+    if (hlObj.parent) hlObj.parent.remove(hlObj);
+    hlObj.traverse(q => { if (q.geometry) q.geometry.dispose(); if (q.material) q.material.dispose(); });
+    hlObj = null;
+  }
+  function elementHl(o, hit) {
+    const g = o.geometry, pos = g && g.attributes && g.attributes.position, own = o.userData && o.userData.owner;
+    if (!pos || !hit) return null;
+    const A = pos.array, st = pos.itemSize || 3;
+    let out = null;
+    const take = (dst, v) => { dst.push(A[v * st], A[v * st + 1], A[v * st + 2]); };
+    if (o.isPoints && pos.count > 1 && hit.index != null) {
+      const P = []; take(P, hit.index);
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute("position", new THREE.Float32BufferAttribute(P, 3));
+      const m0 = o.material || {};
+      out = new THREE.Points(geo, new THREE.PointsMaterial({ color: HL, size: (m0.size || 6) * 1.8,
+        sizeAttenuation: !!m0.sizeAttenuation, depthTest: false, transparent: true, opacity: 0.95 }));
+    } else if (own && o.isLineSegments && hit.index != null) {
+      const id = own[Math.floor(hit.index / 2)], P = [];
+      for (let k = 0; k < own.length; k++) if (own[k] === id) { take(P, 2 * k); take(P, 2 * k + 1); }
+      if (!P.length) return null;
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute("position", new THREE.Float32BufferAttribute(P, 3));
+      out = new THREE.LineSegments(geo, new THREE.LineBasicMaterial({ color: HL, depthTest: false, transparent: true, opacity: 0.95 }));
+      /* where the layer is drawn with a width, so is its highlight */
+      if (SBMM.lines3d && SBMM.lines3d.widen && o.material && o.material.visible === false) {
+        out.userData.wideOpts = { width: 3.4, casing: 0 };
+        try { SBMM.lines3d.widen(out); } catch (e) { /* the plain line is highlight enough */ }
+      }
+    } else if (own && o.isMesh && !o.isInstancedMesh && hit.face != null) {
+      const id = own[hit.face], ix = g.index ? g.index.array : null, P = [];
+      for (let f = 0; f < own.length; f++) if (own[f] === id)
+        for (let c = 0; c < 3; c++) take(P, ix ? ix[3 * f + c] : 3 * f + c);
+      if (!P.length) return null;
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute("position", new THREE.Float32BufferAttribute(P, 3));
+      out = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: HL, transparent: true, opacity: 0.42,
+        depthWrite: false, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -6 }));
+    }
+    if (!out) return null;
+    out.position.copy(o.position); out.quaternion.copy(o.quaternion); out.scale.copy(o.scale);
+    out.renderOrder = 60;
+    out.raycast = () => {};                       // a highlight is not a thing to pick
+    out.userData.noClip = !!(o.userData && o.userData.noClip);
+    return out;
+  }
+  /* An object that is ONE feature: tinted in place, without allocating — the
+     colour/opacity change is done on the material already there, and the
+     original values are stashed on the object the first time. */
+  function highlight(o, on, hit) {
+    if (!o) return;
+    if (!on) dropHl();
+    else if (hit) {
+      dropHl();
+      hlObj = elementHl(o, hit);
+      if (hlObj && o.parent) { o.parent.add(hlObj); return; }
+      hlObj = null;
+    }
+    if (!o.material) return;
     const m = o.material;
     if (on) {
       if (o.userData._hl) return;
       o.userData._hl = { opacity: m.opacity, transparent: m.transparent, color: m.color && m.color.getHex() };
       m.transparent = true;
       m.opacity = Math.min(1, (m.opacity == null ? 1 : m.opacity) * 0.55 + 0.45);
-      if (m.color) m.color.setHex(0xFFD34D);
+      if (m.color) m.color.setHex(HL);
       m.needsUpdate = true;
     } else if (o.userData._hl) {
       const s = o.userData._hl;
@@ -562,6 +672,16 @@ SBMM.pick3d = (function () {
      it follows the object as the camera moves instead of drifting off it. */
   function openCard(html, scenePoint, title) {
     closeCard();
+    /* v58: a kind may hand over a FUNCTION — the card is built when it is
+       opened, as a Leaflet popup's is */
+    if (typeof html === "function") { try { html = html(); } catch (err) { console.error(err); html = ""; } }
+    /* v58: in field mode the answer goes where a 2D tap's goes — the bottom
+       card (js/field.js). A floating card anchored to a point of the scene is
+       a desktop thing: on a phone it sat under the thumb that asked for it. */
+    if (document.body.classList.contains("field") && SBMM.field && SBMM.field.card && SBMM.field.on && SBMM.field.on()) {
+      SBMM.field.card(html);
+      return;
+    }
     card = document.createElement("div");
     card.id = "pick3dCard";
     card.innerHTML = `<span class="p3close" title="Close (Esc)">✕</span>`
@@ -582,8 +702,12 @@ SBMM.pick3d = (function () {
     card.remove();
     card = null; cardAnchor = null;
   }
+  /* v58: a press that closed the card. The click that follows it on bare
+     ground does only that — it closed something (js/readout.js has the same
+     rule for the 2D map). */
+  let closedAt = -1e9;
   function awayHandler(e) {
-    if (card && !card.contains(e.target)) closeCard();
+    if (card && !card.contains(e.target)) { closeCard(); closedAt = performance.now(); }
   }
   function escHandler(e) {
     if (e.key !== "Escape" || !card) return;
@@ -627,28 +751,72 @@ SBMM.pick3d = (function () {
   /* opts.objectsOnly: answer a registered object or nothing; opts.terrainOnly:
      skip straight to the terrain card (js/viewer3d.js tests a draped sheet
      between the two). No opts is both, in that order, as before. */
+  /* v58 (3b) — what a click does, the same as on the 2D map:
+       · something with a card: its card, with the other things the ray met
+         offered underneath ("also here");
+       · the user's own drawing: it is SELECTED and the Inspector is its card —
+         no floating card (in 2D there never was one). A photo keeps its
+         picture, the fence strip its nearest boring, and field mode — where
+         the Inspector is a parked bottom sheet — keeps the card;
+       · bare ground: the card of the layer the ground is wearing where it has
+         one (js/readout.js), else the Point card — unless the press closed a
+         card, in which case it only did that. */
+  const nameOf = info => { const t = String((info && info.title) || ""), k = t.indexOf(" · "); return k > 0 ? t.slice(0, k) : t; };
+  function infoOf(got) {
+    try { return got.entry.hit(got.hit); } catch (err) { console.error(err); return null; }
+  }
+  function openEntry(list, k) {
+    const got = list[k], info = infoOf(got);
+    if (!info) return false;
+    if (info.own && info.featureId && !document.body.classList.contains("field")) {
+      closeCard();
+      SBMM.store.select(info.featureId);
+      return true;
+    }
+    openCard(info.html, got.hit.point, info.title);
+    if (info.featureId) SBMM.store.select(info.featureId);
+    alsoHere(list, k, nameOf(info));
+    return true;
+  }
+  /* the 2D popup's row (js/pick2d.js), for the ray's other hits */
+  function alsoHere(list, k, self) {
+    if (!card || list.length < 2) return;
+    const seen = new Set([self]), others = [];
+    for (let j = 0; j < list.length && others.length < 5; j++) {
+      if (j === k) continue;
+      const n = nameOf(infoOf(list[j]));
+      if (!n || seen.has(n)) continue;
+      seen.add(n); others.push({ j, n });
+    }
+    if (!others.length) return;
+    const bar = document.createElement("div");
+    bar.className = "pkalso";
+    bar.innerHTML = `<span class="pkalsoh">Also here</span>` + others.map(o =>
+      `<button type="button" data-pk="${o.j}" title="${esc(o.n)}">${esc(o.n)}</button>`).join("");
+    card.querySelector(".p3body").appendChild(bar);
+    bar.addEventListener("click", ev => {
+      const b = ev.target.closest("button[data-pk]");
+      if (!b) return;
+      ev.stopPropagation();
+      openEntry(list, +b.dataset.pk);
+    });
+    placeCard();
+  }
   function click(e, opts) {
     if (!ctx) return false;
     opts = opts || {};
-    const got = opts.terrainOnly ? null : raycast(e);
-    if (got) {
-      let info = null;
-      try { info = got.entry.hit(got.hit); } catch (err) { console.error(err); }
-      if (info) {
-        openCard(info.html, got.hit.point, info.title);
-        if (info.featureId) SBMM.store.select(info.featureId);
-        return true;
-      }
+    if (!opts.terrainOnly) {
+      const list = raycastAll(e);
+      for (let k = 0; k < list.length; k++) if (openEntry(list, k)) return true;
     }
     if (opts.objectsOnly) return false;
-    /* terrain fallback — the coordinate card §2 and §8 ask for; with an
-       overtopping analysis open, the water and the rim band answer first */
+    /* bare ground */
+    if (performance.now() - closedAt < 700) return true;       // the press closed a card: only that
     const p = ctx.pickWorld(e);
     if (!p) { closeCard(); return false; }
     const sp = ctx.pickScene(e);
-    const d = SBMM.water && SBMM.water.active && SBMM.water.active() && SBMM.water.describeAt
-      ? SBMM.water.describeAt(p[0], p[1]) : null;
-    openCard(d ? d.html : SBMM.popups.forTerrain(p[0], p[1], p[2], "3d"), sp, d ? d.title : "Point");
+    const c = SBMM.readout && SBMM.readout.cardAt ? SBMM.readout.cardAt(p[0], p[1], { view: "3d" }) : null;
+    openCard(c ? c.html : SBMM.popups.forTerrain(p[0], p[1], p[2], "3d"), sp, c ? (c.title || "") : "Point");
     return true;
   }
 
@@ -822,6 +990,10 @@ SBMM.pick3d = (function () {
   }
 
   return {
+    /* for the harness: is something hovered, and is the highlight one
+       feature's own geometry (true) or the object tinted in place (false) */
+    hoverState: () => ({ hovered: !!hovered, live: !!(hovered && hovered.live), element: !!hlObj,
+                         tinted: !!(hovered && hovered.obj && hovered.obj.userData && hovered.obj.userData._hl) }),
     register, unregister, registered, registerCad, attach, attached, syncScene, snapPoint,
     click, onCamera, closeCard, editHandles, stats, touchDrag, registerTem,
     /* the i-th 3D vertex handle's scene position — the harness needs somewhere
