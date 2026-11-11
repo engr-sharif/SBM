@@ -1191,7 +1191,7 @@ SBMM.borewin = (function () {
       f.props.tem = !!e.target.checked;
       if (f.props.tem && !(await SBMM.geophys.run())) { f.props.tem = false; }
       SBMM.store.autosave(); paintFence();
-      if (SBMM.viewer3d && SBMM.viewer3d.refreshOverlays) SBMM.viewer3d.refreshOverlays();
+      if (SBMM.viewer3d && SBMM.viewer3d.refreshOverlays) SBMM.viewer3d.refreshOverlays("feat");
     };
     W.art.querySelectorAll("[data-fb]").forEach(b => b.onclick = () => {
       if (b.dataset.fb === "png") FN.exportPng(f);

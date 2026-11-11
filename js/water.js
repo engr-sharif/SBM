@@ -548,7 +548,7 @@ SBMM.water = (function () {
     if (!opts.noUndo)
       SBMM.undo.push("raindrop " + f.name, () => SBMM.store.remove(f), () => SBMM.store.readd(f));
     if (!opts.quiet) SBMM.store.select(f.id);
-    if (SBMM.viewer3d.isOpen()) SBMM.viewer3d.refreshOverlays();
+    if (SBMM.viewer3d.isOpen()) SBMM.viewer3d.refreshOverlays("feat");
     return f;
   }
 
@@ -576,13 +576,13 @@ SBMM.water = (function () {
       f.props = JSON.parse(JSON.stringify(props));
       buildFlow(f); fillFlowCard(f);
       SBMM.store.emit(); SBMM.store.autosave();
-      if (SBMM.viewer3d.isOpen()) SBMM.viewer3d.refreshOverlays();
+      if (SBMM.viewer3d.isOpen()) SBMM.viewer3d.refreshOverlays("feat");
     };
     SBMM.undo.push("retrace " + (f.name || "raindrop"),
       () => set(prevPts, prevProps), () => set(nextPts, nextProps));
     SBMM.store.emit(); SBMM.store.autosave();
     SBMM.props && SBMM.props.refresh && SBMM.props.refresh(f);
-    if (SBMM.viewer3d.isOpen()) SBMM.viewer3d.refreshOverlays();
+    if (SBMM.viewer3d.isOpen()) SBMM.viewer3d.refreshOverlays("feat");
     return f;
   }
 
@@ -808,7 +808,7 @@ SBMM.water = (function () {
     const f = mkFlow(R.pts, name, R.props, { group: "Water" });
     SBMM.undo.push("pipe discharge route",
       () => SBMM.store.remove(f), () => SBMM.store.readd(f));
-    if (SBMM.viewer3d.isOpen()) SBMM.viewer3d.refreshOverlays();
+    if (SBMM.viewer3d.isOpen()) SBMM.viewer3d.refreshOverlays("feat");
     return f;
   }
 
@@ -1455,7 +1455,7 @@ SBMM.water = (function () {
     ov.rimAuto = r;
     SBMM.store.setVisible(r, !!(ov.R && ov.level != null
                                 && ov.level >= ov.R.primary.level - 1e-6));
-    if (SBMM.viewer3d.isOpen()) SBMM.viewer3d.refreshOverlays();
+    if (SBMM.viewer3d.isOpen()) SBMM.viewer3d.refreshOverlays("feat");
     return r;
   }
 
@@ -1474,7 +1474,7 @@ SBMM.water = (function () {
       SBMM.store.remove(old);
       paintRimBtn();
       toast("the rim overflow what-if is cleared");
-      if (SBMM.viewer3d.isOpen()) SBMM.viewer3d.refreshOverlays();
+      if (SBMM.viewer3d.isOpen()) SBMM.viewer3d.refreshOverlays("feat");
       return null;
     }
     if (!ov.rimSeed) { toast("this analysis has no rim spill to trace an overflow from"); return null; }
@@ -1491,7 +1491,7 @@ SBMM.water = (function () {
     paintRimBtn();
     toast(`what-if: with ${blocked} blocked the water leaves over the rim at `
       + `${fmt(ov.R.primary.level, 2)} ft — ${fmt0(r.props.length_ft)} ft, ${endShort(r.props)}`, 5200);
-    if (SBMM.viewer3d.isOpen()) SBMM.viewer3d.refreshOverlays();
+    if (SBMM.viewer3d.isOpen()) SBMM.viewer3d.refreshOverlays("feat");
     return r;
   }
   function paintRimBtn() {
@@ -1617,7 +1617,7 @@ SBMM.water = (function () {
     /* only when the answer changed — a slider drag fires this per pixel, and
        rebuilding every draped ring per pixel is how a smooth control becomes a
        slideshow */
-    if (changed && SBMM.viewer3d.isOpen()) SBMM.viewer3d.refreshOverlays();
+    if (changed && SBMM.viewer3d.isOpen()) SBMM.viewer3d.refreshOverlays("feat");
     /* the stage surface in 3D, at the slider's own level (v13 §3.2). This one
        IS cheap to move — one ShapeGeometry at a constant z — so it follows every
        step of the slider rather than only the changes of state. */
@@ -2066,7 +2066,7 @@ SBMM.water = (function () {
     ov.pipeRoute = ov.conduitRoute = ov.route = null;
     clearOvertop();
     const n = removeAll(routes, "clear overtopping — " + name);
-    if (SBMM.viewer3d.isOpen()) SBMM.viewer3d.refreshOverlays();
+    if (SBMM.viewer3d.isOpen()) SBMM.viewer3d.refreshOverlays("feat");
     toast("overtopping analysis cleared" + (n ? " with its " + n + " route" + (n === 1 ? "" : "s") + " (Ctrl+Z restores the routes)" : ""));
     return n;
   }
@@ -2081,7 +2081,7 @@ SBMM.water = (function () {
     const flows = SBMM.store.features.filter(f => f.type === "flow" && !(f.props && f.props.ref));
     const all = routes.concat(flows.filter(f => routes.indexOf(f) < 0));
     const n = removeAll(all, "clear water overlays");
-    if (SBMM.viewer3d.isOpen()) SBMM.viewer3d.refreshOverlays();
+    if (SBMM.viewer3d.isOpen()) SBMM.viewer3d.refreshOverlays("feat");
     if (!hadOv && !n) { toast("nothing to clear — no overtopping analysis and no raindrop on the map"); return 0; }
     toast("cleared " + (hadOv ? "the overtopping analysis" : "") + (hadOv && n ? " and " : "")
       + (n ? n + " water feature" + (n === 1 ? "" : "s") + " (Ctrl+Z puts them back)" : ""));

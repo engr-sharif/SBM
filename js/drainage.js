@@ -329,7 +329,7 @@ SBMM.drainage = (function () {
                      { sticky: true, className: "ctip" })
         .addTo(groups.paths);
     }
-    if (SBMM.viewer3d && SBMM.viewer3d.isOpen()) SBMM.viewer3d.refreshOverlays();
+    if (SBMM.viewer3d && SBMM.viewer3d.isOpen()) SBMM.viewer3d.refreshOverlays("drainage");
   }
 
   /* the first tick of any row runs the job (§4) */

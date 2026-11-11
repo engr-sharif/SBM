@@ -279,7 +279,7 @@ SBMM.temmaps = (function () {
   }
   function soon3d() {
     if (SBMM.viewer3d && SBMM.viewer3d.isOpen && SBMM.viewer3d.isOpen() && SBMM.viewer3d.refreshOverlays)
-      SBMM.viewer3d.refreshOverlays();
+      SBMM.viewer3d.refreshOverlays("tem");
   }
   function emit() { if (SBMM.events) SBMM.events.emit("temmaps", { kind: P.kind }); }
   /* the surface js/viewer3d.js draws: an elevation per node and the map's own

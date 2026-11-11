@@ -199,7 +199,7 @@ SBMM.datasets = (function () {
     buildRow(d);
     if (SBMM.dsTable) SBMM.dsTable.addTab(d);
     if (SBMM.snap && SBMM.snap.invalidate) SBMM.snap.invalidate();
-    if (SBMM.viewer3d) SBMM.viewer3d.refreshOverlays();
+    if (SBMM.viewer3d) SBMM.viewer3d.refreshOverlays("datasets");
     if (o.persist !== false && !d.baked) autosave();
     return d;
   }
@@ -232,7 +232,7 @@ SBMM.datasets = (function () {
     const i = list.indexOf(d);
     if (i >= 0) list.splice(i, 1);
     if (SBMM.snap && SBMM.snap.invalidate) SBMM.snap.invalidate();
-    if (SBMM.viewer3d) SBMM.viewer3d.refreshOverlays();
+    if (SBMM.viewer3d) SBMM.viewer3d.refreshOverlays("datasets");
     if (SBMM.layersUI) SBMM.layersUI.refreshCounts();
     autosave();
   }
@@ -344,7 +344,7 @@ SBMM.datasets = (function () {
       const sw = d.rowRef.row.querySelector(".sw");
       if (sw) sw.style.background = d.style.color;
     }
-    if (SBMM.viewer3d) SBMM.viewer3d.refreshOverlays();
+    if (SBMM.viewer3d) SBMM.viewer3d.refreshOverlays("datasets");
     autosave();
   }
 
@@ -418,7 +418,7 @@ SBMM.datasets = (function () {
     $("dsLabels").onchange = e => { d.style.labels = e.target.checked; restyle(d); };
     $("dsStick").onchange = e => {
       d.style.stick3d = e.target.checked;
-      if (SBMM.viewer3d) SBMM.viewer3d.refreshOverlays();
+      if (SBMM.viewer3d) SBMM.viewer3d.refreshOverlays("datasets");
       autosave();
     };
     m.onclick = e => {
@@ -602,7 +602,10 @@ SBMM.datasets = (function () {
 
   /* 3D spec — viewer3d owns THREE, this owns what is worth drawing */
   function threeSpec() {
-    return list.filter(d => d.rowRef && d.rowRef.cb.checked).map(d => ({
+    /* the layer state, not the checkbox, says whether a row is on (the checkbox is a view) */
+    const rowOn = d => { if (!d.rowRef) return false; const k = String(d.rowRef.key || "").split("/");
+                         return k.length === 2 ? SBMM.layerState.isOn(k[0], k[1]) : !!d.rowRef.cb.checked; };
+    return list.filter(rowOn).map(d => ({
       /* v15 §3.1: the LAYER ROW this dataset draws under, so a 3D object can be
          matched against the row that is on (the row id is a slug of the label,
          not the dataset id) */
@@ -665,6 +668,8 @@ SBMM.datasets = (function () {
     build, wire, add, remove, list: () => list.slice(), byId,
     importCSV, pickFile, dialog, parseCSV, guessColumns, detectCRS,
     csvOf, exportCSV, geoFeatures, dxfEntities, snapPoints, threeSpec,
+    /* is (group, layer) a dataset's row — js/viewer3d.js asks which section draws a row */
+    threeRow: (g, l) => list.some(d => d.rowRef && d.rowRef.key === g + "/" + l),
     serializeUser, restoreUser, zoomTo, bounds, restyle, popup, tipFor
   };
 })();

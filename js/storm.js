@@ -113,7 +113,7 @@ SBMM.storm = (function () {
     if (!quiet)
       toast(conduitById[id].id + " marked " + (st === "broken" ? "broken — water stays on the ground here"
                                                               : "working"));
-    if (SBMM.viewer3d.isOpen()) SBMM.viewer3d.refreshOverlays();
+    if (SBMM.viewer3d.isOpen()) SBMM.viewer3d.refreshOverlays("storm");
     if (SBMM.viewState) SBMM.viewState.touch();
     return st;
   }

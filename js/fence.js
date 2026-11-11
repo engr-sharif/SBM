@@ -735,7 +735,7 @@ SBMM.fence = (function () {
     buildFence(f);
     fillCard(f);
     if (SBMM.viewer3d && SBMM.viewer3d.isOpen && SBMM.viewer3d.isOpen())
-      SBMM.viewer3d.refreshOverlays && SBMM.viewer3d.refreshOverlays();
+      SBMM.viewer3d.refreshOverlays && SBMM.viewer3d.refreshOverlays("feat");
     if (SBMM.borewin && SBMM.borewin.isOpen() && SBMM.borewin.tab() === "fence")
       SBMM.borewin.tab("fence");
   }

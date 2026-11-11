@@ -9582,6 +9582,97 @@ await page.mouse.move(off.x, off.y);
 console.log("legend v59 OK");
 });
 
+await block("9f28. a layer switch in 3D rebuilds that layer (v60)", async () => {
+/* v60 — step 5a of docs/V56_REVIEW_PLAN.md. Any layer switch rebuilt every
+   project layer in 3D (150-680 ms, ~810 draped lines on this scene) and left
+   the replaced scene's GPU geometry behind for good. The project half is now
+   built in sections; a row rebuilds its own.
+   The reference for every comparison is a FULL rebuild of the same state. */
+const S5 = await page.evaluate(async () => {
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  const frame = () => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+  const LS = SBMM.layerState, V = SBMM.viewer3d;
+  if (SBMM.temws && SBMM.temws.off) SBMM.temws.off();
+  SBMM.mode.navigate(); SBMM.map.closePopup();
+  if (!V.isOpen()) await V.toggle();
+  await sleep(1500);
+  const before = LS.serialize();
+  for (const g of ["framework", "design"]) LS.setGroup(g, true);
+  LS.set("invest", "samples", { on: true });
+  const t0 = performance.now();
+  while (performance.now() - t0 < 150000) {
+    if ((!SBMM.drainage || SBMM.drainage.hasResult()) && (!SBMM.whereWater || SBMM.whereWater.hasResult())) break;
+    await sleep(500);
+  }
+  await sleep(2500);
+  const dig = () => { const d = V.overlaySections(), o = {}; for (const k in d) o[k] = [d[k].objs, d[k].verts, d[k].sum, d[k].labels, d[k].pts].join("/"); return o; };
+  const diff = (a, b) => { const bad = []; for (const k of new Set([...Object.keys(a), ...Object.keys(b)])) if (a[k] !== b[k]) bad.push(k + ": " + a[k] + " -> " + b[k]); return bad; };
+  const drawn = () => Object.keys(V.stats().layersDrawn || {});
+  V.refreshOverlays(); await frame(); await sleep(300);
+  const D0 = dig(), L0 = drawn();
+  V.refreshOverlays(); await frame(); await sleep(200);
+  const out = { sections: Object.keys(D0).length, deterministic: diff(D0, dig()), steps: [], bad: [] };
+  const U0 = V.overlaySections();                 // after the last FULL rebuild: the groups as they stand
+  /* the table from a row to its section is honest: every tagged object sits in
+     a section the table names for its row */
+  out.table = [];
+  { const d = V.overlaySections();
+    for (const id in d) for (const row of d[id].rows) {
+      const i = row.indexOf("/"), secs = V.sectionsFor(row.slice(0, i), row.slice(i + 1));
+      if (!Array.isArray(secs) || secs.indexOf(id) < 0) out.table.push(row + " is drawn by " + id + ", the table says " + JSON.stringify(secs));
+    } }
+  const g0 = V.stats().gpuGeometries;
+  const rows = [["framework", "piles"], ["framework", "storm_nodes"], ["design", "gis_lots"], ["design", "gis_bldg"], ["invest", "samples"], ["framework", "drain_outlet"]]
+    .filter(([g, l]) => LS.isOn(g, l));
+  for (const [g, l] of rows) {
+    const key = g + "/" + l, secs = V.sectionsFor(g, l);
+    V.frameStats(true);
+    LS.set(g, l, { on: false }); await frame(); await sleep(150);
+    const f1 = V.frameStats(), L1 = drawn(), U1 = V.overlaySections();
+    /* the sections that row is not drawn by are the SAME OBJECTS as before */
+    const touched = Object.keys(U0).filter(id => U1[id] && U1[id].uuid !== U0[id].uuid && secs.indexOf(id) < 0);
+    V.frameStats(true);
+    LS.set(g, l, { on: true }); await frame(); await sleep(/^drain_/.test(l) ? 1500 : 200);
+    const f2 = V.frameStats(), d2 = diff(D0, dig()), U2 = V.overlaySections();
+    for (const id in U2) U0[id] = U2[id];
+    out.steps.push({ key, secs, off: [f1.overlayFull, f1.overlaySections, f1.drapedLines], on: [f2.overlayFull, f2.overlaySections, f2.drapedLines],
+                     ms: +(f1.overlayMs * f1.overlayRebuilds + f2.overlayMs * f2.overlayRebuilds).toFixed(1) });
+    if (f1.overlayFull || f2.overlayFull || !f1.overlaySections || L1.includes(key) || L0.filter(k => k !== key && !L1.includes(k)).length || touched.length || d2.length)
+      out.bad.push({ key, full: [f1.overlayFull, f2.overlayFull], stillDrawn: L1.includes(key), lost: L0.filter(k => k !== key && !L1.includes(k)), touched, diff: d2.slice(0, 3) });
+  }
+  out.geo = [g0, V.stats().gpuGeometries];
+  /* an opacity change is not a switch */
+  V.frameStats(true);
+  LS.set("framework", "piles", { opacity: 0.6 }); await frame(); await sleep(150);
+  LS.set("framework", "piles", { opacity: 1 }); await frame(); await sleep(150);
+  out.opacity = V.frameStats().overlayRebuilds;
+  /* nothing is rebuilt while 3D is closed; opening it rebuilds everything */
+  await V.toggle(); await sleep(400);
+  V.frameStats(true);
+  LS.set("framework", "piles", { on: false }); await frame(); await sleep(150);
+  out.closed = V.frameStats().overlayRebuilds;
+  LS.set("framework", "piles", { on: true });
+  /* the full pass is still what it was: a full rebuild from here equals D0 */
+  await V.toggle(); await sleep(1200);
+  V.refreshOverlays(); await frame(); await sleep(300);
+  out.end = diff(D0, dig());
+  LS.restore(before);
+  await frame(); await sleep(400);
+  return out;
+});
+console.log("SECTIONS v60:", JSON.stringify({ sections: S5.sections, geo: S5.geo, opacity: S5.opacity, closed: S5.closed }));
+for (const st of S5.steps) console.log("  " + st.key + " -> " + JSON.stringify(st.secs) + "  off [full, sections, draped] " + JSON.stringify(st.off) + "  on " + JSON.stringify(st.on) + "  " + st.ms + " ms");
+if (S5.deterministic.length) { console.log("FAIL: two full rebuilds of one state differ", S5.deterministic); process.exit(1); }
+if (S5.table.length) { console.log("FAIL: the row-to-section table is wrong", S5.table.slice(0, 6)); process.exit(1); }
+if (S5.steps.length < 4) { console.log("FAIL: too few rows were there to switch", S5.steps.length); process.exit(1); }
+if (S5.bad.length) { console.log("FAIL: a row switched by itself did not leave the scene a full rebuild leaves", JSON.stringify(S5.bad).slice(0, 900)); process.exit(1); }
+if (S5.geo[1] > S5.geo[0] + 40) { console.log("FAIL: GPU geometries pile up across layer switches", S5.geo); process.exit(1); }
+if (S5.opacity) { console.log("FAIL: an opacity change rebuilt the overlay", S5.opacity); process.exit(1); }
+if (S5.closed) { console.log("FAIL: a layer switch rebuilt the 3D overlay while 3D was closed", S5.closed); process.exit(1); }
+if (S5.end.length) { console.log("FAIL: after the switches a full rebuild no longer gives the first scene", S5.end); process.exit(1); }
+console.log("sections v60 OK");
+});
+
 await block("9x. drainage", async () => {
 /* 9x. drainage — the whole-site catchment map (v14, docs/V14_DRAINAGE_SPEC.md) */
 /* ==================================================================== */

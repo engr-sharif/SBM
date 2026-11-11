@@ -170,7 +170,7 @@ SBMM.pipes = (function () {
     colorBy = !!on;
     if (colorBy && !R) { const res = await run(); if (!res) { colorBy = false; return false; } }
     if (SBMM.storm.rebuildConduits) SBMM.storm.rebuildConduits();
-    if (SBMM.viewer3d && SBMM.viewer3d.isOpen()) SBMM.viewer3d.refreshOverlays();
+    if (SBMM.viewer3d && SBMM.viewer3d.isOpen()) SBMM.viewer3d.refreshOverlays("storm");
     if (colorBy && R && !R.hasFlows)
       toast("no design storm has been run, so no conduit has a flow to compare — "
           + "run RAIN first", 4200);

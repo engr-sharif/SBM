@@ -326,7 +326,7 @@ SBMM.props = (function () {
     $("pColor").oninput = e => {
       f.style = f.style || {}; f.style.color = e.target.value;
       SBMM.tools.applyStyle(f); SBMM.features.render(); SBMM.store.autosave();
-      if (SBMM.viewer3d.refreshOverlays) SBMM.viewer3d.refreshOverlays();
+      if (SBMM.viewer3d.refreshOverlays) SBMM.viewer3d.refreshOverlays("feat");
     };
     $("pColorReset").onclick = () => {
       if (f.style) delete f.style.color;
@@ -428,7 +428,7 @@ SBMM.props = (function () {
       const ct = $("pSCt"); if (ct) ct.onchange = () => { f.props.showContours = ct.checked; regen(); };
       const d3 = $("pS3D"); if (d3) d3.onchange = () => {
         f.props.drape3d = d3.checked;
-        if (SBMM.viewer3d.refreshOverlays) SBMM.viewer3d.refreshOverlays();
+        if (SBMM.viewer3d.refreshOverlays) SBMM.viewer3d.refreshOverlays("feat");
         SBMM.store.autosave();
       };
       const bal = $("pSBal"); if (bal) bal.onclick = () => SBMM.design.balance(f);

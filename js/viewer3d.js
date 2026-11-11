@@ -28,7 +28,8 @@ SBMM.viewer3d = (function () {
      shadow sink and label list; the project half's stay put across a
      selection-only rebuild, which is what makes one possible at all. */
   let projGroup = null, featGroup = null, addG = null;
-  let SHW = [], OVL = [], SHW_P = [], OVL_P = [];
+  let SHW = [], OVL = [];
+  let queueOverlaysRef = null;      // the layers handler's coalescing queue (set in init)
   let canopyMesh = null;   // kept out of terrainMeshes so picking stays on bare earth
   let treesOn = false;     // v39: js/trees3d.js has a live build in the overlay group
   let contourGroup = null; // survey contours, built lazily on first check then just toggled
@@ -176,7 +177,7 @@ SBMM.viewer3d = (function () {
                hoverN: 0, hover: 0, hoverMax: 0,
                overlayN: 0, overlay: 0, overlayMax: 0, overlayLast: 0,
                lodSelects: 0, lodSwaps: 0,
-               drapeN: 0, drapeMs: 0, drapePts: 0, drapeHit: 0, overlayFull: 0 };
+               drapeN: 0, drapeMs: 0, drapePts: 0, drapeHit: 0, overlayFull: 0, overlaySect: 0 };
   function fsAdd(k, ms) {
     FS[k] += ms;
     if (ms > FS[k + "Max"]) FS[k + "Max"] = ms;
@@ -200,7 +201,7 @@ SBMM.viewer3d = (function () {
       hoverMaxMs: +FS.hoverMax.toFixed(2),
       drapedLines: FS.drapeN, drapeMs: +FS.drapeMs.toFixed(1), drapePts: FS.drapePts,
       drapeCacheHits: FS.drapeHit,
-      overlayRebuilds: FS.overlayN, overlayFull: FS.overlayFull,
+      overlayRebuilds: FS.overlayN, overlayFull: FS.overlayFull, overlaySections: FS.overlaySect,
       overlayMs: +(FS.overlay / Math.max(1, FS.overlayN)).toFixed(1),
       overlayMaxMs: +FS.overlayMax.toFixed(1), overlayLastMs: +FS.overlayLast.toFixed(1),
       terrainSelects: t ? t.selects - FS.lodSelects : 0,
@@ -215,7 +216,7 @@ SBMM.viewer3d = (function () {
       FS.particles = FS.particlesMax = FS.sky = 0;
       FS.hoverN = FS.hover = FS.hoverMax = 0;
       FS.overlayN = FS.overlay = FS.overlayMax = 0;
-      FS.drapeN = FS.drapeMs = FS.drapePts = FS.drapeHit = FS.overlayFull = 0;
+      FS.drapeN = FS.drapeMs = FS.drapePts = FS.drapeHit = FS.overlayFull = FS.overlaySect = 0;
       if (t) { FS.lodSelects = t.selects; FS.lodSwaps = t.swaps; }
     }
     return out;
@@ -1723,6 +1724,8 @@ SBMM.viewer3d = (function () {
     g.setAttribute("position", new THREE.BufferAttribute(pos, 3));
     g.setIndex(idx);
     g.computeVertexNormals();
+    /* reused by every rebuild: a replaced group must not dispose it (disposeSection) */
+    g.userData.shared = true;
     s._geom = g;
     return meshesFor(f, g);
   }
@@ -2275,33 +2278,117 @@ SBMM.viewer3d = (function () {
   let haloMats = [], pulseUntil = 0, lastSel = null, haloSettled = false;
 
   let lastCadSkip = 0;          // so the drape-budget toast fires once, not per rebuild
-  function rebuildOverlays(featuresOnly) {
+  /* v60 — A LAYER SWITCH REBUILDS THAT LAYER (docs/V56_REVIEW_PLAN.md 5a).
+     The project half is built in SECTIONS, each with a group, a drop-shadow
+     sink, a label list and a point-name list of its own. A pass is one of:
+       everything        rebuildOverlays()            as it always was
+       the features      rebuildOverlays(true)        the user's own half
+       named sections    rebuildOverlays("storm")     or an array of ids
+     `SEC(id)` opens a section inside the pass: when the pass wants it, the
+     section's previous group is removed and DISPOSED, a new one is made, and
+     addG / SHW / OVL / ptCand point at that section's — which is why the
+     bodies below read exactly as they did when there was one group. A section
+     the pass does not want is skipped and keeps what it has.
+     SECTION_ROWS is the one table from a layer row to its section. */
+  const SECT = new Map();           // id -> { id, group, shw, ovl, pts, ms, drapeN }
+  let OVL_FEAT = [];                // the feature half's labels, kept across a sections-only pass
+  let projShadow = null;            // the lighter rendering's merged drop shadow of the project half
+  const SECTION_ROWS = [
+    ["framework", /^dus$/, ["dus"]], ["framework", /^piles$/, ["piles"]],
+    ["framework", /^storm_/, ["storm"]], ["framework", /^drain_/, ["drainage"]],
+    ["framework", /^where_water$/, ["wherewater"]], ["framework", /^accum_streams$/, ["accum"]],
+    ["framework", /^runoff_depth$/, ["runoff"]], ["framework", /^cad_/, ["cad"]],
+    /* two rows of that group are drapes on the ground, not overlay objects */
+    ["framework", /^(accum_raster|runoff_cover)$/, []],
+    ["design", /^gis_/, l => ["gis", "gisb:" + l.slice(4)]], ["design", /^cad_/, ["cad"]], ["design", /^pdf_boundaries$/, ["pdf"]],
+    ["invest", /^survey_/, ["survey"]], ["invest", /^site_areas$/, ["siteareas"]],
+    ["invest", /^tem_/, ["tem"]], ["invest", /^samples$/, ["samples"]],
+    ["cultural", /./, ["cultural"]],
+    ["base", /^trees_detected$/, ["trees"]], ["base", /^contours_custom$/, ["contours"]]
+  ];
+  /* the sections a row is drawn by: an array (possibly empty), "feat" for a
+     My-work class row, or null when the table does not know — which means
+     everything, and is always right */
+  function sectionsFor(g, l) {
+    if (g === "mywork") return "feat";
+    /* a dataset's row id is a slug of its LABEL, in whichever group it was put,
+       so it is asked first: "Survey Aug 2026 (Jacobs)" slugs to survey_…, which
+       the table would hand to the survey linework */
+    if (SBMM.datasets && SBMM.datasets.threeRow && SBMM.datasets.threeRow(g, l)) return ["datasets"];
+    if (SBMM.designEA && SBMM.designEA.rowIs2d && SBMM.designEA.rowIs2d(g, l)) return [];
+    for (const [gg, re, ids] of SECTION_ROWS) if (gg === g && re.test(l)) return typeof ids === "function" ? ids(l) : ids;
+    return null;
+  }
+  /* geometry and materials of a group that is being replaced. Textures are
+     never disposed here: every one in the overlay belongs to a cache
+     (dotTex, temTex, fenceTex, photoTex, the label chips). A geometry that
+     outlives the group says so with userData.shared. */
+  function disposeSection(o) {
+    if (!o) return;
+    o.traverse(c => {
+      /* something that cast a shadow is going: the shadow map is stale */
+      if (c.castShadow) SHD.dirty = true;
+      if (c.geometry && !(c.geometry.userData && c.geometry.userData.shared)) c.geometry.dispose();
+      if (c.material) (Array.isArray(c.material) ? c.material : [c.material]).forEach(m => m.dispose());
+      if (c.isInstancedMesh && c.dispose) c.dispose();
+    });
+  }
+  function rebuildOverlays(what) {
     const t0 = performance.now();
-    const full = !(!!featuresOnly && !!projGroup);
-    const r = rebuildOverlaysInner(!full);
+    let mode;
+    if (!projGroup || what === undefined || what === null || what === false) mode = { all: true, feat: true, secs: null };
+    else if (what === true || what === "feat") mode = { all: false, feat: true, secs: null };
+    else if (typeof what === "object" && !Array.isArray(what) && !(what instanceof Set)) mode = what;
+    else mode = { all: false, feat: false, secs: new Set(typeof what === "string" ? [what] : what) };
+    const r = rebuildOverlaysInner(mode);
     FS.overlayN++;
-    if (full) FS.overlayFull++;
+    if (mode.all) FS.overlayFull++;
+    else if (mode.secs) FS.overlaySect++;
     FS.overlayLast = performance.now() - t0;
     fsAdd("overlay", FS.overlayLast);
     return r;
   }
-  function rebuildOverlaysInner(featuresOnly) {
+  function rebuildOverlaysInner(mode) {
     if (!scene) return;
-    const PROJ = !featuresOnly;
+    const PROJ = !!mode.all, FEAT = !!(mode.all || mode.feat);
     if (PROJ) {
       if (overlayGroup) scene.remove(overlayGroup);
+      for (const S of SECT.values()) disposeSection(S.group);
+      SECT.clear();
+      if (projShadow) { disposeSection(projShadow); projShadow = null; }
+      disposeSection(featGroup);
       overlayGroup = new THREE.Group();
       projGroup = new THREE.Group(); featGroup = new THREE.Group();
       overlayGroup.add(projGroup); overlayGroup.add(featGroup);
-      SHW_P = []; OVL_P = [];
-      ptCand = [];                  // v31: the point names this pass offers
-    } else {
+    } else if (FEAT) {
       /* the project half stays exactly as it is — objects, shadow and labels */
       overlayGroup.remove(featGroup);
+      disposeSection(featGroup);
       featGroup = new THREE.Group();
       overlayGroup.add(featGroup);
     }
-    addG = PROJ ? projGroup : featGroup;
+    const built = [];
+    let cur = null;
+    const secClose = () => { if (cur) { cur.ms = performance.now() - cur.t0; cur.drapeN = FS.drapeN - cur.d0; cur = null; } };
+    const SEC = id => {
+      secClose();
+      if (!(PROJ || (mode.secs && mode.secs.has(id)))) return false;
+      let S = SECT.get(id);
+      if (!S) SECT.set(id, S = { id });
+      if (S.group) { projGroup.remove(S.group); disposeSection(S.group); }
+      S.group = new THREE.Group(); S.group.name = "sec:" + id;
+      S.shw = []; S.ovl = []; S.pts = [];
+      projGroup.add(S.group);
+      addG = S.group; SHW = S.shw; OVL = S.ovl; ptCand = S.pts;
+      S.t0 = performance.now(); S.d0 = FS.drapeN;
+      cur = S; built.push(S);
+      return true;
+    };
+    /* sections named with a prefix (one per layer of a family): does this pass
+       want any, and which ones it names */
+    const wantsPrefix = pre => PROJ || !!(mode.secs && [...mode.secs].some(id => id.indexOf(pre) === 0));
+    const wantedWith = pre => (!PROJ && mode.secs) ? [...mode.secs].filter(id => id.indexOf(pre) === 0) : [];
+    if (FEAT) {
     /* the particle streams live inside overlayGroup, so a rebuild throws the old
        ones away with it; the list has to go with them or the loop keeps writing
        into geometry nothing draws (v13 §3.1) */
@@ -2316,11 +2403,11 @@ SBMM.viewer3d = (function () {
         if (rec && rec.tex) rec.tex.dispose();
         fenceTex.delete(id);
       }
+    }
     const zx = exag();
-    /* v15: the drop-shadow sink and the label specs this pass collects */
-    SHW = SHW_P; OVL = OVL_P;
+    /* v15: the drop-shadow sink and the label specs the feature half collects */
     const SHW_F = [], OVL_F = [];
-    if (PROJ && LS("framework", "dus")) {
+    if (SEC("dus") && LS("framework", "dus")) {
       const DU_COLOR = { "DU-1N": 0xE4796A, "DU-1S": 0xE4796A, "DU-2": 0x5B8FF9, "DU-3": 0x4FCE9B };
       const LY = SBMM.layers || {};
       SBMM_DATA.dus.forEach((d, di) => {
@@ -2332,7 +2419,7 @@ SBMM.viewer3d = (function () {
         addG.add(tag(addShadow(SHW, o), "framework", "dus"));
       });
     }
-    if (PROJ && LS("framework", "piles")) {
+    if (SEC("piles") && LS("framework", "piles")) {
       const LY = SBMM.layers || {}, recs = LY.pileRecs || [];
       SBMM_DATA.piles.forEach((p, k) => {
         const traced = (p.name || "").includes("Fig 2");
@@ -2349,7 +2436,7 @@ SBMM.viewer3d = (function () {
     /* No 3D "design" master any more: designGIS.rings3d() and CadNative.rings3d()
        already return only the layers whose rows are on, so the 3D view draws the
        design the Layers tree says is showing — nothing more, nothing less. */
-    if (PROJ && SBMM.designGIS) {
+    if (SEC("gis") && SBMM.designGIS) {
       for (const r of SBMM.designGIS.rings3d()) {
         const o = drapedLine(r.ring, new THREE.Color(r.color).getHex(), true, 3);
         /* userData.pick is what js/pick3d.js walks the overlay group for; it is
@@ -2365,12 +2452,23 @@ SBMM.viewer3d = (function () {
        grade, haul) and the boundary / existing-conditions layers, which
        rings3d() never returned. Merged per layer: 580 features, ~10 draw calls,
        and a click still names the feature it hit. */
-    if (PROJ && SBMM.designGIS && SBMM.designGIS.batch3d) {
+    if (SBMM.designGIS && SBMM.designGIS.batch3d) {
       /* v43: the buildings, the fences and the power poles stand up
          (js/built3d.js) in place of the outline, the line and the dot */
       const B3 = SBMM.built3d, bctx = { CX, CY, ZMID, elev: (x, y) => SBMM.elev(x, y)[0] };
-      builtInfo = null;
-      for (const b of SBMM.designGIS.batch3d()) {
+      /* v60: ONE SECTION PER LAYER ("gisb:<key>") — this is 15 merged layers
+         and most of the project half's vertices. A row that went off hands
+         back no batch, so its section is opened here and left empty. */
+      const BUILT = { bldg: ["buildings"], fence: ["fences", "fencePosts", "fenceFt"], util: ["poles"] };
+      const unbuilt = key => { if (builtInfo && BUILT[key]) for (const k of BUILT[key]) delete builtInfo[k]; };
+      const batches = wantsPrefix("gisb:") ? SBMM.designGIS.batch3d() : [];
+      if (PROJ) builtInfo = null;
+      { const have = new Set(batches.map(b => "gisb:" + b.key));
+        /* (only one that exists: the polygon layers have no batch at all) */
+        for (const id of wantedWith("gisb:")) if (!have.has(id) && SECT.has(id) && SEC(id)) unbuilt(id.slice(5)); }
+      for (const b of batches) {
+        if (!SEC("gisb:" + b.key)) continue;
+        unbuilt(b.key);
         const col = new THREE.Color(b.color || "#cccccc").getHex();
         if (B3) {
           try {
@@ -2408,10 +2506,11 @@ SBMM.viewer3d = (function () {
           addG.add(po);
         }
       }
+      if (builtInfo && !Object.keys(builtInfo).length) builtInfo = null;
     }
     /* the August-2026 survey linework (spec §10): the pipes, the sandbag wall
        and the pit contours, draped like the design polygons and pickable */
-    if (PROJ && SBMM.survey && SBMM.survey.lines3d) {
+    if (SEC("survey") && SBMM.survey && SBMM.survey.lines3d) {
       for (const r of SBMM.survey.lines3d()) {
         const o = drapedLine(r.ring, new THREE.Color(r.color).getHex(), false, r.width || 2);
         o.userData.pick = { kind: "gis", props: r.props, geom: r.geom,
@@ -2421,7 +2520,7 @@ SBMM.viewer3d = (function () {
       }
     }
     /* v28: the named site areas of SBMM.kmz, outlines draped like the survey */
-    if (PROJ && SBMM.siteAreas && SBMM.siteAreas.lines3d) {
+    if (SEC("siteareas") && SBMM.siteAreas && SBMM.siteAreas.lines3d) {
       for (const r of SBMM.siteAreas.lines3d()) {
         const o = drapedLine(r.ring, new THREE.Color(r.color).getHex(), false, r.width || 2);
         o.userData.pick = { kind: "gis", props: r.props, geom: r.geom,
@@ -2435,7 +2534,7 @@ SBMM.viewer3d = (function () {
        following the ground at that depth below it. The sheet is under the
        terrain by construction, so it carries noClip and reads through the
        fence clip box's trench. */
-    if (PROJ && SBMM.geophys) {
+    if (SEC("tem") && SBMM.geophys) {
       const tp = SBMM.geophys.points3d();
       if (tp) {
         const pos = [], col = [], c = new THREE.Color();
@@ -2718,7 +2817,7 @@ SBMM.viewer3d = (function () {
     /* the storm-drainage network (v12 §5.1): the conduits draped on the ground
        and a dot at every structure, in the storm colour rather than the water
        one — the pipes are infrastructure, the flow is the terrain's answer. */
-    if (PROJ && SBMM.storm && SBMM.storm.lines3d) {
+    if (SEC("storm") && SBMM.storm && SBMM.storm.lines3d) {
       const SC = new THREE.Color(SBMM.storm.COLOR || "#7FA7C9").getHex();
       const ST = SBMM.storm;
       for (const r of ST.lines3d()) {
@@ -2763,7 +2862,7 @@ SBMM.viewer3d = (function () {
     /* the drainage map (v14 §4): the catchment polygons draped like the DUs and
        the longest flow path of each drawn as it runs. Read-only analysis, so the
        pick card is the same popup the 2D map binds. */
-    if (PROJ && SBMM.drainage && SBMM.drainage.hasResult()) {
+    if (SEC("drainage") && SBMM.drainage && SBMM.drainage.hasResult()) {
       /* rings3d hands back OPEN RUNS, not closed rings: a catchment boundary
          that reaches the survey limit has no ground under the rest of it, and a
          closed drape there stands up as a curtain (js/drainage.js groundRuns) */
@@ -2797,7 +2896,7 @@ SBMM.viewer3d = (function () {
        drainage catchments and through the same groundRuns rule, so a class
        boundary that reaches the survey limit stops there instead of standing
        up as a curtain over Clear Lake. */
-    if (PROJ && SBMM.whereWater && SBMM.whereWater.hasResult()) {
+    if (SEC("wherewater") && SBMM.whereWater && SBMM.whereWater.hasResult()) {
       const WW = SBMM.whereWater;
       for (const r of WW.rings3d()) {
         const o = drapedLine(r.ring, new THREE.Color(r.color).getHex(), false, r.width || 3);
@@ -2815,7 +2914,7 @@ SBMM.viewer3d = (function () {
        stream follows the ground by construction, but a link that ends at the
        survey limit still has its last vertex out over the water, so it goes
        through js/drainage.js groundRuns() like the catchment boundaries do. */
-    if (PROJ && SBMM.accum && SBMM.accum.lines3d) {
+    if (SEC("accum") && SBMM.accum && SBMM.accum.lines3d) {
       for (const r of SBMM.accum.lines3d()) {
         const o = drapedLine(r.ring, new THREE.Color(r.color).getHex(), false, r.width || 3);
         /* v58: the 2D link's chip and card (js/accum.js tipFor, forStream) */
@@ -2832,7 +2931,7 @@ SBMM.viewer3d = (function () {
     /* the design storm (v14 Phase 2): the same catchment boundaries, coloured by
        this storm's runoff depth instead of by outlet, and picked with the same
        card the 2D choropleth opens. */
-    if (PROJ && SBMM.runoff && SBMM.runoff.rings3d) {
+    if (SEC("runoff") && SBMM.runoff && SBMM.runoff.rings3d) {
       for (const r of SBMM.runoff.rings3d()) {
         const o = drapedLine(r.ring, new THREE.Color(r.color).getHex(), false, r.width || 3);
         /* v58: the 2D choropleth's chip and card (js/runoff.js tipFor, forRunoff) */
@@ -2848,7 +2947,7 @@ SBMM.viewer3d = (function () {
     /* EA native CAD design linework. designgis owns the authoritative polygons;
        these are the drafted lines around them, and they were previously visible
        in 2D only — which meant clicking one in 3D found nothing at all. */
-    if (PROJ && SBMM.CadNative && SBMM.CadNative.rings3d) {
+    if (SEC("cad") && SBMM.CadNative && SBMM.CadNative.rings3d) {
       /* drapedLine resamples every ring against the DEM at 10 ft, so the cost is
          per RING, not per group. v9 drapes on demand — only the groups that are
          actually on — against a budget rather than a blanket cap of 400: with
@@ -2875,7 +2974,7 @@ SBMM.viewer3d = (function () {
       }
       lastCadSkip = skipped;
     }
-    if (PROJ && SBMM.designEA && LS("design", "pdf_boundaries")) {
+    if (SEC("pdf") && SBMM.designEA && LS("design", "pdf_boundaries")) {
       const DCOL = { "area-validated": 0xFF6B4A, "unclassified": 0xE8B34B, "surveyed": 0x4FD2E8 };
       for (const r of SBMM.designEA.rings3d()) {
         const o = drapedLine(r.ring, DCOL[r.conf] || 0xcccccc, true, 3);
@@ -2893,8 +2992,9 @@ SBMM.viewer3d = (function () {
         addG.add(o);
       }
     }
+    secClose();
     addG = featGroup; SHW = SHW_F; OVL = OVL_F;      // the user's own features
-    {
+    if (FEAT) {
       const COLORS = { line: 0x4FB3CE, area: 0x4FB3CE, volume: 0x4FCE9B, profile: 0xC792EA,
                        dim: 0xE8B34B, text: 0xE8EEF1, flow: 0x55C1FF };
       /* every object a feature contributes carries its id, so a 3D click can
@@ -3127,7 +3227,7 @@ SBMM.viewer3d = (function () {
        sheet would cause and makes the cut/fill visible as a solid standing off the
        ground. The raster is decimated to keep the shell a few tens of thousands of
        triangles however fine the design grid is. */
-    for (const f of SBMM.store.features) {
+    if (FEAT) for (const f of SBMM.store.features) {
       if (f.type !== "surface" || f.visible === false) continue;
       if (!SBMM.myWork.shown(f)) continue;
       if (f.props && f.props.drape3d === false) continue;
@@ -3156,7 +3256,9 @@ SBMM.viewer3d = (function () {
         addG.add(m);
       }
     }
-    addG = projGroup; SHW = SHW_P; OVL = OVL_P;      // back to the project half
+    /* back to the project half: every block below opens a section, which sets
+       the targets — anything that adds outside one fails loudly */
+    addG = null; SHW = null; OVL = null;
 
     /* datasets: a billboard dot per record, plus — where the dataset has a depth
        attribute and sticks are switched on — a vertical line from the ground down
@@ -3164,7 +3266,7 @@ SBMM.viewer3d = (function () {
        the exaggeration slider like everything else, so a 40 ft boring stays 40 ft
        relative to the terrain it is standing in however hard the relief is pushed. */
     /* datasets: threeSpec() already returns only the datasets whose rows are on */
-    if (PROJ && SBMM.datasets) {
+    if (SEC("datasets") && SBMM.datasets) {
       /* A boring's stick is the LOG, not a length (js/borelogs.js): where the
          2025 OpenGround logs give a class profile for this hole, the stick is
          drawn in segments coloured by that profile — waste, native, bedrock —
@@ -3299,7 +3401,7 @@ SBMM.viewer3d = (function () {
       }
     }
 
-    if (PROJ && LS("invest", "samples")) {
+    if (SEC("samples") && LS("invest", "samples")) {
       const pos = [], col = [];
       for (const p of SBMM.samples) {
         pos.push(p.x - CX, p.y - CY, drapeZ(p.x, p.y, 4));
@@ -3325,8 +3427,9 @@ SBMM.viewer3d = (function () {
        dealt by treesRelod() from the render loop, in a frame that is being
        drawn anyway. */
     const td = SBMM.trees && SBMM.trees.data;
-    if (PROJ) treesOn = false;
-    if (PROJ && td && td.n && SBMM.trees3d && LS("base", "trees_detected")) {
+    const TREES = SEC("trees");
+    if (TREES) treesOn = false;
+    if (TREES && td && td.n && SBMM.trees3d && LS("base", "trees_detected")) {
       const tg = SBMM.trees3d.build(td, { CX, CY, ZMID, sunAz, sunEl, minShow: SBMM.trees.minShow(),
                                           light: quality() !== "realistic", castShadows: shadowsWanted(),
                                           /* v46: with the ground's edge fade, what stands on it fades too */
@@ -3339,14 +3442,14 @@ SBMM.viewer3d = (function () {
         SBMM.trees3d.relod(camera.position, zx, true);
         SHD.dirty = true;
       }
-    } else if (PROJ && SBMM.trees3d) SBMM.trees3d.dispose();
+    } else if (TREES && SBMM.trees3d) SBMM.trees3d.dispose();
 
     /* cultural resources (§7) — CONFIDENTIAL, drawn only while the group is on.
        Same draped-ring treatment as the design areas, plus a marker per isolate,
        in the layer's own red/amber so it reads as a restricted overlay rather
        than as more design furniture. The stamp element over the 3D canvas is
        put up by js/cultural.js; the snapshot gets it burned in. */
-    if (PROJ && SBMM.cultural && SBMM.cultural.visible()) {
+    if (SEC("cultural") && SBMM.cultural && SBMM.cultural.visible()) {
       for (const r of SBMM.cultural.rings3d()) {
         const o = drapedLine(r.ring, new THREE.Color(r.color).getHex(), true, 3);
         o.userData.pick = { kind: "cultural", feature: r.feature };
@@ -3381,7 +3484,7 @@ SBMM.viewer3d = (function () {
     /* v15 §3.1 — the computed contour set (js/analysis.js CONTOUR command). A
        contour's level IS its elevation, so no drape sampling is needed; one
        LineSegments per weight class, like the survey sets. */
-    if (PROJ && LS("base", "contours_custom") && SBMM.analysis && SBMM.analysis.customContours3d) {
+    if (SEC("contours") && LS("base", "contours_custom") && SBMM.analysis && SBMM.analysis.customContours3d) {
       const cl = SBMM.analysis.customContours3d();
       if (cl.length) {
         const byCol = new Map();
@@ -3420,19 +3523,29 @@ SBMM.viewer3d = (function () {
     };
     /* v44: with wide lines every line carries its own dark casing, so the
        drop shadow is not built at all — two outlines on one line is a blur */
+    secClose();
     const WIDE = wideOn();
     if (!WIDE) {
-      if (PROJ) shadow(SHW_P, projGroup);
-      shadow(SHW_F, featGroup);
+      /* the project half's shadow is ONE object over every section's segments,
+         rebuilt (a copy, no draping) whenever a section was */
+      if (built.length) {
+        if (projShadow) { projGroup.remove(projShadow); disposeSection(projShadow); projShadow = null; }
+        const all = [];
+        for (const S of SECT.values()) if (S.shw && S.shw.length) for (let k = 0; k < S.shw.length; k++) all.push(S.shw[k]);
+        const n0 = projGroup.children.length;
+        shadow(all, projGroup);
+        if (projGroup.children.length > n0) projShadow = projGroup.children[projGroup.children.length - 1];
+      }
+      if (FEAT) shadow(SHW_F, featGroup);
     } else {
       /* reference linework quieter than the user's own, which is quieter than nothing */
       wideEdge();
-      if (PROJ) SBMM.lines3d.widen(projGroup, { width: 1.5 });
-      SBMM.lines3d.widen(featGroup, { width: 2.3 });
+      for (const S of built) SBMM.lines3d.widen(S.group, { width: 1.5 });
+      if (FEAT) SBMM.lines3d.widen(featGroup, { width: 2.3 });
     }
     /* §3.1: the isopach heat map has no layer row of its own, so the only thing
        that can say the 3D drape IS the isopach is a label on it */
-    if (PROJ && drapeMesh.isopach && SBMM.isopach && SBMM.isopach.drapeSpec) {
+    if (SEC("isopach") && drapeMesh.isopach && SBMM.isopach && SBMM.isopach.drapeSpec) {
       const sp2 = SBMM.isopach.drapeSpec();
       if (sp2 && sp2.bounds) {
         const bx = (sp2.bounds[0] + sp2.bounds[2]) / 2, by = (sp2.bounds[1] + sp2.bounds[3]) / 2;
@@ -3440,12 +3553,22 @@ SBMM.viewer3d = (function () {
                    x: bx, y: by, z: drapeZ(bx, by, 24) + ZMID, priority: 44 });
       }
     }
+    secClose();
     overlayGroup.scale.z = zx;
-    scene.add(overlayGroup);
-    /* v15 §2.3: this pass's labels, diffed by text against the ones already up */
-    setLabels3d("overlay", OVL_P.concat(OVL_F));
+    if (overlayGroup.parent !== scene) scene.add(overlayGroup);
+    /* v15 §2.3: the labels, diffed by text against the ones already up — every
+       section's, then the feature half's (kept from its last pass when this
+       one did not touch it) */
+    if (FEAT) OVL_FEAT = OVL_F;
+    { let lab = [];
+      for (const S of SECT.values()) if (S.ovl && S.ovl.length) lab = lab.concat(S.ovl);
+      setLabels3d("overlay", lab.concat(OVL_FEAT)); }
     /* v31: a project rebuild changes which points exist; pick their names again */
-    if (PROJ) { ptSig = ""; refreshPointLabels(); }
+    if (built.length || PROJ) {
+      let pts = [];
+      for (const S of SECT.values()) if (S.pts && S.pts.length) pts = pts.concat(S.pts);
+      ptCand = pts; ptSig = ""; refreshPointLabels();
+    }
     /* §3.2: a bounded pulse when the selection changes — see HALO_MS */
     const selNow = SBMM.store.selected || null;
     if (haloMats.length && selNow !== lastSel) { pulseUntil = performance.now() + HALO_MS; haloSettled = false; }
@@ -4717,32 +4840,59 @@ SBMM.viewer3d = (function () {
       "base/contours_abp": () => syncContours(),
       "base/canopy": () => syncCanopy()
     };
-    let overlayQueued = false;
-    function queueOverlays() {
+    /* v60: what is waiting to be rebuilt — everything, the feature half, and/or
+       named sections — coalesced into one pass per frame. Several rows can
+       change in one gesture (a group master checkbox is exactly that). */
+    let overlayQueued = false, qAll = false, qFeat = false, qSecs = new Set();
+    function queueOverlays(what) {
+      if (what === undefined || what === null) qAll = true;
+      else if (what === "feat") qFeat = true;
+      else for (const id of what) qSecs.add(id);
       if (overlayQueued) return;
       overlayQueued = true;
-      /* several rows can change in one gesture (a group master checkbox is
-         exactly that), and each rebuild walks every visible ring */
-      requestAnimationFrame(() => { overlayQueued = false; rebuildOverlays(); });
+      requestAnimationFrame(() => {
+        overlayQueued = false;
+        const all = qAll, feat = qFeat, secs = qSecs;
+        qAll = qFeat = false; qSecs = new Set();
+        if (!open) return;                       // closed since: show() rebuilds everything
+        if (all) rebuildOverlays();
+        else if (secs.size || feat) rebuildOverlays({ all: false, feat, secs: secs.size ? secs : null });
+      });
     }
+    queueOverlaysRef = queueOverlays;
+    /* a row's last on/off, to tell an opacity change (same event) from a switch */
+    const rowWasOn = new Map();
     SBMM.events.on("layers", ev => {
       if (!scene) return;                       // 3D not open: replayed on open
       if (!ev || (!ev.group && !ev.layer)) {    // bulk restore: everything
-        queueOverlays(); SPECIAL["design/sheets3d"](); syncContours(); syncCanopy(); return;
+        rowWasOn.clear();
+        if (open) queueOverlays();
+        SPECIAL["design/sheets3d"](); syncContours(); syncCanopy(); return;
       }
       const key = ev.group + "/" + ev.layer;
       if (SPECIAL[key]) { SPECIAL[key](); return; }
       if (ev.layer === null) {                  // a group master switch
-        if (OVERLAY_GROUPS[ev.group]) queueOverlays();
+        rowWasOn.clear();
+        if (OVERLAY_GROUPS[ev.group] && open) queueOverlays();
         if (ev.group === "base") { syncContours(); syncCanopy(); }
         if (ev.group === "design") SPECIAL["design/sheets3d"]();
         return;
       }
-      if (OVERLAY_GROUPS[ev.group]) queueOverlays();
       /* two BASE rows are overlay objects rather than terrain: the detected trees
          and the computed contour set (v15 §3.1) */
-      if (ev.group === "base" && (ev.layer === "trees_detected" || ev.layer === "contours_custom"))
-        queueOverlays();
+      const mine = OVERLAY_GROUPS[ev.group]
+        || (ev.group === "base" && (ev.layer === "trees_detected" || ev.layer === "contours_custom"));
+      if (!mine || !open) return;               // closed: show() rebuilds everything
+      /* the same event carries an opacity change. Only the TEM rows read a
+         row's opacity in 3D; for every other row a slider drag rebuilt the
+         whole scene once a frame. */
+      const on = SBMM.layerState.isOn(ev.group, ev.layer), was = rowWasOn.get(key);
+      rowWasOn.set(key, on);
+      const secs = sectionsFor(ev.group, ev.layer);
+      if (was === on && !(secs && secs.indexOf("tem") >= 0)) return;
+      if (secs === null) queueOverlays();
+      else if (secs === "feat") queueOverlays("feat");
+      else if (secs.length) queueOverlays(secs);
     });
 
     /* survey contours — built once on first need, then just shown/hidden */
@@ -6408,7 +6558,44 @@ SBMM.viewer3d = (function () {
        and a polar angle (phi, from straight down), keeping target and range */
     renderTrace,
     orbitTo: (theta, phi) => { if (nav) nav.place(nav.st.targetDst.clone(), nav.st.dst.r, theta, phi); },
-    refreshOverlays: () => { if (open) rebuildOverlays(); },
+    /* a module whose own data changed. With no argument everything is rebuilt,
+       as it always was; a section id (or several, or "feat" for the user's
+       features) rebuilds that much: "storm", "drainage", "wherewater", "accum",
+       "runoff", "datasets", "trees", "tem", "cultural", "gis", "cad". */
+    refreshOverlays: what => {
+      if (!open) return;
+      if (what === undefined || what === null) return rebuildOverlays();
+      if (what === "feat") return rebuildOverlays(true);
+      /* named sections go through the frame's queue: a module and the layers
+         handler often name the same section for one click (the row changed,
+         then the module repainted), and that is one rebuild, not three */
+      const ids = (typeof what === "string" ? [what] : [...what]);
+      if (queueOverlaysRef) { for (const id of ids) queueOverlaysRef(id === "feat" ? "feat" : [id]); return; }
+      const secs = ids.filter(id => id !== "feat");
+      return rebuildOverlays({ all: false, feat: secs.length < ids.length, secs: secs.length ? new Set(secs) : null });
+    },
+    /* harness: the sections as they stand — objects, vertices, a checksum of
+       positions (so a change that should move nothing can be shown to) */
+    overlaySections: () => {
+      const out = {};
+      for (const S of SECT.values()) {
+        let objs = 0, verts = 0, sum = 0;
+        const rows = new Set();
+        if (S.group) S.group.traverse(o => {
+          if (o.userData && o.userData.layer) rows.add(o.userData.layer.g + "/" + o.userData.layer.l);
+          if (o === S.group || (o.parent && o.parent.userData && o.parent.userData._wide === o)) return;
+          objs++;
+          const p = o.geometry && o.geometry.attributes && o.geometry.attributes.position;
+          if (p && !o.isInstancedMesh) { verts += p.count; const a = p.array; for (let i = 0; i < a.length; i += 7) sum += a[i]; }
+          if (o.isInstancedMesh) verts += o.count;
+        });
+        out[S.id] = { objs, verts, sum: Math.round(sum), ms: S.ms != null ? +S.ms.toFixed(1) : null, drapeN: S.drapeN || 0,
+                      uuid: S.group ? S.group.uuid : null, labels: (S.ovl || []).length, pts: (S.pts || []).length,
+                      rows: [...rows] };
+      }
+      return out;
+    },
+    sectionsFor,
     refreshIsopach: () => { if (open) refreshDrapes(); },
     refreshDrapes: () => { if (open) refreshDrapes(); },
     sheetDrape, sheetDrapeNames: () => [...wantSheets].sort(),

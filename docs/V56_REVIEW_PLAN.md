@@ -417,6 +417,39 @@ handover notes ask for, made where it pays. **Acceptance:** block 9y's parity
 table unchanged; toggling one layer drapes only that layer's lines
 (`frameStats`), and the before/after milliseconds are recorded.
 
+*5a, the design, written before any of it is built.*
+
+The function is 1,100 lines of `if (PROJ && <row is on>) { build it }`, all
+adding into one group through three module-level targets (`addG`, `SHW`,
+`OVL`) and `ptCand`. Two pull requests, because they are verified differently:
+
+1. **Sections, in place.** Each `if (PROJ && …)` becomes `if (SEC("id") && …)`.
+   `SEC(id)` answers whether this pass wants that section and, when it does,
+   removes and disposes the section's previous group, makes a new one, and
+   points `addG` / `SHW` / `OVL` / `ptCand` at that section's own — so the
+   bodies do not change by a character, and a section whose row is now off is
+   left with an empty group. Three kinds of pass: everything (as now), the
+   user's features only (as now), and a named set of sections (new: the
+   features are not touched). The finish merges what the sections collected:
+   the drop shadows of the lighter rendering, the labels, the point-name
+   candidates; wide lines are made for the rebuilt sections only.
+   A row maps to its section by one table; a row the table does not know, a
+   group switch and a bulk restore are a full rebuild, which is always right.
+   `refreshOverlays(section)` lets a module whose own data changed name its
+   section; with no argument it is the full rebuild it always was.
+   Fixed on the way, each measured: the handler rebuilding while 3D is closed;
+   an opacity change rebuilding geometry; nothing being disposed when a group
+   is replaced; four accessors asking a checkbox whether a layer is on.
+2. **The move.** With the sections in place the project half moves to its own
+   file with its bodies still unchanged: the file names what it uses from the
+   viewer once, at the top. Proof: a digest of every section (objects,
+   vertices, a checksum of positions and colours) is identical before and
+   after, on the full scene.
+
+What does not change: one `overlayGroup` root (the pick engine, the TEM depth
+fast path, the relief slider and the parity table all walk it); the feature
+half; the order sections are built in.
+
 **5b. Cheaper tests.** The ~430 fixed pauses in `test/e2e.mjs` are replaced by
 conditions, block by block, each block run three times under load before and
 after; CI runs the preflight and the node harnesses on a draft's pushes and

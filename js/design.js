@@ -204,7 +204,7 @@ SBMM.design = (function () {
     SBMM.tools.refreshBaseSelects();
     renderList();
     SBMM.props && SBMM.props.refresh(f);
-    if (SBMM.viewer3d.refreshOverlays) SBMM.viewer3d.refreshOverlays();
+    if (SBMM.viewer3d.refreshOverlays) SBMM.viewer3d.refreshOverlays("feat");
     /* any volume already using this surface as its base is now stale */
     for (const v of SBMM.store.features)
       if (v.type === "volume" && v.props.baseMode === "design" && v.props.designId === f.id)
@@ -303,7 +303,7 @@ SBMM.design = (function () {
     q(".sct").onchange = e => { pr.showContours = e.target.checked; regenerate(f); };
     q(".s3d").onchange = e => {
       pr.drape3d = e.target.checked;
-      if (SBMM.viewer3d.refreshOverlays) SBMM.viewer3d.refreshOverlays();
+      if (SBMM.viewer3d.refreshOverlays) SBMM.viewer3d.refreshOverlays("feat");
     };
     q(".sbal").onclick = () => balance(f);
     q(".svol").onclick = () => volumeAgainst(f);

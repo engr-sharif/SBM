@@ -250,7 +250,7 @@ SBMM.cultural = (function () {
     if (stampEl) stampEl.hidden = !on;
     if (stamp3dEl) stamp3dEl.hidden = !on;
     document.body.classList.toggle("cultural-on", on);
-    if (SBMM.viewer3d && SBMM.viewer3d.refreshOverlays) SBMM.viewer3d.refreshOverlays();
+    if (SBMM.viewer3d && SBMM.viewer3d.refreshOverlays) SBMM.viewer3d.refreshOverlays("cultural");
   }
 
   /* ------------------------------------------------------------------ */
