@@ -57,6 +57,8 @@ SBMM.layerTree = (function () {
      legend: {open: bool}                                                    */
   let S = { open: {}, order: {}, presets: {}, legend: { open: false } };
   let wired = false;
+  /* v56: after resetRecord() nothing is saved until the page reloads */
+  let frozen = false;
   /* v9.28: what the draw-order passes actually did, for block 9z's post-reload
      assertion. When it fails the indices alone cannot say whether the pass never
      ran, ran before the layers were on the map, or fronted a different object;
@@ -77,11 +79,25 @@ SBMM.layerTree = (function () {
         S.order = o.order || {};
         S.presets = o.presets || {};
         S.legend = o.legend || { open: false };
+        /* v56: the solo record. The rows a solo switched off were always
+           remembered (they are layer state); how to put them back was not, so
+           a reload left a group soloed for good with nothing saying so. */
+        if (o.solo && typeof o.solo === "object" && o.solo.group && o.solo.prev) S.solo = o.solo;
       }
     } catch (e) { /* file://, private window */ }
   }
   function save() {
+    if (frozen) return;
     try { localStorage.setItem(STORE, JSON.stringify(S)); } catch (e) { /* file:// */ }
+  }
+  /* v56 — the tree's half of "reset to defaults": the open/closed record, the
+     draw order, the legend and the solo go; the user's saved presets are work
+     and stay. Frozen until the reload, like the other two stores. */
+  function resetRecord() {
+    const keep = { open: {}, order: {}, presets: S.presets || {}, legend: { open: false } };
+    try { localStorage.setItem(STORE, JSON.stringify(keep)); } catch (e) { /* file:// */ }
+    frozen = true;
+    return Object.keys(keep.presets).length;
   }
   load();
 
@@ -524,21 +540,43 @@ SBMM.layerTree = (function () {
   /* Solo: everything else in the group off, click again to put it back.
      The cultural group is never touched, in either direction — its rows go on
      only through their own checkbox and its acknowledgement (§7). */
-  let soloed = null;                 // {group, id, prev:{id:on}}
+  let soloed = S.solo || null;       // {group, id, prev:{id:on}} — remembered since v56
+  function rememberSolo() { if (soloed) S.solo = soloed; else delete S.solo; save(); }
+  /* v56: is a solo still in force? Only while the group still looks the way
+     the solo left it — its one row on and nothing else. Once the user has
+     switched rows by hand the group is theirs again and the record is dropped
+     (putting "back" rows they have since changed would undo their work). */
+  function soloState() {
+    if (!soloed) return null;
+    const g = SBMM.layerState.list(soloed.group);
+    const only = g.length && g.every(r => r.on === (r.id === soloed.id));
+    if (!only) { soloed = null; rememberSolo(); return null; }
+    const rec = SBMM.layerState.rec(soloed.group, soloed.id);
+    return { group: soloed.group, id: soloed.id, label: (rec && rec.label) || soloed.id };
+  }
+  function unsolo() {
+    const st = soloState();
+    if (!st) return false;
+    const g = SBMM.layerState.list(st.group);
+    const list = g.map(r => ({ group: st.group, layer: r.id, on: !!soloed.prev[r.id] }));
+    soloed = null; rememberSolo();
+    SBMM.layerState.batch(list);
+    return true;
+  }
   function solo(group, id) {
     if (group === "cultural") { toast("cultural resources are not part of solo — tick the layer yourself"); return false; }
     const g = SBMM.layerState.list(group);
     if (!g.length) return false;
     if (soloed && soloed.group === group && soloed.id === id) {
       const list = g.map(r => ({ group, layer: r.id, on: !!soloed.prev[r.id] }));
-      soloed = null;
+      soloed = null; rememberSolo();
       SBMM.layerState.batch(list);
       toast("solo off — the group is back as it was");
       return true;
     }
     const prev = {};
     for (const r of g) prev[r.id] = r.on;
-    soloed = { group, id, prev };
+    soloed = { group, id, prev }; rememberSolo();
     SBMM.layerState.batch(g.map(r => ({ group, layer: r.id, on: r.id === id })));
     const rec = SBMM.layerState.rec(group, id);
     toast("solo: " + ((rec && rec.label) || id) + " — click solo again to restore");
@@ -1244,7 +1282,7 @@ SBMM.layerTree = (function () {
   return {
     hostFor, onRow, wire, openState, dump, refs: () => refs,
     applyDrawOrder, drawIndex, order: () => S.order, restoreOrder: applyStoredOrder, diag: () => DIAG,
-    solo, zoomTo, search, toggleRow,
+    solo, soloState, unsolo, resetRecord, zoomTo, search, toggleRow,
     presetNames, applyPreset, savePreset, deletePreset, renamePreset,
     snapshot, applySnapshot,
     legend: { toggle: toggleLegend, paint: paintLegend, visible: () => !!S.legend.open },

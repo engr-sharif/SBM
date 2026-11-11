@@ -191,6 +191,8 @@ function wireWasmSwitch() {
        worker. After field.wire() so the profile knows whether the phone half is
        on, and after initMap() because it wires the map's own long-press. */
     SBMM.touch.wire();
+    /* v56: the "view · N" chip and reset-to-defaults */
+    if (SBMM.viewState) SBMM.viewState.wire();
     SBMM.wireSelection();
     /* the tool-mode machine owns the tool buttons, the cursor, the mode HUD and
        every single-key shortcut (§2) */
@@ -249,16 +251,24 @@ function wireWasmSwitch() {
     SBMM.shell.reflowTopbar();
 
     /* offer to restore last session */
-    const n = (function () { try { const s = localStorage.getItem("sbmm_session_auto"); return s ? (JSON.parse(s).features || []).length : 0; } catch (e) { return 0; } })();
+    /* v56: straight after a reset-to-defaults the drawings come back without
+       asking — the reset promised to keep them, and a bar that can be missed
+       for twenty seconds is not keeping them */
+    const justReset = !!(SBMM.viewState && SBMM.viewState.afterReset());
+    const n = justReset ? 0 : (function () { try { const s = localStorage.getItem("sbmm_session_auto"); return s ? (JSON.parse(s).features || []).length : 0; } catch (e) { return 0; } })();
     if (n) {
       const bar = document.createElement("div"); bar.className = "restorebar";
       bar.innerHTML = `Last session had <b>${n}</b> drawn feature${n === 1 ? "" : "s"}.
         <span class="minib" id="rsYes">restore</span><span class="minib" id="rsNo">dismiss</span>`;
       document.body.appendChild(bar);
-      $("rsYes").onclick = () => { SBMM.store.loadAutosave(); bar.remove(); };
-      $("rsNo").onclick = () => bar.remove();
-      setTimeout(() => bar.remove(), 20000);
-    }
+      /* v56: the autosave is held (js/state.js) until this is answered or
+         the bar goes away, so nothing written while the app boots, or in
+         these twenty seconds, can replace the session being offered */
+      const done = () => { bar.remove(); SBMM.store.releaseAutosave(); };
+      $("rsYes").onclick = () => { SBMM.store.loadAutosave(); done(); };
+      $("rsNo").onclick = done;
+      setTimeout(done, 20000);
+    } else SBMM.store.releaseAutosave();
 
     /* First-run hint: ONE toast, naming the one rule that gets a user out of
        anything (§2). More than one toast at boot is noise nobody reads. */

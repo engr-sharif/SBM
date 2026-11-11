@@ -395,6 +395,30 @@ if (!bl.card || !/SB-9/.test(bl.title || "")) fail("SB-9's log built no card on 
 if (bl.bands < 3 || bl.contact !== 7.5) fail("the phone strip log is not the SB-9 log", bl);
 if (errors.length) fail("page errors opening a boring log on a phone", errors.slice(0, 4));
 
+/* v56: field mode has no status bar, so no "view · N" chip — but the table
+   still answers, and RESET raises its dialog (and Esc closes it, resetting
+   nothing) */
+const vs56 = await page.evaluate(async () => {
+  const wait = ms => new Promise(r => setTimeout(r, ms));
+  const before = SBMM.storm.enabled();
+  SBMM.storm.setEnabled(false, true); await wait(120);
+  const row = SBMM.viewState.active().find(r => r.id === "drains") || null;
+  const chip = document.getElementById("viewChipWrap");
+  const shown = !!(chip && chip.offsetParent);
+  SBMM.viewState.undo("drains");
+  const back = SBMM.storm.enabled();
+  SBMM.storm.setEnabled(before, true);
+  SBMM.cmd.run("RESET"); await wait(200);
+  const d = document.getElementById("resetDlg"), text = d ? d.textContent : "";
+  const r = d ? d.querySelector(".mbox").getBoundingClientRect() : null;
+  document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })); await wait(120);
+  return { row: row && row.text, shown, back, dialog: /Kept/.test(text), fits: !!r && r.left >= 0 && r.right <= innerWidth && r.bottom <= innerHeight,
+           closed: !document.getElementById("resetDlg") };
+});
+console.log("view state on a phone:", JSON.stringify(vs56));
+if (!vs56.row || vs56.shown || !vs56.back) fail("the view-state table must answer in field mode without drawing its chip", vs56);
+if (!vs56.dialog || !vs56.fits || !vs56.closed) fail("RESET must raise a dialog that fits the screen and closes on Esc", vs56);
+
 /* v23 §2.1: and the log window opens as a full-screen sheet, the same way a
    drawing does — the stage is the whole screen here. */
 const bw = await page.evaluate(() => {

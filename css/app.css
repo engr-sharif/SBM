@@ -3424,3 +3424,51 @@ body.field #temLegend{display:none}
 .tmnum:focus-visible{outline:2px solid var(--acc);outline-offset:-1px}
 #temWs [data-pane="maps"] .temgrid2 label .minib{align-self:stretch;text-align:center}
 #temWs [data-pane="maps"] .minib:disabled{opacity:.45;cursor:default}
+
+/* ============================================================
+   v56 — nothing changes the view without saying so
+   (js/viewstate.js: the chip in the status bar, its popover, the
+   reset dialog) and the 3D View settings box kept inside the window
+   ============================================================ */
+.statview{position:relative;display:flex;align-items:center}
+.statview[hidden]{display:none}
+#viewChip{color:var(--warn);border-color:rgba(230,169,63,.45);background:rgba(230,169,63,.10);
+  font-variant-numeric:tabular-nums;white-space:nowrap}
+#viewChip:hover{background:rgba(230,169,63,.18);color:#F1C56E}
+#viewPop{left:auto;right:0;width:320px;padding:11px 12px 10px;font-family:var(--sans)}
+/* the popover stands in the status bar's own stacking context, under the mode
+   HUD; while it is open the bar is lifted over the HUD */
+#status:has(#viewPop.open){z-index:1460}
+#viewPop.open{display:block}
+#viewPop .vsrow{display:flex;align-items:center;gap:10px;padding:5px 0;border-top:1px solid var(--line);
+  font-size:11.5px;color:var(--ink2);line-height:1.35}
+#viewPop .vsrow:first-of-type{border-top:0}
+#viewPop .vsrow span{flex:1;min-width:0}
+#viewPop .vsrow .minib{flex:none}
+#viewPop .vsfoot{display:flex;justify-content:space-between;gap:8px;margin-top:8px;padding-top:8px;border-top:1px solid var(--line)}
+#viewPop .vsfoot .ghost{margin-left:auto;background:none;border-color:transparent;color:var(--mut)}
+#viewPop .vsfoot .ghost:hover{color:var(--ink);border-color:var(--line2)}
+body.field #viewChipWrap{display:none}
+#resetDlg .resetbody{gap:11px;font-size:12.5px;line-height:1.5;color:var(--ink2)}
+#resetDlg .resetbody b{color:var(--ink);font-weight:650}
+#resetDlg .mbtns{display:flex;justify-content:flex-end;gap:8px;margin-top:4px}
+#resetDlg .minib.pri{background:var(--accdim);border-color:rgba(92,192,219,.5);color:var(--acc2)}
+/* the 3D View settings box: bounded by the stage, scrolling inside, in groups.
+   It is anchored at the bottom (above the nav column) and grows upward; the
+   cap is the stage less that anchor and less the top chrome and the 3D bar. */
+#v3dViewPop{max-height:calc(100% - 194px - 60px);overflow:hidden;width:250px}
+#v3dViewPop.on{display:flex;flex-direction:column}
+#v3dViewPop>h4{flex:none}
+body:not(.field) #v3dViewPop{width:min(480px,calc(100% - var(--dockL) - var(--dockR) - 28px));
+  max-height:calc(100% - var(--botH) - 176px - var(--fT) - var(--v3dbarH,44px) - 14px)}
+#v3dViewPop .vpscroll{flex:1 1 auto;min-height:0;overflow:auto;display:flex;flex-wrap:wrap;
+  gap:0 20px;padding-right:4px;align-content:flex-start}
+#v3dViewPop .vpcol{flex:1 1 205px;min-width:0}
+#v3dViewPop .vpsec{min-width:0;padding-bottom:8px}
+#v3dViewPop .vpsec>h5{font-size:10.5px;font-weight:650;letter-spacing:.6px;text-transform:uppercase;
+  color:var(--ink2);margin:2px 0 8px;padding-bottom:4px;border-bottom:1px solid var(--line)}
+#v3dViewPop .vpsec label.chk{margin-bottom:5px}
+#v3dViewPop .vpsec select{float:right;margin-top:-3px}
+#v3dViewPop .vpsec.v3dmarks{margin-top:0;border-top:0;padding-top:0}
+#v3dViewPop .vpsec .v3dmkh .minib:first-of-type{margin-left:0}
+#v3dViewPop .v3ddiag{flex:none;margin-top:8px;padding-top:8px;border-top:1px solid var(--line)}

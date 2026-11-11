@@ -541,49 +541,63 @@ window.SBMM_BUILD="full";
       </div>
     </div>
 
+    <!-- v56: four titled groups in a box that is bounded by the stage and
+         scrolls inside. It is anchored at the bottom and grows upward, so every
+         release that added a row pushed its top further off a 900-px window
+         (by v55 the drape controls and the heading were above the screen).
+         Every id is what it was. -->
     <div id="v3dViewPop" class="popover">
       <h4>View settings</h4>
-      <!-- controls parked here by js/viewer3d.js reflowBar() when the toolbar
-           is too narrow to hold them (F6); empty and hidden otherwise -->
-      <div id="v3dOptHost" hidden></div>
-      <label>Field of view <span class="mono" id="v3dFovVal">55°</span>
-        <input type="range" id="v3dFov" min="20" max="90" step="1" value="55"></label>
-      <label>Mouse sensitivity <span class="mono" id="v3dSensVal">1.0×</span>
-        <input type="range" id="v3dSens" min="0.2" max="3" step="0.1" value="1"></label>
-      <label>Fly speed <span class="mono" id="v3dSpeedVal">1.0×</span>
-        <input type="range" id="v3dSpeed" min="0.2" max="4" step="0.1" value="1"></label>
-      <label class="chk"><input type="checkbox" id="v3dClampTerrain" checked> Keep camera above the ground</label>
-      <!-- v15 §3.2: the key light. The 2D hillshade is lit from somewhere; this
-           is where the 3D view is lit from, and it is remembered. -->
-      <label>Sun azimuth / elevation <span class="mono" id="v3dSunVal">180° / 33°</span>
-        <button class="minib" id="v3dSunPhoto" title="Put the sun where it was when the aerial photo was taken (due south, 33°), so cast shadows fall on the photo's own">as photographed</button>
-        <input type="range" id="v3dSunAz" min="0" max="360" step="5" value="180">
-        <input type="range" id="v3dSunEl" min="5" max="85" step="1" value="33"></label>
-      <!-- v13 §3.1: the flow-path particles. Default on, remembered in the same
-           localStorage record js/view.js keeps the camera in. -->
-      <label class="chk"><input type="checkbox" id="v3dAnimWater" checked> Animate water</label>
-      <!-- v31: the names of the wells, borings, pits, samples and storm structures
-           nearest the camera; default on, remembered with the view prefs -->
-      <label class="chk"><input type="checkbox" id="v3dPtLabels" checked> Point names</label>
-      <!-- v42: Clear Lake, the impoundment and the ponds drawn as water -->
-      <label class="chk"><input type="checkbox" id="v3dWater" checked> Water surfaces</label>
-      <!-- 2026-10-19: how the terrain draws over what is under it (the TEM
-           model). Auto is see-through while a TEM layer is on. -->
-      <label>Ground <select id="v3dGround" title="How the terrain draws over what is under it — auto is see-through while a TEM layer is on">
-        <option value="auto">auto</option><option value="solid">solid</option>
-        <option value="see">see-through</option><option value="hidden">hidden</option></select></label>
-      <!-- v39: one switch for the heavier rendering (trees as trees today; light,
-           water and the rest as they land). A phone and the field build are
-           always light. -->
-      <label>Rendering <select id="v3dQuality" title="Realistic draws each tree as a tree, with shadows; standard is lighter on the graphics card">
-        <option value="realistic">realistic</option><option value="standard">standard</option></select></label>
-      <!-- v26: saved 3D views (camera bookmarks), remembered with the view prefs -->
-      <div class="v3dmarks"><div class="v3dmkh">Saved views <button class="minib" id="v3dMarkSave" title="Save the current camera as a named view">save view</button>
-        <button class="minib" id="v3dTourBtn" title="One slow orbit of the mine area — any input stops it">fly the site</button></div>
-        <div id="v3dMarks"></div></div>
-      <!-- 2026-09-08: which GPU three got, and everything about the drawn
-           terrain in one paste — the answer to "something looks broken in 3D
-           on my machine" arrives with numbers instead of a description. -->
+      <div class="vpscroll">
+       <div class="vpcol">
+        <div class="vpsec" data-vp="look"><h5>Look</h5>
+          <!-- controls parked here by js/viewer3d.js reflowBar() when the toolbar
+               is too narrow to hold them (F6); empty and hidden otherwise -->
+          <div id="v3dOptHost" hidden></div>
+          <!-- v39: one switch for the heavier rendering. A phone and the field
+               build are always light. -->
+          <label>Rendering <select id="v3dQuality" title="Realistic draws each tree as a tree, with shadows; standard is lighter on the graphics card">
+            <option value="realistic">realistic</option><option value="standard">standard</option></select></label>
+          <!-- how the terrain draws over what is under it (the TEM model).
+               Auto is see-through over the TEM survey while a TEM layer is on. -->
+          <label>Ground <select id="v3dGround" title="How the terrain draws over what is under it — auto is see-through while a TEM layer is on">
+            <option value="auto">auto</option><option value="solid">solid</option>
+            <option value="see">see-through</option><option value="hidden">hidden</option></select></label>
+          <!-- v15 §3.2: the key light, remembered. -->
+          <label>Sun azimuth / elevation <span class="mono" id="v3dSunVal">180° / 33°</span>
+            <button class="minib" id="v3dSunPhoto" title="Put the sun where it was when the aerial photo was taken (due south, 33°), so cast shadows fall on the photo's own">as photographed</button>
+            <input type="range" id="v3dSunAz" min="0" max="360" step="5" value="180">
+            <input type="range" id="v3dSunEl" min="5" max="85" step="1" value="33"></label>
+        </div>
+        <div class="vpsec" data-vp="show"><h5>Show</h5>
+          <!-- v42: Clear Lake, the impoundment and the ponds drawn as water -->
+          <label class="chk"><input type="checkbox" id="v3dWater" checked> Water surfaces</label>
+          <!-- v31: the names of the points nearest the camera -->
+          <label class="chk"><input type="checkbox" id="v3dPtLabels" checked> Point names</label>
+          <!-- v13 §3.1: the flow-path particles -->
+          <label class="chk"><input type="checkbox" id="v3dAnimWater" checked> Animate water</label>
+        </div>
+       </div>
+       <div class="vpcol">
+        <div class="vpsec" data-vp="camera"><h5>Camera</h5>
+          <label>Field of view <span class="mono" id="v3dFovVal">55°</span>
+            <input type="range" id="v3dFov" min="20" max="90" step="1" value="55"></label>
+          <label>Mouse sensitivity <span class="mono" id="v3dSensVal">1.0×</span>
+            <input type="range" id="v3dSens" min="0.2" max="3" step="0.1" value="1"></label>
+          <label>Fly speed <span class="mono" id="v3dSpeedVal">1.0×</span>
+            <input type="range" id="v3dSpeed" min="0.2" max="4" step="0.1" value="1"></label>
+          <label class="chk"><input type="checkbox" id="v3dClampTerrain" checked> Keep camera above the ground</label>
+        </div>
+        <!-- v26: saved 3D views (camera bookmarks), remembered with the view prefs -->
+        <div class="vpsec v3dmarks" data-vp="views"><h5>Saved views</h5>
+          <div class="v3dmkh"><button class="minib" id="v3dMarkSave" title="Save the current camera as a named view">save view</button>
+            <button class="minib" id="v3dTourBtn" title="One slow orbit of the mine area — any input stops it">fly the site</button></div>
+          <div id="v3dMarks"></div></div>
+       </div>
+      </div>
+      <!-- which GPU three got, and everything about the drawn terrain in one
+           paste — "something looks broken in 3D on my machine" arrives with
+           numbers instead of a description. -->
       <div class="v3ddiag"><span class="mono" id="v3dGpuLine">renderer: …</span>
         <button class="minib" id="v3dDiagBtn" title="Copy the renderer, the drawn tiles, the textures and a scan of the terrain geometry — paste it into a message when the 3D view looks wrong">copy 3D diagnostics</button></div>
     </div>
@@ -735,6 +749,11 @@ window.SBMM_BUILD="full";
       <div id="osnapPop" class="popover up"></div>
     </span>
     <button class="statbtn" id="polarBtn" title="Polar tracking — 15° increments (F10)">POLAR</button>
+    <!-- v56: shown only while a setting is changing what is drawn (js/viewstate.js) -->
+    <span class="statview" id="viewChipWrap" hidden>
+      <button class="statbtn" id="viewChip" aria-haspopup="true"></button>
+      <div id="viewPop" class="popover up"></div>
+    </span>
   </span>
   <div id="jobBar">
     <span class="jspin"></span>
@@ -949,6 +968,9 @@ window.SBMM_BUILD="full";
   <label class="chk" style="display:inline-flex;gap:5px;align-items:center;margin-left:4px"
          title="The terrain tiles are fetched as you look at the site (v20). Include them and the whole pyramid is downloaded now — about 64 MB on top of the app — so the 3D view is complete with no signal."><input type="checkbox" id="offlineTiles"> terrain tiles (64 MB)</label>
   <button class="minib" id="reloadApp" title="A home-screen app has no address bar — this is its refresh">Reload app</button><br>
+  <b>Defaults</b> — layers, panels, 3D view settings, snaps and the map position go back to how
+  the app first opens; drawings, imported data, saved views and saved layer presets are kept.
+  <button class="minib" id="resetBtn">Reset to defaults…</button><br>
   <b>Apple Pencil</b> — a pen tap places a vertex exactly where the tip is (no loupe, mouse-size
   snapping), a pen hover moves the osnap glyph and the 3D highlight, and your palm is ignored while
   the tip is down. <span class="mono">REDLINE</span> (also <span class="mono">MARKUP</span>,
@@ -1371,6 +1393,10 @@ window.SBMM_HEAVY = [
 <!-- field mode + the field capabilities (docs/V11_SPEC.md §4). After every
      module it calls, before boot.js, which turns it on. -->
 <script src="js/field.js"></script>
+<!-- v56: the one table of settings that change what is drawn, the chip that
+     names them, and reset-to-defaults. It reads every module lazily, so it is
+     last before boot. -->
+<script src="js/viewstate.js"></script>
 <script>SBMM_PERF.mark("app-js")</script>
 <script src="js/boot.js"></script>
 </body>

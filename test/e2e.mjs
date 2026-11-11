@@ -7644,7 +7644,7 @@ await page.evaluate(async () => {
   SBMM.map.fitBounds([[R.y0, R.x0], [R.y0 + (R.ny - 1) * R.dx, R.x0 + (R.nx - 1) * R.dx]], Object.assign({ animate: false }, SBMM.omni.fitPad()));
 });
 await page.waitForTimeout(1500);
-const mpt = await page.evaluate(() => {
+const mapPoint = () => page.evaluate(() => {
   const T = SBMM.temmaps, M = T.result(), map = SBMM.map, r = map.getContainer().getBoundingClientRect(), F = SBMM.shell.frame();
   for (let k = 0; k < M.nx * M.ny; k += 13) {
     if (!(M.depth[k] > 1)) continue;
@@ -7656,10 +7656,26 @@ const mpt = await page.evaluate(() => {
   }
   return null;
 });
+let mpt = await mapPoint();
 if (!mpt) { console.log("FAIL: no node of the top map on screen to point at"); process.exit(1); }
-await page.mouse.move(mpt.sx - 24, mpt.sy - 18);
-await page.mouse.move(mpt.sx, mpt.sy, { steps: 3 });
-await page.waitForFunction(() => { const t = document.getElementById("temTip"); return t && !t.hidden; }, null, { timeout: 15000 }).catch(() => {});
+/* v56: the pointer is brought to the point up to four times, the point is
+   found again each time (the docks may still be settling under a loaded
+   runner, and the frame with them), and the wait is on the chip. One pass on
+   CI failed with the chip never shown and nothing in the log to say why — so
+   a failure now prints what was under the pointer. */
+let chipUp = false;
+for (let k = 0; k < 4 && !chipUp; k++) {
+  if (k) mpt = (await mapPoint()) || mpt;
+  await page.mouse.move(mpt.sx - 24 - 9 * k, mpt.sy - 18 + 7 * k);
+  await page.mouse.move(mpt.sx, mpt.sy, { steps: 3 });
+  chipUp = await page.waitForFunction(() => { const t = document.getElementById("temTip"); return t && !t.hidden; }, null, { timeout: 5000 }).then(() => true, () => false);
+}
+if (!chipUp) console.log("  no TEM chip at the pointer — under it:", JSON.stringify(await page.evaluate(([x, y]) => {
+  const e = document.elementFromPoint(x, y), pk = document.getElementById("pickTip"), ll = SBMM.map.containerPointToLatLng([x - SBMM.map.getContainer().getBoundingClientRect().left, y - SBMM.map.getContainer().getBoundingClientRect().top]);
+  return { el: e ? (e.id || e.className || e.tagName).toString().slice(0, 80) : null, pickTip: !!(pk && pk.offsetParent), pickTipText: pk ? pk.textContent.slice(0, 60) : "",
+           picks: SBMM.pick2d.probe(ll).length, mode: SBMM.mode.current ? SBMM.mode.current() : null, mapOn: SBMM.layerState.isOn("invest", "tem_map"),
+           sliceOn: SBMM.layerState.isOn("invest", "tem_slice"), current: !!(SBMM.temmaps.current && SBMM.temmaps.current()), v3d: SBMM.viewer3d.isOpen(),
+           read: (SBMM.temmaps.readAt("map", ll.lng, ll.lat) || {}).head || null }; }, [mpt.sx, mpt.sy])));
 const m4 = await page.evaluate(() => {
   const T = SBMM.temmaps, t = document.getElementById("temTip"), c = T.card(), csv = T.csv().trim().split("\n"), M = T.result();
   return { chip: t && !t.hidden ? t.textContent : null, status: document.getElementById("sDem").textContent,
@@ -12965,6 +12981,338 @@ if (errors.length !== errBeforeReload) {
 }
 /* leave the box as we found it, so the next run does not inherit this drag */
 await page.evaluate(() => { try { localStorage.removeItem("sbmm.layertree.v1"); } catch (e) {} });
+});
+
+await block("9zz. view state and reset (v56)", async () => {
+/* 9zz. nothing changes the view without saying so (docs/V56_REVIEW_PLAN.md §1) */
+/* ONE TABLE of the settings that change what is drawn (js/viewstate.js). For
+   every row: set it through the owning module, the table names it, undo puts
+   the module back. Then the chip, the 2D/3D split, the View settings box at a
+   900-px window, and reset-to-defaults across a real reload — which is why
+   this block is the last one. */
+console.log("\n— 9zz. view state and reset (v56) —");
+const wait9 = ms => page.waitForTimeout(ms);
+const vsActive = () => page.evaluate(() => SBMM.viewState.active());
+const settled3d = async () => {
+  await page.waitForFunction(() => { const s = SBMM.viewer3d.stats(); return s && !(s.tiles && s.tiles.building); }, null, { timeout: 240000 }).catch(() => {});
+  await wait9(600);
+};
+/* a clean start: whatever the blocks before left set is undone through the table itself */
+await page.evaluate(async () => {
+  if (SBMM.viewer3d.isOpen()) await SBMM.viewer3d.toggle();
+  if (SBMM.temws && SBMM.temws.off) SBMM.temws.off();
+  SBMM.mode.navigate();
+  SBMM.viewState.undoAll();
+});
+await wait9(400);
+const vs0 = await vsActive();
+console.log("view state at the start (2D):", JSON.stringify(vs0));
+if (vs0.length) { console.log("FAIL: undo all left rows active in 2D", vs0); process.exit(1); }
+const chip0 = await page.evaluate(() => ({ hidden: document.getElementById("viewChipWrap").hidden,
+  shown: !!document.getElementById("viewChip").offsetParent }));
+if (!chip0.hidden || chip0.shown) { console.log("FAIL: the view chip shows with nothing changed", chip0); process.exit(1); }
+
+/* ---- the rows that hold in 2D ---- */
+const rows2d = await page.evaluate(async () => {
+  const wait = ms => new Promise(r => setTimeout(r, ms));
+  const VS = SBMM.viewState, LS = SBMM.layerState, out = {};
+  const has = id => VS.active().find(r => r.id === id) || null;
+  const one = async (id, set, back) => {
+    await set(); await wait(60);
+    const on = has(id); VS.undo(id); await wait(60);
+    out[id] = { text: on && on.text, undone: !has(id), back: back() };
+  };
+  await one("backdrop", () => SBMM.backdrop.setEnabled(false), () => SBMM.backdrop.stats().enabled === true);
+  await one("drains", () => SBMM.storm.setEnabled(false, true), () => SBMM.storm.enabled() === true);
+  const cid = SBMM.storm.data().conduits.find(c => c.status !== "broken").id;
+  await one("broken", () => SBMM.storm.setStatus(cid, "broken", true), () => SBMM.storm.statusOf(cid) === "assumed_working");
+  const before = LS.list("framework").map(r => r.id + ":" + r.on).join(",");
+  await one("solo", () => SBMM.layerTree.solo("framework", "dus"),
+            () => LS.list("framework").map(r => r.id + ":" + r.on).join(",") === before);
+  out.soloStored = (() => { SBMM.layerTree.solo("framework", "dus");
+    const st = JSON.parse(localStorage.getItem("sbmm.layertree.v1") || "{}").solo;
+    SBMM.layerTree.unsolo();
+    const after = JSON.parse(localStorage.getItem("sbmm.layertree.v1") || "{}").solo;
+    return { stored: !!(st && st.group === "framework" && st.id === "dus" && st.prev), cleared: !after,
+             same: LS.list("framework").map(r => r.id + ":" + r.on).join(",") === before }; })();
+  /* a solo the user has since changed by hand is no longer a solo */
+  SBMM.layerTree.solo("framework", "dus"); LS.set("framework", "piles", { on: true }); await wait(60);
+  out.soloMovedOn = !has("solo");
+  LS.batch(before.split(",").map(s => { const [l, on] = s.split(":"); return { group: "framework", layer: l, on: on === "true" }; }));
+  const c = SBMM.map.getCenter(), f = SBMM.tools.dropSpot(c.lng, c.lat);
+  const wasOn = LS.isOn("mywork", "drawings");
+  await one("work", () => LS.set("mywork", "drawings", { on: false }), () => LS.isOn("mywork", "drawings") === true);
+  if (!wasOn) LS.set("mywork", "drawings", { on: false });
+  SBMM.store.remove(f);
+  const op0 = LS.opacity("framework", "dus"), on0 = LS.isOn("framework", "dus");
+  LS.set("framework", "dus", { on: true });
+  await one("faint", () => LS.set("framework", "dus", { opacity: 0.05 }), () => LS.opacity("framework", "dus") === 1);
+  LS.set("framework", "dus", { on: on0, opacity: op0 });
+  const t0 = LS.isOn("base", "trees_detected");
+  LS.set("base", "trees_detected", { on: true }); await wait(1500);
+  await one("trees", () => SBMM.trees.setMinShow(25), () => SBMM.trees.minShow() === 6);
+  LS.set("base", "trees_detected", { on: t0 });
+  await one("layout", () => SBMM.touch.override("on"), () => SBMM.touch.override() === "auto" && !document.body.classList.contains("touch"));
+  out.left = VS.active();
+  return out;
+});
+console.log("view state rows (2D):", JSON.stringify(rows2d));
+for (const id of ["backdrop", "drains", "broken", "solo", "work", "faint", "trees", "layout"]) {
+  const r = rows2d[id];
+  if (!r || !r.text || !r.undone || !r.back) { console.log("FAIL: view-state row", id, "did not show, undo or put its module back", r); process.exit(1); }
+}
+if (!/storm drains off/.test(rows2d.drains.text) || !/^1 storm conduit marked broken$/.test(rows2d.broken.text) ||
+    !/^solo · /.test(rows2d.solo.text) || !/hidden · 1$/.test(rows2d.work.text) || !/ at 5 %$/.test(rows2d.faint.text) ||
+    rows2d.trees.text !== "trees under 25 ft hidden" || rows2d.layout.text !== "touch layout forced on") {
+  console.log("FAIL: a view-state row does not say what it is", rows2d); process.exit(1); }
+if (!rows2d.soloStored.stored || !rows2d.soloStored.cleared || !rows2d.soloStored.same) {
+  console.log("FAIL: the solo record is not remembered with the tree, or unsolo did not put the group back", rows2d.soloStored); process.exit(1); }
+if (!rows2d.soloMovedOn) { console.log("FAIL: a solo the user changed by hand is still reported as a solo"); process.exit(1); }
+if (rows2d.left.length) { console.log("FAIL: rows left active after the 2D pass", rows2d.left); process.exit(1); }
+
+/* ---- the chip and its popover (two rows on) ---- */
+await page.evaluate(() => { SBMM.storm.setEnabled(false, true); SBMM.backdrop.setEnabled(false); });
+await wait9(250);
+await page.click("#viewChip");
+await wait9(250);
+const pop = await page.evaluate(() => { const p = document.getElementById("viewPop"), r = p.getBoundingClientRect();
+  const hud = document.getElementById("modeHud").getBoundingClientRect();
+  const foot = p.querySelector("[data-vs-reset]").getBoundingClientRect();
+  const top = document.elementFromPoint(foot.left + foot.width / 2, foot.top + foot.height / 2);
+  return { chip: document.getElementById("viewChip").textContent, open: p.classList.contains("open"),
+           rows: [...p.querySelectorAll(".vsrow span")].map(s => s.textContent), text: p.textContent,
+           box: [r.left, r.top, r.right, r.bottom].map(Math.round), vw: innerWidth, vh: innerHeight,
+           resetReachable: !!(top && top.closest("#viewPop")) }; });
+console.log("view chip:", JSON.stringify(pop));
+if (pop.chip !== "view · 2" || !pop.open || pop.rows.length !== 2) { console.log("FAIL: the chip does not count and list the two changed settings"); process.exit(1); }
+if (pop.box[0] < 0 || pop.box[1] < 0 || pop.box[2] > pop.vw || pop.box[3] > pop.vh) { console.log("FAIL: the view popover is off the window", pop.box); process.exit(1); }
+if (!pop.resetReachable) { console.log("FAIL: something covers the popover's last row (the mode HUD stands in front of the status bar)"); process.exit(1); }
+for (const w of VOICE_BAN) if (pop.text.toLowerCase().includes(w)) { console.log("FAIL: the view popover instructs the reader:", w, pop.text); process.exit(1); }
+await page.click('#viewPop [data-vs="drains"]');
+await wait9(200);
+const pop1 = await page.evaluate(() => ({ chip: document.getElementById("viewChip").textContent, rows: document.querySelectorAll("#viewPop .vsrow").length,
+  drains: SBMM.storm.enabled() }));
+if (pop1.chip !== "view · 1" || pop1.rows !== 1 || !pop1.drains) { console.log("FAIL: undo on a popover row did not undo it", pop1); process.exit(1); }
+await page.keyboard.press("Escape");
+
+/* ---- 3D: the rows that only mean something there, and the white ground plane ---- */
+await page.evaluate(async () => { await SBMM.viewer3d.toggle(); });
+await settled3d();
+const plane = () => page.evaluate(() => { let c = null;
+  SBMM.viewer3d.internals().scene.traverse(o => { if (o.isMesh && o.geometry && o.geometry.type === "PlaneGeometry" && o.renderOrder === 900)
+    c = { hex: o.material.color.getHexString(), map: !!o.material.map, r: o.material.color.r }; });
+  return c; });
+const planeOff = await plane();
+console.log("3D ground plane with the backdrop off:", JSON.stringify(planeOff));
+if (!planeOff || planeOff.map || planeOff.r > 0.5) { console.log("FAIL: with the backdrop off the ground beyond the survey must be the lake colour, not a white sheet", planeOff); process.exit(1); }
+await page.evaluate(() => SBMM.viewState.undo("backdrop"));
+await wait9(300);
+const planeOn = await plane();
+if (!planeOn || !planeOn.map) { console.log("FAIL: switching the backdrop back on did not rebuild the 3D ground plane", planeOn); process.exit(1); }
+const rows3d = await page.evaluate(async () => {
+  const wait = ms => new Promise(r => setTimeout(r, ms));
+  const VS = SBMM.viewState, V = SBMM.viewer3d, out = {};
+  const has = id => VS.active().find(r => r.id === id) || null;
+  const one = async (id, set, back) => { await set(); await wait(80); const on = has(id); VS.undo(id); await wait(80);
+    out[id] = { text: on && on.text, undone: !has(id), back: back() }; };
+  await one("ground", () => V.setGround("see"), () => V.ground() === "auto");
+  V.setGround("solid"); await wait(60);
+  out.solidAlone = !has("ground");          // a solid ground with no TEM on is just a solid ground
+  V.setGround("auto");
+  await one("sun", () => V.sun(240, 20), () => V.sunAuto() === true && Math.round(V.sun().az) === 180);
+  await one("water3d", () => V.water3d(false), () => V.water3d() === true);
+  await one("names3d", () => V.pointNames(false), () => V.pointNames() === true);
+  await one("animwater", () => V.animateWater(false), () => V.animateWater() === true);
+  /* a 3D row does not count while the view is 2D */
+  V.sun(240, 20); await wait(60);
+  out.sunIn3d = !!has("sun");
+  await V.toggle(); await wait(200);
+  out.sunIn2d = !!has("sun");
+  await V.toggle(); await wait(400);
+  out.sunBack = !!has("sun");
+  VS.undo("sun");
+  return out;
+});
+console.log("view state rows (3D):", JSON.stringify(rows3d));
+for (const id of ["ground", "sun", "water3d", "names3d", "animwater"]) {
+  const r = rows3d[id];
+  if (!r || !r.text || !r.undone || !r.back) { console.log("FAIL: view-state row", id, "did not show, undo or put its module back", r); process.exit(1); }
+}
+if (rows3d.ground.text !== "ground see-through" || rows3d.sun.text !== "sun at 240° / 20°") { console.log("FAIL: a 3D row does not say what it is", rows3d); process.exit(1); }
+if (!rows3d.solidAlone) { console.log("FAIL: a solid ground with no TEM layer on is reported as changing the view"); process.exit(1); }
+if (!rows3d.sunIn3d || rows3d.sunIn2d || !rows3d.sunBack) { console.log("FAIL: a 3D-only row must count in 3D and not in 2D", rows3d); process.exit(1); }
+await settled3d();
+/* the two rows that rebuild the terrain: the lighter rendering and a console-only override */
+const heavy = await page.evaluate(async () => {
+  const wait = ms => new Promise(r => setTimeout(r, ms));
+  const VS = SBMM.viewState, V = SBMM.viewer3d, out = {};
+  const has = id => VS.active().find(r => r.id === id) || null;
+  SBMM.view.pref("drapeK", 0); await wait(80);
+  out.over = has("overrides"); VS.undo("overrides"); await wait(80);
+  out.overGone = !has("overrides") && SBMM.view.pref("drapeK") === undefined;
+  V.setQuality("standard"); await wait(80);
+  out.rend = has("rendering"); VS.undo("rendering"); await wait(80);
+  out.rendBack = !has("rendering") && V.quality() === "realistic";
+  return out;
+});
+await settled3d();
+console.log("view state rows (rebuilding):", JSON.stringify(heavy));
+if (!heavy.over || !/drapeK 0/.test(heavy.over.text) || !heavy.overGone) { console.log("FAIL: a console-only rendering override is not reported or not cleared", heavy); process.exit(1); }
+if (!heavy.rend || heavy.rend.text !== "rendering standard" || !heavy.rendBack) { console.log("FAIL: the lighter rendering is not reported or not undone", heavy); process.exit(1); }
+
+/* ---- the View settings box inside a 1440 x 900 window ---- */
+const vpSize = page.viewportSize();
+await page.setViewportSize({ width: 1440, height: 900 });
+await wait9(500);
+await page.evaluate(() => document.getElementById("v3dViewSet").click());
+await wait9(300);
+const vbox = await page.evaluate(() => { const el = document.getElementById("v3dViewPop"), r = el.getBoundingClientRect(), sc = el.querySelector(".vpscroll");
+  const bar = document.querySelector("#view3d .v3dbar").getBoundingClientRect();
+  const ids = ["v3dQuality", "v3dGround", "v3dSunAz", "v3dSunEl", "v3dSunPhoto", "v3dWater", "v3dPtLabels", "v3dAnimWater", "v3dFov", "v3dSens", "v3dSpeed",
+               "v3dClampTerrain", "v3dMarkSave", "v3dTourBtn", "v3dDiagBtn"];
+  const out = ids.filter(id => { const e = document.getElementById(id); if (!e) return true; const q = e.getBoundingClientRect();
+    return !(q.width > 0 && q.top >= r.top - 0.5 && q.bottom <= r.bottom + 0.5 && q.left >= r.left - 0.5 && q.right <= r.right + 0.5); });
+  return { box: [r.left, r.top, r.right, r.bottom].map(Math.round), barBottom: Math.round(bar.bottom), vh: innerHeight, vw: innerWidth,
+           scrollH: sc.scrollHeight, clientH: sc.clientHeight, groups: [...el.querySelectorAll(".vpsec > h5")].map(h => h.textContent), outside: out }; });
+console.log("View settings at 1440x900:", JSON.stringify(vbox));
+if (vbox.box[1] < vbox.barBottom - 1 || vbox.box[3] > vbox.vh || vbox.box[0] < 0 || vbox.box[2] > vbox.vw) {
+  console.log("FAIL: the View settings box is not inside the window below the 3D bar", vbox); process.exit(1); }
+if (vbox.outside.length) { console.log("FAIL: View settings controls that cannot be seen at 1440x900:", vbox.outside); process.exit(1); }
+if (vbox.groups.join("|") !== "Look|Show|Camera|Saved views") { console.log("FAIL: the View settings groups", vbox.groups); process.exit(1); }
+await page.keyboard.press("Escape");
+await page.evaluate(() => document.getElementById("v3dViewPop").classList.remove("on"));
+await page.setViewportSize(vpSize);
+await wait9(400);
+
+/* ---- a plain reload keeps the drawings (v56: the autosave is held while the app boots) ---- */
+/* js/refsurf.js adds EA's reference surfaces to the store at boot, and that
+   used to end in an autosave of a session with nothing in it — over the last
+   visit's drawings, before boot had read them. The bar below never appeared. */
+await page.evaluate(() => { const c = SBMM.map.getCenter(), f = SBMM.tools.dropSpot(c.lng, c.lat); f.name = "RELOAD-KEEP"; SBMM.store.emit(); SBMM.store.autosave(); });
+await wait9(300);
+const savedN = await page.evaluate(() => JSON.parse(localStorage.getItem("sbmm_session_auto") || "{}").features.length);
+console.log("drawings saved before the reload:", await page.evaluate(() => JSON.stringify(SBMM.store.features.filter(f => !(f.props && f.props.ref)).map(f => f.name + ":" + f.type))));
+await page.reload();
+await page.waitForSelector("#loading", { state: "hidden", timeout: 300000 });
+await lateSettled(page);
+const bar = await page.evaluate(() => { const b = document.querySelector(".restorebar");
+  return { shown: !!b, text: b ? b.textContent.replace(/\s+/g, " ").trim() : "",
+           stored: (JSON.parse(localStorage.getItem("sbmm_session_auto") || "{}").features || []).length,
+           inStore: SBMM.store.features.filter(f => f.name === "RELOAD-KEEP").length }; });
+console.log("after a plain reload:", JSON.stringify(bar), "| saved before:", savedN);
+if (savedN < 1 || bar.stored !== savedN || !bar.shown || !bar.text.includes("Last session had " + savedN)) {
+  console.log("FAIL: the last session's drawings did not survive a reload (the autosave was overwritten while the app booted)"); process.exit(1); }
+await page.click("#rsYes");
+await wait9(400);
+const restored = await page.evaluate(() => ({ n: SBMM.store.features.filter(f => f.name === "RELOAD-KEEP").length, bar: !!document.querySelector(".restorebar"),
+  stored: (JSON.parse(localStorage.getItem("sbmm_session_auto") || "{}").features || []).length }));
+if (restored.n !== 1 || restored.bar || restored.stored !== savedN) { console.log("FAIL: restore did not bring the drawing back", restored); process.exit(1); }
+await page.evaluate(() => { for (const f of SBMM.store.features.filter(f => f.name === "RELOAD-KEEP")) SBMM.store.remove(f); });
+await page.evaluate(async () => { await SBMM.viewer3d.toggle(); });
+await settled3d();
+
+/* ---- reset to defaults: settings go back, the work stays, across a real reload ---- */
+const setup = await page.evaluate(async () => {
+  const wait = ms => new Promise(r => setTimeout(r, ms));
+  const LS = SBMM.layerState, V = SBMM.viewer3d;
+  /* the work */
+  const c = SBMM.map.getCenter(), f = SBMM.tools.dropSpot(c.lng, c.lat);
+  f.name = "RESET-KEEP"; SBMM.store.emit(); SBMM.store.autosave();
+  V.saveBookmark("reset-keep");
+  SBMM.layerTree.savePreset("reset-keep");
+  /* the settings */
+  V.sun(250, 25); V.water3d(false); V.setGround("solid"); V.pointNames(false);
+  SBMM.storm.setEnabled(false, true);
+  LS.set("framework", "piles", { on: !LS.isOn("framework", "piles") });
+  SBMM.layerTree.solo("design", LS.list("design")[0].id);
+  try { localStorage.setItem("sbmm_dockl", "420px"); localStorage.setItem("sbmm_polar", "1"); localStorage.setItem("sbmm.omni.v1", "[]"); } catch (e) {}
+  SBMM.view.pref("drapeK", 1);
+  await wait(1200);            // past the view store's 900 ms debounce, so the old values really are on disk
+  const snap = k => localStorage.getItem(k);
+  return { gate: snap("sbmm.gate.v1"), idle: snap("sbmm.gate.idle"), ds: snap("sbmm_datasets_auto"), wasm: snap("sbmm.wasm.v1"),
+           piles: LS.isOn("framework", "piles"), rows: SBMM.viewState.active().map(r => r.id),
+           view: JSON.parse(snap("sbmm_view_v9") || "{}").prefs || {} };
+});
+console.log("before the reset:", JSON.stringify({ rows: setup.rows, piles: setup.piles, storedPrefs: Object.keys(setup.view) }));
+if (setup.rows.length < 5 || setup.view.sunAz !== 250) { console.log("FAIL: the settings to be reset were not in force / on disk", setup); process.exit(1); }
+/* the dialog: says what it keeps, Esc closes it, nothing reset */
+await page.evaluate(() => SBMM.cmd.run("RESET"));
+await wait9(250);
+const dlg = await page.evaluate(() => { const d = document.getElementById("resetDlg"); return d ? d.textContent.replace(/\s+/g, " ") : null; });
+if (!dlg || !/Kept/.test(dlg) || !/drawings/.test(dlg) || !/saved 3D views/.test(dlg)) { console.log("FAIL: RESET did not raise a dialog saying what is kept", dlg); process.exit(1); }
+await page.keyboard.press("Escape");
+await wait9(150);
+if (await page.evaluate(() => !!document.getElementById("resetDlg") || !localStorage.getItem("sbmm.storm.v1"))) {
+  console.log("FAIL: Esc on the reset dialog did not close it, or it reset anyway"); process.exit(1); }
+const errBeforeReset = errors.length;
+await Promise.all([
+  page.waitForNavigation({ timeout: 300000 }),
+  page.evaluate(() => { SBMM.viewState.reset(); })
+]);
+await page.waitForSelector("#loading", { state: "hidden", timeout: 300000 });
+await lateSettled(page);
+await wait9(600);
+const after = await page.evaluate(async () => {
+  const wait = ms => new Promise(r => setTimeout(r, ms));
+  const LS = SBMM.layerState, snap = k => localStorage.getItem(k);
+  const out = {
+    last: SBMM.viewState.lastReset(), toast: (document.getElementById("toast") || {}).textContent || "",
+    feature: SBMM.store.features.filter(f => f.name === "RESET-KEEP").length,
+    restoreBar: !!document.querySelector(".restorebar"),
+    marks: (SBMM.viewer3d.bookmarks() || []).map(b => b.name),
+    presets: SBMM.layerTree.presetNames().filter(n => n === "reset-keep").length,
+    gate: snap("sbmm.gate.v1"), idle: snap("sbmm.gate.idle"), ds: snap("sbmm_datasets_auto"), wasm: snap("sbmm.wasm.v1"),
+    /* js/draw.js writes its own default ("0") back at every boot; that is the default, not a survivor */
+    removed: SBMM.viewState.REMOVE.filter(k => snap(k) !== null && !(k === "sbmm_polar" && snap(k) === "0")),
+    flag: snap("sbmm.reset.v1"),
+    home: JSON.parse(snap("sbmm.home.v1") || "{}"),
+    piles: LS.isOn("framework", "piles"), relief: LS.isOn("base", "relief_shade"),
+    /* every layer row is where a FIRST VISIT puts it (js/home.js curated): the
+       photographs, the place names and the relief on, the rest off — except
+       the class row of the drawings that were just brought back */
+    notDefault: (() => { const bad = [];
+      for (const g of LS.groupList()) for (const r of LS.list(g.id)) { const want = SBMM.home.curated(g.id, r.id);
+        if (want == null || g.id === "mywork") continue; if (r.on !== want) bad.push(g.id + "/" + r.id + "=" + r.on); }
+      return bad; })(),
+    drawingsShown: LS.isOn("mywork", "drawings"),
+    drains: SBMM.storm.enabled(), solo: SBMM.layerTree.soloState(),
+    prefs: (JSON.parse(snap("sbmm_view_v9") || "{}").prefs) || {},
+    dockW: document.documentElement.style.getPropertyValue("--dockLW"),
+    rows2d: SBMM.viewState.active().map(r => r.id)
+  };
+  await SBMM.viewer3d.toggle(); await wait(2500);
+  out.rows3d = SBMM.viewState.active().map(r => r.id);
+  out.sun = SBMM.viewer3d.sun(); out.sunAuto = SBMM.viewer3d.sunAuto(); out.ground = SBMM.viewer3d.ground();
+  out.water = SBMM.viewer3d.water3d(); out.names = SBMM.viewer3d.pointNames();
+  await SBMM.viewer3d.toggle();
+  return out;
+});
+console.log("after the reset:", JSON.stringify(after));
+if (!after.last || after.last.drawings < 1 || after.feature !== 1 || after.restoreBar) {
+  console.log("FAIL: the reset did not bring the drawings back by itself", after.last, after.feature, after.restoreBar); process.exit(1); }
+if (!after.marks.includes("reset-keep") || after.presets !== 1) { console.log("FAIL: the reset lost a saved 3D view or a saved layer preset", after.marks, after.presets); process.exit(1); }
+/* the harness re-stamps the unlock's time on every navigation; the hash is the unlock */
+const gateH = v => { try { return JSON.parse(v).h; } catch (e) { return null; } };
+if (!gateH(after.gate) || gateH(after.gate) !== gateH(setup.gate) || after.idle !== setup.idle || after.ds !== setup.ds || after.wasm !== setup.wasm) {
+  console.log("FAIL: the reset touched a key it must leave alone (the unlock, the idle lock, imported data, the compute core)"); process.exit(1); }
+if (after.removed.length || after.flag !== null) { console.log("FAIL: settings keys survived the reset", after.removed, after.flag); process.exit(1); }
+if (after.home.defaults !== 1 || !after.relief) { console.log("FAIL: the first-visit layers were not applied again after the reset", after.home, after.relief); process.exit(1); }
+if (after.notDefault.length || !after.drawingsShown || !after.drains || after.solo) {
+  console.log("FAIL: layer state, the storm switch or the solo survived the reset", after.notDefault.slice(0, 8), after.drawingsShown, after.drains, after.solo); process.exit(1); }
+const leftPrefs = Object.keys(after.prefs).filter(k => !["camBookmarks", "sunAuto"].includes(k));
+if (leftPrefs.length) { console.log("FAIL: view preferences survived the reset:", leftPrefs); process.exit(1); }
+if (after.dockW) { console.log("FAIL: the stored dock width came back after the reset", after.dockW); process.exit(1); }
+if (after.rows2d.length || after.rows3d.length) { console.log("FAIL: the view chip still names changed settings after a reset", after.rows2d, after.rows3d); process.exit(1); }
+if (!after.sunAuto || Math.round(after.sun.az) !== 180 || after.ground !== "auto" || !after.water || !after.names) {
+  console.log("FAIL: a 3D view setting did not go back", after.sun, after.ground, after.water, after.names); process.exit(1); }
+if (!/reset to defaults · kept 1 drawing, 1 saved view, 1 layer preset/.test(after.toast)) console.log("  (toast already replaced:", JSON.stringify(after.toast), ")");
+if (errors.length !== errBeforeReset) { console.log("FAIL: the reset raised page errors:", errors.slice(errBeforeReset, errBeforeReset + 4)); process.exit(1); }
+/* leave the box as we found it */
+await page.evaluate(() => {
+  for (const f of SBMM.store.features.filter(f => f.name === "RESET-KEEP")) SBMM.store.remove(f);
+  for (const b of (SBMM.viewer3d.bookmarks() || [])) if (b.name === "reset-keep") SBMM.viewer3d.removeBookmark(b.name);
+  SBMM.layerTree.deletePreset("reset-keep");
+});
 });
 
 console.log("page errors:", errors.length ? errors.slice(0, 6) : "none");
