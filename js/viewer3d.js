@@ -84,6 +84,35 @@ SBMM.viewer3d = (function () {
     requestRender();
     return (!s3 || sheetDone) && (!tp || dotsDone);
   }
+  /* v53 — a scene point as State Plane feet and an elevation (the relief
+     slider scales every group in z, so the height is un-scaled here) */
+  function toWorld(p) { return p ? [p.x + CX, p.y + CY, p.z / (exag() || 1) + ZMID] : null; }
+  /* the probe's mark: one small ring where the pointer meets the model, the
+     same size on screen at any range. ONE object, moved; it belongs to no
+     layer, answers no pick, and asks for a frame only when it moves. */
+  let probeSprite = null;
+  function probeMark(p) {
+    if (!scene) return;
+    if (!p) { if (probeSprite && probeSprite.visible) { probeSprite.visible = false; requestRender(); } return; }
+    if (!probeSprite) {
+      const cv = document.createElement("canvas"); cv.width = cv.height = 64;
+      const x = cv.getContext("2d");
+      x.lineWidth = 9; x.strokeStyle = "rgba(0,0,0,.75)"; x.beginPath(); x.arc(32, 32, 20, 0, 6.2832); x.stroke();
+      x.lineWidth = 5; x.strokeStyle = "#fff"; x.beginPath(); x.arc(32, 32, 20, 0, 6.2832); x.stroke();
+      x.fillStyle = "#fff"; x.beginPath(); x.arc(32, 32, 3.5, 0, 6.2832); x.fill();
+      const t = new THREE.CanvasTexture(cv);
+      probeSprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: t, depthTest: false, depthWrite: false,
+        sizeAttenuation: false, fog: false, transparent: true }));
+      probeSprite.scale.set(0.035, 0.035, 1);
+      probeSprite.renderOrder = 40;
+      probeSprite.userData.noClip = true;
+      scene.add(probeSprite);
+    } else if (probeSprite.parent !== scene) scene.add(probeSprite);
+    if (probeSprite.visible && probeSprite.position.distanceToSquared(p) < 1e-4) return;
+    probeSprite.position.copy(p);
+    probeSprite.visible = true;
+    requestRender();
+  }
   /* v36: the TEM model's textures, keyed by the canvas they were made from,
      and the lidar ground at each grid node (computed once per result) */
   const temTex = new Map();
@@ -2422,8 +2451,11 @@ SBMM.viewer3d = (function () {
           put(m, 2);
           return m;
         };
-        if (M.slice) { const m = sheet(M.slice.canvas, M.slice.depth, M.slice.elev); if (m) m.userData.temSlice = true; }
-        for (const st of M.stack) sheet(st.canvas, st.depth);
+        /* v53: every surface of the model answers for the point under the
+           pointer (js/temprobe.js) — the tag says how it knows its depth */
+        if (M.slice) { const m = sheet(M.slice.canvas, M.slice.depth, M.slice.elev);
+          if (m) { m.userData.temSlice = true; m.userData.pick = { kind: "temsurf", what: "slice" }; } }
+        for (const st of M.stack) { const m = sheet(st.canvas, st.depth); if (m) m.userData.pick = { kind: "temsurf", what: "stack", depth: st.depth }; }
         /* a vertical curtain from the ground down to the deepest layer */
         for (const sc of M.sections) {
           const n = sc.pts.length, NZ = 24, pos = [], uv = [], zg = [];
@@ -2446,7 +2478,9 @@ SBMM.viewer3d = (function () {
           g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
           g.setAttribute("uv", new THREE.Float32BufferAttribute(uv, 2));
           g.setIndex(ind);
-          put(new THREE.Mesh(g, matOf(sc.canvas)), 2);
+          const sm = new THREE.Mesh(g, matOf(sc.canvas));
+          sm.userData.pick = { kind: "temsurf", what: "section" };
+          put(sm, 2);
         }
         /* the voxels: ONE instanced box, one draw call */
         const V = M.voxels;
@@ -2468,6 +2502,7 @@ SBMM.viewer3d = (function () {
           }
           im.instanceMatrix.needsUpdate = true;
           if (im.instanceColor) im.instanceColor.needsUpdate = true;
+          im.userData.pick = { kind: "temsurf", what: "vox", vox: V };
           put(im, 1);
         }
       }
@@ -5723,7 +5758,7 @@ SBMM.viewer3d = (function () {
     const wasPit = CLIP.src === "pit";
     CLIP.on = false; CLIP.src = null;
     clipClaim(false);
-    if (wasPit) pitEmit();
+    if (wasPit) { pitEmit(); pitUnpick(); }
     if (CLIP.group && scene) { scene.remove(CLIP.group); disposeTree(CLIP.group); }
     CLIP.group = null; CLIP.sig = ""; CLIP.box = null; CLIP.claimed = 0;
     clipPaint2d(null);
@@ -5847,7 +5882,20 @@ SBMM.viewer3d = (function () {
     }
     return T;
   }
+  /* v53: the cut's walls and floor answer the probe too. They live outside
+     the overlay group, so they register with the pick engine themselves and
+     leave it when the cut is rebuilt or taken away. */
+  function pitUnpick() {
+    if (PIT.picks && SBMM.pick3d) for (const id of PIT.picks) SBMM.pick3d.unregister(id);
+    PIT.picks = [];
+  }
+  function pitPick(o, what) {
+    if (!SBMM.pick3d || !SBMM.pick3d.registerTem) return;
+    const id = SBMM.pick3d.registerTem(o, { kind: "temsurf", what });
+    if (id) (PIT.picks || (PIT.picks = [])).push(id);
+  }
   function pitBuildCaps(G) {
+    pitUnpick();
     if (CLIP.group) { scene.remove(CLIP.group); disposeTree(CLIP.group); CLIP.group = null; }
     const grp = new THREE.Group();
     grp.userData.noClip = true;
@@ -5895,6 +5943,7 @@ SBMM.viewer3d = (function () {
       m.userData.noClip = true; m.userData.pitWall = e;
       m.renderOrder = 1;
       grp.add(m);
+      pitPick(m, "wall");
       walls++; wallVerts += pos.length / 3;
     }
     for (const [k, T] of PIT.tex) if (!used.has(k)) { T.tx.dispose(); PIT.tex.delete(k); }
@@ -5922,6 +5971,7 @@ SBMM.viewer3d = (function () {
       floor.userData.noClip = true; floor.userData.pitFloor = true;
       floor.renderOrder = 0;
       grp.add(floor);
+      pitPick(floor, "floor");
     }
     /* the rim where the cut meets the ground, and the seam where the walls
        meet the floor */
@@ -6100,6 +6150,7 @@ SBMM.viewer3d = (function () {
     toggle, openAt, flyTo, isOpen: () => open, updateSketch, stats, resize, cameraWorld, diag,
     flyAround, stopFlyAround: () => stopTour(), flyingAround: () => !!tour,
     clipBox, clipOff: () => clipOff(), clipState, clipContains, clipProbe,
+    toWorld, probeMark, probeMarkState: () => (probeSprite && probeSprite.visible ? toWorld(probeSprite.position) : null),
     setPit, pitState, temDepth,
     /* v37: what the depth fast path and the cut actually drew — the slice
        sheet's height and texture against the floor's, for the harness */

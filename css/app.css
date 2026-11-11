@@ -3370,3 +3370,45 @@ body.field #temLegend{display:none}
   border:2px solid #10171B;box-shadow:0 1px 4px rgba(0,0,0,.6)}
 .temsech-ew{cursor:ns-resize}
 .temsech-ns{cursor:ew-resize}
+
+/* =====================================================================
+   v53 — the TEM probe (js/temprobe.js): the chip at the pointer, the card
+   with its depth profile, a pinned probe's label, the comparison card.
+   The chip is one element for 2D and 3D, in the touch-furniture band's
+   neighbourhood: above the map and the 3D view, below every window.
+   ===================================================================== */
+#temTip{position:fixed;left:0;top:0;z-index:1460;pointer-events:none;display:flex;align-items:stretch;gap:8px;
+  padding:7px 10px 7px 8px;border-radius:10px;max-width:330px;
+  background:rgba(12,18,22,.94);border:1px solid var(--line2);box-shadow:0 8px 26px rgba(0,0,0,.5)}
+#temTip[hidden]{display:none}
+#temTip .tpcore{flex:none;border-radius:2px;align-self:center;outline:1px solid rgba(255,255,255,.18)}
+#temTip .tpt{display:flex;flex-direction:column;gap:2px;min-width:0;justify-content:center}
+#temTip .tp1{display:flex;align-items:baseline;gap:8px;white-space:nowrap}
+#temTip .tp1 b{font-size:14px;color:var(--ink);font-weight:650}
+#temTip .tpr{font-size:11px;color:var(--ink2)}
+#temTip .tpc{font-size:11px;color:var(--mut)}
+#temTip .tp2{font-size:11.5px;color:var(--ink2);white-space:nowrap}
+#temTip .tp3{font-size:11px;color:var(--mut);white-space:nowrap}
+#temTip .tpw{font-style:normal;color:#F1CE7A}
+
+.tpcard b{font-size:13px}
+.tpcard .tpxy{font-size:11px;color:var(--mut)}
+.tptab{width:100%;border-collapse:collapse;margin:6px 0 4px;font-size:11.5px}
+.tptab td,.tptab th{padding:2px 0;vertical-align:top;border-bottom:1px solid rgba(255,255,255,.06);text-align:left}
+.tptab td:first-child{color:var(--mut);padding-right:10px;white-space:nowrap}
+.tptab td.mono,.tptab th{text-align:right;color:var(--ink)}
+.tptab th{color:var(--mut);font-weight:500;font-size:10.5px}
+.tptab th:first-child{text-align:left}
+.tpprofw{line-height:0;margin-top:4px}
+.tpprofw svg,.tpall svg{display:block;max-width:100%;height:auto}
+.tpkey{display:flex;gap:12px;align-items:center;font-size:10.5px;color:var(--mut);margin-top:3px}
+.tpkey i{display:inline-block;width:14px;height:0;margin-right:4px;vertical-align:middle;border-top:2px solid #E4796A}
+.tpkey i.k2{border-top:1.3px dashed #C9D3D6}
+.tpkey i.k3{border-top:1px dashed #E2BA14}
+.tpnote{font-size:10.5px;color:var(--mut);margin-top:3px}
+.tpbox{margin-top:6px;padding-top:6px;border-top:1px solid var(--line)}
+.tpbox .tpcard{padding:0;background:none;border:0;box-shadow:none}
+.tpallt .sw{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:6px;vertical-align:middle}
+.leaflet-tooltip.tppin{font-family:var(--mono,ui-monospace,monospace);font-size:11px}
+.tppop .leaflet-popup-content{margin:10px 12px}
+.tisay{margin-top:5px;font-size:11.5px;color:var(--ink2);white-space:normal}

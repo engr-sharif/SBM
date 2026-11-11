@@ -254,6 +254,13 @@ SBMM.cmd = (function () {
         const d = parseFloat(String(v || "").trim());
         SBMM.temws.open({ depth: isFinite(d) ? d : null });
       } },
+    /* v53: every pinned TEM probe on one chart */
+    { n: "TEMPROBES", a: ["PROBES", "TEMPINS"],
+      d: "TEM probes — the pinned probes' profiles on one chart, with a CSV",
+      f: () => {
+        if (!SBMM.temprobe) { toast("this build has no TEM survey"); return; }
+        SBMM.temprobe.probesCard();
+      } },
     /* v51: TEM off as a whole — every TEM layer, the cut, the cards, the see-through ground */
     { n: "TEMOFF", a: ["TEMCLOSE", "GEOPHYSOFF"],
       d: "turn TEM off — every TEM layer off, the cut closed, the ground solid",

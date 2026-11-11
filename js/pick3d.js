@@ -55,11 +55,32 @@ SBMM.pick3d = (function () {
     reg.set(id, {
       id, object3d: spec.object3d, kind: spec.kind || "other",
       priority: spec.priority != null ? spec.priority : 1,
-      hit: spec.hit
+      hit: spec.hit,
+      /* v53 — a LIVE surface (the TEM model's sheets, sections and walls):
+         what it says depends on WHERE on it the pointer is, so its reading
+         is asked on every move rather than once per object, it is never
+         tinted as a whole, and `accept` lets it refuse a hit on a part of
+         itself that cannot be seen. `live(hit, event)` shows its own chip
+         and answers whether it had anything to say; `liveEnd()` puts it away. */
+      live: typeof spec.live === "function" ? spec.live : null,
+      liveEnd: typeof spec.liveEnd === "function" ? spec.liveEnd : null,
+      accept: typeof spec.accept === "function" ? spec.accept : null
     });
     return id;
   }
   function unregister(id) { reg.delete(id); }
+  function temSurfSpec(o, t, P) {
+    const TP = SBMM.temprobe;
+    return {
+      object3d: o, kind: "temsurf", priority: P != null ? P : 1,
+      hit: ix => TP.click3d(t, ix),
+      live: (hit, e) => TP.hover3d(t, hit, e),
+      liveEnd: () => TP.end3d(),
+      accept: q => TP.accept3d(t, q)
+    };
+  }
+  /* for an object outside the overlay group (the cut's walls and floor) */
+  function registerTem(o, t) { return SBMM.temprobe ? register(temSurfSpec(o, t, 1)) : null; }
   function registered() { return [...reg.values()].map(e => ({ id: e.id, kind: e.kind, priority: e.priority })); }
 
   function attach(handles) {
@@ -186,14 +207,23 @@ SBMM.pick3d = (function () {
         }
       };
       /* v38: the TEM interpretations — a proposed boring, the route, the
-         base-of-waste surface and the band sheet */
-      case "teminterp": return {
-        object3d: o, kind: "teminterp", priority: P,
-        hit(ix) {
-          const pk = o.userData.pick;
-          return SBMM.teminterp ? SBMM.teminterp.pick3d(pk.what, ix && ix.index != null ? Math.floor(ix.index / (pk.per || 1)) : 0) : null;
-        }
-      };
+         base-of-waste surface and the band sheet. v53: the two SURFACES are
+         live — they answer with the value at the point, not a sentence. */
+      case "teminterp": {
+        const pk = o.userData.pick, surf = pk.what === "waste" || pk.what === "seep";
+        return {
+          object3d: o, kind: "teminterp", priority: P,
+          hit(ix) {
+            return SBMM.teminterp ? SBMM.teminterp.pick3d(pk.what, ix && ix.index != null ? Math.floor(ix.index / (pk.per || 1)) : 0, ix) : null;
+          },
+          live: surf && SBMM.temprobe ? (hit, e) => SBMM.temprobe.hoverInterp(pk.what, hit, e) : null,
+          liveEnd: surf && SBMM.temprobe ? () => SBMM.temprobe.end3d() : null
+        };
+      }
+      /* v53: a surface of the TEM model — the slice, a stack sheet, a
+         section, a voxel cloud; the cut's walls and floor register
+         themselves (js/viewer3d.js), with the same four functions */
+      case "temsurf": return SBMM.temprobe ? temSurfSpec(o, t, P) : null;
       case "sample": return {
         object3d: o, kind: "sample", priority: P,
         hit(ix) {
@@ -359,7 +389,8 @@ SBMM.pick3d = (function () {
       const V = SBMM.viewer3d, C0 = ctx.center ? ctx.center() : null;
       const cut = V && V.clipContains && C0 && !(entry.object3d.userData && entry.object3d.userData.noClip)
         ? q => V.clipContains(q.point.x + C0.CX, q.point.y + C0.CY) : null;
-      const h = cut ? HITS.find(q => !cut(q)) : HITS[0];
+      const acc = entry.accept;
+      const h = cut || acc ? HITS.find(q => !(cut && cut(q)) && !(acc && !acc(q))) : HITS[0];
       if (!h) continue;
       /* Priority first, distance second. Two objects the ray genuinely passes
          through at almost the same depth (a depth stick and its marker cap) are
@@ -400,6 +431,7 @@ SBMM.pick3d = (function () {
     if (!ctx || !ctx.isOpen() || card || pDown || SBMM.tools.active()) return;
     let html = null, title = null, sp = null;
     if (hovered) {
+      if (hovered.live) return;       // v53: its chip is already at the pointer
       const got = raycast(e);
       if (!got) return;
       let info = null;
@@ -434,6 +466,26 @@ SBMM.pick3d = (function () {
     if (SBMM.viewer3d && SBMM.viewer3d.noteHover) SBMM.viewer3d.noteHover(performance.now() - _t);
     const id = got ? got.entry.id : null;
     const idx = got ? got.hit.index : null;
+    /* v53: a live surface answers for the point, on every move */
+    if (got && got.entry.live) {
+      if (hovered && !(hovered.live && hovered.id === id)) clearHover(true);
+      let said = false;
+      try { said = !!got.entry.live(got.hit, e); } catch (err) { said = false; }
+      if (said) {
+        if (liveNow && liveNow !== got.entry && liveNow.liveEnd) liveNow.liveEnd();
+        liveNow = got.entry;
+        hovered = { id, index: idx, obj: got.entry.object3d, live: true };
+        ctx.dom.style.cursor = "crosshair";
+        hideTip();
+        return;
+      }
+      endLive();
+      if (hovered && hovered.live) hovered = null;
+      ctx.dom.style.cursor = "";
+      return;
+    }
+    endLive();
+    if (hovered && hovered.live) hovered = null;
     if (hovered && hovered.id === id && hovered.index === idx) { moveTip(e); return; }
     clearHover(true);
     if (!got) { ctx.dom.style.cursor = ""; return; }
@@ -446,9 +498,16 @@ SBMM.pick3d = (function () {
     showTip(info.title || "", e);
     ctx.requestRender();
   }
+  let liveNow = null;
+  function endLive() {
+    if (!liveNow) return;
+    const l = liveNow; liveNow = null;
+    if (l.liveEnd) { try { l.liveEnd(); } catch (err) { /* a chip is a courtesy */ } }
+  }
   function clearHover(quiet) {
+    endLive();
     if (hovered) {
-      highlight(hovered.obj, false);
+      if (!hovered.live) highlight(hovered.obj, false);
       hovered = null;
       if (!quiet) ctx.requestRender();
     }
@@ -787,7 +846,7 @@ SBMM.pick3d = (function () {
 
   return {
     register, unregister, registered, registerCad, attach, attached, syncScene, snapPoint,
-    click, onCamera, closeCard, editHandles, stats, touchDrag,
+    click, onCamera, closeCard, editHandles, stats, touchDrag, registerTem,
     /* the i-th 3D vertex handle's scene position — the harness needs somewhere
        real to put a finger, and the console needs somewhere to look */
     handlePos: i => {

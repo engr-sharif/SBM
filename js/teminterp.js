@@ -851,7 +851,41 @@ SBMM.teminterp = (function () {
     return out;
   }
   const wantsSeeThrough = () => !!((W && on("tem_waste")) || (Sp && on("tem_seep")));
-  function pick3d(kind, i) {
+  /* v53 — what a surface says AT A POINT (the probe's chip and card): the
+     base of waste and its standard error there; the band's resistivity there
+     and whether it is on the conductive side of the threshold */
+  function readAt(kind, x, y) {
+    if (kind === "waste" && W) {
+      const id = nodeOf(W, x, y);
+      if (id < 0 || !isFinite(W.depth[id])) return null;
+      const d = W.depth[id], se = W.se[id], [zg] = SBMM.elev ? SBMM.elev(x, y) : [NaN];
+      return { key: id + "", head: `base of waste ${fmt(d, 0)} ± ${fmt(se, 0)} ft`,
+               lines: [isFinite(zg) ? `elev ${fmt0(zg - d)} ft · ground ${fmt0(zg)} ft` : `E ${fmt0(x)} · N ${fmt0(y)}`,
+                       W.method === "tem" ? "borings + TEM · interpreted" : "from the borings · interpreted"],
+               depth: d, se };
+    }
+    if (kind === "seep" && Sp) {
+      const id = nodeOf(Sp, x, y);
+      if (id < 0 || !isFinite(Sp.rho[id])) return null;
+      const r = Sp.rho[id], low = r < Sp.thr;
+      return { key: id + "", head: `band ${fmtV(r)} Ω·m`,
+               lines: [`${fmt0(Sp.zTop)}–${fmt0(Sp.zBot)} ft elevation`,
+                       (low ? "conductive" : "not conductive") + ` · threshold ${fmtV(Sp.thr)} Ω·m`
+                       + (Sp.linked && Sp.linked[id] ? " · joins both waters" : "")],
+               rho: r, low };
+    }
+    return null;
+  }
+  function pick3d(kind, i, ix) {
+    /* the two surfaces answer for the point clicked, then say the finding */
+    if ((kind === "waste" || kind === "seep") && ix && ix.point && SBMM.viewer3d && SBMM.viewer3d.toWorld) {
+      const w = SBMM.viewer3d.toWorld(ix.point), r = readAt(kind, w[0], w[1]);
+      if (r) return { title: kind === "waste" ? "TEM — base of waste" : "TEM — conductive zones",
+                      html: `<div class="tipop"><b class="mono">${esc(r.head)}</b>`
+                        + r.lines.map(l => `<div class="mono">${esc(l)}</div>`).join("")
+                        + `<div class="tisay">${esc((kind === "waste" ? wasteFinding() : seepFinding()).text)}</div></div>`,
+                      xyz: [w[0], w[1]] };
+    }
     if (kind === "target" && W && W.targets[i]) return { title: `Proposed boring T${i + 1}`, html: wPopup(W.targets[i], i), xyz: [W.targets[i].x, W.targets[i].y] };
     if (kind === "route" && Sp && Sp.route) return { title: "Least-resistive route", html: `<div class="tipop">${routeTip()}</div>`, xyz: Sp.route.at };
     if (kind === "waste" && W) return { title: "TEM — base of waste", html: `<div class="tipop">${esc(wasteFinding().text)}</div>`, xyz: null };
@@ -917,7 +951,7 @@ SBMM.teminterp = (function () {
 
   return {
     build, open, activate, mount, paintPane, runWaste, runSeep, scene3d, wantsSeeThrough, pick3d,
-    cards: () => Object.keys(cards).map(k => cards[k]),
+    cards: () => Object.keys(cards).map(k => cards[k]), readAt,
     hoverText, waterLevel, sectionSvg, wasteCsv, targetsCsv, seepCsv, routeCsv, geojson,
     waste: () => W, seep: () => Sp, card: k => cards[k] || null, showCard, rows: () => rows,
     settings: () => Object.assign({}, P), set: setP, BANDS

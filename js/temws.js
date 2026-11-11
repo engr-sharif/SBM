@@ -63,6 +63,11 @@ SBMM.temws = (function () {
      and a slice in front of them hide exactly what they show. */
   const TABS = [["model", "Model"], ["waste", "Base of waste"], ["seep", "Conductive zones"]];
   let tab = "model", hidSlice = false, hidCols = false, selfOff = false;
+  /* v53: the probe's record while the pointer is on the model (js/temprobe.js
+     emits `temprobe`). The core then shows the model under the POINTER — a
+     virtual boring that follows the hand — and goes back to the centre of the
+     cut when the pointer leaves. */
+  let hov = null;
 
   /* ------------------------------------------------------------------ */
   /* open / close                                                        */
@@ -519,13 +524,7 @@ SBMM.temws = (function () {
     /* NOT data-preset: the panel is an ancestor of every button in it, and the
        click handler finds a view button with closest('[data-preset]') */
     el.dataset.view = pn;
-    const inRec = d >= 0 && d <= DM();
-    const v = isFinite(pit.cx) && inRec ? G().valueAtDepth(pit.cx, pit.cy, d) : NaN;
-    setO("val", isFinite(v) ? `${fmtV(v)} ${G().unit()} at the centre of the cut` : "no model at the centre of the cut");
-    const ns = nearestSounding(pit.cx, pit.cy);
-    const nb = nearestBoring(pit.cx, pit.cy);
-    setO("near", (ns ? `nearest sounding ${D.id[ns.i]} · ${fmt0(ns.d)} ft` : "")
-      + (nb ? ` · ${nb.h.id} ${fmt0(nb.d)} ft (contacts on the core)` : ""));
+    paintReading();
     if (R) {
       setO("ewI", `N ${fmt0(R.y0 + secIdx("ewI", R) * R.dx)}`);
       setO("nsI", `E ${fmt0(R.x0 + secIdx("nsI", R) * R.dx)}`);
@@ -542,6 +541,22 @@ SBMM.temws = (function () {
       : pit.on ? "the cut opens in the 3D view" : "ground closed");
     paintCal();
     paintCore();
+  }
+  /* the two lines under the layer: the value, and what is nearest — at the
+     centre of the cut, or under the pointer while it is on the model */
+  function paintReading() {
+    if (!active || !el) return;
+    const D = data(), setO = (k, t) => { const o = el.querySelector(`[data-o="${k}"]`); if (o) o.textContent = t; };
+    const px = hov ? hov.x : pit.cx, py = hov ? hov.y : pit.cy, d = hov ? hov.depth : depthNow();
+    const where = hov ? "under the pointer" : "at the centre of the cut";
+    const inRec = d >= 0 && d <= DM();
+    const v = isFinite(px) && inRec ? G().valueAtDepth(px, py, d) : NaN;
+    setO("val", isFinite(v) ? `${fmtV(v)} ${G().unit()} ${where}` + (hov ? ` · ${fmt0(d)} ft deep` : "") : `no model ${where}`);
+    const ns = nearestSounding(px, py);
+    const nb = nearestBoring(px, py);
+    setO("near", (ns ? `nearest sounding ${D.id[ns.i]} · ${fmt0(ns.d)} ft` : "")
+      + (nb ? ` · ${nb.h.id} ${fmt0(nb.d)} ft (contacts on the core)` : ""));
+    el.dataset.reading = hov ? "pointer" : "centre";
   }
   function secIdx(k, R) {
     const S = G().settings(), n = k === "ewI" ? R.ny : R.nx, v = S[k];
@@ -590,8 +605,9 @@ SBMM.temws = (function () {
     x.setTransform(dpr, 0, 0, dpr, 0, 0);
     x.clearRect(0, 0, CW, CH);
     const H = CH - CORE.top - CORE.bot, dm = DM(), yOf = d => CORE.top + d / dm * H;
-    const sig = (G().sigKey ? G().sigKey() : "") + "|" + pit.cx + "|" + pit.cy;
-    if (!coreCache || coreCache.sig !== sig) coreCache = { sig, c: G().core(pit.cx, pit.cy, 150) };
+    const hx = hov ? hov.x : pit.cx, hy = hov ? hov.y : pit.cy;
+    const sig = (G().sigKey ? G().sigKey() : "") + "|" + hx + "|" + hy;
+    if (!coreCache || coreCache.sig !== sig) coreCache = { sig, c: G().core(hx, hy, 150) };
     const C = coreCache.c;
     /* the column */
     x.fillStyle = "#1A1612"; x.fillRect(CORE.x0, CORE.top, CORE.w, H);
@@ -609,7 +625,7 @@ SBMM.temws = (function () {
     x.fillStyle = "#93A7B2"; x.font = "9px ui-monospace, monospace"; x.textAlign = "right"; x.textBaseline = "middle";
     for (let d = 0; d <= dm; d += 100) { x.fillText(String(d), CORE.x0 - 4, yOf(d)); x.fillRect(CORE.x0 - 3, Math.round(yOf(d)), 3, 1); }
     /* the nearest boring's logged contacts */
-    const nb = nearestBoring(pit.cx, pit.cy);
+    const nb = nearestBoring(hx, hy);
     if (nb) {
       const c = nb.h.contacts || {};
       const tick = (d, col) => { if (d == null || !(d >= 0)) return; x.fillStyle = col; x.fillRect(CORE.x0 + CORE.w + 1, Math.round(yOf(d)) - 1, 7, 2); };
@@ -617,12 +633,13 @@ SBMM.temws = (function () {
       tick(c.bedrock_top, "#C9D3D6");
     }
     /* the depth marker */
-    const yd = yOf(Math.max(0, Math.min(dm, depthNow())));
-    x.fillStyle = "#F1CE7A";
+    const yd = yOf(Math.max(0, Math.min(dm, hov ? hov.depth : depthNow())));
+    x.fillStyle = hov ? "#FFFFFF" : "#F1CE7A";
     x.fillRect(CORE.x0 - 6, Math.round(yd) - 1, CORE.w + 12, 2);
     x.beginPath(); x.moveTo(CORE.x0 + CORE.w + 6, yd); x.lineTo(CORE.x0 + CORE.w + 12, yd - 5); x.lineTo(CORE.x0 + CORE.w + 12, yd + 5); x.fill();
     cv.setAttribute("aria-valuenow", String(Math.round(depthNow())));
     cv.dataset.depth = String(Math.round(depthNow()));
+    cv.dataset.hover = hov ? Math.round(hov.depth) + "@" + Math.round(hov.x) + "," + Math.round(hov.y) : "";
     cv.dataset.boring = nb ? nb.h.id : "";
     cv.dataset.cells = String(C.filter(c => c.color).length);
   }
@@ -773,6 +790,17 @@ SBMM.temws = (function () {
       paintAll();
     });
     SBMM.events.on("layers", ({ group }) => { if (active && (group === "invest" || group == null)) paintAll(); });
+    /* the probe: the core and the reading follow the pointer (two text nodes
+       and a 60-px canvas — no layout, no frame) */
+    let hovRaf = 0;
+    SBMM.events.on("temprobe", ({ rec }) => {
+      const next = rec && rec.ok ? rec : null;
+      if (!active || tab !== "model") { hov = null; return; }
+      if (!next && !hov) return;
+      hov = next;
+      if (hovRaf) return;
+      hovRaf = requestAnimationFrame(() => { hovRaf = 0; paintReading(); paintCore(); });
+    });
     /* the cut is a 3D view state: closing 3D takes it away, opening it again
        puts it back */
     SBMM.events.on("view", ({ open: o }) => { if (active && o) { applyPit(); paintAll(); } });
@@ -781,7 +809,7 @@ SBMM.temws = (function () {
   function state() {
     return { open: active, pit: Object.assign({}, pit), playing: !!playT, tab,
              temOn: !!(G() && data() && G().anyOn()), chip: !!(chip && !chip.hidden),
-             preset: active ? presetNow() : "", byElev: !!(G() && G().byElev()), depthNow: G() && data() ? depthNow() : null,
+             reading: hov ? "pointer" : "centre", preset: active ? presetNow() : "", byElev: !!(G() && G().byElev()), depthNow: G() && data() ? depthNow() : null,
              panel: !!(el && !el.hidden), depth: G() ? G().depth() : null };
   }
   if (SBMM.events) SBMM.events.on("boot", () => wireChip());
