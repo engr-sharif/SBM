@@ -3313,3 +3313,60 @@ body.field #temChip{left:50%;right:auto;transform:translateX(-50%);bottom:auto;t
 body.field.fovl #temChip{display:none}
 #temMenuBtn.on .tlbl::after{content:" · on";color:#F1CE7A;font-weight:600}
 
+
+/* =====================================================================
+   v52 — the TEM panel, reorganised: the reading on top, four views, the
+   rest in sections that fold; the legend on the view; the handles that
+   drag the two section lines on the map.
+   ===================================================================== */
+#temWs .twsseg{display:inline-flex;border:1px solid var(--line2);border-radius:8px;overflow:hidden;align-self:flex-start}
+#temWs .twsseg .segb{background:none;border:0;border-right:1px solid var(--line2);color:var(--mut);font:inherit;
+  font-size:11.5px;padding:4px 9px;cursor:pointer;white-space:nowrap}
+#temWs .twsseg .segb:last-child{border-right:0}
+#temWs .twsseg .segb:hover{color:var(--ink);background:rgba(255,255,255,.05)}
+#temWs .twsseg .segb.on{background:var(--accdim);color:var(--ink)}
+#temWs .twspre{display:grid;grid-template-columns:repeat(4,1fr);align-self:stretch}
+#temWs .twspre .segb{padding:6px 2px;font-size:11.5px;text-align:center}
+#temWs .twselev{direction:rtl}
+#temWs input[type=range][hidden]{display:none}
+/* a folding section reads as one of the panel's sections: the same rule, the
+   same small-caps heading, a caret that turns */
+#temWs details.twsec{border-top:1px solid var(--line);padding-top:8px}
+#temWs details.twsec > summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:6px;
+  font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--mut);font-weight:600;
+  user-select:none;border-radius:4px}
+#temWs details.twsec > summary::-webkit-details-marker{display:none}
+#temWs details.twsec > summary::before{content:"";width:6px;height:6px;flex:none;border-right:1.5px solid currentColor;
+  border-bottom:1.5px solid currentColor;transform:rotate(-45deg);transition:transform .12s}
+#temWs details.twsec[open] > summary::before{transform:rotate(45deg)}
+#temWs details.twsec > summary:hover{color:var(--ink)}
+#temWs details.twsec > summary:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+#temWs details.twsec > .twsecb{display:flex;flex-direction:column;gap:6px;padding-top:8px}
+#temWs details.twsmore{border-top:0;padding-top:2px}
+#temWs details.twsmore > summary{text-transform:none;letter-spacing:0;font-size:11.5px;font-weight:500}
+#temWs .twsbtns [data-o="range"]{align-self:center;font-size:10.5px;margin-left:auto}
+
+/* the legend on the view: top-left of the stage, clear of the 3D toolbar */
+#temLegend{position:absolute;left:calc(var(--dockL) + 12px);top:calc(var(--fT) + 10px);z-index:1440;
+  width:264px;padding:7px 8px 5px;border-radius:10px;pointer-events:none;
+  background:rgba(14,20,24,.9);border:1px solid var(--line2);box-shadow:var(--sh2)}
+body.v3don:not(.v3dsplit) #temLegend{top:calc(var(--fT) + 62px)}
+#temLegend[hidden]{display:none}
+body.field #temLegend{display:none}
+#temLegend .tlgh{display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin-bottom:2px}
+#temLegend .tlgh b{font-size:11.5px;color:var(--ink);font-weight:600;white-space:nowrap}
+#temLegend .tlgs{font-size:10.5px;color:var(--mut);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#temLegend .tlgbar{position:relative;line-height:0}
+#temLegend .tlgbar svg{display:block}
+/* the marker: a tick through the bar at the value under the pointer */
+#temLegend .tlgm{position:absolute;top:31px;width:0;height:18px;margin-left:8px;border-left:2px solid #fff;
+  box-shadow:0 0 0 1px rgba(0,0,0,.7);transform:translateX(-1px)}
+#temLegend .tlgm[hidden]{display:none}
+#temLegend .tlgv{height:13px;font-size:10.5px;color:var(--ink);text-align:right}
+
+/* a section line's handle on the map */
+.temsech{cursor:grab}
+.temsech i{display:block;width:14px;height:14px;margin:4px;border-radius:50%;background:#F1CE7A;
+  border:2px solid #10171B;box-shadow:0 1px 4px rgba(0,0,0,.6)}
+.temsech-ew{cursor:ns-resize}
+.temsech-ns{cursor:ew-resize}

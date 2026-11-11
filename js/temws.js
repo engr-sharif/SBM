@@ -62,7 +62,7 @@ SBMM.temws = (function () {
      and the conductive band are read through a see-through ground, and a cut
      and a slice in front of them hide exactly what they show. */
   const TABS = [["model", "Model"], ["waste", "Base of waste"], ["seep", "Conductive zones"]];
-  let tab = "model", hidSlice = false, selfOff = false;
+  let tab = "model", hidSlice = false, hidCols = false, selfOff = false;
 
   /* ------------------------------------------------------------------ */
   /* open / close                                                        */
@@ -125,7 +125,7 @@ SBMM.temws = (function () {
     stopPlay();
     /* the Model tab's "put the slice back" must not run: it would start a
        job whose card arrives after everything has been turned off */
-    hidSlice = false;
+    hidSlice = false; hidCols = false;
     if (active) close();
     for (const id of G().TEM_ROWS) rowSet(id, false);
     G().closeCards();
@@ -231,12 +231,98 @@ SBMM.temws = (function () {
   }
 
   /* ------------------------------------------------------------------ */
-  /* depth                                                               */
+  /* v52 — the panel's sections, and the four views                      */
+  /* ------------------------------------------------------------------ */
+  /* which sections are open: the reading and the view are always shown; the
+     interpolation is advanced and starts closed */
+  const SEC_DEF = { view: false, colour: true, model: false, borings: true };
+  function secState() {
+    let st = null;
+    try { st = SBMM.view && SBMM.view.pref("temSecs"); } catch (e) { /* ignore */ }
+    const out = Object.assign({}, SEC_DEF);
+    if (st && typeof st === "object") for (const k in SEC_DEF) if (typeof st[k] === "boolean") out[k] = st[k];
+    return out;
+  }
+  /* A VIEW IS A WHOLE ANSWER. The six "show" boxes fought each other — the
+     sounding columns stand in the cut and hide its floor, the slice sheet
+     hides the voxels under it — so the panel leads with four views that each
+     set all of them, and keeps the boxes under "Customise".
+       pit    the ground cut open        slice  the depth-slice row
+       snd    the soundings row on       s      the model's 3D settings */
+  const PRESETS = {
+    cut: { label: "Slice in cut", title: "The ground cut open down to the slice", pit: true, slice: true,
+           s: { sheet: true, cols: false, ew: false, ns: false, stack: false, vox: false } },
+    sections: { label: "Sections", title: "Two vertical sections through the model, under a see-through ground", pit: false, slice: true,
+                s: { sheet: true, cols: false, ew: true, ns: true, stack: false, vox: false } },
+    soundings: { label: "Soundings", title: "Each sounding's own measured 20-layer model — nothing interpolated", pit: false, slice: false, snd: true,
+                 s: { cols: true, ew: false, ns: false, stack: false, vox: false } },
+    volume: { label: "Volume", title: "Every model cell inside the voxel range", pit: false, slice: true,
+              s: { sheet: false, cols: false, ew: false, ns: false, stack: false, vox: true } }
+  };
+  const colsOn = () => !!(G().settings().cols && on("tem_soundings"));
+  function presetNow() {
+    const S = G().settings();
+    for (const k in PRESETS) {
+      const p = PRESETS[k];
+      if (!!pit.on !== p.pit || on("tem_slice") !== p.slice) continue;
+      if (p.snd && !on("tem_soundings")) continue;
+      let ok = true;
+      for (const key in p.s) {
+        const have = key === "cols" ? colsOn() : !!S[key];
+        if (have !== p.s[key]) { ok = false; break; }
+      }
+      if (ok) return k;
+    }
+    return "";
+  }
+  function applyPreset(k) {
+    const p = PRESETS[k];
+    if (!p) return;
+    stopPlay();
+    pit.on = p.pit;
+    if (p.snd) rowOn("tem_soundings");
+    rowSet("tem_slice", p.slice);
+    const S = G().settings();
+    for (const key in p.s) {
+      const have = key === "cols" ? colsOn() : !!S[key];
+      if (have !== p.s[key]) G().apply(key, p.s[key]);
+    }
+    applyPit();
+    if (p.pit) frameCut();
+    paintAll();
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* the slice's position: a depth, or an elevation                      */
   /* ------------------------------------------------------------------ */
   const DM = () => G().dmax ? G().dmax() : 394;
-  function setDepth(d) { G().apply("depth", Math.max(0, Math.min(Math.floor(DM()), Math.round(d)))); }
+  /* the ground under the centre of the cut — what turns an elevation into a
+     depth on the core, and back */
+  function centreGround() {
+    if (!isFinite(pit.cx)) return NaN;
+    const z = SBMM.elev ? SBMM.elev(pit.cx, pit.cy)[0] : NaN;
+    return z;
+  }
+  /* the slice's depth under the centre of the cut, whichever datum it is in */
+  function depthNow() {
+    if (!G().byElev()) return G().depth();
+    const d = G().depthUnder(centreGround());
+    return isFinite(d) ? d : 0;
+  }
+  /* put the slice at a depth under the centre of the cut */
+  function setDepth(d) {
+    const dd = Math.max(0, Math.min(Math.floor(DM()), d));
+    if (G().byElev()) {
+      const zc = centreGround();
+      /* floor, so the depth it makes is never ABOVE the one asked for: a
+         layer step asks for a layer's top, and half a foot short of it is
+         the layer above */
+      if (isFinite(zc)) { G().apply("elev", Math.floor(zc - dd)); return; }
+    }
+    G().apply("depth", Math.round(dd));
+  }
   function stepLayer(dir) {
-    const D = data(), d = G().depth();
+    const D = data(), d = depthNow();
     const tops = D.top_ft.map(Math.round), i = G().layerInfo(d).l;
     const j = Math.max(0, Math.min(D.nl - 1, i + dir));
     setDepth(j === i ? (dir > 0 ? D.bot_ft[D.nl - 1] : 0) : tops[j] + (j ? 0.5 : 0));
@@ -244,12 +330,12 @@ SBMM.temws = (function () {
   /* a slow descent, one step per tick; anything the user does stops it */
   function play() {
     if (playT) { stopPlay(); return; }
-    if (G().depth() >= Math.floor(DM()) - 1) setDepth(0);
+    if (depthNow() >= Math.floor(DM()) - 1) setDepth(0);
     const btn = el && el.querySelector('[data-a="play"]');
     if (btn) { btn.classList.add("on"); btn.setAttribute("aria-pressed", "true"); }
     playT = setInterval(() => {
       if (!active) { stopPlay(); return; }
-      const d = G().depth() + 4;
+      const d = depthNow() + 4;
       if (d >= Math.floor(DM())) { setDepth(DM()); stopPlay(); return; }
       setDepth(d);
     }, 160);
@@ -282,10 +368,22 @@ SBMM.temws = (function () {
       el.addEventListener("input", onInput);
       el.addEventListener("change", onChange);
       el.addEventListener("click", onClick);
+      /* `toggle` does not bubble: caught on the way down */
+      el.addEventListener("toggle", e => {
+        const d = e.target;
+        if (!d || !d.dataset || !d.dataset.sec) return;
+        const st = secState(); st[d.dataset.sec] = d.open;
+        try { SBMM.view && SBMM.view.pref("temSecs", st); } catch (err) { /* a preference is a convenience */ }
+      }, true);
     }
     el.hidden = false;
     const S = G().settings(), D = data(), R = G().result(), O = G().options();
     const sz = SIZES.includes(pit.w) && pit.w === pit.h ? pit.w : "";
+    const secs = secState();
+    const det = (k, title, body, cls) =>
+      `<details class="twsec${cls ? " " + cls : ""}" data-sec="${k}"${secs[k] ? " open" : ""}><summary>${esc(title)}</summary>`
+      + `<div class="twsecb">${body}</div></details>`;
+    const [eLo, eHi] = G().elevRange();
     el.innerHTML =
       `<header class="twsh"><div><b>TEM geophysics</b>`
       + `<span class="twssub">TEM2Go · LCI models · May 2026 · ${fmt0(D.n)} soundings to ${fmt0(DM())} ft</span></div>`
@@ -294,12 +392,15 @@ SBMM.temws = (function () {
       + `<nav class="twstabs" role="tablist" aria-label="TEM analyses">` + TABS.map(([k, t]) =>
           `<button class="twstab${k === tab ? " on" : ""}" role="tab" data-tab="${k}" aria-selected="${k === tab}">${esc(t)}</button>`).join("") + `</nav>`
       + `<div class="twsb temctl" data-pane="model"${tab === "model" ? "" : " hidden"}>`
-      /* depth: the core and the readout */
+      /* THE READING: the core, the slice, the value under the centre of the cut */
       + `<section class="twsdepth">`
-      + `<canvas class="twscore" width="60" height="300" role="slider" tabindex="0" aria-label="Depth below ground"`
+      + `<canvas class="twscore" width="60" height="300" role="slider" tabindex="0" aria-label="Slice position"`
       + ` aria-valuemin="0" aria-valuemax="${Math.floor(DM())}" title="The model straight down the centre of the cut"></canvas>`
       + `<div class="twsread">`
-      + `<div class="twsdbig mono"><span data-o="depth"></span><small> ft below ground</small></div>`
+      + `<div class="twsseg" role="group" aria-label="Slice by">`
+      + `<button class="segb" data-datum="depth" title="A slice at a depth below the ground">depth</button>`
+      + `<button class="segb" data-datum="elev" title="A level slice at an elevation (NAVD88)">elevation</button></div>`
+      + `<div class="twsdbig mono"><span data-o="depth"></span><small data-o="dunit"></small></div>`
       + `<div class="mut" data-o="layer"></div>`
       + `<div class="twsval mono" data-o="val"></div>`
       + `<div class="mut twsnear" data-o="near"></div>`
@@ -307,58 +408,64 @@ SBMM.temws = (function () {
       + `<button class="minib" data-a="up" title="Up one model layer [PgUp]">▲ layer</button>`
       + `<button class="minib" data-a="down" title="Down one model layer [PgDn]">▼ layer</button>`
       + `<button class="minib" data-a="play" aria-pressed="false" title="Descend through the model">▶ descend</button></div>`
-      + `<input type="range" data-k="depth" min="0" max="${Math.floor(DM())}" step="1" value="${S.depth}" aria-label="Depth">`
+      + `<input type="range" data-k="depth" min="0" max="${Math.floor(DM())}" step="1" value="${S.depth}" aria-label="Depth below ground">`
+      + `<input type="range" class="twselev" data-k="elev" min="${eLo}" max="${eHi}" step="1" value="${S.elev}" aria-label="Slice elevation" hidden>`
       + `</div></section>`
-      /* the cut */
-      + `<section><h4>Excavation</h4>`
-      + `<div class="twschks">${chk("on", "cut the ground open", pit.on, "Clip the ground over the cut down to the slice depth", "data-p")}`
-      + chk("open", "open toward the view", pit.open, "Run the cut on toward the camera so its floor shows", "data-p") + `</div>`
-      + `<div class="temgrid2"><label>Size ${sel("size", [["", "custom"]].concat(SIZES.map(v => [v, v + " ft"])), sz, "Width of the cut")}</label>`
-      + `<label>Ground ${sel("ground", [["auto", "auto"], ["solid", "solid"], ["see", "see-through"], ["hidden", "hidden"]],
-          SBMM.viewer3d ? SBMM.viewer3d.ground() : "auto", "How the terrain draws around the cut")}</label></div>`
-      + `<div class="twsbtns"><button class="minib" data-a="centre" title="Move the cut to the centre of the 3D view">centre on view</button>`
-      + `<button class="minib" data-a="survey" title="Open the whole surveyed area">whole survey</button>`
-      + `<button class="minib" data-a="frame" title="Frame the cut">frame</button></div>`
-      + `<div class="mut mono" data-o="cut"></div></section>`
-      /* what is drawn */
-      + `<section><h4>Show</h4><div class="twschks">`
-      + chk("tem_slice", "depth slice", on("tem_slice"), "The slice at the depth — the floor of the cut", "data-row")
-      + chk("cols", "sounding models", S.cols && on("tem_soundings"), "Each sounding's own 20-layer model as a column")
-      + chk("ew", "E–W section", S.ew, "A vertical east–west section through the model")
-      + chk("ns", "N–S section", S.ns, "A vertical north–south section through the model")
-      + chk("stack", "slice stack", S.stack, "A slice at every chosen layer")
-      + chk("vox", "voxels", S.vox, "Every model cell inside the voxel range")
-      + `</div>`
-      + `<label class="temrow" title="Northing of the east–west section">E–W at <output data-o="ewI"></output>`
-      + `<input type="range" data-k="ewI" min="0" max="${R ? R.ny - 1 : 0}" step="1"></label>`
-      + `<label class="temrow" title="Easting of the north–south section">N–S at <output data-o="nsI"></output>`
-      + `<input type="range" data-k="nsI" min="0" max="${R ? R.nx - 1 : 0}" step="1"></label>`
-      + `<label class="temrow" title="Voxels shown, as positions across the colour range">Voxels <output data-o="vox"></output>`
-      + `<span class="tempair"><input type="range" data-k="voxLo" min="0" max="100" step="1" value="${S.voxLo}">`
-      + `<input type="range" data-k="voxHi" min="0" max="100" step="1" value="${S.voxHi}"></span></label>`
+      /* THE VIEW: one of four, or the pieces by hand */
+      + `<section><h4>View</h4>`
+      + `<div class="twsseg twspre" role="group" aria-label="View">` + Object.keys(PRESETS).map(k =>
+          `<button class="segb" data-preset="${k}" title="${esc(PRESETS[k].title)}">${esc(PRESETS[k].label)}</button>`).join("") + `</div>`
+      + det("view", "Customise",
+          `<div class="twschks">${chk("on", "cut the ground open", pit.on, "Clip the ground over the cut down to the slice", "data-p")}`
+        + chk("open", "open toward the view", pit.open, "Run the cut on toward the camera so its floor shows", "data-p")
+        + chk("tem_slice", "depth slice", on("tem_slice"), "The slice on the map and in 3D", "data-row")
+        + chk("sheet", "slice sheet in 3D", S.sheet, "Draw the slice itself in the 3D view")
+        + chk("cols", "sounding models", S.cols && on("tem_soundings"), "Each sounding's own 20-layer model as a column")
+        + chk("ew", "E–W section", S.ew, "A vertical east–west section through the model")
+        + chk("ns", "N–S section", S.ns, "A vertical north–south section through the model")
+        + chk("stack", "slice stack", S.stack, "A slice at every chosen layer")
+        + chk("vox", "voxels", S.vox, "Every model cell inside the voxel range")
+        + `</div>`
+        + `<label class="temrow" title="Northing of the east–west section">E–W at <output data-o="ewI"></output>`
+        + `<input type="range" data-k="ewI" min="0" max="${R ? R.ny - 1 : 0}" step="1"></label>`
+        + `<label class="temrow" title="Easting of the north–south section">N–S at <output data-o="nsI"></output>`
+        + `<input type="range" data-k="nsI" min="0" max="${R ? R.nx - 1 : 0}" step="1"></label>`
+        + `<label class="temrow" title="Voxels shown, as positions across the colour range">Voxels <output data-o="vox"></output>`
+        + `<span class="tempair"><input type="range" data-k="voxLo" min="0" max="100" step="1" value="${S.voxLo}">`
+        + `<input type="range" data-k="voxHi" min="0" max="100" step="1" value="${S.voxHi}"></span></label>`
+        + `<div class="temgrid2"><label>Cut size ${sel("size", [["", "custom"]].concat(SIZES.map(v => [v, v + " ft"])), sz, "Width of the cut")}</label>`
+        + `<label>Ground ${sel("ground", [["auto", "auto"], ["solid", "solid"], ["see", "see-through"], ["hidden", "hidden"]],
+            SBMM.viewer3d ? SBMM.viewer3d.ground() : "auto", "How the terrain draws around the model")}</label></div>`
+        + `<div class="twsbtns"><button class="minib" data-a="centre" title="Move the cut to the centre of the 3D view">centre on view</button>`
+        + `<button class="minib" data-a="survey" title="Open the whole surveyed area">whole survey</button>`
+        + `<button class="minib" data-a="frame" title="Frame the cut">frame</button></div>`
+        + `<div class="mut mono" data-o="cut"></div>`, "twsmore")
       + `</section>`
       /* colour */
-      + `<section><h4>Colour</h4><div class="temgrid2">`
-      + `<label>Property ${sel("prop", [["res", "Resistivity"], ["cond", "Conductivity"], ["sig", "Kriging s.e."]], S.prop, "What the model shows")}</label>`
-      + `<label>Colours ${sel("cmap", O.cmap, S.cmap, "Colour map")}</label>`
-      + `<label>Classes ${sel("classes", [[0, "continuous"], [5, "5"], [8, "8"], [12, "12"]], S.classes, "Colour classes")}</label>`
-      + `<label>Contours ${sel("nCont", [[0, "off"], [8, "8 levels"], [12, "12 levels"], [20, "20 levels"]], S.contours ? S.nCont : 0, "Contour edges across the colour range")}</label>`
-      + `</div><div class="twschks">${chk("rev", "reverse colours", S.rev, "Reverse the colour map")}`
-      + chk("blend", "blend between layers", S.blend, "Blend between model-layer mid-depths rather than step at layer boundaries") + `</div>`
-      + `<div class="twsleg" data-o="legend"></div>`
-      + `<div class="twsbtns"><button class="minib" data-a="fit" title="Colour range from 2–98 % of the soundings">fit range</button></div>`
-      + `</section>`
+      + det("colour", "Colour",
+          `<div class="temgrid2">`
+        + `<label>Property ${sel("prop", [["res", "Resistivity"], ["cond", "Conductivity"], ["sig", "Kriging s.e."]], S.prop, "What the model shows")}</label>`
+        + `<label>Colours ${sel("cmap", O.cmap, S.cmap, "Colour map")}</label>`
+        + `<label>Classes ${sel("classes", [[0, "continuous"], [5, "5"], [8, "8"], [12, "12"]], S.classes, "Colour classes")}</label>`
+        + `<label>Contours ${sel("nCont", [[0, "off"], [8, "8 levels"], [12, "12 levels"], [20, "20 levels"]], S.contours ? S.nCont : 0, "Contour edges across the colour range")}</label>`
+        + `</div><div class="twschks">${chk("rev", "reverse colours", S.rev, "Reverse the colour map")}`
+        + chk("blend", "blend between layers", S.blend, "Blend between model-layer mid-depths rather than step at layer boundaries") + `</div>`
+        + `<div class="twsleg" data-o="legend"></div>`
+        + `<div class="twsbtns"><button class="minib" data-a="fit" title="Colour range from 2–98 % of the soundings">fit range</button>`
+        + `<span class="mut mono" data-o="range"></span></div>`)
       /* the interpolation */
-      + `<section><h4>Model</h4><div class="temgrid2">`
-      + `<label>Method ${sel("method", O.method, S.method, "Interpolation, one model layer at a time")}</label>`
-      + `<label>Variogram ${sel("vgType", O.vgType, S.vgType, "Kriging variogram model, fitted to the data")}</label>`
-      + `<label>Grid cell ${sel("cell", [10, 15, 20, 30, 40].map(v => [v, v + " ft"]), S.cell, "Grid node spacing")}</label>`
-      + `<label>Blank beyond ${sel("blank", [20, 40, 60, 100, 150, 250].map(v => [v, v + " ft"]), S.blank, "No value farther than this from a sounding")}</label>`
-      + `</div><div class="twschks">${chk("per", "variogram per layer", S.per, "Fit a variogram to each layer rather than one to all")}</div>`
-      + `<div class="mut mono" data-o="model"></div></section>`
+      + det("model", "Interpolation",
+          `<div class="temgrid2">`
+        + `<label>Method ${sel("method", O.method, S.method, "Interpolation, one model layer at a time")}</label>`
+        + `<label>Variogram ${sel("vgType", O.vgType, S.vgType, "Kriging variogram model, fitted to the data")}</label>`
+        + `<label>Grid cell ${sel("cell", [10, 15, 20, 30, 40].map(v => [v, v + " ft"]), S.cell, "Grid node spacing")}</label>`
+        + `<label>Blank beyond ${sel("blank", [20, 40, 60, 100, 150, 250].map(v => [v, v + " ft"]), S.blank, "No value farther than this from a sounding")}</label>`
+        + `</div><div class="twschks">${chk("per", "variogram per layer", S.per, "Fit a variogram to each layer rather than one to all")}</div>`
+        + `<div class="mut mono" data-o="model"></div>`)
       /* the borings */
-      + `<section><h4>Against the 2025 borings</h4><div class="mono twscal" data-o="cal"></div>`
-      + `<div class="twsbtns"><button class="minib" data-a="cal" title="Resistivity against each boring's logged classes (TEMCAL)">open the table</button></div></section>`
+      + det("borings", "Against the 2025 borings",
+          `<div class="mono twscal" data-o="cal"></div>`
+        + `<div class="twsbtns"><button class="minib" data-a="cal" title="Resistivity against each boring's logged classes (TEMCAL)">open the table</button></div>`)
       /* out */
       + `<section class="twsacts"><button class="minib" data-a="png" title="The slice as a PNG">slice PNG</button>`
       + `<button class="minib" data-a="csv" title="The slice as CSV (easting, northing, value)">slice CSV</button>`
@@ -383,7 +490,7 @@ SBMM.temws = (function () {
     for (const inp of el.querySelectorAll("[data-k]")) {
       const k = inp.dataset.k;
       if (document.activeElement === inp && inp.type === "range") continue;
-      if (inp.type === "checkbox") inp.checked = k === "cols" ? !!(S.cols && on("tem_soundings")) : !!S[k];
+      if (inp.type === "checkbox") inp.checked = k === "cols" ? colsOn() : !!S[k];
       else if (k === "nCont") inp.value = S.contours ? S.nCont : 0;
       else if (k === "ground") inp.value = SBMM.viewer3d ? SBMM.viewer3d.ground() : "auto";
       else if (k === "size") inp.value = SIZES.includes(pit.w) && pit.w === pit.h ? pit.w : "";
@@ -392,10 +499,28 @@ SBMM.temws = (function () {
     }
     for (const inp of el.querySelectorAll("[data-row]")) inp.checked = on(inp.dataset.row);
     for (const inp of el.querySelectorAll("[data-p]")) inp.checked = !!pit[inp.dataset.p];
-    const d = S.depth, L = G().layerInfo(d);
-    setO("depth", fmt0(d));
-    setO("layer", `layer ${L.l + 1} of ${L.n} · ${fmt1(L.top)}–${fmt1(L.bot)} ft`);
-    const v = isFinite(pit.cx) ? G().valueAtDepth(pit.cx, pit.cy, d) : NaN;
+    /* the slice: a depth, or an elevation with the depth it makes under the centre */
+    const byE = G().byElev(), d = depthNow(), L = G().layerInfo(d);
+    setO("depth", fmt0(byE ? S.elev : S.depth));
+    setO("dunit", byE ? " ft elevation" : " ft below ground");
+    setO("layer", (byE ? `${fmt0(d)} ft under the centre · ` : "") + `layer ${L.l + 1} of ${L.n} · ${fmt1(L.top)}–${fmt1(L.bot)} ft`);
+    for (const b of el.querySelectorAll("[data-datum]")) {
+      const onB = (b.dataset.datum === "elev") === byE;
+      b.classList.toggle("on", onB); b.setAttribute("aria-pressed", String(onB));
+    }
+    const rD = q('input[data-k="depth"]'), rE = q('input[data-k="elev"]');
+    if (rD) rD.hidden = byE;
+    if (rE) rE.hidden = !byE;
+    const pn = presetNow();
+    for (const b of el.querySelectorAll("[data-preset]")) {
+      const onB = b.dataset.preset === pn;
+      b.classList.toggle("on", onB); b.setAttribute("aria-pressed", String(onB));
+    }
+    /* NOT data-preset: the panel is an ancestor of every button in it, and the
+       click handler finds a view button with closest('[data-preset]') */
+    el.dataset.view = pn;
+    const inRec = d >= 0 && d <= DM();
+    const v = isFinite(pit.cx) && inRec ? G().valueAtDepth(pit.cx, pit.cy, d) : NaN;
     setO("val", isFinite(v) ? `${fmtV(v)} ${G().unit()} at the centre of the cut` : "no model at the centre of the cut");
     const ns = nearestSounding(pit.cx, pit.cy);
     const nb = nearestBoring(pit.cx, pit.cy);
@@ -410,6 +535,7 @@ SBMM.temws = (function () {
     setO("vox", rg ? `${Math.round(lo * 100)}–${Math.round(hi * 100)} % of the scale` : "");
     const lg = q('[data-o="legend"]');
     if (lg) lg.innerHTML = G().legendSvg ? G().legendSvg(300) : "";
+    setO("range", rg ? `${fmtV(rg.lo)}–${fmtV(rg.hi)} ${G().unit()}` : "");
     const ps = SBMM.viewer3d && SBMM.viewer3d.pitState ? SBMM.viewer3d.pitState() : null;
     setO("cut", ps && ps.on ? `${fmt0(pit.w)} × ${fmt0(pit.h)} ft at E ${fmt0(pit.cx)} N ${fmt0(pit.cy)}`
       + (ps.ext ? ` · open ${ {n: "north", s: "south", e: "east", w: "west"}[ps.side] || ""} ${fmt0(ps.ext)} ft` : "")
@@ -491,12 +617,12 @@ SBMM.temws = (function () {
       tick(c.bedrock_top, "#C9D3D6");
     }
     /* the depth marker */
-    const yd = yOf(G().depth());
+    const yd = yOf(Math.max(0, Math.min(dm, depthNow())));
     x.fillStyle = "#F1CE7A";
     x.fillRect(CORE.x0 - 6, Math.round(yd) - 1, CORE.w + 12, 2);
     x.beginPath(); x.moveTo(CORE.x0 + CORE.w + 6, yd); x.lineTo(CORE.x0 + CORE.w + 12, yd - 5); x.lineTo(CORE.x0 + CORE.w + 12, yd + 5); x.fill();
-    cv.setAttribute("aria-valuenow", String(G().depth()));
-    cv.dataset.depth = String(G().depth());
+    cv.setAttribute("aria-valuenow", String(Math.round(depthNow())));
+    cv.dataset.depth = String(Math.round(depthNow()));
     cv.dataset.boring = nb ? nb.h.id : "";
     cv.dataset.cells = String(C.filter(c => c.color).length);
   }
@@ -525,7 +651,7 @@ SBMM.temws = (function () {
     cv.addEventListener("pointercancel", up);
     cv.addEventListener("keydown", e => {
       const k = e.key;
-      if (k === "ArrowDown" || k === "ArrowUp") { setDepth(G().depth() + (k === "ArrowDown" ? 5 : -5)); e.preventDefault(); e.stopPropagation(); }
+      if (k === "ArrowDown" || k === "ArrowUp") { setDepth(depthNow() + (k === "ArrowDown" ? 5 : -5)); e.preventDefault(); e.stopPropagation(); }
     });
   }
 
@@ -535,7 +661,8 @@ SBMM.temws = (function () {
   function onInput(e) {
     const t = e.target, k = t.dataset.k;
     if (!k) return;
-    if (k === "depth") { stopPlay(); setDepth(+t.value); return; }
+    if (k === "depth") { stopPlay(); G().apply("depth", +t.value); return; }
+    if (k === "elev") { stopPlay(); G().apply("elev", +t.value); return; }
     if (k === "ewI" || k === "nsI" || k === "voxLo" || k === "voxHi") G().apply(k, +t.value);
   }
   function onChange(e) {
@@ -547,7 +674,7 @@ SBMM.temws = (function () {
     }
     if (t.dataset.row) { rowSet(t.dataset.row, t.checked); setTimeout(paintAll, 0); return; }
     const k = t.dataset.k;
-    if (!k || k === "depth" || k === "ewI" || k === "nsI" || k === "voxLo" || k === "voxHi") return;
+    if (!k || k === "depth" || k === "elev" || k === "ewI" || k === "nsI" || k === "voxLo" || k === "voxHi") return;
     if (k === "size") { if (t.value) setSize(+t.value); return; }
     if (k === "ground") { if (SBMM.viewer3d) SBMM.viewer3d.setGround(t.value); paintAll(); return; }
     if (k === "cols") {
@@ -568,7 +695,13 @@ SBMM.temws = (function () {
     }
     if (t === "model") {
       if (hidSlice) { hidSlice = false; rowSet("tem_slice", true); }
-    } else if (on("tem_slice")) { hidSlice = true; rowSet("tem_slice", false); }
+      if (hidCols) { hidCols = false; G().apply("cols", true); }
+    } else {
+      if (on("tem_slice")) { hidSlice = true; rowSet("tem_slice", false); }
+      /* v52: a thousand model columns in front of the base of waste or the
+         conductive band are a fence across exactly what the tab shows */
+      if (colsOn()) { hidCols = true; G().apply("cols", false); }
+    }
     applyPit();
     if (quiet) return;
     if (t !== "model" && SBMM.teminterp) SBMM.teminterp.activate(t).then(() => { if (active && tab === t) frameTab(t); });
@@ -582,6 +715,10 @@ SBMM.temws = (function () {
   function onClick(e) {
     const tb = e.target.closest("[data-tab]");
     if (tb) { stopPlay(); setTab(tb.dataset.tab); return; }
+    const pb = e.target.closest("[data-preset]");
+    if (pb) { applyPreset(pb.dataset.preset); return; }
+    const db = e.target.closest("[data-datum]");
+    if (db) { stopPlay(); G().apply("datum", db.dataset.datum); return; }
     const b = e.target.closest("[data-a]");
     if (!b) return;
     const a = b.dataset.a;
@@ -644,10 +781,11 @@ SBMM.temws = (function () {
   function state() {
     return { open: active, pit: Object.assign({}, pit), playing: !!playT, tab,
              temOn: !!(G() && data() && G().anyOn()), chip: !!(chip && !chip.hidden),
+             preset: active ? presetNow() : "", byElev: !!(G() && G().byElev()), depthNow: G() && data() ? depthNow() : null,
              panel: !!(el && !el.hidden), depth: G() ? G().depth() : null };
   }
   if (SBMM.events) SBMM.events.on("boot", () => wireChip());
-  return { open, close, hide: close, off, toggle, wireChip, paintChip,
+  return { open, close, hide: close, off, toggle, wireChip, paintChip, applyPreset, presets: () => Object.keys(PRESETS),
            isOpen: () => active, state, setSize, centreOnView, centreOnSurvey: () => centreOnSurvey(true),
            fitSurvey, setPit: p => { Object.assign(pit, p || {}); applyPit(); paintAll(); },
            play, stopPlay, stepLayer, paint: paintAll, setTab: t => setTab(t) };

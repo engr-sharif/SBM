@@ -60,7 +60,8 @@ SBMM.viewer3d = (function () {
       const u = o.userData;
       if (u.temSlice && s3 && temGround && temGround.R === SBMM.geophys.result()) {
         const pos = o.geometry.attributes.position, a = pos.array, G = temGround.z;
-        for (let id = 0; id < G.length; id++) a[id * 3 + 2] = (isNaN(G[id]) ? ZMID : G[id]) - s3.depth - ZMID;
+        if (s3.elev != null) for (let id = 0; id < G.length; id++) a[id * 3 + 2] = s3.elev - ZMID;
+        else for (let id = 0; id < G.length; id++) a[id * 3 + 2] = (isNaN(G[id]) ? ZMID : G[id]) - s3.depth - ZMID;
         pos.needsUpdate = true;
         o.geometry.computeBoundingSphere(); o.geometry.computeBoundingBox();
         const old = o.material.map, nt = temTexture(s3.canvas);
@@ -2397,12 +2398,13 @@ SBMM.viewer3d = (function () {
           transparent: op < 0.999, opacity: op, depthWrite: op >= 0.999 });
         const put = (m, order) => { m.renderOrder = order; m.userData.noClip = true; addG.add(tag(m, "invest", "tem_slice")); };
         /* a horizontal sheet following the ground at a depth below it */
-        const sheet = (cv, depth) => {
+        /* v52: or, with `elev`, a flat sheet AT that elevation */
+        const sheet = (cv, depth, elev) => {
           const pos = new Float32Array(nx * ny * 3), uv = new Float32Array(nx * ny * 2);
           for (let iy = 0; iy < ny; iy++) for (let ix = 0; ix < nx; ix++) {
             const id = iy * nx + ix, zg = G[id];
             pos[id * 3] = x0 + ix * dx - CX; pos[id * 3 + 1] = y0 + iy * dx - CY;
-            pos[id * 3 + 2] = (isNaN(zg) ? ZMID : zg) - depth - ZMID;
+            pos[id * 3 + 2] = elev != null ? elev - ZMID : (isNaN(zg) ? ZMID : zg) - depth - ZMID;
             uv[id * 2] = ix / (nx - 1); uv[id * 2 + 1] = iy / (ny - 1);
           }
           const ind = [];
@@ -2420,7 +2422,7 @@ SBMM.viewer3d = (function () {
           put(m, 2);
           return m;
         };
-        if (M.slice) { const m = sheet(M.slice.canvas, M.slice.depth); if (m) m.userData.temSlice = true; }
+        if (M.slice) { const m = sheet(M.slice.canvas, M.slice.depth, M.slice.elev); if (m) m.userData.temSlice = true; }
         for (const st of M.stack) sheet(st.canvas, st.depth);
         /* a vertical curtain from the ground down to the deepest layer */
         for (const sc of M.sections) {
@@ -5796,6 +5798,15 @@ SBMM.viewer3d = (function () {
   const PIT = { spec: null, tex: new Map(), fwd: null, stat: null };
   function pitEmit() { if (SBMM.events) SBMM.events.emit("pit", pitState()); }
   function pitDepth() { return SBMM.geophys && SBMM.geophys.depth ? SBMM.geophys.depth() : 0; }
+  /* v52: the cut's depth under a ground elevation — the slice depth, or with
+     an elevation slice the ground less that elevation (never negative: where
+     the ground is already below the slice there is nothing to cut) */
+  function pitUnder(z0) {
+    const G = SBMM.geophys;
+    if (!G || !G.depthUnder) return pitDepth();
+    const d = G.depthUnder(z0);
+    return isFinite(d) ? Math.max(0, d) : 0;
+  }
   /* which of the four sides faces the camera */
   function pitSide() {
     if (!camera) return "s";
@@ -5805,7 +5816,8 @@ SBMM.viewer3d = (function () {
     return Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? "e" : "w") : (dy > 0 ? "n" : "s");
   }
   function pitGeom(sp) {
-    const d = pitDepth();
+    /* the depth the open side is sized from: under the centre of the cut */
+    const d = pitUnder(SBMM.elev(sp.cx, sp.cy)[0]);
     let s0 = -sp.w / 2, s1 = sp.w / 2, t0 = -sp.h / 2, t1 = sp.h / 2;
     const E = sp.open && d > 2 ? Math.min(2400, Math.ceil((d * 1.4 + 120) / 100) * 100) : 0;
     const side = E ? pitSide() : "";
@@ -5857,9 +5869,9 @@ SBMM.viewer3d = (function () {
       for (let i = 0; i <= n; i++) {
         const [x, y] = pts[i], [z0] = SBMM.elev(x, y);
         if (isNaN(z0)) { prev = -1; continue; }
-        const zt = z0 - ZMID;
-        pos.push(x - CX, y - CY, zt, x - CX, y - CY, zt - d);
-        uv.push(i / n, 1, i / n, 1 - Math.min(1, d / DM));
+        const zt = z0 - ZMID, dv = pitUnder(z0);
+        pos.push(x - CX, y - CY, zt, x - CX, y - CY, zt - dv);
+        uv.push(i / n, 1, i / n, 1 - Math.min(1, dv / DM));
         const cur = v; v += 2;
         if (prev >= 0) {
           /* corners run counter-clockwise, so the inside is LEFT of A→B and
@@ -5895,7 +5907,7 @@ SBMM.viewer3d = (function () {
       const x = G.p0[0] + G.s0 + (G.s1 - G.s0) * i / (nx - 1), y = G.p0[1] + G.t0 + (G.t1 - G.t0) * j / (ny - 1);
       const [z0] = SBMM.elev(x, y), k = j * nx + i;
       okv[k] = isNaN(z0) ? 0 : 1;
-      fp[k * 3] = x - CX; fp[k * 3 + 1] = y - CY; fp[k * 3 + 2] = (isNaN(z0) ? ZMID : z0) - d - ZMID - 0.3;
+      fp[k * 3] = x - CX; fp[k * 3 + 1] = y - CY; fp[k * 3 + 2] = (isNaN(z0) ? ZMID : z0) - (isNaN(z0) ? d : pitUnder(z0)) - ZMID - 0.3;
     }
     for (let j = 0; j < ny - 1; j++) for (let i = 0; i < nx - 1; i++) {
       const a = j * nx + i, b = a + 1, c2 = a + nx, d2 = c2 + 1;
@@ -5932,6 +5944,7 @@ SBMM.viewer3d = (function () {
     if (!sp) { clipOff(); return; }
     const G = pitGeom(sp);
     const sig = [sp.cx, sp.cy, sp.w, sp.h, G.side, G.ext, G.depth,
+                 SBMM.geophys && SBMM.geophys.sliceSig ? SBMM.geophys.sliceSig() : "",
                  SBMM.geophys && SBMM.geophys.sigKey ? SBMM.geophys.sigKey() : "", CX, CY].join("|");
     if (sig !== CLIP.sig || !CLIP.group || CLIP.group.parent !== scene) {
       CLIP.sig = sig;

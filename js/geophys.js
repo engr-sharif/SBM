@@ -65,11 +65,18 @@ SBMM.geophys = (function () {
                 vox: false, voxLo: 0, voxHi: 30,
                 /* the viewer's "Sounding models": each sounding's own 20 layers
                    as a column (its 2.5 m width, in feet) */
-                cols: true, colW: 8 };
+                cols: true, colW: 8,
+                /* v52: the slice by ELEVATION as well as by depth below the
+                   ground (the hydrogeologist's slice: one water level, one
+                   horizon, across a site that is not flat), and whether the
+                   slice sheet itself is drawn in 3D (a view preset can leave
+                   the sections or the voxels standing alone) */
+                datum: "depth", elev: 1300, sheet: true };
   let S = Object.assign({}, DEF);
   try {
     const st = SBMM.view && SBMM.view.pref("tem");
     if (st && typeof st === "object") for (const k in DEF) if (st[k] != null && typeof st[k] === typeof DEF[k]) S[k] = st[k];
+    if (S.datum !== "elev") S.datum = "depth";
   } catch (e) { /* a preference is a convenience */ }
   function save() { try { SBMM.view && SBMM.view.pref("tem", S); } catch (e) { /* ignore */ } }
 
@@ -165,6 +172,43 @@ SBMM.geophys = (function () {
     for (let i = 0; i < N; i++) f[i] = R.mask[i] ? baseAt(arr, i, N, depth) : NaN;
     return f;
   }
+  /* v52 — THE SLICE IS A DEPTH BELOW GROUND OR AN ELEVATION. By elevation a
+     node's depth is the model's own ground there (R.surf, the soundings'
+     elevations interpolated by the kernel) less the elevation; above the
+     ground or below the deepest layer there is no value. Everything that
+     reads "the slice" asks these four, so the two can never disagree:
+       byElev()        which datum
+       fieldNow()      the slice's value at every node
+       soundingNow(i)  a sounding's own model at the slice
+       depthUnder(z)   the slice's depth under a ground elevation z */
+  const byElev = () => S.datum === "elev";
+  function depthUnder(z) { return byElev() ? (isFinite(z) ? z - S.elev : NaN) : S.depth; }
+  function fieldNow() {
+    if (!byElev()) return field(S.depth);
+    const arr = propArr(); if (!arr) return null;
+    const N = R.nx * R.ny, f = new Float32Array(N), DM = dmax(), surf = R.surf;
+    for (let i = 0; i < N; i++) {
+      const d = surf ? surf[i] - S.elev : NaN;
+      f[i] = R.mask[i] && d >= 0 && d <= DM ? baseAt(arr, i, N, d) : NaN;
+    }
+    return f;
+  }
+  function soundingNow(i) {
+    if (!byElev()) return soundingAt(i, S.depth);
+    const d = data().z[i] - S.elev;
+    return d >= 0 && d <= dmax() ? soundingAt(i, d) : NaN;
+  }
+  /* the elevations a slice can sit at: the highest ground down to the
+     deepest layer under the lowest */
+  function elevRange() {
+    const D = data(); let lo = Infinity, hi = -Infinity;
+    for (let i = 0; i < D.n; i++) { const z = D.z[i]; if (z < lo) lo = z; if (z > hi) hi = z; }
+    return [Math.floor(lo - dmax()), Math.ceil(hi)];
+  }
+  /* "40 ft" / "elev 1,300 ft" — how a slice is named in a sentence */
+  const sliceWords = () => byElev() ? `elev ${fmt0(S.elev)} ft` : `${fmt(S.depth, 0)} ft`;
+  const sliceLong = () => byElev() ? `elevation ${fmt0(S.elev)} ft` : `${fmt(S.depth, 0)} ft below ground`;
+  const sliceTag = () => byElev() ? "elev" + Math.round(S.elev) + "ft" : S.depth + "ft";
   function bilin(f, nx, ny, gx, gy) {
     const ix = Math.max(0, Math.min(nx - 2, Math.floor(gx))), iy = Math.max(0, Math.min(ny - 2, Math.floor(gy)));
     const fx = gx - ix, fy = gy - iy;
@@ -265,8 +309,8 @@ SBMM.geophys = (function () {
     ctx.putImageData(im, 0, 0);
     return cv;
   }
-  function sliceAt(depth, upMax) {
-    const f = field(depth);
+  function sliceAt(depth, upMax, f0) {
+    const f = f0 || field(depth);
     if (!f) return null;
     const { nx, ny } = R, up = Math.min(upMax || 8, upFactor(Math.max(nx, ny)));
     const W = (nx - 1) * up + 1, H = (ny - 1) * up + 1;
@@ -275,10 +319,10 @@ SBMM.geophys = (function () {
     return { canvas: cv, f, depth, up, W, H,
              bounds: [R.x0 - h, R.y0 - h, R.x0 + (nx - 1) * R.dx + h, R.y0 + (ny - 1) * R.dx + h] };
   }
-  const sliceKey = () => sigKey() + "|" + S.depth;
+  const sliceKey = () => sigKey() + "|" + (byElev() ? "e" + S.elev : S.depth);
   function paintSlice() {
     if (!R) return null;
-    slice = sliceAt(S.depth);
+    slice = byElev() ? sliceAt(null, 0, fieldNow()) : sliceAt(S.depth);
     if (slice) slice.key = sliceKey();
     return slice;
   }
@@ -350,6 +394,7 @@ SBMM.geophys = (function () {
       mapDirty = true;
       paintSectionLines();
       refreshCard();
+      paintDock();
       return;
     }
     mapDirty = false;
@@ -371,6 +416,7 @@ SBMM.geophys = (function () {
     }
     paintSectionLines();
     refreshCard();
+    paintDock();
   }
   function soon3d() {
     clearTimeout(refresh3dT);
@@ -381,10 +427,10 @@ SBMM.geophys = (function () {
   }
 
   function tipFor(i) {
-    const D = data(), v = toProp(soundingAt(i, S.depth));
+    const D = data(), v = toProp(soundingNow(i));
     const u = PROP[S.prop].unit;
     return `<b>${esc(D.id[i])}</b> · TEM sounding`
-      + (S.prop === "sig" ? "" : ` · ${fmtV(v)} ${u} at ${fmt(S.depth, 0)} ft`);
+      + (S.prop === "sig" || !isFinite(v) ? "" : ` · ${fmtV(v)} ${u} at ${sliceWords()}`);
   }
   const fmtV = v => !isFinite(v) ? "—" : Math.abs(v) >= 100 ? v.toFixed(0) : Math.abs(v) >= 10 ? v.toFixed(1)
     : Math.abs(v) >= 1 ? v.toFixed(2) : v.toPrecision(2);
@@ -410,7 +456,7 @@ SBMM.geophys = (function () {
     if (!markers.length || !on("tem_soundings")) return;
     const byProp = S.prop !== "sig";
     for (let i = 0; i < markers.length; i++) {
-      const c = byProp ? colorOf(toProp(soundingAt(i, S.depth))) : null;
+      const c = byProp ? colorOf(toProp(soundingNow(i))) : null;
       markers[i].setStyle({ fillColor: c || PTS_COL });
     }
   }
@@ -419,15 +465,16 @@ SBMM.geophys = (function () {
   function hoverText(x, y) {
     if (!slice || !R || !on("tem_slice")) return "";
     const gx = (x - R.x0) / R.dx, gy = (y - R.y0) / R.dx;
-    if (gx < -0.5 || gy < -0.5 || gx > R.nx - 0.5 || gy > R.ny - 0.5) return "";
+    if (gx < -0.5 || gy < -0.5 || gx > R.nx - 0.5 || gy > R.ny - 0.5) { dockMark(NaN); return ""; }
     const v = toProp(bilin(slice.f, R.nx, R.ny, Math.max(0, Math.min(R.nx - 1, gx)), Math.max(0, Math.min(R.ny - 1, gy))));
-    if (!isFinite(v)) return "";
-    return ` · ${S.prop === "res" ? "ρ" : S.prop === "cond" ? "σ" : "s.e."} ${fmtV(v)} ${PROP[S.prop].unit} at ${fmt(S.depth, 0)} ft`;
+    if (!isFinite(v)) { dockMark(NaN); return ""; }
+    dockMark(v);
+    return ` · ${S.prop === "res" ? "ρ" : S.prop === "cond" ? "σ" : "s.e."} ${fmtV(v)} ${PROP[S.prop].unit} at ${sliceWords()}`;
   }
   /* the value at a point at the current depth, for the harness and the 3D card */
   function valueAt(x, y) {
     if (!R) return NaN;
-    const f = (slice && slice.depth === S.depth) ? slice.f : field(S.depth);
+    const f = (slice && slice.key === sliceKey()) ? slice.f : fieldNow();
     if (!f) return NaN;
     const gx = (x - R.x0) / R.dx, gy = (y - R.y0) / R.dx;
     if (gx < 0 || gy < 0 || gx > R.nx - 1 || gy > R.ny - 1) return NaN;
@@ -506,8 +553,11 @@ SBMM.geophys = (function () {
     };
     if (gm) s += step(gm, "4 3", "#C9D3D6", 1.4, "temgrid");
     s += step(r, "", "#E4796A", 2.2, "temmodel");
-    const yd = Y(Math.min(S.depth, DM));
-    s += `<line class="temdepth" x1="${Lp}" y1="${yd}" x2="${w - Rp}" y2="${yd}" stroke="#E2BA14" stroke-width="1"><title>slice depth ${fmt(S.depth, 0)} ft</title></line>`;
+    const dNow = depthUnder(D.z[i]);
+    if (dNow >= 0 && dNow <= DM) {
+      const yd = Y(dNow);
+      s += `<line class="temdepth" x1="${Lp}" y1="${yd}" x2="${w - Rp}" y2="${yd}" stroke="#E2BA14" stroke-width="1"><title>slice ${sliceLong()}</title></line>`;
+    }
     s += `<text x="${w - Rp}" y="${h - Bp - 3}" fill="${ink}" text-anchor="end">Ω·m</text></svg>`;
     return s;
   }
@@ -518,7 +568,7 @@ SBMM.geophys = (function () {
     let html = `<div class="pop temPop" data-tem="${esc(D.id[i])}"><b>${esc(D.id[i])}</b> · TEM sounding<br>`
       + `<span class="mono">E ${fmt(D.x[i], 1)} · N ${fmt(D.y[i], 1)} · ground ${fmt(D.z[i], 1)} ft`
       + (isFinite(zl) ? ` (lidar ${fmt(zl, 1)})` : "") + `</span><br>`
-      + `${fmtV(Math.pow(10, soundingAt(i, S.depth)))} Ω·m at ${fmt(S.depth, 0)} ft`
+      + (isFinite(soundingNow(i)) ? `${fmtV(Math.pow(10, soundingNow(i)))} Ω·m at ${sliceWords()}` : `no model at ${sliceWords()}`)
       + (nb ? ` · ${esc(nb.h.id)} ${fmt0(nb.d)} ft away` : "")
       + `<div class="temProfWrap">${profileSvg(i, 300, 220)}</div>`
       + `<div class="tempKey"><i class="k1"></i>inverted model <i class="k2"></i>interpolated grid`
@@ -546,12 +596,17 @@ SBMM.geophys = (function () {
   /* ------------------------------------------------------------------ */
   /* the card                                                            */
   /* ------------------------------------------------------------------ */
+  let legendN = 0;
   function legendSvg(w) {
     if (!range) return "";
     w = w || 268;
     const st = (CMAPS[S.cmap] || CMAPS.hydro).slice();
     if (S.rev) st.reverse();
-    const id = "temg_" + S.cmap + (S.rev ? "r" : "");
+    /* v52: a gradient id of its own PER DRAWING. The card and the panel both
+       drew this legend with one id, and `url(#id)` resolves to the FIRST such
+       element in the document — the card's, inside a dock that is not shown
+       while the panel is — so the panel's colour bar painted nothing. */
+    const id = "temg" + (++legendN) + "_" + S.cmap + (S.rev ? "r" : "");
     let s = `<svg class="temleg" xmlns="http://www.w3.org/2000/svg" width="${w}" height="34" viewBox="0 0 ${w} 34" font-family="system-ui,sans-serif" font-size="10">`
       + `<defs><linearGradient id="${id}">`
       + st.map((c, k) => `<stop offset="${(k / (st.length - 1) * 100).toFixed(1)}%" stop-color="${c}"/>`).join("")
@@ -568,6 +623,47 @@ SBMM.geophys = (function () {
         + `<text x="${x}" y="31" fill="#9FB0B5" text-anchor="middle">${+v.toPrecision(3)}</text>`;
     }
     return s + "</svg>";
+  }
+  /* v52 — THE LEGEND ON THE VIEW. One small plate, top-left of the stage,
+     shown while the slice or the soundings are on: what the colours mean,
+     the slice it is, and a marker at the value under the pointer (the same
+     reading the status bar gets, in 2D and in 3D). It is the legend the
+     panel used to bury six sections down. Moving the marker writes one
+     style; nothing is re-drawn and nothing asks for a frame. */
+  let dock = null, dockKey = "";
+  function paintDock() {
+    const show = !!(data() && range && (on("tem_slice") || on("tem_soundings")) && S.prop !== undefined)
+      && !document.body.classList.contains("field");
+    if (!show) { if (dock) dock.hidden = true; return; }
+    if (!dock) {
+      dock = document.createElement("div");
+      dock.id = "temLegend";
+      dock.setAttribute("role", "img");
+      dock.innerHTML = `<div class="tlgh"><b></b><span class="tlgs mono"></span></div>`
+        + `<div class="tlgbar"></div><i class="tlgm" hidden></i><div class="tlgv mono"></div>`;
+      document.body.appendChild(dock);
+    }
+    dock.hidden = false;
+    const key = sigKey() + "|" + sliceWords() + "|" + on("tem_slice");
+    if (key !== dockKey) {
+      dockKey = key;
+      dock.querySelector("b").textContent = `${PROP[S.prop].name}, ${PROP[S.prop].unit}`;
+      dock.querySelector(".tlgs").textContent = on("tem_slice") ? sliceLong() : "soundings · " + sliceLong();
+      dock.querySelector(".tlgbar").innerHTML = legendSvg(DOCK_W);
+      dock.setAttribute("aria-label", `TEM ${PROP[S.prop].name.toLowerCase()} legend, ${fmtV(range.lo)} to ${fmtV(range.hi)} ${PROP[S.prop].unit}`);
+      dockMark(NaN);
+    }
+  }
+  const DOCK_W = 248;
+  function dockMark(v) {
+    if (!dock || dock.hidden) return;
+    const m = dock.querySelector(".tlgm"), o = dock.querySelector(".tlgv");
+    if (!isFinite(v) || !range) { if (!m.hidden) { m.hidden = true; o.textContent = ""; } return; }
+    const t = Math.max(0, Math.min(1, tRaw(v)));
+    m.hidden = false;
+    m.style.left = (4 + (DOCK_W - 8) * t).toFixed(1) + "px";
+    o.textContent = `${fmtV(v)} ${PROP[S.prop].unit}`;
+    dock.dataset.mark = String(+v.toPrecision(5));
   }
   function fromT(t) {
     if (scale() === "log") return Math.pow(10, Math.log10(range.lo) + t * (Math.log10(range.hi) - Math.log10(range.lo)));
@@ -603,8 +699,11 @@ SBMM.geophys = (function () {
   function controlsHtml() {
     const DM = Math.floor(dmax());
     return `<div class="temctl">`
-      + `<label class="temrow" title="Depth below the ground at each node">Depth <output data-tem-o="depth">${fmt(S.depth, 0)} ft</output>`
-      + `<input type="range" data-tem="depth" min="0" max="${DM}" step="1" value="${S.depth}"></label>`
+      + (byElev()
+        ? `<label class="temrow" title="A level slice at an elevation (NAVD88)">Elevation <output data-tem-o="elev">${fmt0(S.elev)} ft</output>`
+          + `<input type="range" data-tem="elev" min="${elevRange()[0]}" max="${elevRange()[1]}" step="1" value="${S.elev}" style="direction:rtl"></label>`
+        : `<label class="temrow" title="Depth below the ground at each node">Depth <output data-tem-o="depth">${fmt(S.depth, 0)} ft</output>`
+          + `<input type="range" data-tem="depth" min="0" max="${DM}" step="1" value="${S.depth}"></label>`)
       + `<div class="temgrid2">`
       + `<label>Property ${selectHtml("prop", [["res", "Resistivity"], ["cond", "Conductivity"], ["sig", "Kriging s.e."]], S.prop, "What the slice shows")}</label>`
       + `<label>Colours ${selectHtml("cmap", Object.keys(CMAPS).map(k => [k, CMAP_NAME[k]]), S.cmap, "Colour map")}</label>`
@@ -658,18 +757,18 @@ SBMM.geophys = (function () {
     return `${fmtV(fromT(lo))}–${fmtV(fromT(hi))} ${PROP[S.prop].unit}`;
   }
   function cardRows() {
-    const st = sliceStats(), D = data(), l = layerAt(S.depth);
+    const st = sliceStats(), D = data(), l = layerAt(byElev() ? 0 : S.depth);
     const P = PROP[S.prop];
     const vgTxt = R.method === "krig"
       ? (R.vgs ? `${VG_NAME[R.vg.type]}, fitted per layer`
                : `${VG_NAME[R.vg.type]} · range ${fmt0(R.vg.range)} ft · nugget ${R.vg.nug} of sill ${R.vg.sill}`)
       : null;
     const out = [
-      [`${P.name} at ${fmt(S.depth, 0)} ft`, st ? `${fmtV(st.med)} ${P.unit}` : "—",
+      [`${P.name} at ${sliceWords()}`, st ? `${fmtV(st.med)} ${P.unit}` : "—",
        st ? `median of ${fmt0(st.n)} nodes · 5–95 %: ${fmtV(st.p5)}–${fmtV(st.p95)}` : ""],
       ["5–95 % across the slice", st ? `${fmtV(st.p5)} – ${fmtV(st.p95)} ${P.unit}` : "—"],
-      ["Model layer", `${l + 1} of ${D.nl} · ${fmt(D.top_ft[l], 1)}–${fmt(D.bot_ft[l], 1)} ft`
-        + (S.blend ? " · blended" : "")],
+      ["Model layer", byElev() ? "varies with the ground" + (S.blend ? " · blended" : "")
+        : `${l + 1} of ${D.nl} · ${fmt(D.top_ft[l], 1)}–${fmt(D.bot_ft[l], 1)} ft` + (S.blend ? " · blended" : "")],
       ["Method", METHOD_NAME[R.method] + (vgTxt ? " · " + vgTxt : "")],
       ["Grid", `${R.nx} × ${R.ny} at ${fmt0(R.dx)} ft · ${fmt0(R.nodes)} nodes within ${fmt0(R.blank)} ft of a sounding`],
       ["Soundings", `${fmt0(D.n)} · ${D.nl} layers to ${fmt0(dmax())} ft`],
@@ -682,6 +781,8 @@ SBMM.geophys = (function () {
     SBMM.results.setRows(card, cardRows());
     const o = card.querySelector('[data-tem-o="depth"]');
     if (o) o.textContent = fmt(S.depth, 0) + " ft";
+    const oe = card.querySelector('[data-tem-o="elev"]');
+    if (oe) oe.textContent = fmt0(S.elev) + " ft";
     const lg = card.querySelector(".temlegwrap"); if (lg) lg.innerHTML = legendSvg();
     const rg = card.querySelector(".temrange");
     if (rg) rg.textContent = range ? `${fmtV(range.lo)} – ${fmtV(range.hi)} ${PROP[S.prop].unit}` : "";
@@ -731,20 +832,50 @@ SBMM.geophys = (function () {
   /* two did not move the control can show the new value.               */
   /* ------------------------------------------------------------------ */
   /* the sliders that act on every input event rather than on release */
-  const LIVE = new Set(["depth", "ewI", "nsI", "voxLo", "voxHi"]);
+  const LIVE = new Set(["depth", "elev", "ewI", "nsI", "voxLo", "voxHi"]);
   const RERUN = new Set(["method", "vgType", "cell", "blank", "per"]);
-  const DRAW3D = new Set(["stack", "stackStep", "ew", "ns", "vox", "cols", "colW", "ewI", "nsI", "voxLo", "voxHi"]);
+  const DRAW3D = new Set(["stack", "stackStep", "ew", "ns", "vox", "cols", "colW", "ewI", "nsI", "voxLo", "voxHi", "sheet"]);
   function emit(k) { if (SBMM.events) SBMM.events.emit("tem", { key: k }); }
   async function apply(k, v) {
     if (!(k in DEF)) return;
     if (k === "depth") {
       const d = Math.max(0, Math.min(Math.floor(dmax()), Math.round(+v)));
       if (!isFinite(d)) return;
+      /* a depth asked for is a depth slice (the card's slider, TEM 45) */
+      if (S.datum !== "depth") {
+        S.datum = "depth"; S.depth = d; save(); paintNow(); soon3d();
+        if (card && card.isConnected) showCard();
+        emit("datum"); emit(k); return;
+      }
       S.depth = d; save(); paint();
       /* the 3D view moves the slice sheet and recolours the dots in place;
          a full overlay rebuild only when it could not */
       const fast = SBMM.viewer3d && SBMM.viewer3d.temDepth && SBMM.viewer3d.temDepth();
       if (!fast) soon3d();
+      emit(k);
+      return;
+    }
+    /* v52: the slice's elevation — the same fast path as a depth step */
+    if (k === "elev") {
+      const [lo, hi] = elevRange(), e = Math.max(lo, Math.min(hi, Math.round(+v)));
+      if (!isFinite(e)) return;
+      S.elev = e; save(); paint();
+      const fast = SBMM.viewer3d && SBMM.viewer3d.temDepth && SBMM.viewer3d.temDepth();
+      if (!fast) soon3d();
+      emit(k);
+      return;
+    }
+    if (k === "datum") {
+      const want = v === "elev" ? "elev" : "depth";
+      if (want === S.datum) return;
+      /* the first elevation is the one the depth slice sits at under the
+         survey's median ground, so the picture does not jump */
+      if (want === "elev") {
+        const D = data(), zs = Array.from(D.z).sort((a, b) => a - b), [lo, hi] = elevRange();
+        S.elev = Math.max(lo, Math.min(hi, Math.round(zs[zs.length >> 1] - S.depth)));
+      }
+      S.datum = want; save(); paintNow(); soon3d();
+      if (card && card.isConnected) showCard();      // the card's slice control is the other one now
       emit(k);
       return;
     }
@@ -830,7 +961,7 @@ SBMM.geophys = (function () {
   }
   function action(a) {
     if (a === "png") exportPng();
-    else if (a === "csv") download("SBMM_TEM_slice_" + S.depth + "ft.csv", new Blob([sliceCsv()], { type: "text/csv" }));
+    else if (a === "csv") download("SBMM_TEM_slice_" + sliceTag() + ".csv", new Blob([sliceCsv()], { type: "text/csv" }));
     else if (a === "model") download("SBMM_TEM_model.csv", new Blob([modelCsv()], { type: "text/csv" }));
     else if (a === "fit") { autoRange(); paintNow(); soon3d(); emit("range"); }
     else if (a === "cal") openCalibration();
@@ -841,8 +972,8 @@ SBMM.geophys = (function () {
   /* ------------------------------------------------------------------ */
   function sliceCsv() {
     if (!R) return "";
-    const f = field(S.depth), N = R.nx * R.ny;
-    let out = `# TEM2Go ${PROP[S.prop].name} (${PROP[S.prop].unit}) at ${S.depth} ft below ground; ${METHOD_NAME[R.method]}; EPSG:6418 ft\n`
+    const f = fieldNow(), N = R.nx * R.ny;
+    let out = `# TEM2Go ${PROP[S.prop].name} (${PROP[S.prop].unit}) at ${byElev() ? "elevation " + S.elev + " ft NAVD88" : S.depth + " ft below ground"}; ${METHOD_NAME[R.method]}; EPSG:6418 ft\n`
       + "easting_ft,northing_ft,value\n";
     for (let id = 0; id < N; id++) {
       if (!isFinite(f[id])) continue;
@@ -873,10 +1004,10 @@ SBMM.geophys = (function () {
     x.fillStyle = "#0B1013"; x.fillRect(0, 0, c.width, c.height);
     x.drawImage(slice.canvas, 16, 16);
     x.fillStyle = "#DDE5E8"; x.font = "13px system-ui, sans-serif";
-    x.fillText(`TEM ${PROP[S.prop].name.toLowerCase()} at ${S.depth} ft below ground · `
+    x.fillText(`TEM ${PROP[S.prop].name.toLowerCase()} at ${sliceLong()} · `
       + `${range ? fmtV(range.lo) + "–" + fmtV(range.hi) : ""} ${PROP[S.prop].unit} · ${CMAP_NAME[S.cmap]}`, 16, slice.H + 36);
     if (SBMM.watermark) SBMM.watermark.burn(c);
-    c.toBlob(b => download("SBMM_TEM_slice_" + S.depth + "ft.png", b));
+    c.toBlob(b => download("SBMM_TEM_slice_" + sliceTag() + ".png", b));
   }
 
   /* ------------------------------------------------------------------ */
@@ -902,7 +1033,7 @@ SBMM.geophys = (function () {
     buildPoints();
     rows.tem_soundings = SBMM.addLayerRow("invest", `TEM soundings (${fmt0(D.n)})`, ptsGroup,
       { id: "tem_soundings", checked: false, swatch: PTS_COL, sub: SUB, subTitle: SUB_TITLE,
-        onChange: st => { if (st.on) { recolourPoints(); if (!R) run().then(r => { if (r) paintNow(); }); } } });
+        onChange: st => { if (st.on) { recolourPoints(); if (!R) run().then(r => { if (r) paintNow(); }); } paintDock(); } });
     rows.tem_soundings.row.title = "Each dot coloured by its own inverted model at the slice depth";
     rows.tem_slice = SBMM.addLayerRow("invest", "Resistivity — depth slice", null,
       { id: "tem_slice", checked: false, swatch: "#27a0e3", opacity: 0.85, sub: SUB, subTitle: SUB_TITLE,
@@ -933,7 +1064,7 @@ SBMM.geophys = (function () {
   /* TEM / GEOPHYS / RESISTIVITY [depth ft] */
   async function open(depth) {
     if (!data()) { toast("the TEM survey is not in this build"); return; }
-    if (depth != null && isFinite(depth)) { S.depth = Math.max(0, Math.min(Math.floor(dmax()), +depth)); save(); }
+    if (depth != null && isFinite(depth)) { S.depth = Math.max(0, Math.min(Math.floor(dmax()), +depth)); S.datum = "depth"; save(); }
     if (!on("tem_slice")) {
       const row = rows.tem_slice;
       if (row && row.cb) row.cb.click(); else SBMM.layerState.set("invest", "tem_slice", { on: true });
@@ -956,7 +1087,7 @@ SBMM.geophys = (function () {
     if (!D || !on("tem_soundings")) return null;
     const col = [];
     for (let i = 0; i < D.n; i++) {
-      const c = S.prop !== "sig" ? colorOf(toProp(soundingAt(i, S.depth))) : null;
+      const c = S.prop !== "sig" ? colorOf(toProp(soundingNow(i))) : null;
       col.push(c || PTS_COL);
     }
     return { x: D.x, y: D.y, id: D.id, color: col };
@@ -966,7 +1097,7 @@ SBMM.geophys = (function () {
     if (!slice || slice.key !== sliceKey()) paintSlice();
     if (!slice) return null;
     return { canvas: slice.canvas, nx: R.nx, ny: R.ny, dx: R.dx, x0: R.x0, y0: R.y0,
-             mask: R.mask, depth: S.depth,
+             mask: R.mask, depth: S.depth, elev: byElev() ? S.elev : null,
              opacity: SBMM.layerState.opacity("invest", "tem_slice") };
   }
   /* ------------------------------------------------------------------ */
@@ -1022,10 +1153,10 @@ SBMM.geophys = (function () {
   let m3 = null, m3key = "";
   function model3d() {
     if (!R || !data() || !on("tem_slice")) return null;
-    const key = sigKey() + "|" + [S.depth, S.stack, S.stackStep, S.ew, S.ns, S.ewI, S.nsI,
+    const key = sigKey() + "|" + [S.depth, S.datum, S.elev, S.sheet, S.stack, S.stackStep, S.ew, S.ns, S.ewI, S.nsI,
                                   S.vox, S.voxLo, S.voxHi].join("|");
     if (m3 && m3key === key) { m3.opacity = SBMM.layerState.opacity("invest", "tem_slice"); return m3; }
-    const out = { slice: slice3d(), stack: [], sections: [], voxels: null,
+    const out = { slice: S.sheet ? slice3d() : null, stack: [], sections: [], voxels: null,
                   opacity: SBMM.layerState.opacity("invest", "tem_slice") };
     if (S.stack) for (let l = 0; l < NL(); l += Math.max(1, S.stackStep)) {
       const sp = sliceAt(midFt(l), 3);
@@ -1107,25 +1238,70 @@ SBMM.geophys = (function () {
   /* the two section lines on the 2D map, so a reader knows where they cut
      (an SVG renderer in the water pane: no pointer events, the rule that pane
      lives by) */
-  let secLayer = null, secRenderer = null;
+  let secRenderer = null;
+  /* v52: each line carries a HANDLE at its middle that drags it across the
+     model (a marker, so it takes the pointer where the line — an SVG path in
+     a pane with no pointer events — cannot). The lines and the handles are
+     kept and moved, never rebuilt: a drag re-applies the section's index on
+     every move, and rebuilding the marker under the pointer would end the
+     drag it is part of. */
+  const secObj = { ew: null, ns: null };
+  function sectionLL(dir) {
+    const i = sectionIdx(dir), x1 = R.x0 + (R.nx - 1) * R.dx, y1 = R.y0 + (R.ny - 1) * R.dx;
+    /* the handles sit a fifth of the way along, not at the middle: the two
+       lines cross near the middle, and two handles on one spot are one handle */
+    return dir === "ew" ? { ll: [[R.y0 + i * R.dx, R.x0], [R.y0 + i * R.dx, x1]], mid: [R.y0 + i * R.dx, R.x0 + (x1 - R.x0) * 0.2], i }
+                        : { ll: [[R.y0, R.x0 + i * R.dx], [y1, R.x0 + i * R.dx]], mid: [R.y0 + (y1 - R.y0) * 0.2, R.x0 + i * R.dx], i };
+  }
+  const sectionTip = dir => !R ? "" : dir === "ew"
+    ? `<b>E–W section</b> · N ${fmt0(R.y0 + sectionIdx("ew") * R.dx)}`
+    : `<b>N–S section</b> · E ${fmt0(R.x0 + sectionIdx("ns") * R.dx)}`;
   function paintSectionLines() {
     const map = SBMM.map;
     if (!map || typeof L === "undefined") return;
-    if (secLayer) { map.removeLayer(secLayer); secLayer = null; }
-    if (!R || !on("tem_slice") || !(S.ew || S.ns)) return;
-    const pane = map.getPane("water") ? "water" : "overlayPane";
-    if (!secRenderer) secRenderer = L.svg({ pane });
-    secLayer = L.layerGroup();
-    const x1 = R.x0 + (R.nx - 1) * R.dx, y1 = R.y0 + (R.ny - 1) * R.dx;
+    const want = dir => !!(R && data() && on("tem_slice") && S[dir]);
     for (const dir of ["ew", "ns"]) {
-      if (!S[dir]) continue;
-      const i = sectionIdx(dir);
-      const ll = dir === "ew" ? [[R.y0 + i * R.dx, R.x0], [R.y0 + i * R.dx, x1]]
-                              : [[R.y0, R.x0 + i * R.dx], [y1, R.x0 + i * R.dx]];
-      L.polyline(ll, { renderer: secRenderer, pane, interactive: false, color: "#F1CE7A",
-                       weight: 1.6, dashArray: "8 6", opacity: .95 }).addTo(secLayer);
+      let o = secObj[dir];
+      if (!want(dir)) {
+        if (o && o.on) { map.removeLayer(o.line); map.removeLayer(o.handle); o.on = false; }
+        continue;
+      }
+      const g = sectionLL(dir);
+      if (!o) {
+        const pane = map.getPane("water") ? "water" : "overlayPane";
+        if (!secRenderer) secRenderer = L.svg({ pane });
+        const line = L.polyline(g.ll, { renderer: secRenderer, pane, interactive: false, color: "#F1CE7A",
+                                        weight: 1.6, dashArray: "8 6", opacity: .95 });
+        const handle = L.marker(g.mid, { draggable: true, keyboard: false, zIndexOffset: 400,
+          icon: L.divIcon({ className: "temsech temsech-" + dir, iconSize: [22, 22], iconAnchor: [11, 11],
+                            html: `<i></i>` }) });
+        handle.bindTooltip(() => sectionTip(dir), { className: "ctip", direction: "top", offset: [0, -10] });
+        handle._temSection = dir;
+        handle.on("dragstart", () => { o.drag = true; });
+        handle.on("drag", e => {
+          const ll = e.target.getLatLng();
+          const n = dir === "ew" ? R.ny : R.nx;
+          const idx = Math.max(0, Math.min(n - 1, Math.round(((dir === "ew" ? ll.lat : ll.lng) - (dir === "ew" ? R.y0 : R.x0)) / R.dx)));
+          if (idx !== sectionIdx(dir)) apply(dir === "ew" ? "ewI" : "nsI", idx);
+          /* the handle rides its own line: free along it, snapped across it */
+          const q = sectionLL(dir);
+          e.target.setLatLng(dir === "ew" ? [q.mid[0], Math.max(R.x0, Math.min(q.ll[1][1], ll.lng))]
+                                           : [Math.max(R.y0, Math.min(q.ll[1][0], ll.lat)), q.mid[1]]);
+        });
+        handle.on("dragend", () => { o.drag = false; paintSectionLines(); });
+        o = secObj[dir] = { line, handle, on: false, drag: false };
+      }
+      o.line.setLatLngs(g.ll);
+      if (!o.drag) o.handle.setLatLng(g.mid);
+      if (!o.on) { o.line.addTo(map); o.handle.addTo(map); o.on = true; }
     }
-    secLayer.addTo(map);
+  }
+  /* for the harness: where a section's handle is, and its index */
+  function sectionHandle(dir) {
+    const o = secObj[dir];
+    if (!o || !o.on) return null;
+    const ll = o.handle.getLatLng();
+    return { lat: ll.lat, lng: ll.lng, idx: sectionIdx(dir) };
   }
 
   /* ------------------------------------------------------------------ */
@@ -1333,6 +1509,9 @@ SBMM.geophys = (function () {
     columns3d, pickColumn, wantsSeeThrough, anyOn, rowsOn, footprint, closeCards, TEM_ROWS,
     apply, action, wallImage, core, layerInfo, dmax: () => data() ? dmax() : 0,
     depth: () => S.depth, colorFor: v => colorOf(v), ensure,
+    byElev, elev: () => S.elev, elevRange, depthUnder, sliceWords, sliceLong, soundingNow,
+    sliceSig: () => (byElev() ? "e" + S.elev : "d" + S.depth), dock: paintDock,
+    sectionHandle, sectionIdx: d => R ? sectionIdx(d) : -1,
     unit: () => PROP[S.prop].unit, propName: () => PROP[S.prop].name,
     options: () => ({ cmap: Object.keys(CMAPS).map(k => [k, CMAP_NAME[k]]),
                       method: Object.keys(METHOD_NAME).map(k => [k, METHOD_NAME[k]]),
