@@ -22,10 +22,25 @@
        the 20 layer boundaries and the nearest 2025 boring's contacts. Dragging
        it moves the depth.
 
-   It is a VIEW, like the clip box: nothing serialises. Closing it puts the
-   panels back as they were and takes the cut away; the TEM layer rows stay as
-   the Layers tree has them. Field mode (a phone) has no room for a second
-   panel, so there TEMWS opens the results card instead. */
+   It is a VIEW, like the clip box: nothing serialises. Field mode (a phone)
+   has no room for a second panel, so there TEMWS opens the results card
+   instead.
+
+   v51 — TEM IS ONE THING TO TURN OFF. The panel used to have one way out, a
+   cross that hid the panel and the cut and left whatever TEM rows were on —
+   so the 3D ground stayed see-through, on every later visit, with nothing on
+   screen saying why (the engineer: "even after I turn it off the ground
+   doesn't return"). Now:
+
+     off()    every TEM row off, the cut closed, the cards closed, a
+              see-through or hidden ground back to auto, the panels back as
+              they were. The panel's cross, Data ▾ → TEM geophysics while
+              the panel is open, and TEMOFF.
+     hide()   the panel and the cut away, the TEM layers left on — what the
+              cross used to do. `close()` is this, under its old name.
+     the chip while any TEM row is on and the panel is not: "TEM on" with
+              "open" and "turn off", bottom-centre of the stage, so a TEM
+              layer left on is never a mystery. */
 window.SBMM = window.SBMM || {};
 SBMM.temws = (function () {
   "use strict";
@@ -83,8 +98,10 @@ SBMM.temws = (function () {
     paintAll();
     if (SBMM.shell) { SBMM.shell.relayout(); setTimeout(() => SBMM.shell.relayout(), 260); }
     if (o.tab && o.tab !== "model") setTab(o.tab);
+    paintChip();
     return true;
   }
+  /* hide(): the panel and the cut away, the TEM layers as they are */
   function close() {
     if (!active) return false;
     stopPlay();
@@ -97,7 +114,61 @@ SBMM.temws = (function () {
     if (before && !before.v3d && SBMM.viewer3d && SBMM.viewer3d.isOpen()) SBMM.viewer3d.toggle();
     before = null;
     if (SBMM.shell) { SBMM.shell.relayout(); setTimeout(() => SBMM.shell.relayout(), 260); }
+    paintChip();
     return true;
+  }
+  /* off(): TEM off as a whole. Works with the panel hidden and on a phone,
+     where there is no panel at all. */
+  function off(quiet) {
+    if (!G()) return false;
+    const was = active || G().anyOn();
+    stopPlay();
+    /* the Model tab's "put the slice back" must not run: it would start a
+       job whose card arrives after everything has been turned off */
+    hidSlice = false;
+    if (active) close();
+    for (const id of G().TEM_ROWS) rowSet(id, false);
+    G().closeCards();
+    const V = SBMM.viewer3d;
+    if (V && V.ground && V.setGround && (V.ground() === "see" || V.ground() === "hidden")) V.setGround("auto");
+    paintChip();
+    if (was && !quiet) toast("TEM off");
+    return was;
+  }
+  /* Data ▾ → TEM geophysics: opens the workspace, and with it open turns TEM off */
+  function toggle(opts) { return active ? (off(), false) : open(opts); }
+
+  /* ------------------------------------------------------------------ */
+  /* the chip: TEM is on and the panel is not                            */
+  /* ------------------------------------------------------------------ */
+  let chip = null;
+  function paintChip() {
+    const onNow = !!(G() && data() && G().anyOn());
+    const mb = document.getElementById("temMenuBtn");
+    if (mb) { mb.classList.toggle("on", onNow || active); mb.setAttribute("aria-pressed", String(onNow || active)); }
+    const show = onNow && !active;
+    if (!show) { if (chip) chip.hidden = true; return; }
+    if (!chip) {
+      chip = document.createElement("div");
+      chip.id = "temChip";
+      chip.setAttribute("role", "status");
+      chip.innerHTML = `<span class="tchn">TEM on</span><span class="tchw"></span>`
+        + `<button class="minib" data-c="open" title="Open the TEM panel">open</button>`
+        + `<button class="minib" data-c="off" title="Turn TEM off — every TEM layer off, the ground solid">turn off</button>`;
+      chip.addEventListener("click", e => {
+        const b = e.target.closest("[data-c]"); if (!b) return;
+        if (b.dataset.c === "off") off(); else open();
+      });
+      document.body.appendChild(chip);
+    }
+    chip.hidden = false;
+    const n = G().rowsOn().length, V = SBMM.viewer3d;
+    const see = !!(V && V.isOpen && V.isOpen() && V.groundNow && V.groundNow() !== "solid");
+    chip.querySelector(".tchw").textContent = `${n} layer${n === 1 ? "" : "s"}` + (see ? " · ground see-through over the survey" : "");
+    chip.dataset.rows = String(n);
+    chip.dataset.see = String(see);
+    const ob = chip.querySelector('[data-c="open"]');
+    if (ob) ob.hidden = document.body.classList.contains("field");
   }
   function rowOn(id) {
     if (on(id)) return;
@@ -218,7 +289,8 @@ SBMM.temws = (function () {
     el.innerHTML =
       `<header class="twsh"><div><b>TEM geophysics</b>`
       + `<span class="twssub">TEM2Go · LCI models · May 2026 · ${fmt0(D.n)} soundings to ${fmt0(DM())} ft</span></div>`
-      + `<button class="twsx" data-a="close" title="Close the TEM workspace" aria-label="Close the TEM workspace">×</button></header>`
+      + `<span class="twshb"><button class="minib" data-a="hide" title="Hide the panel — the TEM layers stay on">hide</button>`
+      + `<button class="twsx" data-a="off" title="Turn TEM off — every TEM layer off, the cut closed, the ground solid" aria-label="Turn TEM off">×</button></span></header>`
       + `<nav class="twstabs" role="tablist" aria-label="TEM analyses">` + TABS.map(([k, t]) =>
           `<button class="twstab${k === tab ? " on" : ""}" role="tab" data-tab="${k}" aria-selected="${k === tab}">${esc(t)}</button>`).join("") + `</nav>`
       + `<div class="twsb temctl" data-pane="model"${tab === "model" ? "" : " hidden"}>`
@@ -514,7 +586,8 @@ SBMM.temws = (function () {
     if (!b) return;
     const a = b.dataset.a;
     if (a !== "play") stopPlay();
-    if (a === "close") close();
+    if (a === "off") off();
+    else if (a === "hide") close();
     else if (a === "up") stepLayer(-1);
     else if (a === "down") stepLayer(1);
     else if (a === "play") play();
@@ -530,6 +603,20 @@ SBMM.temws = (function () {
     if (t && (t.tagName === "INPUT" || t.tagName === "SELECT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
     stepLayer(e.key === "PageDown" ? 1 : -1);
     e.preventDefault();
+  }
+  /* called once at boot (js/boot.js): the chip and the menu's state follow
+     the TEM rows whether or not the panel has ever been opened */
+  let chipWired = false;
+  function wireChip() {
+    if (chipWired || !SBMM.events) return;
+    chipWired = true;
+    let t = 0;
+    const soon = () => { clearTimeout(t); t = setTimeout(paintChip, 60); };
+    SBMM.events.on("layers", ({ group }) => { if (group === "invest" || group == null) soon(); });
+    SBMM.events.on("view", soon);
+    SBMM.events.on("tem", soon);
+    SBMM.events.on("field", soon);
+    soon();
   }
   function wire() {
     if (wired) return;
@@ -556,9 +643,12 @@ SBMM.temws = (function () {
 
   function state() {
     return { open: active, pit: Object.assign({}, pit), playing: !!playT, tab,
+             temOn: !!(G() && data() && G().anyOn()), chip: !!(chip && !chip.hidden),
              panel: !!(el && !el.hidden), depth: G() ? G().depth() : null };
   }
-  return { open, close, isOpen: () => active, state, setSize, centreOnView, centreOnSurvey: () => centreOnSurvey(true),
+  if (SBMM.events) SBMM.events.on("boot", () => wireChip());
+  return { open, close, hide: close, off, toggle, wireChip, paintChip,
+           isOpen: () => active, state, setSize, centreOnView, centreOnSurvey: () => centreOnSurvey(true),
            fitSurvey, setPit: p => { Object.assign(pit, p || {}); applyPit(); paintAll(); },
            play, stopPlay, stepLayer, paint: paintAll, setTab: t => setTab(t) };
 })();

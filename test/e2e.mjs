@@ -6785,14 +6785,80 @@ const w4 = await page.evaluate(async () => {
 console.log("TEM workspace idle:", JSON.stringify(w4));
 if (w4.renders > 1) { console.log("FAIL: the workspace keeps the 3D view rendering when idle " + JSON.stringify(w4)); process.exit(1); }
 
-/* closing puts everything back */
-await page.click('#temWs [data-a="close"]');
-const w5 = await page.evaluate(() => ({ ws: document.body.classList.contains("temws"), clip: SBMM.viewer3d.clipState().on,
-  rd: getComputedStyle(document.getElementById("rightdock")).display, lcol: document.body.classList.contains("lcol"),
-  v3d: SBMM.viewer3d.isOpen(), ground: SBMM.viewer3d.groundNow ? SBMM.viewer3d.groundNow() : null }));
-console.log("TEM workspace closed:", JSON.stringify(w5), "before:", JSON.stringify(w0));
-if (w5.ws || w5.clip || w5.rd === "none" || w5.lcol !== w0.lcol || w5.v3d !== w0.v3d)
-  { console.log("FAIL: closing the TEM workspace did not put the app back", w5, w0); process.exit(1); }
+/* v51 — TEM IS ONE THING TO TURN OFF. "hide" takes the panel and the cut
+   away and leaves the layers, and then the chip says TEM is on; over the
+   survey only, the ground gives way by coverage (no terrain material is
+   blended) while the rest of the site is untouched; the cross turns ALL of
+   it off and the ground is solid again; a see-through ground chosen in the
+   panel does not outlive TEM */
+const frame51 = () => page.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(() => {
+  const I = SBMM.viewer3d.internals(); I.renderer.render(I.scene, I.camera);
+  const st = SBMM.viewer3d.stats(), ts = SBMM.temws.state(), chip = document.getElementById("temChip");
+  let tiles = 0, a2c = 0, blended = 0;
+  I.scene.traverse(o => { const m = o.isMesh && o.material; if (!m || Array.isArray(m) || !m.userData.seeMask) return;
+    tiles++; if (m.alphaToCoverage) a2c++; if (m.transparent) blended++; });
+  r({ rows: SBMM.geophys.rowsOn(), ws: ts.open, chip: !!(chip && !chip.hidden), chipText: chip ? chip.textContent : "",
+      now: st.groundNow, mode: st.ground, cover: st.groundCover, msaa: st.msaaSamples, tiles, a2c, blended,
+      menu: document.getElementById("temMenuBtn").getAttribute("aria-pressed"),
+      cards: document.querySelectorAll(".temcard, .ticard").length, clip: SBMM.viewer3d.clipState().on,
+      wsClass: document.body.classList.contains("temws"),
+      rd: getComputedStyle(document.getElementById("rightdock")).display, lcol: document.body.classList.contains("lcol"),
+      v3d: SBMM.viewer3d.isOpen(), pref: SBMM.view.pref("groundMode") });
+}))));
+await page.click('#temWs [data-a="hide"]');
+/* closing the workspace closes 3D when it was closed before: the survey-only
+   ground is a 3D matter, so it is read with the view open */
+await page.evaluate(async () => { if (!SBMM.viewer3d.isOpen()) await SBMM.viewer3d.toggle(); });
+await page.waitForFunction(() => SBMM.viewer3d.isOpen() && document.getElementById("v3dStatus").textContent === ""
+  && !(SBMM.viewer3d.stats().tiles || {}).building, null, { timeout: 180000 });
+await page.waitForFunction(() => { const c = document.getElementById("temChip"); return c && !c.hidden; }, null, { timeout: 30000 })
+  .catch(() => {});
+const h1 = await frame51();
+console.log("TEM panel hidden:", JSON.stringify(h1));
+if (h1.ws || h1.wsClass || h1.clip || h1.rows.indexOf("tem_slice") < 0)
+  { console.log("FAIL: hiding the TEM panel did not take the panel and the cut away and leave the layers", h1); process.exit(1); }
+if (!h1.chip || !/TEM on/.test(h1.chipText) || h1.menu !== "true")
+  { console.log("FAIL: a TEM layer is on with the panel hidden and nothing on the view says so", h1); process.exit(1); }
+if (h1.now !== "see") { console.log("FAIL: the auto ground did not give way with the slice on", h1); process.exit(1); }
+if (h1.msaa >= 4 && (!h1.cover || h1.a2c !== h1.tiles || h1.blended !== 0 || !h1.tiles))
+  { console.log("FAIL: over the survey only — every terrain tile should give way by coverage and none be blended", h1); process.exit(1); }
+if (h1.msaa < 4 && h1.blended !== h1.tiles)
+  { console.log("FAIL: without multisampling the ground should fall back to the blended whole", h1); process.exit(1); }
+/* the chip's "open" brings the panel back; a see-through ground picked there is a TEM state */
+await page.click('#temChip [data-c="open"]');
+await page.waitForFunction(() => SBMM.temws.isOpen(), null, { timeout: 60000 });
+await page.selectOption('#temWs [data-k="ground"]', "see");
+const h2 = await frame51();
+if (h2.mode !== "see" || h2.pref === "see" || h2.chip)
+  { console.log("FAIL: an explicit see-through ground should hold for this visit only, and the chip hide with the panel open", h2); process.exit(1); }
+if (h2.a2c !== 0) { console.log("FAIL: an explicit see-through ground is the blended whole, not the survey mask", h2); process.exit(1); }
+await page.click('#temWs [data-a="off"]');
+await page.evaluate(async () => { if (!SBMM.viewer3d.isOpen()) await SBMM.viewer3d.toggle(); });
+await page.waitForFunction(() => SBMM.viewer3d.isOpen() && document.getElementById("v3dStatus").textContent === ""
+  && !(SBMM.viewer3d.stats().tiles || {}).building, null, { timeout: 180000 });
+const w5 = await frame51();
+console.log("TEM off:", JSON.stringify(w5), "before:", JSON.stringify(w0));
+if (w5.wsClass || w5.clip || w5.rd === "none" || w5.lcol !== w0.lcol)
+  { console.log("FAIL: turning TEM off did not put the app back", w5, w0); process.exit(1); }
+if (w5.rows.length || w5.cards || w5.chip || w5.menu !== "false")
+  { console.log("FAIL: turning TEM off left a TEM layer, card or chip behind", w5); process.exit(1); }
+if (w5.now !== "solid" || w5.mode !== "auto" || w5.cover || w5.a2c || w5.blended)
+  { console.log("FAIL: the ground did not return to solid when TEM was turned off", w5); process.exit(1); }
+/* the menu row is a toggle, and TEMOFF with nothing on says so */
+const w5b = await page.evaluate(async () => {
+  const out = {};
+  await SBMM.temws.toggle();
+  out.opened = SBMM.temws.isOpen() && SBMM.geophys.anyOn();
+  SBMM.temws.toggle();
+  out.off = !SBMM.temws.isOpen() && !SBMM.geophys.anyOn();
+  SBMM.cmd.run("TEMOFF");
+  out.toast = (document.getElementById("toast") || {}).textContent || "";
+  return out;
+});
+console.log("TEM toggle:", JSON.stringify(w5b));
+if (!w5b.opened || !w5b.off || !/already off/.test(w5b.toast)) { console.log("FAIL: the TEM menu toggle / TEMOFF", w5b); process.exit(1); }
+/* back to how the block found the view */
+await page.evaluate(async v3d => { if (SBMM.viewer3d.isOpen() !== v3d) await SBMM.viewer3d.toggle(); }, w0.v3d);
 
 /* TEMWS with a depth, and without the payload a toast */
 const w6 = await page.evaluate(async () => {

@@ -201,7 +201,14 @@ SBMM.viewer3d = (function () {
      should be lit from the same somewhere. */
   const SKY_TOP = 0x0B1A26, SKY_HORIZON = 0x22343E, SKY_BOTTOM = 0x080D10;
   const LAKE = 0x14303C;
-  let skyMesh = null, envGroup = null, sunLight = null, hemiLight = null;
+  let skyMesh = null, envGroup = null, sunLight = null, hemiLight = null, envFloor = null;
+  /* v51 — the see-through mask every terrain material reads (js/terrain3d.js
+     seePatch): how far inside the TEM survey a point is, its box in scene
+     x/y, and the share of the ground kept there. `a` is 1 and `hole` 0 while
+     the ground is solid, so both are no-ops until groundBeforeDraw() moves
+     them. The 1 x 1 texture is what stands in before a survey grid exists. */
+  const SEE = { u: null, hole: { value: 0 }, fp: null, tex: null, blank: null, samples: -1, on: false };
+  SEE.u = { uSeeTex: { value: null }, uSeeBox: { value: null }, uSeeA: { value: 1 } };
   /* v40 — WHERE THE SUN STARTS. Over the orthophoto it starts where it WAS when
      the photograph was taken — due south, 33 degrees up: a late-January midday,
      measured off the photo's own tree shadows against the canopy model — so the
@@ -296,6 +303,32 @@ SBMM.viewer3d = (function () {
        ground the terrain is in front of it, so most of it is depth-rejected */
     pl.renderOrder = 900;
     g.add(pl);
+    /* v51: while the ground is see-through over the TEM survey the plane is
+       cut away there too (it sits at the site's lowest ground less 25 ft, so
+       it would hide every deeper part of the model — the v38 finding), and
+       what shows through the cut is a dark floor far below the deepest layer
+       rather than the sky's haze. Both are inert until groundBeforeDraw()
+       says otherwise: the hole's switch is 0 and the floor is hidden. */
+    const pm = pl.material;
+    seeInit();
+    pm.onBeforeCompile = sh => {
+      Object.assign(sh.uniforms, SEE.u, { uSeeHole: SEE.hole });
+      sh.vertexShader = sh.vertexShader
+        .replace("#include <common>", "#include <common>\nvarying vec2 vSeeXY;")
+        .replace("#include <project_vertex>", "#include <project_vertex>\n\tvSeeXY = ( modelMatrix * vec4( transformed, 1.0 ) ).xy;");
+      sh.fragmentShader = sh.fragmentShader
+        .replace("#include <common>", "#include <common>\nuniform sampler2D uSeeTex; uniform vec4 uSeeBox; uniform float uSeeHole;\nvarying vec2 vSeeXY;")
+        .replace("#include <map_fragment>", "#include <map_fragment>\n\tif ( uSeeHole * texture2D( uSeeTex, ( vSeeXY - uSeeBox.xy ) / uSeeBox.zw ).r > 0.5 ) discard;");
+    };
+    pm.customProgramCacheKey = () => "sbmm-envplane-v51";
+    pm.userData.seeHole = true;
+    const floor = new THREE.Mesh(new THREE.PlaneGeometry(160000, 160000),
+      new THREE.MeshBasicMaterial({ color: 0x0A1114, fog: false, toneMapped: false }));
+    floor.position.z = zr[0] - 25 - 700 - ZMID;
+    floor.renderOrder = 899;
+    floor.visible = false;
+    envFloor = floor;
+    g.add(floor);
     return g;
   }
 
@@ -503,6 +536,7 @@ SBMM.viewer3d = (function () {
       quality: qualityPx, drapeK, drapeFloor,
       zRange: () => SBMM._zrSite || SBMM.demSite.zRange(),
       groundShadows,
+      seeUniforms: () => { seeInit(); return SEE.u; },   // v51: see-through over the TEM survey only
       shade: () => quality() === "realistic",     // v41: per-pixel relief on the photo-draped ground
       onSwap: () => {
         terrainMeshes = SBMM.terrain3d.records();
@@ -5135,7 +5169,7 @@ SBMM.viewer3d = (function () {
                      shown: labelSrc.points.filter(p => { const r = labels3d.get(p.key); return r && r.sprite.visible; })
                        .map(p => p.text).sort() },
       layersDrawn: layersDrawn(),
-      ground: GROUND.mode, groundNow: groundNow(),
+      ground: GROUND.mode, groundNow: groundNow(), groundCover: SEE.on, msaaSamples: seeSamples(),
       sun: { az: +sunAz.toFixed(1), el: +sunEl.toFixed(1) },
       sky: !!skyMesh, groundPlane: !!envGroup,
       groundBackdrop: !!(envGroup && envGroup.children.some(c => c.userData && c.userData.backdrop)),
@@ -5420,14 +5454,84 @@ SBMM.viewer3d = (function () {
      still wins. The pre-auto preference ("ground3d") carried "solid" for
      anyone who had merely opened the select, so it migrates: see/hidden are
      kept, solid becomes auto. */
+  /* v51: an explicit see-through or hidden ground is for THIS visit only. It
+     used to be remembered, and a choice made once in the TEM panel then
+     greeted every later visit with a ground that looked broken, with nothing
+     on screen saying why. "auto" and "solid" are still remembered. */
   const GROUND_ALPHA = { solid: 1, see: 0.35, hidden: 0 };
   const GROUND = { mode: "auto", touched: false };
   try {
     const g1 = SBMM.view && SBMM.view.pref("groundMode");
-    const g0 = SBMM.view && SBMM.view.pref("ground3d");
-    if (g1 === "auto" || g1 in GROUND_ALPHA) GROUND.mode = g1;
-    else if (g0 === "see" || g0 === "hidden") GROUND.mode = g0;
+    if (g1 === "solid") GROUND.mode = g1;
   } catch (e) { /* a preference is a convenience */ }
+  /* v51 — SEE-THROUGH OVER THE SURVEY ONLY. In "auto" with a TEM layer
+     drawn, only the ground inside the TEM survey gives way; the rest of the
+     site, and the world beyond it, stay exactly as they are. It is done with
+     the multisampled canvas rather than with blending: each terrain material
+     writes alpha = mix(1, SEE_A, mask) and has alphaToCoverage switched on,
+     so over the survey a quarter of the ground's samples are kept and the
+     model shows through the rest IN DEPTH ORDER, while the ground stays in
+     the opaque pass and goes on writing depth — nothing else in the scene
+     has to know. An explicit "see-through" or "hidden" is still the whole
+     ground, blended, as it always was; so is any build without multisampling
+     or without a survey grid yet. */
+  const SEE_A = 0.25;
+  function seeBlank() {
+    if (!SEE.blank) {
+      SEE.blank = new THREE.DataTexture(new Uint8Array([0, 0, 0, 255]), 1, 1, THREE.RGBAFormat, THREE.UnsignedByteType);
+      SEE.blank.needsUpdate = true;
+    }
+    return SEE.blank;
+  }
+  function seeInit() {
+    if (SEE.u.uSeeTex.value) return;
+    SEE.u.uSeeTex.value = seeBlank();
+    SEE.u.uSeeBox.value = new THREE.Vector4(0, 0, 1, 1);
+  }
+  /* the mask for the survey grid as it stands: every node the model reaches,
+     softened at its edge, with a border of zeros so the clamped lookup
+     outside the box reads "solid" */
+  function seeFootprint() {
+    const fp = SBMM.geophys && SBMM.geophys.footprint ? SBMM.geophys.footprint() : null;
+    if (!fp) return false;
+    if (SEE.fp === fp.key && SEE.tex && SEE.cx === CX && SEE.cy === CY) return true;
+    const P = 5, W = fp.nx + 2 * P, H = fp.ny + 2 * P;
+    let a = new Float32Array(W * H), b = new Float32Array(W * H);
+    for (let j = 0; j < fp.ny; j++) for (let i = 0; i < fp.nx; i++) if (fp.mask[j * fp.nx + i]) a[(j + P) * W + i + P] = 1;
+    const pass = (src, dst, fn) => {
+      for (let j = 0; j < H; j++) for (let i = 0; i < W; i++) {
+        let v = fn === "max" ? 0 : 0, n = 0;
+        for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) {
+          const ii = i + di, jj = j + dj;
+          if (ii < 0 || jj < 0 || ii >= W || jj >= H) { n++; continue; }
+          const q = src[jj * W + ii];
+          if (fn === "max") { if (q > v) v = q; } else { v += q; n++; }
+        }
+        dst[j * W + i] = fn === "max" ? v : v / n;
+      }
+    };
+    /* NOT grown: see-through ground with no model under it is only a dark
+       patch, so the mask hugs the nodes the model reaches and a gap in the
+       survey stays solid ground. One pass of softening is the edge. */
+    pass(a, b, "avg");
+    const px = new Uint8Array(W * H * 4);
+    for (let k = 0; k < W * H; k++) { px[k * 4] = Math.round(255 * Math.min(1, b[k] * 1.35)); px[k * 4 + 3] = 255; }
+    if (SEE.tex) SEE.tex.dispose();
+    const t = new THREE.DataTexture(px, W, H, THREE.RGBAFormat, THREE.UnsignedByteType);
+    t.magFilter = t.minFilter = THREE.LinearFilter;
+    t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping;
+    t.needsUpdate = true;
+    SEE.tex = t; SEE.fp = fp.key; SEE.cx = CX; SEE.cy = CY;
+    /* texel (i + P) sits on node i: the box starts half a cell before the first texel's centre */
+    SEE.box = [fp.x0 - (P + 0.5) * fp.dx - CX, fp.y0 - (P + 0.5) * fp.dx - CY, W * fp.dx, H * fp.dx];
+    return true;
+  }
+  function seeSamples() {
+    if (SEE.samples < 0 && renderer) {
+      try { const gl = renderer.getContext(); SEE.samples = gl.getParameter(gl.SAMPLES) | 0; } catch (e) { SEE.samples = 0; }
+    }
+    return SEE.samples;
+  }
   function groundNow() {
     if (GROUND.mode !== "auto") return GROUND.mode;
     /* v37: a hole needs ground around it to be a hole */
@@ -5435,8 +5539,18 @@ SBMM.viewer3d = (function () {
     return SBMM.geophys && SBMM.geophys.wantsSeeThrough && SBMM.geophys.wantsSeeThrough() ? "see" : "solid";
   }
   function groundBeforeDraw() {
-    const a = GROUND_ALPHA[groundNow()];
-    if (a === 1 && !GROUND.touched) return;
+    const now = groundNow();
+    if (now === "solid" && !GROUND.touched) return;
+    /* over the survey only: "auto" with a TEM layer drawn, a multisampled
+       canvas and a survey grid to take the footprint from */
+    const cover = now === "see" && GROUND.mode === "auto" && seeSamples() >= 4 && seeFootprint();
+    if (cover) {
+      SEE.u.uSeeTex.value = SEE.tex; SEE.u.uSeeBox.value.fromArray(SEE.box); SEE.u.uSeeA.value = SEE_A;
+    } else { SEE.u.uSeeA.value = 1; }
+    SEE.on = !!cover;
+    const hole = !!(cover && envPlane && envPlane.material && envPlane.material.userData.seeHole);
+    SEE.hole.value = hole ? 1 : 0;
+    if (envFloor) envFloor.visible = hole;
     /* v38: the ground plane beyond the survey too. It sits at the site's
        lowest ground less 25 ft, so anything under the ground deeper than that
        (the conductive band below the impoundment, a deep slice) is BELOW it,
@@ -5445,6 +5559,12 @@ SBMM.viewer3d = (function () {
     if (envPlane && envPlane.material) mats.push(envPlane.material);
     for (const mat of mats) {
       if (!mat || Array.isArray(mat)) continue;
+      /* a material that carries the mask gives way over the survey by
+         coverage and is otherwise left alone; one that does not (the
+         whole-DEM fallback) is blended whole, as before */
+      const cov = !!(cover && (mat.userData.seeMask || mat.userData.seeHole));
+      if (mat.userData.seeMask && !!mat.alphaToCoverage !== cov) { mat.alphaToCoverage = cov; mat.needsUpdate = true; }
+      const a = cov ? 1 : GROUND_ALPHA[now];
       const u = mat.uniforms && mat.uniforms.uOpacity;
       const o = mat.userData._g0;
       if (a === 1) {
@@ -5462,13 +5582,14 @@ SBMM.viewer3d = (function () {
       else { const w = a * g.opacity; if (mat.opacity !== w) mat.opacity = w; }
       if (!mat.transparent || mat.depthWrite) { mat.transparent = true; mat.depthWrite = false; mat.needsUpdate = true; }
     }
-    GROUND.touched = a !== 1;
+    GROUND.touched = now !== "solid";
   }
   function setGround(mode) {
     if (mode !== "auto" && !(mode in GROUND_ALPHA)) return GROUND.mode;
     GROUND.mode = mode;
     GROUND.touched = true;
-    try { SBMM.view && SBMM.view.pref("groundMode", mode); } catch (e) { /* ignore */ }
+    /* see-through and hidden are for this visit only (v51) */
+    try { SBMM.view && SBMM.view.pref("groundMode", mode === "solid" ? "solid" : "auto"); } catch (e) { /* ignore */ }
     /* the two selects that show it: View settings and the TEM card */
     for (const el of document.querySelectorAll('#v3dGround, .temcard [data-tem="ground"]'))
       if (el.value !== mode) el.value = mode;

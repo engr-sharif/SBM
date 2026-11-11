@@ -917,6 +917,7 @@ SBMM.teminterp = (function () {
 
   return {
     build, open, activate, mount, paintPane, runWaste, runSeep, scene3d, wantsSeeThrough, pick3d,
+    cards: () => Object.keys(cards).map(k => cards[k]),
     hoverText, waterLevel, sectionSvg, wasteCsv, targetsCsv, seepCsv, routeCsv, geojson,
     waste: () => W, seep: () => Sp, card: k => cards[k] || null, showCard, rows: () => rows,
     settings: () => Object.assign({}, P), set: setP, BANDS

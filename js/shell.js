@@ -367,7 +367,8 @@ SBMM.shell = (function () {
     const lm = $("logsMenuBtn");
     if (lm) lm.onclick = () => { if (SBMM.cmd) SBMM.cmd.run("LOGWIN"); };
     const tm = $("temMenuBtn");
-    if (tm) tm.onclick = () => { if (SBMM.cmd) SBMM.cmd.run("TEMWS"); };
+    /* v51: a toggle — it opens the workspace, and with it open turns TEM off */
+    if (tm) tm.onclick = () => { if (SBMM.temws) SBMM.temws.toggle(); else if (SBMM.cmd) SBMM.cmd.run("TEMWS"); };
     const tw = $("temWasteMenuBtn");
     if (tw) tw.onclick = () => { if (SBMM.cmd) SBMM.cmd.run("TEMWASTE"); };
     const ts = $("temSeepMenuBtn");

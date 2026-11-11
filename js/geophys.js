@@ -886,9 +886,13 @@ SBMM.geophys = (function () {
     const res = await run();
     /* the payload is read live, so it is asked again after the await */
     if (!res || !data()) { if (rowId) SBMM.layerState.set("invest", rowId, { on: false }); return null; }
+    /* v51: the row was switched off while the job ran (TEM turned off) — no
+       card for a layer that is no longer on */
+    if (rowId && !on(rowId)) { paintNow(); return res; }
     paintNow();
     if (!card || !card.isConnected) showCard();
     soon3d();
+    emit("ready");               // v51: the chip's words follow the model arriving
     return res;
   }
   function build() {
@@ -1076,6 +1080,28 @@ SBMM.geophys = (function () {
   function wantsSeeThrough() {
     return !!(data() && ((R && on("tem_slice")) || (on("tem_soundings") && S.cols)
       || (SBMM.teminterp && SBMM.teminterp.wantsSeeThrough())));
+  }
+
+  /* v51 — TEM AS ONE STATE. "On" is any of the four TEM rows; the workspace
+     (js/temws.js) turns all of it off in one go, and the 3D view takes the
+     see-through footprint from the grid the model was interpolated on. */
+  const TEM_ROWS = ["tem_soundings", "tem_slice", "tem_waste", "tem_seep"];
+  function rowsOn() { return TEM_ROWS.filter(id => { try { return on(id); } catch (e) { return false; } }); }
+  function anyOn() { return rowsOn().length > 0; }
+  /* every node the model reaches, for the 3D view's see-through mask */
+  function footprint() {
+    if (!R || !R.mask) return null;
+    return { key: R.key + "|" + R.nx + "x" + R.ny, x0: R.x0, y0: R.y0, dx: R.dx, nx: R.nx, ny: R.ny, mask: R.mask };
+  }
+  /* the results cards this module and the interpretations put up */
+  function closeCards() {
+    const list = [card];
+    if (SBMM.teminterp && SBMM.teminterp.cards) list.push(...SBMM.teminterp.cards());
+    for (const c of list) {
+      if (!c || !c.isConnected) continue;
+      const x = c.querySelector('[data-a="del"]');
+      if (x) x.click(); else c.remove();
+    }
   }
 
   /* the two section lines on the 2D map, so a reader knows where they cut
@@ -1304,7 +1330,7 @@ SBMM.geophys = (function () {
 
   return {
     build, open, run, data, hoverText, valueAt, points3d, slice3d, pick3d, snapItems,
-    columns3d, pickColumn, wantsSeeThrough,
+    columns3d, pickColumn, wantsSeeThrough, anyOn, rowsOn, footprint, closeCards, TEM_ROWS,
     apply, action, wallImage, core, layerInfo, dmax: () => data() ? dmax() : 0,
     depth: () => S.depth, colorFor: v => colorOf(v), ensure,
     unit: () => PROP[S.prop].unit, propName: () => PROP[S.prop].name,
