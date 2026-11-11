@@ -2198,22 +2198,9 @@ SBMM.water = (function () {
         if (!d || !d.chip) return null;
         return { name: d.chip.kind, value: d.chip.lead, lines: d.chip.lines, key: d.kind + "|" + d.title,
                  rows: [[d.kind === "rim" ? "Rim above the spill" : "Water level (" + ov.name + ")", d.chip.lead]] };
-      }
-    });
-    /* a click on the analysed water body, anywhere the layers below did not
-       answer, opens the description — the polygon's own popup does the same
-       through js/popups.js when it is the one that answers */
-    map.on("click", e => {
-      if (!ov || SBMM.draw.isDrawing() || (SBMM.tools.active && SBMM.tools.active())) return;
-      const ll = e.latlng;
-      /* a beat later, so a layer under the click (a storm node, a DU, the
-         water polygon itself) keeps its own popup; only bare ground answers */
-      setTimeout(() => {
-        if (!ov || (map._popup && map._popup.isOpen && map._popup.isOpen())) return;
-        const d = describeAt(ll.lng, ll.lat);
-        if (!d || d.kind !== "rim") return;
-        L.popup({ maxWidth: 320 }).setLatLng(ll).setContent(`<div class="pop"><div class="pop-t">${esc(d.title)}</div>${d.html}</div>`).openOn(map);
-      }, 30);
+      },
+      /* a click on the water or the band that nothing else answered */
+      card(x, y) { const d = describeAt(x, y); return d ? { title: d.title, html: d.html, maxWidth: 320 } : null; }
     });
   }
 

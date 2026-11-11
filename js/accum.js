@@ -218,6 +218,10 @@ SBMM.accum = (function () {
   /* the streams                                                          */
   /* ------------------------------------------------------------------ */
   const weightOf = o => 1 + Math.min(4, o) * 0.9;
+  /* v58: a stream link's chip — the 2D tooltip and the 3D tag both read it */
+  function tipFor(s) {
+    return `order ${s.order} · upstream ${ac(s.accMax_ft2)} ac · ${fmt0(s.length_ft)} ft`;
+  }
   function paintStreams() {
     if (!groups.streams) return;
     groups.streams.clearLayers();
@@ -228,7 +232,7 @@ SBMM.accum = (function () {
         pane: "vectors", color: STREAM_COL, weight: weightOf(s.order),
         opacity: .92, lineCap: "round", lineJoin: "round"
       });
-      ln.bindTooltip(`order ${s.order} · upstream ${ac(s.accMax_ft2)} ac · ${fmt0(s.length_ft)} ft`,
+      ln.bindTooltip(tipFor(s),
                      { sticky: true, className: "ctip" });
       ln.on("click", ev => {
         L.DomEvent.stopPropagation(ev);
@@ -484,7 +488,7 @@ SBMM.accum = (function () {
       if (!s.pts || s.pts.length < 2) continue;
       for (const run of (runsOf ? runsOf(s.pts) : [s.pts]))
         out.push({ ring: run, color: STREAM_COL, width: weightOf(s.order) + 1, closed: false,
-                   props: props(s), geom: { type: "LineString", coordinates: run } });
+                   props: props(s), stream: s, geom: { type: "LineString", coordinates: run } });
     }
     return out;
   }
@@ -540,7 +544,7 @@ SBMM.accum = (function () {
 
   return {
     build, wire, cmd, run, paint, showCard, markStale,
-    rasterFor, rasterSpec, accAt, hoverText, lines3d, drapeSpec,
+    rasterFor, rasterSpec, accAt, hoverText, lines3d, drapeSpec, tipFor,
     geoFeatures, dxfEntities, exportGeoJSON, csv,
     result: () => R, hasResult: () => !!R, method: () => method,
     isBuilt: () => built, THRESH_AC, NOTE

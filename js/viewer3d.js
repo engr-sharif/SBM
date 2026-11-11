@@ -2322,16 +2322,29 @@ SBMM.viewer3d = (function () {
     const SHW_F = [], OVL_F = [];
     if (PROJ && LS("framework", "dus")) {
       const DU_COLOR = { "DU-1N": 0xE4796A, "DU-1S": 0xE4796A, "DU-2": 0x5B8FF9, "DU-3": 0x4FCE9B };
-      for (const d of SBMM_DATA.dus)
-        addG.add(tag(addShadow(SHW, drapedLine(d.ring, DU_COLOR[d.name] || 0xcccccc, true, 3)),
-                             "framework", "dus"));
+      const LY = SBMM.layers || {};
+      SBMM_DATA.dus.forEach((d, di) => {
+        const o = drapedLine(d.ring, DU_COLOR[d.name] || 0xcccccc, true, 3);
+        /* v58: the 2D DU's chip and card, from the same two functions */
+        o.userData.pick = { kind: "card", title: d.name + " · decision unit",
+                            chip: LY.duTip ? LY.duTip(d) : d.name,
+                            html: () => SBMM.popups.forDU(d, di) };
+        addG.add(tag(addShadow(SHW, o), "framework", "dus"));
+      });
     }
     if (PROJ && LS("framework", "piles")) {
-      for (const p of SBMM_DATA.piles) {
+      const LY = SBMM.layers || {}, recs = LY.pileRecs || [];
+      SBMM_DATA.piles.forEach((p, k) => {
         const traced = (p.name || "").includes("Fig 2");
-        addG.add(tag(addShadow(SHW, drapedLine(p.ring, traced ? 0xE8B34B : 0x8BE04B, true, 3)),
-                             "framework", "piles"));
-      }
+        const o = drapedLine(p.ring, traced ? 0xE8B34B : 0x8BE04B, true, 3);
+        /* v58: the label and pileIndex slot js/layers.js gave this pile, so
+           the card is the 2D one byte for byte */
+        const rec = recs[k];
+        if (rec) o.userData.pick = { kind: "card", title: rec.label + " · waste pile",
+                                     chip: LY.pileTip ? LY.pileTip(p, rec.label) : rec.label,
+                                     html: () => SBMM.popups.forPile(p, rec.label, rec.idx) };
+        addG.add(tag(addShadow(SHW, o), "framework", "piles"));
+      });
     }
     /* No 3D "design" master any more: designGIS.rings3d() and CadNative.rings3d()
        already return only the layers whose rows are on, so the 3D view draws the
@@ -2707,9 +2720,17 @@ SBMM.viewer3d = (function () {
        one — the pipes are infrastructure, the flow is the terrain's answer. */
     if (PROJ && SBMM.storm && SBMM.storm.lines3d) {
       const SC = new THREE.Color(SBMM.storm.COLOR || "#7FA7C9").getHex();
-      for (const r of SBMM.storm.lines3d()) {
+      const ST = SBMM.storm;
+      for (const r of ST.lines3d()) {
         const o = drapedLine(r.ring, new THREE.Color(r.color).getHex(), false, r.width || 2);
-        o.userData.pick = { kind: "gis", props: r.props, geom: r.geom };
+        /* v58: the 2D conduit's chip and card (js/storm.js tipFor, forStorm);
+           a status change refreshes the overlays, so the chip is current */
+        const c = ST.conduit(r.props && r.props.id);
+        o.userData.pick = c
+          ? { kind: "card", title: ST.labelOf(c.id) + " · storm conduit",
+              chip: ST.tipFor ? ST.tipFor(null, c) : undefined,
+              html: () => SBMM.popups.forStorm(null, c) }
+          : { kind: "gis", props: r.props, geom: r.geom };
         tag(addShadow(SHW, o), "framework",
             (r.props && r.props.layer === "storm_inferred") ? "storm_inferred" : "storm_cad");
         addG.add(o);
@@ -2726,8 +2747,17 @@ SBMM.viewer3d = (function () {
         }
         const gg = new THREE.BufferGeometry();
         gg.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
-        addG.add(tag(new THREE.Points(gg, dotMaterial({ size: 9, color: SC })),
-                             "framework", "storm_nodes"));
+        const po = new THREE.Points(gg, dotMaterial({ size: 9, color: SC }));
+        /* v58: one cloud, one answer per vertex — the 2D structure's chip and
+           card (js/storm.js tipFor, forStorm), and its point to snap to */
+        po.userData.pick = { kind: "cards", at(i) {
+          const q = sp[i], n = q && ST.node(q.id);
+          if (!n) return null;
+          return { title: (n.name || n.id) + " · storm structure",
+                   chip: ST.tipFor ? ST.tipFor(n, null) : undefined,
+                   html: () => SBMM.popups.forStorm(n, null), xyz: [n.x, n.y] };
+        } };
+        addG.add(tag(po, "framework", "storm_nodes"));
       }
     }
     /* the drainage map (v14 §4): the catchment polygons draped like the DUs and
@@ -2737,16 +2767,28 @@ SBMM.viewer3d = (function () {
       /* rings3d hands back OPEN RUNS, not closed rings: a catchment boundary
          that reaches the survey limit has no ground under the rest of it, and a
          closed drape there stands up as a curtain (js/drainage.js groundRuns) */
-      for (const r of SBMM.drainage.rings3d()) {
+      const DR = SBMM.drainage;
+      for (const r of DR.rings3d()) {
         const o = drapedLine(r.ring, new THREE.Color(r.color).getHex(), r.closed === true, 3);
-        o.userData.pick = { kind: "gis", props: r.props, geom: r.geom };
+        /* v58: the 2D catchment's chip and card (js/drainage.js tipFor, forDrainage) */
+        const lbl = r.label;
+        o.userData.pick = { kind: "card",
+          title: ((r.props && r.props.outlet) || "Catchment") + " · catchment",
+          chip: DR.tipFor ? DR.tipFor(r.rec || lbl) : undefined,
+          html: () => SBMM.popups.forDrainage(lbl) };
         tag(addShadow(SHW, o), "framework",
             (r.props && r.props.layer === "DRAIN-OUTLET") ? "drain_outlet" : "drain_first");
         addG.add(o);
       }
-      for (const r of SBMM.drainage.lines3d()) {
+      for (const r of DR.lines3d()) {
         const o = drapedLine(r.ring, new THREE.Color(r.color).getHex(), false, r.width || 2);
-        o.userData.pick = { kind: "gis", props: r.props, geom: r.geom };
+        /* v58: the 2D path's chip (js/drainage.js pathTip); 2D has no card for a
+           path, so the card is the catchment it is the longest path of */
+        const lbl = r.label;
+        o.userData.pick = { kind: "card",
+          title: "Longest flow path · " + ((r.props && r.props.outlet) || ""),
+          chip: DR.pathTip && r.sink ? DR.pathTip(r.sink) : undefined,
+          html: () => SBMM.popups.forDrainage(lbl) };
         tag(addShadow(SHW, o), "framework", "drain_paths");
         addG.add(o);
       }
@@ -2756,9 +2798,15 @@ SBMM.viewer3d = (function () {
        boundary that reaches the survey limit stops there instead of standing
        up as a curtain over Clear Lake. */
     if (PROJ && SBMM.whereWater && SBMM.whereWater.hasResult()) {
-      for (const r of SBMM.whereWater.rings3d()) {
+      const WW = SBMM.whereWater;
+      for (const r of WW.rings3d()) {
         const o = drapedLine(r.ring, new THREE.Color(r.color).getHex(), false, r.width || 3);
-        o.userData.pick = { kind: "gis", props: r.props, geom: r.geom };
+        /* v58: the 2D class's chip and card (js/wherewater.js tipFor, forWhereWater) */
+        const cls = r.cls;
+        o.userData.pick = { kind: "card",
+          title: ((r.rec && r.rec.label) || "Where the water goes") + " · where the water goes",
+          chip: WW.tipFor ? WW.tipFor(r.rec || cls) : undefined,
+          html: () => SBMM.popups.forWhereWater(cls) };
         tag(addShadow(SHW, o), "framework", "where_water");
         addG.add(o);
       }
@@ -2770,7 +2818,13 @@ SBMM.viewer3d = (function () {
     if (PROJ && SBMM.accum && SBMM.accum.lines3d) {
       for (const r of SBMM.accum.lines3d()) {
         const o = drapedLine(r.ring, new THREE.Color(r.color).getHex(), false, r.width || 3);
-        o.userData.pick = { kind: "gis", props: r.props, geom: r.geom };
+        /* v58: the 2D link's chip and card (js/accum.js tipFor, forStream) */
+        const st = r.stream;
+        o.userData.pick = st
+          ? { kind: "card", title: "Stream · order " + st.order,
+              chip: SBMM.accum.tipFor ? SBMM.accum.tipFor(st) : undefined,
+              html: () => SBMM.popups.forStream(st, SBMM.accum.result()) }
+          : { kind: "gis", props: r.props, geom: r.geom };
         tag(addShadow(SHW, o), "framework", "accum_streams");
         addG.add(o);
       }
@@ -2781,7 +2835,12 @@ SBMM.viewer3d = (function () {
     if (PROJ && SBMM.runoff && SBMM.runoff.rings3d) {
       for (const r of SBMM.runoff.rings3d()) {
         const o = drapedLine(r.ring, new THREE.Color(r.color).getHex(), false, r.width || 3);
-        o.userData.pick = { kind: "gis", props: r.props, geom: r.geom };
+        /* v58: the 2D choropleth's chip and card (js/runoff.js tipFor, forRunoff) */
+        const lbl = r.label, oc = r.outlet;
+        o.userData.pick = { kind: "card",
+          title: ((oc && oc.name) || "Catchment") + " · runoff depth",
+          chip: oc && SBMM.runoff.tipFor ? SBMM.runoff.tipFor(oc) : undefined,
+          html: () => SBMM.popups.forRunoff(lbl) };
         tag(addShadow(SHW, o), "framework", "runoff_depth");
         addG.add(o);
       }
@@ -2823,9 +2882,13 @@ SBMM.viewer3d = (function () {
         /* §3.1: EA's PDF-derived boundaries were drawn in 3D but said nothing
            about themselves — a click found nothing and the parity table found
            no object for the row. Both are the same missing tag. */
-        o.userData.pick = { kind: "gis",
-          props: r.props || { name: "EA boundary", layer: "pdf_boundaries", confidence: r.conf },
-          geom: r.geom || { type: "Polygon", coordinates: [r.ring] } };
+        /* v58: the 2D boundary's chip and card (js/designea.js tip, popupPoly) */
+        const EA = SBMM.designEA, pp = r.props || { name: "EA boundary", layer: "pdf_boundaries", confidence: r.conf };
+        const ea = { _ea: { ring: r.ring, props: pp } };
+        o.userData.pick = EA.tip && EA.popupPoly
+          ? { kind: "card", title: (pp.name || "EA boundary") + " · EA PDF boundary",
+              chip: EA.tip(pp), html: () => EA.popupPoly(ea) }
+          : { kind: "gis", props: pp, geom: r.geom || { type: "Polygon", coordinates: [r.ring] } };
         tag(addShadow(SHW, o), "design", "pdf_boundaries");
         addG.add(o);
       }
@@ -3939,8 +4002,11 @@ SBMM.viewer3d = (function () {
             return;
           }
           /* otherwise identify what is under the finger: hover has no touch
-             equivalent, and this is where it went */
-          if (SBMM.pick3d) SBMM.pick3d.click(ev(g.x, g.y));
+             equivalent, and this is where it went. v58: through the SAME path
+             a tap takes — it went straight to the pick registry and so never
+             tested a draped sheet, which a tap on the same spot opened. */
+          if (!SBMM.tools.active() && canvasClick) canvasClick(ev(g.x, g.y));
+          else if (SBMM.pick3d) SBMM.pick3d.click(ev(g.x, g.y));
         }
       });
     }

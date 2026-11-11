@@ -4057,17 +4057,17 @@ stormRest = await page.evaluate(async () => {
   if (!wasOpen) { await SBMM.viewer3d.toggle(); await wait(1400); }
   SBMM.viewer3d.refreshOverlays();
   await wait(600);
-  const withNet = SBMM.pick3d.registered().filter(r => r.kind === "gis").length;
+  const withNet = SBMM.pick3d.registered().filter(r => r.kind === "gis" || r.kind === "card").length;   // v58: a conduit answers through the generic card kind
   SBMM.layerState.set("framework", "storm_cad", { on: false });
   SBMM.layerState.set("framework", "storm_inferred", { on: false });
   SBMM.viewer3d.refreshOverlays();
   await wait(600);
-  const without = SBMM.pick3d.registered().filter(r => r.kind === "gis").length;
+  const without = SBMM.pick3d.registered().filter(r => r.kind === "gis" || r.kind === "card").length;   // v58: a conduit answers through the generic card kind
   SBMM.layerState.set("framework", "storm_cad", { on: true });
   SBMM.layerState.set("framework", "storm_inferred", { on: true });
   SBMM.viewer3d.refreshOverlays();
   await wait(600);
-  const back = SBMM.pick3d.registered().filter(r => r.kind === "gis").length;
+  const back = SBMM.pick3d.registered().filter(r => r.kind === "gis" || r.kind === "card").length;   // v58: a conduit answers through the generic card kind
   if (!wasOpen) { await SBMM.viewer3d.toggle(); await wait(500); }
   /* the exports */
   const fc = SBMM.io.collection("sp");
@@ -8007,12 +8007,18 @@ const t2 = await page.evaluate(async () => {
     if (!acts && free < 0) free = i;
     if (acts && shared < 0) shared = i;
   }
-  const fire = i => { SBMM.map.closePopup(); SBMM.map.fire("click", { latlng: L.latLng(d.y[i], d.x[i]) }); };
-  let popFree = "", popShared = null;
-  if (free >= 0) { fire(free); popFree = (document.querySelector(".treepop .leaflet-popup-content") || {}).textContent || ""; }
   /* asked of the map, not of the DOM: a closing popup's element outlives it by its fade */
   const treeOpen = () => { const p = SBMM.map._popup; return !!(p && p.isOpen() && /treepop/.test(p.options.className || "")); };
-  if (shared >= 0) { fire(shared); popShared = treeOpen(); }
+  /* v58: the click on bare ground is ONE handler (js/readout.js) and its card
+     waits out a double-click, so the popup is waited for, not read at once */
+  const fire = async i => {
+    SBMM.map.closePopup();
+    SBMM.map.fire("click", { latlng: L.latLng(d.y[i], d.x[i]) });
+    for (let k = 0; k < 12 && !treeOpen(); k++) await new Promise(r => setTimeout(r, 100));
+  };
+  let popFree = "", popShared = null;
+  if (free >= 0) { await fire(free); popFree = treeOpen() ? (SBMM.map._popup._contentNode || {}).textContent || "" : ""; }
+  if (shared >= 0) { await fire(shared); popShared = treeOpen(); }
   SBMM.map.closePopup();
   /* the height filter is one setting for both views */
   SBMM.trees.setMinShow(30);
@@ -8987,6 +8993,205 @@ await page.evaluate(async ([was, style0, wasAnim]) => {
   if (SBMM.viewer3d.isOpen()) await SBMM.viewer3d.toggle();
   for (const k in was) { const [g, l] = k.split("/"); SBMM.layerState.set(g, l, { on: was[k] }); }
 }, [R0.was, E0.style0, E0.wasAnim]);
+});
+
+await block("9f25. one click, the same answer in both views (v58)", async () => {
+/* v58, the click half of step 3. The same thing under the pointer says the
+   same words and opens the same card in 2D and in 3D; a click on bare ground
+   opens the Point card in both, unless the click closed something; the user's
+   own drawing is selected, with no floating card, in both; the 3D hover lights
+   one feature, not its whole layer.
+   Each kind is pointed at for real in each view — the layer alone on, the 2D
+   map zoomed to it, the 3D camera straight above it — and the chip's text and
+   the card's heading are compared between the two. */
+const wait = ms => page.waitForTimeout(ms);
+const norm = t => (t || "").replace(/\d+ of \d+ here · Tab/g, "").replace(/\s+/g, " ").trim();
+const hover = async (sx, sy) => {
+  let st = null;
+  for (let k = 0; k < 4; k++) {
+    await page.mouse.move(sx - 28 - 6 * k, sy - 20 + 5 * k);
+    await page.mouse.move(sx, sy, { steps: 3 });
+    const ok = await page.waitForFunction(() => { const t = SBMM.tip.state(); return t.shown && t.src === "feature"; }, null, { timeout: 4000 }).then(() => true, () => false);
+    st = await page.evaluate(() => SBMM.tip.state());
+    if (ok) break;
+  }
+  return st;
+};
+const K0 = await page.evaluate(async () => {
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  const LS = SBMM.layerState, V = SBMM.viewer3d;
+  if (V.isOpen()) await V.toggle();
+  SBMM.mode.navigate(); SBMM.map.closePopup(); SBMM.store.select(null);
+  if (SBMM.temws && SBMM.temws.off) SBMM.temws.off();
+  const was = LS.serialize();
+  for (const g of ["framework", "design", "invest", "mywork"]) LS.setGroup(g, false);
+  for (const id of ["contours_site", "contours_abp", "slope_0_45", "aspect_grid_north", "elevation_tint", "canopy", "trees_detected", "place_names"]) try { LS.set("base", id, { on: false }); } catch (e) {}
+  await sleep(600);
+  /* one thing of each kind, and the point of it to aim at */
+  const mid = (a, b) => [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+  const kinds = [];
+  const du = SBMM_DATA.dus[0];
+  kinds.push({ kind: "decision unit", g: "framework", l: "dus", at: mid(du.ring[0], du.ring[1]), name: du.name });
+  const pile = SBMM_DATA.piles[0];
+  if (pile && pile.ring) kinds.push({ kind: "waste pile", g: "framework", l: "piles", at: mid(pile.ring[0], pile.ring[1]) });
+  if (SBMM.storm && SBMM.storm.data) {
+    const N = SBMM.storm.data().nodes.find(n => isFinite(SBMM.elev(n.x, n.y)[0]));
+    if (N) kinds.push({ kind: "storm structure", g: "framework", l: "storm_nodes", at: [N.x, N.y] });
+  }
+  return { was, kinds };
+});
+/* a dataset row's id is a slug of its label, so it is found through the row */
+const DS = await page.evaluate(() => {
+  const LS = SBMM.layerState, inv = LS.groupList().find(g => g.id === "invest");
+  const row = [...inv.layers.values()].find(r => /monitoring wells/i.test(r.label || ""));
+  const d = SBMM.datasets.list().find(q => /monitoring wells/i.test(q.name));
+  const p = d && d.points.find(q => isFinite(SBMM.elev(q.x, q.y)[0]));
+  return row && p ? { l: row.id, at: [p.x, p.y], id: p.id } : null;
+});
+if (DS) K0.kinds.push({ kind: "dataset point", g: "invest", l: DS.l, at: DS.at });
+console.log("CLICK PARITY v58: kinds", JSON.stringify(K0.kinds.map(k => k.kind)));
+if (K0.kinds.length < 3) { console.log("FAIL: too few kinds found to compare", K0.kinds); process.exit(1); }
+
+const rows = [];
+for (const k of K0.kinds) {
+  /* 2D */
+  const p2 = await page.evaluate(async q => {
+    const sleep = ms => new Promise(r => setTimeout(r, ms));
+    if (SBMM.viewer3d.isOpen()) await SBMM.viewer3d.toggle();
+    SBMM.map.closePopup();
+    SBMM.layerState.set(q.g, q.l, { on: true });
+    SBMM.map.setView([q.at[1], q.at[0]], 2, { animate: false });
+    await sleep(900);
+    const r = SBMM.map.getContainer().getBoundingClientRect(), c = SBMM.map.latLngToContainerPoint([q.at[1], q.at[0]]);
+    return { sx: r.left + c.x, sy: r.top + c.y };
+  }, k);
+  const t2 = await hover(p2.sx, p2.sy);
+  await page.mouse.click(p2.sx, p2.sy);
+  await page.waitForFunction(() => SBMM.map._popup && SBMM.map._popup.isOpen(), null, { timeout: 8000 }).catch(() => {});
+  const c2 = await page.evaluate(() => { const P = SBMM.map._popup, n = P && P.isOpen() ? P._contentNode : null, b = n && n.querySelector("b");
+    const out = { open: !!n, head: b ? b.textContent : "", text: n ? n.textContent : "" }; SBMM.map.closePopup(); return out; });
+  /* 3D, straight above the same point */
+  const p3 = await page.evaluate(async q => {
+    const sleep = ms => new Promise(r => setTimeout(r, ms));
+    const V = SBMM.viewer3d;
+    await V.toggle();
+    await new Promise(r => { const t0 = Date.now(); const w = () => (document.getElementById("v3dStatus").textContent === "" || Date.now() - t0 > 60000) ? r() : setTimeout(w, 200); w(); });
+    V.animateWater(false);
+    const z = SBMM.elev(q.at[0], q.at[1])[0];
+    await V.lookFrom(q.at[0], q.at[1] - 60, z + 320, q.at[0], q.at[1], z);
+    await sleep(1800);
+    return V.project(q.at[0], q.at[1], z);
+  }, k);
+  const t3 = await hover(p3.x, p3.y);
+  const hl = await page.evaluate(() => SBMM.pick3d.hoverState ? SBMM.pick3d.hoverState() : null);
+  await page.mouse.click(p3.x, p3.y);
+  await page.waitForSelector("#pick3dCard", { timeout: 8000 }).catch(() => {});
+  const c3 = await page.evaluate(() => { const n = document.querySelector("#pick3dCard .p3body"), b = n && n.querySelector("b");
+    return { open: !!n, head: b ? b.textContent : "", text: n ? n.textContent : "" }; });
+  await page.keyboard.press("Escape");
+  await page.evaluate(q => SBMM.layerState.set(q.g, q.l, { on: false }), k);
+  const row = { kind: k.kind, chip2: norm(t2 && t2.text), chip3: norm(t3 && t3.text), head2: norm(c2.head), head3: norm(c3.head), hl };
+  rows.push(row);
+  console.log("  " + k.kind + ":", JSON.stringify(row));
+  if (!row.chip2 || row.chip2 !== row.chip3) { console.log("FAIL: the " + k.kind + "'s chip differs between 2D and 3D", row); process.exit(1); }
+  if (!c2.open || !c3.open || !row.head2 || row.head2 !== row.head3) { console.log("FAIL: the " + k.kind + "'s card differs between 2D and 3D", row, c2.text.slice(0, 120), "|", c3.text.slice(0, 120)); process.exit(1); }
+  if (/^(feature|Design feature)$/i.test(row.chip3) || /Design feature/.test(row.head3)) { console.log("FAIL: the " + k.kind + " answers as a generic feature in 3D", row); process.exit(1); }
+  /* a whole layer drawn as ONE object lights the one feature, not the layer */
+  if ((k.kind === "storm structure" || k.kind === "dataset point") && !(hl && hl.element && !hl.tinted))
+    { console.log("FAIL: hovering one " + k.kind + " in 3D tinted its whole layer", hl); process.exit(1); }
+}
+
+/* bare ground, 2D: the Point card; a click with a card open only closes it;
+   a double-click (which ends a sketch in this app, and is nothing in Navigate)
+   opens nothing */
+const B2 = await page.evaluate(async () => {
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  if (SBMM.viewer3d.isOpen()) await SBMM.viewer3d.toggle();
+  SBMM.map.closePopup(); SBMM.store.select(null);
+  SBMM.map.setView([2129100, 6371500], 1, { animate: false });
+  await sleep(800);
+  const map = SBMM.map, r = map.getContainer().getBoundingClientRect(), F = SBMM.shell.frame();
+  const pts = [];
+  for (let sy = F.y + 90; sy < F.y + F.h - 110 && pts.length < 2; sy += 60)
+    for (let sx = F.x + 90; sx < F.x + F.w - 110 && pts.length < 2; sx += 170) {
+      const e = document.elementFromPoint(sx, sy);
+      if (!e || !e.closest("#map") || e.closest(".leaflet-popup, .leaflet-control")) continue;
+      const ll = map.containerPointToLatLng([sx - r.left, sy - r.top]);
+      if (!isFinite(SBMM.elev(ll.lng, ll.lat)[0]) || SBMM.pick2d.probe(ll).length) continue;
+      pts.push({ sx, sy });
+    }
+  return pts;
+});
+if (B2.length < 2) { console.log("FAIL: no two bare points on the 2D map"); process.exit(1); }
+const popup2 = () => page.evaluate(() => { const P = SBMM.map._popup; return P && P.isOpen() ? P._contentNode.textContent : null; });
+await page.mouse.click(B2[0].sx, B2[0].sy);
+await page.waitForFunction(() => SBMM.map._popup && SBMM.map._popup.isOpen(), null, { timeout: 6000 }).catch(() => {});
+const b1 = await popup2();
+if (!b1 || !/Point/.test(b1) || !/Easting/.test(b1)) { console.log("FAIL: a click on bare ground in 2D did not open the Point card", b1); process.exit(1); }
+await page.mouse.click(B2[1].sx, B2[1].sy);
+await wait(900);
+const b2 = await popup2();
+if (b2) { console.log("FAIL: a click that closed a card opened another", b2.slice(0, 80)); process.exit(1); }
+await page.mouse.dblclick(B2[1].sx, B2[1].sy);
+await wait(1300);
+const b3 = await page.evaluate(() => !!(SBMM.map._popup && SBMM.map._popup.isOpen()));
+if (b3) { console.log("FAIL: a double-click opened a card"); process.exit(1); }
+console.log("  2D bare ground: Point card; a closing click and a double-click open nothing");
+
+/* the user's own drawing: selected in both views, no floating card; and the
+   click on bare ground that follows only deselects */
+const OWN = await page.evaluate(async () => {
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  SBMM.layerState.setGroup("mywork", true);
+  SBMM.map.setView([2129100, 6371500], 1, { animate: false });
+  await sleep(500);
+  const c = SBMM.map.getCenter();
+  const f = SBMM.tools.rebuildFeature({ type: "line", name: "v58 line", pts: [[c.lng - 60, c.lat - 30], [c.lng + 60, c.lat + 30]] });
+  SBMM.store.select(null);
+  await sleep(700);
+  const r = SBMM.map.getContainer().getBoundingClientRect(), q = SBMM.map.latLngToContainerPoint([c.lat, c.lng]);
+  return { id: f.id, sx: r.left + q.x, sy: r.top + q.y, x: c.lng, y: c.lat };
+});
+await page.mouse.move(OWN.sx - 20, OWN.sy - 20); await page.mouse.click(OWN.sx, OWN.sy);
+await wait(700);
+const o2 = await page.evaluate(() => ({ sel: SBMM.store.selected, popup: !!(SBMM.map._popup && SBMM.map._popup.isOpen()) }));
+if (o2.sel !== OWN.id || o2.popup) { console.log("FAIL: a click on the user's own line in 2D", o2); process.exit(1); }
+await page.mouse.click(B2[0].sx, B2[0].sy);
+await wait(900);
+const o2b = await page.evaluate(() => ({ sel: SBMM.store.selected, popup: !!(SBMM.map._popup && SBMM.map._popup.isOpen()) }));
+if (o2b.sel || o2b.popup) { console.log("FAIL: the click that cleared a selection also opened a card", o2b); process.exit(1); }
+const o3p = await page.evaluate(async q => {
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  const V = SBMM.viewer3d;
+  await V.toggle();
+  await new Promise(r => { const t0 = Date.now(); const w = () => (document.getElementById("v3dStatus").textContent === "" || Date.now() - t0 > 60000) ? r() : setTimeout(w, 200); w(); });
+  const z = SBMM.elev(q.x, q.y)[0];
+  await V.lookFrom(q.x, q.y - 60, z + 320, q.x, q.y, z);
+  await sleep(1800);
+  return { p: V.project(q.x, q.y, z), far: V.project(q.x + 90, q.y - 90, SBMM.elev(q.x + 90, q.y - 90)[0]) };
+}, OWN);
+await page.mouse.move(o3p.p.x - 20, o3p.p.y - 20); await page.mouse.click(o3p.p.x, o3p.p.y);
+await wait(900);
+const o3 = await page.evaluate(() => ({ sel: SBMM.store.selected, card: !!document.getElementById("pick3dCard") }));
+if (o3.sel !== OWN.id || o3.card) { console.log("FAIL: a click on the user's own line in 3D", o3); process.exit(1); }
+/* bare ground, 3D: the Point card; then a click elsewhere only closes it */
+await page.evaluate(() => SBMM.store.select(null));
+await page.mouse.click(o3p.far.x, o3p.far.y);
+await page.waitForSelector("#pick3dCard", { timeout: 8000 }).catch(() => {});
+const g1 = await page.evaluate(() => { const c = document.getElementById("pick3dCard"); return c ? c.textContent : null; });
+if (!g1 || !/Point/.test(g1)) { console.log("FAIL: a click on bare ground in 3D did not open the Point card", g1); process.exit(1); }
+await page.mouse.click(o3p.far.x + 70, o3p.far.y + 40);
+await wait(900);
+const g2 = await page.evaluate(() => !!document.getElementById("pick3dCard"));
+if (g2) { console.log("FAIL: in 3D a click that closed a card opened another"); process.exit(1); }
+console.log("  own drawing: selected in both views, no card; 3D bare ground: Point card, a closing click opens nothing");
+
+await page.evaluate(async ([was, id]) => {
+  const f = SBMM.store.byId(id); if (f) SBMM.store.remove(f);
+  if (SBMM.viewer3d.isOpen()) await SBMM.viewer3d.toggle();
+  SBMM.layerState.restore(was);
+  SBMM.map.closePopup();
+}, [K0.was, OWN.id]);
 });
 
 await block("9x. drainage", async () => {

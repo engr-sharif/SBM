@@ -213,6 +213,10 @@ SBMM.pick2d = (function () {
   function tipHtml(l) {
     const t = tipOf(l);
     if (!t) return "";
+    /* v58: a PERMANENT tooltip on the user's own feature is a label already
+       on the map (a spot's "1,344.2 ft"), not what the feature is called — the
+       chip read the elevation where the 3D chip read the spot's name */
+    if (t.options && t.options.permanent && storeFeature(l)) return "";
     let c = t._content;
     try { if (typeof c === "function") c = c(l); } catch (e) { c = ""; }
     if (c && c.nodeType) return c.outerHTML || c.textContent || "";

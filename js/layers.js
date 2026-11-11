@@ -136,21 +136,16 @@ SBMM.buildLayers = function () {
   }
 
   /* ---------- decision units ---------- */
+  /* v58: the DU's chip, read by the 2D tooltip and the 3D tag alike */
+  SBMM.layers.duTip = d => d.name;
   const DU_COLOR = { "DU-1N": "#E4796A", "DU-1S": "#E4796A", "DU-2": "#5B8FF9", "DU-3": "#4FCE9B" };
   const duGrp = L.layerGroup();
   SBMM_DATA.dus.forEach((d, di) => {
     const c = DU_COLOR[d.name] || "#ccc";
     const rings = [d.ring.map(p => [p[1], p[0]]), ...(d.holes || []).map(h => h.map(p => [p[1], p[0]]))];
     const poly = L.polygon(rings, { pane: "vectors", color: c, weight: 2, fillColor: c, fillOpacity: .10, casing: 1 })
-      .bindTooltip(d.name, { sticky: true, className: "ctip" }).addTo(duGrp);
-    poly.on("click", () => {
-      /* net of its holes (DU-3 has two), and the volume button names THIS
-         polygon by index — two DUs share a name with a second, smaller part */
-      const A = polyArea(d.ring) - (d.holes || []).reduce((s, h) => s + polyArea(h), 0);
-      const parts = SBMM_DATA.dus.filter(q => q.name === d.name).length;
-      poly.bindPopup(`<b>${esc(d.name)}</b>${parts > 1 ? ` <span style="opacity:.7">· one of ${parts} parts</span>` : ""}<br>${fmt(A / 43560, 2)} ac · ${fmt0(A)} ft²
-        <div class="pop-actions"><span class="minib" onclick="SBMM.tools.volumeOfRing(${di})">volume vs. perimeter TIN</span></div>`).openPopup();
-    });
+      .bindTooltip(SBMM.layers.duTip(d), { sticky: true, className: "ctip" }).addTo(duGrp);
+    poly.on("click", () => poly.bindPopup(SBMM.popups.forDU(d, di)).openPopup());
   });
   SBMM.addLayerRow("proj", "Decision units (rev7)", duGrp, { id: "dus", checked: true, swatch: "#E4796A" });
   SBMM.layers.duGrp = duGrp;
@@ -158,23 +153,23 @@ SBMM.buildLayers = function () {
   /* ---------- waste piles ---------- */
   const pileGrp = L.layerGroup();
   SBMM.pileIndex = [];  // for presets: {label, ring, props}
+  /* v58: the pile's chip, read by the 2D tooltip and the 3D tag alike */
+  SBMM.layers.pileTip = (p, label) =>
+    label + (p.props && p.props.pile_vol_yd3_best ? ` · best ${fmt0(p.props.pile_vol_yd3_best)} yd³ (whole pile)` : "");
+  /* v58: per SBMM_DATA.piles entry, the label and the pileIndex slot its card
+     names — the 3D view asks for the same card without re-deriving either */
+  SBMM.layers.pileRecs = [];
   for (const p of SBMM_DATA.piles) {
     const traced = (p.name || "").includes("Fig 2");
     const label = p.name || (p.props ? `${p.props.pile} — part ${p.props.part} (topo)` : "pile");
     if (!traced) SBMM.pileIndex.push({ label, ring: p.ring, props: p.props || {} });
     const poly = L.polygon(p.ring.map(q => [q[1], q[0]]),
       { pane: "vectors", color: traced ? "#E8B34B" : "#8BE04B", weight: traced ? 1.5 : 2, dashArray: traced ? "5 4" : null, fill: true, fillOpacity: 0.001, casing: 0.9, casingOpacity: 0.45 })
-      .bindTooltip(label + (p.props && p.props.pile_vol_yd3_best ? ` · best ${fmt0(p.props.pile_vol_yd3_best)} yd³ (whole pile)` : ""),
+      .bindTooltip(SBMM.layers.pileTip(p, label),
         { sticky: true, className: "ctip" }).addTo(pileGrp);
     const idx = traced ? -1 : SBMM.pileIndex.length - 1;
-    poly.on("click", () => {
-      const pr = p.props || {};
-      let html = `<b>${esc(label)}</b>`;
-      if (pr.pile_vol_yd3_best) html += `<br>whole-pile best ${fmt0(pr.pile_vol_yd3_best)} yd³ (${fmt0(pr.pile_vol_yd3_low)}–${fmt0(pr.pile_vol_yd3_high)})<br>
-        footprint ${pr.pile_footprint_area_ac} ac · mean ${pr.pile_mean_height_ft} ft · max ${pr.pile_max_height_ft} ft`;
-      html += `<div class="pop-actions"><span class="minib" onclick="SBMM.tools.volumeOfPile(${idx >= 0 ? idx : `'${esc(p.name || "")}'`})">measure volume now</span></div>`;
-      poly.bindPopup(html).openPopup();
-    });
+    SBMM.layers.pileRecs.push({ label, idx });
+    poly.on("click", () => poly.bindPopup(SBMM.popups.forPile(p, label, idx)).openPopup());
     if (traced) poly._tracedRing = p.ring, poly._tracedName = p.name;
   }
   SBMM.layers.pileGrp = pileGrp;

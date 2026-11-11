@@ -360,8 +360,74 @@ SBMM.carto = (function () {
     SBMM.map.on("zoomend", () => { const k = kAt(SBMM.map.getZoom()); for (const g of dense) sizeGroup(g, k); });
   }
 
+  /* v58 (3b) — PILES OF POINTS. At the whole-site zoom the wells, borings and
+     pits sit on top of one another (and nested wells share a location at every
+     zoom): a heap of symbols says "something is here" and hides how many. Where
+     dataset symbols land within a few pixels of each other, ONE is drawn, with
+     the count beside it.
+     DRAWING ONLY, and that is the rule that makes it safe: every marker stays
+     on the map and stays a click target (the v26 rule — shrink, never hide a
+     point from the pointer). js/pick2d.js finds markers by where they ARE, not
+     by what is painted, so the chip still says "1 of 5 here · Tab", Tab walks
+     them (the one being named is shown, lifted), and the click offers the
+     rest under "also here". Nothing is clustered in the data, the exports or
+     the 3D view. */
+  const PILE = { passes: 0, piles: 0, hidden: 0 };
+  let pileT = 0;
+  function pileSoon() { clearTimeout(pileT); pileT = setTimeout(pilePass, 70); }
+  function pilePass() {
+    const map = SBMM.map;
+    if (!map || map._animatingZoom) return;
+    const els = map.getContainer().querySelectorAll(".leaflet-marker-icon.dsmk");
+    const R = map.getZoom() <= -1 ? 9 : 5, R2 = R * R, cell = R;
+    const grid = new Map(), P = [];
+    for (let i = 0; i < els.length; i++) {
+      const q = els[i]._leaflet_pos;
+      if (!q) { P.push(null); continue; }
+      P.push(q);
+      const k = Math.floor(q.x / cell) + ":" + Math.floor(q.y / cell);
+      let b = grid.get(k); if (!b) grid.set(k, b = []);
+      b.push(i);
+    }
+    /* greedy, in DOM order, so the symbol that stands for a pile is stable */
+    const lead = new Int32Array(els.length).fill(-1), count = new Int32Array(els.length);
+    for (let i = 0; i < els.length; i++) {
+      if (!P[i] || lead[i] >= 0) continue;
+      lead[i] = i; count[i] = 1;
+      const cx = Math.floor(P[i].x / cell), cy = Math.floor(P[i].y / cell);
+      for (let gx = cx - 1; gx <= cx + 1; gx++) for (let gy = cy - 1; gy <= cy + 1; gy++) {
+        const b = grid.get(gx + ":" + gy);
+        if (!b) continue;
+        for (const j of b) {
+          if (j <= i || lead[j] >= 0) continue;
+          const dx = P[j].x - P[i].x, dy = P[j].y - P[i].y;
+          if (dx * dx + dy * dy <= R2) { lead[j] = i; count[i]++; }
+        }
+      }
+    }
+    PILE.passes++; PILE.piles = 0; PILE.hidden = 0;
+    for (let i = 0; i < els.length; i++) {
+      const el = els[i], piled = P[i] && lead[i] !== i, n = lead[i] === i ? count[i] : 0;
+      if (piled) PILE.hidden++;
+      /* a write only where something changed */
+      if (el.classList.contains("dspiled") !== !!piled) el.classList.toggle("dspiled", !!piled);
+      let badge = el.querySelector(":scope > .dscount");
+      if (n > 1) {
+        PILE.piles++;
+        if (!badge) { badge = document.createElement("span"); badge.className = "dscount"; el.appendChild(badge); }
+        if (badge.textContent !== String(n)) badge.textContent = String(n);
+      } else if (badge) badge.remove();
+    }
+  }
+  function wirePiles() {
+    if (!SBMM.map) return;
+    SBMM.map.on("zoomend layeradd layerremove", pileSoon);
+    pileSoon();
+  }
+
   function wire() {
     wireDensity();
+    wirePiles();
     const Ls = SBMM.layers || {};
     clean(Ls.orthoSite, "ortho_site");
     clean(Ls.orthoMine, "ortho_mine");
@@ -373,5 +439,5 @@ SBMM.carto = (function () {
   }
 
   return { wire, densify, densityAt: kAt, stats: () => JSON.parse(JSON.stringify(stats)), maskFor, maskPixels,
-           setRelief, relief: reliefState };
+           setRelief, relief: reliefState, piles: () => Object.assign({}, PILE), pileNow: pilePass };
 })();

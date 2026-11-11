@@ -3477,3 +3477,12 @@ body:not(.field) #v3dViewPop{width:min(480px,calc(100% - var(--dockL) - var(--do
 #tip .tpr{font-size:11px;color:var(--ink2)}
 #tip .tpc{font-size:11px;color:var(--mut)}
 #tip .tpw{font-style:normal;color:#F1CE7A}
+
+/* v58 (3b): piles of points (js/cartography.js). Where dataset symbols land on
+   top of one another ONE is drawn with the count; the rest are not painted but
+   stay on the map and stay click targets. The one the chip is naming is shown. */
+.leaflet-marker-icon.dspiled{visibility:hidden}
+.leaflet-marker-icon.dspiled.pklift{visibility:visible}
+.dsmk .dscount{position:absolute;left:calc(100% - 5px);bottom:calc(100% - 5px);min-width:13px;height:13px;padding:0 3px;
+  border-radius:7px;background:rgba(13,19,23,.94);border:1px solid var(--line2);color:var(--ink);
+  font:600 9px/12px var(--mono);text-align:center;white-space:nowrap;pointer-events:none;box-sizing:border-box}

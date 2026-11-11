@@ -266,6 +266,16 @@ SBMM.drainage = (function () {
     polyOf = new Map();
   }
 
+  /* v58: a catchment's chip (rec, or its label) and a longest flow path's
+     chip (its sink) — the 2D tooltips and the 3D tags both read these */
+  function tipFor(rec) {
+    if (rec != null && typeof rec !== "object") rec = recOf(rec);
+    return `→ ${esc(nameOf(rec))} · ${ac(areaOf(rec))} ac`;
+  }
+  function pathTip(s) {
+    return `longest flow path to ${esc(sinkName(s))} · ${fmt0(s.longest_ft)} ft`;
+  }
+
   function addPolys(g, rec, i) {
     const col = colorOf(rec, i);
     const rings = rec.t === "pond" ? rec.r.contributing_rings : rec.r.rings;
@@ -276,7 +286,7 @@ SBMM.drainage = (function () {
         pane: "vectors", color: col, weight: EDGE_W, opacity: .9,
         fillColor: col, fillOpacity: FILL_OP
       });
-      pl.bindTooltip(`→ ${esc(name)} · ${ac(area)} ac`, { sticky: true, className: "ctip" });
+      pl.bindTooltip(tipFor(rec), { sticky: true, className: "ctip" });
       pl.on("mouseover", () => pl.setStyle({ fillOpacity: FILL_OP + 0.22, weight: EDGE_W + 1 }));
       pl.on("mouseout", () => pl.setStyle({ fillOpacity: FILL_OP, weight: EDGE_W }));
       pl.on("click", ev => {
@@ -315,7 +325,7 @@ SBMM.drainage = (function () {
       if (!s.path || s.path.length < 2) continue;
       L.polyline(toLL(s.path), { pane: "vectors", color: colorOf({ t: "sink", r: s }, i),
                                  weight: 1.6, opacity: .95, dashArray: "6 4" })
-        .bindTooltip(`longest flow path to ${esc(sinkName(s))} · ${fmt0(s.longest_ft)} ft`,
+        .bindTooltip(pathTip(s),
                      { sticky: true, className: "ctip" })
         .addTo(groups.paths);
     }
@@ -667,7 +677,7 @@ SBMM.drainage = (function () {
         for (const run of groundRuns(ring))
           out.push({ ring: run, color: colorOf(rec, i), width: 3, closed: false,
                      props: props(rec, rec.t === "sink" ? "DRAIN-OUTLET" : "DRAIN-FIRST"),
-                     label: rec.r.label,
+                     label: rec.r.label, rec,
                      geom: { type: "LineString", coordinates: run } });
     };
     R.sinks.forEach((s, i) => push({ t: "sink", r: s }, i, on("drain_outlet")));
@@ -682,6 +692,7 @@ SBMM.drainage = (function () {
       if (!s.path || s.path.length < 2) return;
       for (const run of groundRuns(s.path))
         out.push({ ring: run, color: colorOf({ t: "sink", r: s }, i), width: 2, closed: false,
+                   sink: s, label: s.label,
                    props: { layer: "DRAIN-PATH", outlet: sinkName(s), length_ft: s.longest_ft,
                             source: "SBMM drainage v14" },
                    geom: { type: "LineString", coordinates: run } });
@@ -732,6 +743,7 @@ SBMM.drainage = (function () {
   return {
     build, wire, cmd, run, paint, showCard, showInto, markStale,
     geoFeatures, dxfEntities, rings3d, lines3d, groundRuns, exportGeoJSON, exportDXF,
+    tipFor, pathTip,
     /* v22 §C: js/wherewater.js runs the same kernel over the same ground and
        must be handed the SAME Clear Lake polygon, or the two would disagree
        about which way a run left the survey. */

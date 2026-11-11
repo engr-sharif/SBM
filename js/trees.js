@@ -354,14 +354,12 @@ SBMM.trees = (function () {
         if (cv) { cv.style.display = "block"; needSize = true; }
         SBMM.map.on("move zoom moveend zoomend resize", repaint);
         window.addEventListener("resize", onWinResize);
-        SBMM.map.on("click", onMapClick);
         registerReader();
         repaint();
       },
       onRemove() {
         SBMM.map.off("move zoom moveend zoomend resize", repaint);
         window.removeEventListener("resize", onWinResize);
-        SBMM.map.off("click", onMapClick);
         if (ctx) ctx.clearRect(0, 0, cw, ch);
         if (cv) cv.style.display = "none";
         updateLegend(0);
@@ -399,26 +397,17 @@ SBMM.trees = (function () {
         const t = i >= 0 ? tree(i) : null;
         return t ? { name: "Tree " + t.id, value: `${fmt0(t.h)} ft ${t.form}`, key: String(t.id),
                      rows: [["Tree " + t.id, `${fmt0(t.h)} ft ${t.form}`]] } : null;
+      },
+      /* a click on a crown that nothing else answered: the tree's own card
+         (js/readout.js opens it — the layer no longer listens for the map's
+         click itself). A click may land between crowns, so the trunk nearest
+         within a few pixels still counts, as it always did. */
+      card(x, y, ctx) {
+        const tolFt = ctx.view === "2d" ? 14 / Math.pow(2, SBMM.map.getZoom()) : 0;
+        const i = nearest(x, y, Math.max(tolFt, 6));
+        return i >= 0 ? { html: SBMM.popups.forTree(tree(i)), at: [data.x[i], data.y[i]], className: "treepop" } : null;
       } });
   }
-  function onMapClick(ev) {
-    if (SBMM.tools.active() || SBMM.draw.isPicking() || SBMM.draw.isDrawing()) return;
-    /* A crown is drawn at its true size, so most of the mine area is "on a
-       tree". Anything else under the pointer that answers a click — a well, a
-       boring, a decision unit — owns it; the tree answers only for a click
-       that would otherwise have opened nothing. */
-    if (SBMM.pick2d && SBMM.pick2d.probe && ev.latlng
-        && SBMM.pick2d.probe(ev.latlng).some(c => c.acts)) return;
-    const x = ev.latlng.lng, y = ev.latlng.lat;
-    const tolFt = 14 / Math.pow(2, SBMM.map.getZoom());
-    const i = nearest(x, y, Math.max(tolFt, 6));
-    if (i < 0) return;
-    L.popup({ className: "treepop" })
-      .setLatLng([data.y[i], data.x[i]])
-      .setContent(SBMM.popups.forTree(tree(i)))
-      .openOn(SBMM.map);
-  }
-
   /* ------------------------------------------------------------------ */
   /* legend + layer row                                                  */
   /* ------------------------------------------------------------------ */

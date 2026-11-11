@@ -114,38 +114,37 @@ SBMM.temprobe = (function () {
         if (!p.ok) return null;
         return { name: "TEM resistivity", value: `${fV(p.rho)} Ω·m`, html: chipHtml(p), key: keyOf(p), rec: p,
                  rows: [["TEM resistivity", `${fV(p.rho)} Ω·m at ${f0(p.depth)} ft`]] };
+      },
+      /* a click on the slice that nothing else answered: the probe card
+         (js/readout.js opens it; this module no longer listens for the click) */
+      card(x, y) {
+        const p = G().probe(x, y);
+        return p.ok ? { html: cardHtml(p), at: [p.x, p.y], className: "tempop tppop", maxWidth: 340, minWidth: 300 } : null;
       } });
+    /* the derived map and the two interpretations: the reading, as their 3D
+       surfaces give it on a click */
+    const readCard = r => ({ className: "tempop", maxWidth: 320,
+      html: `<div class="tipop"><b class="mono">${esc(r.head)}</b>` + r.lines.map(l => `<div class="mono">${esc(l)}</div>`).join("") + `</div>` });
     RO.register({ id: "tem_map", on: ctx => two(ctx) && !!(SBMM.temmaps && SBMM.temmaps.on() && SBMM.temmaps.result()),
       at(x, y) {
         const r = SBMM.temmaps.readAt("map", x, y);
         return r ? { name: "TEM derived map", value: r.head, lines: r.lines, key: "map|" + r.key } : null;
-      } });
+      },
+      card(x, y) { const r = SBMM.temmaps.readAt("map", x, y); return r ? readCard(r) : null; } });
     for (const what of ["waste", "seep"]) {
       RO.register({ id: "tem_" + what, on: ctx => two(ctx) && on("tem_" + what) && !!(SBMM.teminterp && SBMM.teminterp.readAt),
         at(x, y) {
           const r = SBMM.teminterp.readAt(what, x, y);
           return r ? { name: what === "waste" ? "TEM base of waste" : "TEM conductive zones", value: r.head, lines: r.lines, key: what + "|" + r.key } : null;
-        } });
+        },
+        card(x, y) { const r = SBMM.teminterp.readAt(what, x, y); return r ? readCard(r) : null; } });
     }
-  }
-  function onClick2d(ev) {
-    if (!active2d() || !ev.latlng) return;
-    if (SBMM.mode && SBMM.mode.current && SBMM.mode.current() !== "navigate") return;
-    if (SBMM.tools.active() || SBMM.draw.isPicking() || SBMM.draw.isDrawing()) return;
-    /* anything else under the pointer that answers a click owns it */
-    if (SBMM.pick2d && SBMM.pick2d.probe && SBMM.pick2d.probe(ev.latlng).some(c => c.acts)) return;
-    const p = G().probe(ev.latlng.lng, ev.latlng.lat);
-    if (!p.ok) return;
-    hideChip();
-    L.popup({ className: "tempop tppop", maxWidth: 340, minWidth: 300 })
-      .setLatLng([p.y, p.x]).setContent(cardHtml(p)).openOn(SBMM.map);
   }
   let wired = false;
   function wire() {
     if (wired || !SBMM.map || !data()) return;
     wired = true;
     readers();
-    SBMM.map.on("click", onClick2d);
     document.addEventListener("click", onAction);
     if (SBMM.events) {
       /* a slice or colour change while the pointer rests on the map */

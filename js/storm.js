@@ -374,6 +374,10 @@ SBMM.storm = (function () {
       + (st === "broken" ? ' · <span style="color:#E4796A">broken</span>' : "");
   }
 
+  /* v58: the chip for a structure (n) or a conduit (c) — the 2D tooltip and
+     the 3D tag both read it; a conduit's status is read when it is called */
+  function tipFor(n, c) { return n ? nodeTip(n) : conduitTip(c); }
+
   function build() {
     const D = data();
     if (!D || !D.nodes || !D.conduits || !D.layers) {
@@ -412,7 +416,7 @@ SBMM.storm = (function () {
     for (const n of nodes()) {
       const mk = L.marker([n.y, n.x], { icon: nodeIcon(n.kind), pane: "vectors",
                                         keyboard: false, zIndexOffset: 120 });
-      mk.bindTooltip(nodeTip(n), { direction: "top", className: "ctip", offset: [0, -8] });
+      mk.bindTooltip(tipFor(n, null), { direction: "top", className: "ctip", offset: [0, -8] });
       mk.on("click", ev => {
         L.DomEvent.stopPropagation(ev);
         mk.bindPopup(SBMM.popups.forStorm(n, null)).openPopup();
@@ -445,7 +449,7 @@ SBMM.storm = (function () {
         dashArray: broken ? "2 5" : (drawn ? null : "9 6"),
         casing: 1.1                              // v48: the network is the subject wherever it is on
       });
-      ln.bindTooltip(conduitTip(c), { sticky: true, className: "ctip" });
+      ln.bindTooltip(tipFor(null, c), { sticky: true, className: "ctip" });
       ln.on("click", ev => {
         L.DomEvent.stopPropagation(ev);
         ln.bindPopup(SBMM.popups.forStorm(null, c)).openPopup();
@@ -577,6 +581,6 @@ SBMM.storm = (function () {
            mouthOf, mouthOfConduit, mouths: () => mouths, MOUTH_SEARCH_FT,
            node: id => byId[id] || null, conduit: id => conduitById[id] || null,
            nextOf: id => nextOf[id] || null, rims: () => rims,
-           lines3d, points3d, snapPaths, snapItems, geoFeatures, dxfEntities, gisProps,
+           lines3d, points3d, snapPaths, snapItems, geoFeatures, dxfEntities, gisProps, tipFor,
            paintChip, COLOR: COL, rows: () => rows };
 })();

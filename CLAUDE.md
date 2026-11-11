@@ -6473,7 +6473,72 @@ description never printed its ground elevation (`SBMM.elev` answers `[z,
 source]` and was read as a number), and a volume's cut/fill map kept no grid
 to read (`f._cf` now).
 
-**Not in this half** (step 3b): the bare-ground click in 2D, "also here" in
-3D, the kinds 3D does not answer yet (storm structures, decision units,
-piles) and the analysis layers that still answer through the generic GIS
-builder.
+### v58, the click half — the same click in both views
+
+E2E block **"9f25. one click, the same answer in both views (v58)"** (shard
+4): for a decision unit, a waste pile, a storm structure and a dataset point
+it points at the thing for real in each view and requires the chip's text and
+the card's heading to be equal; then the bare-ground and own-drawing rules.
+
+| a click on | both views |
+|---|---|
+| something with a card | its card — the same builder — with the other things under the pointer offered as "also here" |
+| the user's own drawing | it is selected; the Inspector is its card. No floating card (a photo keeps its picture, the fence strip its nearest boring, field mode keeps the card) |
+| bare ground | the card of the layer the ground is wearing where it has one (a reader's `card()`: the TEM probe, the water description, a tree), else the Point card — unless the press closed a popup, a card or a selection, in which case it only did that |
+
+Eight things that will be walked into again:
+
+- **ONE bare-ground handler per view, and the layers no longer listen for the
+  map's click themselves.** `js/readout.js` `click2d` (2D) and the terrain
+  branch of `SBMM.pick3d.click` (3D) both ask `SBMM.readout.cardAt(x, y,
+  ctx)`. The tree layer's own `map.on("click")`, the TEM probe's and the rim
+  band's are gone; each is a reader's `card()`. **A new layer that wants a
+  click on its raster registers a reader with `card` — it does not add a map
+  click listener.**
+- **The map's own click arrives even when a feature answered** (Leaflet sends
+  the layer's click to the map too), so `click2d` asks `SBMM.pick2d.probe` and
+  stands down when anything under the pointer acts — the rule the tree and TEM
+  handlers each carried.
+- **"Closed something" is read at pointer-DOWN** (`noteDown`, capture phase):
+  by the time the click fires Leaflet has closed the popup and
+  `js/features.js` has cleared the selection. In 3D the card's own
+  outside-press handler stamps `closedAt`.
+- **The 2D card waits 230 ms.** `doubleClickZoom` is off in this app (a
+  double-click ends a sketch), so a double-click is two clicks; the wait and
+  the `dblclick` listener keep it from opening a card.
+- **Two generic 3D kinds replace a `specFor` case per layer:**
+  `{ kind: "card", title, chip, html: () => string, xyz?, own? }` for an object
+  that is one feature, and `{ kind: "cards", at(i, hit) -> {…} }` for one that
+  is many (`i` = vertex, segment or instance). `chip` is the 2D tooltip
+  function's result and `html` calls the 2D popup's builder — at click time,
+  so `openCard` accepts a FUNCTION. Decision units, piles (`SBMM.popups.forDU`
+  / `forPile`, moved out of `js/layers.js`), storm structures and conduits,
+  drainage catchments and flow paths, where-the-water-goes, stream links, the
+  runoff choropleth and the PDF boundaries are tagged this way in
+  `rebuildOverlaysInner`. Six of them used to answer "Design feature" through
+  the generic GIS builder and three did not answer at all.
+- **The 3D hover lights the FEATURE, not the layer** (`elementHl` in
+  `js/pick3d.js`). A whole layer is often one object; where it maps elements
+  to features (`userData.owner`, per segment or per face) or is a point cloud,
+  the highlight is a separate object built from that one feature's geometry,
+  and `elemKey` makes one feature ONE hover however many of its segments the
+  pointer crosses. An object that is one feature is still tinted in place.
+  The highlight object carries no layer tag and no pick; it is rebuilt when
+  the hovered feature changes, never per move.
+- **`raycastAll`** is the same scan as `raycast` keeping every object the ray
+  met, best first; only a click runs it. There is no Tab-cycling in 3D — the
+  card's "also here" row is the way to the other hits.
+- **Piles of points are DRAWING ONLY** (`pilePass` in `js/cartography.js`).
+  Dataset symbols within 9 px of each other at the whole-site zoom (5 px
+  closer in — nested wells share a location at every zoom) are drawn as one
+  symbol with a count (`.dscount`); the others get `.dspiled`
+  (`visibility:hidden`) and STAY on the map. `js/pick2d.js` finds markers by
+  where they are, not by what is painted, so the chip still counts them, Tab
+  walks them (`.dspiled.pklift` shows the one being named) and the click
+  offers the rest. Never set an inline `visibility` on a marker icon — the
+  pick engine reads that as "not there".
+
+Smaller: a 3D long press takes the path a tap takes (it used to skip the
+draped-sheet test); in field mode a 3D answer goes to the bottom card
+(`SBMM.field.card`), as a 2D tap's does; a spot's 2D chip names the spot (it
+showed its permanent elevation label).
