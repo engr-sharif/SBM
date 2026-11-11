@@ -7644,7 +7644,7 @@ await page.evaluate(async () => {
   SBMM.map.fitBounds([[R.y0, R.x0], [R.y0 + (R.ny - 1) * R.dx, R.x0 + (R.nx - 1) * R.dx]], Object.assign({ animate: false }, SBMM.omni.fitPad()));
 });
 await page.waitForTimeout(1500);
-const mpt = await page.evaluate(() => {
+const mapPoint = () => page.evaluate(() => {
   const T = SBMM.temmaps, M = T.result(), map = SBMM.map, r = map.getContainer().getBoundingClientRect(), F = SBMM.shell.frame();
   for (let k = 0; k < M.nx * M.ny; k += 13) {
     if (!(M.depth[k] > 1)) continue;
@@ -7656,10 +7656,26 @@ const mpt = await page.evaluate(() => {
   }
   return null;
 });
+let mpt = await mapPoint();
 if (!mpt) { console.log("FAIL: no node of the top map on screen to point at"); process.exit(1); }
-await page.mouse.move(mpt.sx - 24, mpt.sy - 18);
-await page.mouse.move(mpt.sx, mpt.sy, { steps: 3 });
-await page.waitForFunction(() => { const t = document.getElementById("temTip"); return t && !t.hidden; }, null, { timeout: 15000 }).catch(() => {});
+/* v56: the pointer is brought to the point up to four times, the point is
+   found again each time (the docks may still be settling under a loaded
+   runner, and the frame with them), and the wait is on the chip. One pass on
+   CI failed with the chip never shown and nothing in the log to say why — so
+   a failure now prints what was under the pointer. */
+let chipUp = false;
+for (let k = 0; k < 4 && !chipUp; k++) {
+  if (k) mpt = (await mapPoint()) || mpt;
+  await page.mouse.move(mpt.sx - 24 - 9 * k, mpt.sy - 18 + 7 * k);
+  await page.mouse.move(mpt.sx, mpt.sy, { steps: 3 });
+  chipUp = await page.waitForFunction(() => { const t = document.getElementById("temTip"); return t && !t.hidden; }, null, { timeout: 5000 }).then(() => true, () => false);
+}
+if (!chipUp) console.log("  no TEM chip at the pointer — under it:", JSON.stringify(await page.evaluate(([x, y]) => {
+  const e = document.elementFromPoint(x, y), pk = document.getElementById("pickTip"), ll = SBMM.map.containerPointToLatLng([x - SBMM.map.getContainer().getBoundingClientRect().left, y - SBMM.map.getContainer().getBoundingClientRect().top]);
+  return { el: e ? (e.id || e.className || e.tagName).toString().slice(0, 80) : null, pickTip: !!(pk && pk.offsetParent), pickTipText: pk ? pk.textContent.slice(0, 60) : "",
+           picks: SBMM.pick2d.probe(ll).length, mode: SBMM.mode.current ? SBMM.mode.current() : null, mapOn: SBMM.layerState.isOn("invest", "tem_map"),
+           sliceOn: SBMM.layerState.isOn("invest", "tem_slice"), current: !!(SBMM.temmaps.current && SBMM.temmaps.current()), v3d: SBMM.viewer3d.isOpen(),
+           read: (SBMM.temmaps.readAt("map", ll.lng, ll.lat) || {}).head || null }; }, [mpt.sx, mpt.sy])));
 const m4 = await page.evaluate(() => {
   const T = SBMM.temmaps, t = document.getElementById("temTip"), c = T.card(), csv = T.csv().trim().split("\n"), M = T.result();
   return { chip: t && !t.hidden ? t.textContent : null, status: document.getElementById("sDem").textContent,
