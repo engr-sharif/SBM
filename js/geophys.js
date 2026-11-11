@@ -71,7 +71,10 @@ SBMM.geophys = (function () {
                    horizon, across a site that is not flat), and whether the
                    slice sheet itself is drawn in 3D (a view preset can leave
                    the sections or the voxels standing alone) */
-                datum: "depth", elev: 1300, sheet: true };
+                datum: "depth", elev: 1300, sheet: true,
+                /* v54: fade the slice with the distance to the nearest
+                   sounding (support(), below) */
+                conf: false };
   let S = Object.assign({}, DEF);
   try {
     const st = SBMM.view && SBMM.view.pref("tem");
@@ -163,6 +166,71 @@ SBMM.geophys = (function () {
     while (l < nl - 2 && depth >= midFt(l + 1)) l++;
     const f = (depth - midFt(l)) / (midFt(l + 1) - midFt(l));
     return at(l) * (1 - f) + at(l + 1) * f;
+  }
+  /* v54 — SUPPORT: how close the data is, 0–1. 1 at the soundings' own
+     spacing or closer, 0 at the blanking distance (where the model stops),
+     linear between. It is the distance to the nearest sounding and nothing
+     cleverer: with one shared variogram the kriging standard error is a
+     function of that distance and says the same thing, and the delivery has
+     no depth of investigation, so there is no honest support in DEPTH to
+     draw. The per-node distances are the `temmap` job's (what: "support"),
+     asked for the first time the shading is switched on. */
+  let sup = null, supRun = null, spacingC = null;
+  function spacing() {
+    if (sup && isFinite(sup.spacing)) return sup.spacing;
+    const D = data();
+    if (!D) return NaN;
+    if (spacingC && spacingC.D === D) return spacingC.v;
+    /* each sounding's nearest neighbour, the median — the kernel's own rule,
+       once per payload (a million distances) */
+    const nn = [];
+    for (let i = 0; i < D.n; i++) {
+      let b = Infinity;
+      for (let j = 0; j < D.n; j++) {
+        if (j === i) continue;
+        const ex = D.x[i] - D.x[j], ey = D.y[i] - D.y[j], d2 = ex * ex + ey * ey;
+        if (d2 < b) b = d2;
+      }
+      if (b < Infinity) nn.push(Math.sqrt(b));
+    }
+    nn.sort((a, b) => a - b);
+    spacingC = { D, v: nn.length ? nn[nn.length >> 1] : NaN };
+    return spacingC.v;
+  }
+  function supportOf(d) {
+    const sp = spacing(), bl = R ? R.blank : S.blank;
+    if (!isFinite(d) || !isFinite(sp)) return NaN;
+    return d <= sp ? 1 : d >= bl ? 0 : 1 - (d - sp) / (bl - sp);
+  }
+  const supportWord = k => k >= 2 / 3 ? "strong" : k >= 1 / 3 ? "fair" : "thin";
+  const supReady = () => !!(R && sup && sup.key === R.key);
+  async function ensureSupport() {
+    if (!R || !data()) return null;
+    if (supReady()) return sup;
+    if (supRun) return supRun;
+    const key = R.key, D = data();
+    supRun = (async () => {
+      try {
+        const res = await SBMM.compute.run("temmap", { what: "support", nx: R.nx, ny: R.ny, dx: R.dx, x0: R.x0, y0: R.y0,
+          mask: R.mask, x: D.x, y: D.y }, { label: "TEM distance to data" }).promise;
+        res.key = key;
+        sup = res;
+        return sup;
+      } catch (e) {
+        if (!(e && e.cancelled)) toast("TEM support failed: " + (e.message || e));
+        return null;
+      }
+    })().finally(() => { supRun = null; });
+    return supRun;
+  }
+  /* the slice's opacity at a node: never under a quarter, so a thinly
+     supported value is still a colour that can be read */
+  const supAlpha = k => 0.25 + 0.75 * Math.max(0, Math.min(1, k));
+  function supportField() {
+    if (!supReady()) return null;
+    const N = R.nx * R.ny, f = new Float32Array(N);
+    for (let i = 0; i < N; i++) f[i] = supportOf(sup.dist[i]);
+    return f;
   }
   const propArr = () => S.prop === "sig" ? R.sig : R.log;
   const toProp = b => S.prop === "res" ? Math.pow(10, b) : S.prop === "cond" ? Math.pow(10, 3 - b) : b;
@@ -284,7 +352,7 @@ SBMM.geophys = (function () {
   /* one painter for every face of the model — the map slice, the 3D stack,
      the vertical sections and the fence backdrop. valAt(px, py) answers the
      PROPERTY value (Ω·m, mS/m or the kriging error) or NaN for no value. */
-  function paintCanvas(W, H, valAt, contours) {
+  function paintCanvas(W, H, valAt, contours, alphaAt) {
     const cv = document.createElement("canvas"); cv.width = W; cv.height = H;
     const ctx = cv.getContext("2d"), im = ctx.createImageData(W, H), px = im.data;
     const lev = new Int32Array(W * H), tt = new Float32Array(W * H), L = lut();
@@ -304,7 +372,8 @@ SBMM.geophys = (function () {
                || (y + 1 < H && lev[i + W] !== -99999 && lev[i + W] !== lv);
         if (e) { r = r * 0.25 + 20 * 0.75; g = g * 0.25 + 24 * 0.75; b = b * 0.25 + 26 * 0.75; }
       }
-      px[o] = r; px[o + 1] = g; px[o + 2] = b; px[o + 3] = 255;
+      px[o] = r; px[o + 1] = g; px[o + 2] = b;
+      px[o + 3] = alphaAt ? Math.round(255 * supAlpha(alphaAt(x, y))) : 255;
     }
     ctx.putImageData(im, 0, 0);
     return cv;
@@ -314,7 +383,10 @@ SBMM.geophys = (function () {
     if (!f) return null;
     const { nx, ny } = R, up = Math.min(upMax || 8, upFactor(Math.max(nx, ny)));
     const W = (nx - 1) * up + 1, H = (ny - 1) * up + 1;
-    const cv = paintCanvas(W, H, (x, y) => toProp(bilin(f, nx, ny, x / up, (H - 1 - y) / up)));
+    /* v54: faded with the distance to the data, when asked */
+    const sf = S.conf ? supportField() : null;
+    const cv = paintCanvas(W, H, (x, y) => toProp(bilin(f, nx, ny, x / up, (H - 1 - y) / up)), null,
+      sf ? (x, y) => { const k = bilin(sf, nx, ny, x / up, (H - 1 - y) / up); return isFinite(k) ? k : 0; } : null);
     const h = R.dx / up / 2;
     return { canvas: cv, f, depth, up, W, H,
              bounds: [R.x0 - h, R.y0 - h, R.x0 + (nx - 1) * R.dx + h, R.y0 + (ny - 1) * R.dx + h] };
@@ -715,6 +787,7 @@ SBMM.geophys = (function () {
       + `<label>Contours ${selectHtml("nCont", [[0, "off"], [8, "8 levels"], [12, "12 levels"], [20, "20 levels"]], S.contours ? S.nCont : 0, "Contour edges across the colour range")}</label>`
       + `</div>`
       + `<label class="temchk" title="Blend between model-layer mid-depths rather than step at layer boundaries"><input type="checkbox" data-tem="blend"${S.blend ? " checked" : ""}> blend between layers</label>`
+      + `<label class="temchk" title="Fade the slice with the distance to the nearest sounding: full at the soundings' own spacing, a quarter at the blanking distance"><input type="checkbox" data-tem="conf"${S.conf ? " checked" : ""}> fade away from the data</label>`
       + `<label class="temchk" title="Fit a variogram to each layer rather than one to all"><input type="checkbox" data-tem="per"${S.per ? " checked" : ""}> variogram per layer</label>`
       + `<label class="temchk" title="Reverse the colour map"><input type="checkbox" data-tem="rev"${S.rev ? " checked" : ""}> reverse colours</label>`
       + threeDHtml()
@@ -892,8 +965,11 @@ SBMM.geophys = (function () {
     save();
     if (RERUN.has(k)) {
       const res = await run();
-      if (res) { if (S.prop === "sig") autoRange(); paintNow(); soon3d(); }
-    } else { paintNow(); soon3d(); }
+      if (res) { if (S.conf) await ensureSupport(); if (S.prop === "sig") autoRange(); paintNow(); soon3d(); }
+    } else {
+      if (k === "conf" && S.conf && R) await ensureSupport();
+      paintNow(); soon3d();
+    }
     emit(k);
   }
   /* the card shows what the workspace moved */
@@ -974,10 +1050,12 @@ SBMM.geophys = (function () {
     if (!R) return "";
     const f = fieldNow(), N = R.nx * R.ny;
     let out = `# TEM2Go ${PROP[S.prop].name} (${PROP[S.prop].unit}) at ${byElev() ? "elevation " + S.elev + " ft NAVD88" : S.depth + " ft below ground"}; ${METHOD_NAME[R.method]}; EPSG:6418 ft\n`
-      + "easting_ft,northing_ft,value\n";
+      + (supReady() ? "# support: 1 at " + fmt(sup.spacing, 1) + " ft from a sounding or closer, 0 at " + fmt0(R.blank) + " ft\n" : "")
+      + "easting_ft,northing_ft,value" + (supReady() ? ",sounding_ft,support" : "") + "\n";
     for (let id = 0; id < N; id++) {
       if (!isFinite(f[id])) continue;
-      out += `${(R.x0 + (id % R.nx) * R.dx).toFixed(2)},${(R.y0 + Math.floor(id / R.nx) * R.dx).toFixed(2)},${+toProp(f[id]).toPrecision(5)}\n`;
+      out += `${(R.x0 + (id % R.nx) * R.dx).toFixed(2)},${(R.y0 + Math.floor(id / R.nx) * R.dx).toFixed(2)},${+toProp(f[id]).toPrecision(5)}`
+        + (supReady() ? `,${sup.dist[id].toFixed(1)},${supportOf(sup.dist[id]).toFixed(2)}` : "") + "\n";
     }
     return out;
   }
@@ -1020,6 +1098,7 @@ SBMM.geophys = (function () {
     /* v51: the row was switched off while the job ran (TEM turned off) — no
        card for a layer that is no longer on */
     if (rowId && !on(rowId)) { paintNow(); return res; }
+    if (S.conf) await ensureSupport();
     paintNow();
     if (!card || !card.isConnected) showCard();
     soon3d();
@@ -1116,6 +1195,8 @@ SBMM.geophys = (function () {
     }
     const ns = nearestSounding(x, y);
     if (ns.i >= 0) out.snd = { i: ns.i, id: D.id[ns.i], dist: ns.d, rho: Math.pow(10, soundingAt(ns.i, depth)) };
+    /* v54: how close the data is here (support(), above) */
+    if (ns.i >= 0) { const k = supportOf(ns.d); if (isFinite(k)) out.support = { k, word: supportWord(k), spacing: spacing(), blank: R.blank }; }
     const nb = nearestBoring(x, y, 150);
     if (nb) {
       let cls = null;
@@ -1146,6 +1227,7 @@ SBMM.geophys = (function () {
       + (p.ok ? `resistivity_ohm_m,${+p.rho.toPrecision(4)}\nconductivity_mS_m,${+p.cond.toPrecision(4)}\n` : "")
       + (p.se != null ? `kriging_se_log10,${p.se.toFixed(3)}\nresistivity_low,${+p.lo.toPrecision(4)}\nresistivity_high,${+p.hi.toPrecision(4)}\n` : "")
       + (p.snd ? `nearest_sounding,${p.snd.id}\nsounding_distance_ft,${f(p.snd.dist, 0)}\nsounding_resistivity_ohm_m,${+p.snd.rho.toPrecision(4)}\n` : "")
+      + (p.support ? `data_support_0_1,${p.support.k.toFixed(2)}\n` : "")
       + (p.boring ? `nearest_boring,${p.boring.id}\nboring_distance_ft,${f(p.boring.dist, 0)}\nboring_logged_class,${p.boring.cls || ""}\n` : "")
       + "layer,top_ft,bottom_ft,top_elev_ft,resistivity_ohm_m\n";
     p.col.forEach((c, i) => { out += `${i + 1},${c.top},${c.bot},${f(p.ground - c.top, 1)},${isFinite(c.rho) ? +c.rho.toPrecision(4) : ""}\n`; });
@@ -1208,7 +1290,7 @@ SBMM.geophys = (function () {
   /* trench or a see-through ground (SBMM.viewer3d.setGround).           */
   /* ------------------------------------------------------------------ */
   const sigKey = () => [R ? R.key : "", S.prop, S.cmap, S.rev, S.classes, S.contours, S.nCont, S.blend,
-                        range ? range.lo : "", range ? range.hi : ""].join("|");
+                        range ? range.lo : "", range ? range.hi : "", S.conf && supReady() ? "c" : ""].join("|");
   function sectionIdx(dir) {
     const n = dir === "ew" ? R.ny : R.nx, v = dir === "ew" ? S.ewI : S.nsI;
     return v < 0 || v >= n ? Math.floor(n / 2) : Math.round(v);
@@ -1311,13 +1393,14 @@ SBMM.geophys = (function () {
      under it, because a solid ground hides every bit of it */
   function wantsSeeThrough() {
     return !!(data() && ((R && on("tem_slice")) || (on("tem_soundings") && S.cols)
-      || (SBMM.teminterp && SBMM.teminterp.wantsSeeThrough())));
+      || (SBMM.teminterp && SBMM.teminterp.wantsSeeThrough())
+      || (SBMM.temmaps && SBMM.temmaps.wantsSeeThrough())));
   }
 
   /* v51 — TEM AS ONE STATE. "On" is any of the four TEM rows; the workspace
      (js/temws.js) turns all of it off in one go, and the 3D view takes the
      see-through footprint from the grid the model was interpolated on. */
-  const TEM_ROWS = ["tem_soundings", "tem_slice", "tem_waste", "tem_seep"];
+  const TEM_ROWS = ["tem_soundings", "tem_slice", "tem_waste", "tem_seep", "tem_map"];
   function rowsOn() { return TEM_ROWS.filter(id => { try { return on(id); } catch (e) { return false; } }); }
   function anyOn() { return rowsOn().length > 0; }
   /* every node the model reaches, for the 3D view's see-through mask */
@@ -1329,6 +1412,7 @@ SBMM.geophys = (function () {
   function closeCards() {
     const list = [card];
     if (SBMM.teminterp && SBMM.teminterp.cards) list.push(...SBMM.teminterp.cards());
+    if (SBMM.temmaps && SBMM.temmaps.cards) list.push(...SBMM.temmaps.cards());
     for (const c of list) {
       if (!c || !c.isConnected) continue;
       const x = c.querySelector('[data-a="del"]');
@@ -1614,7 +1698,10 @@ SBMM.geophys = (function () {
     sliceSig: () => (byElev() ? "e" + S.elev : "d" + S.depth), dock: paintDock,
     sectionHandle, sectionIdx: d => R ? sectionIdx(d) : -1,
     probe, probeCsv, soundingRho: (i, d) => Math.pow(10, soundingAt(i, d)),
+    ensureSupport, support: () => (supReady() ? sup : null), supportOf, supportWord, spacing,
     unit: () => PROP[S.prop].unit, propName: () => PROP[S.prop].name,
+    /* v54: the slice's colour map as stops, low value first (js/temmaps.js) */
+    cmapStops: () => { const st = (CMAPS[S.cmap] || CMAPS.hydro).slice(); return S.rev ? st.reverse() : st; },
     options: () => ({ cmap: Object.keys(CMAPS).map(k => [k, CMAP_NAME[k]]),
                       method: Object.keys(METHOD_NAME).map(k => [k, METHOD_NAME[k]]),
                       vgType: Object.keys(VG_NAME).map(k => [k, VG_NAME[k]]) }),

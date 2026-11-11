@@ -7078,7 +7078,7 @@ const d1 = await page.evaluate(() => {
 });
 console.log("TEM base of waste:", JSON.stringify(Object.assign({}, d1, { cv: undefined, findText: undefined })),
             "| cv", d1.cv.borings.rmse.toFixed(2), d1.cv.tem.rmse.toFixed(2), d1.cv.mean.rmse.toFixed(2));
-if (!d1.shown || d1.tabs.join(",") !== "model:false,waste:true,seep:false")
+if (!d1.shown || d1.tabs.join(",") !== "model:false,waste:true,seep:false,maps:false")
   { console.log("FAIL: Data ▾ → Base of waste did not open the workspace at its tab", d1); process.exit(1); }
 if (!(d1.inS >= 4) || !(d1.holes >= d1.inS) || !(d1.vol > 0) || !(d1.cells > 0) || d1.wetMapped !== 0 || !(d1.wet > 0))
   { console.log("FAIL: the base-of-waste result is not a map of the dry survey footprint from the borings", d1); process.exit(1); }
@@ -7488,6 +7488,284 @@ await page.evaluate(async () => {
   SBMM.temws.applyPreset("cut");
   SBMM.temws.off(true);
   for (const c of document.querySelectorAll(".tpallcard")) { const x = c.querySelector('[data-a="del"]'); if (x) x.click(); }
+  if (SBMM.viewer3d.isOpen()) await SBMM.viewer3d.toggle();
+  SBMM.shell.collapse("l", false);
+});
+});
+
+await block("9f12c. TEM derived maps and data support (v54)", async () => {
+/* v54 — what an interval amounts to, the depth to the top of a conductor, and
+   the slice faded with the distance to the data. The kernel is proved in
+   test/kernels.mjs --only temmap; this is the app around it. Every number is
+   restated here from the model's own arrays, so a model change moves the
+   test with it. */
+await page.evaluate(async () => {
+  if (SBMM.temws.isOpen()) SBMM.temws.off(true);
+  SBMM.shell.collapse("l", true);
+  for (const [k, v] of [["kind", "interval"], ["iDatum", "depth"], ["iTop", 0], ["iBot", 30], ["iShow", "rhoG"],
+                        ["tThr", 10], ["tDir", "below"], ["tFrom", 0], ["tShow", "depth"]]) await SBMM.temmaps.set(k, v);
+  await SBMM.geophys.apply("conf", false);
+  await SBMM.temws.open({ tab: "maps" });
+});
+await page.waitForFunction(() => SBMM.temmaps.result() && SBMM.temmaps.result().what === "interval" && SBMM.temws.state().tab === "maps"
+  && SBMM.viewer3d.isOpen(), null, { timeout: 120000 });
+await page.waitForFunction(() => (SBMM.viewer3d.layersDrawn()["invest/tem_map"] || 0) >= 1, null, { timeout: 60000 }).catch(() => {});
+/* A. the interval map, against the definitions written out over the model */
+const m1 = await page.evaluate(() => {
+  const T = SBMM.temmaps, M = T.result(), G = SBMM.geophys, R = G.result(), D = SBMM_DATA.tem2026, N = R.nx * R.ny;
+  const FTM = 1200 / 3937, out = { n: M.n, nodes: R.nodes, full: M.full, checked: 0, worst: 0, order: 0 };
+  for (let id = 0; id < N; id += 17) {
+    if (!R.mask[id]) continue;
+    let Tt = 0, sv = 0, sc = 0, sr = 0;
+    for (let l = 0; l < D.nl; l++) {
+      const t = Math.min(30, D.bot_ft[l]) - Math.max(0, D.top_ft[l]);
+      if (!(t > 0)) continue;
+      const v = R.log[l * N + id], rho = 10 ** v;
+      Tt += t; sv += t * v; sc += t / rho; sr += t * rho;
+    }
+    out.checked++;
+    out.worst = Math.max(out.worst, Math.abs(M.rhoG[id] / 10 ** (sv / Tt) - 1), Math.abs(M.rhoL[id] / (Tt / sc) - 1),
+      Math.abs(M.rhoT[id] / (sr / Tt) - 1), Math.abs(M.cond[id] / (sc * FTM) - 1));
+    if (!(M.rhoL[id] <= M.rhoG[id] * 1.000001 && M.rhoG[id] <= M.rhoT[id] * 1.000001)) out.order++;
+  }
+  const el = document.getElementById("temWs"), pane = el.querySelector('[data-pane="maps"]'), sc2 = T.scale(), gr = G.range();
+  let id0 = -1; for (let k = 0; k < N; k += 7) if (M.rhoG[k] === M.rhoG[k]) { id0 = k; break; }
+  const x0 = M.x0 + (id0 % M.nx) * M.dx, y0 = M.y0 + Math.floor(id0 / M.nx) * M.dx, rd = T.readAt("map", x0, y0);
+  const S3 = T.scene3d(), [zg] = SBMM.elev(x0, y0);
+  Object.assign(out, {
+    tab: SBMM.temws.state().tab, paneShown: !pane.hidden, rowOn: T.on(), rows: G.rowsOn().join(","),
+    find: pane.querySelector('[data-o="find"]').dataset.temFinding, findText: pane.querySelector('[data-o="find"]').textContent,
+    rowsTxt: pane.querySelector('[data-o="rows"]').textContent, median: M.stats.rhoG.p50,
+    shared: sc2.shared, sameRange: sc2.lo === gr.lo && sc2.hi === gr.hi, legend: !!pane.querySelector('[data-o="leg"] svg'),
+    read: rd && rd.value === M.rhoG[id0] && /Ω·m/.test(rd.head), hover: T.hoverText(x0, y0),
+    drawn: SBMM.viewer3d.layersDrawn()["invest/tem_map"] || 0, cover: SBMM.viewer3d.stats().groundCover,
+    z3: S3 && isFinite(zg) ? Math.abs(S3.z[id0] - (zg - 15)) : -1, pic: !!T.picture(),
+    kindBtn: [...pane.querySelectorAll('[data-tm-set="kind"]')].map(b => b.dataset.v + ":" + b.getAttribute("aria-pressed")).join(",")
+  });
+  return out;
+});
+console.log("TEM interval map:", JSON.stringify(m1));
+if (m1.tab !== "maps" || !m1.paneShown || !m1.rowOn || m1.rows !== "tem_map")
+  { console.log("FAIL: the Maps tab did not show its own layer and nothing else", m1.tab, m1.rows); process.exit(1); }
+if (m1.n !== m1.nodes || m1.full !== m1.nodes || !m1.checked || m1.worst > 1e-5 || m1.order)
+  { console.log("FAIL: the interval map is not the definitions over the model", m1); process.exit(1); }
+if (m1.find === "none" || m1.findText.indexOf("0–30 ft below ground") < 0 || m1.rowsTxt.indexOf("Conductance") < 0 || !m1.legend)
+  { console.log("FAIL: the Maps tab did not state the interval's result", m1.find, m1.findText); process.exit(1); }
+if (!m1.shared || !m1.sameRange) { console.log("FAIL: the interval's resistivity is not on the slice's own colours", m1); process.exit(1); }
+if (!m1.read || m1.hover.indexOf("Ω·m") < 0) { console.log("FAIL: the map's reading at a node", m1.read, m1.hover); process.exit(1); }
+if (m1.drawn < 1 || m1.cover !== true || !(m1.z3 >= 0 && m1.z3 < 0.01) || !m1.pic)
+  { console.log("FAIL: the interval map is not a surface at the interval's middle under the ground", m1.drawn, m1.cover, m1.z3); process.exit(1); }
+if (m1.kindBtn !== "interval:true,top:false") { console.log("FAIL: the map switch does not show which map is on", m1.kindBtn); process.exit(1); }
+
+/* B. another reduction of the same interval is a repaint, not a job; an
+   elevation interval is level in 3D and leaves out what the model lacks */
+const m2 = await page.evaluate(async () => {
+  const T = SBMM.temmaps, jobs = () => SBMM.compute.stats.workerJobs + SBMM.compute.stats.syncJobs, wait = ms => new Promise(r => setTimeout(r, ms));
+  const M0 = T.result(), k0 = T.picture().key, j0 = jobs();
+  await T.set("iShow", "cond");
+  const out = { same: T.result() === M0, repaint: T.picture().key !== k0, jobs: jobs() - j0, unit: T.scale().unit, title: T.title() };
+  await T.set("iShow", "aniso");
+  out.aniLo = T.scale().lo; out.aniKind = T.scale().kind;
+  await T.set("iShow", "rhoG");
+  await T.set("iDatum", "elev");
+  for (let i = 0; i < 200 && !(T.result() && T.result().datum === "elev"); i++) await wait(50);
+  const M = T.result(), P = T.settings(), S3 = T.scene3d();
+  let lo = Infinity, hi = -Infinity, over = 0;
+  for (let id = 0; id < S3.z.length; id++) if (S3.z[id] === S3.z[id]) { lo = Math.min(lo, S3.z[id]); hi = Math.max(hi, S3.z[id]); }
+  for (let id = 0; id < M.thick.length; id++) if (M.thick[id] > M.want + 1e-4 || M.thick[id] < 0.5 * M.want - 1e-4) over++;
+  Object.assign(out, { datum: M.datum, a: M.a, b: M.b, pTop: P.iZTop, pBot: P.iZBot, want: M.want, level: hi - lo, mid: (M.a + M.b) / 2 - lo,
+    n: M.n, partial: M.partial, none: M.none, sum: M.n + M.partial + M.none, nodes: SBMM.geophys.result().nodes, over,
+    words: document.querySelector('#temWs [data-pane="maps"] [data-o="find"]').textContent });
+  await T.set("iDatum", "depth");
+  for (let i = 0; i < 200 && !(T.result() && T.result().datum === "depth"); i++) await wait(50);
+  return out;
+});
+console.log("TEM interval, other reductions and by elevation:", JSON.stringify(m2));
+if (!m2.same || !m2.repaint || m2.jobs !== 0 || m2.unit !== "S") { console.log("FAIL: showing the conductance re-ran the map instead of repainting it", m2); process.exit(1); }
+if (m2.aniLo !== 1 || m2.aniKind !== "lin") { console.log("FAIL: the anisotropy scale does not start at 1", m2); process.exit(1); }
+if (m2.datum !== "elev" || m2.a !== m2.pTop || m2.b !== m2.pBot || Math.abs(m2.want - 30) > 1e-9)
+  { console.log("FAIL: the elevation interval is not the depth interval under the median ground", m2); process.exit(1); }
+if (!(m2.level < 1e-6) || Math.abs(m2.mid) > 1e-6 || m2.over || m2.sum > m2.nodes || m2.words.indexOf("elevation") < 0)
+  { console.log("FAIL: an interval between elevations is not level, or maps nodes holding under half of it", m2); process.exit(1); }
+
+/* C. the top of the conductor: the blended model AT the top is the threshold */
+await page.evaluate(() => { SBMM.temmaps.set("kind", "top"); });
+await page.waitForFunction(() => SBMM.temmaps.result() && SBMM.temmaps.result().what === "top", null, { timeout: 60000 });
+const m3 = await page.evaluate(async () => {
+  const T = SBMM.temmaps, M = T.result(), G = SBMM.geophys, R = G.result(), N = R.nx * R.ny, wait = ms => new Promise(r => setTimeout(r, ms));
+  const out = { found: M.found, never: M.never, nodes: R.nodes, blend: M.blend, modelBlend: G.settings().blend, checked: 0, worst: 0, start: 0 };
+  for (let id = 0; id < N; id += 11) {
+    if (!(M.depth[id] === M.depth[id])) continue;
+    const x = M.x0 + (id % M.nx) * M.dx, y = M.y0 + Math.floor(id / M.nx) * M.dx, rho = G.rhoAt(x, y, M.depth[id]);
+    if (M.atStart[id]) { out.start++; if (!(rho < 10 * 1.0001)) out.worst = 9; continue; }
+    out.checked++; out.worst = Math.max(out.worst, Math.abs(rho / 10 - 1));
+  }
+  let id0 = -1; for (let k = 0; k < N; k += 7) if (M.depth[k] > 5) { id0 = k; break; }
+  const x0 = M.x0 + (id0 % M.nx) * M.dx, y0 = M.y0 + Math.floor(id0 / M.nx) * M.dx, S3 = T.scene3d(), [zg] = SBMM.elev(x0, y0), rd = T.readAt("map", x0, y0);
+  const pane = document.querySelector('#temWs [data-pane="maps"]');
+  Object.assign(out, { z3: isFinite(zg) ? Math.abs(S3.z[id0] - (zg - M.depth[id0])) : -1, read: rd && rd.value === M.depth[id0] && /below 10/.test(rd.head),
+    find: pane.querySelector('[data-o="find"]').dataset.temFinding, forTop: !pane.querySelector('[data-tm-for="top"]').hidden,
+    forInt: pane.querySelector('[data-tm-for="interval"]').hidden, title: T.title() });
+  /* the borings' own threshold, offered as a button */
+  const C = G.calibrate(), cb = pane.querySelector('[data-tm-a="calib"]');
+  out.calib = C && C.threshold ? +C.threshold.rho.toPrecision(3) : null; out.calibBtn = cb && !cb.disabled;
+  if (out.calibBtn) {
+    cb.click();
+    for (let i = 0; i < 200 && !(T.result() && T.result().what === "top" && T.result().thr === out.calib); i++) await wait(50);
+    out.thrNow = T.result().thr; out.foundAtCalib = T.result().found;
+  }
+  /* the resistor instead */
+  await T.set("tDir", "above");
+  for (let i = 0; i < 200 && !(T.result() && T.result().dir === "above"); i++) await wait(50);
+  out.above = { dir: T.result().dir, found: T.result().found, title: T.title() };
+  await T.set("tDir", "below"); await T.set("tThr", 10);
+  for (let i = 0; i < 200 && !(T.result() && T.result().dir === "below" && T.result().thr === 10); i++) await wait(50);
+  return out;
+});
+console.log("TEM top of the conductor:", JSON.stringify(m3));
+if (m3.found + m3.never !== m3.nodes || !m3.found || m3.blend !== m3.modelBlend)
+  { console.log("FAIL: the top-of-conductor map does not account for every node of the model", m3); process.exit(1); }
+if (!m3.checked || m3.worst > 1e-3) { console.log("FAIL: the model at the mapped depth is not the threshold", m3.checked, m3.worst); process.exit(1); }
+if (!(m3.z3 >= 0 && m3.z3 < 0.01) || !m3.read || !m3.forTop || !m3.forInt || m3.find === "none")
+  { console.log("FAIL: the top map's surface, reading or controls", m3); process.exit(1); }
+if (m3.calib != null && (!m3.calibBtn || m3.thrNow !== m3.calib)) { console.log("FAIL: the borings' threshold button did not set the threshold", m3.calib, m3.thrNow); process.exit(1); }
+if (m3.above.dir !== "above" || m3.above.title.indexOf("resistor") < 0) { console.log("FAIL: the resistor's top was not mapped", m3.above); process.exit(1); }
+
+/* D. on the 2D map: the chip at the pointer says what the map reads there,
+   the card states the result, the CSV carries every mapped node */
+await page.evaluate(async () => {
+  SBMM.temws.hide();
+  if (SBMM.viewer3d.isOpen()) await SBMM.viewer3d.toggle();
+  SBMM.layerState.set("invest", "tem_slice", { on: false });
+  SBMM.temmaps.setRow(true);
+  SBMM.shell.setRightTab("results");
+  SBMM.temmaps.showCard();
+  const R = SBMM.geophys.result();
+  SBMM.map.fitBounds([[R.y0, R.x0], [R.y0 + (R.ny - 1) * R.dx, R.x0 + (R.nx - 1) * R.dx]], Object.assign({ animate: false }, SBMM.omni.fitPad()));
+});
+await page.waitForTimeout(1500);
+const mpt = await page.evaluate(() => {
+  const T = SBMM.temmaps, M = T.result(), map = SBMM.map, r = map.getContainer().getBoundingClientRect(), F = SBMM.shell.frame();
+  for (let k = 0; k < M.nx * M.ny; k += 13) {
+    if (!(M.depth[k] > 1)) continue;
+    const x = M.x0 + (k % M.nx) * M.dx, y = M.y0 + Math.floor(k / M.nx) * M.dx;
+    if (SBMM.pick2d.probe(L.latLng(y, x)).length) continue;
+    const c = map.latLngToContainerPoint([y, x]), sx = r.left + c.x, sy = r.top + c.y;
+    if (sx < F.x + 60 || sx > F.x + F.w - 60 || sy < F.y + 60 || sy > F.y + F.h - 60) continue;
+    return { sx, sy, head: T.readAt("map", x, y).head };
+  }
+  return null;
+});
+if (!mpt) { console.log("FAIL: no node of the top map on screen to point at"); process.exit(1); }
+await page.mouse.move(mpt.sx - 24, mpt.sy - 18);
+await page.mouse.move(mpt.sx, mpt.sy, { steps: 3 });
+await page.waitForFunction(() => { const t = document.getElementById("temTip"); return t && !t.hidden; }, null, { timeout: 15000 }).catch(() => {});
+const m4 = await page.evaluate(() => {
+  const T = SBMM.temmaps, t = document.getElementById("temTip"), c = T.card(), csv = T.csv().trim().split("\n"), M = T.result();
+  return { chip: t && !t.hidden ? t.textContent : null, status: document.getElementById("sDem").textContent,
+           overlay: document.querySelectorAll(".leaflet-analysis-pane img, .leaflet-pane.leaflet-analysis-pane img").length,
+           card: !!(c && c.isConnected), cardTitle: c ? c.querySelector(".tmtitle").textContent : "", cardFind: c ? (c.querySelector(".tifind") || {}).textContent : "",
+           csvRows: csv.length - 2, found: M.found, csvHead: csv[1] };
+});
+console.log("TEM top map on the 2D map:", JSON.stringify(m4), "| pointing at", mpt.head);
+if (!m4.chip || m4.chip.indexOf(mpt.head) < 0) { console.log("FAIL: the chip at the pointer does not say what the map reads there", m4.chip, mpt.head); process.exit(1); }
+if (m4.status.indexOf("below 10") < 0) { console.log("FAIL: the status bar does not carry the map's reading", m4.status); process.exit(1); }
+if (!m4.card || m4.cardTitle.indexOf("top of the conductor") < 0 || !m4.cardFind) { console.log("FAIL: the top map's card", m4); process.exit(1); }
+if (m4.csvRows !== m4.found || m4.csvHead !== "easting_ft,northing_ft,depth_ft,elev_ft,thickness_ft,to_end_of_record,at_start")
+  { console.log("FAIL: the top map's CSV is not a row per mapped node", m4.csvRows, m4.found, m4.csvHead); process.exit(1); }
+await voiceCheck("TEM derived map");
+/* the card follows the map chosen: its headline row and its title */
+const m4b = await page.evaluate(async () => {
+  const T = SBMM.temmaps, c = T.card(), wait = ms => new Promise(r => setTimeout(r, ms));
+  const lead = () => (c.querySelector(".rrow") || c.querySelector(".rows")).textContent.trim().slice(0, 24);
+  const out = { depth: lead() };
+  await T.set("tShow", "thick"); out.thick = lead(); out.unitJobs = T.scale().name;
+  await T.set("kind", "interval");
+  for (let i = 0; i < 200 && !(T.result() && T.result().what === "interval"); i++) await wait(50);
+  out.title = c.querySelector(".tmtitle").textContent; out.kind = c.dataset.tm; out.interval = lead();
+  await T.set("tShow", "depth"); await T.set("kind", "top");
+  for (let i = 0; i < 200 && !(T.result() && T.result().what === "top"); i++) await wait(50);
+  return out;
+});
+console.log("TEM derived map card follows the map:", JSON.stringify(m4b));
+if (m4b.depth.indexOf("Depth") !== 0 || m4b.thick.indexOf("Thickness") !== 0 || m4b.interval.indexOf("Geometric mean") !== 0
+    || m4b.kind !== "interval" || m4b.title.indexOf("0–30 ft") < 0)
+  { console.log("FAIL: the derived map's card did not follow the map chosen", m4b); process.exit(1); }
+await page.mouse.move(mpt.sx + 300, 40);
+
+/* E. TEM off takes the map with it; without the payload the entry refuses */
+const m5 = await page.evaluate(async () => {
+  const wait = ms => new Promise(r => setTimeout(r, ms));
+  const out = { before: SBMM.geophys.rowsOn().join(",") };
+  SBMM.temws.off(true);
+  await wait(200);
+  out.after = SBMM.geophys.rowsOn().join(","); out.card = !!(SBMM.temmaps.card() && SBMM.temmaps.card().isConnected);
+  const keep = SBMM_DATA.tem2026;
+  delete SBMM_DATA.tem2026;
+  try { out.refused = (await SBMM.temmaps.open()) === false; out.toast = (document.getElementById("toast") || {}).textContent || ""; }
+  finally { SBMM_DATA.tem2026 = keep; }
+  return out;
+});
+console.log("TEM map, off and without the payload:", JSON.stringify(m5));
+if (m5.before.indexOf("tem_map") < 0 || m5.after !== "" || m5.card) { console.log("FAIL: turning TEM off left the derived map on", m5); process.exit(1); }
+if (!m5.refused || m5.toast.indexOf("not in this build") < 0) { console.log("FAIL: the derived map did not refuse without the survey", m5); process.exit(1); }
+
+/* F. data support: the slice faded with the distance to the nearest sounding */
+const m6 = await page.evaluate(async () => {
+  const G = SBMM.geophys, D = SBMM_DATA.tem2026, wait = ms => new Promise(r => setTimeout(r, ms));
+  const jobs = () => SBMM.compute.stats.workerJobs + SBMM.compute.stats.syncJobs;
+  await G.open(40);
+  for (let i = 0; i < 200 && !G.slice(); i++) await wait(50);
+  const alphas = () => { const cv = G.slice().canvas, d = cv.getContext("2d").getImageData(0, 0, cv.width, cv.height).data;
+    let lo = 255, hi = 0, n = 0; for (let i = 3; i < d.length; i += 4) if (d[i]) { n++; if (d[i] < lo) lo = d[i]; if (d[i] > hi) hi = d[i]; } return { lo, hi, n }; };
+  const out = { plain: alphas() };
+  await G.apply("conf", true);
+  for (let i = 0; i < 200 && !G.support(); i++) await wait(50);
+  const U = G.support(), R = G.result();
+  /* the soundings' own spacing, restated: each one's nearest neighbour, the median */
+  const nn = [];
+  for (let i = 0; i < D.n; i++) { let b = Infinity; for (let j = 0; j < D.n; j++) if (j !== i) b = Math.min(b, Math.hypot(D.x[i] - D.x[j], D.y[i] - D.y[j])); nn.push(b); }
+  nn.sort((a, b) => a - b);
+  out.spacing = U.spacing; out.spacingRef = nn[nn.length >> 1]; out.max = U.stats.max; out.blank = R.blank; out.n = U.stats.n; out.nodes = R.nodes;
+  out.faded = alphas();
+  /* a node's distance, restated, and the support it gives */
+  let worst = 0, k0 = -1;
+  for (let id = 0; id < R.nx * R.ny; id += 37) {
+    if (!R.mask[id]) continue;
+    const x = R.x0 + (id % R.nx) * R.dx, y = R.y0 + Math.floor(id / R.nx) * R.dx;
+    let b = Infinity; for (let i = 0; i < D.n; i++) b = Math.min(b, Math.hypot(D.x[i] - x, D.y[i] - y));
+    worst = Math.max(worst, Math.abs(U.dist[id] - b)); if (k0 < 0 && b > 30) k0 = id;
+  }
+  out.worstDist = worst;
+  out.ends = [G.supportOf(0), G.supportOf(U.spacing), G.supportOf(R.blank), G.supportOf((U.spacing + R.blank) / 2)];
+  const x = R.x0 + (k0 % R.nx) * R.dx, y = R.y0 + Math.floor(k0 / R.nx) * R.dx, p = G.probe(x, y);
+  out.probe = p.ok && p.support ? { k: p.support.k, want: G.supportOf(p.snd.dist), word: p.support.word } : null;
+  out.csvHead = G.sliceCsv().split("\n").find(l => l.indexOf("easting_ft") === 0);
+  /* a depth step with the shading on runs no job */
+  const j0 = jobs();
+  await G.apply("depth", 55); await wait(300);
+  out.stepJobs = jobs() - j0; out.fadedAt55 = alphas();
+  out.box = !!document.querySelector('#resBody [data-tem="conf"]') && document.querySelector('#resBody [data-tem="conf"]').checked;
+  await G.apply("conf", false);
+  out.back = alphas();
+  await G.apply("depth", 40);
+  return out;
+});
+console.log("TEM data support:", JSON.stringify(m6));
+if (m6.plain.lo !== 255) { console.log("FAIL: the slice is faded with the shading off", m6.plain); process.exit(1); }
+if (Math.abs(m6.spacing - m6.spacingRef) > 1e-6 || m6.max > m6.blank + 1e-3 || m6.n !== m6.nodes || m6.worstDist > 0.01)
+  { console.log("FAIL: the distance to the nearest sounding is not the distance to the nearest sounding", m6); process.exit(1); }
+if (m6.ends[0] !== 1 || m6.ends[1] !== 1 || m6.ends[2] !== 0 || Math.abs(m6.ends[3] - 0.5) > 1e-9)
+  { console.log("FAIL: support is not 1 at the soundings' spacing, 0 at the blanking distance, linear between", m6.ends); process.exit(1); }
+if (!(m6.faded.lo < 255 && m6.faded.lo >= 63 && m6.faded.hi === 255) || !(m6.fadedAt55.lo < 255))
+  { console.log("FAIL: the shading did not fade the slice, or faded it under a quarter", m6.faded, m6.fadedAt55); process.exit(1); }
+if (!m6.probe || Math.abs(m6.probe.k - m6.probe.want) > 1e-9 || !m6.probe.word) { console.log("FAIL: the probe's support is not its distance's", m6.probe); process.exit(1); }
+if (m6.csvHead !== "easting_ft,northing_ft,value,sounding_ft,support") { console.log("FAIL: the slice CSV does not carry the support", m6.csvHead); process.exit(1); }
+if (m6.stepJobs !== 0 || !m6.box) { console.log("FAIL: a depth step under the shading ran a job, or the card's box is not ticked", m6.stepJobs, m6.box); process.exit(1); }
+if (m6.back.lo !== 255) { console.log("FAIL: switching the shading off left the slice faded", m6.back); process.exit(1); }
+/* put it all away */
+await page.evaluate(async () => {
+  SBMM.temws.off(true);
   if (SBMM.viewer3d.isOpen()) await SBMM.viewer3d.toggle();
   SBMM.shell.collapse("l", false);
 });
@@ -9207,6 +9485,8 @@ parity = await page.evaluate(async () => {
   for (let i = 0; i < 120 && SBMM.geophys && SBMM.geophys.data() && !SBMM.geophys.slice(); i++) await wait(250);
   /* v38: and its two interpretations, whose first tick runs their kernels */
   for (let i = 0; i < 120 && SBMM.teminterp && SBMM.geophys.data() && !(SBMM.teminterp.waste() && SBMM.teminterp.seep()); i++) await wait(250);
+  /* v54: and the derived map, whose first tick runs its kernel */
+  for (let i = 0; i < 120 && SBMM.temmaps && SBMM.geophys.data() && !SBMM.temmaps.result(); i++) await wait(250);
   /* the CAD groups parse their geometry lazily on first enable */
   await wait(4000);
   const wasOpen = SBMM.viewer3d.isOpen();

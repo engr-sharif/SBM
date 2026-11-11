@@ -120,6 +120,7 @@ SBMM.temprobe = (function () {
     raf2 = requestAnimationFrame(() => { raf2 = 0; move2d(last2); });
   }
   function move2d(ev) {
+    if (ev && !active2d() && mapChip2d(ev)) return;
     if (!ev || !active2d()) { hideChip(); return; }
     /* a feature's own chip is the chip; so is a pressed button (a pan) */
     if ((ev.originalEvent && ev.originalEvent.buttons) || (SBMM.pick2d && SBMM.pick2d.state().chip)) { hideChip(); return; }
@@ -128,6 +129,18 @@ SBMM.temprobe = (function () {
     const oe = ev.originalEvent;
     showChip(oe.clientX, oe.clientY, chipHtml(p), keyOf(p));
     emit(p);
+  }
+  /* v54: with the slice off and a derived map on (js/temmaps.js), the chip
+     says what THAT map reads here */
+  function mapChip2d(ev) {
+    const T = SBMM.temmaps;
+    if (!T || !T.on() || !T.result() || document.body.classList.contains("field")) return false;
+    if ((ev.originalEvent && ev.originalEvent.buttons) || (SBMM.pick2d && SBMM.pick2d.state().chip)) return false;
+    const r = T.readAt("map", ev.latlng.lng, ev.latlng.lat);
+    if (!r) return false;
+    showChip(ev.originalEvent.clientX, ev.originalEvent.clientY, `<div class="tpt"><div class="tp1"><b class="mono">${esc(r.head)}</b></div>`
+      + r.lines.map(l => `<div class="tp2">${esc(l)}</div>`).join("") + `</div>`, "map|" + r.key);
+    return true;
   }
   function onClick2d(ev) {
     if (!active2d() || !ev.latlng) return;
@@ -223,7 +236,7 @@ SBMM.temprobe = (function () {
   }
   /* the two interpretation surfaces: the value at the point, not a sentence */
   function hoverInterp(what, hit, e) {
-    const w = world(hit), T = SBMM.teminterp;
+    const w = world(hit), T = what === "map" ? SBMM.temmaps : SBMM.teminterp;
     const r = w && T && T.readAt ? T.readAt(what, w[0], w[1]) : null;
     if (!r) { end3d(); return false; }
     showChip(e.clientX, e.clientY, `<div class="tpt"><div class="tp1"><b class="mono">${esc(r.head)}</b></div>`
@@ -304,6 +317,8 @@ SBMM.temprobe = (function () {
     rows.push(["Model layer", `${p.layer.l + 1} of ${p.layer.n} · ${f1(p.layer.top)}–${f1(p.layer.bot)} ft`]);
     if (p.snd) rows.push(["Nearest sounding", `${p.snd.id} · ${f0(p.snd.dist)} ft · ${fV(p.snd.rho)} Ω·m`,
                           "What that sounding's own inverted model reads at this depth"]);
+    if (p.support) rows.push(["Data support", `${p.support.word} · ${Math.round(p.support.k * 100)} %`,
+                              `By distance to the nearest sounding: 100 % at ${f1(p.support.spacing)} ft (the soundings' own spacing) or closer, 0 at ${f0(p.support.blank)} ft`]);
     if (p.boring) rows.push(["Nearest boring", `${p.boring.id} · ${f0(p.boring.dist)} ft · `
       + (p.boring.cls ? `logged ${p.boring.cls}` : p.depth > (p.boring.total || 0) ? "below its depth" : "not classed here"),
       "From the boring's logged contacts"]);

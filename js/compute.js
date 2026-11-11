@@ -5896,6 +5896,204 @@ var SBMM_COMPUTE = (function SBMMComputeModule() {
     };
   }
 
+  /* =====================================================================
+     v54 — TEM DERIVED MAPS (js/temmaps.js). Three readings of the `tem`
+     job's grid as it stands (log10 Ω·m per layer, its mask, its ground);
+     nothing is interpolated again.
+
+       what: "interval"  the layers between two depths below ground, or two
+                         elevations, reduced to one value per node. A stack
+                         of layers has no single resistivity: current that
+                         runs ALONG the layers meets them in parallel,
+                         current that crosses them meets them in series. So
+                         the job reports both, and what they are made of —
+                           cond   Σ t/ρ               longitudinal conductance, S
+                           rhoL   T / Σ t/ρ           along the layers (harmonic)
+                           rhoT   Σ t·ρ / T           across the layers (arithmetic)
+                           rhoG   10^(Σ t·log ρ / T)  the geometric mean
+                           aniso  sqrt(rhoT / rhoL)   1 = one material, more = layered
+                         (the Dar Zarrouk parameters). rhoL ≤ rhoG ≤ rhoT
+                         always, and the harness asserts it.
+             "top"       the depth at which the model first crosses a
+                         resistivity going down from `from` — the top of the
+                         conductor (dir "below") or of the resistor
+                         ("above") — its thickness to the next crossing back,
+                         and whether it runs on to the end of the record.
+                         With `blend` the model between layer mid-depths is
+                         the app's own (linear in log10 ρ, js/geophys.js
+                         blendOf), so the depth is continuous; without it the
+                         model is the layers as inverted and the depth is a
+                         layer boundary.
+             "support"   how far each node is from the nearest sounding and
+                         which sounding that is, and the soundings' own
+                         median spacing.
+
+     Lengths are the caller's (the app passes feet). `cond` alone is in
+     siemens: thicknesses are converted from US survey feet to metres for it
+     and for nothing else. A layer with no value ends the record at that
+     node. Pure arithmetic over typed arrays; no WASM port.
+     ===================================================================== */
+  function temStats(a) {
+    var v = [], i, s = 0;
+    for (i = 0; i < a.length; i++) if (a[i] === a[i]) { v.push(a[i]); s += a[i]; }
+    v.sort(function (p, q) { return p - q; });
+    var pc = function (p) { return v.length ? v[Math.min(v.length - 1, Math.round(p * (v.length - 1)))] : NaN; };
+    return { n: v.length, min: pc(0), p02: pc(0.02), p10: pc(0.1), p25: pc(0.25), p50: pc(0.5),
+             p75: pc(0.75), p90: pc(0.9), p98: pc(0.98), max: pc(1), mean: v.length ? s / v.length : NaN };
+  }
+  function temMapJob(job, onProgress) {
+    var t0 = Date.now(), prog = function (p) { if (onProgress) onProgress(p); };
+    var nx = job.nx | 0, ny = job.ny | 0, N = nx * ny, M = job.mask, what = job.what, id, l, i, j;
+    if (!(N > 0) || !M || M.length !== N) throw new Error("temmap: the model grid does not match");
+    var dx = job.dx, nanF = function () { return new Float32Array(N).fill(NaN); };
+
+    if (what === "support") {
+      var X = job.x, Y = job.y, NS = X ? X.length : 0;
+      if (!(NS > 0) || !Y || Y.length !== NS) throw new Error("temmap: no soundings");
+      var dist = nanF(), near = new Int32Array(N).fill(-1), best, bi, ex, ey, d2;
+      for (id = 0; id < N; id++) {
+        if (!M[id]) continue;
+        var px = job.x0 + (id % nx) * dx, py = job.y0 + Math.floor(id / nx) * dx;
+        best = Infinity; bi = -1;
+        for (i = 0; i < NS; i++) {
+          ex = X[i] - px; ey = Y[i] - py; d2 = ex * ex + ey * ey;
+          if (d2 < best) { best = d2; bi = i; }       /* a tie keeps the lower index */
+        }
+        dist[id] = Math.sqrt(best); near[id] = bi;
+        if ((id & 2047) === 0) prog(0.8 * id / N);
+      }
+      /* the soundings' own spacing: each one's nearest neighbour, the median */
+      var nn = [];
+      for (i = 0; i < NS; i++) {
+        best = Infinity;
+        for (j = 0; j < NS; j++) {
+          if (j === i) continue;
+          ex = X[i] - X[j]; ey = Y[i] - Y[j]; d2 = ex * ex + ey * ey;
+          if (d2 < best) best = d2;
+        }
+        if (best < Infinity) nn.push(Math.sqrt(best));
+      }
+      nn.sort(function (p, q) { return p - q; });
+      prog(1);
+      return {
+        result: { what: what, nx: nx, ny: ny, dx: dx, x0: job.x0, y0: job.y0, dist: dist, near: near,
+                  spacing: nn.length ? nn[nn.length >> 1] : NaN, soundings: NS, stats: temStats(dist), ms: Date.now() - t0 },
+        transfer: [dist.buffer, near.buffer]
+      };
+    }
+
+    var NL = job.nl | 0, LG = job.log, G = job.surf, TOP = job.top_ft, BOT = job.bot_ft;
+    if (!(NL > 0) || !LG || LG.length !== N * NL || !TOP || !BOT || TOP.length < NL || BOT.length < NL)
+      throw new Error("temmap: the model grid does not match");
+    if (G && G.length !== N) throw new Error("temmap: the model's ground does not match its grid");
+
+    if (what === "interval") {
+      var byE = job.datum === "elev", a = +job.a, b = +job.b;
+      if (byE ? !(a > b) : !(b > a && a >= 0)) throw new Error("temmap: the interval's top must be above its bottom");
+      if (byE && !G) throw new Error("temmap: an interval between elevations needs the model's ground");
+      var want = Math.abs(a - b), minCover = job.minCover >= 0 && job.minCover <= 1 ? +job.minCover : 0.5;
+      var FTM = 1200 / 3937;
+      var thick = nanF(), rhoG = nanF(), rhoL = nanF(), rhoT = nanF(), cond = nanF(), aniso = nanF();
+      var n = 0, full = 0, part = 0, none = 0;
+      for (id = 0; id < N; id++) {
+        if (!M[id]) continue;
+        var dT = a, dB = b;
+        if (byE) { var g = G[id]; if (!(g === g)) continue; dT = g - a; dB = g - b; }
+        var T = 0, sv = 0, sc = 0, sr = 0;
+        for (l = 0; l < NL; l++) {
+          var lo = Math.max(dT, TOP[l]), hi = Math.min(dB, BOT[l]);
+          if (!(hi > lo)) continue;
+          var v = LG[l * N + id];
+          if (!(v === v)) break;                      /* the record ends here */
+          var t = hi - lo, rho = Math.pow(10, v);
+          T += t; sv += t * v; sc += t / rho; sr += t * rho;
+        }
+        if (!(T > 0)) { none++; continue; }
+        if (T < minCover * want - 1e-9) { part++; continue; }
+        if (T >= want - 1e-6) full++;
+        n++;
+        thick[id] = T; rhoG[id] = Math.pow(10, sv / T); rhoL[id] = T / sc; rhoT[id] = sr / T;
+        cond[id] = sc * FTM; aniso[id] = Math.sqrt((sr / T) / (T / sc));
+      }
+      prog(1);
+      return {
+        result: { what: what, nx: nx, ny: ny, dx: dx, x0: job.x0, y0: job.y0, datum: byE ? "elev" : "depth",
+                  a: a, b: b, want: want, minCover: minCover,
+                  thick: thick, rhoG: rhoG, rhoL: rhoL, rhoT: rhoT, cond: cond, aniso: aniso,
+                  n: n, full: full, partial: part, none: none, area_ft2: n * dx * dx,
+                  stats: { rhoG: temStats(rhoG), rhoL: temStats(rhoL), rhoT: temStats(rhoT),
+                           cond: temStats(cond), aniso: temStats(aniso), thick: temStats(thick) },
+                  ms: Date.now() - t0 },
+        transfer: [thick.buffer, rhoG.buffer, rhoL.buffer, rhoT.buffer, cond.buffer, aniso.buffer]
+      };
+    }
+
+    if (what === "top") {
+      var thr = +job.thr;
+      if (!(thr > 0)) throw new Error("temmap: the threshold must be a resistivity above zero");
+      var lthr = Math.log10(thr), below = job.dir !== "above", from = job.from > 0 ? +job.from : 0, blend = !!job.blend;
+      var sat = function (q) { return below ? q < lthr : q > lthr; };
+      var MID = [];
+      for (l = 0; l < NL; l++) MID.push((TOP[l] + BOT[l]) / 2);
+      var depth = nanF(), tk = nanF(), elev = nanF(), open = new Uint8Array(N), atStart = new Uint8Array(N);
+      var found = 0, never = 0, nStart = 0, nOpen = 0;
+      for (id = 0; id < N; id++) {
+        if (!M[id]) continue;
+        var nv = 0;
+        while (nv < NL && LG[nv * N + id] === LG[nv * N + id]) nv++;
+        if (!nv) continue;
+        var end = BOT[nv - 1];
+        if (!(from < end)) continue;                  /* the search starts below the record */
+        var d = NaN, bs = NaN, st = 0;
+        if (!blend) {
+          for (l = 0; l < nv; l++) {
+            if (BOT[l] <= from) continue;
+            var s1 = sat(LG[l * N + id]);
+            if (!(d === d)) { if (s1) { d = Math.max(from, TOP[l]); st = d <= from ? 1 : 0; } }
+            else if (!s1) { bs = TOP[l]; break; }
+          }
+        } else {
+          /* the model at `from`: constant above the first mid-depth and below
+             the last, linear in log10 between two */
+          var k = 0, vp, dp = from;
+          while (k < nv - 1 && from >= MID[k + 1]) k++;
+          if (nv === 1 || from <= MID[0]) vp = LG[id];
+          else if (k >= nv - 1) vp = LG[(nv - 1) * N + id];
+          else {
+            var f = (from - MID[k]) / (MID[k + 1] - MID[k]);
+            vp = LG[k * N + id] * (1 - f) + LG[(k + 1) * N + id] * f;
+          }
+          var ins = sat(vp);
+          if (ins) { d = from; st = 1; }
+          for (l = 0; l < nv; l++) {
+            if (!(MID[l] > from)) continue;
+            var vl = LG[l * N + id];
+            if (sat(vl) !== ins) {
+              var cross = dp + (lthr - vp) / (vl - vp) * (MID[l] - dp);
+              if (!ins) { d = cross; ins = true; } else { bs = cross; break; }
+            }
+            dp = MID[l]; vp = vl;
+          }
+        }
+        if (!(d === d)) { never++; continue; }
+        if (!(bs === bs)) { bs = end; open[id] = 1; nOpen++; }
+        depth[id] = d; tk[id] = bs - d;
+        if (G && G[id] === G[id]) elev[id] = G[id] - d;
+        if (st) { atStart[id] = 1; nStart++; }
+        found++;
+      }
+      prog(1);
+      return {
+        result: { what: what, nx: nx, ny: ny, dx: dx, x0: job.x0, y0: job.y0, thr: thr, dir: below ? "below" : "above",
+                  from: from, blend: blend, depth: depth, thick: tk, elev: elev, open: open, atStart: atStart,
+                  found: found, never: never, atStartN: nStart, openN: nOpen, area_ft2: found * dx * dx,
+                  stats: { depth: temStats(depth), thick: temStats(tk) }, ms: Date.now() - t0 },
+        transfer: [depth.buffer, tk.buffer, elev.buffer, open.buffer, atStart.buffer]
+      };
+    }
+    throw new Error("temmap: unknown map " + what);
+  }
+
   function runJob(kind, job, onProgress) {
     if (kind === "volume") return volumeGrid(job, onProgress);
     if (kind === "isopach") return isopachGrid(job, onProgress);
@@ -5919,6 +6117,7 @@ var SBMM_COMPUTE = (function SBMMComputeModule() {
     if (kind === "tem") return temJob(job, onProgress);
     if (kind === "temwaste") return temWasteJob(job, onProgress);
     if (kind === "temseep") return temSeepJob(job, onProgress);
+    if (kind === "temmap") return temMapJob(job, onProgress);
     throw new Error("unknown compute job: " + kind);
   }
 

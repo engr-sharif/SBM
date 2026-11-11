@@ -2603,6 +2603,39 @@ SBMM.viewer3d = (function () {
           addG.add(tag(tube, "invest", "tem_seep"));
         }
       }
+      /* v54: a derived TEM map (js/temmaps.js) — an elevation per node and
+         the map's own picture on it: an interval between depths follows the
+         ground at its middle, between elevations it is level, a top-of-
+         conductor map IS the surface. Under the ground, so noClip. */
+      const TM = SBMM.temmaps && SBMM.temmaps.scene3d ? SBMM.temmaps.scene3d() : null;
+      if (TM) {
+        const mnx = TM.nx, mny = TM.ny, n = mnx * mny;
+        const pos = new Float32Array(n * 3), uv = new Float32Array(n * 2);
+        for (let iy = 0; iy < mny; iy++) for (let ix = 0; ix < mnx; ix++) {
+          const id = iy * mnx + ix, z = TM.z[id];
+          pos[id * 3] = TM.x0 + ix * TM.dx - CX; pos[id * 3 + 1] = TM.y0 + iy * TM.dx - CY;
+          pos[id * 3 + 2] = (z === z ? z : ZMID) - ZMID;
+          /* the picture is `up` pixels a node, a node on a pixel's centre */
+          uv[id * 2] = (ix * TM.up + 0.5) / TM.W; uv[id * 2 + 1] = (iy * TM.up + 0.5) / TM.H;
+        }
+        const okM = id => TM.z[id] === TM.z[id];
+        const ind = [];
+        for (let iy = 0; iy < mny - 1; iy++) for (let ix = 0; ix < mnx - 1; ix++) {
+          const q = iy * mnx + ix, b2 = q + 1, c2 = q + mnx, d2 = c2 + 1;
+          if (okM(q) && okM(b2) && okM(c2) && okM(d2)) ind.push(q, b2, d2, q, d2, c2);
+        }
+        if (ind.length) {
+          const g = new THREE.BufferGeometry();
+          g.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+          g.setAttribute("uv", new THREE.BufferAttribute(uv, 2));
+          g.setIndex(ind);
+          const m = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ map: texOf(TM.canvas), side: THREE.DoubleSide,
+            transparent: true, opacity: TM.opacity, depthWrite: false }));
+          m.renderOrder = 2; m.userData.noClip = true;
+          m.userData.pick = { kind: "temmap" };
+          addG.add(tag(m, "invest", "tem_map"));
+        }
+      }
       for (const [cv, t] of temTex) if (!used.has(cv)) { t.dispose(); temTex.delete(cv); }
     }
     /* the storm-drainage network (v12 §5.1): the conduits draped on the ground

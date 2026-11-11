@@ -252,6 +252,8 @@ SBMM.buildLayers = function () {
   if (SBMM.geophys) SBMM.geophys.build();
   /* v38: its two interpretations, in the same sub-group */
   if (SBMM.teminterp) SBMM.teminterp.build();
+  /* v54: maps derived from the model — an interval, the top of a conductor */
+  if (SBMM.temmaps) SBMM.temmaps.build();
 
   /* ---------- cultural resources — CONFIDENTIAL, off by default ----------
      Built last so its rows land at the bottom of the Site-wide section, and

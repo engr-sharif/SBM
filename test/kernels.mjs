@@ -4132,6 +4132,252 @@ function secTeminterp() {
   }
 }
 
+/* v54 — `temmap` (js/temmaps.js run): interval maps, the top of the
+   conductor, and the distance to the data. Every number in §18.1–18.3 is an
+   arithmetic identity written out here; §18.4 is the site, built the way the
+   app builds the jobs, with one cross-check against a kernel that already
+   ships (`temseep`'s band resistivity IS the interval's longitudinal
+   resistivity) and the rest recorded from this commit. */
+let temmapRan = false;
+const TM_FTM = 1200 / 3937;
+/* the model between layer mid-depths, as js/geophys.js blendOf states it:
+   constant above the first mid-depth and below the last, linear in log10 */
+function tmBlend(job, id, depth) {
+  const N = job.nx * job.ny, mid = l => (job.top_ft[l] + job.bot_ft[l]) / 2, nl = job.nl;
+  if (depth <= mid(0)) return job.log[id];
+  if (depth >= mid(nl - 1)) return job.log[(nl - 1) * N + id];
+  let l = 0;
+  while (l < nl - 2 && depth >= mid(l + 1)) l++;
+  const f = (depth - mid(l)) / (mid(l + 1) - mid(l));
+  return job.log[l * N + id] * (1 - f) + job.log[(l + 1) * N + id] * f;
+}
+/* an interval's three means and its conductance, written from the definitions */
+function tmInterval(job, id, dT, dB) {
+  const N = job.nx * job.ny;
+  let T = 0, sv = 0, sc = 0, sr = 0;
+  for (let l = 0; l < job.nl; l++) {
+    const t = Math.min(dB, job.bot_ft[l]) - Math.max(dT, job.top_ft[l]);
+    if (!(t > 0)) continue;
+    const rho = 10 ** job.log[l * N + id];
+    T += t; sv += t * job.log[l * N + id]; sc += t / rho; sr += t * rho;
+  }
+  return { T, rhoG: 10 ** (sv / T), rhoL: T / sc, rhoT: sr / T, cond: sc * TM_FTM };
+}
+function secTemmap() {
+  if (temmapRan) { console.log("\n§18  temmap has no WASM port — the JavaScript run above stands"); return; }
+  temmapRan = true;
+  const run = (job, extra) => C.runJob("temmap", Object.assign({}, job, extra)).result;
+  let seed = 20260511;
+  const rnd = () => (seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296;
+
+  console.log("\n§18.1  interval — two materials, one material, and the order of the three means");
+  {
+    /* eight 5-ft layers: 100 ohm-m over 10 ohm-m, the change at 20 ft */
+    const job = tiSynth(12, 10, 10, 8, null, (ix, iy, l) => l < 4 ? 2 : 1);
+    const I = run(job, { what: "interval", datum: "depth", a: 10, b: 30 });
+    exact("nodes mapped", I.n, 120);
+    near("thickness covered", I.thick[7], 20, 1e-6, " ft");
+    near("along the layers, 20/(10/100+10/10)", I.rhoL[7], 20 / 1.1, 1e-4, " ohm-m");
+    near("across the layers, (10*100+10*10)/20", I.rhoT[7], 55, 1e-4, " ohm-m");
+    near("geometric mean, sqrt(100*10)", I.rhoG[7], Math.sqrt(1000), 1e-4, " ohm-m");
+    near("anisotropy, sqrt(55/18.18)", I.aniso[7], Math.sqrt(55 / (20 / 1.1)), 1e-5);
+    near("conductance, 1.1 ft/(ohm-m) in S", I.cond[7], 1.1 * TM_FTM, 1e-6, " S");
+    const one = run(job, { what: "interval", datum: "depth", a: 0, b: 20 });
+    near("one material: every mean is it", Math.max(Math.abs(one.rhoL[3] - 100), Math.abs(one.rhoT[3] - 100), Math.abs(one.rhoG[3] - 100)), 0, 1e-3, " ohm-m");
+    near("one material: anisotropy", one.aniso[3], 1, 1e-6);
+    /* a random model: harmonic <= geometric <= arithmetic at every node, and
+       every node equal to the definitions written out above */
+    const rj = tiSynth(20, 16, 10, 10, null, () => 0.3 + 2.2 * rnd());
+    const Rn = run(rj, { what: "interval", datum: "depth", a: 7, b: 41 });
+    let bad = 0, worst = 0;
+    for (let id = 0; id < Rn.rhoL.length; id++) {
+      if (!(Rn.rhoL[id] <= Rn.rhoG[id] * (1 + 1e-6) && Rn.rhoG[id] <= Rn.rhoT[id] * (1 + 1e-6))) bad++;
+      const ref = tmInterval(rj, id, 7, 41);
+      worst = Math.max(worst, Math.abs(Rn.rhoL[id] / ref.rhoL - 1), Math.abs(Rn.rhoT[id] / ref.rhoT - 1),
+        Math.abs(Rn.rhoG[id] / ref.rhoG - 1), Math.abs(Rn.cond[id] / ref.cond - 1), Math.abs(Rn.thick[id] / ref.T - 1));
+    }
+    exact("nodes out of order (L <= G <= T)", bad, 0);
+    atMost("worst relative difference from the definitions", +worst.toExponential(2), 1e-6);
+    near("anisotropy is never under 1", Rn.stats.aniso.min >= 1 - 1e-6 ? 1 : 0, 1, 0);
+  }
+
+  console.log("\n§18.2  interval — between elevations, and how much of it the model holds");
+  {
+    /* ground rising a foot a node from 500 ft; the band 485-465 ft */
+    const job = tiSynth(30, 6, 10, 8, null, () => 0.3 + 2.2 * rnd());
+    const N = job.nx * job.ny, surf = new Float32Array(N);
+    for (let id = 0; id < N; id++) surf[id] = 500 + (id % job.nx);
+    const E = run(job, { what: "interval", datum: "elev", a: 485, b: 465, surf, minCover: 0.5 });
+    /* node ix: the band is depths 15+ix .. 35+ix; the record ends at 40 */
+    let worst = 0, kept = 0, wantKept = 0, wantFull = 0;
+    for (let id = 0; id < N; id++) {
+      const ix = id % job.nx, cover = Math.max(0, Math.min(40, 35 + ix) - (15 + ix));
+      if (cover >= 10 - 1e-9 && cover > 0) wantKept++;
+      if (cover >= 20 - 1e-6) wantFull++;
+      if (!(E.rhoL[id] === E.rhoL[id])) continue;
+      kept++;
+      const ref = tmInterval(job, id, 15 + ix, 35 + ix);
+      worst = Math.max(worst, Math.abs(E.rhoL[id] / ref.rhoL - 1), Math.abs(E.thick[id] / ref.T - 1));
+    }
+    exact("nodes holding half the band or more", kept, wantKept);
+    exact("of them, holding all of it", E.full, wantFull);
+    exact("dropped: under half / none of it", E.partial + " / " + E.none, (N - wantKept - 6 * 5) + " / " + 6 * 5);
+    atMost("worst relative difference from the definitions", +worst.toExponential(2), 1e-6);
+    const all = run(job, { what: "interval", datum: "elev", a: 485, b: 465, surf, minCover: 0 });
+    exact("with no minimum, every node the band touches", all.n, N - 6 * 5);
+    /* on level ground an elevation band IS a depth interval */
+    const flat = new Float32Array(N).fill(500);
+    const a = run(job, { what: "interval", datum: "elev", a: 490, b: 470, surf: flat });
+    const b = run(job, { what: "interval", datum: "depth", a: 10, b: 30 });
+    let diff = 0;
+    for (let id = 0; id < N; id++) diff = Math.max(diff, Math.abs(a.rhoG[id] - b.rhoG[id]), Math.abs(a.cond[id] - b.cond[id]));
+    exact("level ground: elevation band == depth interval", diff, 0);
+  }
+
+  console.log("\n§18.3  top — a layer boundary, a crossing between mid-depths, a sandwich");
+  {
+    /* 100 over 10 ohm-m, the change deepening eastward; threshold 30 */
+    const job = tiSynth(24, 5, 10, 8, (ix) => 6 + ix * 1.25);
+    const N = job.nx * job.ny, lthr = Math.log10(30);
+    const Ld = run(job, { what: "top", thr: 30, dir: "below", from: 0, blend: false });
+    const Bd = run(job, { what: "top", thr: 30, dir: "below", from: 0, blend: true });
+    let wl = 0, wb = 0, wv = 0, opens = 0;
+    for (let id = 0; id < N; id++) {
+      const ix = id % job.nx, drop = 6 + ix * 1.25;
+      /* tiSynth: a layer is conductive when its mid-depth is at or past `drop` */
+      let k = 0; while (k < 8 && k * 5 + 2.5 < drop) k++;
+      wl = Math.max(wl, Math.abs(Ld.depth[id] - k * 5));
+      /* blended: between the last resistive mid-depth and the first conductive one */
+      const ref = k === 0 ? 0 : (k * 5 - 2.5) + (lthr - 2) / (1 - 2) * 5;
+      wb = Math.max(wb, Math.abs(Bd.depth[id] - ref));
+      if (k > 0) wv = Math.max(wv, Math.abs(10 ** tmBlend(job, id, Bd.depth[id]) / 30 - 1));
+      opens += Ld.open[id] + Bd.open[id];
+    }
+    atMost("layered: worst |top - layer boundary|", +wl.toExponential(2), 1e-6, " ft");
+    atMost("blended: worst |top - the crossing|", +wb.toExponential(2), 1e-5, " ft");
+    atMost("blended: the model AT the top is the threshold", +wv.toExponential(2), 1e-5);
+    exact("conductor runs to the end of the record", opens, 2 * N);
+    near("thickness, to the end of the record", Ld.thick[N - 1] + Ld.depth[N - 1], 40, 1e-6, " ft");
+
+    /* 100 / 10 / 100: a conductor from 10 to 20 ft */
+    const sw = tiSynth(6, 4, 10, 8, null, (ix, iy, l) => l === 2 || l === 3 ? 1 : 2);
+    const S1 = run(sw, { what: "top", thr: 30, dir: "below", blend: false });
+    exact("sandwich: top / thickness / open", S1.depth[5] + " / " + S1.thick[5] + " / " + S1.open[5], "10 / 10 / 0");
+    const S2 = run(sw, { what: "top", thr: 30, dir: "below", from: 12, blend: false });
+    exact("search from inside it: top / thickness / at the start", S2.depth[5] + " / " + S2.thick[5] + " / " + S2.atStart[5], "12 / 8 / 1");
+    const S3 = run(sw, { what: "top", thr: 30, dir: "above", blend: false });
+    exact("the resistor instead: top / thickness", S3.depth[5] + " / " + S3.thick[5], "0 / 10");
+    const S4 = run(sw, { what: "top", thr: 30, dir: "above", from: 12, blend: false });
+    exact("the resistor under the conductor: top / open", S4.depth[5] + " / " + S4.open[5], "20 / 1");
+    const S5 = run(sw, { what: "top", thr: 5, dir: "below", blend: true });
+    exact("a threshold nothing reaches: found / never", S5.found + " / " + S5.never, "0 / 24");
+    /* blended sandwich: in at 7.5+0.5229*5, out at 17.5+(1-0.5229)*5 */
+    const S6 = run(sw, { what: "top", thr: 30, dir: "below", blend: true });
+    const fr = (lthr - 2) / (1 - 2);
+    near("blended sandwich: top", S6.depth[5], 7.5 + fr * 5, 1e-5, " ft");
+    near("blended sandwich: thickness", S6.thick[5], (17.5 + (1 - fr) * 5) - (7.5 + fr * 5), 1e-5, " ft");
+    /* the ground gives the elevation; a layer with no value ends the record */
+    const surf = new Float32Array(24).fill(800);
+    const S7 = run(sw, { what: "top", thr: 30, dir: "below", blend: false, surf });
+    exact("elevation of the top", S7.elev[5], 790);
+    const cut = Object.assign({}, sw, { log: Float32Array.from(sw.log) });
+    cut.log[3 * 24 + 5] = NaN;
+    const S8 = run(cut, { what: "top", thr: 30, dir: "below", blend: false });
+    exact("record cut at 15 ft: thickness / open", S8.thick[5] + " / " + S8.open[5], "5 / 1");
+    /* a random model: a higher threshold never finds the conductor deeper */
+    const rj = tiSynth(20, 16, 10, 10, null, () => 0.3 + 2.2 * rnd());
+    const lo = run(rj, { what: "top", thr: 10, dir: "below", blend: true }), hi = run(rj, { what: "top", thr: 20, dir: "below", blend: true });
+    let deeper = 0, lost = 0;
+    for (let id = 0; id < lo.depth.length; id++) {
+      if (lo.depth[id] === lo.depth[id] && !(hi.depth[id] === hi.depth[id])) lost++;
+      if (hi.depth[id] > lo.depth[id] + 1e-6) deeper++;
+    }
+    exact("raising the threshold: found deeper / lost", deeper + " / " + lost, "0 / 0");
+  }
+
+  console.log("\n§18.4  support — the nearest sounding");
+  {
+    const job = tiSynth(9, 7, 10, 2, null, () => 1);
+    job.mask[0] = 0;
+    /* soundings ON nodes (2,1), (6,1), (2,5), and a fourth 3 ft from the first */
+    const x = [1020, 1060, 1020, 1023], y = [2010, 2010, 2050, 2010];
+    const U = run(job, { what: "support", x, y });
+    exact("on a sounding: distance / which", U.dist[1 * 9 + 2] + " / " + U.near[1 * 9 + 2], "0 / 0");
+    near("midway between two, 20 ft from each", U.dist[1 * 9 + 4], Math.hypot(1040 - 1023, 0), 1e-5, " ft");
+    exact("a tie keeps the lower index", U.near[3 * 9 + 2], 0);
+    near("a tie's distance", U.dist[3 * 9 + 2], 20, 1e-6, " ft");
+    exact("outside the mask: no distance, no sounding", (U.dist[0] === U.dist[0]) + " / " + U.near[0], "false / -1");
+    /* nearest neighbours: 3, 37 (to the fourth), 40, 3 -> sorted 3, 3, 37, 40 -> the upper median */
+    near("the soundings' median spacing", U.spacing, 37, 1e-9, " ft");
+  }
+
+  console.log("\n§18.5  the site, as js/temmaps.js builds the jobs (recorded from this commit — regression guards)");
+  {
+    const Rp = JSON.parse(fs.readFileSync(path.join(REPO, "data", "tem2026.json"), "utf8"));
+    const survey = JSON.parse(fs.readFileSync(path.join(REPO, "data", "datasets", "ds_survey_2026.json"), "utf8"));
+    const R = C.runJob("tem", temAppJob(Rp)).result;
+    const grid = { nx: R.nx, ny: R.ny, dx: R.dx, x0: R.x0, y0: R.y0, nl: Rp.nl, mask: R.mask, log: R.log, surf: R.surf,
+                   top_ft: Rp.top_ft, bot_ft: Rp.bot_ft };
+    const N = R.nx * R.ny;
+    const [io, ims] = timed(() => C.runJob("temmap", Object.assign({}, grid, { what: "interval", datum: "depth", a: 0, b: 30 })));
+    const I = io.result;
+    budget("temmap interval, the site", ims, 500);
+    exact("nodes mapped / all of the interval", I.n + " / " + I.full, R.nodes + " / " + R.nodes);
+    let bad = 0;
+    for (let id = 0; id < N; id++) if (I.rhoL[id] === I.rhoL[id] && !(I.rhoL[id] <= I.rhoG[id] * (1 + 1e-6) && I.rhoG[id] <= I.rhoT[id] * (1 + 1e-6))) bad++;
+    exact("nodes out of order (L <= G <= T)", bad, 0);
+    note("0-30 ft: geometric mean p10 / p50 / p90 = " + [I.stats.rhoG.p10, I.stats.rhoG.p50, I.stats.rhoG.p90].map(v => v.toFixed(2)).join(" / ")
+      + " ohm-m · conductance p50 " + I.stats.cond.p50.toFixed(3) + " S · anisotropy p50 / p98 " + I.stats.aniso.p50.toFixed(3) + " / " + I.stats.aniso.p98.toFixed(3));
+    near("0-30 ft geometric mean, median", +I.stats.rhoG.p50.toFixed(2), TMREC.i_g50, 0.01, " ohm-m");
+    near("0-30 ft conductance, median", +I.stats.cond.p50.toFixed(3), TMREC.i_s50, 0.001, " S");
+    near("0-30 ft anisotropy, median", +I.stats.aniso.p50.toFixed(3), TMREC.i_a50, 0.001);
+    /* the cross-check: the app's conductive-zones band (js/teminterp.js),
+       0-100 ft below the impoundment's surveyed water level, through the
+       kernel that already ships */
+    const wl = survey.points.find(p => p.id === "Water Level").a.elevation;
+    const z = new Uint8Array(N);
+    const Sp = C.runJob("temseep", Object.assign({}, grid, { zTop: wl, zBot: wl - 100, thr: 0, thrPct: 0.1, src: z, dst: z })).result;
+    const B = C.runJob("temmap", Object.assign({}, grid, { what: "interval", datum: "elev", a: wl, b: wl - 100, minCover: 0 })).result;
+    let wr = 0, wc = 0, miss = 0;
+    for (let id = 0; id < N; id++) {
+      const a = Sp.rho[id] === Sp.rho[id], b = B.rhoL[id] === B.rhoL[id];
+      if (a !== b) { miss++; continue; }
+      if (!a) continue;
+      wr = Math.max(wr, Math.abs(B.rhoL[id] / Sp.rho[id] - 1)); wc = Math.max(wc, Math.abs(B.cond[id] / Sp.cond[id] - 1));
+    }
+    exact("band nodes temseep and temmap disagree on", miss, 0);
+    atMost("worst relative difference, band resistivity", +wr.toExponential(2), 1e-5);
+    atMost("worst relative difference, band conductance", +wc.toExponential(2), 1e-5);
+
+    const [to, tms] = timed(() => C.runJob("temmap", Object.assign({}, grid, { what: "top", thr: 10, dir: "below", from: 0, blend: true })));
+    const T = to.result;
+    budget("temmap top, the site", tms, 500);
+    exact("found + never = the model's nodes", T.found + T.never, R.nodes);
+    let wv = 0;
+    for (let id = 0; id < N; id++) if (T.depth[id] === T.depth[id] && !T.atStart[id])
+      wv = Math.max(wv, Math.abs(10 ** tmBlend(grid, id, T.depth[id]) / 10 - 1));
+    atMost("the model AT every top is 10 ohm-m", +wv.toExponential(2), 1e-4);
+    note("below 10 ohm-m: found " + T.found + " · never " + T.never + " · from the surface " + T.atStartN + " · to the end of the record " + T.openN
+      + " · depth p10 / p50 / p90 = " + [T.stats.depth.p10, T.stats.depth.p50, T.stats.depth.p90].map(v => v.toFixed(1)).join(" / ") + " ft");
+    exact("below 10 ohm-m: found / never", T.found + " / " + T.never, TMREC.t_found);
+    near("depth to it, median", +T.stats.depth.p50.toFixed(1), TMREC.t_d50, 0.1, " ft");
+    near("its thickness, median", +T.stats.thick.p50.toFixed(1), TMREC.t_k50, 0.1, " ft");
+
+    const [uo, ums] = timed(() => C.runJob("temmap", Object.assign({}, grid, { what: "support", x: Rp.x, y: Rp.y })));
+    const U = uo.result;
+    budget("temmap support, the site", ums, 1500);
+    exact("every model node has a nearest sounding", U.stats.n, R.nodes);
+    atMost("no node is past the blanking distance", +U.stats.max.toFixed(2), 60, " ft");
+    note("distance to the nearest sounding p50 / p90 / max = " + [U.stats.p50, U.stats.p90, U.stats.max].map(v => v.toFixed(1)).join(" / ")
+      + " ft · the soundings' median spacing " + U.spacing.toFixed(2) + " ft");
+    near("the soundings' median spacing", +U.spacing.toFixed(2), TMREC.u_sp, 0.01, " ft");
+    near("distance to data, median", +U.stats.p50.toFixed(1), TMREC.u_d50, 0.1, " ft");
+  }
+}
+/* recorded from this commit (node test/kernels.mjs --only temmap prints the
+   line each came from); a model change moves them and has to say why */
+const TMREC = { i_g50: 14.93, i_s50: 0.643, i_a50: 1.037, t_found: "3186 / 119", t_d50: 23.7, t_k50: 26.8, u_sp: 15.39, u_d50: 21.3 };
+
 /* ============================== run ====================================== */
 const SECTIONS = [
   { key: "volume", run: secVolume },
@@ -4151,6 +4397,7 @@ const SECTIONS = [
   { key: "hydraulics", run: secHydraulics },
   { key: "tem", run: secTem },
   { key: "teminterp", run: secTeminterp },
+  { key: "temmap", run: secTemmap },
   { key: "wasm", run: secWasm }
 ];
 
@@ -4176,7 +4423,7 @@ if (!WASM.ok && backendArg !== "js") {
 /* every kernel runJob dispatches must have a section here (V11 spec §2.4) */
 const COVERED = ["volume", "isopach", "raster", "contours", "design", "balance", "sections",
                  "wand", "cbound", "toecrest", "stands", "trees", "flowpath", "overtop", "catchment",
-                 "drainage", "runoff", "accum", "hydraulics", "tem", "temwaste", "temseep"];
+                 "drainage", "runoff", "accum", "hydraulics", "tem", "temwaste", "temseep", "temmap"];
 {
   const src = fs.readFileSync(path.join(REPO, "js", "compute.js"), "utf8");
   const dispatched = [...src.matchAll(/if \(kind === "([a-z]+)"\) return /g)].map(m => m[1]);

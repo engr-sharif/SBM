@@ -281,6 +281,15 @@ SBMM.cmd = (function () {
         if (!SBMM.teminterp) { toast("this build has no TEM survey"); return; }
         SBMM.teminterp.open("seep");
       } },
+    /* v54: maps derived from the TEM model */
+    { n: "TEMMAP", a: ["TEMMAPS", "TEMINTERVAL", "TEMTOP"],
+      d: "TEM derived maps — the mean resistivity or conductance of an interval, the depth to the top of a conductor",
+      arg: "interval | top",
+      f: a => {
+        if (!SBMM.temmaps) { toast("this build has no TEM survey"); return; }
+        const k = String(a || "").trim().toLowerCase();
+        SBMM.temmaps.open(k === "top" || k === "interval" ? k : null);
+      } },
     { n: "TEMCAL", a: ["TEMBORINGS"],
       d: "TEM resistivity against the 2025 borings' logged classes, in the log window",
       arg: "boring (e.g. SB-9)",
