@@ -361,6 +361,17 @@ const tin = await page.evaluate(async () => {
 console.log("TEM interpretations (phone):", JSON.stringify(tin));
 for (const k of ["waste", "seep"])
   if (tin[k].ws || !tin[k].card || !tin[k].finding) fail("TEM" + k.toUpperCase() + " did not open its card on a phone", tin);
+/* v54: and a derived map opens its card there too */
+const tmp = await page.evaluate(async () => {
+  const ok = await SBMM.temmaps.open("top");
+  const c = document.querySelector('#resBody .ticard[data-tm="top"]');
+  const out = { ok, ws: document.body.classList.contains("temws"), card: !!c,
+                finding: c ? (c.querySelector("[data-tem-finding]") || {}).textContent || "" : "" };
+  SBMM.temmaps.setRow(false);
+  return out;
+});
+console.log("TEM derived map (phone):", JSON.stringify(tmp));
+if (!tmp.ok || tmp.ws || !tmp.card || !tmp.finding) fail("TEMMAP did not open its card on a phone", tmp);
 if (errors.length) fail("page errors opening the TEM slice on a phone", errors.slice(0, 4));
 
 /* the 2025 boring logs are ~300 kB and are NOT a heavy payload: they ride in a

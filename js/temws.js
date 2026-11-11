@@ -61,7 +61,7 @@ SBMM.temws = (function () {
      slice step aside (both come back with the Model tab): the base of waste
      and the conductive band are read through a see-through ground, and a cut
      and a slice in front of them hide exactly what they show. */
-  const TABS = [["model", "Model"], ["waste", "Base of waste"], ["seep", "Conductive zones"]];
+  const TABS = [["model", "Model"], ["waste", "Base of waste"], ["seep", "Conductive zones"], ["maps", "Maps"]];
   let tab = "model", hidSlice = false, hidCols = false, selfOff = false;
   /* v53: the probe's record while the pointer is on the model (js/temprobe.js
      emits `temprobe`). The core then shows the model under the POINTER — a
@@ -454,7 +454,8 @@ SBMM.temws = (function () {
         + `<label>Classes ${sel("classes", [[0, "continuous"], [5, "5"], [8, "8"], [12, "12"]], S.classes, "Colour classes")}</label>`
         + `<label>Contours ${sel("nCont", [[0, "off"], [8, "8 levels"], [12, "12 levels"], [20, "20 levels"]], S.contours ? S.nCont : 0, "Contour edges across the colour range")}</label>`
         + `</div><div class="twschks">${chk("rev", "reverse colours", S.rev, "Reverse the colour map")}`
-        + chk("blend", "blend between layers", S.blend, "Blend between model-layer mid-depths rather than step at layer boundaries") + `</div>`
+        + chk("blend", "blend between layers", S.blend, "Blend between model-layer mid-depths rather than step at layer boundaries")
+        + chk("conf", "fade away from the data", S.conf, "Fade the slice with the distance to the nearest sounding: full at the soundings' own spacing, a quarter at the blanking distance") + `</div>`
         + `<div class="twsleg" data-o="legend"></div>`
         + `<div class="twsbtns"><button class="minib" data-a="fit" title="Colour range from 2–98 % of the soundings">fit range</button>`
         + `<span class="mut mono" data-o="range"></span></div>`)
@@ -478,11 +479,15 @@ SBMM.temws = (function () {
       + `<button class="minib" data-a="card" title="The results card">card</button></section>`
       + `</div>`
       + `<div class="twsb temctl" data-pane="waste" data-ti-pane="waste"${tab === "waste" ? "" : " hidden"}></div>`
-      + `<div class="twsb temctl" data-pane="seep" data-ti-pane="seep"${tab === "seep" ? "" : " hidden"}></div>`;
+      + `<div class="twsb temctl" data-pane="seep" data-ti-pane="seep"${tab === "seep" ? "" : " hidden"}></div>`
+      + `<div class="twsb temctl" data-pane="maps"${tab === "maps" ? "" : " hidden"}></div>`;
     wireCore();
     if (SBMM.teminterp) {
       SBMM.teminterp.mount("waste", el.querySelector('[data-pane="waste"]'));
       SBMM.teminterp.mount("seep", el.querySelector('[data-pane="seep"]'));
+    }
+    if (SBMM.temmaps) {
+      SBMM.temmaps.mount(el.querySelector('[data-pane="maps"]'));
     }
   }
 
@@ -721,12 +726,17 @@ SBMM.temws = (function () {
     }
     applyPit();
     if (quiet) return;
-    if (t !== "model" && SBMM.teminterp) SBMM.teminterp.activate(t).then(() => { if (active && tab === t) frameTab(t); });
+    /* v54: the Maps tab is js/temmaps.js's; the two interpretations step off for it */
+    if (t === "maps" && SBMM.temmaps) {
+      if (SBMM.teminterp) for (const r of ["tem_waste", "tem_seep"]) if (on(r)) rowSet(r, false);
+      SBMM.temmaps.activate().then(() => { if (active && tab === t) frameTab(t); });
+    } else if (t !== "model" && SBMM.teminterp) SBMM.teminterp.activate(t).then(() => { if (active && tab === t) frameTab(t); });
     else frameCut();
     paintAll();
   }
   function frameTab(t) {
-    const b = el && el.querySelector(`[data-pane="${t}"] [data-ti-a="${t === "waste" ? "wframe" : "sframe"}"]`);
+    const b = el && el.querySelector(t === "maps" ? `[data-pane="maps"] [data-tm-a="frame"]`
+      : `[data-pane="${t}"] [data-ti-a="${t === "waste" ? "wframe" : "sframe"}"]`);
     if (b) b.click();
   }
   function onClick(e) {

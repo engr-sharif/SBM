@@ -425,6 +425,7 @@ terrain source, which needs an explicit decision + README/test update).
 | temws.js | **v37 — the TEM workspace**: Data ▾ → *TEM geophysics* / `TEMWS` — a panel in the right dock's place with every TEM control, the core (a virtual boring at the centre of the cut, draggable for depth), the descent, and the 3D view opened with the ground cut open to the slice (`SBMM.viewer3d.setPit`); on a phone it opens the card; since v51 `off()` (TEM off as a whole), `hide()` and the "TEM on" chip; since v52 the reading, four views, folding sections and the depth / elevation switch; `SBMM.temws` |
 | temprobe.js | **v53 — the TEM probe**: the chip at the pointer over the slice (2D) and over any TEM surface (3D), the card with the depth profile, pinned probes (a `spot` carrying a depth) and the comparison card; the record itself is `SBMM.geophys.probe`; `SBMM.temprobe` |
 | teminterp.js | **v38 — two interpretations of the TEM**: *Base of waste* (the 2025 borings' logged native contact kriged across the dry survey footprint, the TEM break depth as an external drift only when it wins the leave-one-out, the standard error, the proposed borings) and *Conductive zones* (an elevation band below the impoundment's surveyed water level, its harmonic-mean resistivity, the least-resistive route from Herman to Clear Lake and its bottleneck, the section along it); the two layer rows, the cards, the workspace tabs it mounts, the 3D spec, the exports, `TEMWASTE` / `TEMSEEP`; `SBMM.teminterp` |
+| temmaps.js | **v54 — maps derived from the TEM model**: the `temmap` job's two maps on ONE layer row (`invest/tem_map`) — an *interval* between two depths or elevations reduced to the geometric mean, the resistivity along and across the layers, the conductance and the anisotropy; and the *top of the conductor* (or resistor), its depth, elevation and thickness — the workspace's **Maps** tab, the card, the 3D surface spec, the reading at a point, CSV / PNG, `TEMMAP`; `SBMM.temmaps` |
 | siteareas.js | **v28 — the named site areas of SBMM.kmz** (`SBMM_DATA.site_areas`): one Investigations row (off by default), 3D drape, snap, GeoJSON/DXF on `SITE-AREAS`; `SBMM.siteAreas` |
 | borewin.js | **v23 Phase A — the boring-log window** on the sheet-window chassis: the Log tab as a real log sheet at 1 in = 5 ft with the depth cursor, Compare (2–6 holes on one elevation datum, correlation lines, printed separations), the 44-hole Table, the printed log sheet through `js/report.js`, the hole picker, `LOGWIN`; `SBMM.borewin` |
 | fence.js | **v23 Phase B — the fence diagram**: the `fence` store feature (a section through the subsurface along a drawn line), `projectHoles`/`groundProfile`, the SVG the Fence tab, the PNG and the 3D texture are all drawn from, the cut on the map (alignment + swath band + a tick per projected hole), the CSV, the **section-coordinate DXF** (X = station ft, Y = elevation ft) and `FENCE`; `SBMM.fence` |
@@ -6030,3 +6031,103 @@ Eight things that will be walked into again:
 - **`SBMM.viewer3d.probeMark(p)`** is ONE sprite, moved; it belongs to no
   layer, answers no pick, and asks for a frame only when it moves. An idle
   pointer resting on the model renders nothing (9f12b asserts it).
+
+## v54 — maps derived from the TEM model, and the slice faded away from the data
+
+Kernel `temmap` in `js/compute.js` (no WASM port, so it is in `JS_ONLY` in
+`js/jobs.js`; `VERSION` stays 10); host `js/temmaps.js` (`SBMM.temmaps`, new);
+`support` / `conf` in `js/geophys.js`; one block in `js/viewer3d.js`, the
+`temmap` pick kind in `js/pick3d.js`, the 2D chip in `js/temprobe.js`, the
+fourth tab in `js/temws.js`, `TEMMAP` (`TEMMAPS`, `TEMINTERVAL`, `TEMTOP`).
+Harness section **`temmap`** in `test/kernels.mjs` (57 checks, 0.3 s); e2e
+block **"9f12c. TEM derived maps and data support (v54)"** (shard 2), one
+assertion each in `test/e2e_field.mjs` (block 18) and `test/e2e_phone.mjs`
+(block 4). The kernel reads the `tem` job's grid as it stands (log10 Ω·m per
+layer, its mask, its `surf`) and interpolates nothing again; the `tem` kernel
+itself is untouched.
+
+A depth slice is one cut through the model. Three questions it cannot answer:
+
+**An interval** (`what: "interval"`) — the layers between two depths below
+ground, or two elevations, reduced to one value per node. A stack of layers
+has no single resistivity: current running ALONG the layers meets them in
+parallel, current crossing them meets them in series. So the job reports both
+and what they are made of (the Dar Zarrouk parameters): `cond` Σ t/ρ in
+siemens, `rhoL` = T/Σ(t/ρ) (harmonic), `rhoT` = Σ(tρ)/T (arithmetic), `rhoG`
+the geometric mean, `aniso` = √(rhoT/rhoL). **rhoL ≤ rhoG ≤ rhoT always**, and
+the harness asserts it on a random model and on the site. A node is mapped
+when the model holds at least half of the interval there (`minCover` 0.5; an
+elevation interval runs out of ground or out of record). `cond` alone is in
+siemens: thicknesses go from US survey feet to metres for it and for nothing
+else.
+
+**The top of the conductor** (`what: "top"`) — the depth at which the model
+first crosses a resistivity going down from `from`, its thickness to the next
+crossing back, whether it runs on to the end of the record (`open`) and
+whether it is already so at the start (`atStart`). `dir: "above"` finds the
+resistor instead. With the model's *blend between layers* on (the map follows
+that setting) the model between layer mid-depths is `js/geophys.js` `blendOf`'s
+— linear in log10 ρ — so the depth is where the blended model reads exactly
+the threshold, and block 9f12c and §18.5 assert that through `rhoAt`. Without
+it the depth is a layer boundary. A layer with no value ends the record there.
+
+**Support** (`what: "support"`) — the distance from each node to the nearest
+sounding, and the soundings' own median spacing (15.39 ft here).
+
+Recorded on this site, kriging at 20 ft: 0–30 ft below ground 14.93 Ω·m
+geometric mean at the median, 0.643 S, anisotropy 1.037; below 10 Ω·m found
+at 3,186 of 3,305 nodes, never at 119, the top at 23.7 ft and 26.8 ft thick at
+the median, 947 nodes from the surface; distance to data 21.3 ft at the
+median, 60.0 at most.
+
+Nine things that will be walked into again:
+
+- **THE CROSS-CHECK IS A KERNEL THAT ALREADY SHIPS.** `temseep`'s band
+  resistivity IS the interval's `rhoL` over the same elevations with
+  `minCover: 0`, and its `cond` the interval's. §18.5 runs both over the app's
+  own band (0–100 ft below the impoundment's surveyed water level) and
+  requires them to agree to 1e-5 at every node, and to map the same nodes.
+- **ONE layer row, whichever map is chosen** (`invest/tem_map`, "Derived map —
+  interval / top of conductor"). The app-wide review counted 108 layer rows;
+  a row per map would have been two more for one picture. `current()` says the
+  map on screen is the map asked for — a tab can show the last one while the
+  next is computed — and every reader asks it first.
+- **Another reduction of the same interval is a repaint, not a job**
+  (`RERUN` in `js/temmaps.js`: `iShow` / `tShow` are not in it). Block 9f12c
+  asserts zero jobs across geometric mean → conductance.
+- **The interval's resistivity is on the SLICE'S colours, value for value**,
+  when the model shows resistivity (`scaleNow().shared`): the same colour map
+  and the same range, so the interval and a slice can be read against each
+  other. The conductance uses the same map reversed (conductive is the same
+  end); the anisotropy starts at 1; a depth map is bright where it is shallow.
+- **In 3D the map is a surface with an elevation per node**: an interval
+  between depths follows the ground at its middle, between elevations it is
+  level, a top map IS the surface (lidar ground less the depth; the model's
+  ground where the lidar has none). Under the ground, so `noClip`, and the
+  see-through ground gives way for it (`wantsSeeThrough`). Its pick kind is
+  `temmap`, live like the two interpretation surfaces.
+- **`tem_map` is in `TEM_ROWS`**, so TEM off takes it off, the chip counts it
+  and its card closes with the rest. The Maps tab steps the two
+  interpretations off and they step it off (`setRow(false)` both ways).
+- **Both parity blocks wait for it** (`SBMM.temmaps.result()` beside the
+  waits for the slice and the interpretations): the invest group switch is the
+  row's first tick.
+- **SUPPORT IS THE DISTANCE TO THE NEAREST SOUNDING AND NOTHING CLEVERER.**
+  1 at the soundings' own spacing or closer, 0 at the blanking distance (where
+  the model stops), linear between (`supportOf`). The kriging standard error
+  was measured as the alternative and adds nothing: with one shared variogram
+  it is a function of that distance (1 − s.e. ÷ the layer's spread has a
+  median of 0.63 within 10 ft of a sounding and falls steadily to 0.42 at
+  50–60 ft, the same in every layer). And **the delivery has no depth
+  of investigation**, so there is no honest support in DEPTH to draw — the
+  card's note about the deepest layers stands. *Fade away from the data*
+  (`conf`, the card and the panel's Colour section) multiplies the slice's
+  opacity by `0.25 + 0.75·support` — never under a quarter, so a thinly
+  supported value is still a colour that can be read — through one optional
+  argument on `paintCanvas`; the probe carries `support {k, word}` and the
+  slice CSV two more columns once the distances exist.
+- **The distances are asked for the first time the shading is switched on**
+  (`ensureSupport`), not with every model run: a model run is still one job,
+  and a depth step under the shading is still none (9f12c asserts it). The
+  probe needs only the spacing, which `spacing()` computes once per payload on
+  the main thread (a million distances, a few ms) when the job has not run.

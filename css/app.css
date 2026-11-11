@@ -3412,3 +3412,15 @@ body.field #temLegend{display:none}
 .leaflet-tooltip.tppin{font-family:var(--mono,ui-monospace,monospace);font-size:11px}
 .tppop .leaflet-popup-content{margin:10px 12px}
 .tisay{margin-top:5px;font-size:11.5px;color:var(--ink2);white-space:normal}
+
+/* ===== v54 — TEM derived maps (js/temmaps.js): the Maps tab ===== */
+#temWs .twstab{flex:1 1 auto}
+#temWs .tmseg{align-self:stretch;display:grid;grid-auto-flow:column;grid-auto-columns:1fr}
+#temWs .tmseg .segb{padding:6px 4px;font-size:11.5px;text-align:center;cursor:pointer}
+#temWs [data-tm-for]{display:flex;flex-direction:column;gap:8px}
+#temWs [data-tm-for][hidden],#temWs [data-tm-datum][hidden]{display:none !important}
+.tmnum{width:100%;box-sizing:border-box;background:var(--bg2,#11181c);border:1px solid var(--line2);border-radius:6px;
+  color:var(--ink);padding:4px 6px;font-size:12px;font-variant-numeric:tabular-nums}
+.tmnum:focus-visible{outline:2px solid var(--acc);outline-offset:-1px}
+#temWs [data-pane="maps"] .temgrid2 label .minib{align-self:stretch;text-align:center}
+#temWs [data-pane="maps"] .minib:disabled{opacity:.45;cursor:default}

@@ -497,7 +497,9 @@ SBMM.status = (function () {
       /* v36: the TEM depth slice's value under the pointer, while it is on */
       + ((SBMM.geophys && SBMM.geophys.hoverText) ? SBMM.geophys.hoverText(x, y) : "")
       /* v38: the base of waste and the band resistivity, while their rows are on */
-      + ((SBMM.teminterp && SBMM.teminterp.hoverText) ? SBMM.teminterp.hoverText(x, y) : "");
+      + ((SBMM.teminterp && SBMM.teminterp.hoverText) ? SBMM.teminterp.hoverText(x, y) : "")
+      /* v54: a derived TEM map's reading, while its row is on */
+      + ((SBMM.temmaps && SBMM.temmaps.hoverText) ? SBMM.temmaps.hoverText(x, y) : "");
     document.getElementById("sDem").textContent = src + (ch > 0.5 ? ` · veg ${fmt(ch, 0)} ft` : "") + up;
   }
   function scale() {

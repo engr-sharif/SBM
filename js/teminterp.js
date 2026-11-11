@@ -940,8 +940,9 @@ SBMM.teminterp = (function () {
   async function activate(kind) {
     if (!data()) return null;
     const id = kind === "waste" ? "tem_waste" : "tem_seep";
-    /* a tab shows its own analysis: the other one steps off */
+    /* a tab shows its own analysis: the others step off */
     setRow(kind === "waste" ? "seep" : "waste", false);
+    if (SBMM.temmaps) SBMM.temmaps.setRow(false);
     if (!on(id)) setRow(kind, true);
     paintPane(kind);
     const res = await ensure(kind);
@@ -954,6 +955,8 @@ SBMM.teminterp = (function () {
     cards: () => Object.keys(cards).map(k => cards[k]), readAt,
     hoverText, waterLevel, sectionSvg, wasteCsv, targetsCsv, seepCsv, routeCsv, geojson,
     waste: () => W, seep: () => Sp, card: k => cards[k] || null, showCard, rows: () => rows,
-    settings: () => Object.assign({}, P), set: setP, BANDS
+    settings: () => Object.assign({}, P), set: setP, BANDS,
+    /* v54: the legend bar js/temmaps.js draws its own scales with */
+    ui: { legendSvg }
   };
 })();

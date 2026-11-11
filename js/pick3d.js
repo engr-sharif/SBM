@@ -209,6 +209,15 @@ SBMM.pick3d = (function () {
       /* v38: the TEM interpretations — a proposed boring, the route, the
          base-of-waste surface and the band sheet. v53: the two SURFACES are
          live — they answer with the value at the point, not a sentence. */
+      /* v54: a derived TEM map's surface (js/temmaps.js) — live, like the
+         two interpretation surfaces */
+      case "temmap":
+        return {
+          object3d: o, kind: "temmap", priority: P,
+          hit(ix) { return SBMM.temmaps ? SBMM.temmaps.pick3d(ix) : null; },
+          live: SBMM.temprobe ? (hit, e) => SBMM.temprobe.hoverInterp("map", hit, e) : null,
+          liveEnd: SBMM.temprobe ? () => SBMM.temprobe.end3d() : null
+        };
       case "teminterp": {
         const pk = o.userData.pick, surf = pk.what === "waste" || pk.what === "seep";
         return {

@@ -951,6 +951,7 @@ fieldParity = await page.evaluate(async () => {
   for (let i = 0; i < 120 && SBMM.geophys && SBMM.geophys.data() && !SBMM.geophys.slice(); i++) await w(250);
   for (let i = 0; i < 120 && SBMM.teminterp && SBMM.geophys && SBMM.geophys.data()
        && !(SBMM.teminterp.waste() && SBMM.teminterp.seep()); i++) await w(250);
+  for (let i = 0; i < 120 && SBMM.temmaps && SBMM.geophys && SBMM.geophys.data() && !SBMM.temmaps.result(); i++) await w(250);
   await w(2000);
   SBMM.viewer3d.refreshOverlays();
   await w(3500);
@@ -1331,6 +1332,17 @@ await block("18. the TEM geophysics (v36)", async () => {
   });
   console.log("TEM interpretations (field):", JSON.stringify(I));
   for (const k of ["waste", "seep"]) if (!I[k].ok || !I[k].card || !(I[k].rows >= 5) || I[k].ws) fail("TEM " + k + " built no card in field mode", I);
+  /* v54: a derived map, as a card in field mode */
+  const DM = await page.evaluate(async () => {
+    const ok = await SBMM.temmaps.open("interval");
+    const c = document.querySelector('#resBody .ticard[data-tm="interval"]');
+    const out = { ok, card: !!c, rows: c ? c.querySelectorAll(".rrow").length : 0, ws: document.body.classList.contains("temws"),
+                  finding: c ? (c.querySelector("[data-tem-finding]") || {}).textContent || "" : "" };
+    SBMM.temmaps.setRow(false);
+    return out;
+  });
+  console.log("TEM derived map (field):", JSON.stringify(DM));
+  if (!DM.ok || !DM.card || !(DM.rows >= 5) || DM.ws || !DM.finding) fail("TEMMAP built no card in field mode", DM);
 });
 
 /* ===================================================================== */
