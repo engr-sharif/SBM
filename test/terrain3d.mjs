@@ -592,14 +592,20 @@ if (want("frames")) {
      cheap and nowhere near a full rebuild, so: the MEDIAN of the six under
      20 ms, and no single one as dear as half the full rebuild measured in
      this same page a moment earlier (40 ms where that would be less). */
-  const costs = r.per.map(a => a[0]).sort((a, b) => a - b);
-  const worst = costs[costs.length - 1];
-  const median = +((costs[2] + costs[3]) / 2).toFixed(1);
+  /* v57: only a sample in which a rebuild HAPPENED is a selection's cost.
+     The first of the six selects nothing when nothing is selected, so no
+     rebuild runs and `overlayLastMs` is still whatever the last rebuild
+     before the counters were zeroed cost — 267 ms once, a full rebuild a
+     layer's job had asked for a moment earlier, read as "a selection". */
+  const ran = r.per.filter((a, i) => a[1] > (i ? r.per[i - 1][1] : 0));
+  const costs = ran.map(a => a[0]).sort((a, b) => a - b);
+  const worst = costs.length ? costs[costs.length - 1] : 0;
+  const median = costs.length ? +((costs[Math.floor((costs.length - 1) / 2)] + costs[Math.ceil((costs.length - 1) / 2)]) / 2).toFixed(1) : 0;
   const worstCap = Math.max(40, r.fullMs / 2);
   ok("a selection change no longer rebuilds the project half",
     r.sel.drapedLines < 60 && r.sel.overlayFull === 0,
     r.sel.drapedLines + " draped polylines, " + r.sel.overlayFull + " full rebuilds over six selects");
-  ok("a selection change costs under 20 ms of main thread", median < 20, median + " ms (median of six; worst " + worst + ")");
+  ok("a selection change costs under 20 ms of main thread", median < 20, median + " ms (median of the " + costs.length + " that rebuilt; worst " + worst + ")");
   ok("no single selection change costs half a full rebuild", worst < worstCap,
     worst + " ms against a full rebuild of " + r.fullMs + " ms (cap " + (+worstCap.toFixed(1)) + ")");
   ok("the six selects really did rebuild the feature half",
