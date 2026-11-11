@@ -8895,7 +8895,7 @@ if (a0.shown) { console.log("FAIL: a chip over bare ground with no layer to read
 const seen = [];
 for (const [row, id, expect] of [
   ["slope_0_45", "slope", (x, y) => { const q = SBMM.slopeAt(x, y); return fmt(q.slopeDeg, 1) + "°"; }],
-  ["aspect_grid_north", "aspect", (x, y) => { const q = SBMM.slopeAt(x, y); return fmt0(((q.aspectDeg % 360) + 360) % 360) + "°"; }],
+  ["aspect_grid_north", "aspect", (x, y) => { const q = SBMM.slopeAt(x, y); return q.slopeDeg < 0.5 ? "level" : fmt0(((q.aspectDeg % 360) + 360) % 360) + "°"; }],
   ["elevation_tint", "hypso", (x, y) => fmt(SBMM.elev(x, y)[0], 1) + " ft"]]) {
   await page.evaluate(r => SBMM.layerState.set("base", r, { on: true }), row);
   const st = await hoverTo(pts.bare.sx, pts.bare.sy, "readout");
@@ -8906,6 +8906,17 @@ for (const [row, id, expect] of [
   seen.push(st.text);
   await page.evaluate(r => SBMM.layerState.set("base", r, { on: false }), row);
 }
+/* each of those three was switched off while its image was still being
+   computed (the reading comes from the terrain, not from the image). When the
+   builds land, a row that is off has nothing on the map — every row, not only
+   these three. */
+await page.waitForFunction(() => !document.querySelector("#layers .lyr.busy"), null, { timeout: 180000 });
+await wait(300);
+const strays = await page.evaluate(() => { const bad = [];
+  for (const [k, r] of SBMM.layerTree.refs()) if (r.layer && !r.state().on && SBMM.map.hasLayer(r.layer)) bad.push(k);
+  return bad; });
+if (strays.length) { console.log("FAIL: a row that is switched off has its layer on the map", strays); process.exit(1); }
+console.log("  switched off while building: nothing on the map for a row that is off");
 
 /* C. the order: land cover is an analysis put there on purpose, slope is the
    terrain's own — with both on the cover answers, and the Point card lists both */
@@ -9358,6 +9369,217 @@ if (!W.csv || !W.open) { console.log("FAIL: a card in a window left the CSV, or 
 if (!W.docked) { console.log("FAIL: Esc did not put the card back at the top of the column", W); process.exit(1); }
 if (!W.gone) { console.log("FAIL: a card removed while in its window left the window behind", W); process.exit(1); }
 await page.evaluate(id => { const f = SBMM.store.byId(id); if (f) SBMM.tools.deleteFeature(f); SBMM.results.checkEmpty(); }, C.fid);
+});
+
+await block("9f27. one legend: the scale a raster is painted with, and where the pointer is on it (v59)", async () => {
+/* v59 — step 4c of docs/V56_REVIEW_PLAN.md. Sixteen legends were drawn four
+   ways and only the TEM slice's showed where the value under the pointer sits
+   on its scale. Now a raster's legend is js/legend.js: the scale it is painted
+   with, in numbers, and a marker fed by the layer's own reader.
+   Every expected colour is read back from the PAINTED overlay, and every
+   expected position from the reader's own value, so the test moves with both. */
+const wait = ms => page.waitForTimeout(ms);
+const L0 = await page.evaluate(async () => {
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  const LS = SBMM.layerState;
+  if (SBMM.viewer3d.isOpen()) await SBMM.viewer3d.toggle();
+  if (SBMM.temws && SBMM.temws.off) SBMM.temws.off();
+  SBMM.mode.navigate(); SBMM.map.closePopup();
+  SBMM.shell.collapse("l", false);
+  SBMM.shell.setTab("layers");
+  if (SBMM.layersPanel) SBMM.layersPanel.show("catalog");
+  LS.set("base", "trees_detected", { on: false });
+  for (const l of ["dus", "piles"]) LS.set("framework", l, { on: false });
+  /* every raster this block measures starts OFF: in a run that follows the
+     hover blocks, slope and the land cover are still on, and section A finds
+     its image among the ones that arrive AFTER its row is switched on */
+  for (const l of ["slope_0_45", "aspect_grid_north", "elevation_tint", "canopy"]) try { LS.set("base", l, { on: false }); } catch (e) {}
+  for (const l of ["runoff_cover", "accum_raster", "where_water"]) try { LS.set("framework", l, { on: false }); } catch (e) {}
+  SBMM.map.setView([2129100, 6371500], 1, { animate: false });
+  /* the sub-group that holds the terrain rasters starts folded; a legend in a
+     folded group is not on screen and is not tracked */
+  const host = document.getElementById("anaLayers"), wrap = host && host.closest(".lgsub");
+  if (wrap && wrap.classList.contains("closed")) wrap.querySelector(".subtoggle").click();
+  await sleep(600);
+  const one = k => { const e = document.querySelector(`#anaLayers .lg[data-lg="${k}"]`); return e ? { cls: e.className, ticks: [...e.querySelectorAll(".lgticks span")].map(q => q.textContent), bar: !!e.querySelector(".lgbar") } : null; };
+  const a = SBMM.analysis.specFor("hypso", SBMM.demAbp), b = SBMM.analysis.specFor("hypso", SBMM.demSite);
+  return { slope: one("slope"), aspect: one("aspect"), hypso: one("hypso"), canopy: one("canopy"),
+           /* the tree legend stays: it is a control (the height filter) */
+           old: document.querySelectorAll("#anaLayers .legend:not(.treelegend), #anaLayers .legend:not(.treelegend) .rampbar").length,
+           oneRange: a.zlo === b.zlo && a.zhi === b.zhi, zr: [b.zlo, b.zhi], rows: SBMM.legend.rows() };
+});
+console.log("LEGEND v59:", JSON.stringify(L0));
+for (const k of ["slope", "aspect", "hypso"]) if (!L0[k] || !L0[k].bar || L0[k].ticks.length < 2) { console.log("FAIL: the " + k + " raster has no legend with a bar and numbers", L0[k]); process.exit(1); }
+if (L0.old) { console.log("FAIL: an old-style legend is still in the terrain rows", L0.old); process.exit(1); }
+if (!L0.oneRange) { console.log("FAIL: the elevation tint's two images are stretched over two ranges — one colour, two elevations", L0); process.exit(1); }
+if (L0.slope.ticks[0] !== "0°" || !/45/.test(L0.slope.ticks[L0.slope.ticks.length - 1])) { console.log("FAIL: the slope legend does not run 0 to 45 degrees", L0.slope); process.exit(1); }
+for (const r of ["base/slope_0_45", "base/aspect_grid_north", "base/elevation_tint", "framework/accum_raster", "framework/runoff_cover", "framework/where_water"])
+  if (!L0.rows.includes(r)) { console.log("FAIL: the row " + r + " did not hand its scale to the legend card on the map", L0.rows); process.exit(1); }
+
+/* A. THE LEGEND IS THE PAINT. For slope and the elevation tint: the colour of
+   the painted mine-area image at a grid node equals the legend's colour at the
+   value the layer's reader gives for that node. */
+for (const [row, id] of [["slope_0_45", "slope"], ["elevation_tint", "hypso"]]) {
+  /* the images on the map before the row goes on: whatever an earlier block
+     left there is not this row's, whatever its size */
+  await page.evaluate(() => { const B = window.__lgBase = new Set(); SBMM.map.eachLayer(l => { if (l instanceof L.ImageOverlay && l.options.pane === "analysis") B.add(l); }); });
+  await page.evaluate(r => SBMM.layerState.set("base", r, { on: true }), row);
+  await page.waitForFunction(() => {
+    let n = 0; SBMM.map.eachLayer(l => { if (l instanceof L.ImageOverlay && l.options.pane === "analysis" && !window.__lgBase.has(l) && l._image && l._image.complete && l._image.naturalWidth) n++; });
+    return n >= 2;
+  }, null, { timeout: 120000 });
+  const A = await page.evaluate(async ([id]) => {
+    const d = SBMM.demAbp, m = d.m, b = d.bounds();
+    let ov = null;
+    SBMM.map.eachLayer(l => { if (l instanceof L.ImageOverlay && l.options.pane === "analysis" && !window.__lgBase.has(l) && l._image && l._image.naturalWidth === m.w) ov = l; });
+    if (!ov) return { err: "no mine-area image" };
+    const c = document.createElement("canvas"); c.width = m.w; c.height = m.h;
+    const g = c.getContext("2d", { willReadFrequently: true }); g.drawImage(ov._image, 0, 0);
+    /* the legend's colour at a value: its own gradient, interpolated */
+    const el = document.querySelector(`#anaLayers .lg[data-lg="${id}"] .lgbar`);
+    const stops = [...el.style.background.matchAll(/rgba?\(([^)]+)\)\s+([\d.]+)%/g)].map(q => ({ c: q[1].split(",").map(Number), t: +q[2] / 100 }));
+    const at = t => { let k = 0; while (k < stops.length - 2 && stops[k + 1].t < t) k++; const a = stops[k], z = stops[k + 1], u = Math.max(0, Math.min(1, (t - a.t) / Math.max(1e-9, z.t - a.t))); return a.c.slice(0, 3).map((v, i) => v + (z.c[i] - v) * u); };
+    const out = []; let worst = 0;
+    for (let n = 0; n < 60; n++) {
+      const i = 200 + ((n * 977) % (m.w - 400)), j = 200 + ((n * 613) % (m.h - 400));
+      const x = m.x0 + i * m.cell, y = m.y0 + j * m.cell;
+      const a = SBMM.readout.read(id, x, y, { view: "2d" });
+      if (!a || a.v == null) continue;
+      const px = g.getImageData(i, m.h - 1 - j, 1, 1).data;
+      if (!px[3]) continue;
+      const spec = SBMM.legend.posOf(id === "slope" ? { min: 0, max: 45 } : { min: SBMM._zrSite[0], max: SBMM._zrSite[1] }, a.v);
+      const want = at(spec), dd = Math.max(...want.map((v, k) => Math.abs(v - px[k])));
+      worst = Math.max(worst, dd);
+      out.push(dd);
+    }
+    return { n: out.length, worst: +worst.toFixed(1), nStops: stops.length };
+  }, [id]);
+  console.log("  " + id + ": painted against the legend at the reader's value:", JSON.stringify(A));
+  if (A.err || A.n < 40 || A.worst > 4) { console.log("FAIL: the " + id + " legend is not the scale the raster is painted with", A); process.exit(1); }
+  /* off again before the next one: the image is found by its size, and two
+     rasters of the mine area are the same size */
+  await page.evaluate(r => SBMM.layerState.set("base", r, { on: false }), row);
+  await page.waitForFunction(() => { let n = 0; SBMM.map.eachLayer(l => { if (l instanceof L.ImageOverlay && l.options.pane === "analysis" && !window.__lgBase.has(l)) n++; }); return n === 0; }, null, { timeout: 20000 });
+}
+await page.evaluate(() => SBMM.layerState.set("base", "slope_0_45", { on: true }));
+await wait(600);
+
+/* B. THE MARKER. Slope is on: bring the pointer over bare ground and the
+   marker sits at the reader's own value there; take it away and it goes. */
+const pt = await page.evaluate(() => {
+  const map = SBMM.map, r = map.getContainer().getBoundingClientRect(), F = SBMM.shell.frame();
+  for (let sy = F.y + 90; sy < F.y + F.h - 90; sy += 11) for (let sx = F.x + 90; sx < F.x + F.w - 90; sx += 11) {
+    const e = document.elementFromPoint(sx, sy);
+    if (!e || !e.closest("#map") || e.closest(".leaflet-popup, .leaflet-control")) continue;
+    const ll = map.containerPointToLatLng([sx - r.left, sy - r.top]), q = SBMM.slopeAt(ll.lng, ll.lat);
+    if (q && q.slopeDeg > 3 && q.slopeDeg < 40 && !SBMM.pick2d.probe(ll).length) return { sx, sy };
+  }
+  return null;
+});
+if (!pt) { console.log("FAIL: no bare sloping ground on screen to point at"); process.exit(1); }
+/* "away" is over the dock: the stage is full-bleed, so a corner of the window is still the map */
+const off = await page.evaluate(() => { const r = document.getElementById("leftTabs").getBoundingClientRect(); return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) }; });
+const mark = () => page.evaluate(() => {
+  const e = document.querySelector('#anaLayers .lg[data-lg="slope"]'), mk = e.querySelector(".lgmk"), L1 = SBMM.readout.last();
+  const a = L1 && L1.x != null ? SBMM.readout.read("slope", L1.x, L1.y, { view: "2d" }) : null;
+  return { shown: !mk.hidden, left: parseFloat(mk.style.left), want: a ? +(100 * Math.min(45, a.v) / 45).toFixed(1) : null, v: a ? a.v : null,
+           onScreen: !!e.offsetParent, live: SBMM.legend.count() };
+});
+let m1 = null;
+for (let k = 0; k < 4; k++) {
+  await page.mouse.move(pt.sx - 25 - 6 * k, pt.sy - 18); await page.mouse.move(pt.sx, pt.sy, { steps: 3 });
+  await page.waitForFunction(() => !document.querySelector('#anaLayers .lg[data-lg="slope"] .lgmk').hidden, null, { timeout: 3000 }).catch(() => {});
+  m1 = await mark(); if (m1.shown) break;
+}
+console.log("  slope marker under the pointer:", JSON.stringify(m1));
+if (!m1.onScreen || !m1.shown || m1.want == null || Math.abs(m1.left - m1.want) > 0.11)
+  { console.log("FAIL: the slope legend's marker is not at the value under the pointer", m1); process.exit(1); }
+/* the legend card on the map draws the same scale under the row's name */
+const card = await page.evaluate(async () => {
+  SBMM.layerTree.legend.toggle(true); await new Promise(r => setTimeout(r, 400));
+  const e = document.querySelector("#mapLegend .mlscale .lgbar"), o = { scale: !!e, bg: e ? e.style.background.slice(0, 22) : "" };
+  SBMM.layerTree.legend.toggle(false);
+  return o;
+});
+if (!card.scale) { console.log("FAIL: the legend card on the map does not draw the slope's scale", card); process.exit(1); }
+await page.mouse.move(off.x, off.y); await wait(400);
+const m2 = await mark();
+if (m2.shown) { console.log("FAIL: the marker stayed after the pointer left the map", m2); process.exit(1); }
+await page.evaluate(() => SBMM.layerState.set("base", "slope_0_45", { on: false }));
+
+/* C. A CLASS LEGEND lights the class under the pointer (land cover) */
+const hasCover = await page.evaluate(async () => {
+  const LS = SBMM.layerState;
+  if (!(LS.rec && LS.rec("framework", "runoff_cover") && SBMM.runoff && SBMM.runoff.coverRaster && SBMM_DATA.cover_png)) return false;
+  LS.set("framework", "runoff_cover", { on: true });
+  await SBMM.runoff.coverRaster();
+  const e = document.querySelector(".rnLegend.lg-classes:not(.wwLegend)");
+  /* its sub-group has to be open for the legend to be on screen */
+  const wrap = e && e.closest(".lgsub"); if (wrap && wrap.classList.contains("closed")) wrap.querySelector(".subtoggle").click();
+  if (e) e.scrollIntoView ? (e.closest("#layers").scrollTop = Math.max(0, e.offsetTop - 200)) : 0;
+  return !!e;
+});
+if (hasCover) {
+  await wait(500);
+  let c1 = null;
+  for (let k = 0; k < 4; k++) {
+    await page.mouse.move(pt.sx - 25 - 6 * k, pt.sy - 18); await page.mouse.move(pt.sx, pt.sy, { steps: 3 });
+    await page.waitForFunction(() => !!document.querySelector(".rnLegend.lg-classes:not(.wwLegend) .lgc.on"), null, { timeout: 3000 }).catch(() => {});
+    c1 = await page.evaluate(() => {
+      const e = document.querySelector(".rnLegend.lg-classes:not(.wwLegend)"), on = [...e.querySelectorAll(".lgc.on")].map(q => q.dataset.c), L1 = SBMM.readout.last();
+      const a = L1 && L1.x != null ? SBMM.readout.read("cover", L1.x, L1.y, { view: "2d" }) : null;
+      return { on, want: a ? String(a.cls) : null, n: e.querySelectorAll(".lgc").length, onScreen: !!e.offsetParent };
+    });
+    if (c1.on.length) break;
+  }
+  console.log("  land-cover class under the pointer:", JSON.stringify(c1));
+  if (!c1.onScreen || c1.on.length !== 1 || c1.on[0] !== c1.want || c1.n < 5) { console.log("FAIL: the land-cover legend does not light the class under the pointer", c1); process.exit(1); }
+  await page.evaluate(() => SBMM.layerState.set("framework", "runoff_cover", { on: false }));
+}
+
+/* E. the 3D view's elevation scale is the same component standing up, and its
+   marker is the ground under the pointer whatever the ground is wearing */
+const E3 = await page.evaluate(async () => {
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  const V = SBMM.viewer3d;
+  if (!V.isOpen()) await V.toggle();
+  await V.ready; await sleep(1500);
+  const c = document.getElementById("v3dCanvas").getBoundingClientRect(), F = SBMM.shell.frame();
+  const e = document.querySelector("#v3dElevLeg .lg.lgv");
+  return { legend: !!e, ends: e ? [...e.querySelectorAll(".lgvend")].map(q => q.textContent) : [], onScreen: !!(e && e.offsetParent),
+           sx: Math.round(F.x + F.w * 0.5), sy: Math.round(F.y + F.h * 0.62), zr: SBMM._zrSite };
+});
+if (!E3.legend || E3.ends.length !== 2) { console.log("FAIL: the 3D elevation scale is not the shared legend", E3); process.exit(1); }
+if (E3.onScreen) {
+  let e1 = null;
+  for (let k = 0; k < 5; k++) {
+    await page.mouse.move(E3.sx - 30 - 9 * k, E3.sy - 20); await page.mouse.move(E3.sx + 3 * k, E3.sy, { steps: 4 });
+    await page.waitForFunction(() => { const m = document.querySelector("#v3dElevLeg .lgmk"); return m && !m.hidden; }, null, { timeout: 5000 }).catch(() => {});
+    e1 = await page.evaluate(() => {
+      const mk = document.querySelector("#v3dElevLeg .lgmk"), L1 = SBMM.readout.last(), zr = SBMM._zrSite;
+      const z = L1 && L1.view === "3d" && L1.x != null ? SBMM.elev(L1.x, L1.y)[0] : NaN;
+      return { shown: !mk.hidden, bottom: parseFloat(mk.style.bottom), want: isNaN(z) ? null : +(100 * (z - zr[0]) / (zr[1] - zr[0])).toFixed(1), z };
+    });
+    if (e1.shown) break;
+  }
+  console.log("  3D elevation scale under the pointer:", JSON.stringify(e1));
+  if (!e1.shown || e1.want == null || Math.abs(e1.bottom - e1.want) > 0.11) { console.log("FAIL: the 3D elevation scale's marker is not at the ground under the pointer", e1); process.exit(1); }
+}
+await page.mouse.move(off.x, off.y);
+await page.evaluate(async () => { if (SBMM.viewer3d.isOpen()) await SBMM.viewer3d.toggle(); });
+
+/* D. the terrain rows still refuse a reorder (they are interleaved with their
+   legends), and the pane is put back where the blocks after this expect it */
+const back = await page.evaluate(() => {
+  const cont = document.getElementById("anaLayers");
+  const refuses = !!cont.querySelector(":scope > .lg");
+  const lp = document.getElementById("layers"); if (lp) lp.scrollTop = 0;
+  SBMM.map.closePopup();
+  return { refuses };
+});
+if (!back.refuses) { console.log("FAIL: the terrain rows no longer carry their legends beside them"); process.exit(1); }
+await page.mouse.move(off.x, off.y);
+console.log("legend v59 OK");
 });
 
 await block("9x. drainage", async () => {
@@ -13768,6 +13990,56 @@ await wait9(400);
 const restored = await page.evaluate(() => ({ n: SBMM.store.features.filter(f => f.name === "RELOAD-KEEP").length, bar: !!document.querySelector(".restorebar"),
   stored: (JSON.parse(localStorage.getItem("sbmm_session_auto") || "{}").features || []).length }));
 if (restored.n !== 1 || restored.bar || restored.stored !== savedN) { console.log("FAIL: restore did not bring the drawing back", restored); process.exit(1); }
+
+/* ---- v60: a reload the browser comes back empty from (js/gate.js, the storage guard) ----
+   Chromium can return from a reload without what the page had stored: measured
+   at about one reload in sixteen in this harness's in-memory profile, where
+   the whole store goes. It cannot be made to happen on demand, so it is
+   simulated where it happens: a pagehide listener registered AFTER the app's
+   own (so the app's copy is already taken) empties the store. */
+await page.addInitScript(() => { try { window.__zzFirst = localStorage.getItem("sbmm_zz_keep"); } catch (e) { window.__zzFirst = "?"; } });
+await page.evaluate(() => {
+  localStorage.setItem("sbmm_zz_keep", "A");
+  window.addEventListener("pagehide", () => {
+    sessionStorage.setItem("zz_copy", sessionStorage.getItem("sbmm.keep.v1") || "");
+    const ks = []; for (let i = 0; i < localStorage.length; i++) ks.push(localStorage.key(i));
+    for (const k of ks) if (/^sbmm[_.]/.test(k) && !/^sbmm\.gate\./.test(k)) localStorage.removeItem(k);
+  });
+});
+await page.reload();
+await page.waitForSelector("#loading", { state: "hidden", timeout: 300000 });
+await lateSettled(page);
+const kept = await page.evaluate(() => {
+  let copy = {}; try { copy = JSON.parse(sessionStorage.getItem("zz_copy") || "{}"); } catch (e) {}
+  const ck = Object.keys(copy.k || {});
+  return { first: window.__zzFirst, last: SBMM.keep.last, key: localStorage.getItem("sbmm_zz_keep"),
+           stored: (JSON.parse(localStorage.getItem("sbmm_session_auto") || "{}").features || []).length,
+           bar: !!document.querySelector(".restorebar"), copied: ck.length,
+           gateInCopy: ck.filter(k => /^sbmm\.gate\./.test(k) || k === "sbmm.keep.v1"), used: sessionStorage.getItem("sbmm.keep.v1") === null };
+});
+console.log("a reload the browser came back empty from:", JSON.stringify(kept));
+if (kept.first !== null) { console.log("FAIL: the simulated loss did not empty the store before the page started", kept); process.exit(1); }
+if (!kept.last.reload || kept.last.restored < 2 || kept.key !== "A" || kept.stored !== savedN || !kept.bar)
+  { console.log("FAIL: what the page had stored when it was unloaded was not there after the reload", kept); process.exit(1); }
+if (kept.gateInCopy.length || !kept.used || kept.copied < 2) { console.log("FAIL: the copy carried a gate key, or was not used up", kept); process.exit(1); }
+await page.click("#rsYes");
+await wait9(400);
+/* a plain navigation is NOT a reload: the copy is dropped unused, and a value
+   written after it was taken stands */
+await page.evaluate(() => {
+  localStorage.setItem("sbmm_zz_keep", "A");
+  window.addEventListener("pagehide", () => { localStorage.setItem("sbmm_zz_keep", "B"); });
+});
+await page.goto(page.url().split("?")[0] + "?v60");
+await page.waitForSelector("#loading", { state: "hidden", timeout: 300000 });
+await lateSettled(page);
+const nav = await page.evaluate(() => ({ last: SBMM.keep.last, key: localStorage.getItem("sbmm_zz_keep"), used: sessionStorage.getItem("sbmm.keep.v1") === null,
+  type: (performance.getEntriesByType("navigation")[0] || {}).type }));
+console.log("a plain navigation:", JSON.stringify(nav));
+if (nav.last.reload || nav.last.restored || nav.last.removed || nav.key !== "B" || !nav.used)
+  { console.log("FAIL: a navigation that is not a reload replayed the stored copy", nav); process.exit(1); }
+await page.evaluate(() => { localStorage.removeItem("sbmm_zz_keep"); sessionStorage.removeItem("zz_copy"); });
+if (await page.evaluate(() => !!document.querySelector(".restorebar"))) { await page.click("#rsYes"); await wait9(400); }
 await page.evaluate(() => { for (const f of SBMM.store.features.filter(f => f.name === "RELOAD-KEEP")) SBMM.store.remove(f); });
 await page.evaluate(async () => { await SBMM.viewer3d.toggle(); });
 await settled3d();

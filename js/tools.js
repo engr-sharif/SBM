@@ -664,16 +664,21 @@ SBMM.tools = (function () {
     f.extraLayers = f.extraLayers || []; f.extraLayers.push(ov); f._cfLayer = ov;
     /* v58: kept so the map can be READ at a point (js/readout.js), not only looked at */
     f._cf = { h: hGrid, nx, ny, x0: bx0, y0: by0, step, dsn: !!dsn };
-    let leg = f.card.querySelector(".cfleg");
-    if (!leg) { leg = document.createElement("div"); leg.className = "cfleg legend"; f.card.appendChild(leg); }
+    /* v59: the shared legend (js/legend.js). The map is stretched symmetrically
+       over +/-M, so that is what the two ends say; the marker follows the
+       pointer over THIS volume's map (a `read` of its own, because the reader
+       answers for whichever volume is under the pointer). */
     const loLbl = dsn ? "fill" : "cut", hiLbl = dsn ? "cut" : "fill";
-    leg.innerHTML = `<span class="mono">${loLbl} ${fmt(Math.max(0, -hmin), 1)} ft</span>
-      <span class="rampbar" style="background:linear-gradient(90deg,${RAMPS.cutfill.map(cc => `rgb(${cc.join(",")})`).join(",")})"></span>
-      <span class="mono">${hiLbl} ${fmt(hmax, 1)} ft</span>`;
+    const spec = { kind: "ramp", cls: "cfleg", units: "ft above the base", stops: RAMPS.cutfill, min: -M, max: M,
+      ticks: [{ v: -M, label: loLbl + " " + fmt(M, 1) }, { v: 0, label: "0" }, { v: M, label: hiLbl + " " + fmt(M, 1) }],
+      read: (x, y, ctx) => { if (ctx.view !== "2d") return null; const q = cutFillAt(x, y); return q && q.f === f ? q.h : null; } };
+    if (f._cfLegend && f._cfLegend.el.isConnected) f._cfLegend.update(spec);
+    else { f._cfLegend = SBMM.legend.make(spec); f.card.appendChild(f._cfLegend.el); }
   }
   function removeCutFill(f) {
     if (f._cfLayer) { SBMM.map.removeLayer(f._cfLayer); if (f.extraLayers) f.extraLayers = f.extraLayers.filter(l => l !== f._cfLayer); f._cfLayer = null; }
     f._cf = null;
+    if (f._cfLegend) { f._cfLegend.remove(); f._cfLegend = null; }
     const leg = f.card && f.card.querySelector(".cfleg"); if (leg) leg.remove();
   }
 

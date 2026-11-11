@@ -173,13 +173,15 @@ SBMM.isopach = (function () {
         + (R.cell !== R.intCell ? ` · drawn at ${R.cell} ft` : "")
         + (R.nEdge ? ` · ${fmt0(R.nEdge)} raster-edge cells excluded` : "")]
     ]);
-    const leg = document.createElement("div");
-    leg.className = "cfleg legend isoleg";
-    leg.innerHTML = `<span class="mono">cut ${fmt(Math.max(0, -R.lo), 1)} ft</span>
-      <span class="rampbar" style="background:linear-gradient(90deg,
-        rgb(${RAMP_CUT.join(",")}), rgba(${RAMP_CUT.join(",")},.1),
-        rgba(${RAMP_FILL.join(",")},.1), rgb(${RAMP_FILL.join(",")}))"></span>
-      <span class="mono">fill ${fmt(Math.max(0, R.hi), 1)} ft</span>`;
+    /* v59: the scale the overlay is painted with — symmetric about zero, and
+       fading to nothing there — with a marker at the difference under the
+       pointer. The two ends used to be labelled with the deepest cut and the
+       deepest fill, which are not what the two end colours mean. */
+    const rg = (c, a) => `rgba(${c.join(",")},${a})`;
+    const leg = SBMM.legend.make({ kind: "ramp", cls: "cfleg isoleg", reader: "isopach", units: "ft, design minus ground",
+      stops: [[0, rg(RAMP_CUT, .93)], [.5, rg(RAMP_CUT, .11)], [.5, rg(RAMP_FILL, .11)], [1, rg(RAMP_FILL, .93)]],
+      min: -M, max: M,
+      ticks: [{ v: -M, label: "cut " + fmt(M, 1) }, { v: 0, label: "0" }, { v: M, label: "fill " + fmt(M, 1) }] }).el;
     el.appendChild(leg);
     const row = document.createElement("div");
     row.className = "crow btns";
@@ -219,7 +221,7 @@ SBMM.isopach = (function () {
       const v = valueAt(x, y);
       if (isNaN(v)) return null;
       const w = Math.abs(v) < 0.005 ? "no change" : v > 0 ? "fill" : "cut";
-      return { name: "isopach · " + current.name, value: `${fmt(Math.abs(v), 2)} ft ${w}`, key: v.toFixed(2),
+      return { name: "isopach · " + current.name, value: `${fmt(Math.abs(v), 2)} ft ${w}`, key: v.toFixed(2), v,
                rows: [["Isopach (" + current.name + ")", `${fmt(Math.abs(v), 2)} ft ${w}`]] };
     } });
 

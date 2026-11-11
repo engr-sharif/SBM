@@ -951,12 +951,6 @@ SBMM.runoff = (function () {
     return overlay;
   }
 
-  function legendHtml() {
-    return classes().filter(c => c.id !== 0).map(c =>
-      `<span class="rnLeg"><i style="background:rgb(${c.rgb.join(",")})"></i>${esc(c.key)} `
-      + `<b>${c.cn[c.hsg]}</b></span>`).join("");
-  }
-
   /* v58: the land-cover class under a point. The class raster is decoded on
      first use; until it lands a reader says nothing rather than guess. */
   function coverAt(x, y) {
@@ -971,7 +965,7 @@ SBMM.runoff = (function () {
     if (SBMM.readout) SBMM.readout.register({ id: "cover", row: { g: "framework", l: "runoff_cover" },
       at(x, y) {
         const c = coverAt(x, y);
-        return c ? { name: "land cover", value: c.name || c.key, key: String(c.id) } : null;
+        return c ? { name: "land cover", value: c.name || c.key, key: String(c.id), cls: c.id } : null;
       } });
     groups.cover = L.layerGroup();
     groups.depth = L.layerGroup();
@@ -1011,9 +1005,10 @@ SBMM.runoff = (function () {
        everything else where it is, so a legend parked between two rows would
        shuffle with them. */
     if (cv && rd.row.parentNode) {
-      const leg = document.createElement("div");
-      leg.className = "rnLegend";
-      leg.innerHTML = legendHtml();
+      /* v59: the shared legend; the class under the pointer lights up */
+      const leg = SBMM.legend.make({ kind: "classes", cls: "rnLegend", reader: "cover",
+        row: { g: "framework", l: "runoff_cover" }, title: "curve number by cover",
+        classes: classes().filter(c => c.id !== 0).map(c => ({ id: c.id, color: c.rgb, label: c.key, value: c.cn[c.hsg], title: c.name || c.key })) }).el;
       rd.row.parentNode.appendChild(leg);
     }
     built = true;

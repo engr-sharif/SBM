@@ -6609,3 +6609,142 @@ same TEM settings lived on a card and in the workspace panel.
   workspace and keep the whole card (`[data-temcard="full"]`). A harness that
   set a TEM option through a card control calls `apply` when the control is
   not there.
+
+## v59 — one legend
+
+Contract: `docs/V56_REVIEW_PLAN.md` step 4c. New file `js/legend.js`
+(`SBMM.legend`, loaded after `js/readout.js`); `SBMM.readout.read(id, x, y,
+ctx)`; `v` / `cls` on the readers; the legends of slope, aspect, the elevation
+tint, canopy height, flow accumulation, cut/fill, the isopach, the rim band,
+land cover and where-the-water-goes; the legend card on the map in
+`js/layertree.js`; the `v59` block at the end of `css/app.css`. E2E block
+**"9f27. one legend"** (shard 4). No kernel work.
+
+**What was wrong.** Sixteen legends drawn four ways, and three of them did not
+say what their colours mean: slope said "0° → 45°+" beside a bar with no
+numbers on it, the elevation tint said "low → high", and aspect had no bar at
+all. Only the TEM slice's showed where the value under the pointer sits.
+
+`SBMM.legend.make(spec) -> { el, setMarker(v), update(spec), remove() }` — a
+`ramp` (stops, `min`/`max`, `scale: "lin" | "log"`, `ticks` or `ends`,
+optionally `steps`) or `classes` (`[{ id, color, label, value }]`). The bar is
+a CSS gradient (no SVG gradient ids), so a "transparent" stop is just a stop.
+
+Six things that will be walked into again:
+
+- **THE MARKER FOLLOWS THE LAYER'S OWN READER.** A legend names a reader
+  (`reader: "slope"`) and `SBMM.legend.track(view, x, y)` — called from
+  `SBMM.readout.hover`, the frame the chip is already being worked out in —
+  asks `SBMM.readout.read(id, …)` for each legend ON SCREEN and writes ONE
+  style (`left`, or a class `on`), only when it changed. A reader that can be
+  put on a scale answers `v` (a number in the legend's units) or `cls` (a
+  class id). **A new raster gets a reader with `v` or `cls`, and its legend
+  for free.** Nothing here asks for a frame.
+- **A legend that belongs to ONE of several things takes `read`, not
+  `reader`.** The `cutfill` reader answers for whichever volume's map is under
+  the pointer; each volume's card has its own legend, so its spec carries
+  `read: (x, y, ctx) => value | null`. The rim band's does too.
+- **A legend that is not on screen is not asked** (`offsetParent`): a folded
+  card, a closed sub-group, a hidden pane. A harness that reads a marker has
+  to have the legend visible — Terrain analysis starts folded.
+- **THE ELEVATION TINT IS ONE SCALE NOW.** The mine-area image was stretched
+  over its own elevation range and the site image over the site's, so one
+  colour meant two elevations either side of the mine window's edge — which is
+  why its legend could only say "low → high". Both images use the site's
+  range (`specFor` in `js/analysis.js`), as the 3D elevation drape always has.
+  Display only; block 9f27 asserts the two specs agree.
+- **The two ends of a cut/fill or isopach bar say ±M**, the stretch the map is
+  painted with. They used to carry the deepest cut and the deepest fill, which
+  are not what the two end colours mean; those numbers are rows on the card.
+  The aspect reading says "level" under half a degree of slope, where the
+  raster is painted grey.
+- **`row: { g, l }` on a spec hands the scale to the legend card on the map**
+  (`SBMM.legend.rowHtml`), which draws it under the row's name. That card now
+  compares its markup with what it last WROTE, not with `innerHTML`: the
+  browser re-spells a style attribute, so markup carrying one never reads back
+  equal and every `layers` event would have rewritten the card.
+
+The 3D view's elevation scale (`#v3dElevLeg`) is the same component with
+`vertical: true`; its marker is the ground elevation under the pointer in 3D,
+whatever the ground is wearing.
+
+The classes the harnesses read are kept on the new elements (`.isoleg`,
+`.cfleg`, `.rimleg`, `.rnLegend .rnLeg`, `.wwLegend`). `layertree`'s refusal to
+reorder the terrain rows looks for `:scope > .lg` as well as `.legend`.
+**Not moved**, and why: the TEM legends (they are the model for this one and
+carry a draggable range), the tree legend (it is a control: the height
+filter), the sample legend, the boring-log class key, and every print-sheet
+colour bar (a canvas, for paper).
+
+**And one defect the legend's test found, older than the legend** (2026-11-11):
+`SBMM.addLayerRow`'s `show()` awaited a row's `onFirstShow` build and then
+added the layer to the map **whatever the state said by then**. Tick Slope and
+untick it before the raster has been computed (a second or more), and the
+image arrived anyway — on the map with its box unticked, until the row was
+ticked and unticked again. `show()` now asks `SBMM.layerState.isOn` after the
+build. Block 9f24 switches each terrain raster off while it is still building
+(its reading comes from the terrain, not from the image), and now waits for the
+builds and requires **no row that is off to have its layer on the map** — every
+row, through `SBMM.layerTree.refs()`. Block 9f27 finds its image among the ones
+that arrive after its row is switched on, so what an earlier block left on the
+map cannot be measured in its place.
+
+## v60 — what the page had stored when it was unloaded is what a reload starts with
+
+The storage guard at the top of `js/gate.js` (`SBMM.keep`); the simulated lossy
+reload in block **9zz**. No kernel work.
+
+**What was wrong.** Block 9zz failed on CI with *everything* the page had
+stored gone after the reset's reload — keys the reset never touches included.
+A probe that logs every storage call (and the unloading page's own view) says:
+
+- the app clears nothing; at `pagehide` the old page still has every key;
+- the reloaded page starts with an empty store, in the same renderer process,
+  and a second page opened in the same profile sees it empty too;
+- **in-memory profile** (what every harness here runs in): about one reload in
+  sixteen under load — main's code and the branch alike, run side by side —
+  and the WHOLE store goes, a key written 70 s earlier with the rest;
+- **on-disk profile**: once in ten reloads when the page had only just
+  opened, never in forty when it had been open twenty seconds. What a real
+  profile can lose is what was written in the last seconds before the reload —
+  and *reset to defaults* writes and reloads at once;
+- a bare page: never (0 of 80). `sessionStorage` survived every lossy reload.
+
+It is the browser, not the app, and it predates this round (main's code does
+it at the same rate). A reload failure in 9z or 9zz that "passes alone" may
+have been this.
+
+**The guard.** At `pagehide` the app's own keys (`sbmm_*` / `sbmm.*`) are
+copied into `sessionStorage["sbmm.keep.v1"]`. The first script of the next
+document, **on a reload only**, puts back any the browser did not keep and
+removes any that were not there at unload; `SBMM.keep.last` is
+`{ reload, age, restored, removed }` and a replay that changed anything says so
+with one `console.warn`. Six rules:
+
+- **The gate's keys never travel.** `sbmm.gate.*` is neither copied nor
+  touched: nothing about being unlocked, or about the idle lock, goes through
+  the tab's session storage. Block 9zz reads the copy and requires that.
+- **A reload only** (`PerformanceNavigationTiming.type === "reload"`). A plain
+  navigation, a duplicated tab or a restored session finds a copy that is not
+  theirs: it is dropped unused. The copy is also dropped at use, after a
+  minute, and when a page returns from the back/forward cache.
+- **The copy is the store AT UNLOAD**, so a key changed by hand (or by a
+  harness) before the reload is honoured — the copy has the change.
+- **It runs before any script reads a setting**, which is why it is in the
+  first script and not in a file of its own: `js/touch.js` reads the field
+  preference at parse time, the view store at its own load.
+- **A value over 1.5 M characters is not copied** (a session full of photos),
+  and is then left exactly as the browser has it.
+- **Nothing in this app writes to localStorage while the page unloads.** If
+  something ever does, it writes before `pagehide` or calls
+  `SBMM.keep.snap()` after — a copy taken before a later write would put the
+  older value back.
+
+**The loss cannot be made to happen on demand**, so block 9zz simulates it
+where it happens: a `pagehide` listener registered after the app's own (the
+copy is already taken) empties the store, and an init script records what the
+next document saw before any app script ran (`null`). The reload must come
+back with the probe key, the drawings offered for restore and
+`restored >= 2`; the same key changed in a `pagehide` listener before a plain
+`goto` must stand, with `restored 0`. The probes behind the numbers above were
+scratch scripts and are not in the repo; the numbers are from 2026-11-11.

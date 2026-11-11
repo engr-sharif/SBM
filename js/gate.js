@@ -35,6 +35,100 @@
      idle lock off is a user setting, not a bypass: it unlocks nothing, which
      is why test/gate.mjs may set it for the long harness runs.
    ------------------------------------------------------------------------ */
+/* ------------------------------------------------------------------------
+   v60 — WHAT THE PAGE HAD STORED WHEN IT WAS UNLOADED IS WHAT A RELOAD STARTS WITH
+
+   Not the gate; it lives here because it has to run before ANY script reads a
+   stored setting, and this is the first script.
+
+   Chromium can come back from a reload without what the page had in
+   localStorage. Measured (2026-11-11) with a probe that logs every storage
+   call: the page being unloaded still has every key, the app clears nothing,
+   and the reloaded page starts with an empty store — about one reload in
+   sixteen under load with an in-memory profile (which is what every test
+   harness here runs in), where the WHOLE store goes; never on a bare page
+   (0 of 80). With an on-disk profile what can go is whatever was written in
+   the last few seconds — and "reset to defaults" writes and reloads at once.
+   sessionStorage survived every one of those reloads.
+
+   So: at `pagehide` the app's own keys are copied into sessionStorage, and on
+   a RELOAD (never on a plain navigation) this script puts back any that the
+   browser did not keep, and removes any that were not there at unload.
+
+   - The gate's keys (sbmm.gate.*) are never copied and never touched: nothing
+     about being unlocked travels this way.
+   - The copy is used once, only by a reload, and only if it is under a minute
+     old; a duplicated tab or a restored session finds a stale copy and drops it.
+   - A value over 1.5 M characters (a session full of photos) is not copied,
+     and is then left exactly as the browser has it.
+   - Nothing in this app writes to localStorage while the page unloads. If
+     something ever does, it must do so before `pagehide` or call
+     SBMM.keep.snap() afterwards — a copy taken before a later write would
+     put the older value back.
+   SBMM.keep.last says what the last boot did: { reload, age, restored, removed }.
+   ------------------------------------------------------------------------ */
+(function () {
+  "use strict";
+  var KEY = "sbmm.keep.v1", MAX_AGE = 60000, MAX_VAL = 1500000, MAX_ALL = 4000000;
+  var last = { reload: false, age: null, restored: 0, removed: 0 };
+  function mine(k) {
+    return !!k && (k.indexOf("sbmm_") === 0 || k.indexOf("sbmm.") === 0) && k.indexOf("sbmm.gate.") !== 0 && k !== KEY;
+  }
+  function isReload() {
+    try {
+      var n = performance.getEntriesByType && performance.getEntriesByType("navigation")[0];
+      if (n && n.type) return n.type === "reload";
+      return !!(performance.navigation && performance.navigation.type === 1);
+    } catch (e) { return false; }
+  }
+  function snap() {
+    try {
+      var o = { t: Date.now(), k: {}, big: [] }, total = 0, i, k, v;
+      for (i = 0; i < localStorage.length; i++) {
+        k = localStorage.key(i);
+        if (!mine(k)) continue;
+        v = localStorage.getItem(k);
+        if (v === null) continue;
+        if (v.length > MAX_VAL || total + v.length > MAX_ALL) { o.big.push(k); continue; }
+        o.k[k] = v; total += v.length;
+      }
+      sessionStorage.setItem(KEY, JSON.stringify(o));
+      return true;
+    } catch (e) {
+      try { sessionStorage.removeItem(KEY); } catch (e2) {}
+      return false;
+    }
+  }
+  try {
+    var raw = sessionStorage.getItem(KEY);
+    if (raw) {
+      sessionStorage.removeItem(KEY);
+      var o = JSON.parse(raw), age = o && o.t ? Date.now() - o.t : -1;
+      last.reload = isReload();
+      if (last.reload && o && o.k && age >= 0 && age < MAX_AGE) {
+        last.age = age;
+        var k, i, have = [], big = o.big || [];
+        for (k in o.k) if (Object.prototype.hasOwnProperty.call(o.k, k) && mine(k) && localStorage.getItem(k) !== o.k[k]) {
+          localStorage.setItem(k, o.k[k]); last.restored++;
+        }
+        for (i = 0; i < localStorage.length; i++) have.push(localStorage.key(i));
+        for (i = 0; i < have.length; i++) {
+          k = have[i];
+          if (mine(k) && !Object.prototype.hasOwnProperty.call(o.k, k) && big.indexOf(k) < 0) { localStorage.removeItem(k); last.removed++; }
+        }
+        if ((last.restored || last.removed) && window.console)
+          console.warn("storage: the browser came back from the reload without " + (last.restored + last.removed) +
+                       " stored setting(s); they were put back from this tab's own copy");
+      }
+    }
+  } catch (e) { /* no storage: nothing to keep */ }
+  window.addEventListener("pagehide", function () { snap(); });
+  /* a page that comes back from the back/forward cache never unloaded: its copy is stale the moment it is shown */
+  window.addEventListener("pageshow", function (ev) { if (ev && ev.persisted) { try { sessionStorage.removeItem(KEY); } catch (e) {} } });
+  window.SBMM = window.SBMM || {};
+  window.SBMM.keep = { last: last, snap: snap, KEY: KEY };
+})();
+
 (function () {
   "use strict";
 

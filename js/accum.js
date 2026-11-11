@@ -263,7 +263,7 @@ SBMM.accum = (function () {
     if (SBMM.readout) SBMM.readout.register({ id: "accum", row: { g: "framework", l: "accum_raster" },
       at(x, y) {
         const v = accAt(x, y);
-        return v > 0 ? { name: "upstream area", value: ac(v) + " ac", key: ac(v) } : null;
+        return v > 0 ? { name: "upstream area", value: ac(v) + " ac", key: ac(v), v: v / AC } : null;
       } });
     groups.streams = L.layerGroup();
     const rast = SBMM.addLayerRow("proj", "Flow accumulation", null,
@@ -291,11 +291,14 @@ SBMM.accum = (function () {
        legend parked between two rows would shuffle with them (v14 Phase 2's
        note, and the same rule applies here). */
     if (str.row.parentNode) {
-      legendEl = document.createElement("div");
-      legendEl.className = "rnLegend";
-      legendEl.innerHTML = [0.02, 0.2, 2, 20, 200].map(a =>
-        `<span class="rnLeg"><i style="background:rgb(${colorOf(a).join(",")})"></i>`
-        + `${a < 1 ? a : fmt0(a)} ac</span>`).join("");
+      /* v59: the raster's own log scale, with a marker at the area under the
+         pointer (js/legend.js) */
+      const l0 = Math.log(RAMP[0][0]), l1 = Math.log(RAMP[RAMP.length - 1][0]);
+      legendEl = SBMM.legend.make({ kind: "ramp", cls: "lyrlg acLegend", reader: "accum",
+        row: { g: "framework", l: "accum_raster" }, units: "acres upstream", scale: "log",
+        stops: RAMP.map(q => [(Math.log(q[0]) - l0) / (l1 - l0), q[1]]),
+        min: RAMP[0][0], max: RAMP[RAMP.length - 1][0],
+        ticks: RAMP.map(q => ({ v: q[0], label: q[0] < 1 ? String(q[0]) : fmt0(q[0]) })) }).el;
       str.row.parentNode.appendChild(legendEl);
     }
     built = true;

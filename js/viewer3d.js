@@ -4317,18 +4317,19 @@ SBMM.viewer3d = (function () {
   /* §3.2 — a small elevation legend. It reads the site DEM's own range and
      paints the hypsometric ramp the 2D elevation-tint layer uses, so the two
      views describe height with the same colours. */
+  let elevLegend = null;
   function paintElevLegend() {
     const host = $("v3dElevLeg");
     if (!host) return;
     const zr = SBMM._zrSite || SBMM.demSite.zRange();
-    const stops = [];
-    for (let i = 0; i < 6; i++) {
-      const c = lerpRamp(RAMPS.hypso, i / 5);
-      stops.push(`rgb(${c[0] | 0},${c[1] | 0},${c[2] | 0}) ${(i / 5 * 100).toFixed(0)}%`);
-    }
-    host.innerHTML = `<span class="mono">${fmt0(zr[1])}</span>`
-      + `<span class="elbar" style="background:linear-gradient(0deg,${stops.join(",")})"></span>`
-      + `<span class="mono">${fmt0(zr[0])}</span>`;
+    /* v59: the shared legend (js/legend.js), standing up. Its marker is the
+       ground elevation under the pointer in this view, whatever the ground is
+       wearing — the scale is the site's height, not one drape's. */
+    const spec = { kind: "ramp", vertical: true, stops: RAMPS.hypso, min: zr[0], max: zr[1],
+      ends: [fmt0(zr[0]), fmt0(zr[1])],
+      read: (x, y, ctx) => { if (ctx.view !== "3d") return null; const z = SBMM.elev(x, y)[0]; return isNaN(z) ? null : z; } };
+    if (elevLegend && elevLegend.el.isConnected) elevLegend.update(spec);
+    else if (SBMM.legend) { host.innerHTML = ""; elevLegend = SBMM.legend.make(spec); host.appendChild(elevLegend.el); }
     host.title = `Surveyed ground: ${fmt0(zr[0])}–${fmt0(zr[1])} ft (NAVD88). `
       + `The same hypsometric ramp the 2D elevation tint uses.`;
   }

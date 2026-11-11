@@ -57,7 +57,7 @@ SBMM.whereWater = (function () {
   let R = null;                       // the last kernel result (outlets un-merged)
   let lastCds = null;                 // the conduit list THAT run was given
   let runKey = null, running = null;
-  let card = null, group = null, row = null, legendEl = null, built = false;
+  let card = null, group = null, row = null, legendEl = null, legend = null, built = false;
   let classOfSink = new Map();        // sink label -> class id
   let stale = false, staleTimer = null;
 
@@ -411,13 +411,12 @@ SBMM.whereWater = (function () {
     if (SBMM.viewer3d && SBMM.viewer3d.isOpen()) SBMM.viewer3d.refreshOverlays();
   }
 
-  function paintLegend() {
-    if (!legendEl) return;
+  function legendSpec() {
     const recs = R ? classes() : CLASSES.map(c => ({ ...c, area_ft2: null }));
-    legendEl.innerHTML = recs.map(c =>
-      `<span class="rnLeg" title="${esc(c.sentence || c.label)}"><i style="background:${c.color}"></i>`
-      + `${esc(c.label)}${c.area_ft2 == null ? "" : " · " + ac(c.area_ft2) + " ac"}</span>`).join("");
+    return { classes: recs.map(c => ({ id: c.id, color: c.color, label: c.label, title: c.sentence || c.label,
+                                      value: c.area_ft2 == null ? "" : ac(c.area_ft2) + " ac" })) };
   }
+  function paintLegend() { if (legend) legend.update(legendSpec()); }
 
   async function ensure() {
     if (R && runKey === signature()) { paint(); return R; }
@@ -438,7 +437,7 @@ SBMM.whereWater = (function () {
     if (SBMM.readout) SBMM.readout.register({ id: "wherewater", row: { g: "framework", l: "where_water" },
       at(x, y) {
         const c = classRec(classAt(x, y));
-        return c ? { name: "where the water goes", value: c.label, lines: [fmt(c.acres, 2) + " ac in this class"], key: c.id } : null;
+        return c ? { name: "where the water goes", value: c.label, lines: [fmt(c.acres, 2) + " ac in this class"], key: c.id, cls: c.id } : null;
       } });
     group = L.layerGroup();
     row = SBMM.addLayerRow("proj", "Where the water goes", group,
@@ -450,10 +449,11 @@ SBMM.whereWater = (function () {
     /* the legend goes AFTER the row, outside it: js/layertree.js reorders the
        `.lyr` elements among themselves and leaves everything else alone */
     if (row.row.parentNode) {
-      legendEl = document.createElement("div");
-      legendEl.className = "rnLegend wwLegend";
+      /* v59: the shared legend; the class under the pointer lights up */
+      legend = SBMM.legend.make(Object.assign({ kind: "classes", cls: "rnLegend wwLegend", reader: "wherewater",
+        row: { g: "framework", l: "where_water" } }, legendSpec()));
+      legendEl = legend.el;
       row.row.parentNode.appendChild(legendEl);
-      paintLegend();
     }
     built = true;
   }

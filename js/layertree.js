@@ -393,7 +393,7 @@ SBMM.layerTree = (function () {
        controls (js/analysis.js, js/trees.js append them as siblings), so moving
        the rows there would leave every legend under the wrong layer. Refuse it,
        out loud — a grip that does nothing is worse than one that says why. */
-    if (cont.querySelector(":scope > .legend, :scope > .genrow")) {
+    if (cont.querySelector(":scope > .legend, :scope > .lg, :scope > .genrow")) {
       toast("these rows carry their own legend and controls — they cannot be reordered");
       return;
     }
@@ -1035,10 +1035,15 @@ SBMM.layerTree = (function () {
       html += `<div class="mlr"><span class="ltsw">${svgFor(ref, "_lg").html}</span>` +
         `<span class="mll">${esc(r.label)}</span>` +
         `<button type="button" class="mlonly" data-k="${esc(g.id + "/" + r.id)}" title="Hide everything else in ${esc(g.label)}">only</button></div>`;
+      /* v59: a raster's row carries its SCALE, not only a swatch — the same
+         markup js/legend.js draws beside the row in the tree */
+      if (SBMM.legend) html += SBMM.legend.rowHtml(g.id, r.id);
     }
     if (!on.length) html = `<div class="mlempty">Nothing is switched on.</div>`;
     const body = el.querySelector("#mlBody");
-    if (body.innerHTML !== html) body.innerHTML = html;
+    /* compared with what was last WRITTEN, not with innerHTML: the browser
+       re-spells a style attribute, so markup carrying one never reads back equal */
+    if (body._html !== html) { body._html = html; body.innerHTML = html; }
   }
 
   function toggleLegend(force) {
