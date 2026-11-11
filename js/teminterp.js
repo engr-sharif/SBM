@@ -957,6 +957,8 @@ SBMM.teminterp = (function () {
     waste: () => W, seep: () => Sp, card: k => cards[k] || null, showCard, rows: () => rows,
     settings: () => Object.assign({}, P), set: setP, BANDS,
     /* v54: the legend bar js/temmaps.js draws its own scales with */
-    ui: { legendSvg }
+    ui: { legendSvg },
+    /* v55: the one sentence each analysis states, for the report sheet */
+    finding: k => (k === "waste" ? (W ? wasteFinding().text : "") : (Sp ? seepFinding().text : ""))
   };
 })();

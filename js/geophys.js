@@ -886,6 +886,9 @@ SBMM.geophys = (function () {
     acts.innerHTML = `<span class="minib" data-a="png" title="The slice as a PNG">PNG</span>`
       + `<span class="minib" data-a="csv" title="The slice as CSV (easting, northing, value)">slice CSV</span>`
       + `<span class="minib" data-a="model" title="Every node and every layer as CSV">model CSV</span>`
+      + `<span class="minib" data-a="asc" title="The slice as an ESRI ASCII grid with its projection file, zipped">GIS grid</span>`
+      + `<span class="minib" data-a="vtk" title="The whole model as a VTK structured grid (ParaView, VisIt)">3D model</span>`
+      + `<span class="minib" data-a="report" title="A print-ready sheet of the TEM as it stands">report</span>`
       + `<span class="minib" data-a="fit" title="Colour range from 2–98 % of the soundings">fit range</span>`
       + `<span class="minib" data-a="cal" title="Resistivity against the 2025 borings' logged classes (TEMCAL)">vs borings</span>`
       + (document.body.classList.contains("field") ? ""
@@ -1035,7 +1038,22 @@ SBMM.geophys = (function () {
     }
     return out;
   }
+  /* v55: the slice as a grid of the property on the model's nodes (NaN where
+     there is none), with the words an export needs (js/temexport.js) */
+  function sliceGrid() {
+    if (!R) return null;
+    const f = fieldNow(), N = R.nx * R.ny, v = new Float32Array(N), P = PROP[S.prop];
+    for (let i = 0; i < N; i++) v[i] = isFinite(f[i]) ? toProp(f[i]) : NaN;
+    return { nx: R.nx, ny: R.ny, dx: R.dx, x0: R.x0, y0: R.y0, v, name: P.name, unit: P.unit,
+             what: `${P.name} at ${sliceLong()}`, tag: "slice_" + sliceTag(), log: P.scale === "log",
+             method: METHOD_NAME[R.method] };
+  }
   function action(a) {
+    if (a === "asc" || a === "vtk" || a === "report") {
+      if (!SBMM.temexport) { toast("that export is not in this build"); return; }
+      if (a === "asc") SBMM.temexport.gridZip("slice"); else if (a === "vtk") SBMM.temexport.modelVtk(); else SBMM.temexport.report();
+      return;
+    }
     if (a === "png") exportPng();
     else if (a === "csv") download("SBMM_TEM_slice_" + sliceTag() + ".csv", new Blob([sliceCsv()], { type: "text/csv" }));
     else if (a === "model") download("SBMM_TEM_model.csv", new Blob([modelCsv()], { type: "text/csv" }));
@@ -1699,6 +1717,7 @@ SBMM.geophys = (function () {
     sectionHandle, sectionIdx: d => R ? sectionIdx(d) : -1,
     probe, probeCsv, soundingRho: (i, d) => Math.pow(10, soundingAt(i, d)),
     ensureSupport, support: () => (supReady() ? sup : null), supportOf, supportWord, spacing,
+    sliceGrid, summaryRows: () => (R && data() ? cardRows() : []), methodName: () => (R ? METHOD_NAME[R.method] : ""),
     unit: () => PROP[S.prop].unit, propName: () => PROP[S.prop].name,
     /* v54: the slice's colour map as stops, low value first (js/temmaps.js) */
     cmapStops: () => { const st = (CMAPS[S.cmap] || CMAPS.hydro).slice(); return S.rev ? st.reverse() : st; },

@@ -408,6 +408,8 @@ SBMM.temmaps = (function () {
     const b = (a, t, label) => `<${T} class="minib" data-tm-a="${a}" title="${esc(t)}">${label}</${T}>`;
     return b("csv", "Every mapped node, every quantity", "grid CSV")
       + b("png", "The map as a picture, with its legend", "PNG")
+      + b("asc", "The map as an ESRI ASCII grid with its projection file, zipped", "GIS grid")
+      + b("report", "A print-ready sheet of the TEM as it stands", "report")
       + (ws ? b("ws", "The TEM workspace at this map (TEMMAP)", "workspace") : "");
   }
   function cardBody() {
@@ -648,6 +650,11 @@ SBMM.temmaps = (function () {
     const a = b.dataset.tmA;
     if (a === "csv") { if (current()) download("SBMM_TEM_" + fileTag() + ".csv", new Blob([csv()], { type: "text/csv" })); else toast("the map is not computed yet"); return; }
     if (a === "png") { exportPng(); return; }
+    if (a === "asc" || a === "report") {
+      if (!SBMM.temexport) { toast("that export is not in this build"); return; }
+      if (a === "asc") SBMM.temexport.gridZip("map"); else SBMM.temexport.report();
+      return;
+    }
     if (a === "ws") { if (SBMM.temws) SBMM.temws.open({ tab: "maps" }); return; }
     if (a === "frame") { frame(); return; }
     if (a === "calib") { const C = calibHint(); if (C) setP("tThr", C.rho); return; }
@@ -708,6 +715,15 @@ SBMM.temmaps = (function () {
     build, open, activate, mount, paintPane, run, scene3d, wantsSeeThrough, pick3d, readAt, hoverText,
     setRow, set: setP, settings: () => Object.assign({}, P), result: () => (current() ? M : null),
     card: () => card, cards: () => (card ? [card] : []), showCard, row: () => row, on,
-    csv, exportPng, finding, rows: rowsNow, scale: scaleNow, picture, title, frame, ROW
+    csv, exportPng, finding, rows: rowsNow, scale: scaleNow, picture, title, frame, ROW,
+    /* v55: the map on screen as a grid, with the words an export needs */
+    grid() {
+      if (!current()) return null;
+      const sh = showNow(), sc = scaleNow();
+      return { nx: M.nx, ny: M.ny, dx: M.dx, x0: M.x0, y0: M.y0, v: arrNow(), name: sh.name, unit: sh.unit,
+               what: P.kind === "interval" ? `${sh.name} of ${intervalWords()}` : `${sh.name} of the first ground ${topWords()}`,
+               tag: fileTag() + "_" + (P.kind === "interval" ? P.iShow : P.tShow), log: !!(sc && sc.kind === "log"),
+               method: G().methodName ? G().methodName() : "" };
+    }
   };
 })();

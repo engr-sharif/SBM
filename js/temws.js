@@ -476,6 +476,9 @@ SBMM.temws = (function () {
       + `<section class="twsacts"><button class="minib" data-a="png" title="The slice as a PNG">slice PNG</button>`
       + `<button class="minib" data-a="csv" title="The slice as CSV (easting, northing, value)">slice CSV</button>`
       + `<button class="minib" data-a="model" title="Every node and every layer as CSV">model CSV</button>`
+      + `<button class="minib" data-a="asc" title="The slice as an ESRI ASCII grid with its projection file, zipped">GIS grid</button>`
+      + `<button class="minib" data-a="vtk" title="The whole model as a VTK structured grid (ParaView, VisIt)">3D model</button>`
+      + `<button class="minib" data-a="report" title="A print-ready sheet of the TEM as it stands">report</button>`
       + `<button class="minib" data-a="card" title="The results card">card</button></section>`
       + `</div>`
       + `<div class="twsb temctl" data-pane="waste" data-ti-pane="waste"${tab === "waste" ? "" : " hidden"}></div>`
