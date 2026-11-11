@@ -6873,3 +6873,26 @@ where it was 6,718.
   `addG` / `SHW` / `OVL` / `ptCand` at it). The isopach label's section and
   the finish (shadows, wide lines, labels, point names, the pick sync) stay in
   the viewer: they are the pass, not a layer.
+## v60 — CI in two tiers
+
+`.github/workflows/matrix.yml`. One run of the matrix is about **230
+runner-minutes** (eighteen jobs, measured on #72). A pull request that is
+still a **draft** runs the `quick` job only — `node test/run.mjs --quick`: the
+preflight, the gesture arithmetic, the tiles and every kernel section but the
+drainage identity, about a minute, no browser. **The matrix runs when the pull
+request is marked ready for review**, on every push after that, and on demand
+(`workflow_dispatch`). So: push to a draft as often as the work needs, mark it
+ready when it is meant to merge, and merge on the matrix.
+
+**The two artifact uploads cannot fail a job** (`continue-on-error`, five
+minutes each). They are diagnostics: on 2026-11-11 GitHub's artifact service
+answered every request with an error page, and seven jobs whose tests had
+passed went red after ten minutes of retries per upload. A red job is a red
+test step; when the logs artifact is missing, the job summary still carries
+the tail of `PROGRESS`.
+
+Measured and deliberately not done (the plan asked for it): replacing the
+fixed pauses in `test/e2e.mjs` with conditions. There are 506 and they add up
+to 369 seconds of a two-hour run; the time is in software-GL frames and
+compute jobs. A pause that makes a block FLAKY is still worth replacing with
+its condition, one at a time, as the 9z and 9f12c fixes did.

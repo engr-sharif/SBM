@@ -465,12 +465,62 @@ after; CI runs the preflight and the node harnesses on a draft's pushes and
 the full matrix when the pull request is marked ready. **Acceptance:** runner
 minutes per merge, before and after; no block slower.
 
+*5b as built, and what was not built.* Measured before any of it: the fixed
+pauses in `test/e2e.mjs` are 506 and add up to **369 seconds** (each counted
+once) of a run that takes about two hours per build under software GL — some
+5 %. The time is in the frames (one to four seconds each on a software
+renderer) and in the compute jobs, not in the pauses. So the pauses were NOT
+rewritten wholesale: it is weeks of block-by-block browser time for minutes.
+What costs runner minutes is running eighteen jobs (about 230 runner-minutes,
+measured on #72) on every push, and that is what changed: a draft gets the
+one-minute `quick` job; the matrix runs when the pull request is marked ready.
+
 **5c. The map first.** Measure first: how many of the 82 MB a first network
 visit needs before the 2D map can be used. If the terrain grids can land
 after the map — `SBMM.elev` answering "not yet" and every boot-time reader
 waiting on one `SBMM.demReady` — the plan for it is written then, with the
 list of readers, before any of it is built. It is last because it changes the
 boot contract and is the one item here that may be decided against.
+
+*5c, measured, and the decision.* From the loader's own size table:
+
+| what a first network visit downloads before the app starts | MB |
+|---|---|
+| everything in the boot today | 83.6 |
+| of which the 2D map needs (code, vectors, the photographs, the hillshades) | 32.0 |
+| the three terrain grids | 24.4 |
+| the fourteen registered design sheets (rows that start off) | 18.0 |
+| canopy model, land cover, the CAD core | 9.3 |
+
+Who pays it: **only a first visit to the hosted copy** (or the first after a
+payload changes). A repeat visit is answered from the data stash (v35), and
+the double-clicked file has no download at all. At the 640 kB/s the slow
+report was made on, 83.6 MB is 131 s, once.
+
+Two cuts are possible, and they are very different jobs:
+
+1. **The design sheets after boot (−18 MB, 103 s).** One reader
+   (`js/designea.js`); the rows would show "loading" until the file lands, as
+   the full-sheet renders already do. The work is in the lists: a phone must
+   still get them (today's "late" class is skipped on a phone), so it needs a
+   third payload class in `index.html`, `tools/build_dist.py`,
+   `tools/stamp_sizes.py`, `sw.js` and `test/check.mjs`.
+2. **The terrain after the map (−24 MB more, 50 s).** `SBMM.elev` already
+   answers "nothing" on an empty stack, which is what makes this dangerous
+   rather than hard: of the fourteen places that read terrain during boot,
+   three would be **silently wrong** rather than fail — the storm network's
+   rims and pipe mouths (which feed the drainage, raindrop, overtopping and
+   pipe kernels), the survey contours (every vertex is tested against the
+   ground, so all of them would be dropped), and the elevation range. Eight
+   more modules run a job at boot when their row was left on and would toast
+   "terrain did not load" when it had not loaded *yet*. The list of readers
+   and what each needs is in the research notes this plan was written from.
+
+**Decision: neither is built in this round.** The cost is one first visit;
+the second cut changes the one contract this app was rebuilt around (the app
+never starts in a state where an analysis can answer wrongly); and the first
+is a modest saving for a new payload class in five files. Both are sized
+above so either can be asked for.
 
 ---
 
