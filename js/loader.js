@@ -141,7 +141,7 @@
     ["js/shell.js",20598,""],
     ["js/map.js",16513,""],
     ["js/tip.js",5534,""],
-    ["js/readout.js",10889,""],
+    ["js/readout.js",11056,""],
     ["js/labels.js",10220,""],
     ["js/pick2d.js",28251,""],
     ["js/backdrop.js",14890,""],
