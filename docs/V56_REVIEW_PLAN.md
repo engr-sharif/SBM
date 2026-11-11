@@ -465,6 +465,16 @@ after; CI runs the preflight and the node harnesses on a draft's pushes and
 the full matrix when the pull request is marked ready. **Acceptance:** runner
 minutes per merge, before and after; no block slower.
 
+*5b as built, and what was not built.* Measured before any of it: the fixed
+pauses in `test/e2e.mjs` are 506 and add up to **369 seconds** (each counted
+once) of a run that takes about two hours per build under software GL — some
+5 %. The time is in the frames (one to four seconds each on a software
+renderer) and in the compute jobs, not in the pauses. So the pauses were NOT
+rewritten wholesale: it is weeks of block-by-block browser time for minutes.
+What costs runner minutes is running eighteen jobs (about 230 runner-minutes,
+measured on #72) on every push, and that is what changed: a draft gets the
+one-minute `quick` job; the matrix runs when the pull request is marked ready.
+
 **5c. The map first.** Measure first: how many of the 82 MB a first network
 visit needs before the 2D map can be used. If the terrain grids can land
 after the map — `SBMM.elev` answering "not yet" and every boot-time reader
