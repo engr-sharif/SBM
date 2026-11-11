@@ -421,6 +421,7 @@ terrain source, which needs an explicit decision + README/test update).
 | water3d.js | **v42 — water in 3D**: a sheet per water body EA mapped, at the lidar's own flat return, its shoreline cut by the terrain; one shader (the sky of `js/atmos3d.js` reflected through a Fresnel term, ripples, the sun's glint) shared with the overtopping stage surface; `tick()` advancing the ripples only on frames that are drawn anyway; `SBMM.water3d` |
 | built3d.js | **v43 — built features in 3D**: EA's building footprints extruded to the lidar's height under the photograph's roof colour (gable on a plain rectangle, flat otherwise), fence lines as wire panels on posts, power poles as poles; each layer one or two draw calls with a triangle-to-feature `owner` for the pick; `SBMM.built3d` |
 | lines3d.js | **v44 — lines with a width in 3D**: `widen(root)` gives every `THREE.Line` under a root a child mesh that draws it as a constant-pixel-width, anti-aliased, cased line, while the line object itself stops drawing and stays as the pick target; the child follows the parent material's colour and opacity; `SBMM.lines3d` |
+| overlays3d.js | **v60 — the project half of the 3D overlay**: every read-only layer the 3D view draws over the ground, in the sections `js/viewer3d.js` opens (the decision units, the piles, EA's GIS and CAD, the survey, the site areas, the TEM model and interpretations, the storm network, the drainage maps, the datasets and their depth sticks, the samples, the trees, the cultural layers, the computed contours). Moved out of the viewer character for character; `begin(C, P)` names what it takes from it; `SBMM.overlays3d` |
 | trees3d.js | **v39 — trees in 3D**: each tree an instance of one of nine `InstancedMesh`es (three forms x three levels of detail), generated geometry, `relod()` dealing the levels by camera distance inside a drawn frame, one soft ground shadow per tree that follows the sun; `SBMM.trees3d` |
 | borelogs.js | **the 2025 boring logs (OpenGround)** — the strip log in a results card (class profile, strata + USCS, SPT with the pocket penetrometer, pH against the acid threshold, method bands, the water symbol), the TWO contact statements drawn together and reconciled nowhere, the 44-hole `LOGS` table, the CSV and the PNG, the popup button, `LOG` / `LOGS`, the class palette every other view reads through `classColor()`, and since v23 **the column renderer `column()`** every face of the borings is drawn by; `SBMM.borelogs` |
 | labmetals.js | **v28 — lab metals by depth** from the earlier apps (`SBMM_DATA.lab_metals`, `tools/build_imports.py`): the interval table in a boring / test-pit popup and on the log card, the full validated suite on a sample popup, the ROD / PMB levels and `level(sym, v)`; `SBMM.labMetals` |
@@ -6748,3 +6749,127 @@ back with the probe key, the drawings offered for restore and
 `restored >= 2`; the same key changed in a `pagehide` listener before a plain
 `goto` must stand, with `restored 0`. The probes behind the numbers above were
 scratch scripts and are not in the repo; the numbers are from 2026-11-11.
+
+## v60 — a layer switch in 3D rebuilds that layer
+
+Contract: `docs/V56_REVIEW_PLAN.md` step 5a. `SECT`, `SECTION_ROWS`,
+`sectionsFor`, `disposeSection`, `SEC()` and the queue in `js/viewer3d.js`;
+`threeRow` in `js/datasets.js`; a section name on every module's
+`refreshOverlays(...)`. E2E block **"9f28. a layer switch in 3D rebuilds that
+layer"** (shard 4). No kernel work.
+
+**Measured before** (framework, design and investigations on, software GL):
+every layer switch ran the whole 1,100-line rebuild — 150–680 ms, ~810 draped
+lines — and **left the replaced scene's GPU geometry behind**: 4,383 → 13,835
+geometries over thirteen switches, about 740 a switch, never freed (nothing in
+the overlay path called `dispose`). **After:** the piles row 1–23 ms and 0–11
+draped lines; the geometry count flat.
+
+**The project half is built in SECTIONS.** Each `if (PROJ && …)` of the old
+function is `if (SEC("id") && …)`. `SEC(id)` answers whether this pass wants
+the section and, when it does, removes and disposes the section's previous
+group, makes a new one and points `addG` / `SHW` / `OVL` / `ptCand` at that
+section's — so the bodies read exactly as they did. Three kinds of pass:
+
+| call | rebuilds |
+|---|---|
+| `rebuildOverlays()` | everything, as before |
+| `rebuildOverlays(true)` | the user's features, as before |
+| `rebuildOverlays("storm")` / `(["tem", …])` / `({all, feat, secs})` | those sections; the features too only when asked |
+
+Nine things that will be walked into again:
+
+- **`SECTION_ROWS` is the ONE table from a layer row to its section**, and
+  block 9f28 keeps it honest: every tagged object must sit in a section the
+  table names for its row. A row the table does not know, a group switch and a
+  bulk restore are a FULL rebuild — always right, only slower. **A new project
+  layer needs a `SEC("id")` around its block and a line in the table.**
+- **Two things are asked before the table.** A dataset's row id is a slug of
+  its label ("Survey Aug 2026 (Jacobs)" is `survey_aug_2026_…`), so
+  `SBMM.datasets.threeRow` is asked first or the table hands it to the survey
+  linework; and `SBMM.designEA.rowIs2d` names the rows the overlay never draws
+  (a sheet's map raster — its drape has its own switch — and the 2D click
+  footprints), which rebuild nothing.
+- **Anything in the project half must be inside a section.** After the feature
+  block `addG` / `SHW` / `OVL` are null on purpose: code that adds outside a
+  section fails at once instead of leaving objects no rebuild will remove.
+- **A family with a section per layer sweeps for the ones that went off.**
+  EA's merged layers are `gisb:<key>`: a row that is off hands back no batch,
+  so the loop alone would never reopen its section and the old geometry would
+  stay. `wantedWith("gisb:")` opens (and so empties) each wanted section that
+  EXISTS and has no batch (the polygon layers never have one). Any other family split per row needs the same.
+- **A replaced group is DISPOSED** (`disposeSection`: geometry, materials,
+  `InstancedMesh`). Textures never are — every one in the overlay belongs to a
+  cache (`dotTex`, `temTex`, `fenceTex`, `photoTex`, the label chips). A
+  geometry reused across rebuilds says so with `geometry.userData.shared`
+  (`designMesh`'s cached shell). Disposing something still on screen is safe in
+  three r160 (it is uploaded again); it is only wasteful.
+- **Something that cast a shadow going away marks the shadow map stale**
+  (`disposeSection` sets `SHD.dirty`). Before this, switching the buildings off
+  left their shadows until the sun moved.
+- **A module whose own data changed names its section**:
+  `SBMM.viewer3d.refreshOverlays("drainage")`. With no argument it is the full
+  rebuild it always was, at once. A NAMED section goes through the frame's
+  queue instead: the layers handler and the module often name the same
+  section for one click (the row changed, then the module repainted — three
+  rebuilds of the drainage lines per click before this), and the queue makes
+  that one. So a named refresh lands on the next frame, not before the call
+  returns. `"feat"` is the user's features, and may be combined
+  (`["tem", "feat"]`: a fence's TEM backdrop is drawn from the TEM model, so a
+  model change re-textures the fence strip too). **A dependency that crosses
+  sections must be named by the caller** — nothing discovers it.
+- **An opacity change is not a switch.** The `layers` event carries both;
+  the handler remembers each row's last on/off (`rowWasOn`) and rebuilds on an
+  opacity-only event for the TEM rows alone, which are the only ones that read
+  a row's opacity in 3D. A slider drag used to rebuild the scene every frame.
+- **Nothing is rebuilt while 3D is closed**; `show()` rebuilds everything when
+  it opens. The handler used to test `scene`, which outlives the first open,
+  so every 2D layer switch after that rebuilt a scene nobody was looking at.
+- **In the lighter rendering the project half's drop shadow is still ONE
+  object**, rebuilt from every section's segments (a copy, nothing is draped)
+  whenever a section was. Wide lines are made for the rebuilt sections only.
+
+`SBMM.viewer3d.overlaySections()` is the harness hook — per section: objects,
+vertices, a checksum of positions, labels, point names, the rows it draws, the
+group's uuid (so "this section was not touched" can be asserted) and its last
+build time. `frameStats()` gained `overlaySections` beside `overlayFull`.
+`SBMM.datasets.threeSpec()` asks the layer state, not the checkbox.
+
+**One thing that can differ from a full rebuild, and does not show:** three
+breaks a tie between two objects at the same depth and render order by object
+id, so a section rebuilt later draws after its neighbours where a full rebuild
+would draw it in table order. Overlay lines stand off the ground at different
+heights, so there is no such tie on this scene.
+
+### v60, the file split — `js/overlays3d.js`
+
+The middle 834 lines of the rebuild — every project section — live in
+`js/overlays3d.js` now (`before()` and `after()`, with the user's features,
+which stay in the viewer, built between them). `js/viewer3d.js` is 5,893 lines
+where it was 6,718.
+
+- **The bodies were moved by a script, character for character**, with one
+  rewrite: the five viewer variables a section WRITES (`builtInfo`,
+  `lastCadSkip`, `pointsObj`, `temGround`, `treesOn`) are `VIEWER.<name>`
+  there — accessors the viewer provides (`OVC.vars`). Everything else a body
+  uses is a name: the toolkit (`OVC.tools`, 16 functions and constants), the
+  values known once the scene exists (`OVC.now()`: `CX, CY, ZMID, camera,
+  sunAz, sunEl`), and the pass (`OVP`: `SEC, PROJ, zx, wantsPrefix,
+  wantedWith`). `begin()` copies them into the file's own variables, so the
+  bodies read as they always did.
+- **The proof is a digest.** With every group on, each section's objects,
+  vertices, a checksum of positions, labels, point names and the rows it
+  draws were written out before and after the move: 30 sections, 55 rows, and
+  the two files are byte-identical.
+- **`test/check.mjs` (`overlays3d`) keeps the two lists in step**: a name
+  `js/overlays3d.js` says it uses (`uses`) and the viewer does not hand over
+  fails the preflight. Without it, a missing name is `undefined` the first
+  time that section runs.
+- **A new project layer goes in `js/overlays3d.js`**, inside `SEC("id")`, with
+  its row in `SECTION_ROWS` (which stays in the viewer, beside the handler
+  that reads it). If it needs something more from the viewer, add the name to
+  `OVC` and to `begin()`.
+- The viewer's `SEC()` returns the section (the other file points its own
+  `addG` / `SHW` / `OVL` / `ptCand` at it). The isopach label's section and
+  the finish (shadows, wide lines, labels, point names, the pick sync) stay in
+  the viewer: they are the pass, not a layer.

@@ -470,7 +470,7 @@ SBMM.trees = (function () {
     repaint();
     if (SBMM.viewState) SBMM.viewState.touch();
     if (SBMM.viewer3d && SBMM.viewer3d.refreshOverlays && SBMM.layerState.isOn("base", "trees_detected"))
-      SBMM.viewer3d.refreshOverlays();
+      SBMM.viewer3d.refreshOverlays("trees");
   }
 
   /* ------------------------------------------------------------------ */

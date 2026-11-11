@@ -168,6 +168,7 @@ SBMM.designEA = (function () {
       /* v16: `sub:` declares the sub-group; the tree draws the header. */
       const row = SBMM.addLayerRow("design", `${nm}${subj}${pre}`, ov,
         { checked: false, opacity: .85, sub: SHEET_SUB });
+      rows2d.add(row.key);
       row.row.title = (s.design_set === "90%"
         ? `${nm} — ${s.subject || ""}. From the 90% Pre-Final Design set (May 2025); absent from the Final set.`
         : `${nm} — ${s.subject || ""}. EA Final Residential Design, September 2025.`)
@@ -447,6 +448,10 @@ SBMM.designEA = (function () {
              sheets: D.sheets };
   }
 
-  return { build, volumeOf, rings3d, snapPaths, provenance, counts: null, tip, popupPoly,
+  /* rows the 3D OVERLAY never draws (js/viewer3d.js sectionsFor): a sheet's map
+     raster — its 3D drape has its own switch — and the 2D click footprints */
+  const rows2d = new Set(["design/sheet_footprints"]);
+  return { rowIs2d: (g, l) => rows2d.has(g + "/" + l),
+           build, volumeOf, rings3d, snapPaths, provenance, counts: null, tip, popupPoly,
            autoFootprints, hotFootprint };
 })();

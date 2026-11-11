@@ -494,7 +494,7 @@ SBMM.geophys = (function () {
     clearTimeout(refresh3dT);
     refresh3dT = setTimeout(() => {
       if (SBMM.viewer3d && SBMM.viewer3d.refreshOverlays && (on("tem_slice") || on("tem_soundings")))
-        SBMM.viewer3d.refreshOverlays();
+        SBMM.viewer3d.refreshOverlays(["tem", "feat"]);   // "feat": a fence's TEM backdrop is drawn from this model
     }, 250);
   }
 

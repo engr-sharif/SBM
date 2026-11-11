@@ -540,7 +540,7 @@ SBMM.accum = (function () {
       if (R) paint();
       if (SBMM.viewer3d && SBMM.viewer3d.isOpen && SBMM.viewer3d.isOpen()) {
         if (SBMM.viewer3d.refreshDrapes) SBMM.viewer3d.refreshDrapes();
-        if (SBMM.viewer3d.refreshOverlays) SBMM.viewer3d.refreshOverlays();
+        if (SBMM.viewer3d.refreshOverlays) SBMM.viewer3d.refreshOverlays("accum");
       }
     });
   }

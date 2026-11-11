@@ -421,7 +421,7 @@ SBMM.teminterp = (function () {
   }
   function soon3d() {
     if (SBMM.viewer3d && SBMM.viewer3d.isOpen && SBMM.viewer3d.isOpen() && SBMM.viewer3d.refreshOverlays)
-      SBMM.viewer3d.refreshOverlays();
+      SBMM.viewer3d.refreshOverlays("tem");
   }
   function emit(kind) { if (SBMM.events) SBMM.events.emit("teminterp", { kind }); }
   async function ensure(kind) {

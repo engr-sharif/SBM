@@ -408,7 +408,7 @@ SBMM.whereWater = (function () {
       }
     }
     paintLegend();
-    if (SBMM.viewer3d && SBMM.viewer3d.isOpen()) SBMM.viewer3d.refreshOverlays();
+    if (SBMM.viewer3d && SBMM.viewer3d.isOpen()) SBMM.viewer3d.refreshOverlays("wherewater");
   }
 
   function legendSpec() {
@@ -536,7 +536,7 @@ SBMM.whereWater = (function () {
     paint();
     if (!SBMM.viewer3d) { toast("this build has no 3D view"); return; }
     if (!SBMM.viewer3d.isOpen()) SBMM.viewer3d.toggle();
-    else SBMM.viewer3d.refreshOverlays();
+    else SBMM.viewer3d.refreshOverlays("wherewater");
     toast("the four areas are draped on the terrain", 3200);
   }
 
