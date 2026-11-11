@@ -71,15 +71,35 @@ SBMM.shell = (function () {
   /* ------------------------------------------------------------------ */
   /* collapse                                                            */
   /* ------------------------------------------------------------------ */
-  function collapse(side, on) {
+  /* v59: a fold the USER made is remembered (`opts.user`): the collapse
+     button, a rail button, a tab clicked on a folded dock, and the `[` `]` `\`
+     keys. A fold a module makes for its own purposes — the TEM workspace
+     taking the left dock out of the way, field mode clearing both, every
+     harness — is not, so it cannot leak into the next visit. */
+  const DOCKS = "docks";
+  function remember() {
+    if (!SBMM.view || !SBMM.view.pref) return;
+    const b = document.body.classList;
+    SBMM.view.pref(DOCKS, { l: b.contains("lcol"), r: b.contains("rcol") });
+  }
+  function collapse(side, on, opts) {
     const cls = side === "l" ? "lcol" : "rcol";
     if (on == null) on = !document.body.classList.contains(cls);
     document.body.classList.toggle(cls, on);
+    if (opts && opts.user) remember();
     /* a collapsed left dock is not "looking at the Sheets tab" (F1) */
     if (side === "l" && SBMM.designEA && SBMM.designEA.autoFootprints)
       SBMM.designEA.autoFootprints(!on && curTab === "sheets");
     setTimeout(relayout, 200);
     relayout();
+  }
+
+  /* "just the map": both docks away, or both back. Folding wins while either
+     is open, so one key always gets the map clear. */
+  function collapseBoth(opts) {
+    const b = document.body.classList, anyOpen = !b.contains("lcol") || !b.contains("rcol");
+    collapse("l", anyOpen); collapse("r", anyOpen);
+    if (opts && opts.user) remember();
   }
 
   /* ------------------------------------------------------------------ */
@@ -173,20 +193,32 @@ SBMM.shell = (function () {
       if (r) document.documentElement.style.setProperty("--dockRW", r);
     } catch (e) {}
 
-    document.querySelectorAll("#leftTabs .dtab").forEach(b => b.onclick = () => setTab(b.dataset.tab));
+    /* v59: every one of these is the user's own hand, so the fold it leaves
+       is the fold the next visit opens with */
+    const U = { user: true };
+    document.querySelectorAll("#leftTabs .dtab").forEach(b => b.onclick = () => { setTab(b.dataset.tab); remember(); });
     document.querySelectorAll("#leftRail .railbtn").forEach(b => b.onclick = () => {
-      if (document.body.classList.contains("lcol")) { setTab(b.dataset.tab); return; }
-      if (curTab === b.dataset.tab) collapse("l", true); else setTab(b.dataset.tab);
+      if (document.body.classList.contains("lcol")) { setTab(b.dataset.tab); remember(); return; }
+      if (curTab === b.dataset.tab) collapse("l", true, U); else setTab(b.dataset.tab);
     });
-    document.querySelectorAll("#rightTabs .dtab").forEach(b => b.onclick = () => setRightTab(b.dataset.rtab));
+    document.querySelectorAll("#rightTabs .dtab").forEach(b => b.onclick = () => { setRightTab(b.dataset.rtab); remember(); });
     document.querySelectorAll("#rightRail .railbtn").forEach(b => b.onclick = () => {
-      if (document.body.classList.contains("rcol")) { setRightTab(b.dataset.rtab); return; }
-      if (curRTab === b.dataset.rtab) collapse("r", true); else setRightTab(b.dataset.rtab);
+      if (document.body.classList.contains("rcol")) { setRightTab(b.dataset.rtab); remember(); return; }
+      if (curRTab === b.dataset.rtab) collapse("r", true, U); else setRightTab(b.dataset.rtab);
     });
     setRightTab("inspector", { expand: false });
 
-    $("leftCollapse").onclick = () => collapse("l", true);
-    $("rightCollapse").onclick = () => collapse("r", true);
+    $("leftCollapse").onclick = () => collapse("l", true, U);
+    $("rightCollapse").onclick = () => collapse("r", true, U);
+    /* the folds the user left last time (not in field mode, where the docks
+       are bottom sheets and these classes mean nothing) */
+    try {
+      const d = SBMM.view && SBMM.view.pref ? SBMM.view.pref(DOCKS) : null;
+      if (d && !document.body.classList.contains("field")) {
+        if (d.l) document.body.classList.add("lcol");
+        if (d.r) document.body.classList.add("rcol");
+      }
+    } catch (e) { /* a preference is a convenience */ }
 
     wireGrip("leftGrip", "--dockLW", "l");
     wireGrip("rightGrip", "--dockRW", "r");
@@ -401,7 +433,7 @@ SBMM.shell = (function () {
     if (!document.body.classList.contains("field") && !rightHasContent()) document.body.classList.add("rauto");
   }
 
-  return { wire, setTab, activeTab, collapse, relayout, reflowTopbar,
+  return { wire, setTab, activeTab, collapse, collapseBoth, relayout, reflowTopbar,
            setRightTab, activeRightTab, showInspector, showResults,
            closeMenus, placeMenu, toggleMenu, frame, syncRightAuto };
 })();

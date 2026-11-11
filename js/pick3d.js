@@ -706,8 +706,11 @@ SBMM.pick3d = (function () {
      ground does only that — it closed something (js/readout.js has the same
      rule for the 2D map). */
   let closedAt = -1e9;
+  /* by the events' own clock, not by when they were handled (a slow frame in
+     between must not change what the click means) */
+  const evT = e => (e && typeof e.timeStamp === "number" && e.timeStamp > 0) ? e.timeStamp : performance.now();
   function awayHandler(e) {
-    if (card && !card.contains(e.target)) { closeCard(); closedAt = performance.now(); }
+    if (card && !card.contains(e.target)) { closeCard(); closedAt = evT(e); }
   }
   function escHandler(e) {
     if (e.key !== "Escape" || !card) return;
@@ -811,7 +814,7 @@ SBMM.pick3d = (function () {
     }
     if (opts.objectsOnly) return false;
     /* bare ground */
-    if (performance.now() - closedAt < 700) return true;       // the press closed a card: only that
+    if (evT(e) - closedAt < 700) return true;                   // the press closed a card: only that
     const p = ctx.pickWorld(e);
     if (!p) { closeCard(); return false; }
     const sp = ctx.pickScene(e);

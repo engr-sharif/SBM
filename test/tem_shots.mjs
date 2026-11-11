@@ -57,7 +57,11 @@ console.log("slice:", JSON.stringify(await probe()));
 await page.screenshot({ path: resolve(OUT, "tem_slice.png") });
 
 await page.evaluate(() => {
-  const set = (k, v) => { const el = document.querySelector(`.temcard [data-tem="${k}"]`); el.value = v;
+  /* v59: on a desktop the card keeps only the slice's position; every other
+     TEM setting lives in the workspace panel and goes through the one setter */
+  const set = (k, v) => { const el = document.querySelector(`.temcard [data-tem="${k}"]`);
+                          if (!el) { SBMM.geophys.apply(k, v); return; }
+                          el.value = v;
                           el.dispatchEvent(new Event(k === "depth" ? "input" : "change", { bubbles: true })); };
   set("depth", 150); set("prop", "cond"); set("cmap", "viridis");
 });
@@ -66,7 +70,11 @@ console.log("deep:", JSON.stringify(await probe()));
 await page.screenshot({ path: resolve(OUT, "tem_deep.png") });
 
 await page.evaluate(() => {
-  const set = (k, v) => { const el = document.querySelector(`.temcard [data-tem="${k}"]`); el.value = v;
+  /* v59: on a desktop the card keeps only the slice's position; every other
+     TEM setting lives in the workspace panel and goes through the one setter */
+  const set = (k, v) => { const el = document.querySelector(`.temcard [data-tem="${k}"]`);
+                          if (!el) { SBMM.geophys.apply(k, v); return; }
+                          el.value = v;
                           el.dispatchEvent(new Event(k === "depth" ? "input" : "change", { bubbles: true })); };
   set("prop", "res"); set("cmap", "hydro"); set("depth", 30);
 });

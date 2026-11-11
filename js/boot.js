@@ -147,6 +147,7 @@ function wireWasmSwitch() {
     if (SBMM.omni) SBMM.omni.wire();
     SBMM.io.wire();
     SBMM.table.wire();
+    if (SBMM.results && SBMM.results.wire) SBMM.results.wire();   // v59: selecting a feature opens its card
     SBMM.design.wire();
     SBMM.sections.wire();
     SBMM.features.wire();

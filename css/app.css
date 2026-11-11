@@ -3486,3 +3486,26 @@ body:not(.field) #v3dViewPop{width:min(480px,calc(100% - var(--dockL) - var(--do
 .dsmk .dscount{position:absolute;left:calc(100% - 5px);bottom:calc(100% - 5px);min-width:13px;height:13px;padding:0 3px;
   border-radius:7px;background:rgba(13,19,23,.94);border:1px solid var(--line2);color:var(--ink);
   font:600 9px/12px var(--mono);text-align:center;white-space:nowrap;pointer-events:none;box-sizing:border-box}
+
+/* ======================= v59 — the Results column (js/results.js) =======================
+   A folded card is its title and its headline row; everything else of it is
+   still in the DOM. A card lifted into a window is the same element inside a
+   `.shwin`. */
+.res h4{cursor:pointer}
+.res h4 .rname{cursor:text}
+.res.folded{padding-top:7px;padding-bottom:7px}
+.res.folded h4{margin-bottom:0}
+.res.folded > :not(h4):not(.rows){display:none}
+.res.folded .rows > :not(.rrow.big){display:none}
+.res.folded .rows .rrow.big{margin-top:3px;font-size:12px;opacity:.9}
+.res.folded .rows .rrow.big b{font-size:13px}
+.res [data-a="fold"]{font-size:11px}
+.res [data-a="fold"]::before{content:"▾"}
+.res.folded [data-a="fold"]::before{content:"▸"}
+.res [data-a="win"]::before{content:"⧉"}
+.rswin .res [data-a="win"]{display:none}
+.rswin{min-width:320px;min-height:200px}
+.rswin .rsbody{flex:1;min-height:0;overflow:auto;padding:12px 14px 16px}
+.rswin .res{border:none;background:none;padding:0;margin:0;box-shadow:none}
+.rswin .res h4 [data-a="fold"]{display:none}
+.rswin .shtitle{max-width:70%}

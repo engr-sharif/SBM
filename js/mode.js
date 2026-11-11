@@ -406,6 +406,14 @@ SBMM.mode = (function () {
         return;
       }
       if (e.key === "/") { e.preventDefault(); SBMM.cmd.open(true); return; }
+      /* v59: the docks from the keyboard — `[` the left, `]` the right, `\`
+         both ("just the map"). Not in field mode: there they are bottom sheets. */
+      if ((e.key === "[" || e.key === "]" || e.key === "\\") && !e.repeat && !document.body.classList.contains("field")) {
+        e.preventDefault();
+        if (e.key === "\\") SBMM.shell.collapseBoth({ user: true });
+        else SBMM.shell.collapse(e.key === "[" ? "l" : "r", undefined, { user: true });
+        return;
+      }
 
       const k = e.key.toLowerCase();
       /* the 3D fly rig owns WASD/QE while it is engaged, and F toggles it */
