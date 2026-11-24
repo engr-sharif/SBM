@@ -30,8 +30,19 @@ const target = process.argv[2];
 const label = process.argv[3] || "folder";
 if (!target) { console.log("usage: node test/capdesign.mjs <index.html | dist html> [label]"); process.exit(2); }
 
-/* the design file as shipped, and the files this harness uploads */
-const FILE = JSON.parse(readFileSync(resolve(HERE, "../data/cap_design.json"), "utf8"));
+/* THE FIXTURE. Sections 1 to 8 test the module, not the design a build happens to
+   ship: test/fixtures/cap_design_r1.json (the first design, kept as it was) is put
+   in as the built in design before the page's own payloads run, and any further
+   built in design is left out. So a new revision of the shipped design never
+   touches these sections. Section 9 then opens the page as shipped and checks the
+   designs it really carries (data/cap_design.json and data/cap_design_<x>.json). */
+const FILE = JSON.parse(readFileSync(resolve(HERE, "fixtures/cap_design_r1.json"), "utf8"));
+const SHIP = ["cap_design.json", "cap_design_r5.json"].map(f => JSON.parse(readFileSync(resolve(HERE, "../data/" + f), "utf8")));
+const asBuiltIn = fix => {
+  let store;
+  Object.defineProperty(window, "SBMM_DATA", { configurable: true, get: () => store,
+    set(v) { store = new Proxy(v, { set(o, k, val) { if (k === "cap_design") o[k] = fix; else if (!/^cap_design_/.test(String(k))) o[k] = val; return true; } }); } });
+};
 const TMP = mkdtempSync(join(tmpdir(), "sbmm-cap-"));
 const put = (name, obj) => { const p = join(TMP, name); writeFileSync(p, typeof obj === "string" ? obj : JSON.stringify(obj)); return p; };
 const clone = o => JSON.parse(JSON.stringify(o));
@@ -74,16 +85,21 @@ let failed = 0;
 const check = (ok, msg) => { console.log((ok ? "PASS " : "FAIL ") + msg); if (!ok) failed++; };
 const errors = [];
 
-async function open(browser, init, arg) {
+const settled = async page => {
+  await page.waitForSelector("#loading", { state: "hidden", timeout: TIMEOUT });
+  await lateSettled(page);
+  await page.evaluate(() => SBMM.capDesign && SBMM.capDesign.whenReady());
+};
+/* asShipped: leave the page's own cap payloads alone (section 9) */
+async function open(browser, init, arg, asShipped) {
   const page = await browser.newPage({ viewport: { width: 1500, height: 950 } });
   page.setDefaultTimeout(TIMEOUT);
   page.on("pageerror", e => { errors.push("pageerror: " + e.message); console.log("pageerror:", e.message); });
   await unlock(page);
+  if (!asShipped) await page.addInitScript(asBuiltIn, FILE);
   if (init) await page.addInitScript(init, arg);
   await page.goto(pathToFileURL(resolve(target)).href);
-  await page.waitForSelector("#loading", { state: "hidden", timeout: TIMEOUT });
-  await lateSettled(page);
-  await page.evaluate(() => SBMM.capDesign && SBMM.capDesign.whenReady());
+  await settled(page);
   return page;
 }
 /* what the page says about the design in use */
@@ -314,7 +330,7 @@ page = await open(browser, () => {
   /* the payload's own assignment is dropped, as if the build did not carry it */
   let store;
   Object.defineProperty(window, "SBMM_DATA", { configurable: true, get: () => store,
-    set(v) { store = new Proxy(v, { set(o, k, val) { if (k !== "cap_design") o[k] = val; return true; } }); } });
+    set(v) { store = new Proxy(v, { set(o, k, val) { if (!/^cap_design/.test(String(k))) o[k] = val; return true; } }); } });
 });
 s = await state(page);
 check(s.rev == null && s.src.kind === "none" && /No cap design in this build/.test(s.active) && s.loadBtn,
@@ -340,6 +356,46 @@ for (const [what, design, re] of [["its shape is wrong", noLayers, /no layers/],
         `a stored design is dropped at boot when ${what}: ${s.msg}`);
   await page.close();
 }
+
+/* ---- 9. the designs this build ships ------------------------------------ */
+page = await open(browser, null, null, true);
+const shipped = () => page.evaluate(() => {
+  const C = SBMM.capDesign, d = C.design();
+  return { list: C.builtIns(), rev: d && d.rev, kind: C.source().kind, area: C.number("cap_limit_ac"),
+    bad: Object.keys(SBMM_DATA).filter(k => /^cap_design/.test(k)).map(k => k + ": " + C.validate(SBMM_DATA[k])).filter(t => !/: null$/.test(t)),
+    btns: [...document.querySelectorAll("#capBuiltins .capbi")].map(sb => sb.dataset.rev + (sb.classList.contains("active") ? "*" : "")),
+    mid: C.at(6371965, 2128930).cap };
+});
+const areaOf = d => d.numbers.find(n => n.key === "cap_limit_ac").value;
+let sb = await shipped();
+check(sb.bad.length === 0, "every cap design the build ships passes the file checks" + (sb.bad.length ? ": " + sb.bad.join("; ") : ""));
+check(sb.list.join() === SHIP.map(d => d.rev).join() && sb.rev === SHIP[0].rev && sb.kind === "builtin",
+      `the build carries ${sb.list.join(" and ")}; ${sb.rev} (data/cap_design.json) is the one in use`);
+check(sb.btns.join() === SHIP.map((d, i) => d.rev + (i ? "" : "*")).join(), "the panel has one button per built in design, the one in use marked: " + sb.btns.join(" "));
+check(sb.area === areaOf(SHIP[0]) && sb.mid > 1300, `its numbers and its surface are read: ${sb.area} ac, ${sb.mid && sb.mid.toFixed(1)} ft at the middle`);
+s = await state(page);
+check(s.shown === SHIP[0].layers.length + 1 && SHIP[0].layers.every(l => s.labels["cap_" + l.key] === l.name), `its rows are the file's: ${s.shown}`);
+await page.evaluate(() => SBMM.capDesign.openPanel());
+await page.click(`#capBuiltins .capbi[data-rev="${SHIP[1].rev}"]`);
+await page.waitForFunction(r => SBMM.capDesign.design().rev === r && SBMM.capDesign.isReady(), SHIP[1].rev, { timeout: TIMEOUT });
+sb = await shipped(); s = await state(page);
+check(sb.rev === SHIP[1].rev && sb.kind === "builtin" && sb.area === areaOf(SHIP[1]) && sb.btns.join() === SHIP.map((d, i) => d.rev + (i ? "*" : "")).join(),
+      `a button puts the other design in use: ${sb.rev}, ${sb.area} ac`);
+check(s.shown === SHIP[1].layers.length + 1 && SHIP[1].layers.every(l => s.labels["cap_" + l.key] === l.name) && s.stored === null && s.resetOff,
+      `the rows follow it and nothing is stored as a loaded file: ${s.shown}`);
+await page.reload();
+await settled(page);
+sb = await shipped();
+check(sb.rev === SHIP[1].rev && sb.kind === "builtin", "the choice is kept on the device: after a reload " + sb.rev + " is still in use");
+await upload(page, MOD_PATH, () => SBMM.capDesign.design().rev === "r1-test");
+await page.evaluate(() => SBMM.capDesign.reset());
+sb = await shipped();
+check(sb.rev === SHIP[1].rev && sb.kind === "builtin", "Reset after a loaded file goes back to the design that was picked: " + sb.rev);
+await page.evaluate(r => SBMM.capDesign.pick(r), SHIP[0].rev);
+sb = await shipped();
+check(sb.rev === SHIP[0].rev && (await page.evaluate(() => SBMM.capDesign.pick("no-such-rev"))).ok === false && (await shipped()).rev === SHIP[0].rev,
+      "pick() by rev works from code, and a rev the build does not have changes nothing");
+await page.close();
 
 if (errors.length) { console.log("page errors:"); errors.forEach(e => console.log("  " + e)); }
 check(errors.length === 0, "no page errors");

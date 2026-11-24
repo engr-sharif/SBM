@@ -3,8 +3,11 @@
 
    ONE design file drives everything here. The built in copy ships as the script
    payload SBMM_DATA.cap_design (datajs/d_cap_design.js, the same bytes as
-   data/cap_design.json). It is written by export_cap.py in the SBMM drive folder
-   "NW Pit Cap Extent/04_Analysis/04_Site Explorer export". A newer file can be
+   data/cap_design.json). It is written by the export scripts in the SBMM drive
+   folder "NW Pit Cap Extent/04_Analysis". A build can carry MORE designs beside
+   it, as options for the same cap: every payload named SBMM_DATA.cap_design_<x>
+   is another built in design, and the panel then has one button per design
+   ("Built in designs"). The choice is kept on the device. A newer file can be
    loaded at run time with "Load cap design file" or by dropping it on the panel
    (FileReader, never fetch), so the hosted app shows a new revision without a
    rebuild. The last loaded file is kept on the device and comes back on reload.
@@ -48,11 +51,12 @@ SBMM.capDesign = (function () {
   let D = null;                    // the design in use (normalised)
   let SRC = { kind: "none", name: "", kept: false };
   let capDem = null;               // Dem over the cap surface raster of D
-  let builtIn = null;              // the normalised built in design, when the build has one
+  let builtIn = null;              // the normalised built in design in use (or to go back to), when the build has one
+  const builtIns = [];             // every built in design of the build: SBMM_DATA.cap_design first, then cap_design_<x>
   let ready = Promise.resolve(null);
   const H = {};                    // layer key -> { key, group, ref }
   let surfRow = null, headEl = null;
-  const UI = { level3d: true };    // draw the "level" layers (the cap contours) in 3D
+  const UI = { level3d: true, builtin: "" };   // level3d: draw the "level" layers (the cap contours) in 3D. builtin: rev of the built in design picked
   let built = false, panel = null, lastMsg = "";
   let meshGeom = null, meshKey = "", liveMat = null, liveMesh = null;
   const last3d = { calls: 0, objects: 0, tris: 0, drape: 0, dots: 0, level: 0, opacity: null };
@@ -460,6 +464,9 @@ SBMM.capDesign = (function () {
       + `<button class="minib" id="capReset" title="Forget the loaded file and go back to the design that ships with the app"${SRC.kind === "loaded" ? "" : " disabled"}>Reset to built in design</button>`
       + '<input type="file" id="capFile" accept=".json,application/json" style="display:none"></div>'
       + '<div class="capnote capdrop">Or drop a cap design file on this panel.</div>'
+      + (builtIns.length > 1
+          ? '<div class="capbis" id="capBuiltins"><span>Built in designs</span>' + builtIns.map(d =>
+              `<button class="minib capbi${SRC.kind === "builtin" && D === d ? " active" : ""}" data-rev="${esc(d.rev)}" title="${esc(d.title + ", " + d.rev)}">${esc(d.rev)}</button>`).join("") + "</div>" : "")
       + (D && D.layers.some(l => l.three === "level")
           ? `<label class="capopt" title="Draw the cap contours at their own elevation in the 3D view. Off leaves them on the 2D map only."><input type="checkbox" id="capLevel3d"${UI.level3d ? " checked" : ""}> cap contours in 3D</label>` : "")
       + `<div class="capmsg" id="capMsg">${esc(lastMsg)}</div>`;
@@ -484,10 +491,12 @@ SBMM.capDesign = (function () {
     inp.onchange = () => { if (inp.files && inp.files[0]) loadFile(inp.files[0]); inp.value = ""; };
     q("capReset").onclick = () => reset();
     if (q("capLevel3d")) q("capLevel3d").onchange = e => setLevel3d(e.target.checked);
+    panel.querySelectorAll(".capbi").forEach(b => { b.onclick = () => pick(b.dataset.rev); });
   }
+  function saveUI() { try { localStorage.setItem(UI_KEY, JSON.stringify(UI)); } catch (e) {} }
   function setLevel3d(on) {
     UI.level3d = !!on;
-    try { localStorage.setItem(UI_KEY, JSON.stringify(UI)); } catch (e) {}
+    saveUI();
     const el = panel && panel.querySelector("#capLevel3d");
     if (el) el.checked = UI.level3d;
     refresh3d();
@@ -595,6 +604,17 @@ SBMM.capDesign = (function () {
     return { ok: true, rev: builtIn.rev };
   }
 
+  /* one of the built in designs, by its rev: it becomes the design in use and
+     the one Reset goes back to. A loaded file is forgotten, as with Reset. */
+  async function pick(rev) {
+    const d = builtIns.find(b => b.rev === rev);
+    if (!d) return { ok: false, rev: D ? D.rev : null };
+    builtIn = d; UI.builtin = d.rev; saveUI();
+    const r = await reset();
+    say(`Built in cap design ${d.rev}.`);
+    return r;
+  }
+
   /* ------------------------------------------------------------------ */
   /* build (called once from js/boot.js)                                 */
   /* ------------------------------------------------------------------ */
@@ -613,6 +633,7 @@ SBMM.capDesign = (function () {
       + ".capbtns{margin-top:6px;display:flex;gap:6px;flex-wrap:wrap}.capbtns .minib[disabled]{opacity:.45;cursor:default}"
       + ".capopt{display:flex;align-items:center;gap:6px;margin:5px 0 2px;cursor:pointer}.caphead{margin:8px 0 2px 2px}"
       + ".capmsg{margin-top:4px;font-size:11px;max-width:280px;white-space:normal;color:#E8B34B}.capmsg:empty{display:none}"
+      + ".capbis{margin:6px 0 2px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}.capbis span{opacity:.75}"
       + ".lyr.capgone{display:none !important}";
     document.head.appendChild(st);
   }
@@ -621,9 +642,20 @@ SBMM.capDesign = (function () {
     built = true;
     if (!$("projLayers") || !SBMM.addLayerRow) return;
     css();
-    try { const u = JSON.parse(localStorage.getItem(UI_KEY) || "null"); if (u && typeof u.level3d === "boolean") UI.level3d = u.level3d; } catch (e) {}
-    const raw0 = window.SBMM_DATA && SBMM_DATA.cap_design;
-    if (raw0) { try { builtIn = norm(raw0); } catch (e) { console.warn("cap design: the built in design was refused:", e.message); } }
+    try {
+      const u = JSON.parse(localStorage.getItem(UI_KEY) || "null");
+      if (u && typeof u.level3d === "boolean") UI.level3d = u.level3d;
+      if (u && typeof u.builtin === "string") UI.builtin = u.builtin;
+    } catch (e) {}
+    /* the built in designs: cap_design is the default, cap_design_<x> are further options, in name order */
+    const pay = window.SBMM_DATA || {};
+    const names = Object.keys(pay).filter(k => /^cap_design_/.test(k)).sort();
+    if (pay.cap_design) names.unshift("cap_design");
+    for (const k of names) {
+      try { const d = norm(pay[k]); if (!builtIns.some(b => b.rev === d.rev)) builtIns.push(d); }
+      catch (e) { console.warn("cap design: the built in design " + k + " was refused:", e.message); }
+    }
+    builtIn = builtIns.find(b => b.rev === UI.builtin) || builtIns[0] || null;
     let start = builtIn, src = { kind: builtIn ? "builtin" : "none", name: "", kept: false }, note = "";
     const st = stored();
     if (st && st.design) {
@@ -766,8 +798,8 @@ SBMM.capDesign = (function () {
   }
 
   return {
-    build, load, loadText, loadFile, reset, validate, looksLike, at, number, objects3d, zoomTo, show, openPanel, bbox,
-    design: () => D, builtIn: () => builtIn, source: () => Object.assign({}, SRC), activeLine,
+    build, load, loadText, loadFile, reset, pick, validate, looksLike, at, number, objects3d, zoomTo, show, openPanel, bbox,
+    design: () => D, builtIn: () => builtIn, builtIns: () => builtIns.map(d => d.rev), source: () => Object.assign({}, SRC), activeLine,
     isReady: () => !!capDem, whenReady: () => ready,
     rows: () => Object.assign({}, H), surfaceRow: () => surfRow,
     level3d: () => UI.level3d, setLevel3d,
