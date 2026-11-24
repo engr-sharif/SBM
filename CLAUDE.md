@@ -6945,6 +6945,29 @@ Extent/04_Analysis/04_Site Explorer export`) writes three copies of one file:
   commit `data/cap_design.json`, `datajs/d_cap_design.js`, `js/loader.js` and
   `index.html` (the stamps).
 
+**More than one built in design (options).** A build can carry several designs
+for the same cap. `SBMM_DATA.cap_design` is the default; every payload named
+`SBMM_DATA.cap_design_<x>` is another built in design (`data/cap_design_<x>.json`,
+one entry in `JSON_FILES` in `tools/build_data.py`, one script tag in
+`index.html`, one line in `datajs/manifest.json`, then the stamps). The module
+reads them at boot in name order after the default and drops one whose `rev`
+is already there. With more than one, the panel has a **Built in designs** row
+with one button per design, labelled with its `rev`; `SBMM.capDesign.pick(rev)`
+is the same from code and `builtIns()` lists the revs. The pick is kept in
+`localStorage["sbmm.capdesign.ui.v1"]` (`builtin`) and is the design Reset goes
+back to. Picking a built in design forgets a loaded file, exactly as Reset
+does. Today the build ships r6 (default: clean fill in the old haul road cut,
+liner anchored along the top of the fill) and r5 (the cap runs down the cut on
+a ramp).
+
+**The harness does not test the shipped design.** Sections 1 to 8 of
+`test/capdesign.mjs` put `test/fixtures/cap_design_r1.json` in as the built in
+design before the page's payloads run (an init script that swaps the payload
+and leaves out any `cap_design_<x>`), so a new revision of the shipped design
+never touches them. Section 9 opens the page as shipped: every shipped design
+passes the file checks, the default is the one in use, the buttons switch, the
+pick survives a reload, Reset after a loaded file goes back to the pick.
+
 Things that will be walked into again:
 
 - **A file is checked whole before anything in use changes.** `norm()` checks
