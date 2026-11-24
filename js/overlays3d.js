@@ -167,6 +167,24 @@ SBMM.overlays3d = (function () {
         addG.add(o);
       }
     }
+    /* the NW Pit cap design (js/capdesign.js): the cap surface as a mesh, its
+       lines draped on the ground, its points as dots and the cap contours at
+       their own elevation. The module hands over finished objects, lines to
+       drape or points, each with the row that switches it; what is drawn is
+       whatever design file is in use. */
+    if (SEC("cap") && SBMM.capDesign && SBMM.capDesign.objects3d) {
+      for (const r of SBMM.capDesign.objects3d({ CX, CY, ZMID })) {
+        let o = r.object;
+        if (!o && r.points) {
+          const pos = [];
+          for (const q of r.points) pos.push(q[0] - CX, q[1] - CY, drapeZ(q[0], q[1], 3));
+          const g = new THREE.BufferGeometry();
+          g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+          o = new THREE.Points(g, dotMaterial({ size: r.size || 12, color: r.color }));
+        } else if (!o) o = addShadow(SHW, drapedLine(r.pts, r.color, !!r.closed, 2.5, r.width));
+        addG.add(tag(o, "framework", r.row));
+      }
+    }
     /* v36: the 2026 TEM2Go soundings — a dot at the ground, coloured by the
        sounding's own model at the slice depth — and the depth slice as a sheet
        following the ground at that depth below it. The sheet is under the

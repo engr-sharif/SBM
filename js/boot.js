@@ -178,6 +178,10 @@ function wireWasmSwitch() {
     SBMM.refSurf.build();
     SBMM.refSurf.wire();
     SBMM.isopach.wire();
+    /* the NW Pit cap design viewer: its rows are read from the design file in
+       use, so they must exist before SBMM.home applies the first-visit layers.
+       A design that cannot be read must never stop the boot. */
+    try { if (SBMM.capDesign) SBMM.capDesign.build(); } catch (e) { console.warn("cap design", e); }
     SBMM.layerMan.wire();
     SBMM.sheetCards.wire();
     /* Field mode (v11 §4.3). autoDetect() switches it on by itself on a touch

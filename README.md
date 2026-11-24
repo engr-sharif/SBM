@@ -2550,6 +2550,7 @@ test/e2e.mjs        Playwright end-to-end test incl. the memo volume validation,
                     auto-balance convergence, the uncertainty range, sections and
                     the end-area/grid cross-check, the report sheet, session v5)
 test/split3d.mjs    split-view 3D test: drawing via 3D clicks, DEM selection by location
+test/capdesign.mjs  the NW Pit cap design viewer: file driven rows and panel, 3D surface, upload, bad files, reload
 test/perf.mjs       boot / interaction / 3D / memory numbers (prints, does not assert)
 test/audit.mjs      fresh-eyes walkthrough: every tool, command, dialog and overlay,
                     with the toasts each one raises (prints, does not assert)

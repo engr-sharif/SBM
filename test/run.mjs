@@ -77,6 +77,8 @@ const STEPS = [
     desc: "the v20 quadtree terrain and the GPU rasters, folder build" },
   { name: "split3d:folder", build: "folder", browser: true,  matrix: true,  needs: ["check"],
     cmd: [NODE, [R("test/split3d.mjs"), INDEX, "folder"]], desc: "split-view 3D, folder build" },
+  { name: "capdesign:folder", build: "folder", browser: true, matrix: true, needs: ["check"],
+    cmd: [NODE, [R("test/capdesign.mjs"), INDEX, "folder"]], desc: "the NW Pit cap design viewer and its upload path, folder build" },
   { name: "tablet:file",    build: "folder", browser: true,  matrix: true,  needs: ["check"],
     cmd: [NODE, [R("test/e2e_tablet.mjs"), INDEX, "tablet", "--skip", "6. the offline copy,7. the loading screen"]],
     desc: "the iPad harness over file:// (v17)" },
@@ -93,6 +95,8 @@ const STEPS = [
     desc: "the quadtree over the single-file build (tiles synthesised, not inlined)" },
   { name: "split3d:dist",   build: "dist",   browser: true,  matrix: true,  needs: ["build:dist"],
     cmd: [NODE, [R("test/split3d.mjs"), DIST, "dist"]], desc: "split-view 3D, dist" },
+  { name: "capdesign:dist", build: "dist",   browser: true,  matrix: true,  needs: ["build:dist"],
+    cmd: [NODE, [R("test/capdesign.mjs"), DIST, "dist"]], desc: "the NW Pit cap design viewer and its upload path, dist" },
   { name: "field",          build: "field",  browser: true,  matrix: true,  needs: ["build:field"],
     cmd: [NODE, [R("test/e2e_field.mjs"), FIELD, "field"]], desc: "the Pixel 7 harness against the field dist" },
 

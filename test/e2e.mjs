@@ -13411,9 +13411,15 @@ treeMissing = treeBase.keys.filter(k => !treeKeys.has(k));
        inserted before it.
      · the "Place names" row (v26), in the base group. The site's own place
        labels (Herman impoundment, Clear Lake, the ponds, the lots) drawn by
-       js/home.js through SBMM.labels, registered through SBMM.addLayerRow. */
+       js/home.js through SBMM.labels, registered through SBMM.addLayerRow.
+     · the NW Pit cap design rows (js/capdesign.js), in a sub-group of their
+       own under Site framework: one row per layer of the design file in use
+       (`cap_<layer key>`) and the 3D surface row, registered through
+       SBMM.addLayerRow with `sub:`. Which rows there are is the design
+       file's business, so the whole `cap_` family is named here, not a list. */
 treeNew = tree.keys.filter(k => treeBase.keys.indexOf(k) < 0);
 treeUnexplained = treeNew.filter(k => !/^invest\//.test(k) && !/^base\/contours_/.test(k)
+                                         && !/^framework\/cap_/.test(k)
                                          && k !== "framework/runoff_cover"
                                          && k !== "framework/runoff_depth"
                                          && k !== "design/c_102_staging_area"

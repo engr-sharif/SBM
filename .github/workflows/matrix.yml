@@ -99,7 +99,7 @@ jobs:
           - step: kernels
             also: touch_unit,tiles
           - step: terrain3d:folder
-            also: terrain3d:dist
+            also: terrain3d:dist,capdesign:folder,capdesign:dist
     steps:
       - uses: actions/checkout@v4
 
