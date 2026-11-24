@@ -147,6 +147,8 @@ node test/e2e.mjs     /abs/path/index.html                folder
 node test/e2e.mjs     /abs/path/dist/SBMM_Site_Explorer.html dist
 node test/split3d.mjs /abs/path/index.html                folder
 node test/split3d.mjs /abs/path/dist/SBMM_Site_Explorer.html dist
+node test/capdesign.mjs /abs/path/index.html                folder
+node test/capdesign.mjs /abs/path/dist/SBMM_Site_Explorer.html dist
 node test/e2e_field.mjs /abs/path/dist/SBMM_Site_Explorer_field.html field
 node test/e2e_tablet.mjs /abs/path/index.html                tablet
 node test/e2e_phone.mjs  /abs/path/index.html                phone
@@ -432,6 +434,7 @@ terrain source, which needs an explicit decision + README/test update).
 | temmaps.js | **v54 — maps derived from the TEM model**: the `temmap` job's two maps on ONE layer row (`invest/tem_map`) — an *interval* between two depths or elevations reduced to the geometric mean, the resistivity along and across the layers, the conductance and the anisotropy; and the *top of the conductor* (or resistor), its depth, elevation and thickness — the workspace's **Maps** tab, the card, the 3D surface spec, the reading at a point, CSV / PNG, `TEMMAP`; `SBMM.temmaps` |
 | temexport.js | **v55 — the TEM out of the app**: the slice or the derived map as an ESRI ASCII grid with its `.prj` and a readme in one stored zip (written here, no library), the whole model as a legacy-ASCII VTK structured grid, and the print-ready TEM sheet (figures with the soundings and the 2025 borings, the model, the derived map, the calibration, the interpretations, the pinned probes) through `SBMM.report.frame` / `present`; `TEMREPORT`, `TEMEXPORT`; `SBMM.temexport` |
 | siteareas.js | **v28 — the named site areas of SBMM.kmz** (`SBMM_DATA.site_areas`): one Investigations row (off by default), 3D drape, snap, GeoJSON/DXF on `SITE-AREAS`; `SBMM.siteAreas` |
+| capdesign.js | **The NW Pit cap design viewer** (`SBMM_DATA.cap_design`, or a design file loaded at run time): rows, popups, panel, point readings and the 3D cap surface, all read from ONE design file; upload, validation, the stored copy and Reset; `SBMM.capDesign`. See "NW Pit cap design viewer" at the end |
 | borewin.js | **v23 Phase A — the boring-log window** on the sheet-window chassis: the Log tab as a real log sheet at 1 in = 5 ft with the depth cursor, Compare (2–6 holes on one elevation datum, correlation lines, printed separations), the 44-hole Table, the printed log sheet through `js/report.js`, the hole picker, `LOGWIN`; `SBMM.borewin` |
 | fence.js | **v23 Phase B — the fence diagram**: the `fence` store feature (a section through the subsurface along a drawn line), `projectHoles`/`groundProfile`, the SVG the Fence tab, the PNG and the 3D texture are all drawn from, the cut on the map (alignment + swath band + a tick per projected hole), the CSV, the **section-coordinate DXF** (X = station ft, Y = elevation ft) and `FENCE`; `SBMM.fence` |
 | io.js | GeoJSON (WGS84 + EPSG:6418) / session / CSV import-export |
@@ -6896,3 +6899,103 @@ fixed pauses in `test/e2e.mjs` with conditions. There are 506 and they add up
 to 369 seconds of a two-hour run; the time is in software-GL frames and
 compute jobs. A pause that makes a block FLAKY is still worth replacing with
 its condition, one at a time, as the 9z and 9f12c fixes did.
+
+## NW Pit cap design viewer (one design file, loadable in the hosted app)
+
+`js/capdesign.js` (`SBMM.capDesign`), the payload `datajs/d_cap_design.js`
+(the same bytes as `data/cap_design.json`), the `cap` section in
+`js/overlays3d.js`, one line in `SECTION_ROWS`, one line in `js/io.js`, one
+call in `js/boot.js`. Harness: `test/capdesign.mjs` (`capdesign:folder`,
+`capdesign:dist`). No kernel work.
+
+**What it is.** A concept cap over the Northwest Pit, worked up outside the app
+(SBMM drive, `NW Pit Cap Extent/04_Analysis`). The app only SHOWS it: the fill
+limit, the cap limit, the drainage divide, run-on and tie down areas, cap
+contours, a fill depth isopach, rim low points, perimeter notes and section
+lines in 2D and in 3D, and the cap surface as a see-through mesh in 3D. Read only project
+data, like the EA design: nothing is a store feature and nothing goes into a
+session file.
+
+**The design file is the single source of truth.** Nothing about the design is
+written in the module. Its shape (schema 2):
+
+| key | what the module does with it |
+|---|---|
+| `rev`, `date`, `title`, `status`, `basis`, `crs`, `author` | the panel's heading and the "active design" line |
+| `numbers[]`, `params[]` (`key`, `label`, `value`, `unit`, `dp`) | the panel's two tables, in file order, with the file's labels |
+| `layers[]` (`key`, `name`, `kind`, `color`, `weight`, `dash`, `fill`, `on`, `three`, `features[]`) | one layer row each, id `cap_<key>`, drawn in 2D and in 3D. `kind` is `poly`, `line`, `point` or `note` |
+| a layer's `three` | `"level"` = in 3D the layer is drawn at each feature's `props.elev_ft` (the cap contours) instead of draped on the ground |
+| `note` layers | the numbered markers, and the "Perimeter notes" list in the panel |
+| `surface` (`name`, `color`, `opacity`, `on`) | the 3D surface row and its starting opacity |
+| `raster` (`png`, `w`, `h`, `x0`, `y0`, `cell`, `zmin`, `step`) | cap elevation in the terrain PNG encoding of `js/dem.js`: the 3D mesh and every point reading |
+
+A schema 1 file (the first export) still loads: its `points`, `segments` and
+`sections` become layers and its number keys become their own labels.
+
+**Refreshing the design.** `export_cap.py` (drive folder `NW Pit Cap
+Extent/04_Analysis/04_Site Explorer export`) writes three copies of one file:
+`cap_design_<rev>.json` beside the script, `data/cap_design.json` and
+`datajs/d_cap_design.js` in the app.
+
+- To LOOK at a new revision in the hosted app: Layers, Site framework, "NW Pit
+  cap design", **Load cap design file** (or drop the file on that panel, or
+  anywhere on the app, or use File, Import). No rebuild, no commit.
+- To change the BUILT IN design: run the script, then
+  `python3 tools/stamp_sizes.py`, `python tools/build_dist.py`, the tests, and
+  commit `data/cap_design.json`, `datajs/d_cap_design.js`, `js/loader.js` and
+  `index.html` (the stamps).
+
+Things that will be walked into again:
+
+- **A file is checked whole before anything in use changes.** `norm()` checks
+  the shape, the layer kinds, every coordinate (a number, and on the site: the
+  site DEM's extent plus 1,000 ft) and the raster's header; `decode()` then
+  reads the PNG's own IHDR and refuses a file whose `w` and `h` do not match
+  the image, or whose raster has no elevations. A refusal names the reason in
+  a toast and in the panel, and the design in use, its rows and the stored
+  copy stay exactly as they were. Text from a file is cut to length and
+  escaped where it is used; a colour or a dash pattern that does not look like
+  one falls back to a default.
+- **The last loaded file is kept in `localStorage["sbmm.capdesign.v1"]`** (so
+  the v60 reload guard covers it) and is the design in use after a reload. A
+  file over 1.4 M characters is used for the visit and not stored, and the
+  panel says "this visit only". "Reset to built in design" removes the stored
+  copy. A stored copy that no longer passes the checks is dropped at boot and
+  the built in design is shown, with a line saying so.
+- **Rows cannot be removed from the layer state**, so a row whose layer the
+  design in use does not have is hidden (`.capgone`) and emptied, and a layer
+  a later file adds gets a new row at run time. After a reload the rows are
+  built from the stored design alone.
+- **Row ids are `cap_<layer key>`**, plus one row of the module's own,
+  `cap_3d_surface` (the mesh, with the opacity slider). `SECTION_ROWS` sends
+  `/^cap_/` to the `cap` section.
+- **Every row that is on draws in 3D, under its own row**: lines and polygon
+  outlines draped, points and notes as dots on the ground, the `level` layer
+  at its elevations, the surface row its mesh. That is the 3D parity rule, and
+  the field harness and block 9y fail a row that is on and draws nothing. So
+  the switch for the cap contours in 3D is NOT a layer row: it is the "cap
+  contours in 3D" box in the panel (`localStorage["sbmm.capdesign.ui.v1"]`),
+  and the surface row is only made once there is a design to draw.
+- **The mesh geometry is built once per design and frame and marked
+  `userData.shared`**; its material is new each pass, because the section
+  disposes the materials of what it replaces. The opacity slider writes the
+  live material and asks for a frame: an opacity change is not a rebuild.
+- **The cap sits in the overlay group**, so the relief slider scales it with
+  the ground. It is never added to `SBMM.dems`: the ground stays the ground.
+- **Point readings.** `SBMM.capDesign.at(x, y)` is `{ cap, ground, src, depth }`.
+  A click on a filled layer shows it; the reader `capdesign` in
+  `SBMM.readout` gives the pointer chip and the Point card the same numbers
+  in 2D and 3D while any cap row is on.
+- **Payload tolerance.** With no `SBMM_DATA.cap_design` there are no rows;
+  the panel stands under a heading of its own at the end of Site framework,
+  says the build has no design, and a loaded file fills everything in. The
+  harness boots that way (section 7).
+- **Not done:** the cap is not a reference surface, so the section tool, the
+  volume tools and the isopach dialog cannot be run against it. That needs a
+  second raster source behind `SBMM.refSurf` (today it reads only
+  `SBMM.CadNative.surfaceElev`), which is more than a hook.
+- **Every cap row starts off**, for a returning user as for a first visit: it
+  is a draft concept, and nobody's map should change because the app was
+  updated. A layer's `on` in the file means "show cap layers switches this
+  on"; loading a file does the same. After that the rows are ordinary layer
+  rows and the layer state remembers them.

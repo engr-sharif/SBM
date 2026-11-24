@@ -2298,6 +2298,7 @@ SBMM.viewer3d = (function () {
     ["framework", /^storm_/, ["storm"]], ["framework", /^drain_/, ["drainage"]],
     ["framework", /^where_water$/, ["wherewater"]], ["framework", /^accum_streams$/, ["accum"]],
     ["framework", /^runoff_depth$/, ["runoff"]], ["framework", /^cad_/, ["cad"]],
+    ["framework", /^cap_/, ["cap"]],
     /* two rows of that group are drapes on the ground, not overlay objects */
     ["framework", /^(accum_raster|runoff_cover)$/, []],
     ["design", /^gis_/, l => ["gis", "gisb:" + l.slice(4)]], ["design", /^cad_/, ["cad"]], ["design", /^pdf_boundaries$/, ["pdf"]],

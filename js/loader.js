@@ -123,6 +123,7 @@
     ["datajs/d_borings_logs.js",306668,""],
     ["datajs/d_lab_metals.js",122263,""],
     ["datajs/d_site_areas.js",3529,""],
+    ["datajs/d_cap_design.js",132028,""],
     ["datajs/d_tem2026.js",155571,""],
     ["datajs/d_trees_site.js",461159,""],
     ["datajs/d_cultural.js",432634,""],
@@ -154,6 +155,7 @@
     ["js/designgis.js",22158,""],
     ["js/survey.js",6298,""],
     ["js/siteareas.js",3503,""],
+    ["js/capdesign.js",43912,""],
     ["js/geophys.js",95091,""],
     ["js/teminterp.js",55472,""],
     ["js/temmaps.js",42742,""],
@@ -183,15 +185,15 @@
     ["js/trees.js",26720,""],
     ["js/trees3d.js",23474,""],
     ["js/features.js",26220,""],
-    ["js/io.js",13588,""],
+    ["js/io.js",13876,""],
     ["js/table.js",10481,""],
     ["js/terrain3d.js",81751,""],
     ["js/atmos3d.js",8091,""],
     ["js/water3d.js",14604,""],
     ["js/built3d.js",15289,""],
     ["js/lines3d.js",14331,""],
-    ["js/viewer3d.js",303480,""],
-    ["js/overlays3d.js",50520,""],
+    ["js/viewer3d.js",303517,""],
+    ["js/overlays3d.js",51555,""],
     ["js/pick3d.js",49305,""],
     ["js/sheetmarks.js",35474,""],
     ["js/redline.js",14317,""],
@@ -211,7 +213,7 @@
     ["js/home.js",24704,""],
     ["js/field.js",45408,""],
     ["js/viewstate.js",19036,""],
-    ["js/boot.js",16949,""]
+    ["js/boot.js",17274,""]
   ];
   /* SBMM_SIZES_END */
 

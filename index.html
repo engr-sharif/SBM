@@ -863,7 +863,14 @@ window.SBMM_BUILD="full";
   ground — blue where the design stands above the ground, red where it is below, legend in
   feet, in 2D and draped in 3D. <b>Volume in polygon vs surface</b> measures any polygon against
   any surface, and an excavation polygon offers <b>volume of this excavation</b>, which shows
-  area × depth and the raster method side by side so you can see the two agree.<br><br>
+  area × depth and the raster method side by side so you can see the two agree.<br>
+  <b>NW Pit cap design</b> (Layers, Site framework; its rows start off, <b>show cap layers</b>
+  switches them on) shows the concept cap over the Northwest Pit from one design file: the fill limit, the cap limit, the drainage divide, cap contours, perimeter
+  notes, and the cap surface in 3D with its own opacity slider. Hover or click on the cap for cap
+  elevation, existing ground and fill depth. <b>Load cap design file</b> in that panel (or dropping
+  the file anywhere on the app) shows a newer revision without a rebuild; the file is read in the
+  browser and stays on this device. <b>Reset to built in design</b> goes back to the one that
+  ships with the app.<br><br>
 
   <b>Cultural resources</b> — recorded archaeological locations from the T22-0762 survey of the
   Elem Indian Colony, included by an explicit decision of the project lead. Protected under
@@ -1160,6 +1167,7 @@ window.SBMM_HASHES = {
 "datajs/d_borings_logs.js":"d1b003da5829",
 "datajs/d_lab_metals.js":"bed673763281",
 "datajs/d_site_areas.js":"a4a35a21bde6",
+"datajs/d_cap_design.js":"c34ef04240df",
 "datajs/d_tem2026.js":"0e83ca0c7653",
 "datajs/d_trees_site.js":"e418a5a40567",
 "datajs/d_cultural.js":"ed4f73889a77"
@@ -1261,6 +1269,7 @@ window.SBMM_HEAVY = [
      and the named site areas of SBMM.kmz (~3 kB); in every build -->
 <script src="datajs/d_lab_metals.js"></script>
 <script src="datajs/d_site_areas.js"></script>
+<script src="datajs/d_cap_design.js"></script>
 <!-- v36: the 2026 TEM2Go geophysics (tools/build_tem2026.py): 1,032 soundings x
      20 resistivity layers (~150 kB), in every build -->
 <script src="datajs/d_tem2026.js"></script>
@@ -1298,6 +1307,7 @@ window.SBMM_HEAVY = [
 <script src="js/designgis.js"></script>
 <script src="js/survey.js"></script>
 <script src="js/siteareas.js"></script>
+<script src="js/capdesign.js"></script>
 <script src="js/geophys.js"></script>
 <!-- v38: two interpretations of the TEM — the base of waste and the conductive
      zones between the Herman impoundment and Clear Lake; before js/temws.js,

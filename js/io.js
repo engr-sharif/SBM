@@ -220,6 +220,8 @@ SBMM.io = (function () {
           return;
         }
         const obj = JSON.parse(rd.result);
+        /* a cap design file (js/capdesign.js) goes to its own module, which checks it and says why if it refuses it */
+        if (SBMM.capDesign && SBMM.capDesign.looksLike(obj)) { SBMM.capDesign.load(obj, file.name).then(r => { if (r && r.ok) SBMM.capDesign.openPanel(); }); return; }
         if (obj.app === "SBMM Site Explorer") { SBMM.store.restore(obj); toast(`session loaded — ${obj.features.length} features`); }
         else importGeoJSON(obj, file.name.replace(/\.[^.]+$/, ""));
       } catch (e) { toast((isDxf ? "DXF import refused — " : "couldn't read " + file.name + ": ") + e.message, 6000); }
