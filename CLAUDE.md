@@ -6956,9 +6956,11 @@ with one button per design, labelled with its `rev`; `SBMM.capDesign.pick(rev)`
 is the same from code and `builtIns()` lists the revs. The pick is kept in
 `localStorage["sbmm.capdesign.ui.v1"]` (`builtin`) and is the design Reset goes
 back to. Picking a built in design forgets a loaded file, exactly as Reset
-does. Today the build ships r6 (default: clean fill in the old haul road cut,
-liner anchored along the top of the fill) and r5 (the cap runs down the cut on
-a ramp).
+does. Today the build ships r8 (default: clean fill in the old haul road cut,
+liner anchored along the top of the fill) and r7 (the cap runs down the cut on
+a ramp). Both have the ditch high point at mid bench on the west side, so a
+little over half of the cap runoff goes to the North Wetland. They replaced
+r6 and r5, the same two caps with the whole west bench draining south.
 
 **The harness does not test the shipped design.** Sections 1 to 8 of
 `test/capdesign.mjs` put `test/fixtures/cap_design_r1.json` in as the built in

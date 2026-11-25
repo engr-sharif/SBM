@@ -37,7 +37,7 @@ if (!target) { console.log("usage: node test/capdesign.mjs <index.html | dist ht
    touches these sections. Section 9 then opens the page as shipped and checks the
    designs it really carries (data/cap_design.json and data/cap_design_<x>.json). */
 const FILE = JSON.parse(readFileSync(resolve(HERE, "fixtures/cap_design_r1.json"), "utf8"));
-const SHIP = ["cap_design.json", "cap_design_r5.json"].map(f => JSON.parse(readFileSync(resolve(HERE, "../data/" + f), "utf8")));
+const SHIP = ["cap_design.json", "cap_design_r7.json"].map(f => JSON.parse(readFileSync(resolve(HERE, "../data/" + f), "utf8")));
 const asBuiltIn = fix => {
   let store;
   Object.defineProperty(window, "SBMM_DATA", { configurable: true, get: () => store,
